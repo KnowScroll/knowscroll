@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>U03 Planet close-up</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.pillsp{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:0;background:#FFFBF0;color:#111111;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none}
+.pillgh{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid rgba(255,251,240,.6);background:transparent;color:#FFFBF0;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none}
+.hit{position:absolute;width:48px;height:48px;border-radius:999px;border:0;background:transparent;cursor:pointer;padding:0}
+.plab{position:absolute;transform:translateX(-50%);height:26px;padding:0 10px;border-radius:999px;background:rgba(4,10,23,.86);color:#FFFBF0;font-size:13px;font-weight:600;display:inline-flex;align-items:center;white-space:nowrap}
+.lrow{display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 14px;border-radius:12px;border:1.5px solid #111111;background:#FFFBF0;color:#111111;text-decoration:none;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 1330px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">U03</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Planet close-up</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 760px">Asha’s Inference &amp; serving, drawn as a place: fjord coastline, terraced plateaus, daylight terminator, a coastal route and two landmarks. Regions are pins on its land, not rows in a sheet.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 ARRIVAL -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Arrival</b><span>Ship approaches; regions on the land</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <defs>
+            <radialGradient id="u3a-oc" cx="34%" cy="28%" r="80%"><stop offset="0" stop-color="#5FE0CF"></stop><stop offset=".55" stop-color="#22A99E"></stop><stop offset="1" stop-color="#11706B"></stop></radialGradient>
+            <radialGradient id="u3a-glow" cx="50%" cy="50%" r="50%"><stop offset=".76" stop-color="#5FE0CF" stop-opacity=".24"></stop><stop offset="1" stop-color="#5FE0CF" stop-opacity="0"></stop></radialGradient>
+            <clipPath id="u3a-clip"><circle cx="195" cy="300" r="150"></circle></clipPath>
+          </defs>
+          <g fill="#FFFBF0"><circle cx="24" cy="120" r="1" opacity=".5"></circle><circle cx="362" cy="110" r="1.3" opacity=".6"></circle><circle cx="30" cy="520" r="1" opacity=".45"></circle><circle cx="366" cy="500" r=".8" opacity=".35"></circle><circle cx="340" cy="620" r="1.1" opacity=".5"></circle><circle cx="60" cy="700" r=".9" opacity=".4"></circle><circle cx="356" cy="420" r=".8" opacity=".35"></circle></g>
+          <circle cx="195" cy="300" r="196" fill="url(#u3a-glow)"></circle>
+          <circle cx="195" cy="300" r="150" fill="url(#u3a-oc)"></circle>
+          <g clip-path="url(#u3a-clip)">
+            <path d="M88 214 L104 196 L126 200 L132 186 L150 190 L156 210 L162 196 L176 200 L182 222 L186 210 L200 210 L206 226 L222 232 L236 246 L252 248 L262 262 L280 270 L292 288 L310 300 L322 318 L318 336 L330 352 L322 372 L302 384 L292 400 L274 396 L268 380 L262 394 L250 386 L246 372 L232 372 L224 358 L210 356 L206 342 L192 340 L196 330 L180 324 L170 322 L164 306 L150 304 L146 290 L130 286 L124 270 L110 266 L104 250 L94 246 L90 230 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2.2" stroke-linejoin="round"></path>
+            <path d="M120 214 L150 206 L180 226 L214 240 L250 260 L282 284 L300 312 L304 340 L290 362 L262 364 L240 350 L214 338 L190 322 L166 300 L144 282 L124 258 Z" fill="#7DDB8A" stroke="#0E3B2E" stroke-opacity=".35" stroke-width="1"></path>
+            <path d="M150 228 L184 244 L220 262 L258 286 L280 316 L278 340 L256 344 L230 330 L204 314 L176 290 L152 264 Z" fill="#A6E8A8" stroke="#0E3B2E" stroke-opacity=".3" stroke-width="1"></path>
+            <path d="M196 270 L226 284 L252 304 L258 324 L238 322 L212 306 L194 288 Z" fill="#CFF3C8" stroke="#0E3B2E" stroke-opacity=".25" stroke-width="1"></path>
+            <path d="M300 196 L322 190 L336 204 L326 222 L306 218 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2"></path>
+            <path d="M110 360 L132 352 L146 368 L130 386 L112 380 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2"></path>
+            <g fill="none" stroke="#FFFFFF" stroke-linecap="round"><path d="M70 270 q40 -14 80 -4 q24 6 44 -2" stroke-opacity=".5" stroke-width="5"></path><path d="M200 420 q30 -10 70 -2 q20 4 40 -2" stroke-opacity=".4" stroke-width="4"></path><path d="M236 186 q24 -8 50 0" stroke-opacity=".45" stroke-width="3"></path></g>
+            <circle cx="420" cy="470" r="232" fill="#040A17" opacity=".4"></circle>
+          </g>
+          <circle cx="195" cy="300" r="151" fill="none" stroke="#B8FFF4" stroke-opacity=".55" stroke-width="2"></circle>
+          <path d="M128 236 Q 160 240 196 262 Q 226 278 246 300 Q 270 318 292 340" fill="none" stroke="#FFFBF0" stroke-width="2" stroke-dasharray="3 5" stroke-linecap="round"></path>
+          <g transform="translate(98 254)" stroke="#FFFBF0" stroke-width="1.6" fill="none"><path d="M-8 0h16M-4 0v6M4 0v6"></path><path d="M-15 9l6 -7 2 7z" fill="#FFFBF0"></path></g>
+          <g transform="translate(206 222)"><path d="M-3 8 L-2 -6 L2 -6 L3 8z" fill="#FFFBF0" stroke="#111111" stroke-width="1"></path><rect x="-3" y="-10" width="6" height="4" fill="#FFE44D"></rect><path d="M3 -8 L22 -16 M3 -8 L22 -2" stroke="#FFE44D" stroke-opacity=".75" stroke-width="1.5"></path></g>
+          <g stroke="#111111" stroke-width="2" fill="#E7F7E9">
+            <polygon points="124,226 132,226 138,232 138,240 132,246 124,246 118,240 118,232"></polygon>
+            <polygon points="192,252 200,252 206,258 206,266 200,272 192,272 186,266 186,258"></polygon>
+            <polygon points="242,290 250,290 256,296 256,304 250,310 242,310 236,304 236,296"></polygon>
+            <polygon points="288,330 296,330 302,336 302,344 296,350 288,350 282,344 282,336"></polygon>
+          </g>
+          <g fill="#111111"><circle cx="128" cy="236" r="2.6"></circle><circle cx="196" cy="262" r="2.6"></circle><circle cx="246" cy="300" r="2.6"></circle><circle cx="292" cy="340" r="2.6"></circle></g>
+          <path d="M18 560 Q 36 500 58 476" fill="none" stroke="#FFE44D" stroke-width="1.6" stroke-dasharray="2 6" stroke-linecap="round"></path>
+          <path d="M54 462l20 2-12 16z" fill="#FFFBF0"></path>
+        </svg>
+        <a class="pillsp" href="U02-System.dc.html" style="position: absolute; left: 16px; top: 56px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Machine learning</a>
+        <span class="plab" style="left: 128px; top: 196px">Batching</span>
+        <span class="plab" style="left: 196px; top: 278px">Deployment</span>
+        <span class="plab" style="left: 246px; top: 316px">Latency</span>
+        <span class="plab" style="left: 292px; top: 356px">Cost</span>
+        <a class="hit" href="U04-Region.dc.html" aria-label="Batching, a region" style="left: 104px; top: 212px"></a>
+        <a class="hit" href="U04-Region.dc.html" aria-label="Deployment, a region" style="left: 172px; top: 238px"></a>
+        <a class="hit" href="U04-Region.dc.html" aria-label="Latency, a region" style="left: 222px; top: 276px"></a>
+        <a class="hit" href="U04-Region.dc.html" aria-label="Cost, a region" style="left: 268px; top: 316px"></a>
+        <div style="position: absolute; left: 24px; right: 24px; top: 520px; display: flex; flex-direction: column; gap: 6px">
+          <span class="mono" style="color: rgba(255,251,240,.72)">A planet in Machine learning</span>
+          <h2 class="disp" style="margin: 0; font-size: 30px; line-height: 34px; font-weight: 800">Inference &amp; serving</h2>
+          <p style="margin: 0; font-size: 16px; line-height: 1.45; color: rgba(255,251,240,.86)">Where a trained model meets real requests.</p>
+          <span style="font-size: 13px; color: rgba(255,251,240,.72); margin-top: 6px">Tap a region to land.</span>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 2 REGION FOCUS -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Region focus</b><span>Camera low over the terraces; Deployment selected</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <defs>
+            <radialGradient id="u3b-oc" cx="30%" cy="10%" r="90%"><stop offset="0" stop-color="#5FE0CF"></stop><stop offset=".6" stop-color="#22A99E"></stop><stop offset="1" stop-color="#11706B"></stop></radialGradient>
+            <clipPath id="u3b-clip"><circle cx="195" cy="560" r="520"></circle></clipPath>
+          </defs>
+          <g fill="#FFFBF0"><circle cx="30" cy="70" r="1" opacity=".5"></circle><circle cx="350" cy="58" r="1.2" opacity=".55"></circle></g>
+          <circle cx="195" cy="560" r="540" fill="#5FE0CF" opacity=".1"></circle>
+          <circle cx="195" cy="560" r="520" fill="url(#u3b-oc)"></circle>
+          <g clip-path="url(#u3b-clip)">
+            <path d="M-10 300 L30 260 L52 270 L64 236 L96 230 L104 206 L118 224 L136 214 L150 196 L170 214 L182 204 L196 226 L214 214 L238 222 L254 246 L276 240 L290 252 L318 276 L332 266 L352 288 L372 318 L400 330 L400 760 L-10 760 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="3" stroke-linejoin="round"></path>
+            <path d="M30 330 L80 290 L140 272 L210 278 L280 300 L340 330 L400 370 L400 760 L30 760 Z" fill="#7DDB8A" stroke="#0E3B2E" stroke-opacity=".35" stroke-width="1.5"></path>
+            <path d="M60 392 L130 352 L200 346 L270 366 L340 402 L400 430 L400 760 L60 760 Z" fill="#A6E8A8" stroke="#0E3B2E" stroke-opacity=".3" stroke-width="1.5"></path>
+            <path d="M110 486 L190 456 L260 466 L330 504 L400 524 L400 760 L110 760 Z" fill="#CFF3C8" stroke="#0E3B2E" stroke-opacity=".25" stroke-width="1.5"></path>
+            <g fill="none" stroke="#0E3B2E" stroke-opacity=".18" stroke-width="1"><path d="M40 350 L100 318 L170 304 L240 312 L300 334"></path><path d="M90 420 L160 394 L230 392 L300 414"></path><path d="M150 510 L220 488 L290 506"></path></g>
+            <g fill="none" stroke="#FFFFFF" stroke-linecap="round"><path d="M10 200 q50 -16 110 -6" stroke-opacity=".45" stroke-width="6"></path><path d="M240 160 q40 -10 90 0" stroke-opacity=".4" stroke-width="4"></path></g>
+            <circle cx="560" cy="860" r="400" fill="#040A17" opacity=".3"></circle>
+          </g>
+          <circle cx="195" cy="560" r="520" fill="none" stroke="#B8FFF4" stroke-opacity=".45" stroke-width="2"></circle>
+          <path d="M110 298 Q 180 300 250 330 Q 200 390 150 438 Q 220 460 290 466" fill="none" stroke="#FFFBF0" stroke-width="2.4" stroke-dasharray="3 6" stroke-linecap="round"></path>
+          <g transform="translate(78 262)" stroke="#FFFBF0" stroke-width="2" fill="none"><path d="M-12 0h24M-6 0v8M6 0v8"></path><path d="M-22 12l9 -10 3 10z" fill="#FFFBF0"></path></g>
+          <g transform="translate(228 220)"><path d="M-4 12 L-3 -8 L3 -8 L4 12z" fill="#FFFBF0" stroke="#111111" stroke-width="1.2"></path><rect x="-4" y="-14" width="8" height="6" fill="#FFE44D"></rect><path d="M4 -11 L34 -24 M4 -11 L34 -2" stroke="#FFE44D" stroke-opacity=".75" stroke-width="2"></path></g>
+          <g stroke="#111111" stroke-width="2.4" fill="#E7F7E9">
+            <polygon points="104,284 116,284 124,292 124,304 116,312 104,312 96,304 96,292"></polygon>
+            <polygon points="144,424 156,424 164,432 164,444 156,452 144,452 136,444 136,432"></polygon>
+            <polygon points="284,452 296,452 304,460 304,472 296,480 284,480 276,472 276,460"></polygon>
+          </g>
+          <circle cx="250" cy="330" r="30" fill="#FFE44D" opacity=".18"></circle>
+          <polygon points="242,314 258,314 268,324 268,336 258,346 242,346 232,336 232,324" fill="#FFE44D" stroke="#111111" stroke-width="3"></polygon>
+          <g fill="#111111"><circle cx="110" cy="298" r="3"></circle><circle cx="250" cy="330" r="3.6"></circle><circle cx="150" cy="438" r="3"></circle><circle cx="290" cy="466" r="3"></circle></g>
+          <path d="M330 640 Q 300 520 270 360" fill="none" stroke="#FFE44D" stroke-width="1.6" stroke-dasharray="2 6" stroke-linecap="round"></path>
+          <path d="M266 352l14 14-18 4z" fill="#FFFBF0"></path>
+        </svg>
+        <a class="pillsp" href="U03-Planet.dc.html" style="position: absolute; left: 16px; top: 56px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Inference &amp; serving</a>
+        <span class="plab" style="left: 110px; top: 320px">Batching</span>
+        <span class="plab" style="left: 250px; top: 356px; background: #FFE44D; color: #111111; border: 2px solid #111111">Deployment</span>
+        <span class="plab" style="left: 150px; top: 460px">Latency</span>
+        <span class="plab" style="left: 290px; top: 488px">Cost</span>
+        <a class="hit" href="U04-Region.dc.html" aria-label="Batching, a region" style="left: 86px; top: 274px"></a>
+        <a class="hit" href="U04-Region.dc.html" aria-label="Deployment, a region, selected" aria-current="true" style="left: 226px; top: 306px"></a>
+        <a class="hit" href="U04-Region.dc.html" aria-label="Latency, a region" style="left: 126px; top: 414px"></a>
+        <a class="hit" href="U04-Region.dc.html" aria-label="Cost, a region" style="left: 266px; top: 442px"></a>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 3 LOW DETAIL -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Low detail · reduced motion</b><span>Flat silhouette + plain list, same layout</span></figcaption>
+      <div class="phone sp">
+        <a class="pillsp" href="U02-System.dc.html" style="position: absolute; left: 16px; top: 56px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Machine learning</a>
+        <span class="tag sp" style="position: absolute; right: 16px; top: 66px">Low detail</span>
+        <div style="position: absolute; left: 20px; right: 20px; top: 120px; display: flex; flex-direction: column; gap: 2px">
+          <h2 class="disp" style="margin: 0; font-size: 26px; line-height: 30px; font-weight: 800">Inference &amp; serving</h2>
+          <span class="mono" style="color: rgba(255,251,240,.72)">A planet in Machine learning</span>
+        </div>
+        <svg aria-hidden="true" width="350" height="200" viewBox="0 0 350 200" style="position: absolute; left: 20px; top: 192px">
+          <rect x="0" y="0" width="350" height="200" rx="18" fill="#22A99E"></rect>
+          <path d="M24 46 L44 30 L66 34 L74 20 L96 28 L104 46 L130 50 L160 66 L196 76 L226 92 L256 102 L286 122 L312 140 L320 164 L300 182 L276 176 L250 162 L220 152 L190 136 L160 122 L130 108 L100 96 L70 86 L44 74 L28 62 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2.5" stroke-linejoin="round"></path>
+          <path d="M70 60 Q 110 66 150 92 Q 190 110 220 128 Q 250 140 280 152" fill="none" stroke="#FFFBF0" stroke-width="1.6" stroke-dasharray="3 5"></path>
+          <g stroke="#111111" stroke-width="2" fill="#E7F7E9">
+            <polygon points="66,50 74,50 80,56 80,64 74,70 66,70 60,64 60,56"></polygon>
+            <polygon points="216,118 224,118 230,124 230,132 224,138 216,138 210,132 210,124"></polygon>
+            <polygon points="276,142 284,142 290,148 290,156 284,162 276,162 270,156 270,148"></polygon>
+          </g>
+          <polygon points="141,78 151,78 159,86 159,96 151,104 141,104 133,96 133,86" fill="#FFE44D" stroke="#111111" stroke-width="2.4"></polygon>
+          <g font-family="Instrument Sans, sans-serif" font-size="12" font-weight="600" fill="#111111" text-anchor="middle"><text x="70" y="88">Batching</text><text x="146" y="120">Deployment</text><text x="220" y="156">Latency</text><text x="280" y="186">Cost</text></g>
+        </svg>
+        <ul aria-label="Regions" style="position: absolute; left: 20px; right: 20px; top: 412px; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px">
+          <li><a class="lrow" href="U04-Region.dc.html"><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><b style="font-size: 15px">Batching</b><span style="font-size: 13px; color: #4A463D">Serving many requests in one pass</span></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a></li>
+          <li><a class="lrow" href="U04-Region.dc.html" aria-current="true" style="background: #FFE44D"><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><b style="font-size: 15px">Deployment</b><span style="font-size: 13px; color: #4A463D">Where the model runs</span></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a></li>
+          <li><a class="lrow" href="U04-Region.dc.html"><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><b style="font-size: 15px">Latency</b><span style="font-size: 13px; color: #4A463D">How long an answer takes</span></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a></li>
+          <li><a class="lrow" href="U04-Region.dc.html"><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><b style="font-size: 15px">Cost</b><span style="font-size: 13px; color: #4A463D">What each answer costs to serve</span></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a></li>
+        </ul>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p><span class="ev">/universe/ml/inference</span> from a planet tap in U02, list view, search (U08) or an encounter breadcrumb. Arrival dollies the camera and flies the ship in from the system orbit.</p></div>
+    <div class="note"><h3>Actions</h3><p><b>Primary:</b> tap a region pin → focus, second tap or card → U04. <b>Secondary:</b> back pill to the system; pinch to rotate/zoom; low-detail toggle in P01 Accessibility.</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>arrival · region focus · low detail (also the automatic renderer fallback; keeps the same silhouette so it still feels like Asha’s world) · pending scene chunk (dashed pin, “Drawing…”) · offline (last scene cached).</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">OBS universe.select{planet} · universe.select{region} · universe.render_fallback{reason}<br>Terraces, clouds and landmarks come from a stable seed; they never imply more evidence. Pins map 1:1 to supported regions.</p></div>
+    <div class="note"><h3>Restore</h3><p>Camera {planet, rotation, zoom, selectedRegion} is a history entry. Leaving for an encounter and pressing Back lands on the same rotation with the same pin selected (U04-3).</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>Every pin has a 48px link named “Name, a region”. Labels sit on pills so contrast holds over land and sea. Reduced motion: no dolly, no cloud drift. Web: arrow keys rotate, Enter opens; native: drag rotates, back edge returns to the system.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1330,"height":1480}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

@@ -1,0 +1,274 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>P02 Privacy and history</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.top{position:absolute;left:0;right:0;top:56px;padding:0 16px;display:flex;align-items:center;gap:12px}
+.body{position:absolute;left:20px;right:20px;top:124px;display:flex;flex-direction:column;gap:0}
+.lrow{display:flex;align-items:center;gap:12px;min-height:64px;padding:8px 0;border-bottom:1px solid #D9D1BC;color:#111111;text-decoration:none}
+.who{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.who b{font-size:15px}
+.who span{font-size:13px;color:#4A463D;line-height:1.38}
+.sw{width:56px;height:32px;border-radius:999px;border:2px solid #111111;position:relative;padding:0;cursor:pointer;flex:none}
+.sw i{position:absolute;top:3px;width:22px;height:22px;border-radius:999px}
+.sw[aria-checked="true"]{background:#2C46E8}
+.sw[aria-checked="true"] i{right:3px;background:#FFFBF0}
+.sw[aria-checked="false"]{background:#F4EDD8}
+.sw[aria-checked="false"] i{left:3px;background:#111111}
+.rcpt{display:flex;flex-direction:column;gap:8px;padding:14px;border:2px solid #111111;border-radius:16px;background:#FFFBF0}
+.rcpt .h{display:flex;align-items:center;gap:10px}
+.btn.danger{background:#B23A0B;color:#FFFBF0;border-color:#111111}
+.radio{display:flex;align-items:flex-start;gap:12px;min-height:56px;padding:12px 14px;border:2px solid #111111;border-radius:14px;background:#FFFBF0;font-size:15px;cursor:pointer}
+.radio input{width:20px;height:20px;accent-color:#B23A0B;margin:2px 0 0;flex:none}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="P02-Privacy"><div data-dc-tpl="3" style="width: 2174px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px;">
+    <span data-dc-tpl="5" class="mono" style="font-size: 14px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); padding: 8px 12px; border-radius: 8px;">P02</span>
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800; line-height: 1;">Privacy &amp; history</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 16px; color: rgb(74, 70, 61); max-width: 1100px;">Every control says exactly what it changes. One clearing operation — Clear exploration — and no time-range removal. Pausing, export, clearing and deletion produce receipts that stay pending until the work is really done — and say so when it fails.</p>
+    </div>
+    <span data-dc-tpl="9" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="10" style="display: flex; gap: 32px; align-items: flex-start;">
+
+    
+    <figure data-dc-tpl="11" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="12" class="cap"><b data-dc-tpl="13">Hub</b><span data-dc-tpl="14">Each row names its consequence</span></figcaption>
+      <div data-dc-tpl="15" class="phone">
+        <div data-dc-tpl="16" class="top">
+          <a data-dc-tpl="17" class="ibtn" href="P01-Account.html" aria-label="Back to account"><svg data-dc-tpl="18" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="19" d="M15 5l-7 7 7 7"></path></svg></a>
+          <h2 data-dc-tpl="20" class="disp" style="margin: 0px; font-size: 26px; font-weight: 800;">Privacy &amp; history</h2>
+        </div>
+        <div data-dc-tpl="21" class="body">
+          <div data-dc-tpl="22" class="lrow" style="align-items: flex-start; padding-top: 14px;"><label data-dc-tpl="23" for="p-rec" class="who"><b data-dc-tpl="24">Shape my universe from what I watch</b><span data-dc-tpl="25">On: Reels and Scrolls you actually watch or read can grow your worlds.</span></label><button data-dc-tpl="26" id="p-rec" class="sw" type="button" role="switch" aria-checked="true" aria-label="Shape my universe from what I watch"><i data-dc-tpl="27"></i></button></div>
+          <a data-dc-tpl="28" class="lrow" href="P02-Privacy.html"><div data-dc-tpl="29" class="who"><b data-dc-tpl="30">History &amp; export</b><span data-dc-tpl="31">Download a copy of your history, Keep and messages.</span></div><svg data-dc-tpl="32" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="33" d="M9 5l7 7-7 7"></path></svg></a>
+          <a data-dc-tpl="34" class="lrow" href="P02-Privacy.html"><div data-dc-tpl="35" class="who"><b data-dc-tpl="36">Clear exploration</b><span data-dc-tpl="37">Removes your history and universe. Keep and conversations stay.</span></div><svg data-dc-tpl="38" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="39" d="M9 5l7 7-7 7"></path></svg></a>
+          <a data-dc-tpl="40" class="lrow" href="F01-Friends.html"><div data-dc-tpl="41" class="who"><b data-dc-tpl="42">Sharing &amp; visibility</b><span data-dc-tpl="43">Who can visit your universe and which systems they see.</span></div><svg data-dc-tpl="44" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="45" d="M9 5l7 7-7 7"></path></svg></a>
+          <a data-dc-tpl="46" class="lrow" href="P02-Privacy.html" style="color: rgb(138, 44, 7);"><div data-dc-tpl="47" class="who"><b data-dc-tpl="48">Delete account</b><span data-dc-tpl="49">Removes your account, universe, Keep and messages you sent.</span></div><svg data-dc-tpl="50" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="51" d="M9 5l7 7-7 7"></path></svg></a>
+          <p data-dc-tpl="52" style="margin: 18px 0px 0px; font-size: 13px; line-height: 1.5; color: rgb(74, 70, 61);">Your universe grows from the Reels and Scrolls you actually watch or read. Messages are stored for your conversations. They aren’t treated as evidence of what you explored. Recommendations and things we prepare for you never count either.</p>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="53" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="54" class="cap"><b data-dc-tpl="55">Recording paused</b><span data-dc-tpl="56">No silent back-fill later</span></figcaption>
+      <div data-dc-tpl="57" class="phone">
+        <div data-dc-tpl="58" class="top">
+          <a data-dc-tpl="59" class="ibtn" href="P02-Privacy.html" aria-label="Back"><svg data-dc-tpl="60" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="61" d="M15 5l-7 7 7 7"></path></svg></a>
+          <h2 data-dc-tpl="62" class="disp" style="margin: 0px; font-size: 26px; font-weight: 800;">Privacy &amp; history</h2>
+        </div>
+        <div data-dc-tpl="63" class="body" style="gap: 14px;">
+          <div data-dc-tpl="64" class="banner" style="background: rgb(17, 17, 17); color: rgb(255, 251, 240); border-color: rgb(17, 17, 17);">
+            <svg data-dc-tpl="65" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="flex: 0 0 auto;"><path data-dc-tpl="66" d="M8 5v14M16 5v14"></path></svg>
+            <div data-dc-tpl="67" style="display: flex; flex-direction: column; gap: 10px;"><b data-dc-tpl="68" style="font-size: 16px;">Recording paused</b><span data-dc-tpl="69">While paused, what you watch won’t shape your universe. Save, Share and Talk still work. Nothing is filled in later.</span>
+              <button data-dc-tpl="70" class="btn sp sm" type="button" style="align-self: flex-start;">Resume recording</button></div>
+          </div>
+          <div data-dc-tpl="71" class="lrow" style="align-items: flex-start;"><label data-dc-tpl="72" for="p-rec2" class="who"><b data-dc-tpl="73">Shape my universe from what I watch</b><span data-dc-tpl="74">Off since today, 21:40</span></label><button data-dc-tpl="75" id="p-rec2" class="sw" type="button" role="switch" aria-checked="false" aria-label="Shape my universe from what I watch"><i data-dc-tpl="76"></i></button></div>
+          <span data-dc-tpl="77" class="mono" style="color: rgb(74, 70, 61); margin-top: 8px;">What stays the same</span>
+          <ul data-dc-tpl="78" style="margin: 0px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.45;">
+            <li data-dc-tpl="79">Your existing systems and planets stay exactly as they are.</li>
+            <li data-dc-tpl="80">Things you Save are kept, with your place in them.</li>
+            <li data-dc-tpl="81">Requests you make still get prepared.</li>
+          </ul>
+          <span data-dc-tpl="82" class="mono" style="color: rgb(74, 70, 61); margin-top: 8px;">What changes</span>
+          <ul data-dc-tpl="83" style="margin: 0px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.45;">
+            <li data-dc-tpl="84">No new worlds or regions form from this time.</li>
+            <li data-dc-tpl="85">The feed only follows what you ask for right now.</li>
+          </ul>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="86" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="87" class="cap"><b data-dc-tpl="88">Export receipts</b><span data-dc-tpl="89">Pending · ready · failed</span></figcaption>
+      <div data-dc-tpl="90" class="phone">
+        <div data-dc-tpl="91" class="top">
+          <a data-dc-tpl="92" class="ibtn" href="P02-Privacy.html" aria-label="Back"><svg data-dc-tpl="93" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="94" d="M15 5l-7 7 7 7"></path></svg></a>
+          <h2 data-dc-tpl="95" class="disp" style="margin: 0px; font-size: 26px; font-weight: 800;">History &amp; export</h2>
+        </div>
+        <div data-dc-tpl="96" class="body" style="gap: 12px;">
+          <button data-dc-tpl="97" class="btn pri" type="button">Request a new export</button>
+          <span data-dc-tpl="98" class="mono" style="color: rgb(74, 70, 61); margin-top: 6px;">Your exports</span>
+          <div data-dc-tpl="99" class="rcpt" style="background: repeating-linear-gradient(135deg, rgb(255, 251, 240) 0px, rgb(255, 251, 240) 6px, rgb(244, 237, 216) 6px, rgb(244, 237, 216) 12px);">
+            <div data-dc-tpl="100" class="h"><svg data-dc-tpl="101" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="102" d="M12 3a9 9 0 0 1 9 9"></path></svg><b data-dc-tpl="103" style="font-size: 15px;">Preparing</b><span data-dc-tpl="104" class="mono" style="margin-left: auto; color: rgb(74, 70, 61);">Today 21:52</span></div>
+            <span data-dc-tpl="105" style="font-size: 14px; line-height: 1.45;">History, Keep and messages. We’ll notify you when it’s ready.</span>
+          </div>
+          <div data-dc-tpl="106" class="rcpt">
+            <div data-dc-tpl="107" class="h"><svg data-dc-tpl="108" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="109" d="M5 12.5l4.5 4.5L19 7"></path></svg><b data-dc-tpl="110" style="font-size: 15px; color: rgb(11, 122, 95);">Ready</b><span data-dc-tpl="111" class="mono" style="margin-left: auto; color: rgb(74, 70, 61);">3 Oct</span></div>
+            <span data-dc-tpl="112" style="font-size: 14px; line-height: 1.45;">The download link expires in [N days].</span>
+            <button data-dc-tpl="113" class="btn sm" type="button" style="align-self: flex-start;">Download</button>
+          </div>
+          <div data-dc-tpl="114" class="rcpt" style="border-color: rgb(178, 58, 11);">
+            <div data-dc-tpl="115" class="h"><svg data-dc-tpl="116" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B23A0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="117" d="M20 12a8 8 0 1 1-2.3-5.7"></path><path data-dc-tpl="118" d="M20 4v5h-5"></path></svg><b data-dc-tpl="119" style="font-size: 15px; color: rgb(138, 44, 7);">Failed</b><span data-dc-tpl="120" class="mono" style="margin-left: auto; color: rgb(74, 70, 61);">28 Sep</span></div>
+            <span data-dc-tpl="121" style="font-size: 14px; line-height: 1.45;">We couldn’t finish this export. Nothing was sent anywhere.</span>
+            <button data-dc-tpl="122" class="btn sm" type="button" style="align-self: flex-start; border-color: rgb(178, 58, 11); color: rgb(138, 44, 7);">Retry</button>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="123" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="124" class="cap"><b data-dc-tpl="125">Clear exploration · confirm</b><span data-dc-tpl="126">One operation; consequences, then a deliberate step</span></figcaption>
+      <div data-dc-tpl="127" class="phone">
+        <div data-dc-tpl="128" class="top">
+          <a data-dc-tpl="129" class="ibtn" href="P02-Privacy.html" aria-label="Back"><svg data-dc-tpl="130" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="131" d="M15 5l-7 7 7 7"></path></svg></a>
+          <h2 data-dc-tpl="132" class="disp" style="margin: 0px; font-size: 26px; font-weight: 800;">Clear exploration</h2>
+        </div>
+        <div data-dc-tpl="133" class="body" style="gap: 10px;">
+          <span data-dc-tpl="134" class="mono" style="color: rgb(138, 44, 7);">What’s removed</span>
+          <ul data-dc-tpl="135" style="margin: 0px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.45;">
+            <li data-dc-tpl="136">Your watch and read history.</li>
+            <li data-dc-tpl="137">Everything we worked out from it — your current interests and plans.</li>
+            <li data-dc-tpl="138">Your universe: every system, planet and region.</li>
+          </ul>
+          <span data-dc-tpl="139" class="mono" style="color: rgb(11, 122, 95); margin-top: 6px;">What stays</span>
+          <ul data-dc-tpl="140" style="margin: 0px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.45;">
+            <li data-dc-tpl="141">Keep items, with your place in them.</li>
+            <li data-dc-tpl="142">Your conversations, threads, rooms and messages.</li>
+            <li data-dc-tpl="143">Your friends and sharing settings.</li>
+          </ul>
+          <p data-dc-tpl="144" style="margin: 2px 0px 0px; font-size: 13px; line-height: 1.45; color: rgb(74, 70, 61);">Friends who visit will see an empty universe. A new one grows from what you explore next.</p>
+          <div data-dc-tpl="145" style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 2px dashed rgb(178, 58, 11); border-radius: 14px; margin-top: 4px;">
+            <label data-dc-tpl="146" style="display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.4; cursor: pointer;"><input data-dc-tpl="147" type="checkbox" style="width: 20px; height: 20px; accent-color: rgb(178, 58, 11); margin: 1px 0px 0px; flex: 0 0 auto;">I understand this can’t be undone.</label>
+            <button data-dc-tpl="148" class="btn danger" type="button" disabled="" style="opacity: 0.5;"><svg data-dc-tpl="149" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="150" d="M4 7h16"></path><path data-dc-tpl="151" d="M9 7V4h6v3"></path><path data-dc-tpl="152" d="M6 7l1 13h10l1-13"></path></svg>Clear exploration</button>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="153" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="154" class="cap"><b data-dc-tpl="155">Receipts · clear &amp; delete</b><span data-dc-tpl="156">Live removal completes; backup expiry is a separate line</span></figcaption>
+      <div data-dc-tpl="157" class="phone">
+        <div data-dc-tpl="158" class="top">
+          <a data-dc-tpl="159" class="ibtn" href="P02-Privacy.html" aria-label="Back"><svg data-dc-tpl="160" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="161" d="M15 5l-7 7 7 7"></path></svg></a>
+          <h2 data-dc-tpl="162" class="disp" style="margin: 0px; font-size: 26px; font-weight: 800;">Receipts</h2>
+        </div>
+        <div data-dc-tpl="163" class="body" style="gap: 10px;">
+          <span data-dc-tpl="164" class="mono" style="color: rgb(74, 70, 61);">Clear exploration</span>
+          <div data-dc-tpl="165" class="rcpt" style="background: repeating-linear-gradient(135deg, rgb(255, 251, 240) 0px, rgb(255, 251, 240) 6px, rgb(244, 237, 216) 6px, rgb(244, 237, 216) 12px);">
+            <div data-dc-tpl="166" class="h"><svg data-dc-tpl="167" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="168" d="M12 3a9 9 0 0 1 9 9"></path></svg><b data-dc-tpl="169" style="font-size: 15px;">Clearing</b><span data-dc-tpl="170" class="mono" style="margin-left: auto; color: rgb(74, 70, 61);">Today 22:04</span></div>
+            <span data-dc-tpl="171" style="font-size: 14px; line-height: 1.45;">Removing your history and universe from the app and our live systems.</span>
+          </div>
+          <div data-dc-tpl="172" class="rcpt" style="gap: 8px;">
+            <div data-dc-tpl="173" class="h"><svg data-dc-tpl="174" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="175" d="M5 12.5l4.5 4.5L19 7"></path></svg><b data-dc-tpl="176" style="font-size: 15px; color: rgb(11, 122, 95);">Cleared from KnowScroll</b><span data-dc-tpl="177" class="mono" style="margin-left: auto; color: rgb(74, 70, 61);">Then</span></div>
+            <span data-dc-tpl="178" style="font-size: 14px; line-height: 1.45;">Your universe and history are gone from the app and our live systems. Keep and conversations untouched.</span>
+            <div data-dc-tpl="179" style="display: flex; gap: 8px; align-items: flex-start; padding-top: 8px; border-top: 1px dashed rgb(217, 209, 188); font-size: 13px; line-height: 1.4; color: rgb(74, 70, 61);"><svg data-dc-tpl="180" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: 0 0 auto; margin-top: 1px;"><circle data-dc-tpl="181" cx="12" cy="12" r="9"></circle><path data-dc-tpl="182" d="M12 7v5l3 2"></path></svg><span data-dc-tpl="183"><b data-dc-tpl="184">Backups · pending.</b> Backup copies expire on their own within [N days]; they aren’t used to rebuild anything.</span></div>
+          </div>
+          <span data-dc-tpl="185" class="mono" style="color: rgb(74, 70, 61); margin-top: 4px;">Delete account</span>
+          <div data-dc-tpl="186" class="rcpt" style="background: repeating-linear-gradient(135deg, rgb(255, 251, 240) 0px, rgb(255, 251, 240) 6px, rgb(244, 237, 216) 6px, rgb(244, 237, 216) 12px);">
+            <div data-dc-tpl="187" class="h"><svg data-dc-tpl="188" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="189" d="M12 3a9 9 0 0 1 9 9"></path></svg><b data-dc-tpl="190" style="font-size: 15px;">Deletion in progress</b></div>
+            <span data-dc-tpl="191" style="font-size: 14px; line-height: 1.45;">You’re signed out everywhere. Removing your account from our live systems. Backup copies then expire within [N days].</span>
+          </div>
+          <div data-dc-tpl="192" class="rcpt" style="border-color: rgb(178, 58, 11);">
+            <div data-dc-tpl="193" class="h"><svg data-dc-tpl="194" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B23A0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="195" d="M12 8v5"></path><path data-dc-tpl="196" d="M12 16.5v.1"></path><circle data-dc-tpl="197" cx="12" cy="12" r="9"></circle></svg><b data-dc-tpl="198" style="font-size: 15px; color: rgb(138, 44, 7);">We couldn’t finish removing</b></div>
+            <span data-dc-tpl="199" style="font-size: 14px; line-height: 1.45;">Nothing has been reported as cleared yet. Retrying continues the same request.</span>
+            <button data-dc-tpl="200" class="btn sm danger" type="button" style="align-self: flex-start;">Retry</button>
+          </div>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section data-dc-tpl="201" class="notes">
+    <div data-dc-tpl="202" class="note"><h3 data-dc-tpl="203">Route &amp; origin</h3><p data-dc-tpl="204"><span data-dc-tpl="205" class="ev">/settings/privacy</span>, <span data-dc-tpl="206" class="ev">/settings/privacy/export</span>, <span data-dc-tpl="207" class="ev">/settings/privacy/clear</span>, <span data-dc-tpl="208" class="ev">/settings/account/delete</span>. From Account (P01), the paused-recording banner, and receipt notifications.</p></div>
+    <div data-dc-tpl="209" class="note"><h3 data-dc-tpl="210">Actions</h3><p data-dc-tpl="211"><b data-dc-tpl="212">Primary:</b> toggle recording, request export, confirm Clear exploration or delete. <b data-dc-tpl="213">Secondary:</b> download, retry a failed receipt. One clearing operation only — no time ranges; destructive steps need an explicit acknowledgement.</p></div>
+    <div data-dc-tpl="214" class="note"><h3 data-dc-tpl="215">States &amp; overlays</h3><p data-dc-tpl="216">recording on/paused · export pending/ready/expired/failed · clear confirm → clearing → cleared from live systems (completes) + backup expiry within [N days] (separate pending line, never blocks “cleared”) / failed · delete pending/failed. Offline: controls read-only with an explanation; nothing queues silently.</p></div>
+    <div data-dc-tpl="217" class="note"><h3 data-dc-tpl="218">Commands · observations</h3><p data-dc-tpl="219" class="ev">CMD privacy.recording.set{on|off} · privacy.export.request · privacy.clear_exploration · account.delete · receipt.retry{receiptId}<br data-dc-tpl="220">No OBS emitted on these screens beyond navigation.</p></div>
+    <div data-dc-tpl="221" class="note"><h3 data-dc-tpl="222">Restore</h3><p data-dc-tpl="223">Clear exploration and delete advance the privacy epoch: history, derived personal state and geography go; old work and late model results can’t re-apply. Keep items, conversation membership and messages are untouched by clearing. Caches, recorder buffers and diagnostics for the scope are purged.</p></div>
+    <div data-dc-tpl="224" class="note"><h3 data-dc-tpl="225">Accessibility &amp; platform</h3><p data-dc-tpl="226">Status = glyph + word + colour (Preparing / Ready / Failed). Danger button stays disabled until the checkbox is ticked; focus moves to the receipt after submit. Native: export opens the share/save sheet; web: file download.</p></div>
+  </section></div></div></div>
+
+
+
+</body></html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>X03 Exploring a branch</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.thead{position:absolute;left:0;right:0;top:44px;height:64px;padding:0 12px;display:flex;align-items:center;gap:10px;background:#FFFBF0}
+.epbar{position:absolute;left:0;right:0;top:108px;padding:6px 12px 10px;display:flex;gap:6px;align-items:center;border-bottom:2px solid #111111;background:#FFFBF0}
+.ep{min-width:52px;min-height:44px;padding:0 10px;border-radius:12px;border:2px solid #111111;background:#FFFBF0;display:inline-flex;align-items:center;justify-content:center;gap:5px;font:600 13px 'Instrument Sans',sans-serif;color:#111111;cursor:pointer;white-space:nowrap}
+.ep.cur{background:#111111;color:#FFFBF0}
+.ep.up{border-color:#8F887A;color:#4A463D}
+.ep.br{border:2px dashed #2C46E8;background:#E6EAFF;color:#1B2FB8}
+.ep.br.cur{background:#1B2FB8;color:#FFFBF0;border-style:solid}
+.thread{position:absolute;left:0;right:0;bottom:84px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;background:#F4EDD8;overflow:hidden}
+.bub{max-width:270px;padding:9px 13px;border-radius:18px;font-size:15px;line-height:1.4}
+.bub.them{background:#FFFBF0;border:2px solid #111111;border-bottom-left-radius:6px}
+.bub.me{background:#2C46E8;color:#FFFBF0;border-bottom-right-radius:6px}
+.who{font-size:12px;font-weight:600}
+.brc{border:2px dashed #2C46E8;background:#E6EAFF;border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;color:#111111}
+.pvc{border:2px solid #111111;background:#FFFBF0;border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;box-shadow:4px 4px 0 #111111;color:#111111}
+.comp{position:absolute;left:0;right:0;bottom:0;height:84px;padding:12px 12px 22px;display:flex;gap:8px;align-items:center;border-top:2px solid #111111;background:#FFFBF0}
+.comp input{flex:1;min-width:0;min-height:48px;border:2px solid #111111;border-radius:999px;padding:0 16px;font:16px 'Instrument Sans',sans-serif;background:#FFFBF0}
+.tag.spec{background:#FFF4C2;border-color:#8A5A10;color:#6B4508}
+.mini{display:flex;align-items:center;gap:10px;padding:8px;border-radius:14px;background:#111111;color:#FFFBF0}
+.retchip{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 12px;border-radius:12px;border:2px solid #111111;background:#FFE44D;color:#111111;font:600 13px 'Instrument Sans',sans-serif;text-decoration:none;white-space:nowrap}
+.go{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-weight:700;font-size:15px;text-decoration:none;align-self:flex-start}
+.sysl{align-self:center;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#4A463D;padding:6px 12px;border-radius:999px;background:#FFFBF0;border:1.5px solid #D9D1BC;text-align:center}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="X03-Sequence"><div data-dc-tpl="3" style="width: 1752px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px;">
+    <span data-dc-tpl="5" class="mono" style="font-size: 14px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); padding: 8px 12px; border-radius: 8px;">X03</span>
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800; line-height: 1;">Exploring a branch</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 16px; color: rgb(74, 70, 61); max-width: 1000px;">Opening a branch swaps the navigator for the branch’s own items and keeps a one-tap way back to the original sequence at your position. Discussion can stay in the branch or the whole thread.</p>
+    </div>
+    <span data-dc-tpl="9" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="10" style="display: flex; gap: 32px; align-items: flex-start;">
+
+    
+    <figure data-dc-tpl="11" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="12" class="cap"><b data-dc-tpl="13">Branch opened</b><span data-dc-tpl="14">Own items, clear way back</span></figcaption>
+      <div data-dc-tpl="15" class="phone">
+        <div data-dc-tpl="16" class="thead">
+          <div data-dc-tpl="17" style="display: flex; flex-direction: column; flex: 1 1 0%; min-width: 0px;"><b data-dc-tpl="18" class="disp" style="font-size: 19px;">Black holes</b><span data-dc-tpl="19" style="font-size: 13px; color: rgb(27, 47, 184); font-weight: 600;">What if · a black hole were a portal</span></div>
+        </div>
+        <nav data-dc-tpl="20" class="epbar" aria-label="Branch items">
+          <a data-dc-tpl="21" class="retchip" href="X03-Sequence.html" aria-label="Back to Black holes, Part 2 at 0:18"><svg data-dc-tpl="22" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="23" d="M19 12H5"></path><path data-dc-tpl="24" d="M11 6l-6 6 6 6"></path></svg>Part 2 · 0:18</a>
+          <button data-dc-tpl="25" class="ep br cur" type="button" aria-current="true">1 · current</button>
+          <button data-dc-tpl="26" class="ep br" type="button">2</button>
+        </nav>
+        <div data-dc-tpl="27" style="position: absolute; inset: 170px 0px 0px; background: rgb(4, 10, 23); color: rgb(255, 251, 240);">
+          <svg data-dc-tpl="28" aria-hidden="true" width="390" height="674" viewBox="0 0 390 674" style="position: absolute; inset: 0px;">
+            <g data-dc-tpl="29" fill="#FFFBF0" opacity=".5"><circle data-dc-tpl="30" cx="40" cy="60" r="1"></circle><circle data-dc-tpl="31" cx="320" cy="90" r="1.2"></circle><circle data-dc-tpl="32" cx="80" cy="420" r="1"></circle><circle data-dc-tpl="33" cx="350" cy="380" r=".9"></circle></g>
+            <ellipse data-dc-tpl="34" cx="195" cy="270" rx="150" ry="40" fill="none" stroke="#F2B84B" stroke-width="10" opacity=".85"></ellipse>
+            <circle data-dc-tpl="35" cx="195" cy="270" r="66" fill="#000000"></circle>
+            <circle data-dc-tpl="36" cx="195" cy="270" r="70" fill="none" stroke="#FFE9A8" stroke-width="2" opacity=".6"></circle>
+            <path data-dc-tpl="37" d="M45 270 A150 40 0 0 0 345 270" fill="none" stroke="#F2B84B" stroke-width="10" opacity=".85"></path>
+            <path data-dc-tpl="38" d="M195 204 C 240 150, 300 140, 330 110" fill="none" stroke="#2C46E8" stroke-width="3" stroke-dasharray="6 6"></path>
+            <circle data-dc-tpl="39" cx="336" cy="104" r="14" fill="none" stroke="#2C46E8" stroke-width="3" stroke-dasharray="4 4"></circle>
+          </svg>
+          <div data-dc-tpl="40" class="brc" style="position: absolute; left: 14px; right: 14px; top: 14px; padding: 10px 12px;">
+            <div data-dc-tpl="41" style="display: flex; gap: 8px;"><span data-dc-tpl="42" class="tag hyp">What if</span><span data-dc-tpl="43" class="tag spec">Speculative</span></div>
+            <span data-dc-tpl="44" style="font-size: 13px; color: rgb(62, 42, 6); font-weight: 600;">Speculative scenario · not established science</span>
+          </div>
+          <div data-dc-tpl="45" style="position: absolute; right: 12px; top: 220px; display: flex; flex-direction: column; gap: 14px;">
+            <div data-dc-tpl="46" class="ra"><button data-dc-tpl="47" class="ibtn sp" type="button" aria-label="Like"><svg data-dc-tpl="48" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" aria-hidden="true"><path data-dc-tpl="49" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button><span data-dc-tpl="50">Like</span></div>
+            <div data-dc-tpl="51" class="ra"><button data-dc-tpl="52" class="ibtn sp" type="button" aria-label="Save"><svg data-dc-tpl="53" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="54" d="M6 3h12v18l-6-4-6 4z"></path></svg></button><span data-dc-tpl="55">Save</span></div>
+            <div data-dc-tpl="56" class="ra"><button data-dc-tpl="57" class="ibtn sp" type="button" aria-label="Share a moment"><svg data-dc-tpl="58" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="59" d="M4 12v7h16v-7"></path><path data-dc-tpl="60" d="M12 3v12"></path><path data-dc-tpl="61" d="M7 8l5-5 5 5"></path></svg></button><span data-dc-tpl="62">Share</span></div>
+          </div>
+          <div data-dc-tpl="63" style="position: absolute; left: 20px; right: 84px; top: 372px; background: rgba(17, 17, 17, 0.82); border-radius: 12px; padding: 10px 12px; font-size: 15px; line-height: 1.4; font-weight: 500;">If one were a doorway, it would need a wormhole — allowed on paper, never observed.</div>
+          <div data-dc-tpl="64" style="position: absolute; left: 20px; width: 280px; top: 470px; display: flex; flex-direction: column; gap: 6px;"><span data-dc-tpl="65" class="mono" style="color: rgba(255, 251, 240, 0.72);">Branch · 1 of 2</span><h2 data-dc-tpl="66" class="disp" style="margin: 0px; font-size: 28px; line-height: 30px; font-weight: 800;">Portal, or one-way door?</h2></div>
+          <div data-dc-tpl="67" style="position: absolute; left: 20px; right: 20px; top: 568px; display: flex; align-items: center; gap: 10px;"><div data-dc-tpl="68" style="flex: 1 1 0%; height: 4px; border-radius: 4px; background: rgba(255, 251, 240, 0.35); position: relative;"><i data-dc-tpl="69" style="position: absolute; left: 0px; top: 0px; bottom: 0px; width: 30%; border-radius: 4px; background: rgb(255, 251, 240);"></i></div><span data-dc-tpl="70" class="mono">0:14 / 0:46</span></div>
+          <button data-dc-tpl="71" type="button" style="position: absolute; left: 0px; right: 0px; bottom: 0px; min-height: 56px; border-width: 2px 0px 0px; border-right-style: initial; border-bottom-style: initial; border-left-style: initial; border-right-color: initial; border-bottom-color: initial; border-left-color: initial; border-image: initial; border-top-style: solid; border-top-color: rgb(255, 251, 240); background: rgb(11, 26, 46); color: rgb(255, 251, 240); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 600; cursor: pointer;"><svg data-dc-tpl="72" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="73" d="M4 5h16v11H9l-5 4z"></path></svg>Talk about this branch</button>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="74" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="75" class="cap"><b data-dc-tpl="76">Branch discussion</b><span data-dc-tpl="77">Scoped chat, toggle to whole thread</span></figcaption>
+      <div data-dc-tpl="78" class="phone">
+        <div data-dc-tpl="79" class="thead">
+          <div data-dc-tpl="80" style="display: flex; flex-direction: column; flex: 1 1 0%; min-width: 0px;"><b data-dc-tpl="81" class="disp" style="font-size: 19px;">Black holes</b><span data-dc-tpl="82" style="font-size: 13px; color: rgb(27, 47, 184); font-weight: 600;">What if · a black hole were a portal</span></div>
+        </div>
+        <nav data-dc-tpl="83" class="epbar" aria-label="Branch items">
+          <a data-dc-tpl="84" class="retchip" href="X03-Sequence.html" aria-label="Back to Black holes, Part 2 at 0:18"><svg data-dc-tpl="85" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="86" d="M19 12H5"></path><path data-dc-tpl="87" d="M11 6l-6 6 6 6"></path></svg>Part 2 · 0:18</a>
+          <button data-dc-tpl="88" class="ep br cur" type="button" aria-current="true">1 · current</button>
+          <button data-dc-tpl="89" class="ep br" type="button">2</button>
+        </nav>
+        <div data-dc-tpl="90" class="mini" style="position: absolute; left: 12px; right: 12px; top: 176px;">
+          <span data-dc-tpl="91" aria-hidden="true" style="width: 48px; height: 48px; border-radius: 10px; background: rgb(4, 10, 23); border: 2px dashed rgb(110, 134, 255); flex: 0 0 auto;"></span>
+          <span data-dc-tpl="92" style="flex: 1 1 0%; display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="93" style="font-size: 14px;">Portal, or one-way door?</b><span data-dc-tpl="94" class="mono" style="color: rgba(255, 251, 240, 0.72);">Branch 1 · paused 0:14</span></span>
+          <button data-dc-tpl="95" class="ibtn sp" type="button" aria-label="Expand player"><svg data-dc-tpl="96" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="97" d="M6 15l6-6 6 6"></path></svg></button>
+        </div>
+        <div data-dc-tpl="98" style="position: absolute; left: 12px; right: 12px; top: 252px; display: flex;">
+          <div data-dc-tpl="99" class="seg" role="group" aria-label="Show messages from" style="flex: 1 1 0%;">
+            <button data-dc-tpl="100" type="button" aria-pressed="true" style="flex: 1 1 0%; justify-content: center;">In this branch</button>
+            <button data-dc-tpl="101" type="button" aria-pressed="false" style="flex: 1 1 0%; justify-content: center;">Whole thread</button>
+          </div>
+        </div>
+        <div data-dc-tpl="102" class="thread" style="top: 312px;">
+          <div data-dc-tpl="103" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="104" class="who">Ravi</span><div data-dc-tpl="105" class="bub them">So a portal would need stuff nobody has found?</div></div>
+          <div data-dc-tpl="106" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end;"><span data-dc-tpl="107" class="who">Asha</span><div data-dc-tpl="108" class="bub me">Yes — “exotic matter” to hold it open. Pure maths so far.</div></div>
+          <div data-dc-tpl="109" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="110" class="who">Meera</span><div data-dc-tpl="111" class="bub them">And anything falling in gets stretched apart first anyway.</div></div>
+          <span data-dc-tpl="112" class="sysl">Messages here stay with this branch</span>
+        </div>
+        <div data-dc-tpl="113" class="comp"><label data-dc-tpl="114" for="x3-c2" style="position: absolute; left: -9999px;">Message this branch</label><input data-dc-tpl="115" id="x3-c2" type="text" placeholder="Message this branch…"><button data-dc-tpl="116" class="ibtn" type="button" aria-label="Send" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240);"><svg data-dc-tpl="117" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="118" d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="119" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="120" class="cap"><b data-dc-tpl="121">Perspective · try another</b><span data-dc-tpl="122">Solid style; new assumption from here</span></figcaption>
+      <div data-dc-tpl="123" class="phone">
+        <div data-dc-tpl="124" class="thead">
+          <div data-dc-tpl="125" style="display: flex; flex-direction: column; flex: 1 1 0%; min-width: 0px;"><b data-dc-tpl="126" class="disp" style="font-size: 19px;">Black holes</b><span data-dc-tpl="127" style="font-size: 13px; color: rgb(74, 70, 61); font-weight: 600;">Another perspective</span></div>
+        </div>
+        <nav data-dc-tpl="128" class="epbar" aria-label="Perspective items">
+          <a data-dc-tpl="129" class="retchip" href="X03-Sequence.html" aria-label="Back to Black holes, Part 2 at 0:18"><svg data-dc-tpl="130" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="131" d="M19 12H5"></path><path data-dc-tpl="132" d="M11 6l-6 6 6 6"></path></svg>Part 2 · 0:18</a>
+          <button data-dc-tpl="133" class="ep cur" type="button" aria-current="true" style="box-shadow: rgb(44, 70, 232) 3px 3px 0px;">Information puzzle</button>
+        </nav>
+        <div data-dc-tpl="134" style="position: absolute; left: 20px; right: 20px; top: 186px; display: flex; flex-direction: column; gap: 12px;">
+          <span data-dc-tpl="135" class="mono" style="display: inline-flex; align-items: center; gap: 6px; color: rgb(74, 70, 61);"><svg data-dc-tpl="136" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle data-dc-tpl="137" cx="9" cy="12" r="5"></circle><circle data-dc-tpl="138" cx="15" cy="12" r="5"></circle></svg>A Scroll · another perspective</span>
+          <h2 data-dc-tpl="139" class="disp" style="margin: 0px; font-size: 30px; line-height: 32px; font-weight: 800;">Black holes as an information puzzle</h2>
+          <p data-dc-tpl="140" style="margin: 0px; font-size: 17px; line-height: 27px;">Throw a book into a black hole. Physics says the information in it can’t simply vanish, yet nothing comes back out. Hawking showed black holes slowly glow away — so where did the book go?</p>
+          <p data-dc-tpl="141" style="margin: 0px; font-size: 17px; line-height: 27px; color: rgb(74, 70, 61);">That question is still open, and it’s one of the best arguments in physics.</p>
+        </div>
+        <div data-dc-tpl="142" class="brc" style="position: absolute; left: 14px; right: 14px; bottom: 24px;">
+          <span data-dc-tpl="143" class="mono" style="color: rgb(27, 47, 184);">Try another assumption</span>
+          <label data-dc-tpl="144" for="x3-c3" style="position: absolute; left: -9999px;">What if</label>
+          <input data-dc-tpl="145" id="x3-c3" type="text" value="What if the book’s information leaked out slowly?" style="min-height: 48px; border: 2px dashed rgb(44, 70, 232); border-radius: 12px; padding: 0px 12px; font: 15px &quot;Instrument Sans&quot;, sans-serif; background: rgb(255, 251, 240);">
+          <div data-dc-tpl="146" style="display: flex; gap: 8px;"><button data-dc-tpl="147" class="btn sm pri" type="button">Continue</button><button data-dc-tpl="148" class="btn sm ghost" type="button">Not now</button></div>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="149" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="150" class="cap"><b data-dc-tpl="151">Back to the original</b><span data-dc-tpl="152">Your own position, cards marked</span></figcaption>
+      <div data-dc-tpl="153" class="phone">
+        <div data-dc-tpl="154" class="thead">
+          <button data-dc-tpl="155" class="ibtn" type="button" aria-label="Back" style="border: 0px;"><svg data-dc-tpl="156" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="157" d="M15 5l-7 7 7 7"></path></svg></button>
+          <div data-dc-tpl="158" style="display: flex; flex-direction: column; flex: 1 1 0%;"><b data-dc-tpl="159" class="disp" style="font-size: 19px;">Black holes</b><span data-dc-tpl="160" style="font-size: 13px; color: rgb(74, 70, 61);">Asha, Ravi, Meera</span></div>
+        </div>
+        <nav data-dc-tpl="161" class="epbar" aria-label="Episodes"><button data-dc-tpl="162" class="ep" type="button">1 ✓</button><button data-dc-tpl="163" class="ep cur" type="button" aria-current="true">2 · current</button><button data-dc-tpl="164" class="ep up" type="button">3</button><button data-dc-tpl="165" class="ep up" type="button">4</button></nav>
+        <div data-dc-tpl="166" class="mini" style="position: absolute; left: 12px; right: 12px; top: 176px;">
+          <span data-dc-tpl="167" aria-hidden="true" style="width: 48px; height: 48px; border-radius: 10px; background: rgb(4, 10, 23); flex: 0 0 auto;"></span>
+          <span data-dc-tpl="168" style="flex: 1 1 0%; display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="169" style="font-size: 14px;">The edge you can’t come back from</b><span data-dc-tpl="170" class="mono" style="color: rgba(255, 251, 240, 0.72);">Part 2 · paused 0:18</span></span>
+          <button data-dc-tpl="171" class="ibtn sp" type="button" aria-label="Play"><svg data-dc-tpl="172" width="18" height="18" viewBox="0 0 24 24" fill="#111111" aria-hidden="true"><path data-dc-tpl="173" d="M7 4l13 8-13 8z"></path></svg></button>
+        </div>
+        <div data-dc-tpl="174" class="thread" style="top: 252px;">
+          <article data-dc-tpl="175" class="brc" aria-label="What-if branch">
+            <div data-dc-tpl="176" style="display: flex; gap: 8px; align-items: center;"><span data-dc-tpl="177" class="tag hyp">What if</span><span data-dc-tpl="178" class="tag spec">Speculative</span><span data-dc-tpl="179" class="mono" style="margin-left: auto; color: rgb(27, 47, 184);">Opened by you</span></div>
+            <b data-dc-tpl="180" class="disp" style="font-size: 18px; line-height: 1.15;">What if a black hole were a portal?</b>
+            <a data-dc-tpl="181" class="go" href="X03-Sequence.html" style="color: rgb(27, 47, 184);">Resume at branch 1 · 0:14 <svg data-dc-tpl="182" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="183" d="M5 12h14"></path><path data-dc-tpl="184" d="M13 6l6 6-6 6"></path></svg></a>
+          </article>
+          <article data-dc-tpl="185" class="pvc" aria-label="Another perspective">
+            <div data-dc-tpl="186" style="display: flex; align-items: center;"><span data-dc-tpl="187" class="mono">Another perspective</span><span data-dc-tpl="188" class="mono" style="margin-left: auto; color: rgb(74, 70, 61);">Opened by you</span></div>
+            <b data-dc-tpl="189" class="disp" style="font-size: 18px; line-height: 1.15;">Black holes as an information puzzle</b>
+          </article>
+          <div data-dc-tpl="190" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="191" class="who">Ravi</span><div data-dc-tpl="192" class="bub them">Back on Part 3 now.</div></div>
+        </div>
+        <div data-dc-tpl="193" class="comp"><label data-dc-tpl="194" for="x3-c4" style="position: absolute; left: -9999px;">Message</label><input data-dc-tpl="195" id="x3-c4" type="text" placeholder="Message…"><button data-dc-tpl="196" class="ibtn" type="button" aria-label="Send" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240);"><svg data-dc-tpl="197" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="198" d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+      </div>
+    </figure>
+  </div>
+
+  <section data-dc-tpl="199" class="notes">
+    <div data-dc-tpl="200" class="note"><h3 data-dc-tpl="201">Route &amp; origin</h3><p data-dc-tpl="202"><span data-dc-tpl="203" class="ev">/t/:threadId/b/:branchId/:item</span> from a branch card (X02) or the map (X04). The return chip always names the destination: the original sequence at <b data-dc-tpl="204">your</b> last position.</p></div>
+    <div data-dc-tpl="205" class="note"><h3 data-dc-tpl="206">Actions</h3><p data-dc-tpl="207"><b data-dc-tpl="208">Primary:</b> watch/read branch items; return to the original. <b data-dc-tpl="209">Secondary:</b> discuss in branch or whole thread, try another assumption, share a moment from the branch, open a perspective.</p></div>
+    <div data-dc-tpl="210" class="note"><h3 data-dc-tpl="211">States &amp; overlays</h3><p data-dc-tpl="212">branch item ready · next item preparing (explicit) · speculative banner persistent on every item · branch removed by creator (return chip only) · discussion empty · offline (cached item plays, chat queued).</p></div>
+    <div data-dc-tpl="213" class="note"><h3 data-dc-tpl="214">Commands · observations</h3><p data-dc-tpl="215" class="ev">CMD branch.open{branchId} · thread.return{threadId}<br data-dc-tpl="216">OBS reel.visible_interval{branchId} · scroll.block_coverage<br data-dc-tpl="217">CMD message.send{scope: branch|thread}<br data-dc-tpl="218">Branch content feeds only the viewer’s own universe.</p></div>
+    <div data-dc-tpl="219" class="note"><h3 data-dc-tpl="220">Restore</h3><p data-dc-tpl="221">Back stack: original Part 2 @0:18 → branch item 1 @0:14. Back (or the return chip) pops to Part 2 paused at 0:18. Each person keeps a separate position per branch; nobody is pulled along.</p></div>
+    <div data-dc-tpl="222" class="note"><h3 data-dc-tpl="223">Accessibility &amp; platform</h3><p data-dc-tpl="224">Return chip is the first focusable item after the title and reads “Back to Black holes, Part 2 at 0:18”. Speculative banner is text. Native back edge and web Back do the same as the chip. Desktop: branch items replace the navigator column (D03).</p></div>
+  </section></div></div></div>
+
+
+
+</body></html>

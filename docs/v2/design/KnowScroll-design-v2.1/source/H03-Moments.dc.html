@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>H03 Share a moment</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.field{min-height:48px;border:2px solid #111111;border-radius:12px;padding:0 14px;font:16px 'Instrument Sans',sans-serif;background:#FFFBF0;width:100%}
+.snip{border:2px solid #111111;border-radius:16px;background:#FFFBF0;overflow:hidden;display:flex;flex-direction:column}
+.thread{position:absolute;left:0;right:0;top:112px;bottom:84px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;background:#F4EDD8;overflow:hidden}
+.bub{max-width:270px;padding:10px 14px;border-radius:18px;font-size:15px;line-height:1.4}
+.bub.them{background:#FFFBF0;border:2px solid #111111;border-bottom-left-radius:6px}
+.bub.me{background:#2C46E8;color:#FFFBF0;border-bottom-right-radius:6px}
+.who{font-size:12px;font-weight:600}
+.chead{position:absolute;left:0;right:0;top:44px;height:68px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:2px solid #111111;background:#FFFBF0}
+.sw{width:56px;height:32px;border-radius:999px;border:2px solid #111111;background:#2C46E8;position:relative;padding:0;cursor:pointer;flex:none}
+.sw i{position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:999px;background:#FFFBF0}
+</style>
+</helmet>
+<div style="width: 2174px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">H03</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Share a moment · snippets</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 1100px">“Look at this” becomes an exact place everyone can open: a short range of a Reel, a passage of a Scroll, or an interactive block set the way you set it. Snippets point at the original — no new video is made.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 REEL MOMENT -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Reel · pick a moment</b><span>Range 00:18–00:31 of Part 2</span></figcaption>
+      <div class="phone" style="background: #07070D">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <ellipse cx="195" cy="200" rx="150" ry="34" fill="none" stroke="#FF8A3D" stroke-width="16" opacity=".5"></ellipse>
+          <circle cx="195" cy="200" r="80" fill="none" stroke="#FFD89A" stroke-width="5"></circle>
+          <circle cx="195" cy="200" r="70" fill="#000000"></circle>
+          <path d="M45 200 A150 34 0 0 0 345 200" fill="none" stroke="#FFB547" stroke-width="12"></path>
+          <path d="M120 120 Q 195 60 270 120" fill="none" stroke="#FFFBF0" stroke-width="2" stroke-dasharray="4 6" opacity=".7"></path>
+        </svg>
+        <div style="position: absolute; left: 20px; right: 20px; top: 340px; color: #FFFBF0; background: rgba(17,17,17,.82); border-radius: 12px; padding: 10px 12px; font-size: 15px; line-height: 1.4">Past this line, even light can’t climb back out.</div>
+        <div class="msheet" role="dialog" aria-label="Share a moment" style="top: 418px">
+          <div class="grab"></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline"><b class="disp" style="font-size: 20px">Share a moment</b><span class="mono">00:18–00:31</span></div>
+          <div style="position: relative; height: 56px; border-radius: 10px; overflow: hidden; border: 2px solid #111111; background: repeating-linear-gradient(90deg,#1B1B26 0 34px,#2A2A38 34px 36px)">
+            <i aria-hidden="true" style="position: absolute; left: 0; top: 0; bottom: 0; width: 36%; background: rgba(255,251,240,.55); display: block"></i>
+            <i aria-hidden="true" style="position: absolute; left: 62%; right: 0; top: 0; bottom: 0; background: rgba(255,251,240,.55); display: block"></i>
+            <i aria-hidden="true" style="position: absolute; left: 36%; width: 26%; top: 0; bottom: 0; border: 3px solid #FFE44D; display: block"></i>
+          </div>
+          <div style="position: relative; height: 0">
+            <button type="button" aria-label="Start of moment, 0:18" style="position: absolute; left: calc(36% - 22px); top: -64px; width: 44px; height: 72px; border: 0; background: transparent; cursor: ew-resize"><i aria-hidden="true" style="display: block; margin: 0 auto; width: 10px; height: 60px; border-radius: 4px; background: #FFE44D; border: 2px solid #111111"></i></button>
+            <button type="button" aria-label="End of moment, 0:31" style="position: absolute; left: calc(62% - 22px); top: -64px; width: 44px; height: 72px; border: 0; background: transparent; cursor: ew-resize"><i aria-hidden="true" style="display: block; margin: 0 auto; width: 10px; height: 60px; border-radius: 4px; background: #FFE44D; border: 2px solid #111111"></i></button>
+          </div>
+          <div class="seg" role="group" aria-label="Moment length" style="align-self: flex-start"><button type="button" aria-pressed="false">Just 0:18</button><button type="button" aria-pressed="true">A short range</button></div>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Message<input class="field" type="text" value="Look at this moment:"></label>
+          <div style="display: flex; gap: 10px; align-items: center">
+            <span class="tag" style="height: 36px; font-size: 12px">To · Black holes thread</span>
+            <button class="btn pri" type="button" style="margin-left: auto">Share</button>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 2 SCROLL PASSAGE -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Scroll · select a passage</b><span>Native selection + one share action</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; align-items: center; justify-content: space-between">
+          <button class="ibtn" type="button" aria-label="Back" style="border: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+          <div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="false">Reel</button><button type="button" aria-pressed="true">Scroll</button></div>
+        </div>
+        <div style="position: absolute; left: 22px; right: 22px; top: 128px; display: flex; flex-direction: column; gap: 14px">
+          <span class="mono" style="color: #4A463D">Black holes · Part 3</span>
+          <h2 class="disp" style="margin: 0; font-size: 34px; line-height: 36px; font-weight: 800">Why time slows near one</h2>
+          <p style="margin: 0; font-size: 18px; line-height: 28px">Two friends synchronise their watches. One stays far away; the other hovers just outside a black hole.</p>
+          <div style="position: relative">
+            <div role="toolbar" aria-label="Selection actions" style="position: absolute; left: 30px; top: -58px; display: flex; gap: 2px; padding: 4px; border-radius: 14px; background: #111111; color: #FFFBF0; box-shadow: 0 10px 20px -10px rgba(0,0,0,.6)">
+              <button type="button" style="min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: #2C46E8; color: #FFFBF0; font-weight: 600; font-size: 14px; cursor: pointer">Share passage</button>
+              <button type="button" style="min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: #FFFBF0; font-weight: 600; font-size: 14px; cursor: pointer">Copy</button>
+              <button type="button" style="min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: #FFFBF0; font-weight: 600; font-size: 14px; cursor: pointer">Ask</button>
+            </div>
+            <p style="margin: 0; font-size: 18px; line-height: 28px"><mark style="background: #FFE44D; color: #111111; padding: 2px 0; box-shadow: 0 0 0 2px #FFE44D">Nothing goes wrong with the near friend’s watch. Time itself runs slower down there, because gravity bends spacetime.</mark> When they meet again, the near friend has lived through less time.</p>
+          </div>
+          <p style="margin: 0; font-size: 18px; line-height: 28px">The effect is small near Earth and enormous close to a black hole’s edge.</p>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 3 INTERACTIVE BLOCK WITH SETTINGS -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Block · share as set</b><span>Configuration travels with the card</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; left: 20px; right: 20px; top: 64px; display: flex; flex-direction: column; gap: 14px">
+          <span class="mono" style="color: #4A463D">Attention, slowly · Why squared?</span>
+          <div style="border: 2px solid #111111; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 6px 6px 0 #2C46E8">
+            <div style="display: flex; justify-content: space-between; align-items: baseline"><b style="font-size: 15px">Try a longer sentence</b><b style="font-size: 15px">4,096 words</b></div>
+            <div style="height: 170px; display: flex; align-items: flex-end; justify-content: flex-end"><i aria-hidden="true" style="width: 168px; height: 168px; background: #FFE44D; border: 2px solid #111111; border-radius: 6px; display: block"></i></div>
+            <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Sentence length<input type="range" min="0" max="3" value="3" style="width: 100%; height: 44px; accent-color: #2C46E8"></label>
+            <p style="margin: 0; font-size: 15px"><b>About 64× the work</b> for 8× the words.</p>
+          </div>
+        </div>
+        <div class="msheet" role="dialog" aria-label="Share this block" style="top: 476px">
+          <div class="grab"></div>
+          <b class="disp" style="font-size: 20px">Share this diagram</b>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; border-bottom: 1px solid #D9D1BC">
+            <label for="h3-cfg" style="display: flex; flex-direction: column; gap: 2px"><b style="font-size: 15px">Include how I set it</b><span style="font-size: 13px; color: #4A463D">Sentence length 4,096</span></label>
+            <button id="h3-cfg" class="sw" type="button" role="switch" aria-checked="true" aria-label="Include how I set it"><i></i></button>
+          </div>
+          <div class="snip" aria-label="Preview of the card">
+            <div style="padding: 12px; display: flex; flex-direction: column; gap: 6px">
+              <span class="mono" style="color: #4A463D">Diagram · Attention, slowly</span>
+              <b style="font-size: 15px">Try the diagram with sentence length set to 4,096</b>
+              <span class="tag" style="align-self: flex-start">Length 4,096</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center"><span class="tag" style="height: 36px; font-size: 12px">To · Meera</span><button class="btn pri" type="button" style="margin-left: auto">Share</button></div>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 4 SNIPPET CARDS IN THREAD -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Snippets in the thread</b><span>Range · passage · block · corrected</span></figcaption>
+      <div class="phone">
+        <div class="chead">
+          <a class="ibtn" href="C01-Inbox.dc.html" aria-label="Back to Talk" style="border: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+          <span style="display: flex; flex-direction: column; flex: 1"><b class="disp" style="font-size: 18px">Black holes</b><span style="font-size: 12px; color: #4A463D">Asha, Ravi, Meera</span></span>
+        </div>
+        <div class="thread" style="bottom: 0; padding-bottom: 24px">
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end">
+            <div class="bub me">Look at this moment:</div>
+            <a class="snip" href="#h3-open" style="width: 260px; text-decoration: none; color: #111111; flex-direction: row; align-items: center">
+              <span aria-hidden="true" style="width: 64px; align-self: stretch; background: #07070D; display: flex; align-items: center; justify-content: center"><svg width="36" height="36" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="none" stroke="#FFC46B" stroke-width="3"></circle><circle cx="20" cy="20" r="9" fill="#000000"></circle></svg></span>
+              <span style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; flex: 1"><b style="font-size: 14px">Part 2 · 00:18–00:31</b><span style="font-size: 13px; color: #4A463D">The edge you can’t come back from</span></span>
+              <span style="padding-right: 12px; font-weight: 700; font-size: 14px; color: #2C46E8">Play</span>
+            </a>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start">
+            <span class="who">Ravi</span>
+            <div class="snip" style="width: 270px">
+              <div style="padding: 12px; display: flex; flex-direction: column; gap: 6px; border-left: 0">
+                <span class="mono" style="color: #4A463D">Passage · Part 3 Scroll</span>
+                <span style="font-size: 15px; line-height: 1.4; font-style: italic">“Time itself runs slower down there, because gravity bends spacetime.”</span>
+                <span style="font-size: 13px; font-weight: 700; color: #2C46E8">Read in context</span>
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start">
+            <span class="who">Meera</span>
+            <div class="snip" style="width: 270px">
+              <div style="padding: 12px; display: flex; flex-direction: column; gap: 6px">
+                <span class="mono" style="color: #4A463D">Diagram · Attention, slowly</span>
+                <b style="font-size: 14px">Try the diagram with sentence length set to 4,096</b>
+                <span style="display: flex; gap: 8px; align-items: center"><span class="tag">Length 4,096</span><span style="font-size: 13px; font-weight: 700; color: #2C46E8">Open as set</span></span>
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start">
+            <span class="who">Ravi</span>
+            <div class="snip" style="width: 290px; border-color: #8A2C07">
+              <div style="padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; background: #FFE9DE">
+                <span class="tag cor" style="align-self: flex-start">Corrected · moment found</span>
+                <b style="font-size: 14px">Part 3 · now at 00:21–00:34</b>
+                <span style="display: flex; justify-content: space-between; gap: 8px; font-size: 13px; line-height: 1.35"><span>Shared at 00:18–00:31; the same moment moved slightly.</span><span style="font-weight: 700; color: #2C46E8">Play</span></span>
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start">
+            <span class="who">Meera</span>
+            <div class="snip" style="width: 290px; border-color: #8A2C07">
+              <div style="padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; background: #FFE9DE">
+                <span class="tag cor" style="align-self: flex-start">Corrected · moment changed</span>
+                <b style="font-size: 14px">This Reel was corrected and this moment changed</b>
+                <span style="font-size: 13px; line-height: 1.35">Part 4 now explains that evaporation takes far longer than the age of the universe.</span>
+                <span style="font-size: 13px; font-weight: 700; color: #2C46E8">Watch the revised Reel</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 5 OPEN A SNIPPET -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Open a snippet</b><span>Back returns to the same spot in the chat</span></figcaption>
+      <div id="h3-open" class="phone" style="background: #07070D; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#FFFBF0"><circle cx="40" cy="160" r="1" opacity=".6"></circle><circle cx="330" cy="120" r="1.2" opacity=".5"></circle><circle cx="80" cy="560" r="1" opacity=".4"></circle></g>
+          <ellipse cx="195" cy="330" rx="170" ry="40" fill="none" stroke="#FF8A3D" stroke-width="18" opacity=".5"></ellipse>
+          <circle cx="195" cy="330" r="92" fill="none" stroke="#FFD89A" stroke-width="6"></circle>
+          <circle cx="195" cy="330" r="80" fill="#000000"></circle>
+          <path d="M25 330 A170 40 0 0 0 365 330" fill="none" stroke="#FFB547" stroke-width="14"></path>
+          <circle cx="195" cy="330" r="118" fill="none" stroke="#FFFBF0" stroke-width="1.5" stroke-dasharray="3 6" opacity=".7"></circle>
+        </svg>
+        <div style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; align-items: center; gap: 10px">
+          <a class="btn sm sp" href="C04-Thread.dc.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Back to thread</a>
+          <span class="mono" style="margin-left: auto">Shared by you</span>
+        </div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 500px; background: rgba(17,17,17,.82); border-radius: 12px; padding: 10px 12px; font-size: 16px; line-height: 1.4">Past this line, even light can’t climb back out.</div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 590px; display: flex; flex-direction: column; gap: 10px">
+          <span class="mono">00:18–00:31 of Part 2</span>
+          <b class="disp" style="font-size: 24px; line-height: 1.1">The edge you can’t come back from</b>
+          <div style="position: relative; height: 6px; border-radius: 4px; background: rgba(255,251,240,.25)">
+            <i aria-hidden="true" style="position: absolute; left: 36%; width: 26%; top: -3px; height: 12px; border-radius: 4px; background: #FFE44D; display: block"></i>
+            <i aria-hidden="true" style="position: absolute; left: 36%; width: 14%; top: 0; height: 6px; border-radius: 4px; background: #FFFBF0; display: block"></i>
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 6px">
+            <button class="btn sp" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7"></path><path d="M4 4v5h5"></path></svg>Replay</button>
+            <button class="btn" type="button" style="background: transparent; color: #FFFBF0; border-color: #FFFBF0; box-shadow: none">Watch from here</button>
+          </div>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p>Share → Share a moment (H01), long-press on a Reel’s progress bar, text selection in a Scroll, or the share control on an interactive block. Opening a snippet: <span class="ev">/thread/:id/snippet/:snippetId</span>, a focused viewer over the thread.</p></div>
+    <div class="note"><h3>Actions</h3><p><b>Primary:</b> choose a second or a short range / a passage / a block state, add a message, share. <b>Secondary:</b> include or leave out block settings; Replay; Watch from here (continues the full Reel at 0:18 as your own encounter).</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>picking · sending · sent · failed → retry same request · original corrected: compatible mapping exists → card shows the mapped range and Play opens it; no compatible mapping → card says the moment changed, offers the revised Reel with one line on what changed, and never plays the old range · original withdrawn (card stays, content “unavailable”) · block type changed (falls back to default settings, says so).</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">CMD snippet.share{threadId, assetRevision, start, end}<br>CMD snippet.share{…, blockId, blockState}<br>OBS snippet.opened · reel.visible_interval (range only)<br>No new media file; the card is a reference + position.</p></div>
+    <div class="note"><h3>Restore</h3><p>The viewer is not a separate history entry for the thread: Back (or “Back to thread”) closes it and restores the conversation scroll position and your own place in the navigator. “Watch from here” pushes the full Reel as a normal history entry.</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>Range handles are real controls: ←/→ nudge by a second, Shift+←/→ by five; screen readers announce “Start 0:18, end 0:31”. Passage sharing uses native text selection (web context menu, iOS/Android selection bar).</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2174,"height":1480}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

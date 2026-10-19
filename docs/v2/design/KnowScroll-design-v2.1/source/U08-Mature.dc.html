@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>U08 Mature universe</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.pillsp{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:0;background:#FFFBF0;color:#111111;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none}
+.pillgh{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid rgba(255,251,240,.6);background:transparent;color:#FFFBF0;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none}
+.hit{position:absolute;width:48px;height:48px;border-radius:999px;border:0;background:transparent;cursor:pointer;padding:0}
+.top{position:absolute;left:16px;right:16px;top:56px;display:flex;align-items:center;gap:8px}
+.res{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 14px;border-bottom:1px solid #D9D1BC;color:#111111;text-decoration:none}
+.res:hover{background:#FFF4C2}
+.kind{font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#4A463D}
+.grp{display:flex;flex-direction:column;gap:2px}
+.grp h3{margin:10px 0 4px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.orow{display:flex;align-items:center;gap:10px;min-height:48px;padding:4px 10px;border-radius:10px;color:#111111;text-decoration:none;font-size:15px}
+.orow:hover{background:#FFF4C2}
+.dot{width:12px;height:12px;border-radius:999px;flex:none;border:1.5px solid #111111}
+</style>
+</helmet>
+<div style="width: 1752px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">U08</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Mature universe</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 1100px">A year in: a dozen systems across several families. Labels follow zoom levels, quiet areas merge into named sky regions, and search or the outline jump straight to any place. Nothing is counted.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 FAR ZOOM -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Far zoom</b><span>System names only; quiet areas merge</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <defs>
+            <radialGradient id="m1-cl" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#E7E1CF" stop-opacity=".16"></stop><stop offset="1" stop-color="#E7E1CF" stop-opacity="0"></stop></radialGradient>
+            <radialGradient id="m1-cl2" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#FF8A5B" stop-opacity=".14"></stop><stop offset="1" stop-color="#FF8A5B" stop-opacity="0"></stop></radialGradient>
+          </defs>
+          <g fill="#FFFBF0"><circle cx="20" cy="150" r=".8" opacity=".4"></circle><circle cx="370" cy="140" r="1" opacity=".45"></circle><circle cx="200" cy="130" r=".8" opacity=".35"></circle><circle cx="30" cy="560" r="1" opacity=".4"></circle><circle cx="370" cy="460" r=".8" opacity=".35"></circle><circle cx="260" cy="740" r="1" opacity=".4"></circle><circle cx="150" cy="420" r=".7" opacity=".3"></circle></g>
+          <g fill="none" stroke="#FFFBF0" stroke-opacity=".08" stroke-width="1"><ellipse cx="190" cy="320" rx="40" ry="14"></ellipse><ellipse cx="292" cy="392" rx="26" ry="9"></ellipse><ellipse cx="88" cy="214" rx="28" ry="10"></ellipse></g>
+          <circle cx="190" cy="320" r="22" fill="#FFE9A8" opacity=".14"></circle><circle cx="190" cy="320" r="9" fill="#FFE9A8"></circle>
+          <circle cx="292" cy="392" r="6" fill="#FFE9A8"></circle>
+          <circle cx="88" cy="214" r="7" fill="#FFE9A8"></circle>
+          <circle cx="308" cy="200" r="6" fill="#FFE9A8"></circle>
+          <circle cx="78" cy="462" r="6" fill="#FFE9A8"></circle>
+          <circle cx="206" cy="520" r="6" fill="#FFE9A8"></circle>
+          <circle cx="322" cy="560" r="5" fill="#FFE9A8"></circle>
+          <circle cx="104" cy="648" r="70" fill="url(#m1-cl)"></circle>
+          <g fill="#FFE9A8"><circle cx="82" cy="640" r="3.4"></circle><circle cx="112" cy="626" r="3"></circle><circle cx="124" cy="662" r="3.2"></circle></g>
+          <circle cx="292" cy="680" r="58" fill="url(#m1-cl2)"></circle>
+          <g fill="#FFE9A8"><circle cx="276" cy="676" r="3.2"></circle><circle cx="306" cy="690" r="3"></circle></g>
+          <g transform="translate(244 358)"><rect x="-7" y="-3" width="14" height="6" rx="2" fill="none" stroke="#FFFBF0" stroke-width="1.4"></rect><path d="M-13 0h6M7 0h6" stroke="#FFFBF0" stroke-width="1.4"></path></g>
+          <path d="M190 336 L190 346" stroke="#FFFBF0" stroke-opacity=".4"></path>
+          <path d="M322 566 L338 592" stroke="#FFFBF0" stroke-opacity=".45"></path>
+          <path d="M184 302 Q 200 286 214 278" fill="none" stroke="#FFE44D" stroke-width="1.2" stroke-dasharray="2 4"></path>
+          <path d="M212 270l12 2-6 9z" fill="#FFFBF0"></path>
+          <g font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text x="190" y="362" font-size="15" font-weight="700">Machine learning</text>
+            <text x="292" y="416">Backend systems</text>
+            <text x="88" y="238">Astronomy</text>
+            <text x="308" y="224">Predictive history</text>
+            <text x="78" y="486">Football</text>
+            <text x="206" y="544">Climate</text>
+            <text x="340" y="608">Economics</text>
+          </g>
+          <g font-family="Instrument Sans, sans-serif" text-anchor="middle">
+            <text x="104" y="696" font-size="13" font-weight="600" fill="#FFFBF0" fill-opacity=".86">Arts &amp; ideas</text>
+            <text x="292" y="724" font-size="13" font-weight="600" fill="#FFFBF0" fill-opacity=".86">Everyday systems</text>
+          </g>
+        </svg>
+        <div class="top"><h2 class="disp" style="margin: 0; font-size: 26px; font-weight: 800; flex: 1">Your universe</h2><button class="ibtn sp" type="button" aria-label="Search your universe"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg></button><button class="pillsp" type="button" aria-pressed="false">Lately</button></div>
+        <a class="hit" href="U02-System.dc.html" aria-label="Machine learning, a system" style="left: 166px; top: 296px"></a>
+        <button class="hit" type="button" aria-label="Arts and ideas: Music theory, Philosophy of mind, Languages" style="left: 80px; top: 624px"></button>
+        <button class="hit" type="button" aria-label="Everyday systems: Urban design, Cooking chemistry" style="left: 268px; top: 656px"></button>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 2 MID ZOOM + SELECTION -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Mid zoom · selected</b><span>Planets appear; low priority fades to dots</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#FFFBF0"><circle cx="30" cy="180" r="1" opacity=".45"></circle><circle cx="360" cy="150" r="1.1" opacity=".5"></circle><circle cx="40" cy="520" r=".8" opacity=".35"></circle></g>
+          <g fill="none" stroke="#FFFBF0" stroke-width="1.2"><ellipse cx="140" cy="250" rx="110" ry="40" stroke-opacity=".18"></ellipse><ellipse cx="140" cy="250" rx="66" ry="24" stroke-opacity=".18"></ellipse><ellipse cx="290" cy="430" rx="76" ry="26" stroke-opacity=".18"></ellipse></g>
+          <circle cx="140" cy="250" r="34" fill="#FFE9A8" opacity=".1"></circle><circle cx="140" cy="250" r="14" fill="#FFE9A8"></circle>
+          <circle cx="76" cy="266" r="12" fill="#2BC4B4"></circle><path d="M68 262l6-6 8 2 2 8-6 4z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1"></path>
+          <circle cx="226" cy="232" r="15" fill="#2BC4B4"></circle><path d="M214 228l8-6 10 2 4 8-8 6-10-2z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1"></path>
+          <circle cx="290" cy="430" r="11" fill="#FFE9A8"></circle>
+          <circle cx="290" cy="430" r="44" fill="none" stroke="#FFE44D" stroke-width="2"></circle>
+          <circle cx="354" cy="440" r="11" fill="#6E86FF"></circle><path d="M345 437h18M346 443h16" stroke="#C9D3FF" stroke-width="1.6"></path>
+          <circle cx="228" cy="420" r="8" fill="#6E86FF"></circle><path d="M222 418h12M223 422h10" stroke="#C9D3FF" stroke-width="1.4"></path>
+          <g transform="translate(212 334)"><rect x="-11" y="-5" width="22" height="10" rx="3" fill="none" stroke="#FFFBF0" stroke-width="1.8"></rect><path d="M-21 0h10M11 0h10" stroke="#FFFBF0" stroke-width="1.8"></path><circle cx="0" cy="0" r="2" fill="#FFE44D"></circle></g>
+          <g fill="#FFFBF0" opacity=".55"><circle cx="40" cy="140" r="3"></circle><circle cx="356" cy="610" r="3"></circle><circle cx="60" cy="560" r="3"></circle></g>
+          <g font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text x="76" y="296">Attention</text>
+            <text x="226" y="266">Inference &amp; serving</text>
+            <text x="140" y="196" font-size="15" font-weight="700">Machine learning</text>
+            <text x="212" y="360">Model serving room</text>
+            <text x="354" y="470">Queues</text>
+            <text x="228" y="446">Caching</text>
+          </g>
+        </svg>
+        <div class="top"><a class="pillsp" href="U08-Mature.dc.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Whole universe</a></div>
+        <div style="position: absolute; left: 16px; right: 16px; bottom: 112px; background: #FFFBF0; color: #111111; border: 2px solid #111111; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+          <span class="mono" style="color: #4A463D">A system · Systems family</span>
+          <b class="disp" style="font-size: 24px; line-height: 1.1">Backend systems</b>
+          <span style="font-size: 15px; line-height: 1.4">Queues, caching and how services keep up.</span>
+          <div style="display: flex; gap: 10px; margin-top: 4px"><a class="btn ink" href="U02-System.dc.html">Open system</a><button class="btn ghost" type="button">Close</button></div>
+        </div>
+        <button class="hit" type="button" aria-label="Backend systems, a system, selected" aria-pressed="true" style="left: 266px; top: 406px"></button>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 3 SEARCH -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Find</b><span>Search systems, planets, regions, rooms</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0; opacity: .35">
+          <circle cx="190" cy="320" r="9" fill="#FFE9A8"></circle><circle cx="292" cy="392" r="6" fill="#FFE9A8"></circle><circle cx="88" cy="214" r="7" fill="#FFE9A8"></circle><circle cx="206" cy="520" r="6" fill="#FFE9A8"></circle><circle cx="322" cy="560" r="5" fill="#FFE9A8"></circle>
+        </svg>
+        <div class="top">
+          <label for="u8-q" style="position: absolute; left: -9999px">Search your universe</label>
+          <div style="flex: 1; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 14px; border-radius: 999px; background: #FFFBF0; color: #111111; border: 2px solid #FFE44D"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg><input id="u8-q" type="search" value="cost" style="flex: 1; min-width: 0; border: 0; background: transparent; font: 16px 'Instrument Sans', sans-serif; outline: none"></div>
+          <button class="pillgh" type="button">Cancel</button>
+        </div>
+        <div role="listbox" aria-label="Results" style="position: absolute; left: 16px; right: 16px; top: 120px; background: #FFFBF0; color: #111111; border-radius: 20px; overflow: hidden; border: 2px solid #111111">
+          <a class="res" role="option" href="U04-Region.dc.html"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><polygon points="9,3 15,3 21,9 21,15 15,21 9,21 3,15 3,9" fill="#E7F7E9" stroke="#111111" stroke-width="2"></polygon></svg><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><b style="font-size: 15px">Cost</b><span class="kind">Region · Inference &amp; serving · Machine learning</span></span></a>
+          <a class="res" role="option" href="U03-Planet.dc.html"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#F2B84B" stroke="#111111" stroke-width="1.5"></circle></svg><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><b style="font-size: 15px">Cost of living</b><span class="kind">Planet · Economics</span></span></a>
+          <a class="res" role="option" href="U04-Region.dc.html"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><polygon points="9,3 15,3 21,9 21,15 15,21 9,21 3,15 3,9" fill="#E7F7E9" stroke="#111111" stroke-width="2"></polygon></svg><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><b style="font-size: 15px">Carbon cost</b><span class="kind">Region · Energy · Climate</span></span></a>
+          <a class="res" role="option" href="R02-Discussion.dc.html" style="border-bottom: 0"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="9" width="12" height="6" rx="2" fill="none" stroke="#111111" stroke-width="2"></rect><path d="M1 12h5M18 12h5" stroke="#111111" stroke-width="2"></path></svg><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><b style="font-size: 15px">Model serving room</b><span class="kind">Room · talks about serving cost</span></span></a>
+        </div>
+        <p style="position: absolute; left: 24px; right: 24px; top: 412px; margin: 0; font-size: 14px; line-height: 1.45; color: rgba(255,251,240,.8)">Choosing a result flies you there. Back returns to where you were looking.</p>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 4 OUTLINE -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>List view</b><span>Outline by family; Lately lens</span></figcaption>
+      <div class="phone sp">
+        <div class="top"><a class="pillsp" href="U08-Mature.dc.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Map</a></div>
+        <div class="msheet" style="top: 116px; padding-bottom: 104px; gap: 6px; overflow: hidden">
+          <div style="display: flex; align-items: center; justify-content: space-between; min-height: 48px">
+            <h2 class="disp" style="margin: 0; font-size: 24px; font-weight: 800">Your universe</h2>
+            <label for="u8-lately" style="display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600">Lately
+              <button id="u8-lately" type="button" role="switch" aria-checked="true" style="width: 52px; height: 30px; border-radius: 999px; border: 2px solid #111111; background: #2C46E8; position: relative; padding: 0; cursor: pointer"><i style="position: absolute; right: 3px; top: 3px; width: 20px; height: 20px; border-radius: 999px; background: #FFFBF0"></i></button>
+            </label>
+          </div>
+          <span style="font-size: 13px; color: #4A463D">Lately on: places you visited recently come first in each group.</span>
+          <nav aria-label="Universe outline" class="grp">
+            <h3>Learning machines</h3>
+            <a class="orow" href="U02-System.dc.html"><i class="dot" style="background: #2BC4B4"></i><b>Machine learning</b><span style="margin-left: auto; font-size: 13px; color: #4A463D">Attention, Inference &amp; serving</span></a>
+            <h3>Systems</h3>
+            <a class="orow" href="U02-System.dc.html"><i class="dot" style="background: #6E86FF"></i><b>Backend systems</b></a>
+            <a class="orow" href="U02-System.dc.html"><i class="dot" style="background: #6E86FF"></i>Economics</a>
+            <a class="orow" href="U02-System.dc.html"><i class="dot" style="background: #6E86FF"></i>Urban design</a>
+            <h3>Worlds</h3>
+            <a class="orow" href="U02-System.dc.html"><i class="dot" style="background: #E7E1CF"></i>Astronomy</a>
+            <a class="orow" href="U02-System.dc.html"><i class="dot" style="background: #E7E1CF"></i>Climate</a>
+            <h3>Past</h3>
+            <a class="orow" href="U02-System.dc.html"><i class="dot" style="background: #F2B84B"></i>Predictive history</a>
+            <h3>Play</h3>
+            <a class="orow" href="U02-System.dc.html"><i class="dot" style="background: #FF8A5B"></i>Football</a>
+            <h3>Arts &amp; ideas</h3>
+            <a class="orow" href="U02-System.dc.html"><i class="dot" style="background: #E7E1CF"></i>Music theory</a>
+          </nav>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Label levels (LOD)</h3><p><b>Far:</b> system names only; quiet systems close together merge into a named sky region (“Arts &amp; ideas”). <b>Mid:</b> planets and rooms of systems in view; lower-priority labels fade to dots. <b>Near:</b> regions. Priority = how recently <i>you</i> visited, then size on screen. Labels never overlap; crowded ones get leader lines.</p></div>
+    <div class="note"><h3>Actions</h3><p><b>Primary:</b> tap a system/cluster to select (yellow ring + compact card), second tap or Open to enter. <b>Secondary:</b> search, Lately lens, list view, pinch/scroll zoom, drag to pan. Tapping a merged region zooms in until its systems separate.</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>far · mid · near · selected · search (typing, results, no match: “Nothing here called that yet”) · list view · low detail (list + flat tiles) when the renderer falls back or the map is very large · stale scene refreshing quietly.</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">OBS universe.zoom{level} · universe.select{id} · universe.search{resultKind} · universe.return<br>Search runs on your own map index only; queries are not logged with their text.</p></div>
+    <div class="note"><h3>Restore</h3><p>Camera {center, zoom, selection} is a history entry: Back after a search or fly-to returns to the previous camera. Leaving the tab and returning keeps the last camera; a long absence starts framed on everything with the ship at your last place.</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>List view is the complete equivalent (headings per family, links per system, planets nested). Merged regions announce their members. Search is a real input with a listbox. Web: / focuses search, +/− zoom, arrows pan. Label budget per viewport keeps rendering cheap on low-end phones.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1752,"height":1480}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

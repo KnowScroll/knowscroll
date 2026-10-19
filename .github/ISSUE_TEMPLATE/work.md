@@ -1,19 +1,18 @@
 ---
-name: Product work
-about: A meaningful outcome with ownership and proof
+name: Work item
+about: A bounded piece of the v2 programme (link it to the main tracker)
 ---
-## Why / desired outcome
 
-## Component and contract ownership
+**Outcome:**
 
-## Acceptance criteria
+**Scope:**
 
-## Dependencies / worktree lane
+**Depends on:**
 
-## Verification
+**Owner:**
 
-Separate implementation checks from observed product/runtime proof.
+**Contracts / packages affected:**
 
-## Handoff
+**Verification required (label the evidence):**
 
-Decisions, changed paths, evidence, divergence, next action.
+**Definition of done:**

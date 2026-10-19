@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>U07 Same ML, three people</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.own{position:absolute;left:16px;top:56px;min-height:44px;display:inline-flex;align-items:center;gap:8px;padding:4px 14px 4px 4px;border-radius:999px;background:#FFFBF0;color:#111111;font-size:14px;font-weight:600}
+.av{width:34px;height:34px;border-radius:999px;border:2px solid #111111;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none}
+.stitle{position:absolute;left:20px;top:116px;display:flex;flex-direction:column;gap:2px}
+.plab{position:absolute;transform:translateX(-50%);height:26px;padding:0 10px;border-radius:999px;background:rgba(4,10,23,.86);color:#FFFBF0;font-size:13px;font-weight:600;display:inline-flex;align-items:center;white-space:nowrap}
+.hit{position:absolute;width:48px;height:48px;border-radius:999px;border:0;background:transparent;cursor:pointer;padding:0}
+.pcap{position:absolute;left:24px;right:24px;top:494px;display:flex;flex-direction:column;gap:6px}
+.vary{display:flex;flex-direction:column;gap:4px;font-size:12.5px;line-height:1.4;color:#4A463D}
+</style>
+</helmet>
+<div style="width: 2596px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">U07</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Same ML, three people</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 1500px">Asha, Ravi and Meera have each explored Machine learning. All three read as ML (teal oceans, angular land, the same star, octagon regions), but coastline, material, light, landmarks, region layout and neighbours are personal. <b>Cover the name: can you still tell them apart?</b></p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- ===== ASHA · SYSTEM ===== -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>A · system</b><span>Daylight, terraces; Backend nearby</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <defs>
+            <radialGradient id="as-oc" cx="34%" cy="28%" r="80%"><stop offset="0" stop-color="#5FE0CF"></stop><stop offset=".6" stop-color="#22A99E"></stop><stop offset="1" stop-color="#11706B"></stop></radialGradient>
+            <radialGradient id="as-star" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#FFE9A8" stop-opacity=".35"></stop><stop offset="1" stop-color="#FFE9A8" stop-opacity="0"></stop></radialGradient>
+            <clipPath id="as-c1"><circle cx="104" cy="402" r="22"></circle></clipPath>
+            <clipPath id="as-c2"><circle cx="312" cy="318" r="30"></circle></clipPath>
+          </defs>
+          <g fill="#FFFBF0"><circle cx="30" cy="180" r="1" opacity=".5"></circle><circle cx="150" cy="210" r="1.2" opacity=".55"></circle><circle cx="352" cy="190" r="1" opacity=".5"></circle><circle cx="270" cy="230" r=".8" opacity=".4"></circle><circle cx="40" cy="620" r="1.1" opacity=".45"></circle><circle cx="180" cy="650" r=".9" opacity=".4"></circle><circle cx="360" cy="560" r="1" opacity=".45"></circle><circle cx="22" cy="300" r=".8" opacity=".4"></circle></g>
+          <g fill="none" stroke="#FFFBF0" stroke-width="1.2" transform="rotate(-6 195 370)"><ellipse cx="195" cy="370" rx="175" ry="64" stroke-opacity=".1"></ellipse><ellipse cx="195" cy="370" rx="132" ry="50" stroke-opacity=".2"></ellipse><ellipse cx="195" cy="370" rx="92" ry="35" stroke-opacity=".2"></ellipse></g>
+          <circle cx="195" cy="370" r="70" fill="url(#as-star)"></circle>
+          <circle cx="195" cy="370" r="22" fill="#FFE9A8"></circle>
+          <circle cx="104" cy="402" r="22" fill="url(#as-oc)"></circle>
+          <g clip-path="url(#as-c1)"><path d="M86 396l8-10 6 6 8-8 10 6 6 12-10 6-6-4-8 6-12-4z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.2"></path><path d="M94 398l10-6 10 4-4 6-10 0z" fill="#A6E8A8"></path><circle cx="130" cy="420" r="26" fill="#040A17" opacity=".35"></circle></g>
+          <circle cx="104" cy="402" r="23" fill="none" stroke="#B8FFF4" stroke-opacity=".5"></circle>
+          <circle cx="312" cy="318" r="30" fill="url(#as-oc)"></circle>
+          <g clip-path="url(#as-c2)"><path d="M286 300l8-6 8 4 6-6 10 6 10 10 10 6 2 12-10 6-10-2-8-8-10-2-8-10z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.3"></path><path d="M298 304l12 2 10 8 10 6-2 6-10-2-10-8-10-4z" fill="#A6E8A8"></path><circle cx="350" cy="356" r="40" fill="#040A17" opacity=".34"></circle></g>
+          <circle cx="312" cy="318" r="31" fill="none" stroke="#B8FFF4" stroke-opacity=".5"></circle>
+          <g fill="#FFFBF0"><circle cx="40" cy="356" r="1.6" opacity=".65"></circle><circle cx="50" cy="346" r="1.2" opacity=".5"></circle><circle cx="34" cy="368" r="1.4" opacity=".45"></circle><circle cx="56" cy="362" r="1" opacity=".55"></circle><circle cx="46" cy="376" r="1" opacity=".4"></circle></g>
+          <g transform="translate(195 520)"><rect x="-13" y="-6" width="26" height="12" rx="3" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path d="M-25 0h12M13 0h12" stroke="#FFFBF0" stroke-width="2"></path><circle cx="0" cy="0" r="2.5" fill="#FFE44D"></circle></g>
+          <path d="M220 532 Q 300 580 336 640" fill="none" stroke="#FFFBF0" stroke-opacity=".4" stroke-dasharray="3 6"></path>
+          <circle cx="330" cy="660" r="9" fill="#FFE9A8"></circle>
+          <circle cx="362" cy="648" r="10" fill="#6E86FF"></circle><path d="M353 645h18M354 651h16" stroke="#C9D3FF" stroke-width="1.6"></path>
+          <g font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text x="104" y="442">Attention</text>
+            <text x="312" y="366">Inference &amp; serving</text>
+            <text x="195" y="548">Model serving room</text>
+            <text x="318" y="698">Backend systems</text>
+          </g>
+        </svg>
+        <span class="own"><span class="av" style="background: #14C79B">A</span>Asha</span>
+        <div class="stitle"><b class="disp" style="font-size: 24px">Machine learning</b><span class="mono" style="color: rgba(255,251,240,.72)">a system</span></div>
+        <a class="hit" href="U03-Planet.dc.html" aria-label="Inference and serving, a planet" style="left: 288px; top: 294px"></a>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- ===== RAVI · SYSTEM ===== -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>R · system</b><span>Glacial, debris ring; Football close</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <defs>
+            <radialGradient id="rs-oc" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="#4CC3D6"></stop><stop offset=".6" stop-color="#16708E"></stop><stop offset="1" stop-color="#0A3550"></stop></radialGradient>
+            <radialGradient id="rs-star" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#FFE9A8" stop-opacity=".3"></stop><stop offset="1" stop-color="#FFE9A8" stop-opacity="0"></stop></radialGradient>
+            <clipPath id="rs-c1"><circle cx="96" cy="300" r="28"></circle></clipPath>
+            <clipPath id="rs-c2"><circle cx="318" cy="430" r="20"></circle></clipPath>
+          </defs>
+          <g fill="#FFFBF0"><circle cx="350" cy="170" r="1.2" opacity=".55"></circle><circle cx="250" cy="200" r=".9" opacity=".45"></circle><circle cx="30" cy="470" r="1" opacity=".45"></circle><circle cx="360" cy="520" r=".8" opacity=".4"></circle><circle cx="40" cy="700" r="1.2" opacity=".5"></circle><circle cx="180" cy="720" r=".8" opacity=".35"></circle></g>
+          <g fill="none" stroke="#FFFBF0" stroke-width="1.2" transform="rotate(14 210 350)"><ellipse cx="210" cy="350" rx="150" ry="46" stroke-opacity=".18"></ellipse><ellipse cx="210" cy="350" rx="112" ry="34" stroke-opacity=".18"></ellipse></g>
+          <circle cx="210" cy="350" r="62" fill="url(#rs-star)"></circle>
+          <circle cx="210" cy="350" r="19" fill="#FFE9A8"></circle>
+          <path d="M66 282 Q 96 258 128 280" stroke="#7CF5C8" stroke-opacity=".55" stroke-width="5" fill="none" stroke-linecap="round"></path>
+          <circle cx="96" cy="300" r="28" fill="url(#rs-oc)"></circle>
+          <g clip-path="url(#rs-c1)">
+            <path d="M72 278l20-6 26 4 6 8-18 4-30-2z" fill="#EAF8FF" opacity=".9"></path>
+            <path d="M74 300l8-8 10 2 2 10-10 4z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path><path d="M74 300l8-8 4 8z" fill="#E6FBF6"></path>
+            <path d="M100 296l10-6 10 6-4 10-12 0z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path><path d="M100 296l10-6 0 10z" fill="#E6FBF6"></path>
+            <path d="M88 314l10-4 8 6-6 8-10-2z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path>
+            <rect x="60" y="270" width="72" height="62" fill="#040A17" opacity=".18"></rect>
+          </g>
+          <circle cx="96" cy="300" r="29" fill="none" stroke="#BDEBFF" stroke-opacity=".55"></circle>
+          <g fill="#8FA3B8"><path d="M286 438l4-3 3 3-3 3z"></path><path d="M296 444l5-2 2 4-5 1z"></path><path d="M338 418l4-3 3 3-4 3z"></path><path d="M346 428l3-2 3 3-3 2z"></path><path d="M300 416l3-2 2 3-3 2z"></path><path d="M334 444l4-1 2 3-4 2z"></path><path d="M316 448l4-2 2 3-4 2z"></path><path d="M290 424l3-1 2 2-3 2z"></path></g>
+          <ellipse cx="318" cy="430" rx="38" ry="11" fill="none" stroke="#8FA3B8" stroke-opacity=".5" stroke-dasharray="2 5" transform="rotate(-14 318 430)"></ellipse>
+          <circle cx="318" cy="430" r="20" fill="url(#rs-oc)"></circle>
+          <g clip-path="url(#rs-c2)"><path d="M304 424l8-8 12 2 4 10-10 6-12-2z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path><path d="M304 424l8-8 4 10z" fill="#E6FBF6"></path></g>
+          <g transform="translate(78 168)"><rect x="-13" y="-6" width="26" height="12" rx="3" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path d="M-25 0h12M13 0h12" stroke="#FFFBF0" stroke-width="2"></path><circle cx="0" cy="0" r="2.5" fill="#FFE44D"></circle></g>
+          <circle cx="250" cy="620" r="9" fill="#FFE9A8"></circle>
+          <ellipse cx="250" cy="620" rx="58" ry="18" fill="none" stroke="#FFFBF0" stroke-opacity=".16"></ellipse>
+          <circle cx="302" cy="626" r="13" fill="#FF8A5B"></circle><circle cx="298" cy="621" r="3.6" fill="#FFD2BE"></circle><circle cx="307" cy="630" r="4.2" fill="#FFD2BE"></circle>
+          <g font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text x="96" y="346">Inference &amp; serving</text>
+            <text x="318" y="474">Hardware</text>
+            <text x="78" y="196">Model serving room</text>
+            <text x="250" y="666">Football</text>
+          </g>
+        </svg>
+        <span class="own"><span class="av" style="background: #FF8A5B">R</span>Ravi</span>
+        <div class="stitle" style="left: auto; right: 20px; align-items: flex-end"><b class="disp" style="font-size: 24px">Machine learning</b><span class="mono" style="color: rgba(255,251,240,.72)">a system</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- ===== MEERA · SYSTEM ===== -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>M · system</b><span>Dusk haze; Ethics, Language models</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <defs>
+            <radialGradient id="ms-oc" cx="62%" cy="34%" r="80%"><stop offset="0" stop-color="#4FC0AF"></stop><stop offset=".6" stop-color="#1E7A78"></stop><stop offset="1" stop-color="#12504F"></stop></radialGradient>
+            <radialGradient id="ms-haze" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#F2B84B" stop-opacity=".12"></stop><stop offset="1" stop-color="#F2B84B" stop-opacity="0"></stop></radialGradient>
+            <radialGradient id="ms-star" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#FFD9A0" stop-opacity=".4"></stop><stop offset="1" stop-color="#FFD9A0" stop-opacity="0"></stop></radialGradient>
+            <clipPath id="ms-c1"><circle cx="300" cy="300" r="28"></circle></clipPath>
+            <clipPath id="ms-c2"><circle cx="88" cy="372" r="22"></circle></clipPath>
+            <clipPath id="ms-c3"><circle cx="232" cy="462" r="16"></circle></clipPath>
+          </defs>
+          <rect x="0" y="0" width="390" height="844" fill="url(#ms-haze)"></rect>
+          <g fill="#FFFBF0"><circle cx="40" cy="200" r="1" opacity=".45"></circle><circle cx="340" cy="190" r="1.1" opacity=".5"></circle><circle cx="20" cy="520" r=".8" opacity=".35"></circle><circle cx="370" cy="560" r="1" opacity=".4"></circle><circle cx="300" cy="720" r="1.1" opacity=".45"></circle></g>
+          <g fill="none" stroke="#FFE2B8" stroke-width="1.2" transform="rotate(-2 195 360)"><ellipse cx="195" cy="360" rx="125" ry="58" stroke-opacity=".18"></ellipse><ellipse cx="195" cy="360" rx="80" ry="38" stroke-opacity=".2"></ellipse><ellipse cx="195" cy="360" rx="160" ry="80" stroke-opacity=".12"></ellipse></g>
+          <circle cx="195" cy="360" r="76" fill="url(#ms-star)"></circle>
+          <circle cx="195" cy="360" r="21" fill="#FFE9A8"></circle>
+          <circle cx="300" cy="300" r="28" fill="url(#ms-oc)"></circle>
+          <g clip-path="url(#ms-c1)"><path d="M276 292l8-12 18-4 16 6 6 14-6 14-16 8-18-2-10-10z" fill="#A9C47A" stroke="#4E3A1E" stroke-width="1.2"></path><path d="M290 300l10-6 12 4-4 10-12 2z" fill="#79A866"></path><path d="M280 312q8-4 16 0" stroke="#E3C88E" stroke-width="1.5" fill="none"></path><rect x="270" y="270" width="24" height="60" fill="#040A17" opacity=".3"></rect></g>
+          <circle cx="300" cy="300" r="29" fill="none" stroke="#F2B84B" stroke-opacity=".6"></circle>
+          <circle cx="88" cy="372" r="22" fill="url(#ms-oc)"></circle>
+          <g clip-path="url(#ms-c2)"><path d="M70 366l10-10 16 2 8 10-6 12-14 2-12-6z" fill="#E3C88E" stroke="#4E3A1E" stroke-width="1"></path><path d="M74 372q8-4 16 0M78 380q8-4 16 0" stroke="#C9A25E" stroke-width="1.4" fill="none"></path></g>
+          <circle cx="88" cy="372" r="23" fill="none" stroke="#F2B84B" stroke-opacity=".5"></circle>
+          <circle cx="232" cy="462" r="16" fill="url(#ms-oc)"></circle>
+          <g clip-path="url(#ms-c3)"><path d="M220 458l8-8 12 2 4 10-10 6-12-2z" fill="#E7E1CF" stroke="#7D7563" stroke-width="1"></path></g>
+          <circle cx="232" cy="462" r="17" fill="none" stroke="#F2B84B" stroke-opacity=".7" stroke-width="1.5"></circle>
+          <g transform="translate(322 530)"><rect x="-13" y="-6" width="26" height="12" rx="3" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path d="M-25 0h12M13 0h12" stroke="#FFFBF0" stroke-width="2"></path><circle cx="0" cy="0" r="2.5" fill="#FFE44D"></circle></g>
+          <circle cx="92" cy="620" r="9" fill="#FFE9A8"></circle>
+          <ellipse cx="92" cy="620" rx="50" ry="16" fill="none" stroke="#FFFBF0" stroke-opacity=".16"></ellipse>
+          <circle cx="138" cy="626" r="11" fill="#F2B84B"></circle><path d="M130 626l5-4 6 3 4-3" stroke="#8A5A10" stroke-width="1.6" fill="none"></path>
+          <g font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text x="300" y="346">Inference &amp; serving</text>
+            <text x="88" y="414">Language models</text>
+            <text x="232" y="498">Ethics &amp; policy</text>
+            <text x="322" y="558">Model serving room</text>
+            <text x="100" y="664">Linguistics</text>
+          </g>
+        </svg>
+        <span class="own"><span class="av" style="background: #F2B84B">M</span>Meera</span>
+        <div class="stitle" style="top: 120px; left: 130px"><b class="disp" style="font-size: 24px">Machine learning</b><span class="mono" style="color: rgba(255,251,240,.72)">a system</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- ===== ASHA · PLANET ===== -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>A · planet</b><span>Fjords, terraces, coastal route, harbour + lighthouse</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <defs>
+            <radialGradient id="ap-oc" cx="34%" cy="28%" r="80%"><stop offset="0" stop-color="#5FE0CF"></stop><stop offset=".55" stop-color="#22A99E"></stop><stop offset="1" stop-color="#11706B"></stop></radialGradient>
+            <radialGradient id="ap-glow" cx="50%" cy="50%" r="50%"><stop offset=".76" stop-color="#5FE0CF" stop-opacity=".24"></stop><stop offset="1" stop-color="#5FE0CF" stop-opacity="0"></stop></radialGradient>
+            <clipPath id="ap-clip"><circle cx="195" cy="300" r="150"></circle></clipPath>
+          </defs>
+          <g fill="#FFFBF0"><circle cx="24" cy="120" r="1" opacity=".5"></circle><circle cx="362" cy="110" r="1.3" opacity=".6"></circle><circle cx="30" cy="520" r="1" opacity=".45"></circle><circle cx="366" cy="500" r=".8" opacity=".35"></circle><circle cx="340" cy="620" r="1.1" opacity=".5"></circle><circle cx="60" cy="700" r=".9" opacity=".4"></circle></g>
+          <circle cx="195" cy="300" r="196" fill="url(#ap-glow)"></circle>
+          <circle cx="195" cy="300" r="150" fill="url(#ap-oc)"></circle>
+          <g clip-path="url(#ap-clip)">
+            <path d="M88 214 L104 196 L126 200 L132 186 L150 190 L156 210 L162 196 L176 200 L182 222 L186 210 L200 210 L206 226 L222 232 L236 246 L252 248 L262 262 L280 270 L292 288 L310 300 L322 318 L318 336 L330 352 L322 372 L302 384 L292 400 L274 396 L268 380 L262 394 L250 386 L246 372 L232 372 L224 358 L210 356 L206 342 L192 340 L196 330 L180 324 L170 322 L164 306 L150 304 L146 290 L130 286 L124 270 L110 266 L104 250 L94 246 L90 230 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2.2" stroke-linejoin="round"></path>
+            <path d="M120 214 L150 206 L180 226 L214 240 L250 260 L282 284 L300 312 L304 340 L290 362 L262 364 L240 350 L214 338 L190 322 L166 300 L144 282 L124 258 Z" fill="#7DDB8A" stroke="#0E3B2E" stroke-opacity=".35" stroke-width="1"></path>
+            <path d="M150 228 L184 244 L220 262 L258 286 L280 316 L278 340 L256 344 L230 330 L204 314 L176 290 L152 264 Z" fill="#A6E8A8" stroke="#0E3B2E" stroke-opacity=".3" stroke-width="1"></path>
+            <path d="M196 270 L226 284 L252 304 L258 324 L238 322 L212 306 L194 288 Z" fill="#CFF3C8" stroke="#0E3B2E" stroke-opacity=".25" stroke-width="1"></path>
+            <path d="M300 196 L322 190 L336 204 L326 222 L306 218 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2"></path>
+            <path d="M110 360 L132 352 L146 368 L130 386 L112 380 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2"></path>
+            <g fill="none" stroke="#FFFFFF" stroke-linecap="round"><path d="M70 270 q40 -14 80 -4 q24 6 44 -2" stroke-opacity=".5" stroke-width="5"></path><path d="M200 420 q30 -10 70 -2 q20 4 40 -2" stroke-opacity=".4" stroke-width="4"></path><path d="M236 186 q24 -8 50 0" stroke-opacity=".45" stroke-width="3"></path></g>
+            <circle cx="420" cy="470" r="232" fill="#040A17" opacity=".4"></circle>
+          </g>
+          <circle cx="195" cy="300" r="151" fill="none" stroke="#B8FFF4" stroke-opacity=".55" stroke-width="2"></circle>
+          <path d="M128 236 Q 160 240 196 262 Q 226 278 246 300 Q 270 318 292 340" fill="none" stroke="#FFFBF0" stroke-width="2" stroke-dasharray="3 5" stroke-linecap="round"></path>
+          <g transform="translate(98 254)" stroke="#FFFBF0" stroke-width="1.6" fill="none"><path d="M-8 0h16M-4 0v6M4 0v6"></path><path d="M-15 9l6 -7 2 7z" fill="#FFFBF0"></path></g>
+          <g transform="translate(206 222)"><path d="M-3 8 L-2 -6 L2 -6 L3 8z" fill="#FFFBF0" stroke="#111111" stroke-width="1"></path><rect x="-3" y="-10" width="6" height="4" fill="#FFE44D"></rect><path d="M3 -8 L22 -16 M3 -8 L22 -2" stroke="#FFE44D" stroke-opacity=".75" stroke-width="1.5"></path></g>
+          <g stroke="#111111" stroke-width="2" fill="#E7F7E9">
+            <polygon points="124,226 132,226 138,232 138,240 132,246 124,246 118,240 118,232"></polygon>
+            <polygon points="192,252 200,252 206,258 206,266 200,272 192,272 186,266 186,258"></polygon>
+            <polygon points="242,290 250,290 256,296 256,304 250,310 242,310 236,304 236,296"></polygon>
+            <polygon points="288,330 296,330 302,336 302,344 296,350 288,350 282,344 282,336"></polygon>
+          </g>
+          <g fill="#111111"><circle cx="128" cy="236" r="2.6"></circle><circle cx="196" cy="262" r="2.6"></circle><circle cx="246" cy="300" r="2.6"></circle><circle cx="292" cy="340" r="2.6"></circle></g>
+          <path d="M346 150 Q 344 176 330 190" fill="none" stroke="#FFE44D" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round"></path>
+          <path d="M336 138l18 4-10 14z" fill="#FFFBF0"></path>
+        </svg>
+        <span class="own"><span class="av" style="background: #14C79B">A</span>Asha</span>
+        <span class="plab" style="left: 128px; top: 196px">Batching</span>
+        <span class="plab" style="left: 196px; top: 278px">Deployment</span>
+        <span class="plab" style="left: 246px; top: 316px">Latency</span>
+        <span class="plab" style="left: 292px; top: 356px">Cost</span>
+        <div class="pcap"><span class="mono" style="color: rgba(255,251,240,.72)">A planet in Machine learning</span><h2 class="disp" style="margin: 0; font-size: 28px; line-height: 32px; font-weight: 800">Inference &amp; serving</h2><p style="margin: 0; font-size: 15px; line-height: 1.45; color: rgba(255,251,240,.86)">Where a trained model meets real requests.</p></div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- ===== RAVI · PLANET ===== -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>R · planet</b><span>Crystal archipelago, sea routes, aurora</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <defs>
+            <radialGradient id="rp-oc" cx="42%" cy="30%" r="82%"><stop offset="0" stop-color="#4CC3D6"></stop><stop offset=".55" stop-color="#16708E"></stop><stop offset="1" stop-color="#0A3550"></stop></radialGradient>
+            <radialGradient id="rp-glow" cx="50%" cy="50%" r="50%"><stop offset=".76" stop-color="#9EE6FF" stop-opacity=".22"></stop><stop offset="1" stop-color="#9EE6FF" stop-opacity="0"></stop></radialGradient>
+            <linearGradient id="rp-sh" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#040A17" stop-opacity=".6"></stop><stop offset=".55" stop-color="#040A17" stop-opacity="0"></stop></linearGradient>
+            <clipPath id="rp-clip"><circle cx="195" cy="300" r="150"></circle></clipPath>
+          </defs>
+          <g fill="#FFFBF0"><circle cx="24" cy="120" r="1" opacity=".5"></circle><circle cx="362" cy="240" r="1.3" opacity=".6"></circle><circle cx="30" cy="520" r="1" opacity=".45"></circle><circle cx="366" cy="500" r=".8" opacity=".35"></circle><circle cx="60" cy="700" r=".9" opacity=".4"></circle></g>
+          <circle cx="195" cy="300" r="196" fill="url(#rp-glow)"></circle>
+          <path d="M96 168 Q 140 112 195 134 Q 250 156 300 112" stroke="#7CF5C8" stroke-opacity=".38" stroke-width="12" fill="none" stroke-linecap="round"></path>
+          <path d="M110 160 Q 150 120 195 140 Q 244 160 290 124" stroke="#9EE6FF" stroke-opacity=".5" stroke-width="2.5" fill="none" stroke-linecap="round"></path>
+          <circle cx="195" cy="300" r="150" fill="url(#rp-oc)"></circle>
+          <g clip-path="url(#rp-clip)">
+            <path d="M110 170 L150 158 L196 152 L240 158 L280 172 L252 182 L214 176 L180 184 L146 180 Z" fill="#EAF8FF" opacity=".92"></path>
+            <g stroke="#0E3B2E" stroke-width="1.6" stroke-linejoin="round">
+              <path d="M106 244 L120 224 L146 226 L158 246 L146 268 L118 268 Z" fill="#B4ECDF"></path>
+              <path d="M190 226 L210 208 L236 216 L240 240 L218 254 L196 248 Z" fill="#B4ECDF"></path>
+              <path d="M136 334 L154 314 L180 318 L188 342 L168 362 L144 358 Z" fill="#B4ECDF"></path>
+              <path d="M240 312 L262 296 L290 306 L294 330 L270 346 L246 336 Z" fill="#B4ECDF"></path>
+              <path d="M292 248 L306 238 L318 252 L304 264 Z" fill="#B4ECDF"></path>
+              <path d="M210 388 L224 378 L238 390 L222 402 Z" fill="#B4ECDF"></path>
+              <path d="M98 300 L112 290 L122 304 L108 314 Z" fill="#B4ECDF"></path>
+            </g>
+            <g fill="#E6FBF6"><path d="M132 248 L120 224 L146 226 Z"></path><path d="M215 231 L210 208 L236 216 Z"></path><path d="M162 338 L154 314 L180 318 Z"></path><path d="M267 321 L262 296 L290 306 Z"></path><path d="M305 251 L306 238 L318 252 Z"></path></g>
+            <g fill="#6BC4B2"><path d="M132 248 L146 268 L118 268 Z"></path><path d="M215 231 L218 254 L196 248 Z"></path><path d="M162 338 L168 362 L144 358 Z"></path><path d="M267 321 L270 346 L246 336 Z"></path></g>
+            <rect x="40" y="140" width="320" height="320" fill="url(#rp-sh)"></rect>
+          </g>
+          <circle cx="195" cy="300" r="151" fill="none" stroke="#BDEBFF" stroke-opacity=".6" stroke-width="2"></circle>
+          <g fill="none" stroke="#FFFBF0" stroke-width="1.8" stroke-dasharray="2 6" stroke-linecap="round">
+            <path d="M152 238 Q 176 214 194 226"></path><path d="M128 270 Q 126 300 146 320"></path><path d="M232 250 Q 254 272 258 298"></path><path d="M188 340 Q 216 352 244 334"></path>
+          </g>
+          <g stroke="#111111" stroke-width="2" fill="#E7F7E9">
+            <polygon points="128,236 136,236 142,242 142,250 136,256 128,256 122,250 122,242"></polygon>
+            <polygon points="209,222 217,222 223,228 223,236 217,242 209,242 203,236 203,228"></polygon>
+            <polygon points="157,329 165,329 171,335 171,343 165,349 157,349 151,343 151,335"></polygon>
+            <polygon points="261,311 269,311 275,317 275,325 269,331 261,331 255,325 255,317"></polygon>
+          </g>
+          <g fill="#111111"><circle cx="132" cy="246" r="2.6"></circle><circle cx="213" cy="232" r="2.6"></circle><circle cx="161" cy="339" r="2.6"></circle><circle cx="265" cy="321" r="2.6"></circle></g>
+          <path d="M44 420 Q 60 400 82 392" fill="none" stroke="#9EE6FF" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round"></path>
+          <path d="M80 380l18 6-14 12z" fill="#FFFBF0"></path>
+        </svg>
+        <span class="own"><span class="av" style="background: #FF8A5B">R</span>Ravi</span>
+        <span class="plab" style="left: 132px; top: 262px">Batching</span>
+        <span class="plab" style="left: 213px; top: 248px">Deployment</span>
+        <span class="plab" style="left: 161px; top: 355px">Latency</span>
+        <span class="plab" style="left: 265px; top: 337px">Cost</span>
+        <div class="pcap"><span class="mono" style="color: rgba(255,251,240,.72)">A planet in Machine learning</span><h2 class="disp" style="margin: 0; font-size: 28px; line-height: 32px; font-weight: 800">Inference &amp; serving</h2><p style="margin: 0; font-size: 15px; line-height: 1.45; color: rgba(255,251,240,.86)">Where a trained model meets real requests.</p></div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- ===== MEERA · PLANET ===== -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>M · planet</b><span>Canyons, dunes, basin paths, observatory + bridge</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <defs>
+            <radialGradient id="mp-oc" cx="66%" cy="34%" r="82%"><stop offset="0" stop-color="#4FC0AF"></stop><stop offset=".55" stop-color="#1E7A78"></stop><stop offset="1" stop-color="#12504F"></stop></radialGradient>
+            <radialGradient id="mp-glow" cx="50%" cy="50%" r="50%"><stop offset=".76" stop-color="#F2B84B" stop-opacity=".2"></stop><stop offset="1" stop-color="#F2B84B" stop-opacity="0"></stop></radialGradient>
+            <radialGradient id="mp-haze" cx="70%" cy="40%" r="70%"><stop offset="0" stop-color="#F2B84B" stop-opacity=".18"></stop><stop offset="1" stop-color="#F2B84B" stop-opacity="0"></stop></radialGradient>
+            <linearGradient id="mp-sh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#040A17" stop-opacity=".62"></stop><stop offset=".5" stop-color="#040A17" stop-opacity="0"></stop></linearGradient>
+            <clipPath id="mp-clip"><circle cx="195" cy="300" r="150"></circle></clipPath>
+          </defs>
+          <rect x="0" y="0" width="390" height="844" fill="url(#mp-haze)"></rect>
+          <g fill="#FFFBF0"><circle cx="30" cy="140" r="1" opacity=".45"></circle><circle cx="360" cy="560" r="1.2" opacity=".5"></circle><circle cx="40" cy="600" r=".9" opacity=".4"></circle><circle cx="330" cy="700" r="1" opacity=".4"></circle></g>
+          <circle cx="195" cy="300" r="196" fill="url(#mp-glow)"></circle>
+          <circle cx="195" cy="300" r="150" fill="url(#mp-oc)"></circle>
+          <g clip-path="url(#mp-clip)">
+            <path d="M70 250 L96 200 L140 172 L196 162 L252 176 L300 210 L330 262 L334 320 L312 372 L270 410 L210 428 L150 418 L104 386 L76 336 Z" fill="#A9C47A" stroke="#4E3A1E" stroke-width="2.2" stroke-linejoin="round"></path>
+            <path d="M88 344 L120 336 L150 352 L176 392 L150 410 L108 388 Z" fill="#E3C88E"></path>
+            <path d="M268 190 L300 214 L316 246 L296 240 L270 214 Z" fill="#E3C88E" opacity=".85"></path>
+            <g fill="none" stroke="#C9A25E" stroke-width="1.6" stroke-linecap="round"><path d="M100 360 q12 -7 24 0"></path><path d="M112 372 q12 -7 24 0"></path><path d="M124 384 q12 -7 24 0"></path><path d="M108 350 q10 -6 20 0"></path><path d="M280 214 q8 -5 16 0"></path><path d="M290 228 q8 -5 16 0"></path></g>
+            <path d="M170 270 L206 256 L240 274 L246 306 L222 330 L186 328 L164 304 Z" fill="#79A866" stroke="#4E3A1E" stroke-opacity=".5" stroke-width="1.2"></path>
+            <path d="M186 284 L208 276 L228 290 L226 312 L204 318 L184 304 Z" fill="#6A955A"></path>
+            <g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M100 262 L122 276 L118 300 L140 314 L132 336" stroke="#5A3B1E" stroke-width="5"></path><path d="M102 260 L124 274 L120 298 L142 312 L134 334" stroke="#E3C88E" stroke-width="1.2"></path><path d="M252 372 L272 352 L300 360 L318 340" stroke="#5A3B1E" stroke-width="4.5"></path><path d="M253 369 L273 350 L300 357 L317 338" stroke="#E3C88E" stroke-width="1.1"></path></g>
+            <rect x="40" y="140" width="320" height="320" fill="url(#mp-sh)"></rect>
+          </g>
+          <path d="M291 185 A150 150 0 0 1 301 406" fill="none" stroke="#F2B84B" stroke-opacity=".85" stroke-width="3"></path>
+          <circle cx="195" cy="300" r="151" fill="none" stroke="#FFE2B8" stroke-opacity=".35" stroke-width="1.5"></circle>
+          <g fill="none" stroke="#FFFBF0" stroke-opacity=".85" stroke-width="1.6" stroke-linecap="round"><path d="M188 286 L150 236"></path><path d="M228 288 L268 248"></path><path d="M190 314 L150 360"></path><path d="M224 312 L282 346"></path></g>
+          <g transform="translate(290 222)"><rect x="-8" y="2" width="16" height="6" fill="#FFFBF0" stroke="#111111" stroke-width="1"></rect><path d="M-8 2 A8 8 0 0 1 8 2 Z" fill="#FFFBF0" stroke="#111111" stroke-width="1"></path><path d="M1 -5 L6 -10" stroke="#111111" stroke-width="1.6"></path></g>
+          <g transform="translate(126 300)" fill="none" stroke="#FFFBF0" stroke-width="2"><path d="M-10 0 Q 0 -9 10 0"></path><path d="M-10 0v5M10 0v5M-12 0h24"></path></g>
+          <g stroke="#111111" stroke-width="2" fill="#E7F7E9">
+            <polygon points="146,226 154,226 160,232 160,240 154,246 146,246 140,240 140,232"></polygon>
+            <polygon points="264,238 272,238 278,244 278,252 272,258 264,258 258,252 258,244"></polygon>
+            <polygon points="146,350 154,350 160,356 160,364 154,370 146,370 140,364 140,356"></polygon>
+            <polygon points="278,336 286,336 292,342 292,350 286,356 278,356 272,350 272,342"></polygon>
+          </g>
+          <g fill="#111111"><circle cx="150" cy="236" r="2.6"></circle><circle cx="268" cy="248" r="2.6"></circle><circle cx="150" cy="360" r="2.6"></circle><circle cx="282" cy="346" r="2.6"></circle></g>
+          <path d="M40 210 Q 56 196 74 192" fill="none" stroke="#F2B84B" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round"></path>
+          <path d="M72 180l18 6-14 12z" fill="#FFFBF0"></path>
+        </svg>
+        <span class="own"><span class="av" style="background: #F2B84B">M</span>Meera</span>
+        <span class="plab" style="left: 150px; top: 196px">Batching</span>
+        <span class="plab" style="left: 268px; top: 262px">Deployment</span>
+        <span class="plab" style="left: 150px; top: 376px">Latency</span>
+        <span class="plab" style="left: 290px; top: 362px">Cost</span>
+        <div class="pcap"><span class="mono" style="color: rgba(255,251,240,.72)">A planet in Machine learning</span><h2 class="disp" style="margin: 0; font-size: 28px; line-height: 32px; font-weight: 800">Inference &amp; serving</h2><p style="margin: 0; font-size: 15px; line-height: 1.45; color: rgba(255,251,240,.86)">Where a trained model meets real requests.</p></div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Shared family cues (never vary)</h3><p>Teal ocean hue family · angular, outlined land · one organising star with the same core and glow · octagon region pins with the same two states · label pills on fixed baselines · route language (dashed = sea/coastal, thin solid = overland). These let anyone read “Machine learning” at a glance.</p></div>
+    <div class="note"><h3>Personal variation (seeded per person)</h3><p>Coastline and land structure (one continent / archipelago / basin) · material (terraced grass, faceted crystal, sage with dunes and canyons) · light (crisp daylight terminator, cool glacial with aurora, warm dusk haze and rim light) · landmark glyphs · region arrangement and routes · orbit tilt and order · neighbouring topics.</p></div>
+    <div class="note"><h3>What landmarks may mean</h3><p>Decoration drawn from a stable personal seed, placed beside an actual region. They never encode amount watched, recency or any score. Region pins map 1:1 to supported regions; terrain size never implies more evidence.</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">OBS universe.open · universe.select{planet}<br>CMD visit.open{handle} when viewing a friend<br>The seed and materials are part of the scene descriptor, so the same person sees the same world on every device.</p></div>
+    <div class="note"><h3>Restore</h3><p>Each person’s camera {system, planet, rotation, zoom} is stored for their own universe only. A visit always opens a friend’s world at its default framing; nothing about the visitor’s camera is saved in the friend’s scene.</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>Identity is carried by shape, texture and light, not hue alone (grayscale test: archipelago vs continent vs basin still differ). List view stays identical across people. Reduced motion: no aurora shimmer or haze drift. 2D layered SVG/Skia-feasible; no 3D required.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2596,"height":1480}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

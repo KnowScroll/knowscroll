@@ -1,0 +1,619 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>U07 Same ML, three people</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.own{position:absolute;left:16px;top:56px;min-height:44px;display:inline-flex;align-items:center;gap:8px;padding:4px 14px 4px 4px;border-radius:999px;background:#FFFBF0;color:#111111;font-size:14px;font-weight:600}
+.av{width:34px;height:34px;border-radius:999px;border:2px solid #111111;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none}
+.stitle{position:absolute;left:20px;top:116px;display:flex;flex-direction:column;gap:2px}
+.plab{position:absolute;transform:translateX(-50%);height:26px;padding:0 10px;border-radius:999px;background:rgba(4,10,23,.86);color:#FFFBF0;font-size:13px;font-weight:600;display:inline-flex;align-items:center;white-space:nowrap}
+.hit{position:absolute;width:48px;height:48px;border-radius:999px;border:0;background:transparent;cursor:pointer;padding:0}
+.pcap{position:absolute;left:24px;right:24px;top:494px;display:flex;flex-direction:column;gap:6px}
+.vary{display:flex;flex-direction:column;gap:4px;font-size:12.5px;line-height:1.4;color:#4A463D}
+</style><style data-dc-tpl="2">
+body{margin:0}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="U07-ThreeWorlds"><div data-dc-tpl="3" style="width: 2596px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px;">
+    <span data-dc-tpl="5" class="mono" style="font-size: 14px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); padding: 8px 12px; border-radius: 8px;">U07</span>
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800; line-height: 1;">Same ML, three people</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 16px; color: rgb(74, 70, 61); max-width: 1500px;">Asha, Ravi and Meera have each explored Machine learning. All three read as ML (teal oceans, angular land, the same star, octagon regions), but coastline, material, light, landmarks, region layout and neighbours are personal. <b data-dc-tpl="9">Cover the name: can you still tell them apart?</b></p>
+    </div>
+    <span data-dc-tpl="10" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="11" style="display: flex; gap: 32px; align-items: flex-start;">
+
+    
+    <figure data-dc-tpl="12" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="13" class="cap"><b data-dc-tpl="14">A · system</b><span data-dc-tpl="15">Daylight, terraces; Backend nearby</span></figcaption>
+      <div data-dc-tpl="16" class="phone sp">
+        <svg data-dc-tpl="17" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <defs data-dc-tpl="18">
+            <radialGradient data-dc-tpl="19" id="as-oc" cx="34%" cy="28%" r="80%"><stop data-dc-tpl="20" offset="0" stop-color="#5FE0CF"></stop><stop data-dc-tpl="21" offset=".6" stop-color="#22A99E"></stop><stop data-dc-tpl="22" offset="1" stop-color="#11706B"></stop></radialGradient>
+            <radialGradient data-dc-tpl="23" id="as-star" cx="50%" cy="50%" r="50%"><stop data-dc-tpl="24" offset="0" stop-color="#FFE9A8" stop-opacity=".35"></stop><stop data-dc-tpl="25" offset="1" stop-color="#FFE9A8" stop-opacity="0"></stop></radialGradient>
+            <clipPath data-dc-tpl="26" id="as-c1"><circle data-dc-tpl="27" cx="104" cy="402" r="22"></circle></clipPath>
+            <clipPath data-dc-tpl="28" id="as-c2"><circle data-dc-tpl="29" cx="312" cy="318" r="30"></circle></clipPath>
+          </defs>
+          <g data-dc-tpl="30" fill="#FFFBF0"><circle data-dc-tpl="31" cx="30" cy="180" r="1" opacity=".5"></circle><circle data-dc-tpl="32" cx="150" cy="210" r="1.2" opacity=".55"></circle><circle data-dc-tpl="33" cx="352" cy="190" r="1" opacity=".5"></circle><circle data-dc-tpl="34" cx="270" cy="230" r=".8" opacity=".4"></circle><circle data-dc-tpl="35" cx="40" cy="620" r="1.1" opacity=".45"></circle><circle data-dc-tpl="36" cx="180" cy="650" r=".9" opacity=".4"></circle><circle data-dc-tpl="37" cx="360" cy="560" r="1" opacity=".45"></circle><circle data-dc-tpl="38" cx="22" cy="300" r=".8" opacity=".4"></circle></g>
+          <g data-dc-tpl="39" fill="none" stroke="#FFFBF0" stroke-width="1.2" transform="rotate(-6 195 370)"><ellipse data-dc-tpl="40" cx="195" cy="370" rx="175" ry="64" stroke-opacity=".1"></ellipse><ellipse data-dc-tpl="41" cx="195" cy="370" rx="132" ry="50" stroke-opacity=".2"></ellipse><ellipse data-dc-tpl="42" cx="195" cy="370" rx="92" ry="35" stroke-opacity=".2"></ellipse></g>
+          <circle data-dc-tpl="43" cx="195" cy="370" r="70" fill="url(#as-star)"></circle>
+          <circle data-dc-tpl="44" cx="195" cy="370" r="22" fill="#FFE9A8"></circle>
+          <circle data-dc-tpl="45" cx="104" cy="402" r="22" fill="url(#as-oc)"></circle>
+          <g data-dc-tpl="46" clip-path="url(#as-c1)"><path data-dc-tpl="47" d="M86 396l8-10 6 6 8-8 10 6 6 12-10 6-6-4-8 6-12-4z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.2"></path><path data-dc-tpl="48" d="M94 398l10-6 10 4-4 6-10 0z" fill="#A6E8A8"></path><circle data-dc-tpl="49" cx="130" cy="420" r="26" fill="#040A17" opacity=".35"></circle></g>
+          <circle data-dc-tpl="50" cx="104" cy="402" r="23" fill="none" stroke="#B8FFF4" stroke-opacity=".5"></circle>
+          <circle data-dc-tpl="51" cx="312" cy="318" r="30" fill="url(#as-oc)"></circle>
+          <g data-dc-tpl="52" clip-path="url(#as-c2)"><path data-dc-tpl="53" d="M286 300l8-6 8 4 6-6 10 6 10 10 10 6 2 12-10 6-10-2-8-8-10-2-8-10z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.3"></path><path data-dc-tpl="54" d="M298 304l12 2 10 8 10 6-2 6-10-2-10-8-10-4z" fill="#A6E8A8"></path><circle data-dc-tpl="55" cx="350" cy="356" r="40" fill="#040A17" opacity=".34"></circle></g>
+          <circle data-dc-tpl="56" cx="312" cy="318" r="31" fill="none" stroke="#B8FFF4" stroke-opacity=".5"></circle>
+          <g data-dc-tpl="57" fill="#FFFBF0"><circle data-dc-tpl="58" cx="40" cy="356" r="1.6" opacity=".65"></circle><circle data-dc-tpl="59" cx="50" cy="346" r="1.2" opacity=".5"></circle><circle data-dc-tpl="60" cx="34" cy="368" r="1.4" opacity=".45"></circle><circle data-dc-tpl="61" cx="56" cy="362" r="1" opacity=".55"></circle><circle data-dc-tpl="62" cx="46" cy="376" r="1" opacity=".4"></circle></g>
+          <g data-dc-tpl="63" transform="translate(195 520)"><rect data-dc-tpl="64" x="-13" y="-6" width="26" height="12" rx="3" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path data-dc-tpl="65" d="M-25 0h12M13 0h12" stroke="#FFFBF0" stroke-width="2"></path><circle data-dc-tpl="66" cx="0" cy="0" r="2.5" fill="#FFE44D"></circle></g>
+          <path data-dc-tpl="67" d="M220 532 Q 300 580 336 640" fill="none" stroke="#FFFBF0" stroke-opacity=".4" stroke-dasharray="3 6"></path>
+          <circle data-dc-tpl="68" cx="330" cy="660" r="9" fill="#FFE9A8"></circle>
+          <circle data-dc-tpl="69" cx="362" cy="648" r="10" fill="#6E86FF"></circle><path data-dc-tpl="70" d="M353 645h18M354 651h16" stroke="#C9D3FF" stroke-width="1.6"></path>
+          <g data-dc-tpl="71" font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text data-dc-tpl="72" x="104" y="442">Attention</text>
+            <text data-dc-tpl="73" x="312" y="366">Inference &amp; serving</text>
+            <text data-dc-tpl="74" x="195" y="548">Model serving room</text>
+            <text data-dc-tpl="75" x="318" y="698">Backend systems</text>
+          </g>
+        </svg>
+        <span data-dc-tpl="76" class="own"><span data-dc-tpl="77" class="av" style="background: rgb(20, 199, 155);">A</span>Asha</span>
+        <div data-dc-tpl="78" class="stitle"><b data-dc-tpl="79" class="disp" style="font-size: 24px;">Machine learning</b><span data-dc-tpl="80" class="mono" style="color: rgba(255, 251, 240, 0.72);">a system</span></div>
+        <a data-dc-tpl="81" class="hit" href="U03-Planet.html" aria-label="Inference and serving, a planet" style="left: 288px; top: 294px;"></a>
+        <div data-dc-tpl="82" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="83"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(11, 26, 46); box-shadow: rgba(255, 251, 240, 0.22) 0px 0px 0px 1px, rgb(0, 0, 0) 0px 12px 28px -10px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="84" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="85" class="cap"><b data-dc-tpl="86">R · system</b><span data-dc-tpl="87">Glacial, debris ring; Football close</span></figcaption>
+      <div data-dc-tpl="88" class="phone sp">
+        <svg data-dc-tpl="89" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <defs data-dc-tpl="90">
+            <radialGradient data-dc-tpl="91" id="rs-oc" cx="40%" cy="30%" r="80%"><stop data-dc-tpl="92" offset="0" stop-color="#4CC3D6"></stop><stop data-dc-tpl="93" offset=".6" stop-color="#16708E"></stop><stop data-dc-tpl="94" offset="1" stop-color="#0A3550"></stop></radialGradient>
+            <radialGradient data-dc-tpl="95" id="rs-star" cx="50%" cy="50%" r="50%"><stop data-dc-tpl="96" offset="0" stop-color="#FFE9A8" stop-opacity=".3"></stop><stop data-dc-tpl="97" offset="1" stop-color="#FFE9A8" stop-opacity="0"></stop></radialGradient>
+            <clipPath data-dc-tpl="98" id="rs-c1"><circle data-dc-tpl="99" cx="96" cy="300" r="28"></circle></clipPath>
+            <clipPath data-dc-tpl="100" id="rs-c2"><circle data-dc-tpl="101" cx="318" cy="430" r="20"></circle></clipPath>
+          </defs>
+          <g data-dc-tpl="102" fill="#FFFBF0"><circle data-dc-tpl="103" cx="350" cy="170" r="1.2" opacity=".55"></circle><circle data-dc-tpl="104" cx="250" cy="200" r=".9" opacity=".45"></circle><circle data-dc-tpl="105" cx="30" cy="470" r="1" opacity=".45"></circle><circle data-dc-tpl="106" cx="360" cy="520" r=".8" opacity=".4"></circle><circle data-dc-tpl="107" cx="40" cy="700" r="1.2" opacity=".5"></circle><circle data-dc-tpl="108" cx="180" cy="720" r=".8" opacity=".35"></circle></g>
+          <g data-dc-tpl="109" fill="none" stroke="#FFFBF0" stroke-width="1.2" transform="rotate(14 210 350)"><ellipse data-dc-tpl="110" cx="210" cy="350" rx="150" ry="46" stroke-opacity=".18"></ellipse><ellipse data-dc-tpl="111" cx="210" cy="350" rx="112" ry="34" stroke-opacity=".18"></ellipse></g>
+          <circle data-dc-tpl="112" cx="210" cy="350" r="62" fill="url(#rs-star)"></circle>
+          <circle data-dc-tpl="113" cx="210" cy="350" r="19" fill="#FFE9A8"></circle>
+          <path data-dc-tpl="114" d="M66 282 Q 96 258 128 280" stroke="#7CF5C8" stroke-opacity=".55" stroke-width="5" fill="none" stroke-linecap="round"></path>
+          <circle data-dc-tpl="115" cx="96" cy="300" r="28" fill="url(#rs-oc)"></circle>
+          <g data-dc-tpl="116" clip-path="url(#rs-c1)">
+            <path data-dc-tpl="117" d="M72 278l20-6 26 4 6 8-18 4-30-2z" fill="#EAF8FF" opacity=".9"></path>
+            <path data-dc-tpl="118" d="M74 300l8-8 10 2 2 10-10 4z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path><path data-dc-tpl="119" d="M74 300l8-8 4 8z" fill="#E6FBF6"></path>
+            <path data-dc-tpl="120" d="M100 296l10-6 10 6-4 10-12 0z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path><path data-dc-tpl="121" d="M100 296l10-6 0 10z" fill="#E6FBF6"></path>
+            <path data-dc-tpl="122" d="M88 314l10-4 8 6-6 8-10-2z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path>
+            <rect data-dc-tpl="123" x="60" y="270" width="72" height="62" fill="#040A17" opacity=".18"></rect>
+          </g>
+          <circle data-dc-tpl="124" cx="96" cy="300" r="29" fill="none" stroke="#BDEBFF" stroke-opacity=".55"></circle>
+          <g data-dc-tpl="125" fill="#8FA3B8"><path data-dc-tpl="126" d="M286 438l4-3 3 3-3 3z"></path><path data-dc-tpl="127" d="M296 444l5-2 2 4-5 1z"></path><path data-dc-tpl="128" d="M338 418l4-3 3 3-4 3z"></path><path data-dc-tpl="129" d="M346 428l3-2 3 3-3 2z"></path><path data-dc-tpl="130" d="M300 416l3-2 2 3-3 2z"></path><path data-dc-tpl="131" d="M334 444l4-1 2 3-4 2z"></path><path data-dc-tpl="132" d="M316 448l4-2 2 3-4 2z"></path><path data-dc-tpl="133" d="M290 424l3-1 2 2-3 2z"></path></g>
+          <ellipse data-dc-tpl="134" cx="318" cy="430" rx="38" ry="11" fill="none" stroke="#8FA3B8" stroke-opacity=".5" stroke-dasharray="2 5" transform="rotate(-14 318 430)"></ellipse>
+          <circle data-dc-tpl="135" cx="318" cy="430" r="20" fill="url(#rs-oc)"></circle>
+          <g data-dc-tpl="136" clip-path="url(#rs-c2)"><path data-dc-tpl="137" d="M304 424l8-8 12 2 4 10-10 6-12-2z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path><path data-dc-tpl="138" d="M304 424l8-8 4 10z" fill="#E6FBF6"></path></g>
+          <g data-dc-tpl="139" transform="translate(78 168)"><rect data-dc-tpl="140" x="-13" y="-6" width="26" height="12" rx="3" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path data-dc-tpl="141" d="M-25 0h12M13 0h12" stroke="#FFFBF0" stroke-width="2"></path><circle data-dc-tpl="142" cx="0" cy="0" r="2.5" fill="#FFE44D"></circle></g>
+          <circle data-dc-tpl="143" cx="250" cy="620" r="9" fill="#FFE9A8"></circle>
+          <ellipse data-dc-tpl="144" cx="250" cy="620" rx="58" ry="18" fill="none" stroke="#FFFBF0" stroke-opacity=".16"></ellipse>
+          <circle data-dc-tpl="145" cx="302" cy="626" r="13" fill="#FF8A5B"></circle><circle data-dc-tpl="146" cx="298" cy="621" r="3.6" fill="#FFD2BE"></circle><circle data-dc-tpl="147" cx="307" cy="630" r="4.2" fill="#FFD2BE"></circle>
+          <g data-dc-tpl="148" font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text data-dc-tpl="149" x="96" y="346">Inference &amp; serving</text>
+            <text data-dc-tpl="150" x="318" y="474">Hardware</text>
+            <text data-dc-tpl="151" x="78" y="196">Model serving room</text>
+            <text data-dc-tpl="152" x="250" y="666">Football</text>
+          </g>
+        </svg>
+        <span data-dc-tpl="153" class="own"><span data-dc-tpl="154" class="av" style="background: rgb(255, 138, 91);">R</span>Ravi</span>
+        <div data-dc-tpl="155" class="stitle" style="left: auto; right: 20px; align-items: flex-end;"><b data-dc-tpl="156" class="disp" style="font-size: 24px;">Machine learning</b><span data-dc-tpl="157" class="mono" style="color: rgba(255, 251, 240, 0.72);">a system</span></div>
+        <div data-dc-tpl="158" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="159"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(11, 26, 46); box-shadow: rgba(255, 251, 240, 0.22) 0px 0px 0px 1px, rgb(0, 0, 0) 0px 12px 28px -10px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="160" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="161" class="cap"><b data-dc-tpl="162">M · system</b><span data-dc-tpl="163">Dusk haze; Ethics, Language models</span></figcaption>
+      <div data-dc-tpl="164" class="phone sp">
+        <svg data-dc-tpl="165" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <defs data-dc-tpl="166">
+            <radialGradient data-dc-tpl="167" id="ms-oc" cx="62%" cy="34%" r="80%"><stop data-dc-tpl="168" offset="0" stop-color="#4FC0AF"></stop><stop data-dc-tpl="169" offset=".6" stop-color="#1E7A78"></stop><stop data-dc-tpl="170" offset="1" stop-color="#12504F"></stop></radialGradient>
+            <radialGradient data-dc-tpl="171" id="ms-haze" cx="50%" cy="45%" r="60%"><stop data-dc-tpl="172" offset="0" stop-color="#F2B84B" stop-opacity=".12"></stop><stop data-dc-tpl="173" offset="1" stop-color="#F2B84B" stop-opacity="0"></stop></radialGradient>
+            <radialGradient data-dc-tpl="174" id="ms-star" cx="50%" cy="50%" r="50%"><stop data-dc-tpl="175" offset="0" stop-color="#FFD9A0" stop-opacity=".4"></stop><stop data-dc-tpl="176" offset="1" stop-color="#FFD9A0" stop-opacity="0"></stop></radialGradient>
+            <clipPath data-dc-tpl="177" id="ms-c1"><circle data-dc-tpl="178" cx="300" cy="300" r="28"></circle></clipPath>
+            <clipPath data-dc-tpl="179" id="ms-c2"><circle data-dc-tpl="180" cx="88" cy="372" r="22"></circle></clipPath>
+            <clipPath data-dc-tpl="181" id="ms-c3"><circle data-dc-tpl="182" cx="232" cy="462" r="16"></circle></clipPath>
+          </defs>
+          <rect data-dc-tpl="183" x="0" y="0" width="390" height="844" fill="url(#ms-haze)"></rect>
+          <g data-dc-tpl="184" fill="#FFFBF0"><circle data-dc-tpl="185" cx="40" cy="200" r="1" opacity=".45"></circle><circle data-dc-tpl="186" cx="340" cy="190" r="1.1" opacity=".5"></circle><circle data-dc-tpl="187" cx="20" cy="520" r=".8" opacity=".35"></circle><circle data-dc-tpl="188" cx="370" cy="560" r="1" opacity=".4"></circle><circle data-dc-tpl="189" cx="300" cy="720" r="1.1" opacity=".45"></circle></g>
+          <g data-dc-tpl="190" fill="none" stroke="#FFE2B8" stroke-width="1.2" transform="rotate(-2 195 360)"><ellipse data-dc-tpl="191" cx="195" cy="360" rx="125" ry="58" stroke-opacity=".18"></ellipse><ellipse data-dc-tpl="192" cx="195" cy="360" rx="80" ry="38" stroke-opacity=".2"></ellipse><ellipse data-dc-tpl="193" cx="195" cy="360" rx="160" ry="80" stroke-opacity=".12"></ellipse></g>
+          <circle data-dc-tpl="194" cx="195" cy="360" r="76" fill="url(#ms-star)"></circle>
+          <circle data-dc-tpl="195" cx="195" cy="360" r="21" fill="#FFE9A8"></circle>
+          <circle data-dc-tpl="196" cx="300" cy="300" r="28" fill="url(#ms-oc)"></circle>
+          <g data-dc-tpl="197" clip-path="url(#ms-c1)"><path data-dc-tpl="198" d="M276 292l8-12 18-4 16 6 6 14-6 14-16 8-18-2-10-10z" fill="#A9C47A" stroke="#4E3A1E" stroke-width="1.2"></path><path data-dc-tpl="199" d="M290 300l10-6 12 4-4 10-12 2z" fill="#79A866"></path><path data-dc-tpl="200" d="M280 312q8-4 16 0" stroke="#E3C88E" stroke-width="1.5" fill="none"></path><rect data-dc-tpl="201" x="270" y="270" width="24" height="60" fill="#040A17" opacity=".3"></rect></g>
+          <circle data-dc-tpl="202" cx="300" cy="300" r="29" fill="none" stroke="#F2B84B" stroke-opacity=".6"></circle>
+          <circle data-dc-tpl="203" cx="88" cy="372" r="22" fill="url(#ms-oc)"></circle>
+          <g data-dc-tpl="204" clip-path="url(#ms-c2)"><path data-dc-tpl="205" d="M70 366l10-10 16 2 8 10-6 12-14 2-12-6z" fill="#E3C88E" stroke="#4E3A1E" stroke-width="1"></path><path data-dc-tpl="206" d="M74 372q8-4 16 0M78 380q8-4 16 0" stroke="#C9A25E" stroke-width="1.4" fill="none"></path></g>
+          <circle data-dc-tpl="207" cx="88" cy="372" r="23" fill="none" stroke="#F2B84B" stroke-opacity=".5"></circle>
+          <circle data-dc-tpl="208" cx="232" cy="462" r="16" fill="url(#ms-oc)"></circle>
+          <g data-dc-tpl="209" clip-path="url(#ms-c3)"><path data-dc-tpl="210" d="M220 458l8-8 12 2 4 10-10 6-12-2z" fill="#E7E1CF" stroke="#7D7563" stroke-width="1"></path></g>
+          <circle data-dc-tpl="211" cx="232" cy="462" r="17" fill="none" stroke="#F2B84B" stroke-opacity=".7" stroke-width="1.5"></circle>
+          <g data-dc-tpl="212" transform="translate(322 530)"><rect data-dc-tpl="213" x="-13" y="-6" width="26" height="12" rx="3" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path data-dc-tpl="214" d="M-25 0h12M13 0h12" stroke="#FFFBF0" stroke-width="2"></path><circle data-dc-tpl="215" cx="0" cy="0" r="2.5" fill="#FFE44D"></circle></g>
+          <circle data-dc-tpl="216" cx="92" cy="620" r="9" fill="#FFE9A8"></circle>
+          <ellipse data-dc-tpl="217" cx="92" cy="620" rx="50" ry="16" fill="none" stroke="#FFFBF0" stroke-opacity=".16"></ellipse>
+          <circle data-dc-tpl="218" cx="138" cy="626" r="11" fill="#F2B84B"></circle><path data-dc-tpl="219" d="M130 626l5-4 6 3 4-3" stroke="#8A5A10" stroke-width="1.6" fill="none"></path>
+          <g data-dc-tpl="220" font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text data-dc-tpl="221" x="300" y="346">Inference &amp; serving</text>
+            <text data-dc-tpl="222" x="88" y="414">Language models</text>
+            <text data-dc-tpl="223" x="232" y="498">Ethics &amp; policy</text>
+            <text data-dc-tpl="224" x="322" y="558">Model serving room</text>
+            <text data-dc-tpl="225" x="100" y="664">Linguistics</text>
+          </g>
+        </svg>
+        <span data-dc-tpl="226" class="own"><span data-dc-tpl="227" class="av" style="background: rgb(242, 184, 75);">M</span>Meera</span>
+        <div data-dc-tpl="228" class="stitle" style="top: 120px; left: 130px;"><b data-dc-tpl="229" class="disp" style="font-size: 24px;">Machine learning</b><span data-dc-tpl="230" class="mono" style="color: rgba(255, 251, 240, 0.72);">a system</span></div>
+        <div data-dc-tpl="231" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="232"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(11, 26, 46); box-shadow: rgba(255, 251, 240, 0.22) 0px 0px 0px 1px, rgb(0, 0, 0) 0px 12px 28px -10px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="233" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="234" class="cap"><b data-dc-tpl="235">A · planet</b><span data-dc-tpl="236">Fjords, terraces, coastal route, harbour + lighthouse</span></figcaption>
+      <div data-dc-tpl="237" class="phone sp">
+        <svg data-dc-tpl="238" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <defs data-dc-tpl="239">
+            <radialGradient data-dc-tpl="240" id="ap-oc" cx="34%" cy="28%" r="80%"><stop data-dc-tpl="241" offset="0" stop-color="#5FE0CF"></stop><stop data-dc-tpl="242" offset=".55" stop-color="#22A99E"></stop><stop data-dc-tpl="243" offset="1" stop-color="#11706B"></stop></radialGradient>
+            <radialGradient data-dc-tpl="244" id="ap-glow" cx="50%" cy="50%" r="50%"><stop data-dc-tpl="245" offset=".76" stop-color="#5FE0CF" stop-opacity=".24"></stop><stop data-dc-tpl="246" offset="1" stop-color="#5FE0CF" stop-opacity="0"></stop></radialGradient>
+            <clipPath data-dc-tpl="247" id="ap-clip"><circle data-dc-tpl="248" cx="195" cy="300" r="150"></circle></clipPath>
+          </defs>
+          <g data-dc-tpl="249" fill="#FFFBF0"><circle data-dc-tpl="250" cx="24" cy="120" r="1" opacity=".5"></circle><circle data-dc-tpl="251" cx="362" cy="110" r="1.3" opacity=".6"></circle><circle data-dc-tpl="252" cx="30" cy="520" r="1" opacity=".45"></circle><circle data-dc-tpl="253" cx="366" cy="500" r=".8" opacity=".35"></circle><circle data-dc-tpl="254" cx="340" cy="620" r="1.1" opacity=".5"></circle><circle data-dc-tpl="255" cx="60" cy="700" r=".9" opacity=".4"></circle></g>
+          <circle data-dc-tpl="256" cx="195" cy="300" r="196" fill="url(#ap-glow)"></circle>
+          <circle data-dc-tpl="257" cx="195" cy="300" r="150" fill="url(#ap-oc)"></circle>
+          <g data-dc-tpl="258" clip-path="url(#ap-clip)">
+            <path data-dc-tpl="259" d="M88 214 L104 196 L126 200 L132 186 L150 190 L156 210 L162 196 L176 200 L182 222 L186 210 L200 210 L206 226 L222 232 L236 246 L252 248 L262 262 L280 270 L292 288 L310 300 L322 318 L318 336 L330 352 L322 372 L302 384 L292 400 L274 396 L268 380 L262 394 L250 386 L246 372 L232 372 L224 358 L210 356 L206 342 L192 340 L196 330 L180 324 L170 322 L164 306 L150 304 L146 290 L130 286 L124 270 L110 266 L104 250 L94 246 L90 230 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2.2" stroke-linejoin="round"></path>
+            <path data-dc-tpl="260" d="M120 214 L150 206 L180 226 L214 240 L250 260 L282 284 L300 312 L304 340 L290 362 L262 364 L240 350 L214 338 L190 322 L166 300 L144 282 L124 258 Z" fill="#7DDB8A" stroke="#0E3B2E" stroke-opacity=".35" stroke-width="1"></path>
+            <path data-dc-tpl="261" d="M150 228 L184 244 L220 262 L258 286 L280 316 L278 340 L256 344 L230 330 L204 314 L176 290 L152 264 Z" fill="#A6E8A8" stroke="#0E3B2E" stroke-opacity=".3" stroke-width="1"></path>
+            <path data-dc-tpl="262" d="M196 270 L226 284 L252 304 L258 324 L238 322 L212 306 L194 288 Z" fill="#CFF3C8" stroke="#0E3B2E" stroke-opacity=".25" stroke-width="1"></path>
+            <path data-dc-tpl="263" d="M300 196 L322 190 L336 204 L326 222 L306 218 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2"></path>
+            <path data-dc-tpl="264" d="M110 360 L132 352 L146 368 L130 386 L112 380 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2"></path>
+            <g data-dc-tpl="265" fill="none" stroke="#FFFFFF" stroke-linecap="round"><path data-dc-tpl="266" d="M70 270 q40 -14 80 -4 q24 6 44 -2" stroke-opacity=".5" stroke-width="5"></path><path data-dc-tpl="267" d="M200 420 q30 -10 70 -2 q20 4 40 -2" stroke-opacity=".4" stroke-width="4"></path><path data-dc-tpl="268" d="M236 186 q24 -8 50 0" stroke-opacity=".45" stroke-width="3"></path></g>
+            <circle data-dc-tpl="269" cx="420" cy="470" r="232" fill="#040A17" opacity=".4"></circle>
+          </g>
+          <circle data-dc-tpl="270" cx="195" cy="300" r="151" fill="none" stroke="#B8FFF4" stroke-opacity=".55" stroke-width="2"></circle>
+          <path data-dc-tpl="271" d="M128 236 Q 160 240 196 262 Q 226 278 246 300 Q 270 318 292 340" fill="none" stroke="#FFFBF0" stroke-width="2" stroke-dasharray="3 5" stroke-linecap="round"></path>
+          <g data-dc-tpl="272" transform="translate(98 254)" stroke="#FFFBF0" stroke-width="1.6" fill="none"><path data-dc-tpl="273" d="M-8 0h16M-4 0v6M4 0v6"></path><path data-dc-tpl="274" d="M-15 9l6 -7 2 7z" fill="#FFFBF0"></path></g>
+          <g data-dc-tpl="275" transform="translate(206 222)"><path data-dc-tpl="276" d="M-3 8 L-2 -6 L2 -6 L3 8z" fill="#FFFBF0" stroke="#111111" stroke-width="1"></path><rect data-dc-tpl="277" x="-3" y="-10" width="6" height="4" fill="#FFE44D"></rect><path data-dc-tpl="278" d="M3 -8 L22 -16 M3 -8 L22 -2" stroke="#FFE44D" stroke-opacity=".75" stroke-width="1.5"></path></g>
+          <g data-dc-tpl="279" stroke="#111111" stroke-width="2" fill="#E7F7E9">
+            <polygon data-dc-tpl="280" points="124,226 132,226 138,232 138,240 132,246 124,246 118,240 118,232"></polygon>
+            <polygon data-dc-tpl="281" points="192,252 200,252 206,258 206,266 200,272 192,272 186,266 186,258"></polygon>
+            <polygon data-dc-tpl="282" points="242,290 250,290 256,296 256,304 250,310 242,310 236,304 236,296"></polygon>
+            <polygon data-dc-tpl="283" points="288,330 296,330 302,336 302,344 296,350 288,350 282,344 282,336"></polygon>
+          </g>
+          <g data-dc-tpl="284" fill="#111111"><circle data-dc-tpl="285" cx="128" cy="236" r="2.6"></circle><circle data-dc-tpl="286" cx="196" cy="262" r="2.6"></circle><circle data-dc-tpl="287" cx="246" cy="300" r="2.6"></circle><circle data-dc-tpl="288" cx="292" cy="340" r="2.6"></circle></g>
+          <path data-dc-tpl="289" d="M346 150 Q 344 176 330 190" fill="none" stroke="#FFE44D" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round"></path>
+          <path data-dc-tpl="290" d="M336 138l18 4-10 14z" fill="#FFFBF0"></path>
+        </svg>
+        <span data-dc-tpl="291" class="own"><span data-dc-tpl="292" class="av" style="background: rgb(20, 199, 155);">A</span>Asha</span>
+        <span data-dc-tpl="293" class="plab" style="left: 128px; top: 196px;">Batching</span>
+        <span data-dc-tpl="294" class="plab" style="left: 196px; top: 278px;">Deployment</span>
+        <span data-dc-tpl="295" class="plab" style="left: 246px; top: 316px;">Latency</span>
+        <span data-dc-tpl="296" class="plab" style="left: 292px; top: 356px;">Cost</span>
+        <div data-dc-tpl="297" class="pcap"><span data-dc-tpl="298" class="mono" style="color: rgba(255, 251, 240, 0.72);">A planet in Machine learning</span><h2 data-dc-tpl="299" class="disp" style="margin: 0px; font-size: 28px; line-height: 32px; font-weight: 800;">Inference &amp; serving</h2><p data-dc-tpl="300" style="margin: 0px; font-size: 15px; line-height: 1.45; color: rgba(255, 251, 240, 0.86);">Where a trained model meets real requests.</p></div>
+        <div data-dc-tpl="301" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="302"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(11, 26, 46); box-shadow: rgba(255, 251, 240, 0.22) 0px 0px 0px 1px, rgb(0, 0, 0) 0px 12px 28px -10px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="303" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="304" class="cap"><b data-dc-tpl="305">R · planet</b><span data-dc-tpl="306">Crystal archipelago, sea routes, aurora</span></figcaption>
+      <div data-dc-tpl="307" class="phone sp">
+        <svg data-dc-tpl="308" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <defs data-dc-tpl="309">
+            <radialGradient data-dc-tpl="310" id="rp-oc" cx="42%" cy="30%" r="82%"><stop data-dc-tpl="311" offset="0" stop-color="#4CC3D6"></stop><stop data-dc-tpl="312" offset=".55" stop-color="#16708E"></stop><stop data-dc-tpl="313" offset="1" stop-color="#0A3550"></stop></radialGradient>
+            <radialGradient data-dc-tpl="314" id="rp-glow" cx="50%" cy="50%" r="50%"><stop data-dc-tpl="315" offset=".76" stop-color="#9EE6FF" stop-opacity=".22"></stop><stop data-dc-tpl="316" offset="1" stop-color="#9EE6FF" stop-opacity="0"></stop></radialGradient>
+            <linearGradient data-dc-tpl="317" id="rp-sh" x1="0" y1="1" x2="1" y2="0"><stop data-dc-tpl="318" offset="0" stop-color="#040A17" stop-opacity=".6"></stop><stop data-dc-tpl="319" offset=".55" stop-color="#040A17" stop-opacity="0"></stop></linearGradient>
+            <clipPath data-dc-tpl="320" id="rp-clip"><circle data-dc-tpl="321" cx="195" cy="300" r="150"></circle></clipPath>
+          </defs>
+          <g data-dc-tpl="322" fill="#FFFBF0"><circle data-dc-tpl="323" cx="24" cy="120" r="1" opacity=".5"></circle><circle data-dc-tpl="324" cx="362" cy="240" r="1.3" opacity=".6"></circle><circle data-dc-tpl="325" cx="30" cy="520" r="1" opacity=".45"></circle><circle data-dc-tpl="326" cx="366" cy="500" r=".8" opacity=".35"></circle><circle data-dc-tpl="327" cx="60" cy="700" r=".9" opacity=".4"></circle></g>
+          <circle data-dc-tpl="328" cx="195" cy="300" r="196" fill="url(#rp-glow)"></circle>
+          <path data-dc-tpl="329" d="M96 168 Q 140 112 195 134 Q 250 156 300 112" stroke="#7CF5C8" stroke-opacity=".38" stroke-width="12" fill="none" stroke-linecap="round"></path>
+          <path data-dc-tpl="330" d="M110 160 Q 150 120 195 140 Q 244 160 290 124" stroke="#9EE6FF" stroke-opacity=".5" stroke-width="2.5" fill="none" stroke-linecap="round"></path>
+          <circle data-dc-tpl="331" cx="195" cy="300" r="150" fill="url(#rp-oc)"></circle>
+          <g data-dc-tpl="332" clip-path="url(#rp-clip)">
+            <path data-dc-tpl="333" d="M110 170 L150 158 L196 152 L240 158 L280 172 L252 182 L214 176 L180 184 L146 180 Z" fill="#EAF8FF" opacity=".92"></path>
+            <g data-dc-tpl="334" stroke="#0E3B2E" stroke-width="1.6" stroke-linejoin="round">
+              <path data-dc-tpl="335" d="M106 244 L120 224 L146 226 L158 246 L146 268 L118 268 Z" fill="#B4ECDF"></path>
+              <path data-dc-tpl="336" d="M190 226 L210 208 L236 216 L240 240 L218 254 L196 248 Z" fill="#B4ECDF"></path>
+              <path data-dc-tpl="337" d="M136 334 L154 314 L180 318 L188 342 L168 362 L144 358 Z" fill="#B4ECDF"></path>
+              <path data-dc-tpl="338" d="M240 312 L262 296 L290 306 L294 330 L270 346 L246 336 Z" fill="#B4ECDF"></path>
+              <path data-dc-tpl="339" d="M292 248 L306 238 L318 252 L304 264 Z" fill="#B4ECDF"></path>
+              <path data-dc-tpl="340" d="M210 388 L224 378 L238 390 L222 402 Z" fill="#B4ECDF"></path>
+              <path data-dc-tpl="341" d="M98 300 L112 290 L122 304 L108 314 Z" fill="#B4ECDF"></path>
+            </g>
+            <g data-dc-tpl="342" fill="#E6FBF6"><path data-dc-tpl="343" d="M132 248 L120 224 L146 226 Z"></path><path data-dc-tpl="344" d="M215 231 L210 208 L236 216 Z"></path><path data-dc-tpl="345" d="M162 338 L154 314 L180 318 Z"></path><path data-dc-tpl="346" d="M267 321 L262 296 L290 306 Z"></path><path data-dc-tpl="347" d="M305 251 L306 238 L318 252 Z"></path></g>
+            <g data-dc-tpl="348" fill="#6BC4B2"><path data-dc-tpl="349" d="M132 248 L146 268 L118 268 Z"></path><path data-dc-tpl="350" d="M215 231 L218 254 L196 248 Z"></path><path data-dc-tpl="351" d="M162 338 L168 362 L144 358 Z"></path><path data-dc-tpl="352" d="M267 321 L270 346 L246 336 Z"></path></g>
+            <rect data-dc-tpl="353" x="40" y="140" width="320" height="320" fill="url(#rp-sh)"></rect>
+          </g>
+          <circle data-dc-tpl="354" cx="195" cy="300" r="151" fill="none" stroke="#BDEBFF" stroke-opacity=".6" stroke-width="2"></circle>
+          <g data-dc-tpl="355" fill="none" stroke="#FFFBF0" stroke-width="1.8" stroke-dasharray="2 6" stroke-linecap="round">
+            <path data-dc-tpl="356" d="M152 238 Q 176 214 194 226"></path><path data-dc-tpl="357" d="M128 270 Q 126 300 146 320"></path><path data-dc-tpl="358" d="M232 250 Q 254 272 258 298"></path><path data-dc-tpl="359" d="M188 340 Q 216 352 244 334"></path>
+          </g>
+          <g data-dc-tpl="360" stroke="#111111" stroke-width="2" fill="#E7F7E9">
+            <polygon data-dc-tpl="361" points="128,236 136,236 142,242 142,250 136,256 128,256 122,250 122,242"></polygon>
+            <polygon data-dc-tpl="362" points="209,222 217,222 223,228 223,236 217,242 209,242 203,236 203,228"></polygon>
+            <polygon data-dc-tpl="363" points="157,329 165,329 171,335 171,343 165,349 157,349 151,343 151,335"></polygon>
+            <polygon data-dc-tpl="364" points="261,311 269,311 275,317 275,325 269,331 261,331 255,325 255,317"></polygon>
+          </g>
+          <g data-dc-tpl="365" fill="#111111"><circle data-dc-tpl="366" cx="132" cy="246" r="2.6"></circle><circle data-dc-tpl="367" cx="213" cy="232" r="2.6"></circle><circle data-dc-tpl="368" cx="161" cy="339" r="2.6"></circle><circle data-dc-tpl="369" cx="265" cy="321" r="2.6"></circle></g>
+          <path data-dc-tpl="370" d="M44 420 Q 60 400 82 392" fill="none" stroke="#9EE6FF" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round"></path>
+          <path data-dc-tpl="371" d="M80 380l18 6-14 12z" fill="#FFFBF0"></path>
+        </svg>
+        <span data-dc-tpl="372" class="own"><span data-dc-tpl="373" class="av" style="background: rgb(255, 138, 91);">R</span>Ravi</span>
+        <span data-dc-tpl="374" class="plab" style="left: 132px; top: 262px;">Batching</span>
+        <span data-dc-tpl="375" class="plab" style="left: 213px; top: 248px;">Deployment</span>
+        <span data-dc-tpl="376" class="plab" style="left: 161px; top: 355px;">Latency</span>
+        <span data-dc-tpl="377" class="plab" style="left: 265px; top: 337px;">Cost</span>
+        <div data-dc-tpl="378" class="pcap"><span data-dc-tpl="379" class="mono" style="color: rgba(255, 251, 240, 0.72);">A planet in Machine learning</span><h2 data-dc-tpl="380" class="disp" style="margin: 0px; font-size: 28px; line-height: 32px; font-weight: 800;">Inference &amp; serving</h2><p data-dc-tpl="381" style="margin: 0px; font-size: 15px; line-height: 1.45; color: rgba(255, 251, 240, 0.86);">Where a trained model meets real requests.</p></div>
+        <div data-dc-tpl="382" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="383"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(11, 26, 46); box-shadow: rgba(255, 251, 240, 0.22) 0px 0px 0px 1px, rgb(0, 0, 0) 0px 12px 28px -10px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="384" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="385" class="cap"><b data-dc-tpl="386">M · planet</b><span data-dc-tpl="387">Canyons, dunes, basin paths, observatory + bridge</span></figcaption>
+      <div data-dc-tpl="388" class="phone sp">
+        <svg data-dc-tpl="389" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <defs data-dc-tpl="390">
+            <radialGradient data-dc-tpl="391" id="mp-oc" cx="66%" cy="34%" r="82%"><stop data-dc-tpl="392" offset="0" stop-color="#4FC0AF"></stop><stop data-dc-tpl="393" offset=".55" stop-color="#1E7A78"></stop><stop data-dc-tpl="394" offset="1" stop-color="#12504F"></stop></radialGradient>
+            <radialGradient data-dc-tpl="395" id="mp-glow" cx="50%" cy="50%" r="50%"><stop data-dc-tpl="396" offset=".76" stop-color="#F2B84B" stop-opacity=".2"></stop><stop data-dc-tpl="397" offset="1" stop-color="#F2B84B" stop-opacity="0"></stop></radialGradient>
+            <radialGradient data-dc-tpl="398" id="mp-haze" cx="70%" cy="40%" r="70%"><stop data-dc-tpl="399" offset="0" stop-color="#F2B84B" stop-opacity=".18"></stop><stop data-dc-tpl="400" offset="1" stop-color="#F2B84B" stop-opacity="0"></stop></radialGradient>
+            <linearGradient data-dc-tpl="401" id="mp-sh" x1="0" y1="0" x2="1" y2="0"><stop data-dc-tpl="402" offset="0" stop-color="#040A17" stop-opacity=".62"></stop><stop data-dc-tpl="403" offset=".5" stop-color="#040A17" stop-opacity="0"></stop></linearGradient>
+            <clipPath data-dc-tpl="404" id="mp-clip"><circle data-dc-tpl="405" cx="195" cy="300" r="150"></circle></clipPath>
+          </defs>
+          <rect data-dc-tpl="406" x="0" y="0" width="390" height="844" fill="url(#mp-haze)"></rect>
+          <g data-dc-tpl="407" fill="#FFFBF0"><circle data-dc-tpl="408" cx="30" cy="140" r="1" opacity=".45"></circle><circle data-dc-tpl="409" cx="360" cy="560" r="1.2" opacity=".5"></circle><circle data-dc-tpl="410" cx="40" cy="600" r=".9" opacity=".4"></circle><circle data-dc-tpl="411" cx="330" cy="700" r="1" opacity=".4"></circle></g>
+          <circle data-dc-tpl="412" cx="195" cy="300" r="196" fill="url(#mp-glow)"></circle>
+          <circle data-dc-tpl="413" cx="195" cy="300" r="150" fill="url(#mp-oc)"></circle>
+          <g data-dc-tpl="414" clip-path="url(#mp-clip)">
+            <path data-dc-tpl="415" d="M70 250 L96 200 L140 172 L196 162 L252 176 L300 210 L330 262 L334 320 L312 372 L270 410 L210 428 L150 418 L104 386 L76 336 Z" fill="#A9C47A" stroke="#4E3A1E" stroke-width="2.2" stroke-linejoin="round"></path>
+            <path data-dc-tpl="416" d="M88 344 L120 336 L150 352 L176 392 L150 410 L108 388 Z" fill="#E3C88E"></path>
+            <path data-dc-tpl="417" d="M268 190 L300 214 L316 246 L296 240 L270 214 Z" fill="#E3C88E" opacity=".85"></path>
+            <g data-dc-tpl="418" fill="none" stroke="#C9A25E" stroke-width="1.6" stroke-linecap="round"><path data-dc-tpl="419" d="M100 360 q12 -7 24 0"></path><path data-dc-tpl="420" d="M112 372 q12 -7 24 0"></path><path data-dc-tpl="421" d="M124 384 q12 -7 24 0"></path><path data-dc-tpl="422" d="M108 350 q10 -6 20 0"></path><path data-dc-tpl="423" d="M280 214 q8 -5 16 0"></path><path data-dc-tpl="424" d="M290 228 q8 -5 16 0"></path></g>
+            <path data-dc-tpl="425" d="M170 270 L206 256 L240 274 L246 306 L222 330 L186 328 L164 304 Z" fill="#79A866" stroke="#4E3A1E" stroke-opacity=".5" stroke-width="1.2"></path>
+            <path data-dc-tpl="426" d="M186 284 L208 276 L228 290 L226 312 L204 318 L184 304 Z" fill="#6A955A"></path>
+            <g data-dc-tpl="427" fill="none" stroke-linecap="round" stroke-linejoin="round"><path data-dc-tpl="428" d="M100 262 L122 276 L118 300 L140 314 L132 336" stroke="#5A3B1E" stroke-width="5"></path><path data-dc-tpl="429" d="M102 260 L124 274 L120 298 L142 312 L134 334" stroke="#E3C88E" stroke-width="1.2"></path><path data-dc-tpl="430" d="M252 372 L272 352 L300 360 L318 340" stroke="#5A3B1E" stroke-width="4.5"></path><path data-dc-tpl="431" d="M253 369 L273 350 L300 357 L317 338" stroke="#E3C88E" stroke-width="1.1"></path></g>
+            <rect data-dc-tpl="432" x="40" y="140" width="320" height="320" fill="url(#mp-sh)"></rect>
+          </g>
+          <path data-dc-tpl="433" d="M291 185 A150 150 0 0 1 301 406" fill="none" stroke="#F2B84B" stroke-opacity=".85" stroke-width="3"></path>
+          <circle data-dc-tpl="434" cx="195" cy="300" r="151" fill="none" stroke="#FFE2B8" stroke-opacity=".35" stroke-width="1.5"></circle>
+          <g data-dc-tpl="435" fill="none" stroke="#FFFBF0" stroke-opacity=".85" stroke-width="1.6" stroke-linecap="round"><path data-dc-tpl="436" d="M188 286 L150 236"></path><path data-dc-tpl="437" d="M228 288 L268 248"></path><path data-dc-tpl="438" d="M190 314 L150 360"></path><path data-dc-tpl="439" d="M224 312 L282 346"></path></g>
+          <g data-dc-tpl="440" transform="translate(290 222)"><rect data-dc-tpl="441" x="-8" y="2" width="16" height="6" fill="#FFFBF0" stroke="#111111" stroke-width="1"></rect><path data-dc-tpl="442" d="M-8 2 A8 8 0 0 1 8 2 Z" fill="#FFFBF0" stroke="#111111" stroke-width="1"></path><path data-dc-tpl="443" d="M1 -5 L6 -10" stroke="#111111" stroke-width="1.6"></path></g>
+          <g data-dc-tpl="444" transform="translate(126 300)" fill="none" stroke="#FFFBF0" stroke-width="2"><path data-dc-tpl="445" d="M-10 0 Q 0 -9 10 0"></path><path data-dc-tpl="446" d="M-10 0v5M10 0v5M-12 0h24"></path></g>
+          <g data-dc-tpl="447" stroke="#111111" stroke-width="2" fill="#E7F7E9">
+            <polygon data-dc-tpl="448" points="146,226 154,226 160,232 160,240 154,246 146,246 140,240 140,232"></polygon>
+            <polygon data-dc-tpl="449" points="264,238 272,238 278,244 278,252 272,258 264,258 258,252 258,244"></polygon>
+            <polygon data-dc-tpl="450" points="146,350 154,350 160,356 160,364 154,370 146,370 140,364 140,356"></polygon>
+            <polygon data-dc-tpl="451" points="278,336 286,336 292,342 292,350 286,356 278,356 272,350 272,342"></polygon>
+          </g>
+          <g data-dc-tpl="452" fill="#111111"><circle data-dc-tpl="453" cx="150" cy="236" r="2.6"></circle><circle data-dc-tpl="454" cx="268" cy="248" r="2.6"></circle><circle data-dc-tpl="455" cx="150" cy="360" r="2.6"></circle><circle data-dc-tpl="456" cx="282" cy="346" r="2.6"></circle></g>
+          <path data-dc-tpl="457" d="M40 210 Q 56 196 74 192" fill="none" stroke="#F2B84B" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round"></path>
+          <path data-dc-tpl="458" d="M72 180l18 6-14 12z" fill="#FFFBF0"></path>
+        </svg>
+        <span data-dc-tpl="459" class="own"><span data-dc-tpl="460" class="av" style="background: rgb(242, 184, 75);">M</span>Meera</span>
+        <span data-dc-tpl="461" class="plab" style="left: 150px; top: 196px;">Batching</span>
+        <span data-dc-tpl="462" class="plab" style="left: 268px; top: 262px;">Deployment</span>
+        <span data-dc-tpl="463" class="plab" style="left: 150px; top: 376px;">Latency</span>
+        <span data-dc-tpl="464" class="plab" style="left: 290px; top: 362px;">Cost</span>
+        <div data-dc-tpl="465" class="pcap"><span data-dc-tpl="466" class="mono" style="color: rgba(255, 251, 240, 0.72);">A planet in Machine learning</span><h2 data-dc-tpl="467" class="disp" style="margin: 0px; font-size: 28px; line-height: 32px; font-weight: 800;">Inference &amp; serving</h2><p data-dc-tpl="468" style="margin: 0px; font-size: 15px; line-height: 1.45; color: rgba(255, 251, 240, 0.86);">Where a trained model meets real requests.</p></div>
+        <div data-dc-tpl="469" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="470"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(11, 26, 46); box-shadow: rgba(255, 251, 240, 0.22) 0px 0px 0px 1px, rgb(0, 0, 0) 0px 12px 28px -10px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    </figure>
+  </div>
+
+  <section data-dc-tpl="471" class="notes">
+    <div data-dc-tpl="472" class="note"><h3 data-dc-tpl="473">Shared family cues (never vary)</h3><p data-dc-tpl="474">Teal ocean hue family · angular, outlined land · one organising star with the same core and glow · octagon region pins with the same two states · label pills on fixed baselines · route language (dashed = sea/coastal, thin solid = overland). These let anyone read “Machine learning” at a glance.</p></div>
+    <div data-dc-tpl="475" class="note"><h3 data-dc-tpl="476">Personal variation (seeded per person)</h3><p data-dc-tpl="477">Coastline and land structure (one continent / archipelago / basin) · material (terraced grass, faceted crystal, sage with dunes and canyons) · light (crisp daylight terminator, cool glacial with aurora, warm dusk haze and rim light) · landmark glyphs · region arrangement and routes · orbit tilt and order · neighbouring topics.</p></div>
+    <div data-dc-tpl="478" class="note"><h3 data-dc-tpl="479">What landmarks may mean</h3><p data-dc-tpl="480">Decoration drawn from a stable personal seed, placed beside an actual region. They never encode amount watched, recency or any score. Region pins map 1:1 to supported regions; terrain size never implies more evidence.</p></div>
+    <div data-dc-tpl="481" class="note"><h3 data-dc-tpl="482">Commands · observations</h3><p data-dc-tpl="483" class="ev">OBS universe.open · universe.select{planet}<br data-dc-tpl="484">CMD visit.open{handle} when viewing a friend<br data-dc-tpl="485">The seed and materials are part of the scene descriptor, so the same person sees the same world on every device.</p></div>
+    <div data-dc-tpl="486" class="note"><h3 data-dc-tpl="487">Restore</h3><p data-dc-tpl="488">Each person’s camera {system, planet, rotation, zoom} is stored for their own universe only. A visit always opens a friend’s world at its default framing; nothing about the visitor’s camera is saved in the friend’s scene.</p></div>
+    <div data-dc-tpl="489" class="note"><h3 data-dc-tpl="490">Accessibility &amp; platform</h3><p data-dc-tpl="491">Identity is carried by shape, texture and light, not hue alone (grayscale test: archipelago vs continent vs basin still differ). List view stays identical across people. Reduced motion: no aurora shimmer or haze drift. 2D layered SVG/Skia-feasible; no 3D required.</p></div>
+  </section></div></div></div>
+
+
+
+</body></html>

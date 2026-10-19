@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>H01 Share sheet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.choice{display:flex;align-items:center;gap:14px;width:100%;min-height:64px;padding:10px 14px;border:2px solid #111111;border-radius:16px;background:#FFFBF0;color:#111111;text-align:left;text-decoration:none;cursor:pointer}
+.choice .ic{width:40px;height:40px;border-radius:12px;border:2px solid #111111;display:flex;align-items:center;justify-content:center;flex:none}
+.choice .tx{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.choice .tx b{font-size:16px}
+.choice .tx span{font-size:13px;color:#4A463D;line-height:1.35}
+.av{width:40px;height:40px;border-radius:999px;border:2px solid #111111;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-weight:800;font-size:16px;flex:none}
+.prow{display:flex;align-items:center;gap:12px;min-height:60px;padding:6px 4px;border-bottom:1px solid #D9D1BC}
+.prow .tx{display:flex;flex-direction:column;gap:2px;flex:1}
+.prow .tx b{font-size:15px}
+.pres{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#0B7A5F}
+.pres i{width:8px;height:8px;border-radius:9px;display:inline-block}
+.chk{width:24px;height:24px;margin:0;accent-color:#2C46E8;flex:none}
+.toast{position:absolute;left:16px;right:16px;top:56px;display:flex;gap:12px;align-items:center;padding:10px 10px 10px 16px;border-radius:18px;border:2px solid #111111;background:#FFFBF0;color:#111111;box-shadow:4px 4px 0 #111111;font-size:15px;line-height:1.35}
+.nchip{min-width:58px;min-height:44px;padding:0 10px;border-radius:12px;border:2px solid #111111;background:#FFFBF0;display:inline-flex;align-items:center;justify-content:center;gap:5px;font-weight:700;font-size:14px;color:#111111;cursor:pointer}
+.field{min-height:48px;border:2px solid #111111;border-radius:12px;padding:0 14px;font:16px 'Instrument Sans',sans-serif;background:#FFFBF0;width:100%}
+.inset{border:2px dashed #111111;border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:8px;background:#F4EDD8}
+</style>
+</helmet>
+<div style="width: 2174px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">H01</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Share sheet</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 1100px">“Here’s something interesting. Come explore it with me.” The same sheet on Reels and Scrolls: send it to a chat, start a content thread with friends, share an exact moment, or take a link elsewhere.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 SHEET -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Share · four ways</b><span>Reel pauses at 0:18 while the sheet is open</span></figcaption>
+      <div class="phone" style="background: #07070D; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#FFFBF0"><circle cx="40" cy="120" r="1" opacity=".6"></circle><circle cx="320" cy="90" r="1.2" opacity=".5"></circle><circle cx="250" cy="200" r=".8" opacity=".5"></circle><circle cx="70" cy="420" r="1" opacity=".4"></circle></g>
+          <ellipse cx="195" cy="250" rx="170" ry="40" fill="none" stroke="#FF8A3D" stroke-width="18" opacity=".5"></ellipse>
+          <circle cx="195" cy="250" r="92" fill="none" stroke="#FFD89A" stroke-width="6" opacity=".9"></circle>
+          <circle cx="195" cy="250" r="80" fill="#000000"></circle>
+          <path d="M25 250 A170 40 0 0 0 365 250" fill="none" stroke="#FFB547" stroke-width="14"></path>
+        </svg>
+        <div style="position: absolute; inset: 0; background: rgba(17,17,17,.5)"></div>
+        <div class="msheet" role="dialog" aria-label="Share">
+          <div class="grab"></div>
+          <div style="display: flex; gap: 12px; align-items: center">
+            <span aria-hidden="true" style="width: 48px; height: 48px; border-radius: 10px; background: #07070D; border: 2px solid #111111; display: flex; align-items: center; justify-content: center; flex: none"><svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="14" fill="none" stroke="#FFC46B" stroke-width="3"></circle><circle cx="20" cy="20" r="9" fill="#000000"></circle></svg></span>
+            <span style="display: flex; flex-direction: column; gap: 2px"><b style="font-size: 16px">The edge you can’t come back from</b><span style="font-size: 13px; color: #4A463D">Black holes · Part 2 of 4 · Reel</span></span>
+          </div>
+          <button class="choice" type="button">
+            <span class="ic" style="background: #FFFBF0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"></path></svg></span>
+            <span class="tx"><b>Send to a conversation</b><span>Drop it into a chat you already have</span></span>
+          </button>
+          <button class="choice" type="button" style="background: #FFF4C2">
+            <span class="ic" style="background: #FFE44D"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="2"></rect><path d="M4 14h16M4 19h10"></path></svg></span>
+            <span class="tx"><b>Explore with friends</b><span>Start a thread: this Reel, what comes next, and the chat together</span></span>
+          </button>
+          <button class="choice" type="button">
+            <span class="ic" style="background: #FFFBF0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 12h16"></path><path d="M8 8v8M16 8v8"></path></svg></span>
+            <span class="tx"><b>Share a moment</b><span>From 0:18 — pick the part worth looking at</span></span>
+          </button>
+          <button class="choice" type="button">
+            <span class="ic" style="background: #FFFBF0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path></svg></span>
+            <span class="tx"><b>Copy link / Share elsewhere</b><span>Other apps get a public link</span></span>
+          </button>
+          <button class="btn ghost" type="button">Cancel</button>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 2 SEND TO A CONVERSATION -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Send to a conversation</b><span>Single choice; “Sent” only after the receipt</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <button class="ibtn" type="button" aria-label="Back to share options" style="border: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+            <b class="disp" style="font-size: 22px">Send to a conversation</b>
+          </div>
+          <label for="h1-s" style="position: absolute; left: -9999px">Search conversations</label>
+          <input id="h1-s" class="field" type="search" placeholder="Search conversations">
+          <span class="mono" style="color: #4A463D">Recent</span>
+          <div role="radiogroup" aria-label="Conversation" style="display: flex; flex-direction: column">
+            <label class="prow"><span class="av" style="background: #FFE44D">R</span><span class="tx"><b>Ravi</b><span class="pres"><i style="background: #14C79B"></i>Online</span></span><input class="chk" type="radio" name="h1c" checked></label>
+            <label class="prow"><span class="av" style="background: #14C79B">M</span><span class="tx"><b>Meera</b><span class="pres" style="color: #4A463D"><i style="border: 1.5px solid #0B7A5F"></i>Recently active</span></span><input class="chk" type="radio" name="h1c"></label>
+            <label class="prow"><span class="av" style="background: #040A17; color: #FFFBF0; border-radius: 10px">R</span><span class="tx"><b>Model serving room</b><span style="font-size: 12px; color: #4A463D">Room</span></span><input class="chk" type="radio" name="h1c"></label>
+          </div>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Add a note (optional)<input class="field" type="text" value="This is the bit I meant"></label>
+          <button class="btn pri" type="button">Send to Ravi</button>
+          <div class="inset">
+            <span class="mono" style="color: #4A463D">After the server confirms</span>
+            <div style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 2px solid #111111; border-radius: 14px; background: #FFFBF0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+              <b style="flex: 1; font-size: 14px">Sent to Ravi</b>
+              <a class="btn sm" href="C02-Conversation.dc.html" style="box-shadow: none">Open chat</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 3 EXPLORE WITH FRIENDS -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Explore with friends</b><span>Pick people; presence is optional per person</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <button class="ibtn" type="button" aria-label="Back to share options" style="border: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+            <b class="disp" style="font-size: 22px">Explore with friends</b>
+          </div>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Thread name<input class="field" type="text" value="Black holes"></label>
+          <label for="h1-f" style="position: absolute; left: -9999px">Search friends</label>
+          <input id="h1-f" class="field" type="search" placeholder="Search friends by name or @handle">
+          <span class="mono" style="color: #4A463D">Recent</span>
+          <div style="display: flex; flex-direction: column">
+            <label class="prow"><span class="av" style="background: #FFE44D">R</span><span class="tx"><b>Ravi</b><span class="pres"><i style="background: #14C79B"></i>Online</span></span><input class="chk" type="checkbox" checked></label>
+            <label class="prow"><span class="av" style="background: #14C79B">M</span><span class="tx"><b>Meera</b><span class="pres" style="color: #4A463D"><i style="border: 1.5px solid #0B7A5F"></i>Recently active</span></span><input class="chk" type="checkbox" checked></label>
+            <label class="prow"><span class="av" style="background: #F4EDD8">K</span><span class="tx"><b>Kabir</b><span style="font-size: 12px; color: #4A463D">@kabir.r</span></span><input class="chk" type="checkbox"></label>
+            <label class="prow"><span class="av" style="background: #E6EAFF">J</span><span class="tx"><b>Jun</b><span style="font-size: 12px; color: #4A463D">@jun.w</span></span><input class="chk" type="checkbox"></label>
+          </div>
+          <p style="margin: 0; font-size: 13px; line-height: 1.45; color: #4A463D">Friends can open it whenever they like. Everyone keeps their own place in the Reels.</p>
+          <a class="btn pri" href="C04-Thread.dc.html">Create thread · 2 friends</a>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 4 THREAD CREATED -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Thread created</b><span>Lands in the new thread at your own position</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; left: 0; right: 0; top: 44px; min-height: 64px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 2px solid #111111">
+          <a class="ibtn" href="C01-Inbox.dc.html" aria-label="Back" style="border: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+          <span style="display: flex; flex-direction: column; gap: 1px; flex: 1"><b class="disp" style="font-size: 19px">Black holes</b><span style="font-size: 13px; color: #4A463D">Asha, Ravi, Meera</span></span>
+        </div>
+        <nav aria-label="Episodes" style="position: absolute; left: 12px; right: 12px; top: 124px; display: flex; gap: 6px">
+          <button class="nchip" type="button" aria-label="Part 1, you've watched it"><span>1</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></button>
+          <button class="nchip" type="button" aria-current="true" style="background: #111111; color: #FFFBF0; flex: 1">2 · current</button>
+          <button class="nchip" type="button" style="border-color: #4A463D; color: #4A463D">3</button>
+          <button class="nchip" type="button" style="border-color: #4A463D; color: #4A463D">4</button>
+        </nav>
+        <a href="C04-Thread.dc.html" aria-label="Play Part 2: The edge you can't come back from" style="position: absolute; left: 12px; right: 12px; top: 182px; height: 250px; border-radius: 18px; overflow: hidden; border: 2px solid #111111; background: #07070D; display: block; text-decoration: none">
+          <svg aria-hidden="true" width="362" height="250" viewBox="0 0 362 250" style="position: absolute; inset: 0">
+            <ellipse cx="181" cy="118" rx="150" ry="32" fill="none" stroke="#FF8A3D" stroke-width="14" opacity=".5"></ellipse>
+            <circle cx="181" cy="118" r="68" fill="none" stroke="#FFD89A" stroke-width="5"></circle>
+            <circle cx="181" cy="118" r="58" fill="#000000"></circle>
+            <path d="M31 118 A150 32 0 0 0 331 118" fill="none" stroke="#FFB547" stroke-width="11"></path>
+          </svg>
+          <span class="tag part" style="position: absolute; left: 10px; top: 10px">Part 2 of 4</span>
+          <span style="position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 6px; color: #FFFBF0">
+            <b class="disp" style="font-size: 19px">The edge you can’t come back from</b>
+            <span style="display: flex; align-items: center; gap: 8px"><i style="flex: 1; height: 4px; border-radius: 4px; background: rgba(255,251,240,.35); position: relative; display: block"><i style="position: absolute; left: 0; top: 0; bottom: 0; width: 36%; background: #FFFBF0; border-radius: 4px; display: block"></i></i><span class="mono">0:18</span></span>
+          </span>
+        </a>
+        <div style="position: absolute; left: 16px; right: 16px; top: 452px; display: flex; flex-direction: column; gap: 10px; align-items: center">
+          <span style="font-size: 13px; font-weight: 600; color: #4A463D; padding: 6px 12px; border-radius: 999px; border: 1.5px solid #D9D1BC; background: #FFFBF0">You started this thread · Ravi and Meera will see it in Talk</span>
+          <span style="font-size: 13px; color: #4A463D">Say why you’re sharing it — or just let the Reel speak.</span>
+        </div>
+        <div style="position: absolute; left: 12px; right: 12px; bottom: 96px">
+          <button class="btn sm" type="button" style="background: #E6EAFF; border: 2px dashed #2C46E8; color: #1B2FB8; box-shadow: none">What if…</button>
+        </div>
+        <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 84px; padding: 12px 12px 22px; display: flex; gap: 8px; align-items: center; border-top: 2px solid #111111; background: #FFFBF0">
+          <label for="h1-m" style="position: absolute; left: -9999px">Message</label>
+          <input id="h1-m" class="field" type="text" placeholder="Message Ravi and Meera" style="border-radius: 999px">
+          <button class="ibtn" type="button" aria-label="Send" style="background: #2C46E8; color: #FFFBF0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 5 COPY / ELSEWHERE / UNAVAILABLE -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Copied · elsewhere · unavailable</b><span>Cancel closes silently</span></figcaption>
+      <div class="phone" style="background: #07070D; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <ellipse cx="195" cy="300" rx="170" ry="40" fill="none" stroke="#FF8A3D" stroke-width="18" opacity=".5"></ellipse>
+          <circle cx="195" cy="300" r="92" fill="none" stroke="#FFD89A" stroke-width="6" opacity=".9"></circle>
+          <circle cx="195" cy="300" r="80" fill="#000000"></circle>
+          <path d="M25 300 A170 40 0 0 0 365 300" fill="none" stroke="#FFB547" stroke-width="14"></path>
+        </svg>
+        <div class="toast" role="status">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+          <span style="flex: 1"><b>Link copied</b><br><span style="font-size: 13px; color: #4A463D">Paste it wherever you like.</span></span>
+        </div>
+        <div style="position: absolute; left: 20px; width: 290px; top: 470px; display: flex; flex-direction: column; gap: 8px">
+          <span class="tag part" style="align-self: flex-start">Part 2 of 4</span>
+          <b class="disp" style="font-size: 26px; line-height: 28px">The edge you can’t come back from</b>
+        </div>
+        <div style="position: absolute; left: 16px; right: 16px; bottom: 24px; display: flex; flex-direction: column; gap: 8px">
+          <span class="mono" style="color: #FFFBF0">Variant · the Reel was withdrawn</span>
+          <div style="background: #FFFBF0; color: #111111; border: 2px solid #111111; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+            <span class="tag" style="align-self: flex-start">Unavailable</span>
+            <b style="font-size: 17px">This can’t be shared — it was withdrawn</b>
+            <span style="font-size: 14px; color: #4A463D; line-height: 1.4">Nothing was sent. Links you shared earlier now open an honest “unavailable” page.</span>
+            <button class="btn ink" type="button" style="align-self: flex-start">Close</button>
+          </div>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p>Overlay opened from Share on any Reel or Scroll (rail, strip, ⋯ menu, desktop popover). Not a history entry: Back or swipe-down closes it and a Reel that was playing resumes. “Explore with friends” lands in <span class="ev">/thread/:threadId</span> (C04).</p></div>
+    <div class="note"><h3>Actions</h3><p><b>Primary:</b> Explore with friends → Create thread. <b>Secondary:</b> Send to a conversation, Share a moment (H03), Copy link / system share. A thread can start from a single Reel or Scroll — no series needed.</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>sheet · picking (0 selected disables Create) · creating (busy) · created → thread · sent (receipt) · send failed → retry same request · copied · system share opened · cancelled (silent) · content withdrawn / private (blocked before any send).</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">OBS share.sheet_opened · share.sheet_cancelled · share.link_copied · share.system_opened<br>CMD share.send{conversationId, assetRevision, anchor?}<br>CMD thread.create{members[], root: assetRevision, name}<br>External share intent ≠ delivery.</p></div>
+    <div class="note"><h3>Restore</h3><p>Closing returns to the same Reel second / Scroll anchor. After Create, Back from the thread returns to the encounter you shared from, at its position. Draft note text survives switching between the options.</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>Options are buttons with full names; picker rows are labelled checkboxes. Presence is a word, set by each person in F02 — people who hide it show none. Native: system share sheet. Web: Web Share API, falling back to copy.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2174,"height":1480}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

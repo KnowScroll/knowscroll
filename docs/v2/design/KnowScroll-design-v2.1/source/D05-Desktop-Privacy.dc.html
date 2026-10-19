@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>D05 Desktop Privacy</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.rnav{width:88px;height:900px;background:#111111;color:#FFFBF0;display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:8px;flex:none}
+.rnav button,.rnav a{width:72px;min-height:64px;border:0;border-radius:18px;background:transparent;color:rgba(255,251,240,.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none}
+.rnav [aria-current="page"]{background:#2C46E8;color:#FFFBF0}
+.sn a{display:flex;align-items:center;min-height:48px;padding:0 14px;border-radius:12px;color:#111111;text-decoration:none;font-size:15px;font-weight:500}
+.card{border:2px solid #111111;border-radius:18px;background:#FFFBF0;padding:20px;display:flex;flex-direction:column;gap:12px}
+.card h2{margin:0;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:22px;font-weight:800;letter-spacing:-.01em}
+.rc{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 12px;border-radius:12px;background:#F4EDD8;font-size:14px;line-height:1.35}
+.ck{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.4;padding:10px 12px;border-radius:12px;border:1.5px solid #111111}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; overflow: hidden; position: relative; display: flex; background: #FFFBF0; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <nav class="rnav" aria-label="Primary">
+    <span class="disp" style="font-size: 22px; font-weight: 800; color: #FFE44D; margin-bottom: 14px">K</span>
+    <a href="D01-Desktop-Explore.dc.html"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3"></rect><path d="M8 3l4 4 4-4"></path></svg>Explore</a>
+    <a href="D02-Desktop-Universe.dc.html"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.5"></circle><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>Universe</a>
+    <a href="D03-Desktop-Talk.dc.html"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>Talk</a>
+    <a href="S01-Saved.dc.html"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg>Keep</a>
+    <a href="P01-Account.dc.html" aria-label="Account" aria-current="page" style="margin-top: auto"><span style="width: 40px; height: 40px; border-radius: 999px; background: #FFE44D; color: #111111; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px">A</span></a>
+  </nav>
+
+  <aside class="sn" aria-label="Settings" style="width: 280px; flex: none; border-right: 2px solid #111111; padding: 24px 16px; display: flex; flex-direction: column; gap: 4px; background: #F4EDD8">
+    <h1 class="disp" style="margin: 0 0 16px 14px; font-size: 30px; font-weight: 800">Settings</h1>
+    <a href="P01-Account.dc.html">Account</a>
+    <a href="F01-Friends.dc.html">Friends &amp; visibility</a>
+    <a href="P01-Account.dc.html">Notifications</a>
+    <a href="P01-Account.dc.html">Accessibility &amp; playback</a>
+    <a href="P02-Privacy.dc.html" aria-current="page" style="background: #111111; color: #FFFBF0; font-weight: 700">Privacy &amp; history</a>
+    <p style="margin: auto 14px 0; font-size: 13px; line-height: 1.45; color: #4A463D">Signed in as @asha.k</p>
+  </aside>
+
+  <main style="flex: 1; padding: 28px 36px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-content: start; overflow: hidden">
+    <div style="grid-column: 1 / -1; display: flex; align-items: flex-end; gap: 16px">
+      <h2 class="disp" style="margin: 0; font-size: 40px; font-weight: 800; line-height: 1">Privacy &amp; history</h2>
+      <span style="font-size: 15px; color: #4A463D; margin-bottom: 4px">Every action here says exactly what it changes, and reports done only when it is.</span>
+    </div>
+
+    <section class="card">
+      <h2>Recording</h2>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px">
+        <label for="d5-rec" style="display: flex; flex-direction: column; gap: 4px"><b style="font-size: 15px">Shape my universe from what I watch and read</b><span style="font-size: 14px; color: #4A463D; line-height: 1.4">When off, new viewing doesn’t add to your universe. Save, Share and Talk still work.</span></label>
+        <button id="d5-rec" type="button" role="switch" aria-checked="true" aria-label="Recording" style="width: 56px; height: 32px; border-radius: 999px; border: 2px solid #111111; background: #2C46E8; position: relative; padding: 0; cursor: pointer; flex: none"><i style="position: absolute; right: 3px; top: 3px; width: 22px; height: 22px; border-radius: 999px; background: #FFFBF0"></i></button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>History &amp; export</h2>
+      <span style="font-size: 14px; color: #4A463D; line-height: 1.4">A copy of your encounters, saved items, messages you sent and universe structure.</span>
+      <div class="rc"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 0 1 9 9"></path></svg><span style="flex: 1"><b>Preparing</b> · requested 19 Oct. We’ll notify you.</span></div>
+      <div class="rc" style="background: #E3F6EF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg><span style="flex: 1"><b>Ready</b> · link expires in [N days]</span><a class="btn sm" href="P02-Privacy.dc.html" style="min-height: 44px">Download</a></div>
+      <div class="rc" style="background: #FFE9DE"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A2C07" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg><span style="flex: 1; color: #8A2C07"><b>Failed</b> · nothing was exported</span><button class="btn sm ghost" type="button" style="min-height: 44px; color: #8A2C07; border-color: #B23A0B">Retry</button></div>
+    </section>
+
+    <section class="card">
+      <h2>Clear exploration</h2>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; font-size: 14px; line-height: 1.4">
+        <div style="display: flex; flex-direction: column; gap: 4px"><span class="mono" style="color: #8A2C07">Removed</span><span>Watch and read history</span><span>Interests worked out from it</span><span>Your universe</span></div>
+        <div style="display: flex; flex-direction: column; gap: 4px"><span class="mono" style="color: #0B7A5F">Stays</span><span>Keep items and places</span><span>Conversations, threads, messages</span><span>Friends and settings</span></div>
+      </div>
+      <span style="font-size: 13px; color: #4A463D; line-height: 1.4">Messages are stored for your conversations. They aren’t treated as evidence of what you explored.</span>
+      <div class="rc" style="background: #E3F6EF; flex-wrap: wrap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg><span style="flex: 1; min-width: 0">Example receipt: <b>Cleared from KnowScroll</b> · gone from the app and our live systems. <span style="color: #4A463D">Backups · pending: copies expire on their own within [N days] and aren’t used to rebuild anything.</span></span></div>
+      <button class="btn" type="button" style="align-self: flex-start; border-color: #B23A0B; color: #8A2C07">Review and confirm</button>
+    </section>
+
+    <section class="card" style="border-color: #B23A0B">
+      <h2 style="color: #8A2C07">Delete account</h2>
+      <span style="font-size: 14px; line-height: 1.45">Removes your account, history, universe, kept items and messages you sent. People you messaged keep a “deleted account” placeholder.</span>
+      <div class="rc"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span style="flex: 1">Example receipt: <b>Deletion in progress.</b> We’ll confirm when your account is gone from our live systems; backup copies then expire within [N days].</span></div>
+      <button class="btn" type="button" style="align-self: flex-start; background: #B23A0B; color: #FFFBF0; border-color: #B23A0B; box-shadow: 3px 3px 0 #111111">Delete account…</button>
+    </section>
+  </main>
+
+  <span class="mono" style="position: absolute; right: 16px; bottom: 16px; background: #FFE44D; padding: 5px 9px; border-radius: 6px">Prototype · design data</span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>class Component extends DCLogic { renderVals() { return {}; } }</script>
+</body>
+</html>

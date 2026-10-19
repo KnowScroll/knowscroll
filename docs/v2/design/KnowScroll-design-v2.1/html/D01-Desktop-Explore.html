@@ -1,0 +1,180 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>D01 Desktop Explore</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.rnav{width:88px;height:900px;background:#111111;color:#FFFBF0;display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:8px;flex:none}
+.rnav button,.rnav a{width:72px;min-height:64px;border:0;border-radius:18px;background:transparent;color:rgba(255,251,240,.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none}
+.rnav [aria-current="page"]{background:#2C46E8;color:#FFFBF0}
+.kbd{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;border:1.5px solid #111111;border-radius:6px;padding:2px 6px;background:#FFFBF0}
+.trow{display:flex;gap:12px;align-items:center;min-height:64px;padding:10px 12px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;text-decoration:none;color:#111111}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="D01-Desktop-Explore"><div data-dc-tpl="3" style="width: 1440px; height: 900px; overflow: hidden; position: relative; display: flex; background: rgb(255, 251, 240); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <nav data-dc-tpl="4" class="rnav" aria-label="Primary">
+    <span data-dc-tpl="5" class="disp" style="font-size: 22px; font-weight: 800; color: rgb(255, 228, 77); margin-bottom: 14px;">K</span>
+    <a data-dc-tpl="6" href="E01-Reel.html" aria-current="page"><svg data-dc-tpl="7" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="8" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="9" d="M8 3l4 4 4-4"></path></svg>Explore</a>
+    <a data-dc-tpl="10" href="D02-Desktop-Universe.html"><svg data-dc-tpl="11" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="12" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="13" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>Universe</a>
+    <a data-dc-tpl="14" href="D03-Desktop-Talk.html"><svg data-dc-tpl="15" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="16" d="M4 5h16v11H9l-5 4z"></path></svg>Talk</a>
+    <a data-dc-tpl="17" href="S01-Saved.html"><svg data-dc-tpl="18" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="19" d="M6 3h12v18l-6-4-6 4z"></path></svg>Keep</a>
+    <a data-dc-tpl="20" href="D05-Desktop-Privacy.html" aria-label="Account" style="margin-top: auto;"><span data-dc-tpl="21" style="width: 40px; height: 40px; border-radius: 999px; background: rgb(255, 228, 77); color: rgb(17, 17, 17); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px;">A</span></a>
+  </nav>
+
+  <main data-dc-tpl="22" style="flex: 1 1 0%; position: relative; display: flex; flex-direction: column; align-items: center; padding: 16px 0px 0px; background: rgb(244, 237, 216);">
+    <div data-dc-tpl="23" style="display: flex; align-items: center; gap: 14px; height: 52px;">
+      <button data-dc-tpl="24" class="btn sm" type="button" aria-label="Previous subject (up arrow)"><svg data-dc-tpl="25" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="26" d="M12 19V5"></path><path data-dc-tpl="27" d="M6 11l6-6 6 6"></path></svg>Previous subject</button>
+      <div data-dc-tpl="28" class="seg" role="group" aria-label="Format of this explanation">
+        <button data-dc-tpl="29" type="button" aria-pressed="true"><svg data-dc-tpl="30" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path data-dc-tpl="31" d="M7 4l13 8-13 8z"></path></svg>Reel</button>
+        <button data-dc-tpl="32" type="button" aria-pressed="false"><svg data-dc-tpl="33" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="34" d="M5 6h14M5 12h14M5 18h9"></path></svg>Scroll</button>
+      </div>
+      <span data-dc-tpl="35" class="tag">Machine learning</span>
+    </div>
+
+    <div data-dc-tpl="36" style="display: flex; gap: 20px; align-items: flex-end; margin-top: 8px;">
+      <div data-dc-tpl="37" style="width: 430px; height: 720px; border-radius: 26px; overflow: hidden; position: relative; background: rgb(44, 70, 232); color: rgb(255, 251, 240); border: 2px solid rgb(17, 17, 17); box-shadow: rgb(17, 17, 17) 6px 6px 0px;">
+        <svg data-dc-tpl="38" aria-hidden="true" width="430" height="720" viewBox="0 0 430 720" style="position: absolute; inset: 0px;">
+          <circle data-dc-tpl="39" cx="215" cy="290" r="170" fill="#3A55F0"></circle>
+          <g data-dc-tpl="40" stroke="#FFE44D" stroke-linecap="round" fill="none"><path data-dc-tpl="41" d="M234 322 C 190 290, 160 250, 132 222" stroke-width="7"></path><path data-dc-tpl="42" d="M244 320 C 270 280, 290 260, 304 232" stroke-width="2"></path><path data-dc-tpl="43" d="M226 332 C 190 360, 160 370, 130 378" stroke-width="1.5"></path></g>
+          <g data-dc-tpl="44" font-family="Instrument Sans, sans-serif" font-size="15" font-weight="600">
+            <rect data-dc-tpl="45" x="82" y="200" width="96" height="34" rx="17" fill="#FFFBF0"></rect><text data-dc-tpl="46" x="130" y="222" text-anchor="middle" fill="#111111">animal</text>
+            <rect data-dc-tpl="47" x="268" y="210" width="80" height="34" rx="17" fill="#FFFBF0" opacity=".7"></rect><text data-dc-tpl="48" x="308" y="232" text-anchor="middle" fill="#111111">street</text>
+            <rect data-dc-tpl="49" x="80" y="362" width="92" height="34" rx="17" fill="#FFFBF0" opacity=".55"></rect><text data-dc-tpl="50" x="126" y="384" text-anchor="middle" fill="#111111">tired</text>
+            <rect data-dc-tpl="51" x="206" y="310" width="56" height="38" rx="19" fill="#FFE44D" stroke="#111111" stroke-width="2"></rect><text data-dc-tpl="52" x="234" y="334" text-anchor="middle" fill="#111111" font-size="17" font-weight="700">it</text>
+          </g>
+        </svg>
+        <div data-dc-tpl="53" style="position: absolute; left: 20px; right: 20px; top: 430px; background: rgba(17, 17, 17, 0.82); border-radius: 12px; padding: 10px 12px; font-size: 16px; line-height: 1.4; font-weight: 500;">“It” looks around the sentence and decides that <b data-dc-tpl="54" style="color: rgb(255, 228, 77);">animal</b> matters most.</div>
+        <div data-dc-tpl="55" style="position: absolute; left: 22px; right: 22px; top: 548px; display: flex; flex-direction: column; gap: 8px;">
+          <span data-dc-tpl="56" class="tag part" style="align-self: flex-start;">Part 1 of 3</span>
+          <h1 data-dc-tpl="57" class="disp" style="margin: 0px; font-size: 30px; line-height: 32px; font-weight: 800;">Attention, explained with a crowded sentence</h1>
+        </div>
+        <div data-dc-tpl="58" style="position: absolute; left: 22px; right: 22px; top: 668px; display: flex; align-items: center; gap: 10px;">
+          <button data-dc-tpl="59" type="button" aria-label="Pause (Space)" style="width: 44px; height: 44px; border-radius: 999px; border: 0px; background: rgb(255, 251, 240); color: rgb(17, 17, 17); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg data-dc-tpl="60" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="61" d="M8 5v14M16 5v14"></path></svg></button>
+          <div data-dc-tpl="62" style="flex: 1 1 0%; height: 4px; border-radius: 4px; background: rgba(255, 251, 240, 0.35); position: relative;"><i data-dc-tpl="63" style="position: absolute; left: 0px; top: 0px; bottom: 0px; width: 62%; border-radius: 4px; background: rgb(255, 251, 240);"></i></div>
+          <span data-dc-tpl="64" class="mono" style="color: rgb(255, 251, 240);">0:31 / 0:50</span>
+        </div>
+      </div>
+      <div data-dc-tpl="65" style="display: flex; flex-direction: column; gap: 16px; padding-bottom: 80px;">
+        <div data-dc-tpl="66" class="ra"><button data-dc-tpl="67" class="ibtn" type="button" aria-label="Like"><svg data-dc-tpl="68" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="69" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button><span data-dc-tpl="70">Like</span></div>
+        <div data-dc-tpl="71" class="ra"><button data-dc-tpl="72" class="ibtn" type="button" aria-label="Save"><svg data-dc-tpl="73" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="74" d="M6 3h12v18l-6-4-6 4z"></path></svg></button><span data-dc-tpl="75">Save</span></div>
+        <div data-dc-tpl="76" class="ra"><a data-dc-tpl="77" class="ibtn" href="H01-Share.html" aria-label="Share"><svg data-dc-tpl="78" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="79" d="M4 12v7h16v-7"></path><path data-dc-tpl="80" d="M12 3v12"></path><path data-dc-tpl="81" d="M7 8l5-5 5 5"></path></svg></a><span data-dc-tpl="82">Share</span></div>
+        <div data-dc-tpl="83" class="ra"><a data-dc-tpl="84" class="ibtn" href="E04-Request.html" aria-label="Ask about this"><svg data-dc-tpl="85" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="86" d="M4 5h16v11H9l-5 4z"></path><path data-dc-tpl="87" d="M10 9.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9"></path><path data-dc-tpl="88" d="M12 13.6v.1"></path></svg></a><span data-dc-tpl="89">Ask</span></div>
+      </div>
+    </div>
+
+    <div data-dc-tpl="90" style="position: absolute; left: 0px; right: 0px; bottom: 0px; height: 44px; display: flex; align-items: center; justify-content: center; gap: 18px; font-size: 13px; color: rgb(74, 70, 61); border-top: 1px solid rgb(217, 209, 188); background: rgb(244, 237, 216);">
+      <button data-dc-tpl="91" class="btn sm ghost" type="button" style="min-height: 36px; border-width: 1.5px;">Next subject <svg data-dc-tpl="92" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="93" d="M12 5v14"></path><path data-dc-tpl="94" d="M6 13l6 6 6-6"></path></svg></button>
+      <span data-dc-tpl="95"><span data-dc-tpl="96" class="kbd">↑</span> <span data-dc-tpl="97" class="kbd">↓</span> subject</span>
+      <span data-dc-tpl="98"><span data-dc-tpl="99" class="kbd">←</span> <span data-dc-tpl="100" class="kbd">→</span> thread</span>
+      <span data-dc-tpl="101"><span data-dc-tpl="102" class="kbd">Space</span> play / pause</span>
+      <span data-dc-tpl="103"><span data-dc-tpl="104" class="kbd">Esc</span> close</span>
+    </div>
+  </main>
+
+  <aside data-dc-tpl="105" aria-label="This thread" style="width: 368px; flex: 0 0 auto; border-left: 2px solid rgb(17, 17, 17); background: rgb(255, 251, 240); padding: 24px 20px; display: flex; flex-direction: column; gap: 12px;">
+    <span data-dc-tpl="106" class="mono" style="color: rgb(74, 70, 61);">This thread</span>
+    <h2 data-dc-tpl="107" class="disp" style="margin: 0px 0px 4px; font-size: 24px; font-weight: 800;">Attention</h2>
+    <div data-dc-tpl="108" class="trow" aria-current="step" style="background: rgb(17, 17, 17); color: rgb(255, 251, 240);"><span data-dc-tpl="109" class="tag part">Part 1</span><span data-dc-tpl="110" style="font-size: 14px; font-weight: 600; line-height: 1.3;">Explained with a crowded sentence · now</span></div>
+    <a data-dc-tpl="111" class="trow" href="E05-Continue.html" style="background: rgb(255, 228, 77);"><span data-dc-tpl="112" class="tag" style="background: rgb(255, 251, 240);">Part 2</span><span data-dc-tpl="113" style="font-size: 14px; font-weight: 600; line-height: 1.3;">Translating one sentence</span><svg data-dc-tpl="114" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left: auto; flex: 0 0 auto;"><path data-dc-tpl="115" d="M5 12h14"></path><path data-dc-tpl="116" d="M13 6l6 6-6 6"></path></svg></a>
+    <a data-dc-tpl="117" class="trow" href="E05-Continue.html"><span data-dc-tpl="118" class="tag">Part 3</span><span data-dc-tpl="119" style="font-size: 14px; font-weight: 600; line-height: 1.3;">Where attention runs out</span></a>
+    <a data-dc-tpl="120" class="trow" href="E05-Continue.html" style="border-style: dashed;"><span data-dc-tpl="121" class="tag" style="border-style: dashed;">Related</span><span data-dc-tpl="122" style="font-size: 14px; font-weight: 600; line-height: 1.3;">A spotlight with a budget</span></a>
+    <div data-dc-tpl="123" style="display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: rgb(244, 237, 216);">
+      <span data-dc-tpl="124" style="font-size: 14px; line-height: 1.4;">Same explanation as a Scroll:</span>
+      <a data-dc-tpl="125" class="btn pri sm" href="E02-Scroll.html" style="align-self: flex-start;">Open Scroll · “Attention, slowly”</a>
+    </div>
+    <a data-dc-tpl="126" href="D03-Desktop-Talk.html" style="margin-top: auto; display: flex; gap: 12px; align-items: center; padding: 12px; border: 2px solid rgb(17, 17, 17); border-radius: 16px; text-decoration: none; color: rgb(17, 17, 17); background: rgb(255, 251, 240);">
+      <span data-dc-tpl="127" style="width: 40px; height: 40px; border-radius: 999px; background: rgb(110, 134, 255); color: rgb(17, 17, 17); display: flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 auto;">R</span>
+      <span data-dc-tpl="128" style="display: flex; flex-direction: column; gap: 2px; min-width: 0px;"><b data-dc-tpl="129" style="font-size: 14px;">Talk · Ravi</b><span data-dc-tpl="130" style="font-size: 13px; color: rgb(74, 70, 61); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">“Wait, does batching make each request…”</span></span>
+      <span data-dc-tpl="131" class="mono" style="margin-left: auto; color: rgb(74, 70, 61);">Open</span>
+    </a>
+    <p data-dc-tpl="132" style="margin: 0px; font-size: 12px; color: rgb(74, 70, 61); line-height: 1.4;">Opening Talk keeps this Reel paused at 0:31 — only one player runs.</p>
+  </aside>
+
+  <span data-dc-tpl="133" class="mono" style="position: absolute; right: 16px; top: 14px; background: rgb(255, 228, 77); padding: 5px 9px; border-radius: 6px;">Prototype · design data</span></div></div></div>
+
+
+
+</body></html>

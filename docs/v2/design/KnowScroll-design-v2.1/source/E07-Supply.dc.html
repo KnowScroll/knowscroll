@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>E07 Supply waiting and availability</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px 0 10px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap}
+.stripe{background:repeating-linear-gradient(135deg,#FFFBF0 0 5px,#F4EDD8 5px 10px)}
+.rq{display:flex;flex-direction:column;gap:8px;padding:12px 0;border-bottom:1px solid #D9D1BC}
+.rq b{font-size:15px;line-height:1.3}
+.rq span.k{font-size:13px;color:#4A463D}
+</style>
+</helmet>
+<div style="width: 1752px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">E07</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Supply waiting &amp; availability</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 980px">Quiet status attached to what you asked for. Five honest states — requested, preparing, ready, couldn’t prepare, cancelled — and a plain “that’s what’s ready for now”. No percentages, no ETAs.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 REQUESTS SHEET -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Requests sheet</b><span>Keep → Requested, or tap any chip</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; inset: 0; background: rgba(17,17,17,.45)"></div>
+        <div class="msheet" style="top: 132px">
+          <div class="grab"></div>
+          <div style="display: flex; align-items: center; justify-content: space-between">
+            <b class="disp" style="font-size: 26px">Your requests</b>
+            <button class="ibtn" type="button" aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          </div>
+          <div style="display: flex; flex-direction: column">
+            <div class="rq"><b>Scroll of “Why long prompts cost more”</b><span class="chip" style="align-self: flex-start; background: #14C79B"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>Ready · Open</span></div>
+            <div class="rq"><b>Football: why the high press works, as a Scroll</b><span class="chip stripe" style="align-self: flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 0 1 9 9"></path></svg>Preparing</span></div>
+            <div class="rq"><b>More on where attention runs out</b><span class="chip" style="align-self: flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>Requested</span></div>
+            <div class="rq"><b>Bronze Age collapse, told through trade routes</b><span class="chip" style="align-self: flex-start; border-color: #B23A0B; color: #8A2C07"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg>Couldn’t prepare · Retry</span></div>
+            <div class="rq" style="border-bottom: 0"><b>Orbits as a Reel</b><span class="chip" style="align-self: flex-start; color: #4A463D; border-style: dashed"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>Cancelled</span></div>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 2 READY -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Ready → opened</b><span>Opens on demand; nothing interrupted</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; align-items: center; justify-content: space-between">
+          <a class="ibtn" href="S01-Saved.dc.html" aria-label="Back to requests"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+          <div class="seg" role="group" aria-label="Format of this explanation"><button type="button" aria-pressed="false">Reel</button><button type="button" aria-pressed="true">Scroll</button></div>
+        </div>
+        <div role="status" class="chip" style="position: absolute; left: 20px; top: 120px; background: #14C79B">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>Ready — the Scroll you asked for
+        </div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 186px; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; gap: 8px"><span class="tag">Machine learning</span><span class="tag">Scroll · 5 min</span></div>
+          <div style="border: 2px solid #111111; border-radius: 20px; padding: 20px; background: #FFFBF0; box-shadow: 6px 6px 0 #2C46E8; display: flex; flex-direction: column; gap: 10px">
+            <h2 class="disp" style="margin: 0; font-size: 38px; line-height: 40px; font-weight: 800">Why long prompts cost more</h2>
+            <p style="margin: 0; font-size: 17px; line-height: 1.45; color: #4A463D">Every word is compared with every other word — so the work grows faster than the text.</p>
+          </div>
+          <p style="margin: 0; font-size: 18px; line-height: 28px">Double the prompt and the comparisons roughly quadruple. Go from 512 words to 4,096 and the attention work grows about sixty-four times.</p>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 3 FAILED -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Couldn’t prepare</b><span>Retry reuses the same request</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; inset: 0; background: rgba(17,17,17,.45)"></div>
+        <div class="msheet" style="top: 330px">
+          <div class="grab"></div>
+          <span class="chip" style="align-self: flex-start; border-color: #B23A0B; color: #8A2C07"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg>Couldn’t prepare</span>
+          <h2 class="disp" style="margin: 0; font-size: 28px; line-height: 30px; font-weight: 800">We couldn’t prepare this one</h2>
+          <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #4A463D">“Bronze Age collapse, told through trade routes.” Trying again keeps your original request — you won’t get two.</p>
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <button class="btn pri" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg>Try again</button>
+            <a class="btn" href="E04-Request.dc.html">Ask differently</a>
+            <button class="btn ghost" type="button">Cancel request</button>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 4 EXHAUSTION -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Honest exhaustion</b><span>Nothing more ready on this right now</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; left: 24px; right: 24px; top: 120px; display: flex; flex-direction: column; gap: 16px">
+          <span class="tag" style="align-self: flex-start">Football</span>
+          <h2 class="disp" style="margin: 0; font-size: 36px; line-height: 38px; font-weight: 800">You’ve seen what’s ready on this for now</h2>
+          <p style="margin: 0; font-size: 17px; line-height: 1.5; color: #4A463D">More may come later. Here are a few ways to keep going.</p>
+          <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 6px">
+            <button class="btn pri" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg>Another subject</button>
+            <a class="btn" href="S01-Saved.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg>Something you kept</a>
+            <a class="btn" href="E04-Request.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path><path d="M10 9.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9"></path></svg>Ask for more football</a>
+          </div>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p>Request chip appears where the request was made (E04, E06). Sheet: <span class="ev">/keep?view=requested</span> or tap a chip. Exhaustion card replaces the next buffer slot in <span class="ev">/explore</span>.</p></div>
+    <div class="note"><h3>Actions</h3><p><b>Primary:</b> Open ready item · Try again. <b>Secondary:</b> Cancel, Ask differently, Another subject, Something you kept. Retry and Cancel act on the request, not on the feed.</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>requested · preparing · ready · couldn’t prepare · cancelled · unavailable (“can’t be made”) · exhausted. Offline: chips keep their last known state, marked “may be out of date”.</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">CMD request.retry{sameRequestId}<br>CMD request.cancel{requestId} · request.open<br>OBS requests.sheet_opened · feed.exhausted_shown</p></div>
+    <div class="note"><h3>Restore</h3><p>Opening a ready item from the sheet returns to the sheet’s scroll position; the encounter you left stays paused at its anchor. Ready state persists until opened or dismissed — notifications only if enabled in P01.</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>Chip state is word + glyph, never colour alone. Status changes announce politely. Native: optional push “Ready” only. Web: same in-app toast; no browser push by default.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1752,"height":1480}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

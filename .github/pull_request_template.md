@@ -1,22 +1,15 @@
 ## Outcome
 
-What changes for the person? Link the issue and relevant ADR/contract.
+<!-- What a person can now do, or what is now true. Link the sub-issue (Closes #N) and the tracker. -->
 
-## Boundaries and decisions
+## Changes
 
-Components changed; migration/compatibility impact; decisions made.
+<!-- Packages/modules/contracts touched; contract changes land before their consumers. -->
 
-## Implementation proof
+## Verification
 
-Commands and results.
+<!-- Label each item: source inspection · CI fixture · real database · real provider · browser · emulator · physical device · dev deployment · stage deployment. Link CI runs on this exact head. -->
 
-## Product/runtime proof
+## Not proved / remaining
 
-Expected path → observed path; revision/environment/time; redacted receipt or artifact links. State what is unproved.
-
-## Handoff
-
-Divergence, blockers, next action. Update PROJECT-STATE only if durable truth changed.
-Refresh the coordinator-owned CHECKPOINT when the current wave, decision, runtime observation
-or next action changes; link it. State whether source was deployed and which evidence level
-was reached. Preserve old receipts and their actual revisions.
+<!-- Say exactly what this PR does not prove. -->

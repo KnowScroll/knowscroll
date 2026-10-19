@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>U06 Friend universe visit</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.pillsp{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:0;background:#FFFBF0;color:#111111;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none}
+.hit{position:absolute;width:48px;height:48px;border-radius:999px;border:0;background:transparent;cursor:pointer;padding:0}
+.vbar{position:absolute;left:12px;right:12px;top:56px;min-height:56px;display:flex;align-items:center;gap:10px;padding:6px 6px 6px 8px;border-radius:999px;background:#FFFBF0;color:#111111}
+.av{width:36px;height:36px;border-radius:999px;background:#FF8A5B;border:2px solid #111111;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:none}
+.popc{position:absolute;background:#FFFBF0;color:#111111;border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;box-shadow:0 16px 32px -12px #000}
+.priv{position:absolute;left:12px;right:12px;top:122px;min-height:44px;display:flex;align-items:center;gap:10px;padding:0 14px;border-radius:999px;border:1.5px solid rgba(255,251,240,.4);background:rgba(11,26,46,.86);color:#FFFBF0;font-size:13px;font-weight:600;cursor:pointer;text-align:left}
+.haze{position:absolute;inset:0;pointer-events:none}
+</style>
+</helmet>
+<div style="width: 1752px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">U06</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Friend universe visit</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 1060px">Ravi’s Machine learning is recognisably ML but unmistakably his: crystal archipelago, glacial light, aurora, a debris ring around Hardware. Private parts are never drawn — one generic haze, identical for every visit, and a plain banner.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 RAVI'S UNIVERSE -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Visiting Ravi</b><span>Shared systems; generic visitor haze</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <defs>
+            <radialGradient id="v1-oc" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="#4CC3D6"></stop><stop offset=".6" stop-color="#16708E"></stop><stop offset="1" stop-color="#0A3550"></stop></radialGradient>
+            <clipPath id="v1-c1"><circle cx="140" cy="380" r="22"></circle></clipPath>
+            <clipPath id="v1-c2"><circle cx="300" cy="320" r="14"></circle></clipPath>
+          </defs>
+          <g fill="#FFFBF0"><circle cx="24" cy="200" r="1" opacity=".5"></circle><circle cx="150" cy="220" r="1.2" opacity=".55"></circle><circle cx="352" cy="260" r="1" opacity=".5"></circle><circle cx="40" cy="480" r=".9" opacity=".4"></circle><circle cx="372" cy="470" r=".8" opacity=".35"></circle><circle cx="30" cy="690" r="1.2" opacity=".5"></circle><circle cx="250" cy="720" r=".9" opacity=".4"></circle></g>
+          <g fill="none" stroke="#FFFBF0" stroke-width="1.2" transform="rotate(14 210 350)"><ellipse cx="210" cy="350" rx="118" ry="38" stroke-opacity=".18"></ellipse><ellipse cx="210" cy="350" rx="80" ry="26" stroke-opacity=".18"></ellipse></g>
+          <circle cx="210" cy="350" r="28" fill="#FFE9A8" opacity=".12"></circle>
+          <circle cx="210" cy="350" r="13" fill="#FFE9A8"></circle>
+          <path d="M116 360 Q 140 340 166 358" stroke="#7CF5C8" stroke-opacity=".55" stroke-width="4" fill="none" stroke-linecap="round"></path>
+          <circle cx="140" cy="380" r="22" fill="url(#v1-oc)"></circle>
+          <g clip-path="url(#v1-c1)"><path d="M120 362l18-4 22 4-6 6-30 0z" fill="#EAF8FF" opacity=".9"></path><path d="M124 380l6-6 8 2 2 8-8 3z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path><path d="M142 378l8-5 8 5-3 8-10 0z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path><path d="M134 392l8-3 6 5-5 6-8-2z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path></g>
+          <circle cx="140" cy="380" r="23" fill="none" stroke="#BDEBFF" stroke-opacity=".55"></circle>
+          <g fill="#8FA3B8"><path d="M278 322l3-2 2 2-3 2z"></path><path d="M284 330l3-1 2 3-3 1z"></path><path d="M318 312l3-2 2 2-3 2z"></path><path d="M322 322l3-1 2 2-3 2z"></path><path d="M288 310l2-1 2 2-2 1z"></path></g>
+          <circle cx="300" cy="320" r="14" fill="url(#v1-oc)"></circle>
+          <g clip-path="url(#v1-c2)"><path d="M290 316l6-6 8 2 3 7-7 4-9-2z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path></g>
+          <g transform="translate(84 250)"><rect x="-10" y="-5" width="20" height="10" rx="3" fill="none" stroke="#FFFBF0" stroke-width="1.6"></rect><path d="M-19 0h9M10 0h9" stroke="#FFFBF0" stroke-width="1.6"></path><circle cx="0" cy="0" r="2" fill="#FFE44D"></circle></g>
+          <ellipse cx="112" cy="566" rx="52" ry="18" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <circle cx="112" cy="566" r="18" fill="#FFE9A8" opacity=".12"></circle>
+          <circle cx="112" cy="566" r="8" fill="#FFE9A8"></circle>
+          <circle cx="162" cy="560" r="11" fill="#FF8A5B"></circle>
+          <circle cx="158" cy="556" r="3" fill="#FFD2BE"></circle><circle cx="166" cy="564" r="3.6" fill="#FFD2BE"></circle>
+          <g font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text x="300" y="350">Hardware</text>
+            <text x="140" y="420">Inference &amp; serving</text>
+            <text x="222" y="460" font-size="15" font-weight="700">Machine learning</text>
+            <text x="84" y="276">Model serving room</text>
+            <text x="164" y="588">Tactics</text>
+            <text x="112" y="614" font-size="15" font-weight="700">Football</text>
+          </g>
+        </svg>
+        <svg class="haze" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844"><defs><radialGradient id="v1-hz" cx="50%" cy="50%" r="70%"><stop offset=".55" stop-color="#1C3350" stop-opacity="0"></stop><stop offset="1" stop-color="#1C3350" stop-opacity=".55"></stop></radialGradient></defs><rect width="390" height="844" fill="url(#v1-hz)"></rect></svg>
+        <div class="vbar"><span class="av" aria-hidden="true">R</span><span style="flex: 1; font-size: 14px; line-height: 1.3"><b>Visiting Ravi</b><br><span style="color: #4A463D">Only what he shares</span></span><a class="btn ink sm" href="U01-Universe.dc.html">Leave</a></div>
+        <button class="priv" type="button" aria-label="Some of Ravi's universe is private. More about this"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Some of Ravi’s universe is private</button>
+        <a class="hit" href="U06-Friend.dc.html" aria-label="Ravi's Machine learning, a system" style="left: 186px; top: 326px"></a>
+        <a class="hit" href="U06-Friend.dc.html" aria-label="Ravi's Football, a system" style="left: 88px; top: 542px"></a>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 2 RAVI'S ML SYSTEM -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Ravi’s ML system</b><span>Same room, different place</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <defs>
+            <radialGradient id="v2-oc" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="#4CC3D6"></stop><stop offset=".6" stop-color="#16708E"></stop><stop offset="1" stop-color="#0A3550"></stop></radialGradient>
+            <clipPath id="v2-c1"><circle cx="110" cy="480" r="30"></circle></clipPath>
+            <clipPath id="v2-c2"><circle cx="318" cy="400" r="20"></circle></clipPath>
+          </defs>
+          <g fill="#FFFBF0"><circle cx="24" cy="560" r="1" opacity=".5"></circle><circle cx="362" cy="250" r="1.3" opacity=".6"></circle><circle cx="40" cy="680" r=".9" opacity=".4"></circle><circle cx="372" cy="620" r=".8" opacity=".35"></circle><circle cx="200" cy="700" r="1" opacity=".45"></circle></g>
+          <g fill="none" stroke="#FFFBF0" stroke-width="1.2" transform="rotate(14 210 440)"><ellipse cx="210" cy="440" rx="150" ry="48" stroke-opacity=".18"></ellipse><ellipse cx="210" cy="440" rx="104" ry="34" stroke-opacity=".18"></ellipse></g>
+          <circle cx="210" cy="440" r="56" fill="#FFE9A8" opacity=".06"></circle>
+          <circle cx="210" cy="440" r="36" fill="#FFE9A8" opacity=".11"></circle>
+          <circle cx="210" cy="440" r="20" fill="#FFE9A8"></circle>
+          <path d="M78 456 Q 110 430 142 452" stroke="#7CF5C8" stroke-opacity=".55" stroke-width="5" fill="none" stroke-linecap="round"></path>
+          <circle cx="110" cy="480" r="30" fill="url(#v2-oc)"></circle>
+          <g clip-path="url(#v2-c1)">
+            <path d="M84 456l22-6 28 4 6 8-20 4-32-2z" fill="#EAF8FF" opacity=".9"></path>
+            <path d="M86 480l9-9 11 2 2 11-11 4z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1.1"></path><path d="M86 480l9-9 4 9z" fill="#E6FBF6"></path>
+            <path d="M114 476l11-7 11 7-4 11-13 0z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1.1"></path><path d="M114 476l11-7 0 11z" fill="#E6FBF6"></path>
+            <path d="M100 496l11-4 9 6-7 9-11-2z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1.1"></path>
+          </g>
+          <circle cx="110" cy="480" r="31" fill="none" stroke="#BDEBFF" stroke-opacity=".55"></circle>
+          <ellipse cx="318" cy="400" rx="38" ry="11" fill="none" stroke="#8FA3B8" stroke-opacity=".5" stroke-dasharray="2 5" transform="rotate(-14 318 400)"></ellipse>
+          <g fill="#8FA3B8"><path d="M286 408l4-3 3 3-3 3z"></path><path d="M296 414l5-2 2 4-5 1z"></path><path d="M338 388l4-3 3 3-4 3z"></path><path d="M346 398l3-2 3 3-3 2z"></path><path d="M334 414l4-1 2 3-4 2z"></path></g>
+          <circle cx="318" cy="400" r="20" fill="url(#v2-oc)"></circle>
+          <g clip-path="url(#v2-c2)"><path d="M304 394l8-8 12 2 4 10-10 6-12-2z" fill="#B4ECDF" stroke="#0E3B2E" stroke-width="1"></path><path d="M304 394l8-8 4 10z" fill="#E6FBF6"></path></g>
+          <g font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text x="110" y="530">Inference &amp; serving</text>
+            <text x="318" y="444">Hardware</text>
+          </g>
+          <g transform="translate(76 262)"><rect x="-14" y="-7" width="28" height="14" rx="4" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path d="M-26 0h12M14 0h12" stroke="#FFFBF0" stroke-width="2"></path><circle cx="0" cy="0" r="2.6" fill="#FFE44D"></circle></g>
+          <circle cx="76" cy="262" r="30" fill="none" stroke="#FFE44D" stroke-opacity=".7" stroke-width="1.5"></circle>
+        </svg>
+        <svg class="haze" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844"><defs><radialGradient id="v2-hz" cx="50%" cy="50%" r="70%"><stop offset=".55" stop-color="#1C3350" stop-opacity="0"></stop><stop offset="1" stop-color="#1C3350" stop-opacity=".55"></stop></radialGradient></defs><rect width="390" height="844" fill="url(#v2-hz)"></rect></svg>
+        <div class="vbar"><span class="av" aria-hidden="true">R</span><span style="flex: 1; font-size: 14px; line-height: 1.3"><b>Visiting Ravi</b><br><span style="color: #4A463D">Machine learning</span></span><a class="btn ink sm" href="U01-Universe.dc.html">Leave</a></div>
+        <div class="popc" role="dialog" aria-label="Model serving room" style="left: 20px; right: 40px; top: 304px">
+          <span class="mono" style="color: #4A463D">A room station</span>
+          <b class="disp" style="font-size: 20px; line-height: 1.15">Model serving room</b>
+          <span style="font-size: 14px; line-height: 1.4; color: #4A463D">Same room as on your map — it just sits in a different place in Ravi’s universe.</span>
+          <a class="btn pri sm" href="R02-Discussion.dc.html" style="align-self: flex-start; min-height: 44px">Enter room</a>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 3 PRIVATE EXPLANATION -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Private parts explained</b><span>Banner tapped; nothing located or sized</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g opacity=".4">
+            <g fill="none" stroke="#FFFBF0" stroke-width="1.2" transform="rotate(14 210 350)"><ellipse cx="210" cy="350" rx="118" ry="38" stroke-opacity=".18"></ellipse></g>
+            <circle cx="210" cy="350" r="13" fill="#FFE9A8"></circle>
+            <circle cx="140" cy="380" r="22" fill="#16708E"></circle>
+            <circle cx="300" cy="320" r="14" fill="#16708E"></circle>
+            <circle cx="112" cy="566" r="8" fill="#FFE9A8"></circle>
+            <circle cx="162" cy="560" r="11" fill="#FF8A5B"></circle>
+          </g>
+        </svg>
+        <svg class="haze" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844"><defs><radialGradient id="v3-hz" cx="50%" cy="50%" r="70%"><stop offset=".55" stop-color="#1C3350" stop-opacity="0"></stop><stop offset="1" stop-color="#1C3350" stop-opacity=".55"></stop></radialGradient></defs><rect width="390" height="844" fill="url(#v3-hz)"></rect></svg>
+        <div class="vbar"><span class="av" aria-hidden="true">R</span><span style="flex: 1; font-size: 14px; line-height: 1.3"><b>Visiting Ravi</b><br><span style="color: #4A463D">Only what he shares</span></span><a class="btn ink sm" href="U01-Universe.dc.html">Leave</a></div>
+        <div class="popc" role="dialog" aria-label="About private parts" style="left: 16px; right: 16px; top: 124px; gap: 10px">
+          <div style="display: flex; align-items: center; gap: 10px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="flex: none"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg><b style="font-size: 16px; flex: 1">Some of Ravi’s universe is private</b><button class="ibtn" type="button" aria-label="Close" style="width: 44px; height: 44px; border: 0; background: #F4EDD8"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+          <p style="margin: 0; font-size: 15px; line-height: 1.5">You see only the systems he chose to share. The map doesn’t show where the rest are, how large they are, or whether there are any.</p>
+          <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #4A463D">The soft haze at the edges looks the same on every visit, for everyone.</p>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 4 REVOKED -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Revoked / expired</b><span>Access ends; nothing cached</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#FFFBF0"><circle cx="24" cy="160" r="1" opacity=".45"></circle><circle cx="140" cy="200" r="1.2" opacity=".5"></circle><circle cx="362" cy="140" r="1.3" opacity=".5"></circle><circle cx="40" cy="520" r=".9" opacity=".4"></circle><circle cx="372" cy="470" r=".8" opacity=".35"></circle><circle cx="30" cy="690" r="1.2" opacity=".5"></circle><circle cx="250" cy="720" r=".9" opacity=".4"></circle></g>
+          <ellipse cx="195" cy="300" rx="120" ry="44" fill="none" stroke="#FFFBF0" stroke-opacity=".1" stroke-width="1.2" stroke-dasharray="3 8"></ellipse>
+        </svg>
+        <div style="position: absolute; left: 32px; right: 32px; top: 236px; display: flex; flex-direction: column; gap: 14px; align-items: center; text-align: center">
+          <span class="av" aria-hidden="true" style="width: 48px; height: 48px; font-size: 18px; opacity: .8">R</span>
+          <h2 class="disp" style="margin: 0; font-size: 28px; line-height: 32px; font-weight: 800">Ravi stopped sharing his universe</h2>
+          <p style="margin: 0; font-size: 16px; line-height: 1.5; color: rgba(255,251,240,.82)">Nothing from it is kept on your side. Your conversations with Ravi are unaffected.</p>
+          <a class="pillsp" href="U01-Universe.dc.html" style="margin-top: 6px; min-height: 48px">Back to your universe</a>
+          <a href="C02-Conversation.dc.html" style="color: #FFFBF0; font-size: 14px; font-weight: 600; min-height: 44px; display: inline-flex; align-items: center">Open conversation with Ravi</a>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p><span class="ev">/visit/ravi.m</span> from a friend row (F01), a share card, or a room member. Requires Ravi’s visibility setting (F02) to include Asha; otherwise the denied state shows directly.</p></div>
+    <div class="note"><h3>Actions</h3><p><b>Primary:</b> look around, open a shared system. <b>Secondary:</b> enter the shared room, Leave (always visible), open conversation, read the privacy banner. Visitors never see Ravi’s encounters or history.</p></div>
+    <div class="note"><h3>Generic privacy rule</h3><p>Hidden systems are simply not in the scene the visitor receives. The edge haze is one fixed decoration, identical for every visit and every person; the banner shows whenever any visibility limit applies, so neither reveals location, size or whether anything is hidden.</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">CMD visit.open{handle} · room.join{roomId}<br>OBS visit.select{system}<br>The visitor scene is server-filtered; private bodies never reach the client. Visiting creates no evidence for either person.</p></div>
+    <div class="note"><h3>Restore</h3><p>Leave and Back return to the exact camera of your own universe. Ravi’s camera position isn’t stored beyond the visit. The shared room keeps one identity; each map keeps its own placement.</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>Visitor bar is a landmark announced on entry (“Visiting Ravi, only what he shares”). The privacy banner is a real button. Leave is first in Tab order. List view works as in U02, listing only shared systems.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1752,"height":1480}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

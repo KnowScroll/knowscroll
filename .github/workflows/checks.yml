@@ -1,172 +1,43 @@
+# Required checks for KnowScroll v2. The file name `checks.yml` and the workflow name `checks` are a
+# contract: deploy.yml and scripts/promote.sh wait for a successful `checks.yml` run on the exact
+# commit before deploying or promoting it.
+#
+# Phase 0 checks only what exists: the main-update hook and the integrity of the vendored
+# design and Cutroom snapshots. Build, lint, typecheck and test jobs are added with the
+# workspace in S1.1; never remove a job to get a green run.
 name: checks
 on: [push, pull_request]
 permissions:
   contents: read
 jobs:
-  backend:
+  integrity:
     runs-on: ubuntu-latest
-    env:
-      KS_DEV_ROOT: /tmp/knowscroll-dev
-      DATABASE_URL: postgresql://knowscroll:test-only-ci-password@127.0.0.1:5432/postgres
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: knowscroll
-          POSTGRES_PASSWORD: test-only-ci-password
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 10.30.3
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22.23.0
-      - run: pnpm install --frozen-lockfile
-      # ubuntu-latest (24.04, image 20260907.300.1) does not ship ffmpeg/ffprobe in its default
-      # software list (confirmed against actions/runner-images' own Ubuntu2404-Readme.md: only
-      # MediaInfo is listed under media tools, no ffmpeg entry). tests/generation-import.test.ts
-      # (#94 verified media import) needs both on PATH.
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - run: pnpm format:check
-      - run: pnpm lint
-      # Unused files, exports and dependencies in the backend scope (knip.json).
-      - run: pnpm knip
-      - run: pnpm typecheck
-      # packages/contracts/http-v1.schema.json is generated; this fails if it was not regenerated.
-      - run: pnpm contracts:check
-      - run: pnpm test
-      - name: Web (apps/web) typecheck
-        run: pnpm typecheck:web
-      - name: Web (apps/web) unit/component tests
-        run: pnpm test:web
-      # #201: the server runs a bundled release with no node_modules. Build one and run it the
-      # way the server does (server mode, fresh database) before anything can deploy it.
-      - name: Build and smoke-test the server release
+      - name: Main-update hook refuses what it must and allows what it may
+        run: node --test .claude/hooks/
+      - name: v2.1 design export matches its recorded SHA-256 list
+        working-directory: docs/v2/design/KnowScroll-design-v2.1
         run: |
-          pnpm build:release --out "$RUNNER_TEMP/release" --commit "$GITHUB_SHA"
-          node scripts/smoke-release.mjs "$RUNNER_TEMP/release/release-$GITHUB_SHA.tar"
-      - name: Verify deterministic fairness policy traces
-        run: pnpm exec tsx scripts/capture-fairness-evidence.ts artifacts/fairness-ci.json
-      - name: Verify durable fairness across disposable PostgreSQL restart
-        run: pnpm exec tsx scripts/fairness/sql-restart.ts artifacts/sql-fairness-restart-ci.json
-      - run: pnpm exec tsx --test scripts/journey-verifier.test.ts
-      - name: Verify isolated HTTP, worker and PostgreSQL journey
-        run: pnpm exec tsx scripts/run-isolated-journey.ts
-      - name: Verify two-session isolation and privacy epoch fences
-        run: pnpm exec tsx scripts/run-isolated-session-journey.ts
-      - name: Verify retryable history clear and universe isolation
-        run: pnpm exec tsx scripts/run-isolated-history-journey.ts
-      - name: Verify reasoning crash and late-usage boundaries
+          sha256sum --check --quiet ../KnowScroll-design-v2.1.sha256
+          expected=$(wc -l < ../KnowScroll-design-v2.1.sha256)
+          actual=$(find . -type f | wc -l)
+          test "$expected" -eq "$actual" || { echo "file count $actual != recorded $expected"; exit 1; }
+      - name: Vendored Cutroom wire schema matches its pinned upstream hashes
+        working-directory: packages/backend/src/modules/content/adapters/cutroom/wire-v1
         run: |
-          pnpm exec tsx scripts/run-isolated-reasoning-journey.ts --receipt artifacts/j004-ci.json
-          pnpm exec tsx scripts/verify-reasoning-journey.ts artifacts/j004-ci.json
-      - name: Verify literal Ask durability over separate HTTP
-        run: pnpm exec tsx scripts/run-isolated-ask-journey.ts artifacts/explicit-ask-ci.json
-      - name: Verify scheduled seven-day private retirement
-        run: pnpm exec tsx scripts/run-isolated-retirement-journey.ts artifacts/reasoning-retirement-ci.json
-      - name: Verify pinned Cutroom client with separate local fixture restarts
-        run: pnpm exec tsx scripts/run-isolated-cutroom-http-journey.ts artifacts/cutroom-http-ci.json
-      - name: Verify interrupted reasoning runtime cleanup
-        run: pnpm exec tsx scripts/verify-reasoning-cleanup.ts
-      - name: Preserve sanitized interruption evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: reasoning-interruption-evidence
-          path: |
-            artifacts/j004-cleanup-*.json
-            artifacts/j004-interrupt-*.json
-          if-no-files-found: ignore
-          retention-days: 7
-  web-journey:
-    # #115: the backend job's typecheck/unit-test steps never exercise the real web client
-    # against a real server, so a backend contract change (ADR-0030's recordingPausedAt, #120)
-    # can break the web surface silently while every other check stays green. This job runs
-    # scripts/run-web-reader-journey.ts -- the real Vite dev server, a real API/worker and a
-    # real Chromium via Playwright, against the same kind of disposable PostgreSQL the backend
-    # job above provisions (same pinned action SHAs, Node and pnpm versions).
-    runs-on: ubuntu-latest
-    # Bounds a hang in cleanup, which the runner's own watchdog no longer covers once it is stopping.
-    timeout-minutes: 30
-    env:
-      KS_DEV_ROOT: /tmp/knowscroll-dev
-      DATABASE_URL: postgresql://knowscroll:test-only-ci-password@127.0.0.1:5432/postgres
-      # Set once at job level so the browser-install step below and the runner's own Playwright
-      # invocation (scripts/run-web-reader-journey.ts, which otherwise falls back to a
-      # KS_DEV_ROOT-relative default only meant for local dev) agree on where Chromium lives.
-      PLAYWRIGHT_BROWSERS_PATH: /tmp/knowscroll-dev/playwright-browsers
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: knowscroll
-          POSTGRES_PASSWORD: test-only-ci-password
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 10.30.3
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22.23.0
-      - run: pnpm install --frozen-lockfile
-      - name: Install Playwright's Chromium (with OS deps)
-        run: pnpm --filter web exec playwright install --with-deps chromium
-      - name: Verify the web-reader journey end to end (#92, #115)
-        run: pnpm exec tsx scripts/run-web-reader-journey.ts
-      - name: Verify the web owner journey (#135 cookie sign-in, privacy, account deletion)
-        run: pnpm exec tsx scripts/run-web-owner-journey.ts
-      - name: Verify the web "What led here" journey (#133 journey G)
-        run: pnpm exec tsx scripts/run-web-why-journey.ts
-      - name: Preserve sanitized receipt and Playwright report on failure
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: web-journey-evidence
-          path: |
-            docs/journeys/evidence/web-reader/last-run-receipt.json
-            docs/journeys/evidence/web-owner/last-run-receipt.json
-            docs/journeys/evidence/web-why/last-run-receipt.json
-            apps/web/artifacts/playwright-report/**
-            apps/web/artifacts/playwright-results.json
-            apps/web/artifacts/playwright-report-owner/**
-            apps/web/artifacts/playwright-results-owner.json
-            apps/web/artifacts/playwright-report-why/**
-            apps/web/artifacts/playwright-results-why.json
-          if-no-files-found: ignore
-          retention-days: 7
-  android:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
-        with:
-          packages: platform-tools platforms;android-37.2 build-tools;36.0.0
-          log-accepted-android-sdk-licenses: false
-      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
-      - run: ./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest --no-daemon
-        working-directory: apps/mobile
-      # ADR-0047: the release variant is shrunk and signed on every run, with a throwaway keystore made
-      # here and never kept, so a missing keep rule or a release-only break shows up before the
-      # owner's inputs arrive. The API address can never resolve.
-      - name: Build and verify a release with throwaway inputs
-        working-directory: apps/mobile
-        run: |
-          pass="$(openssl rand -hex 16)"
-          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/throwaway.p12" -storetype PKCS12 -storepass "$pass" \
-            -alias throwaway -keyalg RSA -keysize 2048 -validity 1 -dname "CN=throwaway"
-          KS_RELEASE_STORE_FILE="$RUNNER_TEMP/throwaway.p12" KS_RELEASE_STORE_PASSWORD="$pass" KS_RELEASE_KEY_ALIAS=throwaway \
-            KS_RELEASE_KEY_PASSWORD="$pass" KS_RELEASE_API_BASE=https://api.knowscroll.invalid ./gradlew :app:assembleRelease --no-daemon
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify app/build/outputs/apk/release/app-release.apk
+          node -e '
+            const { createHash } = require("node:crypto");
+            const { readFileSync } = require("node:fs");
+            const manifest = JSON.parse(readFileSync("source.json", "utf8"));
+            let failed = 0;
+            for (const file of manifest.files) {
+              const actual = createHash("sha256").update(readFileSync(file.path)).digest("hex");
+              if (actual !== file.sha256) { console.error(`${file.path}: ${actual} != ${file.sha256}`); failed++; }
+            }
+            if (failed) process.exit(1);
+            console.log(`${manifest.files.length} files match ${manifest.repository}@${manifest.revision}`);
+          '

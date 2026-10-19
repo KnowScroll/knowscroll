@@ -1,0 +1,103 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-18T20:12:00Z"},
+  "title": "KnowScroll — Product design v2",
+  "launch": {"view": "canvas", "page": "start"},
+  "pages": [
+    {"id": "start", "name": "00 Start · audit & coverage"},
+    {"id": "foundations", "name": "01 Foundations & components"},
+    {"id": "explore", "name": "02 Entry & Explore (A, E)"},
+    {"id": "saved", "name": "03 Keep (S)"},
+    {"id": "universe", "name": "04 Universe (U)"},
+    {"id": "share", "name": "05 Share (H)"},
+    {"id": "talk", "name": "06 Talk (C)"},
+    {"id": "whatif", "name": "07 What-if (X)"},
+    {"id": "rooms", "name": "08 Rooms (R)"},
+    {"id": "settings", "name": "09 People & settings (F, P)"},
+    {"id": "desktop", "name": "10 Desktop & responsive"},
+    {"id": "prototype", "name": "11 Clickable journeys"},
+    {"id": "operator", "name": "12 Operator appendix"}
+  ],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 4200, "title": "Start · v2 changes, audit, coverage, journeys", "page": "start"},
+
+    "Tokens.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 2100, "title": "Foundations · tokens, type, motion", "page": "foundations"},
+    "Components.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 4100, "title": "Components · library & variants", "page": "foundations"},
+    "NavBar.dc.html": {"x": 3040, "y": 0, "w": 390, "h": 96, "title": "Component · NavBar (instance source)", "page": "foundations"},
+
+    "A01-Entry.dc.html": {"x": 0, "y": 0, "w": 2174, "h": 1480, "title": "A01–A03 · Entry, recovery, first arrival", "page": "explore"},
+    "E01-Reel.dc.html": {"x": 2254, "y": 0, "w": 2174, "h": 1480, "title": "E01 · Dimensional TV · Reel", "page": "explore"},
+    "E02-Scroll.dc.html": {"x": 4508, "y": 0, "w": 1752, "h": 1480, "title": "E02 · Scroll article", "page": "explore"},
+    "E03-Blocks.dc.html": {"x": 6340, "y": 0, "w": 1752, "h": 1480, "title": "E03 · Interactive block gallery", "page": "explore"},
+    "E04-Request.dc.html": {"x": 8172, "y": 0, "w": 1752, "h": 1480, "title": "E04 · Topic / content request", "page": "explore"},
+    "E05-Continue.dc.html": {"x": 0, "y": 1600, "w": 1752, "h": 1480, "title": "E05 · Horizontal continuation", "page": "explore"},
+    "E06-Format.dc.html": {"x": 1832, "y": 1600, "w": 1330, "h": 1480, "title": "E06 · Format conversion", "page": "explore"},
+    "E07-Supply.dc.html": {"x": 3242, "y": 1600, "w": 1752, "h": 1480, "title": "E07 · Supply waiting & availability", "page": "explore"},
+    "E08-Ending.dc.html": {"x": 5074, "y": 1600, "w": 1330, "h": 1480, "title": "E08 · Natural thread ending", "page": "explore"},
+    "E09-Range.dc.html": {"x": 6484, "y": 1600, "w": 1752, "h": 1480, "title": "E09 · Content range (v2)", "page": "explore"},
+    "N01-Navigation.dc.html": {"x": 0, "y": 3200, "w": 2596, "h": 1800, "title": "N01 · Navigation & Back rules (v2)", "page": "explore"},
+
+    "S01-Saved.dc.html": {"x": 0, "y": 0, "w": 1752, "h": 1480, "title": "S01–S02 · Keep library & resume", "page": "saved"},
+
+    "U01-Universe.dc.html": {"x": 0, "y": 0, "w": 1752, "h": 1480, "title": "U01 · Universe overview", "page": "universe"},
+    "U02-System.dc.html": {"x": 1832, "y": 0, "w": 1752, "h": 1480, "title": "U02 · Topic system", "page": "universe"},
+    "U03-Planet.dc.html": {"x": 3664, "y": 0, "w": 1330, "h": 1480, "title": "U03 · Planet close-up", "page": "universe"},
+    "U04-Region.dc.html": {"x": 5074, "y": 0, "w": 1330, "h": 1480, "title": "U04 · Regions & topic card", "page": "universe"},
+    "U05-Formation.dc.html": {"x": 0, "y": 1600, "w": 2174, "h": 1480, "title": "U05 · Formation storyboard", "page": "universe"},
+    "U06-Friend.dc.html": {"x": 2254, "y": 1600, "w": 1752, "h": 1480, "title": "U06 · Friend universe visit", "page": "universe"},
+    "U07-ThreeWorlds.dc.html": {"x": 0, "y": 3200, "w": 2596, "h": 1480, "title": "U07 · Same ML, three people (v2)", "page": "universe"},
+    "U08-Mature.dc.html": {"x": 2676, "y": 3200, "w": 1752, "h": 1480, "title": "U08 · Mature universe (v2)", "page": "universe"},
+
+    "H01-Share.dc.html": {"x": 0, "y": 0, "w": 2174, "h": 1480, "title": "H01 · Share sheet (v2)", "page": "share"},
+    "H02-Landing.dc.html": {"x": 2254, "y": 0, "w": 2174, "h": 1480, "title": "H02 · Share landing & invitation", "page": "share"},
+    "H03-Moments.dc.html": {"x": 4508, "y": 0, "w": 2174, "h": 1480, "title": "H03 · Share a moment · snippets (v2)", "page": "share"},
+
+    "C01-Inbox.dc.html": {"x": 0, "y": 0, "w": 1330, "h": 1480, "title": "C01 · Conversation inbox", "page": "talk"},
+    "C02-Conversation.dc.html": {"x": 1410, "y": 0, "w": 1752, "h": 1480, "title": "C02 · Conversation detail", "page": "talk"},
+    "C03-Invite.dc.html": {"x": 3242, "y": 0, "w": 1330, "h": 1480, "title": "C03 · Thread invitation & membership (v2)", "page": "talk"},
+    "C04-Thread.dc.html": {"x": 4652, "y": 0, "w": 2596, "h": 1480, "title": "C04 · Content thread (v2)", "page": "talk"},
+
+    "X01-WhatIf.dc.html": {"x": 0, "y": 0, "w": 1330, "h": 1480, "title": "X01 · What-if input", "page": "whatif"},
+    "X02-Branches.dc.html": {"x": 1410, "y": 0, "w": 1330, "h": 1480, "title": "X02 · Branch options", "page": "whatif"},
+    "X03-Sequence.dc.html": {"x": 2820, "y": 0, "w": 1752, "h": 1480, "title": "X03 · Shared Reel/Scroll sequence", "page": "whatif"},
+    "X04-History.dc.html": {"x": 4652, "y": 0, "w": 1330, "h": 1480, "title": "X04 · Branch history", "page": "whatif"},
+
+    "R01-Room.dc.html": {"x": 0, "y": 0, "w": 1330, "h": 1480, "title": "R01 · Cosmic room preview", "page": "rooms"},
+    "R02-Discussion.dc.html": {"x": 1410, "y": 0, "w": 1752, "h": 1480, "title": "R02 · Room discussion", "page": "rooms"},
+    "R03-Activity.dc.html": {"x": 3242, "y": 0, "w": 1330, "h": 1480, "title": "R03 · Optional room activity", "page": "rooms"},
+
+    "F01-Friends.dc.html": {"x": 0, "y": 0, "w": 1752, "h": 1480, "title": "F01–F02 · Friends & sharing settings", "page": "settings"},
+    "P01-Account.dc.html": {"x": 1832, "y": 0, "w": 1330, "h": 1480, "title": "P01 · Account & settings", "page": "settings"},
+    "P02-Privacy.dc.html": {"x": 3242, "y": 0, "w": 2174, "h": 1480, "title": "P02 · Privacy & history", "page": "settings"},
+    "P03-Report.dc.html": {"x": 5496, "y": 0, "w": 1752, "h": 1480, "title": "P03 · Feedback & report", "page": "settings"},
+
+    "D01-Desktop-Explore.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 900, "title": "D01 · Desktop · Explore (E01/E02/E05)", "page": "desktop"},
+    "D02-Desktop-Universe.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 900, "title": "D02 · Desktop · Universe (U01–U04)", "page": "desktop"},
+    "D03-Desktop-Talk.dc.html": {"x": 3040, "y": 0, "w": 1440, "h": 900, "title": "D03 · Desktop · Talk + What-if (C02/X02/X04)", "page": "desktop"},
+    "D04-Desktop-Room.dc.html": {"x": 0, "y": 1020, "w": 1440, "h": 900, "title": "D04 · Desktop · Room (R02)", "page": "desktop"},
+    "D05-Desktop-Privacy.dc.html": {"x": 1520, "y": 1020, "w": 1440, "h": 900, "title": "D05 · Desktop · Privacy (P02)", "page": "desktop"},
+    "V01-Responsive.dc.html": {"x": 0, "y": 2040, "w": 2640, "h": 1540, "title": "V01 · Responsive & accessibility variants", "page": "desktop"},
+
+    "Prototype.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 1000, "title": "Clickable journeys (Play)", "page": "prototype", "is_interactive": true},
+
+    "Operator.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 1500, "title": "Operator appendix · logging views", "page": "operator"}
+  },
+  "order": [
+    "Main.dc.html",
+    "Tokens.dc.html", "Components.dc.html", "NavBar.dc.html",
+    "A01-Entry.dc.html", "E01-Reel.dc.html", "E02-Scroll.dc.html", "E03-Blocks.dc.html", "E04-Request.dc.html",
+    "E05-Continue.dc.html", "E06-Format.dc.html", "E07-Supply.dc.html", "E08-Ending.dc.html", "E09-Range.dc.html", "N01-Navigation.dc.html",
+    "S01-Saved.dc.html",
+    "U01-Universe.dc.html", "U02-System.dc.html", "U03-Planet.dc.html", "U04-Region.dc.html", "U05-Formation.dc.html", "U06-Friend.dc.html", "U07-ThreeWorlds.dc.html", "U08-Mature.dc.html",
+    "H01-Share.dc.html", "H02-Landing.dc.html", "H03-Moments.dc.html",
+    "C01-Inbox.dc.html", "C02-Conversation.dc.html", "C03-Invite.dc.html", "C04-Thread.dc.html",
+    "X01-WhatIf.dc.html", "X02-Branches.dc.html", "X03-Sequence.dc.html", "X04-History.dc.html",
+    "R01-Room.dc.html", "R02-Discussion.dc.html", "R03-Activity.dc.html",
+    "F01-Friends.dc.html", "P01-Account.dc.html", "P02-Privacy.dc.html", "P03-Report.dc.html",
+    "D01-Desktop-Explore.dc.html", "D02-Desktop-Universe.dc.html", "D03-Desktop-Talk.dc.html", "D04-Desktop-Room.dc.html", "D05-Desktop-Privacy.dc.html", "V01-Responsive.dc.html",
+    "Prototype.dc.html",
+    "Operator.dc.html"
+  ],
+  "notes": {},
+  "designSystems": []
+}

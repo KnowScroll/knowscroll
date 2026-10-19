@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NavBar component</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: 'Instrument Sans', system-ui, sans-serif; color: #FFFBF0">
+  <nav aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: {{pillBg}}; box-shadow: {{pillEdge}}">
+    <sc-for list="{{items}}" as="it" hint-placeholder-count="4">
+      <button type="button" aria-label="{{it.label}}" aria-current="{{it.current}}" style="width: 74px; height: 56px; border: 0; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px/1 'Instrument Sans', system-ui, sans-serif; letter-spacing: .01em; cursor: pointer; background: {{it.bg}}; color: {{it.fg}}">
+        <sc-if value="{{it.isExplore}}" hint-placeholder-val="{{ false }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3"></rect><path d="M8 3l4 4 4-4"></path></svg></sc-if>
+        <sc-if value="{{it.isUniverse}}" hint-placeholder-val="{{ false }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.5"></circle><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg></sc-if>
+        <sc-if value="{{it.isTalk}}" hint-placeholder-val="{{ false }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg></sc-if>
+        <sc-if value="{{it.isKeep}}" hint-placeholder-val="{{ false }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg></sc-if>
+        <span>{{it.label}}</span>
+      </button>
+    </sc-for>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","options":["explore","universe","talk","keep","none"],"default":"explore"},"tone":{"editor":"enum","options":["paper","space"],"default":"paper"},"unread":{"editor":"boolean","default":false},"$preview":{"width":390,"height":96}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = this.props.active ?? 'explore';
+    const tone = this.props.tone ?? 'paper';
+    const unread = this.props.unread ?? false;
+    const defs = [
+      { id: 'explore', label: 'Explore' },
+      { id: 'universe', label: 'Universe' },
+      { id: 'talk', label: unread ? 'Talk •' : 'Talk' },
+      { id: 'keep', label: 'Keep' }
+    ];
+    const items = defs.map((d) => ({
+      label: d.label,
+      current: d.id === active ? 'page' : 'false',
+      bg: d.id === active ? '#2C46E8' : 'transparent',
+      fg: d.id === active ? '#FFFBF0' : 'rgba(255,251,240,.78)',
+      isExplore: d.id === 'explore',
+      isUniverse: d.id === 'universe',
+      isTalk: d.id === 'talk',
+      isKeep: d.id === 'keep'
+    }));
+    return {
+      items,
+      pillBg: tone === 'space' ? '#0B1A2E' : '#111111',
+      pillEdge: tone === 'space' ? '0 0 0 1px rgba(255,251,240,.22), 0 12px 28px -10px #000' : '0 10px 24px -12px rgba(17,17,17,.55)'
+    };
+  }
+}
+</script>
+</body>
+</html>

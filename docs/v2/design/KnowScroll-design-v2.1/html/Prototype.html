@@ -1,0 +1,368 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>KnowScroll clickable journeys</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.ph{position:relative;width:390px;height:844px;border-radius:44px;overflow:hidden;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 30px 60px -30px rgba(0,0,0,.55);font-family:'Instrument Sans',system-ui,sans-serif}
+.ph.sp{background:#040A17;color:#FFFBF0}
+.top{position:absolute;left:16px;right:16px;top:56px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rail{position:absolute;right:12px;top:232px;display:flex;flex-direction:column;gap:14px;color:#FFFBF0}
+.edge{position:absolute;right:0;top:584px;width:76px;min-height:76px;background:#FFE44D;color:#111111;border:2px solid #111111;border-right:0;border-radius:18px 0 0 18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;padding:0}
+.edge.rel{background:#FFFBF0;border-style:dashed}
+.ttl{position:absolute;left:20px;width:270px;top:578px;display:flex;flex-direction:column;gap:8px}
+.rt{margin:0;font-size:28px;line-height:30px;font-weight:800}
+.prog{position:absolute;left:20px;right:20px;top:712px;display:flex;align-items:center;gap:10px;color:#FFFBF0}
+.bar{flex:1;height:4px;border-radius:4px;background:rgba(255,251,240,.35);position:relative;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:#FFFBF0;border-radius:4px}
+.cc{position:absolute;left:20px;right:84px;top:476px;background:rgba(17,17,17,.82);color:#FFFBF0;border-radius:12px;padding:10px 12px;font-size:16px;line-height:1.4;font-weight:500}
+.hot{box-shadow:0 0 0 4px #FFE44D,0 0 0 7px #111111 !important}
+.toast{position:absolute;left:16px;right:16px;top:56px;display:flex;gap:12px;align-items:center;padding:10px 10px 10px 16px;border-radius:18px;border:2px solid #111111;background:#FFFBF0;color:#111111;box-shadow:4px 4px 0 #111111;font-size:15px;line-height:1.35}
+.pbody{position:absolute;inset:0;padding:56px 20px 112px;display:flex;flex-direction:column;gap:14px}
+.hdr{display:flex;align-items:center;gap:10px;min-height:48px}
+.card{border:2px solid #111111;border-radius:16px;background:#FFFBF0;overflow:hidden}
+.bub{max-width:270px;padding:10px 14px;border-radius:18px;font-size:15px;line-height:1.4}
+.me{align-self:flex-end;background:#2C46E8;color:#FFFBF0;border-bottom-right-radius:6px}
+.them{align-self:flex-start;background:#FFFBF0;border:2px solid #111111;border-bottom-left-radius:6px}
+.hband{border:2px dashed #2C46E8;background:#E6EAFF;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;color:#111111}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.lab{font:600 13px/16px 'Instrument Sans',system-ui,sans-serif;fill:#FFFBF0}
+.labm{font:500 10px/12px 'DM Mono',ui-monospace,monospace;letter-spacing:.08em;fill:rgba(255,251,240,.72);text-transform:uppercase}
+.stepbtn{display:flex;gap:10px;align-items:flex-start;width:100%;min-height:40px;padding:7px 10px;border-radius:12px;border:0;background:transparent;text-align:left;cursor:pointer;font-size:14px;line-height:1.3}
+.jbtn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;min-height:50px;padding:8px 14px;border-radius:14px;border:2px solid #111111;text-align:left;cursor:pointer}
+.composer{position:absolute;left:16px;right:16px;bottom:24px;display:flex;gap:8px;align-items:center}
+.composer span{flex:1;min-height:48px;border:2px solid #111111;border-radius:999px;background:#FFFBF0;display:flex;align-items:center;padding:0 16px;color:#4A463D;font-size:15px}
+.thd{position:absolute;left:0;right:0;top:44px;padding:12px 16px 10px;border-bottom:2px solid #111111;background:#FFFBF0;display:flex;flex-direction:column;gap:10px}
+.nchips{display:flex;gap:6px;align-items:center}
+.nch{min-width:44px;height:36px;padding:0 10px;border-radius:10px;border:2px solid #111111;background:#FFFBF0;display:inline-flex;align-items:center;justify-content:center;gap:4px;font:600 13px 'Instrument Sans',sans-serif;color:#111111}
+.nch.cur{background:#111111;color:#FFFBF0}
+.nch.up{border-color:#9A9382;color:#4A463D}
+.nch.prep{border-style:dashed;color:#4A463D;background:repeating-linear-gradient(135deg,#FFFBF0 0 5px,#F4EDD8 5px 10px)}
+.nch.br{border-style:dashed;border-color:#2C46E8;background:#E6EAFF;color:#1B2FB8}
+.snip{display:flex;gap:10px;align-items:center;padding:8px;border:2px solid #111111;border-radius:14px;background:#FFFBF0;max-width:290px}
+.snip i{display:block;width:56px;height:56px;border-radius:10px;background:#0B0F1F;flex:none}
+.choice{display:flex;gap:14px;align-items:center;min-height:64px;padding:8px 6px;border:0;border-bottom:1px solid #D9D1BC;background:transparent;text-align:left;cursor:pointer;width:100%}
+.choice b{font-size:16px}
+.choice span{font-size:13px;color:#4A463D}
+.ckrow{display:flex;gap:12px;align-items:center;min-height:60px;border-bottom:1px solid #D9D1BC}
+.av{width:40px;height:40px;border-radius:999px;border:2px solid #111111;display:flex;align-items:center;justify-content:center;font:800 15px 'Bricolage Grotesque',sans-serif;flex:none}
+.box{width:24px;height:24px;border-radius:6px;border:2px solid #111111;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.pres{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#4A463D}
+.pres i{width:7px;height:7px;border-radius:9px;display:inline-block}
+.stack{font-family:'DM Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.5}
+.ecards{display:flex;gap:8px;overflow:hidden;margin-right:-16px}
+.ec{flex:none;width:108px;border:2px solid #111111;border-radius:12px;background:#FFFBF0;overflow:hidden;display:flex;flex-direction:column;text-align:left;padding:0;cursor:pointer;color:#111111}
+.ec .th{height:46px;background:#070A14;display:block}
+.ec .meta{padding:4px 8px 6px;display:flex;flex-direction:column;gap:1px}
+.ec .meta span{font:500 10px 'DM Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.06em;color:#4A463D}
+.ec .meta b{font-size:12.5px;line-height:1.2}
+.ec.now{border-color:#2C46E8;box-shadow:0 0 0 2px #2C46E8}
+.ec.prep{border-style:dashed;background:repeating-linear-gradient(135deg,#FFFBF0 0 5px,#F4EDD8 5px 10px);cursor:default}
+.astrip{display:flex;gap:6px}
+.astrip button{flex:1;min-height:48px;border:2px solid #111111;border-radius:12px;background:#FFFBF0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:600 11px 'Instrument Sans',sans-serif;cursor:pointer;padding:4px 0;color:#111111}
+.mini{display:flex;gap:8px;align-items:center;padding:6px 6px 6px 10px;border:2px solid #111111;border-radius:14px;background:#070A14;color:#FFFBF0}
+</style><style data-dc-tpl="2">
+body{margin:0}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="Prototype"><div data-dc-tpl="3" style="width: 1440px; height: 1000px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; padding: 40px; display: flex; gap: 44px; align-items: flex-start;">
+
+  <aside data-dc-tpl="4" style="width: 320px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 12px; height: 920px;">
+    <div data-dc-tpl="5" style="display: flex; flex-direction: column; gap: 6px;">
+      <span data-dc-tpl="6" class="mono" style="align-self: flex-start; background: rgb(255, 228, 77); padding: 5px 9px; border-radius: 6px;">Prototype v2 · design data</span>
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 36px; font-weight: 800; line-height: 1;">Clickable journeys</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 13px; color: rgb(74, 70, 61); line-height: 1.45;">Press Play. Click the control ringed in yellow, or use Next. All people and content are authored examples.</p>
+    </div>
+    <nav data-dc-tpl="9" aria-label="Journeys" style="display: flex; flex-direction: column; gap: 6px;">
+      
+        <button data-dc-tpl="11" class="jbtn" type="button" aria-pressed="true" style="background: rgb(17, 17, 17); color: rgb(255, 251, 240);">
+          <span data-dc-tpl="12" class="mono" style="font-size: 10px;"><span class="sc-interp">Journey 1</span></span>
+          <b data-dc-tpl="13" style="font-size: 14px;"><span class="sc-interp">Asha’s encounter path</span></b>
+        </button>
+      
+        <button data-dc-tpl="11" class="jbtn" type="button" aria-pressed="false" style="background: rgb(255, 251, 240); color: rgb(17, 17, 17);">
+          <span data-dc-tpl="12" class="mono" style="font-size: 10px;"><span class="sc-interp">Journey 2</span></span>
+          <b data-dc-tpl="13" style="font-size: 14px;"><span class="sc-interp">Black holes: a content thread</span></b>
+        </button>
+      
+        <button data-dc-tpl="11" class="jbtn" type="button" aria-pressed="false" style="background: rgb(255, 251, 240); color: rgb(17, 17, 17);">
+          <span data-dc-tpl="12" class="mono" style="font-size: 10px;"><span class="sc-interp">Journey 3</span></span>
+          <b data-dc-tpl="13" style="font-size: 14px;"><span class="sc-interp">Spatial exploration</span></b>
+        </button>
+      
+        <button data-dc-tpl="11" class="jbtn" type="button" aria-pressed="false" style="background: rgb(255, 251, 240); color: rgb(17, 17, 17);">
+          <span data-dc-tpl="12" class="mono" style="font-size: 10px;"><span class="sc-interp">Journey 4</span></span>
+          <b data-dc-tpl="13" style="font-size: 14px;"><span class="sc-interp">Recovery &amp; privacy</span></b>
+        </button>
+      
+        <button data-dc-tpl="11" class="jbtn" type="button" aria-pressed="false" style="background: rgb(255, 251, 240); color: rgb(17, 17, 17);">
+          <span data-dc-tpl="12" class="mono" style="font-size: 10px;"><span class="sc-interp">Journey 5</span></span>
+          <b data-dc-tpl="13" style="font-size: 14px;"><span class="sc-interp">Back, step by step</span></b>
+        </button>
+      
+    </nav>
+    <ol data-dc-tpl="14" aria-label="Steps" style="list-style: none; margin: 0px; padding: 0px; display: flex; flex-direction: column; gap: 1px; overflow: auto;">
+      
+        <li data-dc-tpl="16"><button data-dc-tpl="17" class="stepbtn" type="button" aria-current="step" style="background: rgb(255, 228, 77);"><span data-dc-tpl="18" class="mono" style="width: 22px; flex: 0 0 auto; padding-top: 2px;"><span class="sc-interp">01</span></span><span data-dc-tpl="19"><span class="sc-interp">Asha watches an ML Reel</span></span></button></li>
+      
+        <li data-dc-tpl="16"><button data-dc-tpl="17" class="stepbtn" type="button" aria-current="false" style="background: transparent;"><span data-dc-tpl="18" class="mono" style="width: 22px; flex: 0 0 auto; padding-top: 2px;"><span class="sc-interp">02</span></span><span data-dc-tpl="19"><span class="sc-interp">She continues horizontally — related, not a sequel</span></span></button></li>
+      
+        <li data-dc-tpl="16"><button data-dc-tpl="17" class="stepbtn" type="button" aria-current="false" style="background: transparent;"><span data-dc-tpl="18" class="mono" style="width: 22px; flex: 0 0 auto; padding-top: 2px;"><span class="sc-interp">03</span></span><span data-dc-tpl="19"><span class="sc-interp">Back to Part 1 · she asks for the Scroll</span></span></button></li>
+      
+        <li data-dc-tpl="16"><button data-dc-tpl="17" class="stepbtn" type="button" aria-current="false" style="background: transparent;"><span data-dc-tpl="18" class="mono" style="width: 22px; flex: 0 0 auto; padding-top: 2px;"><span class="sc-interp">04</span></span><span data-dc-tpl="19"><span class="sc-interp">The Scroll is ready</span></span></button></li>
+      
+        <li data-dc-tpl="16"><button data-dc-tpl="17" class="stepbtn" type="button" aria-current="false" style="background: transparent;"><span data-dc-tpl="18" class="mono" style="width: 22px; flex: 0 0 auto; padding-top: 2px;"><span class="sc-interp">05</span></span><span data-dc-tpl="19"><span class="sc-interp">She reads and adjusts the diagram</span></span></button></li>
+      
+        <li data-dc-tpl="16"><button data-dc-tpl="17" class="stepbtn" type="button" aria-current="false" style="background: transparent;"><span data-dc-tpl="18" class="mono" style="width: 22px; flex: 0 0 auto; padding-top: 2px;"><span class="sc-interp">06</span></span><span data-dc-tpl="19"><span class="sc-interp">Back to the exact Reel position</span></span></button></li>
+      
+        <li data-dc-tpl="16"><button data-dc-tpl="17" class="stepbtn" type="button" aria-current="false" style="background: transparent;"><span data-dc-tpl="18" class="mono" style="width: 22px; flex: 0 0 auto; padding-top: 2px;"><span class="sc-interp">07</span></span><span data-dc-tpl="19"><span class="sc-interp">A fresh vertical subject</span></span></button></li>
+      
+        <li data-dc-tpl="16"><button data-dc-tpl="17" class="stepbtn" type="button" aria-current="false" style="background: transparent;"><span data-dc-tpl="18" class="mono" style="width: 22px; flex: 0 0 auto; padding-top: 2px;"><span class="sc-interp">08</span></span><span data-dc-tpl="19"><span class="sc-interp">Later: a subtly richer universe</span></span></button></li>
+      
+    </ol>
+  </aside>
+
+  <div data-dc-tpl="20" style="width: 390px; flex: 0 0 auto; padding-top: 16px;">
+
+    
+    
+      <div data-dc-tpl="22" class="ph" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        <svg data-dc-tpl="23" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <circle data-dc-tpl="24" cx="195" cy="330" r="168" fill="#3A55F0"></circle>
+          <g data-dc-tpl="25" stroke="#FFE44D" stroke-linecap="round" fill="none"><path data-dc-tpl="26" d="M214 362 C 170 330, 140 290, 112 262" stroke-width="7"></path><path data-dc-tpl="27" d="M224 360 C 250 320, 270 300, 284 272" stroke-width="2"></path><path data-dc-tpl="28" d="M206 372 C 170 400, 140 410, 110 418" stroke-width="1.5"></path></g>
+          <g data-dc-tpl="29" font-family="Instrument Sans, sans-serif" font-size="15" font-weight="600">
+            <rect data-dc-tpl="30" x="62" y="240" width="96" height="34" rx="17" fill="#FFFBF0"></rect><text data-dc-tpl="31" x="110" y="262" text-anchor="middle" fill="#111111">animal</text>
+            <rect data-dc-tpl="32" x="248" y="250" width="80" height="34" rx="17" fill="#FFFBF0" opacity=".7"></rect><text data-dc-tpl="33" x="288" y="272" text-anchor="middle" fill="#111111">street</text>
+            <rect data-dc-tpl="34" x="60" y="402" width="92" height="34" rx="17" fill="#FFFBF0" opacity=".55"></rect><text data-dc-tpl="35" x="106" y="424" text-anchor="middle" fill="#111111">tired</text>
+            <rect data-dc-tpl="36" x="186" y="350" width="56" height="38" rx="19" fill="#FFE44D" stroke="#111111" stroke-width="2"></rect><text data-dc-tpl="37" x="214" y="374" text-anchor="middle" fill="#111111" font-size="17" font-weight="700">it</text>
+          </g>
+        </svg>
+        <div data-dc-tpl="38" class="top"><span data-dc-tpl="39" class="tag" style="border-color: rgb(255, 251, 240);">Machine learning</span><div data-dc-tpl="40" class="seg" role="group" aria-label="Format"><button data-dc-tpl="41" type="button" aria-pressed="true">Reel</button><button data-dc-tpl="42" type="button" aria-pressed="false">Scroll</button></div></div>
+        <div data-dc-tpl="43" class="cc">“It” looks around the sentence and decides that <b data-dc-tpl="44" style="color: rgb(255, 228, 77);">animal</b> matters most.</div>
+        <div data-dc-tpl="45" class="rail">
+          <div data-dc-tpl="46" class="ra"><button data-dc-tpl="47" class="ibtn sp" type="button" aria-label="Like"><svg data-dc-tpl="48" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" aria-hidden="true"><path data-dc-tpl="49" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button><span data-dc-tpl="50">Like</span></div>
+          <div data-dc-tpl="51" class="ra"><button data-dc-tpl="52" class="ibtn sp" type="button" aria-label="Save"><svg data-dc-tpl="53" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="54" d="M6 3h12v18l-6-4-6 4z"></path></svg></button><span data-dc-tpl="55">Save</span></div>
+          <div data-dc-tpl="56" class="ra"><button data-dc-tpl="57" class="ibtn sp" type="button" aria-label="Share"><svg data-dc-tpl="58" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="59" d="M4 12v7h16v-7"></path><path data-dc-tpl="60" d="M12 3v12"></path><path data-dc-tpl="61" d="M7 8l5-5 5 5"></path></svg></button><span data-dc-tpl="62">Share</span></div>
+          <div data-dc-tpl="63" class="ra"><button data-dc-tpl="64" class="ibtn sp" type="button" aria-label="Ask"><svg data-dc-tpl="65" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="66" d="M4 5h16v11H9l-5 4z"></path><path data-dc-tpl="67" d="M10 9.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9"></path></svg></button><span data-dc-tpl="68">Ask</span></div>
+        </div>
+        <button data-dc-tpl="69" class="edge rel hot" type="button" aria-label="Related explanation: A spotlight with a budget"><span data-dc-tpl="70" class="mono" style="font-size: 10px;">Related</span><svg data-dc-tpl="71" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3 3" aria-hidden="true"><path data-dc-tpl="72" d="M5 12h14"></path><path data-dc-tpl="73" d="M13 6l6 6-6 6"></path></svg></button>
+        <div data-dc-tpl="74" class="ttl"><span data-dc-tpl="75" class="tag part" style="align-self: flex-start;">Part 1 of 3</span><h2 data-dc-tpl="76" class="disp rt">Attention, explained with a crowded sentence</h2></div>
+        <div data-dc-tpl="77" class="prog"><div data-dc-tpl="78" class="bar"><i data-dc-tpl="79" style="width: 62%;"></i></div><span data-dc-tpl="80" class="mono">0:31 / 0:50</span></div>
+        <div data-dc-tpl="81" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="82"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(17, 17, 17); box-shadow: rgba(17, 17, 17, 0.55) 0px 10px 24px -12px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+  </div>
+
+  <section data-dc-tpl="1187" aria-live="polite" style="flex: 1 1 0%; min-width: 0px; height: 920px; display: flex; flex-direction: column; gap: 16px; padding-top: 16px;">
+    <div data-dc-tpl="1188" style="display: flex; flex-direction: column; gap: 8px;">
+      <span data-dc-tpl="1189" class="mono" style="color: rgb(74, 70, 61);"><span class="sc-interp">Asha’s encounter path</span> · step <span class="sc-interp">1</span> of <span class="sc-interp">8</span></span>
+      <h2 data-dc-tpl="1190" class="disp" style="margin: 0px; font-size: 32px; line-height: 1.05; font-weight: 800;"><span class="sc-interp">Asha watches an ML Reel</span></h2>
+      <p data-dc-tpl="1191" style="margin: 0px; font-size: 16px; line-height: 1.5;"><span class="sc-interp">Part 1 plays. Only visible seconds count; the next Reel, already prefetched, emits nothing until it is on screen.</span></p>
+    </div>
+    
+    <div data-dc-tpl="1196" style="border: 2px solid rgb(17, 17, 17); border-radius: 16px; background: rgb(255, 251, 240); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
+      <span data-dc-tpl="1197" class="mono" style="color: rgb(74, 70, 61);">Emitted at this step</span>
+      
+        <code data-dc-tpl="1199" style="font-family: &quot;DM Mono&quot;, ui-monospace, monospace; font-size: 13px; line-height: 1.4;"><span class="sc-interp">OBS reel.visible_interval {0–31s}</span></code>
+      
+        <code data-dc-tpl="1199" style="font-family: &quot;DM Mono&quot;, ui-monospace, monospace; font-size: 13px; line-height: 1.4;"><span class="sc-interp">OBS app.visibility</span></code>
+      
+    </div>
+    <div data-dc-tpl="1200" style="border: 2px solid rgb(17, 17, 17); border-radius: 16px; background: rgb(255, 251, 240); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;">
+      <span data-dc-tpl="1201" class="mono" style="color: rgb(74, 70, 61);">Restore · privacy · gesture</span>
+      <p data-dc-tpl="1202" style="margin: 0px; font-size: 15px; line-height: 1.5;"><span class="sc-interp">The dashed Related tab sits on the right and points right: arrows always show the destination.</span></p>
+    </div>
+    <div data-dc-tpl="1203" style="display: flex; gap: 12px; margin-top: auto;">
+      <button data-dc-tpl="1204" class="btn" type="button" disabled="">Previous step</button>
+      <button data-dc-tpl="1205" class="btn pri" type="button">Next step</button>
+      <button data-dc-tpl="1206" class="btn ghost" type="button" aria-pressed="true" style="margin-left: auto;">Hotspot rings</button>
+    </div>
+  </section></div></div></div>
+
+
+
+</body></html>

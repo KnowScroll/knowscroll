@@ -1,0 +1,250 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>C03 Thread invitation and membership</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.chead{position:absolute;left:0;right:0;top:44px;height:68px;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:2px solid #111111;background:#FFFBF0}
+.crow{display:flex;align-items:center;gap:12px;min-height:72px;padding:10px 20px;text-decoration:none;color:#111111;border-bottom:1px solid #D9D1BC}
+.avc{width:44px;height:44px;border-radius:999px;border:2px solid #111111;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-weight:800;font-size:17px;flex:none}
+.ctx{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.ctx b{font-size:15px}
+.ctx span{font-size:13px;color:#4A463D}
+.pres{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600}
+.pres i{width:8px;height:8px;border-radius:9px;display:inline-block}
+.mrow{display:flex;align-items:center;gap:12px;min-height:60px;border-bottom:1px solid #D9D1BC}
+.sysl{align-self:center;font-size:13px;font-weight:600;color:#4A463D;padding:8px 14px;border-radius:14px;background:#FFFBF0;border:1.5px solid #D9D1BC;text-align:center;line-height:1.4}
+.nc{min-width:52px;min-height:44px;padding:0 10px;border-radius:12px;border:2px solid #111111;background:#FFFBF0;display:inline-flex;align-items:center;justify-content:center;gap:5px;font-weight:700;font-size:14px;color:#111111}
+.sw{width:56px;height:32px;border-radius:999px;border:2px solid #111111;background:#F4EDD8;position:relative;padding:0;cursor:pointer;flex:none}
+.sw i{position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:999px;background:#111111}
+</style><style data-dc-tpl="2">
+body{margin:0}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="C03-Invite"><div data-dc-tpl="3" style="width: 1330px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px;">
+    <span data-dc-tpl="5" class="mono" style="font-size: 14px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); padding: 8px 12px; border-radius: 8px;">C03</span>
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800; line-height: 1;">Thread invitation &amp; membership</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 16px; color: rgb(74, 70, 61); max-width: 760px;">You can look before you join. Joining is one clear tap on Join thread; Ignore hides it quietly. What’s shared is stated once, plainly.</p>
+    </div>
+    <span data-dc-tpl="9" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="10" style="display: flex; gap: 32px; align-items: flex-start;">
+
+    
+    <figure data-dc-tpl="11" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="12" class="cap"><b data-dc-tpl="13">Received · Ravi’s Talk</b><span data-dc-tpl="14">Preview to look · Join to join · Ignore hides</span></figcaption>
+      <div data-dc-tpl="15" class="phone">
+        <div data-dc-tpl="16" style="position: absolute; left: 20px; right: 16px; top: 56px; display: flex; align-items: center; justify-content: space-between;">
+          <h2 data-dc-tpl="17" class="disp" style="margin: 0px; font-size: 36px; font-weight: 800;">Talk</h2>
+        </div>
+        <section data-dc-tpl="18" aria-label="New thread" style="position: absolute; left: 16px; right: 16px; top: 124px; border: 2px solid rgb(17, 17, 17); border-radius: 20px; background: rgb(255, 251, 240); box-shadow: rgb(255, 228, 77) 5px 5px 0px; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+          <div data-dc-tpl="19" style="display: flex; gap: 12px; align-items: center;">
+            <span data-dc-tpl="20" aria-hidden="true" style="width: 52px; height: 52px; border-radius: 12px; background: rgb(7, 7, 13); border: 2px solid rgb(17, 17, 17); display: flex; align-items: center; justify-content: center; flex: 0 0 auto;"><svg data-dc-tpl="21" width="38" height="38" viewBox="0 0 40 40"><circle data-dc-tpl="22" cx="20" cy="20" r="14" fill="none" stroke="#FFC46B" stroke-width="3"></circle><circle data-dc-tpl="23" cx="20" cy="20" r="9" fill="#000000"></circle></svg></span>
+            <span data-dc-tpl="24" style="display: flex; flex-direction: column; gap: 2px;"><span data-dc-tpl="25" class="mono" style="color: rgb(74, 70, 61);">New thread</span><b data-dc-tpl="26" style="font-size: 16px; line-height: 1.3;">Asha started a thread · Black holes</b><span data-dc-tpl="27" style="font-size: 13px; color: rgb(74, 70, 61);">with you and Meera · 4 Reels</span></span>
+          </div>
+          <div data-dc-tpl="28" class="sysl" style="align-self: stretch; text-align: left; display: flex; gap: 8px; align-items: flex-start;">
+            <svg data-dc-tpl="29" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="flex: 0 0 auto; margin-top: 2px;"><rect data-dc-tpl="30" x="5" y="11" width="14" height="10" rx="2"></rect><path data-dc-tpl="31" d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+            <span data-dc-tpl="32">Your universe and history aren’t shared. You keep your own place in each Reel.</span>
+          </div>
+          <a data-dc-tpl="33" href="C04-Thread.html" style="align-self: flex-start; font-size: 14px; font-weight: 600; min-height: 44px; display: inline-flex; align-items: center;">Preview the thread</a>
+          <div data-dc-tpl="34" style="display: flex; gap: 10px;">
+            <a data-dc-tpl="35" class="btn pri" href="C04-Thread.html" style="flex: 1 1 0%;">Join thread</a>
+            <button data-dc-tpl="36" class="btn ghost" type="button" style="flex: 1 1 0%;">Ignore</button>
+          </div>
+        </section>
+        <nav data-dc-tpl="37" aria-label="Conversations" style="position: absolute; left: 0px; right: 0px; top: 452px; display: flex; flex-direction: column; border-top: 1px solid rgb(217, 209, 188);">
+          <a data-dc-tpl="38" class="crow" href="C02-Conversation.html"><span data-dc-tpl="39" class="avc" style="background: rgb(20, 199, 155);">A</span><span data-dc-tpl="40" class="ctx"><b data-dc-tpl="41">Asha <span data-dc-tpl="42" class="pres" style="color: rgb(11, 122, 95); margin-left: 4px;"><i data-dc-tpl="43" style="background: rgb(20, 199, 155);"></i>Online</span></b><span data-dc-tpl="44">You: Did Part 2 load for you?</span></span><span data-dc-tpl="45" class="mono" style="color: rgb(74, 70, 61);">9:41</span></a>
+          <a data-dc-tpl="46" class="crow" href="C02-Conversation.html"><span data-dc-tpl="47" class="avc" style="background: rgb(244, 237, 216);">K</span><span data-dc-tpl="48" class="ctx"><b data-dc-tpl="49">Kabir</b><span data-dc-tpl="50">Kabir: see you at the match</span></span><span data-dc-tpl="51" class="mono" style="color: rgb(74, 70, 61);">Sun</span></a>
+        </nav>
+        <div data-dc-tpl="52" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="53"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(17, 17, 17); box-shadow: rgba(17, 17, 17, 0.55) 0px 10px 24px -12px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk •" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk •</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="54" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="55" class="cap"><b data-dc-tpl="56">Members sheet</b><span data-dc-tpl="57">Presence words only if each person allows</span></figcaption>
+      <div data-dc-tpl="58" class="phone">
+        <div data-dc-tpl="59" class="chead">
+          <a data-dc-tpl="60" class="ibtn" href="C04-Thread.html" aria-label="Back to thread" style="border: 0px;"><svg data-dc-tpl="61" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="62" d="M15 5l-7 7 7 7"></path></svg></a>
+          <b data-dc-tpl="63" class="disp" style="font-size: 19px; flex: 1 1 0%;">Black holes</b>
+        </div>
+        <div data-dc-tpl="64" style="position: absolute; inset: 0px; background: rgba(17, 17, 17, 0.4);"></div>
+        <div data-dc-tpl="65" class="msheet" role="dialog" aria-label="People in this thread" style="top: 200px;">
+          <div data-dc-tpl="66" class="grab"></div>
+          <b data-dc-tpl="67" class="disp" style="font-size: 22px;">People in this thread</b>
+          <div data-dc-tpl="68" style="display: flex; flex-direction: column;">
+            <div data-dc-tpl="69" class="mrow"><span data-dc-tpl="70" class="avc" style="background: rgb(20, 199, 155);">A</span><span data-dc-tpl="71" class="ctx"><b data-dc-tpl="72">Asha</b><span data-dc-tpl="73" class="pres" style="color: rgb(11, 122, 95);"><i data-dc-tpl="74" style="background: rgb(20, 199, 155);"></i>Online · started this thread</span></span></div>
+            <div data-dc-tpl="75" class="mrow"><span data-dc-tpl="76" class="avc" style="background: rgb(255, 228, 77);">R</span><span data-dc-tpl="77" class="ctx"><b data-dc-tpl="78">Ravi (you)</b><span data-dc-tpl="79">Your status: Online · <a data-dc-tpl="80" href="F01-Friends.html">change</a></span></span></div>
+            <div data-dc-tpl="81" class="mrow"><span data-dc-tpl="82" class="avc" style="background: rgb(230, 234, 255);">M</span><span data-dc-tpl="83" class="ctx"><b data-dc-tpl="84">Meera</b><span data-dc-tpl="85" class="pres" style="color: rgb(74, 70, 61);"><i data-dc-tpl="86" style="border: 1.5px solid rgb(11, 122, 95);"></i>Recently active</span></span></div>
+          </div>
+          <p data-dc-tpl="87" style="margin: 0px; font-size: 13px; line-height: 1.45; color: rgb(74, 70, 61);">Status says whether someone’s around — never what they’re watching.</p>
+          <button data-dc-tpl="88" class="btn" type="button" style="align-self: flex-start;"><svg data-dc-tpl="89" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="90" d="M12 5v14M5 12h14"></path></svg>Add people</button>
+          <div data-dc-tpl="91" style="display: flex; align-items: center; justify-content: space-between; min-height: 56px; border-top: 1px solid rgb(217, 209, 188);">
+            <label data-dc-tpl="92" for="c3-mute" style="display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="93" style="font-size: 15px;">Mute this thread</b><span data-dc-tpl="94" style="font-size: 13px; color: rgb(74, 70, 61);">Still in your Talk list, no alerts</span></label>
+            <button data-dc-tpl="95" id="c3-mute" class="sw" type="button" role="switch" aria-checked="false" aria-label="Mute this thread"><i data-dc-tpl="96"></i></button>
+          </div>
+          <button data-dc-tpl="97" class="btn ghost" type="button" style="align-self: flex-start; color: rgb(178, 58, 11); border-color: rgb(178, 58, 11);">Leave thread</button>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="98" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="99" class="cap"><b data-dc-tpl="100">Ended · left · withdrawn</b><span data-dc-tpl="101">Honest lines, no error pages</span></figcaption>
+      <div data-dc-tpl="102" class="phone">
+        <div data-dc-tpl="103" class="chead">
+          <a data-dc-tpl="104" class="ibtn" href="C01-Inbox.html" aria-label="Back to Talk" style="border: 0px;"><svg data-dc-tpl="105" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="106" d="M15 5l-7 7 7 7"></path></svg></a>
+          <b data-dc-tpl="107" class="disp" style="font-size: 19px; flex: 1 1 0%;">Black holes</b>
+        </div>
+        <nav data-dc-tpl="108" aria-label="Episodes in this thread" style="position: absolute; left: 0px; right: 0px; top: 112px; padding: 8px 10px; display: flex; gap: 6px; border-bottom: 1.5px solid rgb(217, 209, 188);">
+          <span data-dc-tpl="109" class="nc">1</span>
+          <span data-dc-tpl="110" class="nc">2</span>
+          <span data-dc-tpl="111" class="nc" style="border-style: dashed; color: rgb(74, 70, 61); text-decoration: line-through;">3</span>
+          <span data-dc-tpl="112" class="nc">4</span>
+        </nav>
+        <div data-dc-tpl="113" style="position: absolute; left: 16px; right: 16px; top: 184px; display: flex; flex-direction: column; gap: 14px;">
+          <span data-dc-tpl="114" class="mono" style="color: rgb(74, 70, 61);">Item withdrawn</span>
+          <div data-dc-tpl="115" class="banner" style="background: rgb(244, 237, 216);"><span data-dc-tpl="116"><b data-dc-tpl="117">Part 3 is no longer available.</b> It was withdrawn after this thread started. Messages that mention it stay.</span></div>
+          <span data-dc-tpl="118" class="mono" style="color: rgb(74, 70, 61);">Thread ended by Asha</span>
+          <div data-dc-tpl="119" class="banner"><svg data-dc-tpl="120" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="flex: 0 0 auto;"><rect data-dc-tpl="121" x="5" y="11" width="14" height="10" rx="2"></rect><path data-dc-tpl="122" d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg><span data-dc-tpl="123"><b data-dc-tpl="124">Asha ended this thread.</b> You can still read the conversation. Its Reels open from your own Explore or Keep, not from here.</span></div>
+          <span data-dc-tpl="125" class="mono" style="color: rgb(74, 70, 61);">You left</span>
+          <div data-dc-tpl="126" class="banner"><span data-dc-tpl="127"><b data-dc-tpl="128">You left this thread.</b> To come back, someone in it can add you again.</span></div>
+          <p data-dc-tpl="129" style="margin: 0px; font-size: 13px; line-height: 1.45; color: rgb(74, 70, 61);">Anything you watched while you were here still shapes only your own universe.</p>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section data-dc-tpl="130" class="notes">
+    <div data-dc-tpl="131" class="note"><h3 data-dc-tpl="132">Route &amp; origin</h3><p data-dc-tpl="133">Created by H01 “Explore with friends” or C02 “Start a thread”. Recipients see a card in Talk and an optional notification. Preview opens <span data-dc-tpl="134" class="ev">/thread/:threadId?preview</span> read-only (no messages sent, no presence shown); Join lands them at Part 1 as a member.</p></div>
+    <div data-dc-tpl="135" class="note"><h3 data-dc-tpl="136">Actions</h3><p data-dc-tpl="137"><b data-dc-tpl="138">Primary:</b> Join thread. <b data-dc-tpl="139">Secondary:</b> Preview, Ignore, and after joining Mute, Leave, Add people (respects blocks), own status (F02). <b data-dc-tpl="140">Product decision (v2.1):</b> joining is one tap on Join; preview first, no separate accept/decline ceremony; Ignore hides it without telling Asha.</p></div>
+    <div data-dc-tpl="141" class="note"><h3 data-dc-tpl="142">States &amp; overlays</h3><p data-dc-tpl="143">new · previewing (not a member) · joined · ignored (hidden, can still be found under Hidden) · muted · left · removed · ended by starter · item withdrawn/corrected · blocked person can’t be added (no hint why). People who hide status show no label.</p></div>
+    <div data-dc-tpl="144" class="note"><h3 data-dc-tpl="145">Commands · observations</h3><p data-dc-tpl="146" class="ev">CMD thread.join · thread.ignore · thread.mute · thread.leave · thread.add_member{handle} · thread.end · thread.remove_member<br data-dc-tpl="147">Presence: coarse state honouring each member’s setting.<br data-dc-tpl="148">Membership never merges universes or shares positions.</p></div>
+    <div data-dc-tpl="149" class="note"><h3 data-dc-tpl="150">Restore</h3><p data-dc-tpl="151">Re-opening returns each person to their own item, playhead and conversation scroll. After ending or removal, a stale link lands on the thread with the ended line — never an error page.</p></div>
+    <div data-dc-tpl="152" class="note"><h3 data-dc-tpl="153">Accessibility &amp; platform</h3><p data-dc-tpl="154">The new-thread card is a labelled region with real buttons. Presence is text, not just a dot. Leave is a destructive action with its own confirmation sheet. Native: notification opens the thread; web: the same link.</p></div>
+  </section></div></div></div>
+
+
+
+</body></html>
