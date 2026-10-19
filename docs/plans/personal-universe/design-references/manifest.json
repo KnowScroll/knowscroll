@@ -1,0 +1,62 @@
+{
+  "preparedAt": "2026-10-19",
+  "sourceRevision": "e5fdc319ffac0292fb19020ccadca9ee2b254e2f",
+  "references": [
+    {
+      "file": "01-approved-poster-scroll.png",
+      "source": "/Volumes/Mrigesh SSD/knowscroll-product/artifacts/android-living/next-session/04-scroll-direction-approved.png",
+      "sha256": "ff80c719a0b756d3c75c8c345fdc6d57943e85ecf156f412a6f3b52dbb246189",
+      "role": "Positive: approved poster content direction. Ignore old preview/source labels and cropped layout as final UX.",
+      "inspection": "Pixels inspected in this documentation session; no live motion verified."
+    },
+    {
+      "file": "02-target-universe.png",
+      "source": "/Volumes/Mrigesh SSD/knowscroll-product/artifacts/android-living/next-session/02-universe-composition-target.png",
+      "sha256": "474201a589dcfa90ec340596358b1e3dea85cc71ece2f887fd5897274b8da618",
+      "role": "Positive: spacious universe composition. Old counts/topic semantics are illustrative.",
+      "inspection": "Pixels inspected in this documentation session; no live motion verified."
+    },
+    {
+      "file": "03-target-system.png",
+      "source": "/Volumes/Mrigesh SSD/knowscroll-product/artifacts/android-living/next-session/03-system-composition-target.png",
+      "sha256": "dd2bf3ad6f4305f8a82689951dfbeaf0f5059b714da46dfe6233db799739e979",
+      "role": "Positive: system composition and restrained orbits; retain readable hierarchy.",
+      "inspection": "Pixels inspected in this documentation session; no live motion verified."
+    },
+    {
+      "file": "04-target-region-card.png",
+      "source": "/Volumes/Mrigesh SSD/knowscroll-product/artifacts/android-living/next-session/01-topic-card-target.png",
+      "sha256": "eef90b25c755be4e428315e03e7b1e834631860211ebd57d4ba5d6c48128eb92",
+      "role": "Positive: angular geography and compact contextual card. Do not copy sources/checked-out badges or old navigation.",
+      "inspection": "Pixels inspected in this documentation session; no live motion verified."
+    },
+    {
+      "file": "05-target-planet.png",
+      "source": "/Volumes/Mrigesh SSD/knowscroll-product/artifacts/android-spatial/next-session/01-planet-moon-target.png",
+      "sha256": "f689b89331c2d6b519595737b19a314ffcedbee67bc31636061600e6e488fca4",
+      "role": "Positive: teal globe material, small ship and restrained label. Moon is illustration, not approved new semantics.",
+      "inspection": "Pixels inspected in this documentation session; no live motion verified."
+    },
+    {
+      "file": "06-current-web-scroll.png",
+      "source": "/Volumes/Mrigesh SSD/knowscroll-product/docs/journeys/evidence/web-171/visual-refinement/scroll-phone-chromium-390x844.png",
+      "sha256": "1898ecbeafbe21381114f27fcf84310b1c69d2c7f5a57b88b63777be1e4ce09a",
+      "role": "Current implementation capture: shows poster register and typography. Demo text, source/reasoning panels and navigation are not targets.",
+      "inspection": "Pixels inspected in this documentation session; no live motion verified."
+    },
+    {
+      "file": "07-avoid-clutter.png",
+      "source": "/Volumes/Mrigesh SSD/knowscroll-product/artifacts/android-living/next-session/05-current-atlas-clutter-to-fix.png",
+      "sha256": "e61ba611a01b17ecf90b130e6f3ec500287deecc628695319341f3b8f4ff03b7",
+      "role": "Negative: overlapping repeated globes and unreadable labels; do not reproduce.",
+      "inspection": "Pixels inspected in this documentation session; no live motion verified."
+    },
+    {
+      "file": "08-avoid-grey-dialog.png",
+      "source": "/Volumes/Mrigesh SSD/knowscroll-product/artifacts/android-spatial/next-session/05-rejected-world-dialog.png",
+      "sha256": "04d7b3d8a1ccd8dc19b5bc80f1bff8a3eadbce7cf4b24a6ff81cbe1e80c704b9",
+      "role": "Negative: explicitly rejected grey Worlds dialog and weak hierarchy; do not reproduce.",
+      "inspection": "Pixels inspected in this documentation session; no live motion verified."
+    }
+  ]
+}

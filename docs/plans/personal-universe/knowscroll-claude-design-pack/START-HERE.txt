@@ -1,0 +1,14 @@
+KnowScroll design pack — 19 October 2026 — Nest architecture and integrated content-thread revision
+
+1. Paste 04-claude-design-prompt.md into Claude Design.
+2. Attach 03-design-brief.md and design-references/README.md.
+3. Attach the five positive targets (01–05), current capture (06) and negative examples (07–08), clearly retaining their filenames.
+4. Attach 02d-greenfield-blueprint.md for full architecture context; 02e-future-session-handoff.md is optional continuation context.
+
+The brief/new blueprint govern behaviour. Images are style references with roles and provenance in the reference guide. Optional old HTML files are listed there and are not included. Nothing in this pack is an implementation or live-runtime claim. The Software Factory workflow is retired; no PIO.
+
+If the tool cannot read ZIPs, unzip and attach the listed files individually. No credentials, private user data, environment files or private media are included.
+
+This revision unifies friend and idea-room exploration in content threads with episode navigation, anchored snippets and inline What-if/Another perspective continuations. If available, attach your KnowScroll-design-v1 export as the visual baseline to revise; it is not bundled here. See H03 and R04 in the updated frame inventory. The existing export has not been changed by this documentation update.
+
+The architecture now selects NestJS with a framework-free TypeScript core, transactional pg-boss work, separate provider attempts and Tier 0 observability. The consumer design remains governed by the same product semantics; implementation has not started.
