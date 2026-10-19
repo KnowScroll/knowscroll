@@ -191,16 +191,16 @@ Deliberately absent: sources, claims, quotes, model, prompt, run, reviewer, coun
 |---|---|
 | `readout` | a primary output and an optional secondary one |
 | `cards` | 2–8 outputs with bars |
-| `plot` | an output as a curve over one parameter's range, at most 200 samples |
+| `plot` | an output as a curve over one parameter's grid values (all of them, or 200 evenly spread ones) |
 | `area` | a parameter as a bar beside an output as a square |
 
 Bars, areas and plot ranges are scaled by code from the grid (`cardsScale`, `plotRange`), so no model-written display number exists.
 
 **Proof over the whole grid.**
 - The product of all the parameters' grid sizes must be at most **10,000** points (`sim_grid_too_large`).
-- The validator evaluates every output at **every** grid point, and at every plot sample.
+- The validator evaluates every output at **every** grid point. Plot samples are grid values, so they are covered.
 - It refuses any non-finite output, any output beyond ±1e15, and any negative bar or area.
-- Evaluation is compiled into slot closures over a `Float64Array`, so it allocates nothing per point and never throws. Outside validation, a bad value becomes `null` and renders as "—".
+- Evaluation is compiled into slot closures over a `Float64Array`: it allocates nothing per point, re-evaluates only the outputs that depend on a parameter that changed, and never throws. Outside validation, a bad value becomes `null` and renders as "—".
 
 **`illustrative`.**
 - A drafted `illustrative: true` becomes the stored notice `{notice: "Illustrative"}`. The renderer must always show it, next to the view and in the text version.

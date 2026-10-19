@@ -22,66 +22,60 @@ import { FIELD_LIMITS, LIMITS } from '../limits.js';
 type Slots = Float64Array;
 type Run = (slots: Slots) => number;
 
-function compileOperand(operand: Operand, slotOf: (key: string) => number): Run {
-  if (typeof operand === 'number') return () => operand;
-  const slot = slotOf(operand);
-  return slot < 0 ? () => Number.NaN : (slots) => slots[slot] ?? Number.NaN;
-}
+/**
+ * Resolves an operand to a slot: a key's slot, a slot holding the literal, or the shared NaN slot
+ * for an unknown key. Every operand is then one typed-array read, with no call per operand.
+ */
+type SlotOf = (operand: Operand) => number;
 
-function compileFormula(formula: Formula, slotOf: (key: string) => number): Run {
-  const operand = (value: Operand) => compileOperand(value, slotOf);
+function compileFormula(formula: Formula, slot: SlotOf): Run {
   switch (formula.kind) {
     case 'linear': {
-      const [x, a, b] = [operand(formula.x), operand(formula.a), operand(formula.b)];
-      return (slots) => a(slots) * x(slots) + b(slots);
+      const [x, a, b] = [slot(formula.x), slot(formula.a), slot(formula.b)];
+      return (s) => s[a]! * s[x]! + s[b]!;
     }
     case 'product': {
-      const factors = formula.factors.map(operand);
-      return (slots) => {
-        let product = 1;
-        for (const factor of factors) product *= factor(slots);
-        return product;
-      };
+      const factors = formula.factors.map(slot);
+      const [f0 = 0, f1 = 0, f2, f3] = factors;
+      if (f2 === undefined) return (s) => s[f0]! * s[f1]!;
+      if (f3 === undefined) return (s) => s[f0]! * s[f1]! * s[f2]!;
+      return (s) => s[f0]! * s[f1]! * s[f2]! * s[f3]!;
     }
     case 'ratio': {
-      const [numerator, denominator] = [operand(formula.numerator), operand(formula.denominator)];
-      return (slots) => numerator(slots) / denominator(slots);
+      const [numerator, denominator] = [slot(formula.numerator), slot(formula.denominator)];
+      return (s) => s[numerator]! / s[denominator]!;
     }
     case 'power': {
-      const [x, base, scale] = [operand(formula.x), operand(formula.base), operand(formula.scale)];
+      const [x, base, scale] = [slot(formula.x), slot(formula.base), slot(formula.scale)];
       const exponent = formula.exponent;
-      return (slots) => scale(slots) * (x(slots) / base(slots)) ** exponent;
+      return (s) => s[scale]! * (s[x]! / s[base]!) ** exponent;
     }
     case 'exponential': {
-      const [x, rate, initial] = [operand(formula.x), operand(formula.rate), operand(formula.initial)];
-      return (slots) => initial(slots) * Math.exp(rate(slots) * x(slots));
+      const [x, rate, initial] = [slot(formula.x), slot(formula.rate), slot(formula.initial)];
+      return (s) => s[initial]! * Math.exp(s[rate]! * s[x]!);
     }
     case 'inverse-square': {
-      const [r, k] = [operand(formula.r), operand(formula.k)];
-      return (slots) => {
-        const distance = r(slots);
-        return k(slots) / (distance * distance);
-      };
+      const [r, k] = [slot(formula.r), slot(formula.k)];
+      return (s) => s[k]! / (s[r]! * s[r]!);
     }
     case 'lookup': {
-      const input = compileOperand(formula.input, slotOf);
-      const at = formula.table.map((entry) => entry.at);
-      const values = formula.table.map((entry) => operand(entry.value));
+      const input = slot(formula.input);
+      const at = Float64Array.from(formula.table.map((entry) => entry.at));
+      const values = Int32Array.from(formula.table.map((entry) => slot(entry.value)));
       const interpolate = formula.mode === 'interpolate';
-      return (slots) => {
-        const x = input(slots);
-        const last = at.length - 1;
+      const last = at.length - 1;
+      return (s) => {
+        const x = s[input]!;
         if (Number.isNaN(x) || last < 1) return Number.NaN;
-        if (x <= (at[0] ?? Number.NaN)) return values[0]?.(slots) ?? Number.NaN;
-        if (x >= (at[last] ?? Number.NaN)) return values[last]?.(slots) ?? Number.NaN;
+        if (x <= at[0]!) return s[values[0]!]!;
+        if (x >= at[last]!) return s[values[last]!]!;
         for (let index = 0; index < last; index += 1) {
-          const low = at[index] ?? Number.NaN;
-          const high = at[index + 1] ?? Number.NaN;
+          const low = at[index]!;
+          const high = at[index + 1]!;
           if (x >= low && x < high) {
-            const lowValue = values[index]?.(slots) ?? Number.NaN;
+            const lowValue = s[values[index]!]!;
             if (!interpolate) return lowValue;
-            const highValue = values[index + 1]?.(slots) ?? Number.NaN;
-            return lowValue + ((highValue - lowValue) * (x - low)) / (high - low);
+            return lowValue + ((s[values[index + 1]!]! - lowValue) * (x - low)) / (high - low);
           }
         }
         return Number.NaN;
@@ -90,11 +84,42 @@ function compileFormula(formula: Formula, slotOf: (key: string) => number): Run 
   }
 }
 
+/** Slot allocation for one compiled simulation or formula: keys first, then literals, then NaN. */
+class SlotTable {
+  private readonly keys = new Map<string, number>();
+  private readonly literals = new Map<number, number>();
+  readonly initial: number[] = [];
+
+  key(name: string): number {
+    const existing = this.keys.get(name);
+    if (existing !== undefined) return existing;
+    this.keys.set(name, this.initial.length);
+    this.initial.push(Number.NaN);
+    return this.initial.length - 1;
+  }
+
+  has(name: string): boolean {
+    return this.keys.has(name);
+  }
+
+  literal(value: number): number {
+    const existing = this.literals.get(value);
+    if (existing !== undefined) return existing;
+    this.literals.set(value, this.initial.length);
+    this.initial.push(value);
+    return this.initial.length - 1;
+  }
+}
+
 /** Evaluates one formula against parameter, constant and earlier output values. */
 export function evaluateFormula(formula: Formula, scope: ReadonlyMap<string, number>): number {
-  const keys = [...scope.keys()];
-  const slots = Float64Array.from(keys.map((key) => scope.get(key) ?? Number.NaN));
-  return compileFormula(formula, (key) => keys.indexOf(key))(slots);
+  const table = new SlotTable();
+  for (const [key, value] of scope) table.initial[table.key(key)] = value;
+  const unknown = table.literal(Number.NaN);
+  const run = compileFormula(formula, (operand) =>
+    typeof operand === 'number' ? table.literal(operand) : table.has(operand) ? table.key(operand) : unknown,
+  );
+  return run(Float64Array.from(table.initial));
 }
 
 /** Keys a formula reads. */
@@ -116,10 +141,6 @@ export function formulaReferences(formula: Formula): string[] {
     case 'lookup':
       return [formula.input, ...keys(...formula.table.map((entry) => entry.value))];
   }
-}
-
-function bounded(value: number): number | null {
-  return Number.isFinite(value) && Math.abs(value) <= FIELD_LIMITS.numberMagnitude ? value : null;
 }
 
 function decimalPlaces(value: number): number {
@@ -209,49 +230,78 @@ export interface CompiledSimulation {
   readonly slots: Slots;
   readonly paramSlots: readonly number[];
   readonly outputSlots: readonly number[];
-  /** Evaluates every output in order, writing each (bounded, NaN for null) into its slot. */
+  /** Evaluates every output in order, writing each (bounded; NaN for null) into its slot. */
   run(): void;
+  /**
+   * Re-evaluates only the outputs that depend (directly or through earlier outputs) on a parameter
+   * in `changed` (a bit mask of parameter positions); the others keep their values.
+   */
+  runChanged(changed: number): void;
+  /** After `run` or `runChanged`: true when every re-evaluated output was finite and within ±1e15. */
+  readonly finite: boolean;
 }
 
 const compiledCache = new WeakMap<object, CompiledSimulation>();
+const MAGNITUDE = FIELD_LIMITS.numberMagnitude;
 
 /** Compiles (and caches per data object) a simulation's formulas into slot closures. */
 export function compileSimulation(data: SimulationCore): CompiledSimulation {
   const cached = compiledCache.get(data);
   if (cached !== undefined) return cached;
-  const index = new Map<string, number>();
-  const claim = (key: string) => {
-    const existing = index.get(key);
-    if (existing !== undefined) return existing;
-    index.set(key, index.size);
-    return index.size - 1;
-  };
-  const paramSlots = data.params.map((param) => claim(param.key));
-  const constantSlots = data.constants.map((constant) => claim(constant.key));
-  const runs: Array<{ slot: number; run: Run }> = [];
+  const table = new SlotTable();
+  const paramSlots = data.params.map((param) => table.key(param.key));
+  const constantSlots = data.constants.map((constant) => table.key(constant.key));
   const defined = new Set<string>([
     ...data.params.map((param) => param.key),
     ...data.constants.map((constant) => constant.key),
   ]);
+  const unknown = table.literal(Number.NaN);
+  const runs: Run[] = [];
+  const outputSlotList: number[] = [];
+  // Which parameters each output depends on, directly or through earlier outputs (bit per position).
+  const dependsOn = new Map<string, number>(data.params.map((param, position) => [param.key, 1 << position]));
+  const masks: number[] = [];
   for (const output of data.outputs) {
-    const run = compileFormula(output.formula, (key) => (defined.has(key) ? (index.get(key) ?? -1) : -1));
-    const slot = claim(output.key);
+    runs.push(
+      compileFormula(output.formula, (operand) =>
+        typeof operand === 'number' ? table.literal(operand) : defined.has(operand) ? table.key(operand) : unknown,
+      ),
+    );
+    const mask = formulaReferences(output.formula).reduce((bits, key) => bits | (dependsOn.get(key) ?? 0), 0);
+    masks.push(mask);
+    dependsOn.set(output.key, mask);
+    outputSlotList.push(table.key(output.key));
     defined.add(output.key);
-    runs.push({ slot, run });
   }
-  const slots = new Float64Array(index.size);
+  const slots = Float64Array.from(table.initial);
   data.constants.forEach((constant, position) => {
     slots[constantSlots[position] ?? 0] = constant.value;
   });
-  const compiled: CompiledSimulation = {
+  const outputs = Int32Array.from(outputSlotList);
+  const dependencies = Int32Array.from(masks);
+  const count = runs.length;
+  const compiled = {
     slots,
     paramSlots,
-    outputSlots: runs.map((entry) => entry.slot),
-    run() {
-      for (const { slot, run } of runs) {
-        const value = run(slots);
-        slots[slot] = bounded(value) ?? Number.NaN;
+    outputSlots: outputSlotList,
+    finite: true,
+    runChanged(changed: number) {
+      let finite = true;
+      for (let index = 0; index < count; index += 1) {
+        // An output of constants only (mask 0) is evaluated whenever everything is (`changed` = -1).
+        if ((dependencies[index]! & changed) === 0 && changed !== -1) continue;
+        const value = runs[index]!(slots);
+        // `value - value === 0` is false exactly for NaN and ±Infinity.
+        if (value - value === 0 && value <= MAGNITUDE && value >= -MAGNITUDE) slots[outputs[index]!] = value;
+        else {
+          slots[outputs[index]!] = Number.NaN;
+          finite = false;
+        }
       }
+      compiled.finite = finite;
+    },
+    run() {
+      compiled.runChanged(-1);
     },
   };
   compiledCache.set(data, compiled);
@@ -290,11 +340,19 @@ export function curveSampleCount(param: SimulationParam): number {
   return Math.max(2, Math.min(LIMITS.chartPoints, gridSize(param)));
 }
 
-/** The x positions of a curve over a parameter's range. */
+/**
+ * The x positions of a curve: values of the parameter's own grid (all of them, or 200 evenly
+ * spread ones), so a plot is drawn only at values a reader can set and the full-grid proof covers
+ * every point it draws.
+ */
 export function curveSamples(param: SimulationParam): number[] {
-  const count = curveSampleCount(param);
-  if (!hasUsableGrid(param)) return [];
-  return Array.from({ length: count }, (_, index) => param.min + ((param.max - param.min) * index) / (count - 1));
+  const values = gridValues(param);
+  const count = Math.min(values.length, curveSampleCount(param));
+  if (count < 2) return values;
+  return Array.from(
+    { length: count },
+    (_, index) => values[Math.round((index * (values.length - 1)) / (count - 1))] ?? param.min,
+  );
 }
 
 /** The curve of output `y` as parameter `x` sweeps its range, other parameters held at `values`. */
@@ -324,46 +382,39 @@ export function sampleCurve(
 }
 
 /**
- * Visits every point of the full parameter grid (the caller bounds its size) and, for a plot,
- * every curve sample for each combination of the other parameters. `visit` returns false to stop.
+ * Visits every point of the full parameter grid (the caller bounds its size); `visit` returns
+ * false to stop. Curve samples are grid values, so they are among the points visited.
  */
-export function forEachGridPoint(
-  data: SimulationCore,
-  visit: (compiled: CompiledSimulation) => boolean,
-  options: { plotX?: string } = {},
-): void {
+export function forEachGridPoint(data: SimulationCore, visit: (compiled: CompiledSimulation) => boolean): void {
   const compiled = compileSimulation(data);
   const axes = data.params.map((param) => gridValues(param));
   if (axes.some((axis) => axis.length === 0)) return;
   const positions = axes.map(() => 0);
-  const plotIndex = options.plotX === undefined ? -1 : data.params.findIndex((param) => param.key === options.plotX);
-  const plotParam = data.params[plotIndex];
-  const samples = plotParam === undefined ? [] : curveSamples(plotParam);
+  const slots = compiled.slots;
+  const paramSlots = compiled.paramSlots;
+  const write = (position: number) => {
+    slots[paramSlots[position]!] = axes[position]![positions[position]!]!;
+  };
+  for (let position = 0; position < axes.length; position += 1) write(position);
+  compiled.run();
   for (;;) {
-    axes.forEach((axis, position) => {
-      compiled.slots[compiled.paramSlots[position] ?? 0] = axis[positions[position] ?? 0] ?? Number.NaN;
-    });
-    compiled.run();
     if (!visit(compiled)) return;
-    if (plotParam !== undefined && (positions[plotIndex] ?? 0) === 0) {
-      const xSlot = compiled.paramSlots[plotIndex] ?? 0;
-      for (const x of samples) {
-        compiled.slots[xSlot] = x;
-        compiled.run();
-        if (!visit(compiled)) return;
-      }
-    }
+    // Odometer: the first parameter changes fastest; only the parameters that change are written,
+    // and only the outputs that depend on them are re-evaluated.
     let carry = 0;
     while (carry < positions.length) {
-      const next = (positions[carry] ?? 0) + 1;
-      if (next < (axes[carry]?.length ?? 0)) {
+      const next = positions[carry]! + 1;
+      if (next < axes[carry]!.length) {
         positions[carry] = next;
+        write(carry);
         break;
       }
       positions[carry] = 0;
+      write(carry);
       carry += 1;
     }
     if (carry === positions.length) return;
+    compiled.runChanged((2 << carry) - 1);
   }
 }
 
@@ -390,18 +441,14 @@ export function plotRange(data: SimulationCore & { view: SimulationView }): read
   const position = data.outputs.findIndex((output) => output.key === view.y);
   let low = 0;
   let high = Number.NEGATIVE_INFINITY;
-  forEachGridPoint(
-    data,
-    (compiled) => {
-      const value = compiled.slots[compiled.outputSlots[position] ?? -1] ?? Number.NaN;
-      if (!Number.isNaN(value)) {
-        if (value < low) low = value;
-        if (value > high) high = value;
-      }
-      return true;
-    },
-    { plotX: view.x },
-  );
+  forEachGridPoint(data, (compiled) => {
+    const value = compiled.slots[compiled.outputSlots[position] ?? -1] ?? Number.NaN;
+    if (!Number.isNaN(value)) {
+      if (value < low) low = value;
+      if (value > high) high = value;
+    }
+    return true;
+  });
   return high > low ? [low, high] : [low, low + 1];
 }
 

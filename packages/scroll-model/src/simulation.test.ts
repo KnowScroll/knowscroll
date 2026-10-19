@@ -264,7 +264,8 @@ describe('simulation validation (computation stage)', () => {
       [
         'sim_view_out_of_range',
         (data) =>
-          void (data.outputs[1] = { ...data.outputs[1]!, formula: { kind: 'linear', x: 'sunShare', a: -2, b: 1 } }),
+          // Neap range 0.5 − 2·share: negative from 0.26 on, never zero on the grid (0.25 is not on it).
+          void (data.outputs[1] = { ...data.outputs[1]!, formula: { kind: 'linear', x: 'sunShare', a: -2, b: 0.5 } }),
       ],
     ];
     for (const [code, change] of cases) {

@@ -138,17 +138,17 @@ describe('scroll-limits.v1', () => {
     expect(codes(over)).toEqual(['visible_text_too_long']);
   });
 
-  it('document size: a stored revision over 128 KiB is refused', () => {
+  it('document size: a stored revision over 128 KiB is refused, before anything else is checked', () => {
+    // Code blocks with long spoken descriptions: heavy in bytes, light in visible text.
     const heavy = () => ({
-      ...make('figure', {
-        media: { mediaId: 'med-1', revision: 1 },
-        motion: 'still',
-        alt: `${'Quiet harbour '.repeat(21).trim()}.`,
-      }),
-      a11y: { label: 'A figure', description: `${'Long description '.repeat(35).trim()}.` },
+      ...make('code', { language: 'text', code: `${'x = 1 '.repeat(330).trim()}` }),
+      a11y: { label: 'Code', description: `${'Long description '.repeat(35).trim()}.` },
       fallbackText: `${'Fallback words '.repeat(79).trim()}.`,
     });
-    const document = documentOf(Array.from({ length: 70 }, heavy));
+    const blocks = Array.from({ length: 70 }, heavy);
+    const document = seal([
+      { id: 'only', heading: null, blocks: blocks.map((block, index) => ({ ...block, id: `block-${index}` })) },
+    ]);
     expect(canonicalSize(document)).toBeGreaterThan(LIMITS.documentBytes);
     expect(codes(validateDocument(document))).toEqual(['document_too_large']);
   });

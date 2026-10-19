@@ -17,7 +17,7 @@ type CheckedSimulation = Pick<SimulationData, 'params' | 'constants' | 'outputs'
  * Structural and computational checks of one simulation (`scroll-checks.v1`, computation stage).
  * Declarations are checked first. Only when they are sound is every output evaluated at **every**
  * point of the parameter grid (at most `LIMITS.simulationGridPoints`, so this is a proof over the
- * declared domain, not a sample) and, for a plot, at every curve sample: any non-finite or
+ * declared domain, not a sample; a plot's curve samples are grid values): any non-finite or
  * out-of-range output, and any negative bar or area, refuses the simulation.
  */
 export function simulationIssues(data: CheckedSimulation, path: string): Issue[] {
@@ -99,24 +99,18 @@ function gridIssues(data: CheckedSimulation): ReasonCode[] {
         ? [compiled.outputSlots[outputPosition(view.area)] ?? -1]
         : [];
   let failure: ReasonCode | null = null;
-  forEachGridPoint(
-    data,
-    (state) => {
-      for (const slot of state.outputSlots) {
-        if (Number.isNaN(state.slots[slot] ?? Number.NaN)) {
-          failure = 'sim_output_not_finite';
-          return false;
-        }
+  forEachGridPoint(data, (state) => {
+    if (!state.finite) {
+      failure = 'sim_output_not_finite';
+      return false;
+    }
+    for (const slot of nonNegative) {
+      if ((state.slots[slot] ?? -1) < 0) {
+        failure = 'sim_view_out_of_range';
+        return false;
       }
-      for (const slot of nonNegative) {
-        if ((state.slots[slot] ?? -1) < 0) {
-          failure = 'sim_view_out_of_range';
-          return false;
-        }
-      }
-      return true;
-    },
-    view.kind === 'plot' ? { plotX: view.x } : {},
-  );
+    }
+    return true;
+  });
   return failure === null ? [] : [failure];
 }
