@@ -1,0 +1,9 @@
+{
+  "dialect": "postgres",
+  "url": "env(DATABASE_URL)",
+  "outFile": "src/infrastructure/postgres/database.generated.ts",
+  "excludePattern": "{pgboss,migrator}.*",
+  "camelCase": false,
+  "typeOnlyImports": true,
+  "logLevel": "warn"
+}

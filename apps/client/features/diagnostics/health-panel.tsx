@@ -49,6 +49,7 @@ function HealthAnswer({ api }: { api: ApiClient }) {
       <Row name="Commit" value={health.data.commit} />
       <Row name="Artifact" value={health.data.artifact} />
       <Row name="Migration" value={health.data.migration} />
+      <Row name="Relay" value={health.data.relay} />
       <Button
         label="Ask again"
         size="sm"

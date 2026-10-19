@@ -6,10 +6,25 @@
   "license": "UNLICENSED",
   "type": "module",
   "exports": {
+    "./erasure-registry": {
+      "@knowscroll/source": "./src/erasure-registry.ts",
+      "types": "./dist/erasure-registry.d.ts",
+      "default": "./dist/erasure-registry.js"
+    },
     "./infrastructure/config": {
       "@knowscroll/source": "./src/infrastructure/config/index.ts",
       "types": "./dist/infrastructure/config/index.d.ts",
       "default": "./dist/infrastructure/config/index.js"
+    },
+    "./infrastructure/erasure": {
+      "@knowscroll/source": "./src/infrastructure/erasure/index.ts",
+      "types": "./dist/infrastructure/erasure/index.d.ts",
+      "default": "./dist/infrastructure/erasure/index.js"
+    },
+    "./infrastructure/ids": {
+      "@knowscroll/source": "./src/infrastructure/ids/index.ts",
+      "types": "./dist/infrastructure/ids/index.d.ts",
+      "default": "./dist/infrastructure/ids/index.js"
     },
     "./infrastructure/jobs": {
       "@knowscroll/source": "./src/infrastructure/jobs/index.ts",
@@ -21,6 +36,11 @@
       "types": "./dist/infrastructure/lifecycle/index.d.ts",
       "default": "./dist/infrastructure/lifecycle/index.js"
     },
+    "./infrastructure/notices": {
+      "@knowscroll/source": "./src/infrastructure/notices/index.ts",
+      "types": "./dist/infrastructure/notices/index.d.ts",
+      "default": "./dist/infrastructure/notices/index.js"
+    },
     "./infrastructure/observability": {
       "@knowscroll/source": "./src/infrastructure/observability/index.ts",
       "types": "./dist/infrastructure/observability/index.d.ts",
@@ -30,6 +50,66 @@
       "@knowscroll/source": "./src/infrastructure/postgres/index.ts",
       "types": "./dist/infrastructure/postgres/index.d.ts",
       "default": "./dist/infrastructure/postgres/index.js"
+    },
+    "./infrastructure/receipts": {
+      "@knowscroll/source": "./src/infrastructure/receipts/index.ts",
+      "types": "./dist/infrastructure/receipts/index.d.ts",
+      "default": "./dist/infrastructure/receipts/index.js"
+    },
+    "./job-queues": {
+      "@knowscroll/source": "./src/job-queues.ts",
+      "types": "./dist/job-queues.d.ts",
+      "default": "./dist/job-queues.js"
+    },
+    "./modules/content": {
+      "@knowscroll/source": "./src/modules/content/public.ts",
+      "types": "./dist/modules/content/public.d.ts",
+      "default": "./dist/modules/content/public.js"
+    },
+    "./modules/content/nest-providers": {
+      "@knowscroll/source": "./src/modules/content/adapters/nest-providers.ts",
+      "types": "./dist/modules/content/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/content/adapters/nest-providers.js"
+    },
+    "./modules/evidence": {
+      "@knowscroll/source": "./src/modules/evidence/public.ts",
+      "types": "./dist/modules/evidence/public.d.ts",
+      "default": "./dist/modules/evidence/public.js"
+    },
+    "./modules/evidence/nest-providers": {
+      "@knowscroll/source": "./src/modules/evidence/adapters/nest-providers.ts",
+      "types": "./dist/modules/evidence/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/evidence/adapters/nest-providers.js"
+    },
+    "./modules/experience": {
+      "@knowscroll/source": "./src/modules/experience/public.ts",
+      "types": "./dist/modules/experience/public.d.ts",
+      "default": "./dist/modules/experience/public.js"
+    },
+    "./modules/experience/nest-providers": {
+      "@knowscroll/source": "./src/modules/experience/adapters/nest-providers.ts",
+      "types": "./dist/modules/experience/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/experience/adapters/nest-providers.js"
+    },
+    "./modules/identity": {
+      "@knowscroll/source": "./src/modules/identity/public.ts",
+      "types": "./dist/modules/identity/public.d.ts",
+      "default": "./dist/modules/identity/public.js"
+    },
+    "./modules/identity/nest-providers": {
+      "@knowscroll/source": "./src/modules/identity/adapters/nest-providers.ts",
+      "types": "./dist/modules/identity/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/identity/adapters/nest-providers.js"
+    },
+    "./reasoning": {
+      "@knowscroll/source": "./src/reasoning/public.ts",
+      "types": "./dist/reasoning/public.d.ts",
+      "default": "./dist/reasoning/public.js"
+    },
+    "./reasoning/nest-providers": {
+      "@knowscroll/source": "./src/reasoning/adapters/nest-providers.ts",
+      "types": "./dist/reasoning/adapters/nest-providers.d.ts",
+      "default": "./dist/reasoning/adapters/nest-providers.js"
     }
   },
   "files": [
@@ -38,7 +118,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:types": "kysely-codegen --config-file kysely-codegen.json",
+    "db:types:verify": "kysely-codegen --config-file kysely-codegen.json --verify"
   },
   "dependencies": {
     "kysely": "catalog:",
@@ -48,8 +130,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@fast-check/vitest": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
+    "kysely-codegen": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

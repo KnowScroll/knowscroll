@@ -12,11 +12,18 @@
   },
   "devDependencies": {
     "@knowscroll/backend": "workspace:*",
+    "@knowscroll/contracts": "workspace:*",
     "@knowscroll/migrations": "workspace:*",
+    "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@orpc/openapi-client": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
+    "eslint": "catalog:",
     "kysely": "catalog:",
     "pg": "catalog:",
+    "pg-boss": "catalog:",
+    "socket.io-client": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"

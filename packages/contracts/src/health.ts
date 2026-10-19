@@ -3,7 +3,8 @@ import { z } from 'zod';
 
 /**
  * Process identity reported by `GET /health`. The deploy tooling compares `commit`, `world` and
- * `artifact` with what it deployed; `migration` is the newest applied migration name, or `none`.
+ * `artifact` with what it deployed; `migration` is the newest applied migration name, or `none`;
+ * `relay` tells whether live hints are flowing (non-secret).
  */
 export const HealthResponseSchema = z.object({
   status: z.literal('ok'),
@@ -11,6 +12,8 @@ export const HealthResponseSchema = z.object({
   commit: z.string(),
   artifact: z.string(),
   migration: z.string(),
+  /** The API's LISTEN relay: `reconnecting` means live hints are paused (clients catch up by revision). */
+  relay: z.enum(['listening', 'reconnecting']),
 });
 
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;

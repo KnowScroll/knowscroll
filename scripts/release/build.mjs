@@ -69,9 +69,10 @@ const DEFAULTS = {
   migrate: { program: 'api', exec: ['node', 'dist/migrate.js'] },
   // The Expo web export (relative to the workspace root).
   web: 'apps/client/dist',
-  // A folder whose file names, sorted and without extensions, are release.json's `migrations`
-  // (informational); null leaves the list empty.
-  migrations: null,
+  // The folder of reviewed `NNNN_name.sql` migrations (the @knowscroll/migrations package); their
+  // names, sorted and without `.sql`, are release.json's `migrations` (informational: the smoke
+  // test expects /health to report the last one). null leaves the list empty.
+  migrations: 'migrations',
 };
 
 function fail(message) {
@@ -207,8 +208,8 @@ if (config.migrations) {
   migrations = [
     ...new Set(
       readdirSync(folder, { withFileTypes: true })
-        .filter((e) => e.isFile() && !e.name.startsWith('.'))
-        .map((e) => e.name.replace(/\.(sql|ts|js|mjs|cjs)$/, '')),
+        .filter((e) => e.isFile() && e.name.endsWith('.sql'))
+        .map((e) => e.name.slice(0, -'.sql'.length)),
     ),
   ].sort();
 } else

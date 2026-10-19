@@ -45,7 +45,7 @@ export interface FieldTypes {
   pid: number;
   nodeVersion: string;
   context: string;
-  message: string;
+  /** Configuration problems as `VARIABLE: kind_code`, never values. */
   problems: readonly string[];
   /** Any thrown value; `logEvent` sanitises it to class, code and frames. */
   error: unknown;
@@ -67,22 +67,42 @@ export const diagnosticCatalogue = {
   'process.stop_failed': { severity: 'error', module: 'process', fields: ['reasonCode', 'error'] },
   'process.crashed': { severity: 'fatal', module: 'process', fields: ['reasonCode', 'error'] },
   'config.invalid': { severity: 'fatal', module: 'config', fields: ['problems'] },
-  'framework.message': { severity: 'by-call', module: 'framework', fields: ['context', 'message', 'error'] },
+  'framework.message': {
+    severity: 'by-call',
+    module: 'framework',
+    fields: ['context', 'reasonCode', 'route', 'method', 'error'],
+  },
   'http.request_completed': {
     severity: 'info',
     module: 'http',
     fields: ['requestId', 'method', 'route', 'status', 'durationMs', 'outcome', 'reasonCode'],
   },
   'http.unexpected_error': { severity: 'error', module: 'http', fields: ['requestId', 'method', 'route', 'error'] },
+  'http.retryable_failure': { severity: 'warn', module: 'http', fields: ['requestId', 'reasonCode', 'error'] },
   'database.idle_client_error': { severity: 'error', module: 'postgres', fields: ['error'] },
   'jobs.error': { severity: 'error', module: 'jobs', fields: ['error'] },
-  'jobs.warning': { severity: 'warn', module: 'jobs', fields: ['message'] },
+  'jobs.warning': { severity: 'warn', module: 'jobs', fields: ['reasonCode'] },
+  'jobs.work_skipped': { severity: 'info', module: 'jobs', fields: ['queue', 'reasonCode'] },
   'jobs.consumer_registered': { severity: 'info', module: 'jobs', fields: ['queue', 'count'] },
   'jobs.consumers_draining': { severity: 'info', module: 'jobs', fields: ['count'] },
   'jobs.job_failed': {
     severity: 'warn',
     module: 'jobs',
     fields: ['queue', 'jobId', 'retryCount', 'reasonCode', 'error'],
+  },
+  'relay.listening': { severity: 'info', module: 'notices', fields: ['reasonCode'] },
+  'relay.disconnected': { severity: 'warn', module: 'notices', fields: ['reasonCode', 'error'] },
+  'relay.notice_rejected': { severity: 'warn', module: 'notices', fields: ['reasonCode'] },
+  'relay.sink_failed': { severity: 'error', module: 'notices', fields: ['reasonCode', 'error'] },
+  'realtime.connection_refused': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'error'] },
+  'realtime.subscription_refused': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'error'] },
+  'realtime.access_revoked': { severity: 'info', module: 'realtime', fields: ['count'] },
+  'realtime.relay_failed': { severity: 'error', module: 'realtime', fields: ['reasonCode', 'error'] },
+  'realtime.sockets_reauthenticated': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'count'] },
+  'reasoning.attempt_settled': {
+    severity: 'info',
+    module: 'reasoning',
+    fields: ['attemptId', 'runId', 'outcome', 'reasonCode', 'durationMs'],
   },
   'migrate.started': { severity: 'info', module: 'migrate', fields: ['count'] },
   'migrate.completed': { severity: 'info', module: 'migrate', fields: ['count', 'migration', 'durationMs'] },

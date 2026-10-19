@@ -1,7 +1,8 @@
 # v2 database backups, restores and rollback
 
-> **Status: implemented, not yet applied to the server** (#228 part 1). Until the coordinator
-> applies Ansible there are no backups on the VPS at all (as before #228).
+> **Status (2026-10-19): applied** (#251; the playbook ran `ok=108 changed=20 failed=0`). The
+> nightly and weekly timers are installed and a manual backup and restore check succeeded. No v2
+> release has been deployed yet, so the v2 databases are still empty.
 
 Backups are personal data. They stay root-only on the server and on the external SSD, never in Git,
 an issue, a log or a report. Never print a dump, an env file or a `DATABASE_URL`.

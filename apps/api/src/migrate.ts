@@ -51,8 +51,7 @@ async function main(): Promise<number> {
     }
     const boss = createBoss(config.database, 'install', {
       onError: (error) => logEvent('jobs.error', { error }),
-      onWarning: (warning) =>
-        logEvent('jobs.warning', { message: typeof warning.message === 'string' ? warning.message : 'warning' }),
+      onWarning: (reasonCode) => logEvent('jobs.warning', { reasonCode }),
     });
     try {
       await boss.start();

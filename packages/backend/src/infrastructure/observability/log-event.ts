@@ -32,22 +32,37 @@ const idPattern = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 const codeLikePattern = /^[A-Za-z0-9_.:-]{1,64}$/;
 const routePattern = /^\/[A-Za-z0-9/_:.{}*-]{0,199}$|^unmatched$/;
 const methodPattern = /^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$/;
+const problemPattern = /^[A-Z][A-Z0-9_]{0,63}: [a-z_]{1,40}$/;
 
 type Validator = (value: unknown) => unknown;
 const REJECTED = Symbol('rejected');
 
-const asId: Validator = (value) => (typeof value === 'string' && idPattern.test(value) ? value : REJECTED);
-const asCode: Validator = (value) => (typeof value === 'string' && codeLikePattern.test(value) ? value : REJECTED);
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * A secret can look like an identifier. Values of free-shaped string fields are refused when they
+ * contain a long unbroken letter/digit run (keys, tokens, signatures) or anything the text
+ * scrubber would redact. Our own codes, queue names and migration names never do.
+ */
+function looksSecret(value: string): boolean {
+  return /[A-Za-z0-9]{24,}/.test(value) || scrubText(value) !== value;
+}
+
+const asId: Validator = (value) =>
+  typeof value === 'string' && idPattern.test(value) && !looksSecret(value) ? value : REJECTED;
+const asCode: Validator = (value) =>
+  typeof value === 'string' && codeLikePattern.test(value) && !looksSecret(value) ? value : REJECTED;
+const asUuid: Validator = (value) => (typeof value === 'string' && uuidPattern.test(value) ? value : REJECTED);
+const asHex =
+  (length: number): Validator =>
+  (value) =>
+    typeof value === 'string' && value.length === length && /^[0-9a-f]+$/.test(value) ? value : REJECTED;
 const asCount: Validator = (value) =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : REJECTED;
-const asText =
-  (limit: number): Validator =>
-  (value) =>
-    typeof value === 'string' ? scrubText(value).slice(0, limit) : REJECTED;
 
 const validators: Record<FieldName, Validator> = {
   operationId: asId,
-  requestId: asId,
+  requestId: asUuid,
   commandId: asId,
   eventId: asId,
   causationId: asId,
@@ -63,13 +78,13 @@ const validators: Record<FieldName, Validator> = {
   deltaId: asId,
   receiptId: asId,
   contentRevisionId: asId,
-  traceId: asId,
-  spanId: asId,
+  traceId: asHex(32),
+  spanId: asHex(16),
   outcome: asCode,
   reasonCode: asCode,
   durationMs: asCount,
   method: (value) => (typeof value === 'string' && methodPattern.test(value) ? value : REJECTED),
-  route: (value) => (typeof value === 'string' && routePattern.test(value) ? value : REJECTED),
+  route: (value) => (typeof value === 'string' && routePattern.test(value) && !looksSecret(value) ? value : REJECTED),
   status: (value) =>
     typeof value === 'number' && Number.isInteger(value) && value >= 100 && value <= 599 ? value : REJECTED,
   queue: asCode,
@@ -80,11 +95,11 @@ const validators: Record<FieldName, Validator> = {
   signal: (value) => (typeof value === 'string' && /^SIG[A-Z0-9]{2,10}$/.test(value) ? value : REJECTED),
   pid: asCount,
   nodeVersion: (value) => (typeof value === 'string' && /^v\d+\.\d+\.\d+$/.test(value) ? value : REJECTED),
-  context: (value) => (typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,64}$/.test(value) ? value : REJECTED),
-  message: asText(300),
+  context: (value) =>
+    typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,64}$/.test(value) && !looksSecret(value) ? value : REJECTED,
   problems: (value) =>
     Array.isArray(value)
-      ? value.slice(0, 20).map((item) => (typeof item === 'string' ? scrubText(item).slice(0, 200) : '[invalid]'))
+      ? value.slice(0, 20).map((item) => (typeof item === 'string' && problemPattern.test(item) ? item : '[invalid]'))
       : REJECTED,
   error: (value) => sanitiseError(value),
 };
@@ -114,7 +129,6 @@ export const JOURNAL_FIELDS: ReadonlySet<FieldName> = new Set<FieldName>([
   'pid',
   'nodeVersion',
   'context',
-  'message',
   'problems',
   'error',
 ]);

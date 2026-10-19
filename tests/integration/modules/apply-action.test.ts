@@ -1,0 +1,270 @@
+import { randomUUID } from 'node:crypto';
+import { sql } from 'kysely';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { transactionOf, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { applyActionEvidenceQueue } from '@knowscroll/backend/modules/evidence';
+import { createTestDatabase, type TestDatabase } from '../support/database.js';
+import { experienceUseCases } from '../support/experience.js';
+import { seedAsset, seedPerson } from '../support/fixtures.js';
+
+describe('experience applyAction with real adapters (real database)', () => {
+  let database: TestDatabase<Database>;
+  beforeAll(async () => {
+    database = await createTestDatabase<Database>('apply_action');
+  });
+  afterAll(async () => {
+    await database.drop();
+  });
+
+  async function counts(universeId: string) {
+    const count = async (table: 'experience.actions' | 'receipts.personal_commands' | 'experience.saved_items') => {
+      const row = await database.db
+        .selectFrom(table)
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .where('universe_id', '=', universeId)
+        .executeTakeFirstOrThrow();
+      return Number(row.n);
+    };
+    return {
+      actions: await count('experience.actions'),
+      receipts: await count('receipts.personal_commands'),
+      saved: await count('experience.saved_items'),
+    };
+  }
+
+  async function universeRevision(universeId: string): Promise<number> {
+    return (
+      await database.db
+        .selectFrom('identity.universes')
+        .select('revision')
+        .where('id', '=', universeId)
+        .executeTakeFirstOrThrow()
+    ).revision;
+  }
+
+  async function jobCount(universeId: string): Promise<number> {
+    const result = await sql<{
+      n: number;
+    }>`select count(*)::int as n from pgboss.job where name = ${applyActionEvidenceQueue.name} and data ->> 'universeId' = ${universeId}`.execute(
+      database.db,
+    );
+    return result.rows[0]?.n ?? 0;
+  }
+
+  it('applies a save once and replays the stored outcome for the same command', async () => {
+    const person = await seedPerson(database.db);
+    const asset = await seedAsset(database.db);
+    const useCases = await experienceUseCases(database);
+    try {
+      const command = {
+        commandId: randomUUID(),
+        kind: 'save' as const,
+        target: { assetId: asset.assetId, assetRevision: asset.revision },
+      };
+      const first = await useCases.applyAction(person.authority, command);
+      expect(first).toMatchObject({
+        kind: 'applied',
+        replayed: false,
+        outcome: { saved: true, changed: true, assetId: asset.assetId },
+      });
+      const second = await useCases.applyAction(person.authority, {
+        ...command,
+        target: { assetRevision: asset.revision, assetId: asset.assetId },
+      });
+      expect(second).toEqual({ ...first, replayed: true });
+      expect(await jobCount(person.universeId)).toBe(1);
+      expect(await counts(person.universeId)).toMatchObject({ actions: 1, receipts: 1, saved: 1 });
+      // The command advanced the universe revision once, in its own transaction; the replay did not.
+      expect(first).toMatchObject({ outcome: { revision: 1 } });
+      expect(await universeRevision(person.universeId)).toBe(1);
+    } finally {
+      await useCases.close();
+    }
+  });
+
+  it('does not advance the revision (or notify) for a save that changes nothing', async () => {
+    const person = await seedPerson(database.db);
+    const asset = await seedAsset(database.db);
+    const useCases = await experienceUseCases(database);
+    try {
+      const save = () =>
+        useCases.applyAction(person.authority, {
+          commandId: randomUUID(),
+          kind: 'save',
+          target: { assetId: asset.assetId, assetRevision: asset.revision },
+        });
+      expect(await save()).toMatchObject({ kind: 'applied', outcome: { changed: true, revision: 1 } });
+      expect(await save()).toMatchObject({ kind: 'applied', outcome: { saved: true, changed: false, revision: 1 } });
+      expect(await universeRevision(person.universeId)).toBe(1);
+      // Both actions are recorded (and their evidence queued); only the change moved the watermark.
+      expect(await counts(person.universeId)).toMatchObject({ actions: 2, receipts: 2, saved: 1 });
+      expect(await jobCount(person.universeId)).toBe(2);
+    } finally {
+      await useCases.close();
+    }
+  });
+
+  it('asks for a new command ID when a receipt is from before a privacy reset (no replay, no loop)', async () => {
+    const person = await seedPerson(database.db);
+    const asset = await seedAsset(database.db);
+    const useCases = await experienceUseCases(database);
+    try {
+      const command = {
+        commandId: randomUUID(),
+        kind: 'save' as const,
+        target: { assetId: asset.assetId, assetRevision: asset.revision },
+      };
+      expect(await useCases.applyAction(person.authority, command)).toMatchObject({ kind: 'applied' });
+      await database.db
+        .updateTable('identity.universes')
+        .set({ privacy_epoch: 2 })
+        .where('id', '=', person.universeId)
+        .execute();
+      expect(await useCases.applyAction({ ...person.authority, privacyEpoch: 2 }, command)).toEqual({
+        kind: 'refused',
+        reason: 'command_key_reused',
+      });
+    } finally {
+      await useCases.close();
+    }
+  });
+
+  it('applies concurrent identical commands once: one applies, the other replays', async () => {
+    const person = await seedPerson(database.db);
+    const asset = await seedAsset(database.db);
+    const useCases = await experienceUseCases(database);
+    try {
+      const command = {
+        commandId: randomUUID(),
+        kind: 'save' as const,
+        target: { assetId: asset.assetId, assetRevision: asset.revision },
+      };
+      const results = await Promise.all([
+        useCases.applyAction(person.authority, command),
+        useCases.applyAction(person.authority, command),
+        useCases.applyAction(person.authority, command),
+      ]);
+      expect(results.map((result) => (result.kind === 'applied' ? result.replayed : 'refused')).sort()).toEqual([
+        false,
+        true,
+        true,
+      ]);
+      const [first] = results;
+      for (const result of results)
+        expect(result.kind === 'applied' ? result.outcome : result).toEqual(
+          first?.kind === 'applied' ? first.outcome : undefined,
+        );
+      expect(await counts(person.universeId)).toMatchObject({ actions: 1, receipts: 1, saved: 1 });
+      expect(await jobCount(person.universeId)).toBe(1);
+      expect(await universeRevision(person.universeId)).toBe(1);
+    } finally {
+      await useCases.close();
+    }
+  });
+
+  it('refuses a reused command ID with different content and changes nothing', async () => {
+    const person = await seedPerson(database.db);
+    const asset = await seedAsset(database.db);
+    const useCases = await experienceUseCases(database);
+    try {
+      const commandId = randomUUID();
+      await useCases.applyAction(person.authority, {
+        commandId,
+        kind: 'save',
+        target: { assetId: asset.assetId, assetRevision: 1 },
+      });
+      expect(
+        await useCases.applyAction(person.authority, {
+          commandId,
+          kind: 'unsave',
+          target: { assetId: asset.assetId, assetRevision: 1 },
+        }),
+      ).toEqual({
+        kind: 'refused',
+        reason: 'command_key_reused',
+      });
+      expect(await counts(person.universeId)).toMatchObject({ actions: 1, receipts: 1, saved: 1 });
+      expect(await jobCount(person.universeId)).toBe(1);
+    } finally {
+      await useCases.close();
+    }
+  });
+
+  it('refuses missing, withdrawn and stale assets without writing a receipt', async () => {
+    const person = await seedPerson(database.db);
+    const withdrawn = await seedAsset(database.db, { status: 'withdrawn' });
+    const current = await seedAsset(database.db, { revision: 3 });
+    const useCases = await experienceUseCases(database);
+    try {
+      const apply = (assetId: string, assetRevision: number) =>
+        useCases.applyAction(person.authority, {
+          commandId: randomUUID(),
+          kind: 'save',
+          target: { assetId, assetRevision },
+        });
+      expect(await apply(randomUUID(), 1)).toEqual({ kind: 'refused', reason: 'asset_not_found' });
+      expect(await apply(withdrawn.assetId, 1)).toEqual({ kind: 'refused', reason: 'asset_not_found' });
+      expect(await apply(current.assetId, 2)).toEqual({ kind: 'refused', reason: 'asset_revision_stale' });
+      expect(await counts(person.universeId)).toMatchObject({ actions: 0, receipts: 0, saved: 0 });
+    } finally {
+      await useCases.close();
+    }
+  });
+
+  it('rolls back the receipt, the effect and the enqueued job together when the command fails after enqueueing', async () => {
+    const person = await seedPerson(database.db);
+    let jobsSeenInside = -1;
+    const asset = await seedAsset(database.db);
+    const useCases = await experienceUseCases(database, {
+      wrapEnqueue: (enqueue) => async (scope, queue, payload) => {
+        await enqueue(scope, queue, payload);
+        // The job is visible inside the command's own transaction before the failure.
+        const inside = await sql<{
+          n: number;
+        }>`select count(*)::int as n from pgboss.job where name = ${queue.name} and data ->> 'universeId' = ${person.universeId}`.execute(
+          transactionOf(scope),
+        );
+        jobsSeenInside = inside.rows[0]?.n ?? -1;
+        throw new Error('failure after the job was written');
+      },
+    });
+    try {
+      await expect(
+        useCases.applyAction(person.authority, {
+          commandId: randomUUID(),
+          kind: 'save',
+          target: { assetId: asset.assetId, assetRevision: 1 },
+        }),
+      ).rejects.toThrow('failure after the job was written');
+      expect(jobsSeenInside).toBe(1);
+      expect(await counts(person.universeId)).toMatchObject({ actions: 0, receipts: 0, saved: 0 });
+      expect(await jobCount(person.universeId)).toBe(0);
+      expect(await universeRevision(person.universeId)).toBe(0);
+    } finally {
+      await useCases.close();
+    }
+  });
+
+  it('refuses a caller whose privacy epoch is stale', async () => {
+    const person = await seedPerson(database.db, { privacyEpoch: 2 });
+    const asset = await seedAsset(database.db);
+    const useCases = await experienceUseCases(database);
+    try {
+      expect(
+        await useCases.applyAction(
+          { ...person.authority, privacyEpoch: 1 },
+          { commandId: randomUUID(), kind: 'save', target: { assetId: asset.assetId, assetRevision: 1 } },
+        ),
+      ).toEqual({
+        kind: 'refused',
+        reason: 'epoch_changed',
+      });
+      expect(await useCases.listSaved({ ...person.authority, privacyEpoch: 1 }, 10)).toEqual({
+        kind: 'refused',
+        reason: 'epoch_changed',
+      });
+    } finally {
+      await useCases.close();
+    }
+  });
+});

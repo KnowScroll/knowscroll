@@ -34,6 +34,7 @@ describe('health query', () => {
     commit: '0123456789abcdef0123456789abcdef01234567',
     artifact: 'b'.repeat(64),
     migration: '0001_identity',
+    relay: 'listening',
   };
 
   it('fetches /health through the typed client under a stable key', async () => {

@@ -8,6 +8,7 @@ const health: HealthResponse = {
   commit: '0123456789abcdef0123456789abcdef01234567',
   artifact: 'a'.repeat(64),
   migration: 'none',
+  relay: 'listening',
 };
 
 /** A labelled test double for the platform fetch: records requests and answers with `respond`. */

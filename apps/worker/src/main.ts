@@ -4,7 +4,7 @@ import { ConfigurationError, readWorkerConfig, worldForDiagnostics } from '@know
 import { createBoss, drainConsumers, startConsumers, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
 import { runProcess } from '@knowscroll/backend/infrastructure/lifecycle';
 import { FrameworkLogAdapter, createEventLog } from '@knowscroll/backend/infrastructure/observability';
-import { createDatabase } from '@knowscroll/backend/infrastructure/postgres';
+import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { JOB_CONSUMERS } from './tokens.js';
 import { WorkerModule } from './worker.module.js';
 
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
     logEvent,
     shutdownGraceMs: config.shutdownGraceMs + 5_000,
     async start() {
-      const database = createDatabase<unknown>(config.database, {
+      const database = createDatabase<Database>(config.database, {
         onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
       });
       const app = await NestFactory.createApplicationContext(
@@ -46,8 +46,7 @@ async function main(): Promise<void> {
       const consumers = app.get<readonly JobConsumer<unknown>[]>(JOB_CONSUMERS);
       const boss = createBoss(config.database, 'consumer', {
         onError: (error) => logEvent('jobs.error', { error }),
-        onWarning: (warning) =>
-          logEvent('jobs.warning', { message: typeof warning.message === 'string' ? warning.message : 'warning' }),
+        onWarning: (reasonCode) => logEvent('jobs.warning', { reasonCode }),
       });
       await boss.start();
       await startConsumers(boss, consumers, logEvent);
