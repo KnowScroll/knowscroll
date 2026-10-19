@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { QueryClient, useQuery } from '@tanstack/react-query';
 import { act, render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 import { createAccountScopeManager, memoryStore, type AccountScope } from '@knowscroll/client-core';
@@ -24,6 +24,9 @@ const accounts = {
     email: 'b@scope.test',
   },
 };
+
+/** No garbage-collection timers outlive a test (TanStack's 5-minute `gcTime` would). */
+const newQueryClient = () => new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -86,6 +89,7 @@ describe('AccountScopeProvider', () => {
       platform: 'web',
       fetch: server.fetch,
       store: memoryStore(),
+      newQueryClient,
     });
     await render(
       <AccountScopeProvider manager={manager}>
@@ -134,6 +138,7 @@ describe('AccountScopeProvider', () => {
       platform: 'web',
       fetch: () => Promise.resolve(json(401, {})),
       store: memoryStore(),
+      newQueryClient,
     });
     await render(
       <AccountScopeProvider manager={manager}>

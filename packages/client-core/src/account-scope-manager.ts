@@ -73,6 +73,8 @@ export interface AccountScopeManagerOptions {
   readonly connect?: (scope: AccountScope, context: SocketContext) => ScopeConnection;
   /** Test seam: the auth routes (defaults to `createAuthClient`). */
   readonly auth?: AuthClient;
+  /** Test seam: how each scope's and each signed-out period's QueryClient is made (`createQueryClient`). */
+  readonly newQueryClient?: () => QueryClient;
 }
 
 /**
@@ -90,7 +92,8 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
     options.auth ?? createAuthClient({ baseUrl: options.baseUrl, fetch: fetchImplementation, authorization });
   const listeners = new Set<() => void>();
   let state: AccountScopeState = { status: 'starting' };
-  let signedOutClient = createQueryClient();
+  const newQueryClient = options.newQueryClient ?? createQueryClient;
+  let signedOutClient = newQueryClient();
   let pendingEmail: string | undefined;
   let disposed = false;
 
@@ -115,6 +118,7 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
       fetch: fetchImplementation,
       authorization,
       store: options.store,
+      queryClient: newQueryClient(),
       ...(connect === undefined
         ? {}
         : {
@@ -138,7 +142,7 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
       await options.tokens?.clear().catch(() => undefined);
     }
     signedOutClient.clear();
-    signedOutClient = createQueryClient();
+    signedOutClient = newQueryClient();
     set({ status: 'signed_out', reason });
   }
 

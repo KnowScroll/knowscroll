@@ -61,6 +61,41 @@ describe('an account scope', () => {
     await expect(scope.api.experience.listSaved({})).rejects.toThrow(ScopeEndedError);
   });
 
+  it('sends a command through the fence with its body and the scope bearer header', async () => {
+    const seen: { method: string; authorization: string | null; body: unknown }[] = [];
+    const scope = createAccountScope({
+      account: accountA,
+      baseUrl: 'https://app.scope.test',
+      fetch: async (request) => {
+        seen.push({
+          method: request.method,
+          authorization: request.headers.get('authorization'),
+          body: await request.json(),
+        });
+        return json(200, {
+          commandId: '0199c000-0000-7000-8000-000000000009',
+          actionId: '0199c000-0000-7000-8000-000000000010',
+          kind: 'save',
+          assetId: '0199c000-0000-7000-8000-000000000011',
+          assetRevision: 1,
+          saved: true,
+          changed: true,
+          revision: 1,
+          replayed: false,
+        });
+      },
+      authorization: () => 'Bearer kss_fixture',
+      store: memoryStore(),
+    });
+    const command = {
+      commandId: '0199c000-0000-7000-8000-000000000009',
+      kind: 'save' as const,
+      target: { assetId: '0199c000-0000-7000-8000-000000000011', assetRevision: 1 },
+    };
+    await expect(scope.api.experience.applyAction(command)).resolves.toMatchObject({ saved: true });
+    expect(seen).toEqual([{ method: 'POST', authorization: 'Bearer kss_fixture', body: command }]);
+  });
+
   it('closes its socket before anything else when it ends, and confines its storage', () => {
     const order: string[] = [];
     const store = memoryStore();
