@@ -26,6 +26,8 @@ export type RedeemOutcome = z.infer<typeof RedeemOutcomeSchema>;
 interface ResolvedLink {
   readonly origin: 'email' | 'operator';
   readonly accountCreated: boolean;
+  /** The link's address: shown back to the person it belongs to, never stored in the receipt. */
+  readonly address: string;
 }
 
 /**
@@ -72,7 +74,7 @@ export function makeRedeemSignIn(ports: RedeemSignInPorts): RedeemSignIn {
         if (link.consumed.commandId !== command.commandId) return { kind: 'stop', result: 'link_invalid' };
         const account = await ports.findAccountById(tx, link.consumed.accountId);
         if (account === undefined) return { kind: 'stop', result: 'account_unavailable' };
-        return enter(account, { origin: link.origin, accountCreated: false });
+        return enter(account, { origin: link.origin, accountCreated: false, address: link.address });
       }
       let account = await ports.findAccountByAddress(tx, link.address);
       let accountCreated = false;
@@ -87,7 +89,7 @@ export function makeRedeemSignIn(ports: RedeemSignInPorts): RedeemSignIn {
         accountCreated = true;
       }
       await ports.consumeLink(tx, tokenHash, { commandId: command.commandId, accountId: account.accountId });
-      return enter(account, { origin: link.origin, accountCreated });
+      return enter(account, { origin: link.origin, accountCreated, address: link.address });
     };
 
     const outcome = await ports.withResolvedPersonalScope(
@@ -132,6 +134,7 @@ export function makeRedeemSignIn(ports: RedeemSignInPorts): RedeemSignIn {
           session: { id: sessionId, token: secret.token, expiresAt },
           replayed,
           origin: resolved.origin,
+          address: resolved.address,
         };
       },
     );

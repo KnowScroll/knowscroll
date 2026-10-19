@@ -41,6 +41,8 @@ export const SessionAccountSchema = z.object({
   accountId: UuidSchema,
   universeId: UniverseIdSchema,
   privacyEpoch: z.number().int().min(1),
+  /** The account's own address, shown back to its owner (A01 "We sent a link to …", P01). */
+  email: z.string(),
 });
 
 export type SessionAccount = z.infer<typeof SessionAccountSchema>;

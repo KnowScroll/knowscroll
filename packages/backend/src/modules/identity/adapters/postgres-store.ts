@@ -260,9 +260,11 @@ export async function readActiveSession(db: Kysely<Database>, tokenHash: string)
     .selectFrom('identity.sessions as session')
     .innerJoin('identity.accounts as account', 'account.id', 'session.account_id')
     .innerJoin('identity.universes as universe', 'universe.account_id', 'session.account_id')
+    .innerJoin('identity.email_addresses as email', 'email.account_id', 'session.account_id')
     .select([
       'session.id as sessionId',
       'session.account_id as accountId',
+      'email.address as address',
       'session.client as client',
       'session.expires_at as expiresAt',
       'universe.id as universeId',

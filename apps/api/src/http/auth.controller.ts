@@ -124,6 +124,7 @@ export class AuthController {
         accountId: result.outcome.accountId,
         universeId: result.outcome.universeId,
         privacyEpoch: result.privacyEpoch,
+        email: result.address,
       };
       const expiresAt = result.session.expiresAt.toISOString();
       if (input.client === 'web') {
@@ -154,7 +155,12 @@ export class AuthController {
       const session = await sessionFor(this.resolveSession, credentialFrom(request.headers, this.cookieName));
       if (session === undefined) throw problem('UNAUTHENTICATED');
       return {
-        account: { accountId: session.accountId, universeId: session.universeId, privacyEpoch: session.privacyEpoch },
+        account: {
+          accountId: session.accountId,
+          universeId: session.universeId,
+          privacyEpoch: session.privacyEpoch,
+          email: session.address,
+        },
         client: session.client,
         expiresAt: session.expiresAt.toISOString(),
       };

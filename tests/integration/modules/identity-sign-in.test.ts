@@ -320,9 +320,11 @@ describe('sign-in, sessions and operator links (real database)', () => {
       await identity.redeemSignIn({ token: await linkFor(freshAddress()), commandId: randomUUID(), client: 'native' }),
     );
     const session = await identity.resolveSession(result.session.token);
+    expect(result.address).toMatch(/@identity\.test$/);
     expect(session).toMatchObject({
       sessionId: result.session.id,
       accountId: result.outcome.accountId,
+      address: result.address,
       universeId: result.outcome.universeId,
       privacyEpoch: 1,
       client: 'native',

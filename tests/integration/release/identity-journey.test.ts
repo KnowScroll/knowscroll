@@ -224,7 +224,12 @@ describe('sign-in through the built API', () => {
     const [cookie] = response.headers.getSetCookie();
     expect(cookie).toMatch(/^ks_session=kss_[A-Za-z0-9_-]{43}; Path=\/; Max-Age=\d+; HttpOnly; SameSite=Lax$/);
     const body = (await response.json()) as Record<string, unknown>;
-    expect(body).toMatchObject({ accountCreated: true, replayed: false, session: { kind: 'cookie' } });
+    expect(body).toMatchObject({
+      account: { email: address, privacyEpoch: 1 },
+      accountCreated: true,
+      replayed: false,
+      session: { kind: 'cookie' },
+    });
     expect(JSON.stringify(body)).not.toMatch(/kss_/);
     const value = cookie?.split(';')[0] ?? '';
     secrets.add(value.replace('ks_session=', ''));

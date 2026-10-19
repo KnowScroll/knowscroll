@@ -154,6 +154,8 @@ export type SessionClient = 'web' | 'native';
 export interface ActiveSession {
   readonly sessionId: string;
   readonly accountId: string;
+  /** The account's own address, for showing back to its owner (never logged). */
+  readonly address: string;
   readonly universeId: string;
   readonly privacyEpoch: number;
   readonly client: SessionClient;
@@ -212,6 +214,8 @@ export type RedeemSignInResult =
       readonly session: { readonly id: string; readonly token: string; readonly expiresAt: Date };
       readonly replayed: boolean;
       readonly origin: 'email' | 'operator';
+      /** The link's address, for showing back to the person it belongs to (never logged). */
+      readonly address: string;
     }
   | { readonly kind: 'refused'; readonly reason: RedeemRefusal };
 
