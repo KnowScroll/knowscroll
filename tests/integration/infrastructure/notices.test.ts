@@ -182,6 +182,53 @@ describe('scope notices and the LISTEN relay (real database)', () => {
     }
   });
 
+  it('logs a sink that throws and keeps its connection and delivery', async () => {
+    const person = await seedPerson(database.db);
+    const recorder = recordingSink();
+    const events: string[] = [];
+    let failures = 2;
+    const relay = new ScopeNoticeRelay({
+      database: database.settings,
+      sink: {
+        ...recorder.sink,
+        onResync: (reason) => {
+          recorder.sink.onResync(reason);
+          if (failures > 0) {
+            failures -= 1;
+            throw new Error('sink fault on purpose');
+          }
+        },
+        onNotice: (notice) => {
+          recorder.sink.onNotice(notice);
+          if (failures > 0) {
+            failures -= 1;
+            throw new Error('sink fault on purpose');
+          }
+        },
+      },
+      logEvent: (event) => void events.push(event),
+    });
+    await relay.start();
+    try {
+      const pid = await relay.listenerPid();
+      const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+      const eventIds = [randomUUID(), randomUUID()];
+      for (const eventId of eventIds) {
+        await withPersonalScope(person.authority, async (scope) =>
+          notifyScopeChanged(scope, { revision: await advanceScopeRevision(scope), eventId }),
+        );
+      }
+      await expect.poll(() => recorder.notices.map((notice) => notice.eventId), { timeout: 5_000 }).toEqual(eventIds);
+      expect(events.filter((event) => event === 'relay.sink_failed')).toHaveLength(2);
+      expect(events).not.toContain('relay.disconnected');
+      expect(relay.state).toBe('listening');
+      expect(await relay.listenerPid()).toBe(pid);
+      expect(recorder.resyncs).toEqual(['listening']);
+    } finally {
+      await relay.stop();
+    }
+  });
+
   it('ignores a malformed payload on its channels', async () => {
     const recorder = recordingSink();
     const relay = new ScopeNoticeRelay({ database: database.settings, sink: recorder.sink, logEvent: silent });

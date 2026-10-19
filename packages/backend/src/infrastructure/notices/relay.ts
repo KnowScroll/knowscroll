@@ -86,10 +86,10 @@ export class ScopeNoticeRelay {
   }
 
   private connectNow(): void {
-    this.connect().catch((error: unknown) => {
-      // connect() handles its own failures; anything reaching here is a sink or logger fault.
-      this.options.logEvent('relay.disconnected', { reasonCode: 'relay_fault', error });
-      this.retryLater();
+    this.connect().catch(() => {
+      // connect() handles its own failures and sink faults; only a logger fault reaches here.
+      // Retry unless a connection was already kept.
+      if (this.client === undefined) this.retryLater();
     });
   }
 
@@ -129,7 +129,16 @@ export class ScopeNoticeRelay {
     this.hasListened = true;
     logEvent('relay.listening', { reasonCode: reason });
     this.firstListen?.resolve();
-    this.options.sink.onResync(reason);
+    this.toSink((sink) => sink.onResync(reason));
+  }
+
+  /** Hands one call to the sink. A sink fault is logged and never disturbs the connection. */
+  private toSink(call: (sink: ScopeNoticeSink) => void): void {
+    try {
+      call(this.options.sink);
+    } catch (error) {
+      this.options.logEvent('relay.sink_failed', { reasonCode: 'sink_threw', error });
+    }
   }
 
   /** The current connection is gone: forget it and schedule a new attempt. Ignores stale clients. */
@@ -188,11 +197,11 @@ export class ScopeNoticeRelay {
     }
     if (message.channel === SCOPE_NOTICE_CHANNEL) {
       const parsed = ScopeNoticeSchema.safeParse(payload);
-      if (parsed.success) this.options.sink.onNotice(parsed.data);
+      if (parsed.success) this.toSink((sink) => sink.onNotice(parsed.data));
       else this.options.logEvent('relay.notice_rejected', { reasonCode: 'invalid_payload' });
     } else if (message.channel === ACCESS_REVOKED_CHANNEL) {
       const parsed = AccessRevokedNoticeSchema.safeParse(payload);
-      if (parsed.success) this.options.sink.onAccessRevoked(parsed.data.accountId);
+      if (parsed.success) this.toSink((sink) => sink.onAccessRevoked(parsed.data.accountId));
       else this.options.logEvent('relay.notice_rejected', { reasonCode: 'invalid_payload' });
     }
   }
