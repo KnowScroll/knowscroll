@@ -15,7 +15,7 @@ registry.npmjs.org and the installed packages on that date. Research notes:
 |---|---|---|---|
 | Node | 22.23.0 (CI, `.nvmrc`); engines `>=22.23.0 <23` | `.nvmrc`, `package.json` `engines`, `checks.yml` | VPS runs 22.23.3; Node 22 LTS until 2027-04-30; Expo SDK 58 / RN 0.88 need ≥22.13, pg-boss ≥22.12. Moving to Node 24 is a separate change. |
 | pnpm | 10.34.7 | `package.json` `packageManager`, `engines` | Stable maintenance line. pnpm 11 replaces `onlyBuiltDependencies` with `allowBuilds` and adds release-age gates; pnpm 12 shipped 14 minors in 7 weeks and now errors on unknown workspace keys. Neither offers something this workspace needs yet. |
-| PostgreSQL | 16 (CI `postgres:16` service; production major) | `checks.yml` | Production major on the VPS. pg-boss needs ≥13. The CI log prints the exact server version. |
+| PostgreSQL | 16 (CI `postgres:16` service; production major) | `checks.yml` | Production major on the VPS. pg-boss needs ≥13. The CI log prints the exact server version: 16.15 on 2026-10-19. |
 
 ## Toolchain
 
