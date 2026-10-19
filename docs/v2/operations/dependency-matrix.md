@@ -9,6 +9,11 @@ Recorded 2026-10-19 (S1.1, #224). Registry facts (versions, dates, licences, pee
 registry.npmjs.org and the installed packages on that date. Research notes:
 `/Volumes/Mrigesh SSD/knowscroll-dev/v2/discovery/compat-matrix.md`.
 
+Licences: every direct dependency below is MIT, Apache-2.0, ISC or (squawk) Apache-2.0 OR MIT.
+Transitive production dependencies also include BSD-2-Clause/BSD-3-Clause (for example `qs`,
+`ieee754`, `json-schema-typed`), 0BSD (`tslib`) and MIT OR CC0-1.0 (`type-fest`); all are
+permissive. Review the licence list again when a dependency is added.
+
 ## Runtime and package manager
 
 | Item | Pinned | Where | Reason |
@@ -42,6 +47,7 @@ registry.npmjs.org and the installed packages on that date. Research notes:
 | @nestjs/common, @nestjs/core, @nestjs/platform-express | 12.1.3 | 2026-10-12 | MIT | **Not 12.2.0** (released 2026-10-19 with behaviour changes: IoAdapter message cap, Express parser limits, express 5.3.0). platform-express 12.1.3 pins express 5.2.1. |
 | @nestjs/cli | 12.0.8 | 2026-09-28 | MIT | Builds with `builder: tsc` (no webpack/SWC/Rspack peers installed). |
 | express | 5.2.1 | 2025-12-01 | MIT | The exact version platform-express 12.1.3 depends on (one copy in the tree). |
+| @types/express | 5.0.6 | 2025-12-01 | MIT | Types for the Express request/response objects used by the API's middleware. |
 | reflect-metadata | 0.2.2 | 2024-03-29 | Apache-2.0 | |
 | rxjs | 7.8.2 | 2025-02-22 | Apache-2.0 | |
 | @orpc/contract, @orpc/server, @orpc/nest, @orpc/openapi, @orpc/zod | 1.15.7 (lockstep) | 2026-10-14 | MIT | @orpc/nest peers `@nestjs/* >=11`, `express >=5`. oRPC's 1.x CI tests Nest 11 only; Nest 12 compatibility is proven by this workspace's CI (below). |
@@ -96,9 +102,9 @@ false` (no OTA updates yet). pnpm's default isolated `node_modules` works with S
 
 | Job | Proves | Evidence label |
 |---|---|---|
-| `static` | `pnpm install --frozen-lockfile` resolves the whole matrix with `strictPeerDependencies`; Prettier, typed ESLint (no-floating-promises, no-misused-promises, await-thenable, consistent-type-imports, switch-exhaustiveness-check, no-explicit-any), `tsc` per package, dependency-cruiser boundaries, knip, squawk | CI fixture (source) |
+| `static` | `pnpm install --frozen-lockfile` resolves the whole matrix with `strictPeerDependencies`; Prettier, typed ESLint (no-floating-promises, no-misused-promises, await-thenable, consistent-type-imports, switch-exhaustiveness-check, no-explicit-any), `tsc` per package, dependency-cruiser boundaries plus the probe that every forbidden probe import is rejected, the workspace-dependency manifest check, knip, the squawk binary (`squawk --version`; S1.1 has no migrations to lint yet) | CI fixture (source) |
 | `backend` | Vitest unit tests; real-PostgreSQL 16 integration tests (migrator, pg-boss queue declarations, consumer drain), one template-derived database per file | real database |
-| `build` | `nest build` (tsc) of API and worker; `pnpm deploy --prod --legacy` produces runnable `api/` and `worker/` trees; those trees run `dist/migrate.js` on an empty database (twice), serve `GET /health` in production mode through oRPC on Nest 12 + Express 5, answer RFC 9457 problems, refuse to start without release identity, and stop with exit 0 on SIGTERM (worker drains) | real database, CI fixture (commit/artifact values) |
+| `build` | `nest build` (tsc) of API and worker; `pnpm deploy --prod` with injected workspace packages produces runnable `api/` and `worker/` trees whose installed versions match `pnpm-lock.yaml`; those trees run `dist/migrate.js` on an empty database (twice), serve `GET /health` in production mode through oRPC on Nest 12 + Express 5, answer RFC 9457 problems, refuse to start without release identity, and stop with exit 0 on SIGTERM (worker drains) | real database, CI fixture (commit/artifact values) |
 | `client` | jest-expo + React Native Testing Library component tests; `expo export --platform web` produces `apps/client/dist/index.html` with the bundled fonts | CI fixture |
 
 ## Not proved by CI

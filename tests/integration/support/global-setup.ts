@@ -9,6 +9,8 @@ import { testQueues } from './queues.js';
 declare module 'vitest' {
   export interface ProvidedContext {
     templateDatabase: string;
+    /** Prefix of every database this run creates (`ks_it_<run>_`), so teardown drops only those. */
+    runPrefix: string;
   }
 }
 
@@ -18,7 +20,8 @@ declare module 'vitest' {
  * isolated and start from the exact production schema.
  */
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
-  const template = `${TEST_DATABASE_PREFIX}template_${randomBytes(4).toString('hex')}`;
+  const runPrefix = `${TEST_DATABASE_PREFIX}${randomBytes(4).toString('hex')}_`;
+  const template = `${runPrefix}template`;
   await withAdmin((client) => client.query(`create database ${quoteIdentifier(template)}`));
   const settings = {
     url: databaseUrl(template),
@@ -48,12 +51,13 @@ export default async function setup(project: TestProject): Promise<() => Promise
   await applyQueueDeclarations(boss, testQueues);
   await boss.stop({ graceful: false });
   project.provide('templateDatabase', template);
+  project.provide('runPrefix', runPrefix);
 
   return async () => {
     await withAdmin(async (client) => {
       const leftovers = await client.query<{ datname: string }>(
-        'select datname from pg_database where datname like $1',
-        [`${TEST_DATABASE_PREFIX}%`],
+        'select datname from pg_database where starts_with(datname, $1)',
+        [runPrefix],
       );
       for (const row of leftovers.rows)
         await client.query(`drop database if exists ${quoteIdentifier(row.datname)} with (force)`);

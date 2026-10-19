@@ -1,15 +1,35 @@
 /**
  * Import boundaries of the v2 workspace (blueprint §22). Every rule is an error: `pnpm
- * boundaries` fails CI on the first violation. Paths are repository-relative.
+ * boundaries` fails CI on the first violation, and `pnpm boundaries:probe` proves in CI that the
+ * rules reject a set of deliberately forbidden imports. Paths are repository-relative.
  *
  * Module code lives in packages/backend/src/modules/<module>/ and the shared execution engine
  * in packages/backend/src/reasoning/; both follow the onion layout domain/ → application/ →
- * adapters/.
+ * adapters/, with a framework-free public.ts (and events.ts for job/event schemas) at the root.
  */
 const layered = '^packages/backend/src/(modules/[^/]+|reasoning)';
-const genericFolder = '^(?:apps|packages|migrations|tests)/.*/(?:shared|utils?|lib|common|helpers)/';
+const anyLayered = '^packages/backend/src/(?:modules/[^/]+|reasoning)';
+// Generic folders at the top of a package root and anywhere below it (depcruise refuses the
+// single pattern `(?:.*/)?` as an unsafe regular expression, so two patterns).
+const genericFolder = [
+  '^(?:apps|packages|migrations|tests)/(?:shared|utils?|lib|common|helpers)/',
+  '^(?:apps|packages|migrations|tests)/.*/(?:shared|utils?|lib|common|helpers)/',
+];
 const thirdPartyInfrastructure =
   'node_modules/(?:@nestjs|kysely|pg|pg-boss|pg-pool|pg-protocol|pino|socket\\.io|socket\\.io-client|express|@orpc|reflect-metadata|rxjs)/';
+// Byte-for-byte vendored Cutroom wire schema (CF-61): kept in the graph so imports *into* it are
+// checked, but its own imports are not followed. Its bytes are pinned by the `integrity` job.
+const vendoredWire = '^packages/backend/src/modules/content/adapters/cutroom/wire-v1/';
+// Packages that run in the client (they do not all exist yet; the rule applies when they do).
+const clientPackages = '^(?:apps/client|packages/(?:client-core|ui|design-tokens|scroll-model|scene-core))/';
+// The apps' composition roots: the only files that choose concrete implementations.
+const compositionRoots = [
+  '^apps/api/src/app\\.module\\.ts$',
+  '^apps/api/src/modules/[^/]+\\.ts$',
+  '^apps/worker/src/worker\\.module\\.ts$',
+  '^apps/worker/src/jobs\\.ts$',
+];
+const testFile = '\\.test\\.tsx?$';
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
@@ -25,32 +45,57 @@ module.exports = {
       name: 'domain-is-pure',
       comment: 'domain/ imports only its own domain code, Zod and public ID types from contracts.',
       severity: 'error',
-      from: { path: `${layered}/domain/` },
+      from: { path: `${layered}/domain/`, pathNot: testFile },
       to: {
         pathNot: ['^packages/backend/src/$1/domain/', 'node_modules/zod/', '^packages/contracts/src/ids\\.ts$'],
       },
     },
     {
-      name: 'application-is-framework-free',
+      name: 'application-allowlist',
       comment:
-        'application/ never imports Nest, Kysely, pg, pg-boss, provider SDKs, adapters, apps or the database/job/notice infrastructure; it receives ports.',
+        "application/ imports only its own domain/application code and events.ts, other modules' (or the reasoning engine's) framework-free public.ts, the observability types, wire contracts and Zod. Everything else (Nest, Kysely, pg, pg-boss, provider SDKs, Node I/O, adapters, infrastructure) reaches it through ports.",
       severity: 'error',
-      from: { path: `${layered}/application/` },
+      from: { path: `${layered}/application/`, pathNot: testFile },
       to: {
-        path: [
-          thirdPartyInfrastructure,
-          '^apps/',
-          '/adapters/',
-          '^packages/backend/src/infrastructure/(?:postgres|jobs|notices|lifecycle|config)/',
+        pathNot: [
+          '^packages/backend/src/$1/(?:domain|application)/',
+          '^packages/backend/src/$1/events\\.ts$',
+          `${anyLayered}/public\\.ts$`,
+          '^packages/backend/src/infrastructure/observability/index\\.ts$',
+          '^packages/contracts/src/',
+          'node_modules/zod/',
         ],
       },
     },
     {
-      name: 'nest-providers-only-in-composition-roots',
-      comment: "Only the apps' composition roots select concrete implementations through a module's nest-providers.",
+      name: 'public-surface-is-framework-free',
+      comment:
+        'public.ts and events.ts are the small framework-free cross-module surface: no adapters, no Nest/Kysely/pg/pg-boss, no infrastructure except the pure queue declarations.',
       severity: 'error',
-      from: { pathNot: '^apps/(?:api/src/(?:app\\.module|modules/)|worker/src/(?:worker\\.module|jobs))' },
+      from: { path: `${anyLayered}/(?:public|events)\\.ts$` },
+      to: {
+        path: ['/adapters/', thirdPartyInfrastructure, '^packages/backend/src/infrastructure/'],
+        pathNot: '^packages/backend/src/infrastructure/jobs/queues\\.ts$',
+      },
+    },
+    {
+      name: 'nest-providers-only-in-composition-roots',
+      comment:
+        "Only the apps' composition roots (and integration tests, which compose real adapters the same way) select concrete implementations through a module's nest-providers.",
+      severity: 'error',
+      from: { pathNot: [...compositionRoots, '^tests/integration/'] },
       to: { path: '/adapters/nest-providers\\.ts$' },
+    },
+    {
+      name: 'apps-reach-modules-through-public-or-wiring',
+      comment:
+        'Apps use a module only through its public.ts, or its nest-providers from a composition root; never its domain, application or adapters.',
+      severity: 'error',
+      from: { path: '^apps/(?:api|worker)/' },
+      to: {
+        path: `${anyLayered}/`,
+        pathNot: [`${anyLayered}/public\\.ts$`, `${anyLayered}/adapters/nest-providers\\.ts$`],
+      },
     },
     {
       name: 'cross-module-through-public',
@@ -58,11 +103,8 @@ module.exports = {
       severity: 'error',
       from: { path: '^packages/backend/src/modules/([^/]+)/' },
       to: {
-        path: '^packages/backend/src/(?:modules/[^/]+|reasoning)/',
-        pathNot: [
-          '^packages/backend/src/modules/$1/',
-          '^packages/backend/src/(?:modules/[^/]+|reasoning)/public\\.ts$',
-        ],
+        path: `${anyLayered}/`,
+        pathNot: ['^packages/backend/src/modules/$1/', `${anyLayered}/public\\.ts$`],
       },
     },
     {
@@ -86,15 +128,23 @@ module.exports = {
     },
     {
       name: 'contracts-are-wire-only',
-      comment: 'packages/contracts holds JSON-native wire schemas: Zod and oRPC contract definitions only.',
+      comment:
+        'packages/contracts holds JSON-native wire schemas: Zod and oRPC contract definitions, and re-exports of the canonical scroll-model/scene-core schemas (blueprint §22).',
       severity: 'error',
-      from: { path: '^packages/contracts/src/', pathNot: '\\.test\\.ts$' },
-      to: { pathNot: ['^packages/contracts/src/', 'node_modules/(?:zod|@orpc/contract)/'] },
+      from: { path: '^packages/contracts/src/', pathNot: testFile },
+      to: {
+        pathNot: [
+          '^packages/contracts/src/',
+          '^packages/(?:scroll-model|scene-core)/src/',
+          'node_modules/(?:zod|@orpc/contract)/',
+        ],
+      },
     },
     {
       name: 'clients-never-import-backend',
+      comment: 'Client packages and the client app never import backend code, apps or migrations.',
       severity: 'error',
-      from: { path: '^apps/client/' },
+      from: { path: clientPackages },
       to: { path: ['^packages/backend/', '^apps/(?:api|worker)/', '^migrations/'] },
     },
     {
@@ -111,7 +161,7 @@ module.exports = {
     },
     {
       name: 'no-generic-folders',
-      comment: 'No shared/utils/lib/common: name a reusable facility by its purpose.',
+      comment: 'No shared/utils/lib/common/helpers package or folder: name a reusable facility by its purpose.',
       severity: 'error',
       from: { path: '^(apps|packages|migrations|tests)/' },
       to: { path: genericFolder, pathNot: 'node_modules/' },
@@ -140,21 +190,15 @@ module.exports = {
       severity: 'error',
       from: {
         path: '^(?:apps/(?:api|worker)|packages/[^/]+|migrations)/src/',
-        pathNot: ['\\.test\\.ts$', '/test-support/'],
+        pathNot: [testFile, '/test-support/'],
       },
       to: { dependencyTypes: ['npm-dev'], dependencyTypesNot: ['type-only'] },
     },
   ],
   options: {
-    doNotFollow: { path: 'node_modules' },
+    doNotFollow: { path: ['node_modules', vendoredWire] },
     exclude: {
-      path: [
-        '^(?:apps|packages)/[^/]+/dist/',
-        '^migrations/dist/',
-        '^apps/client/\\.expo/',
-        // Vendored byte-for-byte from Cutroom (CF-61); not yet imported by anything.
-        '^packages/backend/src/modules/content/adapters/cutroom/wire-v1/',
-      ],
+      path: ['^(?:apps|packages)/[^/]+/dist/', '^migrations/dist/', '^apps/client/\\.expo/'],
     },
     tsPreCompilationDeps: true,
     combinedDependencies: false,
@@ -163,7 +207,7 @@ module.exports = {
       exportsFields: ['exports'],
       conditionNames: ['@knowscroll/source', 'import', 'require', 'node', 'default'],
       mainFields: ['module', 'main', 'types'],
-      extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.d.ts'],
+      extensions: ['.ts', '.tsx', '.web.tsx', '.native.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.d.ts'],
     },
     reporterOptions: { text: { highlightFocused: true } },
   },

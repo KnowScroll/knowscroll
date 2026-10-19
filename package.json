@@ -15,7 +15,9 @@
     "boundaries": "depcruise --config .dependency-cruiser.cjs apps packages migrations tests",
     "knip": "knip",
     "build": "pnpm -r build",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "boundaries:probe": "node tests/integration/boundaries/probe-boundaries.mjs",
+    "boundaries:manifests": "node tests/integration/boundaries/check-workspace-dependencies.mjs"
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "catalog:",

@@ -11,8 +11,11 @@ export const problemCatalogue = {
   FORBIDDEN: { status: 403, title: 'This action is not allowed.' },
   NOT_FOUND: { status: 404, title: 'Not found.' },
   METHOD_NOT_ALLOWED: { status: 405, title: 'This method is not allowed here.' },
+  CONFLICT: { status: 409, title: 'This conflicts with the current state; reload and try again.' },
   PAYLOAD_TOO_LARGE: { status: 413, title: 'The request body is too large.' },
   UNSUPPORTED_MEDIA_TYPE: { status: 415, title: 'The request body type is not supported.' },
+  UNPROCESSABLE_REQUEST: { status: 422, title: 'The request is well-formed but cannot be processed.' },
+  TOO_MANY_REQUESTS: { status: 429, title: 'Too many requests; try again shortly.' },
   INTERNAL: { status: 500, title: 'Something went wrong on our side.' },
   SERVICE_UNAVAILABLE: { status: 503, title: 'The service is temporarily unavailable.' },
 } as const satisfies Record<string, { status: number; title: string }>;

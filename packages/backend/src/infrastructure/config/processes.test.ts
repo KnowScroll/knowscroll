@@ -52,6 +52,20 @@ describe('process configuration', () => {
     });
   });
 
+  it('reports release identity and process problems together', () => {
+    const error = configurationError(() =>
+      readApiConfig({ NODE_ENV: 'production', DATABASE_URL: 'mysql://x', PORT: 'not-a-port' }),
+    );
+    expect(error.problems.map((problem) => problem.split(':')[0])).toEqual([
+      'KS_WORLD',
+      'KS_COMMIT',
+      'KS_ARTIFACT_SHA256',
+      'DATABASE_URL',
+      'PORT',
+    ]);
+    for (const problem of error.problems) expect(problem).toMatch(/^[A-Z][A-Z0-9_]*: [a-z_]+$/);
+  });
+
   it('never echoes a value in its problems', () => {
     const error = configurationError(() =>
       readApiConfig({

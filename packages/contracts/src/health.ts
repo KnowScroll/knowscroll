@@ -15,6 +15,7 @@ export const HealthResponseSchema = z.object({
 
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 
+/** `GET /health`: no input, 200 with the release identity; failures are RFC 9457 problems. */
 export const healthContract = oc
   .route({ method: 'GET', path: '/health', successStatus: 200, tags: ['operations'] })
   .output(HealthResponseSchema);

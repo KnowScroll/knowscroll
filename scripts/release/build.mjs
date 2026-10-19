@@ -11,7 +11,8 @@
 //   release.json   { schema: "ks-release.v2", commit, builtAt, node, programs, migrate, web, migrations }
 //   files.sha256   one line per entry except itself: "<sha256>  <path>", where a regular file's hash is
 //                  of its content and a symbolic link's is sha256("symlink:" + its target)
-//   api/, worker/  `pnpm --filter <package> deploy --prod --legacy` output (package.json, dist/, node_modules/)
+//   api/, worker/  `pnpm --config.inject-workspace-packages=true --filter <package> deploy --prod`
+//                  output (package.json, dist/, node_modules/, the deployed pnpm-lock.yaml)
 //   web/           the Expo web export
 //
 // Nothing in it names a world: the same bytes go to dev and then to stage (the server keeps the
@@ -161,7 +162,9 @@ for (const name of V2_PROGRAMS) {
     console.error(`release build: pnpm deploy ${program.package} → ${name}/`);
     const deploy = spawnSync(
       'pnpm',
-      ['--filter', program.package, 'deploy', '--prod', '--legacy', dest],
+      // Injected workspace packages make pnpm deploy install from the shared lockfile instead
+      // of re-resolving (`--legacy` does the latter); see docs/v2/decisions.md D-014.
+      ['--config.inject-workspace-packages=true', '--filter', program.package, 'deploy', '--prod', dest],
       { cwd: workspace, stdio: ['ignore', 'inherit', 'inherit'] },
     );
     if (deploy.status !== 0)

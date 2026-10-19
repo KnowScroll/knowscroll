@@ -42,7 +42,10 @@ export default defineConfig(
       '@typescript-eslint/no-misused-promises': 'error',
       '@typescript-eslint/await-thenable': 'error',
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
-      '@typescript-eslint/switch-exhaustiveness-check': ['error', { considerDefaultExhaustiveForUnions: true }],
+      '@typescript-eslint/switch-exhaustiveness-check': [
+        'error',
+        { considerDefaultExhaustiveForUnions: false, requireDefaultForNonUnion: false },
+      ],
       // `any` needs a written reason: an eslint-disable comment with a `--` justification.
       '@typescript-eslint/no-explicit-any': 'error',
       '@eslint-community/eslint-comments/require-description': ['error', { ignore: [] }],
@@ -57,6 +60,11 @@ export default defineConfig(
   {
     files: ['**/*.js', '**/*.cjs', '**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
+    // Command-line check scripts report to the terminal.
+    files: ['tests/integration/boundaries/*.mjs'],
+    rules: { 'no-console': 'off' },
   },
   {
     files: ['apps/client/**/*.{ts,tsx}'],

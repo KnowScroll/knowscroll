@@ -1,6 +1,13 @@
 import { z } from 'zod';
-import { PortSchema, PostgresUrlSchema, parseEnvironment, positiveInteger, type Environment } from './environment.js';
-import { readReleaseIdentity, type ReleaseIdentity } from './release.js';
+import {
+  PortSchema,
+  PostgresUrlSchema,
+  checkEnvironment,
+  combineChecks,
+  positiveInteger,
+  type Environment,
+} from './environment.js';
+import { checkReleaseIdentity, type ReleaseIdentity } from './release.js';
 
 /** Connection settings for one process's PostgreSQL pool. `url` is a credential: never log it. */
 export interface DatabaseSettings {
@@ -43,28 +50,31 @@ function databaseSettings(
  * API process configuration. Variables: `DATABASE_URL`, `PORT`, `KS_LISTEN_HOST` (default
  * `127.0.0.1`), `KS_DB_POOL_MAX` (default 10), `KS_DB_STATEMENT_TIMEOUT_MS` (default 15000),
  * `KS_BODY_LIMIT_BYTES` (default 65536), `KS_SHUTDOWN_GRACE_SECONDS` (default 20), plus the
- * release identity variables of {@link readReleaseIdentity}.
+ * release identity variables of {@link checkReleaseIdentity}. Throws one `ConfigurationError`
+ * listing every problem of every variable.
  */
 export function readApiConfig(env: Environment): ApiConfig {
-  const release = readReleaseIdentity(env);
-  const parsed = parseEnvironment(
-    z.object({
-      ...databaseVariables,
-      PORT: PortSchema,
-      KS_LISTEN_HOST: z.string().min(1).default('127.0.0.1'),
-      KS_DB_POOL_MAX: positiveInteger(10, 100),
-      KS_BODY_LIMIT_BYTES: positiveInteger(65_536, 10 * 1024 * 1024),
-      KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
-    }),
-    pick(env, [
-      'DATABASE_URL',
-      'KS_DB_STATEMENT_TIMEOUT_MS',
-      'PORT',
-      'KS_LISTEN_HOST',
-      'KS_DB_POOL_MAX',
-      'KS_BODY_LIMIT_BYTES',
-      'KS_SHUTDOWN_GRACE_SECONDS',
-    ]),
+  const [release, parsed] = combineChecks(
+    checkReleaseIdentity(env),
+    checkEnvironment(
+      z.object({
+        ...databaseVariables,
+        PORT: PortSchema,
+        KS_LISTEN_HOST: z.string().min(1).default('127.0.0.1'),
+        KS_DB_POOL_MAX: positiveInteger(10, 100),
+        KS_BODY_LIMIT_BYTES: positiveInteger(65_536, 10 * 1024 * 1024),
+        KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
+      }),
+      pick(env, [
+        'DATABASE_URL',
+        'KS_DB_STATEMENT_TIMEOUT_MS',
+        'PORT',
+        'KS_LISTEN_HOST',
+        'KS_DB_POOL_MAX',
+        'KS_BODY_LIMIT_BYTES',
+        'KS_SHUTDOWN_GRACE_SECONDS',
+      ]),
+    ),
   );
   return {
     ...release,
@@ -81,14 +91,16 @@ export function readApiConfig(env: Environment): ApiConfig {
  * identity variables.
  */
 export function readWorkerConfig(env: Environment): WorkerConfig {
-  const release = readReleaseIdentity(env);
-  const parsed = parseEnvironment(
-    z.object({
-      ...databaseVariables,
-      KS_DB_POOL_MAX: positiveInteger(5, 100),
-      KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
-    }),
-    pick(env, ['DATABASE_URL', 'KS_DB_STATEMENT_TIMEOUT_MS', 'KS_DB_POOL_MAX', 'KS_SHUTDOWN_GRACE_SECONDS']),
+  const [release, parsed] = combineChecks(
+    checkReleaseIdentity(env),
+    checkEnvironment(
+      z.object({
+        ...databaseVariables,
+        KS_DB_POOL_MAX: positiveInteger(5, 100),
+        KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
+      }),
+      pick(env, ['DATABASE_URL', 'KS_DB_STATEMENT_TIMEOUT_MS', 'KS_DB_POOL_MAX', 'KS_SHUTDOWN_GRACE_SECONDS']),
+    ),
   );
   return {
     ...release,
@@ -99,9 +111,11 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
 
 /** Migration command configuration: `DATABASE_URL` and `KS_DB_STATEMENT_TIMEOUT_MS` (default 15 minutes). */
 export function readMigrateConfig(env: Environment): MigrateConfig {
-  const parsed = parseEnvironment(
-    z.object({ DATABASE_URL: PostgresUrlSchema, KS_DB_STATEMENT_TIMEOUT_MS: positiveInteger(900_000, 3_600_000) }),
-    pick(env, ['DATABASE_URL', 'KS_DB_STATEMENT_TIMEOUT_MS']),
+  const [parsed] = combineChecks(
+    checkEnvironment(
+      z.object({ DATABASE_URL: PostgresUrlSchema, KS_DB_STATEMENT_TIMEOUT_MS: positiveInteger(900_000, 3_600_000) }),
+      pick(env, ['DATABASE_URL', 'KS_DB_STATEMENT_TIMEOUT_MS']),
+    ),
   );
   return { database: databaseSettings(parsed, 'knowscroll-migrate', 2) };
 }
