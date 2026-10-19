@@ -1,19 +1,23 @@
 #!/usr/bin/env node
 // Checks one built KnowScroll v2 release the way the server will (#228).
 //
-//   node scripts/release/smoke.mjs <out>/release-<commit>.tar [--start] [--world <name>] [--port <n>] [--keep]
+//   node scripts/release/smoke.mjs <out>/release-<commit>.tar [--start] [--world <name>] [--port <n>]
+//                                  [--pass-env NAME]... [--keep]
 //
-// Always: the tar matches release-<commit>.tar.sha256 beside it; it unpacks into an empty
-// temporary folder; its root holds exactly release.json, files.sha256 and the program and web
-// folders; release.json has the ks-release.v2 shape for this commit; files.sha256 describes every
-// file exactly; each program's script, the migrate script and web/index.html exist. The release
-// rules are ops/vps/tool/plan.ts, the same code `ks deploy` runs.
+// Always: release-<commit>.tar.sha256 beside the tar is exactly one line naming it and its hash
+// matches; the archive's listing has nothing the server refuses (devices, FIFOs, absolute paths,
+// `..`, writes through links); it unpacks into an empty temporary folder; its root holds exactly
+// release.json, files.sha256 and the program and web folders, all real folders; release.json has
+// the ks-release.v2 shape for this commit; files.sha256 describes every file and link exactly and
+// every link stays inside the release (none under web/); each program's script, the migrate script
+// and web/index.html exist. The rules and the reading are ops/vps/tool/plan.ts and tree.ts, the
+// same code `ks deploy` runs.
 //
 // With --start and DATABASE_URL in the environment (a disposable database): runs the release's
-// migrate command, starts its api program with the settings a world's v2 units give it
+// migrate command, starts its api program with only the settings a world's v2 units give it
 // (KS_WORLD, PORT, NODE_ENV=production, KS_MEDIA_ROOT, KS_PUBLIC_ORIGIN, KS_COMMIT,
-// KS_ARTIFACT_SHA256, DATABASE_URL, plus anything else already in the environment), and requires
-// GET /health to report this world, commit and artifact, and the release's latest migration.
+// KS_ARTIFACT_SHA256, DATABASE_URL; plus PATH, HOME and any variable named by --pass-env), and
+// requires GET /health to report this world, commit and artifact, and the release's latest migration.
 
 import { spawn, spawnSync } from 'node:child_process';
 import {
@@ -30,11 +34,17 @@ import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
   checkFileList,
+  checksumFor,
   healthMatches,
   V2_PROGRAMS,
   validateV2Manifest,
 } from '../../ops/vps/tool/plan.ts';
-import { hashTree, sha256Stream } from './files.mjs';
+import {
+  checkTarFile,
+  hashReleaseTree,
+  requireRealFolder,
+  sha256Stream,
+} from './files.mjs';
 
 const { values: args, positionals } = parseArgs({
   allowPositionals: true,
@@ -42,6 +52,7 @@ const { values: args, positionals } = parseArgs({
     start: { type: 'boolean', default: false },
     world: { type: 'string', default: 'dev' },
     port: { type: 'string', default: '4399' },
+    'pass-env': { type: 'string', multiple: true, default: [] },
     keep: { type: 'boolean', default: false },
   },
 });
@@ -70,15 +81,21 @@ try {
 
   const shaPath = `${tarPath}.sha256`;
   check('sha256 file exists beside the tar', existsSync(shaPath), shaPath);
-  const recorded = /^([0-9a-f]{64}) [ *](.+)\n?$/.exec(readFileSync(shaPath, 'utf8'));
-  check('sha256 file names the tar', recorded && recorded[2] === basename(tarPath));
+  const recorded = checksumFor(readFileSync(shaPath, 'utf8'), basename(tarPath));
+  check('sha256 file is one line naming the tar', recorded.ok, recorded.ok ? undefined : recorded.reason);
   const artifact = await sha256Stream(tarPath);
-  check('tar matches its recorded sha256', artifact === recorded[1], artifact);
+  check('tar matches its recorded sha256', artifact === recorded.value, artifact);
+  try {
+    checkTarFile(tarPath);
+    check('the archive lists nothing the server refuses', true);
+  } catch (error) {
+    check('the archive lists nothing the server refuses', false, error.message);
+  }
 
   work = mkdtempSync(join(tmpdir(), 'ks-release-smoke-'));
   const root = join(work, 'release');
   mkdirSync(root);
-  const unpack = spawnSync('tar', ['-x', '--no-same-owner', '-f', tarPath, '-C', root], {
+  const unpack = spawnSync('tar', ['-x', '--no-same-owner', '--no-same-permissions', '-f', tarPath, '-C', root], {
     stdio: ['ignore', 'inherit', 'inherit'],
   });
   check('tar unpacks', unpack.status === 0, `exit ${unpack.status}`);
@@ -109,7 +126,9 @@ try {
   check('files.sha256 is a regular file', lstatSync(listPath).isFile());
   let actual;
   try {
-    actual = hashTree(root);
+    for (const folder of [...new Set([...V2_PROGRAMS.map((p) => m.programs[p].cwd), m.migrate.cwd, 'web'])])
+      requireRealFolder(root, folder);
+    actual = hashReleaseTree(root, 'refuse');
   } catch (error) {
     check('every entry is a file, a folder or a link inside the release', false, error.message);
   }
@@ -127,10 +146,17 @@ try {
   if (args.start) {
     check('--start has a DATABASE_URL (a disposable database)', Boolean(process.env.DATABASE_URL));
     const port = args.port;
+    // Only what a world's v2 units give the program, not the CI job's whole environment.
+    const passed = Object.fromEntries(
+      ['PATH', 'HOME', ...args['pass-env']]
+        .filter((name) => process.env[name] !== undefined)
+        .map((name) => [name, process.env[name]]),
+    );
     const env = {
+      ...passed,
       KS_MEDIA_ROOT: join(work, 'media-v2'),
       KS_PUBLIC_ORIGIN: `http://127.0.0.1:${port}`,
-      ...process.env,
+      DATABASE_URL: process.env.DATABASE_URL,
       KS_WORLD: args.world,
       PORT: port,
       NODE_ENV: 'production',

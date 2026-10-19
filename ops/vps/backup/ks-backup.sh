@@ -7,9 +7,11 @@
 # Each database is dumped by pg_dump -Fc (as postgres, over the local socket) into
 # /srv/knowscroll/backups/<database>/<UTC date>.dump; folders 0700 and files 0600, owned by root,
 # because a dump is personal data. A dump counts only once pg_restore can read its table of
-# contents. Dumps older than KS_BACKUP_KEEP_DAYS (14) are removed, never the newest one. The result
-# is written to /srv/knowscroll/backups/status.json and one JSON line per database to the journal;
-# the unit fails if any database could not be dumped.
+# contents. Dumps older than KS_BACKUP_KEEP_DAYS (14) are removed, never the newest one; the same
+# goes for the pre-deploy-<time>-<commit>.dump files `ks deploy` writes before every v2 migrate. The
+# result is written to /srv/knowscroll/backups/status.json and one JSON line per database to the
+# journal; the unit fails if any database could not be dumped. It holds the deploy lock while it
+# dumps, so a dump never meets a migration halfway.
 set -euo pipefail
 umask 077
 
@@ -22,11 +24,15 @@ install -d -m 0700 -o root -g root "$root"
 # One backup or restore check at a time.
 exec 9>"$root/.lock"
 flock -n 9 || { echo '{"event":"backup-skipped","reason":"another backup or restore check is running"}'; exit 1; }
+install -d -m 0755 /run/knowscroll
+exec 8>>/run/knowscroll/deploy.lock
+flock --timeout 1800 8 || { echo '{"event":"backup-skipped","reason":"a deploy held the lock for 30 minutes"}'; exit 1; }
 
 started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 today=$(date -u +%F)
 # Keep today and the keep_days - 1 days before it.
 cutoff=$(date -u -d "$((keep_days - 1)) days ago" +%F)
+cutoff_compact=${cutoff//-/}
 failed=0
 results=()
 
@@ -66,6 +72,17 @@ for db in "$@"; do
       deleted=$((deleted + 1))
     fi
   done < <(find "$dir" -maxdepth 1 -type f -name '????-??-??.dump' -printf '%f\n')
+  # Pre-deploy dumps (pre-deploy-YYYYMMDDTHHMMSSZ-<commit>.dump) age the same way.
+  newest_pre=$(find "$dir" -maxdepth 1 -type f -name 'pre-deploy-*.dump' -printf '%f\n' | sort | tail -n 1)
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    day=${name#pre-deploy-}
+    day=${day:0:8}
+    if [[ "$day" =~ ^[0-9]{8}$ && "$day" < "$cutoff_compact" && "$name" != "$newest_pre" ]]; then
+      rm -f -- "${dir:?}/$name"
+      deleted=$((deleted + 1))
+    fi
+  done < <(find "$dir" -maxdepth 1 -type f -name 'pre-deploy-*.dump' -printf '%f\n')
   kept=$(find "$dir" -maxdepth 1 -type f -name '????-??-??.dump' | wc -l)
 
   result=$(jq -cn \

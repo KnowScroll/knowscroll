@@ -2,6 +2,12 @@
 # contract: deploy.yml and scripts/promote.sh wait for a successful `checks.yml` run on the exact
 # commit before deploying or promoting it.
 #
+# Release artifact contract (#228, docs/v2/operations/environments.md): when this workflow builds
+# the v2 release, it builds it for $GITHUB_SHA (`build.mjs --commit "$GITHUB_SHA"`), never a PR head
+# SHA, and uploads it as the artifact `release-$GITHUB_SHA` holding exactly
+# `release-$GITHUB_SHA.tar` and `release-$GITHUB_SHA.tar.sha256` at its root. deploy.yml takes it
+# only from successful runs triggered by a push in this repository.
+#
 # Phase 0 checks only what exists: the main-update hook and the integrity of the vendored
 # design and Cutroom snapshots. Build, lint, typecheck and test jobs are added with the
 # workspace in S1.1; never remove a job to get a green run.
@@ -19,8 +25,8 @@ jobs:
           node-version: 22.23.0
       - name: Main-update hook refuses what it must and allows what it may
         run: node --test .claude/hooks/refuse-main-update.test.mjs
-      - name: Server deploy tool decisions (ks plan tests)
-        run: node --test ops/vps/tool/plan.test.ts
+      - name: Server deploy tool decisions (ks plan, release tree and backup script tests)
+        run: node --test ops/vps/tool/plan.test.ts ops/vps/tool/tree.test.ts ops/vps/backup/scripts.test.ts
       - name: v2.1 design export matches its recorded SHA-256 list
         working-directory: docs/v2/design/KnowScroll-design-v2.1
         run: |

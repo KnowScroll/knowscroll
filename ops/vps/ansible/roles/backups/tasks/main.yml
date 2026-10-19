@@ -9,6 +9,34 @@
     ks_backup_databases: "{{ ks_v2_worlds | map('regex_replace', '^', 'knowscroll_v2_') | list + ['knowscroll_pool'] }}"
     ks_restore_check_databases: "{{ ks_v2_worlds | map('regex_replace', '^', 'knowscroll_v2_') | list + ['knowscroll_pool'] }}"
 
+# M1: the weekly restore check restores and queries as this role, never as postgres. It is no
+# superuser, has no password (so no network login), and logs in only over the local socket by peer
+# authentication as the OS user of the same name; it owns only the scratch database it is given.
+- name: OS user for the restore check (no shell, no home)
+  ansible.builtin.user:
+    name: ks_restore_check
+    system: true
+    shell: /usr/sbin/nologin
+    home: /nonexistent
+    create_home: false
+
+- name: Database role for the restore check (no superuser, no password, few connections)
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ks_restore_check') THEN
+          CREATE ROLE ks_restore_check LOGIN;
+        END IF;
+      END $$;
+      ALTER ROLE ks_restore_check WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION
+        NOBYPASSRLS NOINHERIT CONNECTION LIMIT 3 PASSWORD NULL;
+  become: true
+  become_user: postgres
+  changed_when: false
+  when: not ansible_check_mode
+
 - name: Rsync, so the operator's Mac can copy the backups
   ignore_errors: "{{ ansible_check_mode }}"
   ansible.builtin.apt:

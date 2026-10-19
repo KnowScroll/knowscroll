@@ -5,6 +5,7 @@
  * it too, so the release builder, the CI smoke test and the server check a release the same way.
  */
 
+import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
 
 export type World = 'live' | 'stage' | 'dev';
@@ -367,9 +368,10 @@ export function parseSha256List(text: string): Checked<Map<string, string>> {
 }
 
 /**
- * files.sha256 must describe the release completely: every listed file present with its hash, and
- * no regular file the list does not name. `actual` maps each regular file's relative path to its
- * sha256, leaving out files.sha256 itself and the server's own .ks/ folder.
+ * files.sha256 must describe the release completely: every listed entry present with its hash, and
+ * no entry the list does not name. `actual` maps each regular file's relative path to the sha256 of
+ * its content and each symbolic link's path to symlinkHash(its target) (ops/vps/tool/tree.ts),
+ * leaving out files.sha256 itself and the server's own .ks/ folder.
  */
 export function checkFileList(
   listing: string,
@@ -486,4 +488,336 @@ export function healthMatches(
   if (body.commit !== expect.commit || body.world !== expect.world)
     return false;
   return expect.artifact === undefined || body.artifact === expect.artifact;
+}
+
+// ---------------------------------------------------------------------------------------------
+// #228 review fixes: links in files.sha256 and physical link containment (M2), the tar listing
+// before extraction (m6), current/previous only after a healthy switch (m1, m8), the deploy lock
+// (m2, m7), cleanup steps (m7), the migrate session and the pre-migrate dump (m10).
+// ---------------------------------------------------------------------------------------------
+
+/** How files.sha256 lists a symbolic link: the sha256 of "symlink:" + its target, as written. */
+export function symlinkHash(target: string): string {
+  return createHash('sha256').update(`symlink:${target}`).digest('hex');
+}
+
+/** The commit a `current`/`previous` link target names, or null (the placeholder, nothing). */
+export function commitOfTarget(target: string | null): string | null {
+  const match = target ? /\/releases\/([0-9a-f]{40})\/?$/.exec(target) : null;
+  return match ? (match[1] as string) : null;
+}
+
+/** What one path inside a release is, without following links; '' is the release itself. */
+export type FsView = {
+  kind(rel: string): 'file' | 'dir' | 'link' | 'missing' | 'other';
+  readlink(rel: string): string;
+};
+
+/**
+ * M2: follows the link at `linkRel` the way the kernel would, one path component at a time, and
+ * accepts it only if every step stays inside the release (never above its root, never through an
+ * absolute target) and it ends at something that exists. A lexical check is not enough: with
+ * `s -> .`, the target `s/s/../../etc` reads as inside but climbs out.
+ */
+export function linkStaysInside(fs: FsView, linkRel: string): Checked<string> {
+  const hops = { count: 0 };
+  const start = linkRel.split('/').slice(0, -1);
+  const resolved = followTarget(fs, start, fs.readlink(linkRel), hops);
+  if (typeof resolved === 'string')
+    return { ok: false, reason: `${linkRel}: ${resolved}` };
+  return { ok: true, value: resolved.join('/') };
+}
+
+function followTarget(
+  fs: FsView,
+  from: string[],
+  target: string,
+  hops: { count: number },
+): string[] | string {
+  if (target.startsWith('/')) return `links to an absolute path (${target})`;
+  if (target === '') return 'links to nothing';
+  let current = [...from];
+  const parts = target.split('/').filter((p) => p !== '' && p !== '.');
+  for (const [index, part] of parts.entries()) {
+    const last = index === parts.length - 1;
+    if (part === '..') {
+      if (current.length === 0) return `climbs out of the release (${target})`;
+      current.pop();
+      continue;
+    }
+    const next = [...current, part];
+    const kind = fs.kind(next.join('/'));
+    if (kind === 'missing') return `points at nothing (${target})`;
+    if (kind === 'link') {
+      hops.count += 1;
+      if (hops.count > 40) return 'has too many levels of links';
+      const inner = followTarget(fs, current, fs.readlink(next.join('/')), hops);
+      if (typeof inner === 'string') return inner;
+      current = inner;
+      if (!last && fs.kind(current.join('/')) !== 'dir')
+        return `goes through something that is not a folder (${target})`;
+      continue;
+    }
+    if (!last && kind !== 'dir')
+      return `goes through something that is not a folder (${target})`;
+    current = next;
+  }
+  return current;
+}
+
+/** One entry of a tar archive as its headers describe it, before anything is extracted. */
+export type TarEntry = { path: string; type: string; link: string };
+
+function cString(bytes: Uint8Array, start: number, length: number): string {
+  const slice = bytes.subarray(start, start + length);
+  const end = slice.indexOf(0);
+  return new TextDecoder().decode(end === -1 ? slice : slice.subarray(0, end));
+}
+
+function paxRecords(text: string): Record<string, string> {
+  const records: Record<string, string> = {};
+  let rest = text;
+  while (rest.length > 0) {
+    const space = rest.indexOf(' ');
+    const length = Number(rest.slice(0, space));
+    if (space <= 0 || !Number.isInteger(length) || length <= space) break;
+    const record = rest.slice(space + 1, length - 1);
+    const eq = record.indexOf('=');
+    if (eq > 0) records[record.slice(0, eq)] = record.slice(eq + 1);
+    rest = rest.slice(length);
+  }
+  return records;
+}
+
+/**
+ * m6: the entries of a tar archive (POSIX ustar, GNU long names and links, pax path records), read
+ * from its headers only. `read(offset, length)` returns bytes of the archive, `size` is its length.
+ * A header whose checksum is wrong, or a size field this reader does not handle, is refused.
+ * (Byte offsets of pax records are treated as characters: KnowScroll paths are ASCII.)
+ */
+export function tarEntries(
+  read: (offset: number, length: number) => Uint8Array,
+  size: number,
+): Checked<TarEntry[]> {
+  const entries: TarEntry[] = [];
+  let offset = 0;
+  let longName: string | null = null;
+  let longLink: string | null = null;
+  let pax: Record<string, string> = {};
+  while (offset + 512 <= size) {
+    const header = read(offset, 512);
+    if (header.every((b) => b === 0)) break;
+    let sum = 0;
+    for (let i = 0; i < 512; i++)
+      sum += i >= 148 && i < 156 ? 32 : (header[i] as number);
+    const recorded = Number.parseInt(cString(header, 148, 8).trim(), 8);
+    if (recorded !== sum)
+      return { ok: false, reason: `tar header at byte ${offset} is corrupt` };
+    if (((header[124] as number) & 0x80) !== 0)
+      return { ok: false, reason: `tar entry at byte ${offset} has a size this reader refuses` };
+    const length = Number.parseInt(cString(header, 124, 12).trim() || '0', 8);
+    if (!Number.isInteger(length) || length < 0)
+      return { ok: false, reason: `tar entry at byte ${offset} has no readable size` };
+    const flag = header[156] as number;
+    const type = flag === 0 ? '0' : String.fromCharCode(flag);
+    const dataStart = offset + 512;
+    const next = dataStart + Math.ceil(length / 512) * 512;
+    if (next > size)
+      return { ok: false, reason: 'the tar archive is cut short' };
+    if (type === 'L' || type === 'K' || type === 'x') {
+      const data = read(dataStart, length);
+      if (type === 'L') longName = cString(data, 0, length);
+      else if (type === 'K') longLink = cString(data, 0, length);
+      else pax = { ...pax, ...paxRecords(new TextDecoder().decode(data)) };
+      offset = next;
+      continue;
+    }
+    if (type === 'g') {
+      offset = next;
+      continue;
+    }
+    let name = cString(header, 0, 100);
+    // POSIX ustar ("ustar\0") keeps a path prefix at 345; GNU's "ustar  " uses those bytes otherwise.
+    if (cString(header, 257, 6) === 'ustar' && header[262] === 0) {
+      const prefix = cString(header, 345, 155);
+      if (prefix) name = `${prefix}/${name}`;
+    }
+    entries.push({
+      path: pax.path ?? longName ?? name,
+      type,
+      link: pax.linkpath ?? longLink ?? cString(header, 157, 100),
+    });
+    longName = null;
+    longLink = null;
+    pax = {};
+    offset = next;
+  }
+  return { ok: true, value: entries };
+}
+
+/** A path as a tar entry names it: no leading `/`, no `..`; `.` segments are dropped. */
+function archivePath(path: string): string[] | null {
+  if (path.startsWith('/') || /[\0\n\r\\]/.test(path)) return null;
+  const parts = path.split('/').filter((p) => p !== '' && p !== '.');
+  return parts.includes('..') ? null : parts;
+}
+
+/**
+ * m6: what may be extracted, decided from the listing alone: regular files, folders, symbolic links
+ * and hard links to a regular file listed before; nothing with an absolute path or `..`; no device,
+ * FIFO or other special entry; nothing written through a link the archive itself made; no `.ks/`.
+ * Where a symbolic link points is checked after extraction (linkStaysInside).
+ */
+export function checkTarEntries(entries: readonly TarEntry[]): Checked<number> {
+  const files = new Set<string>();
+  const seen = new Set<string>();
+  const links: string[] = [];
+  for (const entry of entries) {
+    const parts = archivePath(entry.path);
+    if (parts === null)
+      return { ok: false, reason: `the archive names an unsafe path ${JSON.stringify(entry.path)}` };
+    const path = parts.join('/');
+    if (entry.type !== '5') {
+      if (seen.has(path))
+        return { ok: false, reason: `the archive names ${path} twice` };
+      seen.add(path);
+    }
+    if (parts[0] === '.ks')
+      return { ok: false, reason: 'the archive carries .ks/, which only the server writes' };
+    if (links.some((l) => path === l || path.startsWith(`${l}/`)))
+      return { ok: false, reason: `${path} would be written through a link` };
+    if (entry.type === '0') files.add(path);
+    else if (entry.type === '2') {
+      if (entry.link.startsWith('/') || entry.link === '')
+        return { ok: false, reason: `${path} links to an absolute path` };
+      links.push(path);
+    } else if (entry.type === '1') {
+      const target = archivePath(entry.link);
+      if (target === null || !files.has(target.join('/')))
+        return { ok: false, reason: `${path} is a hard link to something that is not a file before it` };
+      files.add(path);
+    } else if (entry.type !== '5')
+      return { ok: false, reason: `${path} is not a file, a folder or a link (tar type ${JSON.stringify(entry.type)})` };
+  }
+  return { ok: true, value: entries.length };
+}
+
+/** The `current` and `previous` links of a world (their targets, or null when absent). */
+export type Links = { current: string | null; previous: string | null };
+
+/**
+ * m1: a deploy points `current` at the new release while it starts. Only once it is healthy does
+ * `previous` become the release that ran before (unless that was the same commit or nothing); a
+ * deploy that fails leaves both links exactly as they were.
+ */
+export function linksAfterDeploy(
+  before: Links,
+  release: string,
+  commit: string,
+  healthy: boolean,
+): Links {
+  if (!healthy) return before;
+  return {
+    current: release,
+    previous:
+      before.current !== null && commitOfTarget(before.current) !== commit
+        ? before.current
+        : before.previous,
+  };
+}
+
+/** m8: a rollback swaps the links; if what it returns to is not healthy, both go back as they were. */
+export function linksAfterRollback(before: Links, healthy: boolean): Links {
+  return healthy ? { current: before.previous, previous: before.current } : before;
+}
+
+export const DEPLOY_LOCK = '/run/knowscroll/deploy.lock';
+
+/** #199 programs that can claim a paid Reel order (operator.ts ledger.claim); m2: they hold the lock. */
+const CLAIMING_PROGRAMS: readonly string[] = ['generation-cli'];
+
+/**
+ * m2, m7: which `ks` commands run under the deploy lock. `wait`: queue for it (deploy and promote
+ * already hold it through ks-gate; the rest re-run themselves under flock). `try`: the disk guard
+ * never waits; while a deploy holds the lock it does everything except deleting releases.
+ */
+export function lockNeeded(command: string, args: readonly string[]): 'wait' | 'try' | 'none' {
+  if (['deploy', 'promote', 'rollback', 'cleanup'].includes(command)) return 'wait';
+  if (command === 'run' && CLAIMING_PROGRAMS.includes(args[1] ?? '')) return 'wait';
+  if (command === 'disk-guard') return 'try';
+  return 'none';
+}
+
+/**
+ * m2: whether this process runs under the deploy lock, i.e. its parent is the `flock` that holds a
+ * write lock on the lock file (ks-gate and the documented commands run `flock … deploy.lock ks …`).
+ * `procLocks` is /proc/locks; `inode` is the lock file's inode number.
+ */
+export function deployLockHeldByParent(
+  procLocks: string,
+  inode: number,
+  parentPid: number,
+): boolean {
+  return procLocks.split('\n').some((line) => {
+    const match =
+      /^\d+:\s+FLOCK\s+\S+\s+WRITE\s+(\d+)\s+[0-9a-f]+:[0-9a-f]+:(\d+)\s/.exec(line);
+    return (
+      match !== null &&
+      Number(match[1]) === parentPid &&
+      Number(match[2]) === inode
+    );
+  });
+}
+
+/**
+ * m10: the database URL a v2 migrate gets: the world's own, with session settings added as libpq
+ * `options` (node-postgres reads them from the URL), so a long migration is bounded by its own
+ * statement timeout instead of the role's 30 s, and the role itself is not loosened.
+ */
+export function withSessionOptions(
+  url: string,
+  settings: Readonly<Record<string, string>>,
+): string {
+  const options = Object.entries(settings)
+    .map(([key, value]) => `-c ${key}=${value}`)
+    .join(' ');
+  const parsed = new URL(url);
+  const existing = parsed.searchParams.get('options');
+  parsed.searchParams.delete('options');
+  const value = existing ? `${existing} ${options}` : options;
+  // Percent-encoded (spaces as %20, not +), which every URL reader decodes the same way.
+  return `${parsed.toString()}${parsed.search ? '&' : '?'}options=${encodeURIComponent(value)}`;
+}
+
+/** m10: the file name of the dump taken before a v2 migrate, sortable by time. */
+export function predeployDumpName(at: Date, commit: string): string {
+  const stamp = at.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+  return `pre-deploy-${stamp}-${commit.slice(0, 12)}.dump`;
+}
+
+/**
+ * m7: runs each step even when an earlier one failed, and reports which failed, so one unreadable
+ * link cannot stop the temp sweep or the journal vacuum.
+ */
+export function runSteps(
+  steps: ReadonlyArray<{ name: string; run: () => void }>,
+): { failed: Array<{ step: string; reason: string }> } {
+  const failed: Array<{ step: string; reason: string }> = [];
+  for (const step of steps) {
+    try {
+      step.run();
+    } catch (error) {
+      failed.push({ step: step.name, reason: (error as Error).message });
+    }
+  }
+  return { failed };
+}
+
+/** m4: a release's .sha256 file is exactly one line, `<sha256>  release-<commit>.tar`. */
+export function checksumFor(text: string, tarName: string): Checked<string> {
+  const lines = text.endsWith('\n') ? text.slice(0, -1).split('\n') : text.split('\n');
+  const match = lines.length === 1 ? /^([0-9a-f]{64}) {2}(.+)$/.exec(lines[0] as string) : null;
+  if (!match || match[2] !== tarName)
+    return { ok: false, reason: `the checksum file must be one line "<sha256>  ${tarName}"` };
+  return { ok: true, value: match[1] as string };
 }

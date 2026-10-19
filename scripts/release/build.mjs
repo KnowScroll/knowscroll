@@ -9,13 +9,18 @@
 // <out>/release-<commit>.tar.sha256 and prints the tar's sha256 as its last line. The tar's root:
 //
 //   release.json   { schema: "ks-release.v2", commit, builtAt, node, programs, migrate, web, migrations }
-//   files.sha256   sha256sum lines for every file in the release except itself
+//   files.sha256   one line per entry except itself: "<sha256>  <path>", where a regular file's hash is
+//                  of its content and a symbolic link's is sha256("symlink:" + its target)
 //   api/, worker/  `pnpm --filter <package> deploy --prod --legacy` output (package.json, dist/, node_modules/)
 //   web/           the Expo web export
 //
-// Nothing in it names a world: the same bytes go to dev and then to stage. The server
-// (ops/vps/tool) and scripts/release/smoke.mjs check it with the same rules (ops/vps/tool/plan.ts),
-// and the release is checked against them here before it is packed.
+// Nothing in it names a world: the same bytes go to dev and then to stage (the server keeps the
+// first copy; deploy.yml never rebuilds). The server (ops/vps/tool), scripts/release/smoke.mjs and
+// this builder read and check a release with the same code (ops/vps/tool/plan.ts and tree.ts), and
+// the release and its archive are checked here before anything is uploaded. The archive wrapper is
+// deterministic (sorted, root-owned, timestamps = the commit's time, with GNU tar), but what pnpm
+// deploy writes is not guaranteed byte-stable between runs, so two builds of one commit can differ:
+// never rely on rebuilding to get the same artifact.
 //
 // The layout comes from DEFAULTS below; a JSON --config may replace `programs`, `migrate`, `web`
 // and `migrations`. A program may name `from` (a folder already prepared) instead of `package`.
@@ -40,7 +45,13 @@ import {
   V2_SCHEMA,
   validateV2Manifest,
 } from '../../ops/vps/tool/plan.ts';
-import { gnuTar, hashTree, sha256Stream } from './files.mjs';
+import {
+  checkTarFile,
+  gnuTar,
+  hashReleaseTree,
+  requireRealFolder,
+  sha256Stream,
+} from './files.mjs';
 
 const DEFAULTS = {
   programs: {
@@ -222,7 +233,7 @@ writeFileSync(
 // files.sha256: every file, sorted, in sha256sum's format; then checked as the server checks it.
 let files;
 try {
-  files = hashTree(staging);
+  files = hashReleaseTree(staging, 'refuse');
 } catch (error) {
   fail(error.message);
 }
@@ -232,11 +243,18 @@ if (unsafe)
   fail(`${JSON.stringify(unsafe)} cannot be listed in files.sha256 safely`);
 const listing = paths.map((p) => `${files.get(p)}  ${p}\n`).join('');
 writeFileSync(join(staging, 'files.sha256'), listing);
-const listed = checkFileList(listing, hashTree(staging));
+let listed;
+try {
+  for (const folder of [...V2_PROGRAMS.map((p) => programs[p].cwd), migrateProgram, 'web'])
+    requireRealFolder(staging, folder);
+  listed = checkFileList(listing, hashReleaseTree(staging, 'refuse'));
+} catch (error) {
+  fail(error.message);
+}
 if (!listed.ok) fail(listed.reason);
 
-// The archive: sorted entries, root-owned, every timestamp the build time (GNU tar), so the same
-// inputs give the same bytes.
+// The archive: sorted entries, root-owned, every timestamp the build time (GNU tar): the same
+// staged files give the same archive.
 const entries = readdirSync(staging).sort();
 const gnu = gnuTar();
 const tarArgs = gnu
@@ -271,13 +289,19 @@ const tarArgs = gnu
     ];
 if (!gnu)
   console.error(
-    'release build: GNU tar not found; the archive is valid but not byte-for-byte reproducible',
+    'release build: GNU tar not found; the archive is valid but its entry order and timestamps are not fixed',
   );
 const tar = spawnSync(gnu ?? 'tar', tarArgs, {
   stdio: ['ignore', 'inherit', 'inherit'],
   env: { ...process.env, COPYFILE_DISABLE: '1' },
 });
 if (tar.status !== 0) fail(`tar failed (exit ${tar.status})`);
+// The server lists an archive before extracting it; refuse here what it would refuse there.
+try {
+  checkTarFile(tarPath);
+} catch (error) {
+  fail(`the archive would be refused by the server: ${error.message}`);
+}
 
 const artifact = await sha256Stream(tarPath);
 writeFileSync(`${tarPath}.sha256`, `${artifact}  ${tarName}\n`);
@@ -292,7 +316,7 @@ console.error(
     migrations: migrations.length,
     builtAt: manifest.builtAt,
     node: manifest.node,
-    reproducible: Boolean(gnu),
+    deterministicArchive: Boolean(gnu),
   }),
 );
 console.log(artifact);
