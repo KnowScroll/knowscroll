@@ -79,10 +79,10 @@ export interface ReasoningBusinessRuns {
   created_at: Generated<Timestamp>;
   id: string;
   owner_module: string;
-  privacy_epoch: number | null;
+  privacy_epoch: number;
   purpose: string;
   state: Generated<string>;
-  universe_id: string | null;
+  universe_id: string;
   updated_at: Generated<Timestamp>;
 }
 
@@ -99,7 +99,7 @@ export interface ReasoningExternalAttempts {
   settled_at: Timestamp | null;
   state: Generated<string>;
   step: string;
-  universe_id: string | null;
+  universe_id: string;
 }
 
 export interface ReceiptsPersonalCommands {
