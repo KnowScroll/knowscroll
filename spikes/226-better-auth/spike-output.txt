@@ -1,0 +1,24 @@
+nest_json_route_after_mount: 201 {"echoed":{"a":1}}
+[2m2026-10-19T17:05:01.392Z[0m [33mWARN[0m [1m[Better Auth]:[0m Rate limiting could not determine a client IP and is falling back to a single shared per-path bucket. Ensure your runtime forwards a trusted client IP header, then set `advanced.ipAddress.ipAddressHeaders` or `advanced.ipAddress.trustedProxies` so the address can be resolved.
+sign_in_request: 200 {"status":true}
+verification_row_identifier_is_hash_not_token: true
+verification_row_value_holds_plain_email: {"type":"magic-link","email":"a@example.test"}
+link_points_at: /auth/magic-link/verify
+prefetch_get_status: 302
+prefetch_get_sets_session_cookie: true
+sessions_after_prefetch: 1
+second_use_redirect: http://127.0.0.1:55790/?error=INVALID_TOKEN
+get_session_cookie: a@example.test
+get_session_bearer: a@example.test
+universes_for_account: 1
+[2m2026-10-19T17:05:01.493Z[0m [31mERROR[0m [1m[Better Auth]:[0m Error Error: simulated crash before the universe root
+# SERVER_ERROR:  Error: simulated crash before the universe root
+hook_failure_response: 500 
+hook_failure_left_account_without_universe: true
+concurrent_first_sign_in: ["302 / cookie=true","302 / cookie=true"]
+concurrent_first_sign_in_accounts_universes: [1,1]
+server_api_consume_status_and_cookie: 200 cookie=true
+error_content_type: application/json
+error_body: {"message":"Too many requests. Please try again later."}
+[2m2026-10-19T17:05:01.579Z[0m [31mERROR[0m [1m[Better Auth]:[0m Invalid origin: https://evil.example
+cross_origin_sign_out: 403 {"message":"Invalid origin","code":"INVALID_ORIGIN"}
