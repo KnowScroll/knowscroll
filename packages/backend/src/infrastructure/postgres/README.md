@@ -1,12 +1,12 @@
 # infrastructure/postgres
 
-Owns: the `migrator` schema (`kysely_migration`, `kysely_migration_lock`) and the personal-scope
-lock protocol on `identity.universes` (status, privacy epoch, revision).
+Owns: the `migrator` schema (`kysely_migration`, `kysely_migration_lock`, `migration_checksum`) and the
+personal-scope lock protocol on `identity.universes` (status, privacy epoch, revision).
 
 | Operation | Purpose |
 |---|---|
-| `createDatabase(settings, options)` | One process's pool and Kysely instance. Every connection sets `application_name`, `statement_timeout` and `idle_in_transaction_session_timeout`. `close()` ends the pool once. |
-| `migrateToLatest(db, registry)` | Applies pending migrations from the static registry (`migrations/`) inside Kysely's migration lock. Forward-only; a failure rolls back and names the failed migration; an applied migration missing from the registry fails the run. |
+| `createDatabase(settings, options)` | One process's pool and Kysely instance. Sets `application_name`, `statement_timeout` and `idle_in_transaction_session_timeout` on every connection. `close()` ends the pool once. |
+| `migrateToLatest(db, registry)` | Applies pending migrations from the static registry (`migrations/`) inside Kysely's migration lock, as **one** transaction: a failure rolls back the whole batch (`failed`, nothing applied), so no migration may use non-transactional statements such as `CREATE INDEX CONCURRENTLY`. Forward-only. Refuses text that does not match its recorded SHA-256, an applied migration whose recorded checksum (`migrator.migration_checksum`) differs from the registry, and an applied migration missing from the registry. |
 | `readLatestMigration(db)` | Newest applied migration name, or `none`. Used by `GET /health`. |
 | `makeWithPersonalScope(db, { lockTimeoutMs })` | The only way to obtain a `PersonalScopeTx` (blueprint §19). BEGIN → `SET LOCAL lock_timeout` → `SELECT … FROM identity.universes WHERE id = $1 FOR NO KEY UPDATE` → recheck existence, status, privacy epoch and (account actor) owner and account status **after** waiting → run the work → commit. Refusals are typed (`universe_missing`, `universe_suspended`, `account_mismatch`, `epoch_changed`) and write nothing; a lock wait beyond the timeout throws `ScopeBusyError` (retryable, 503). |
 | `transactionOf(scope)` | The transaction behind an open scope, for adapters only. Throws `ScopeClosedError` once the transaction ended. |

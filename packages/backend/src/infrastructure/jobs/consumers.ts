@@ -20,6 +20,7 @@ export interface JobConsumer<Payload> {
   handle(payload: Payload, delivery: JobDelivery): Promise<void>;
 }
 
+/** Pairs a queue with the use case that handles its jobs (one entry of a worker's registry). */
 export function jobConsumer<Payload>(
   queue: QueueDefinition<Payload>,
   handle: (payload: Payload, delivery: JobDelivery) => Promise<void>,

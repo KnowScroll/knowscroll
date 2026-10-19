@@ -27,6 +27,8 @@ export function createBoss(settings: DatabaseSettings, role: BossRole, diagnosti
     application_name: `${settings.applicationName}-jobs`,
     schema: JOB_SCHEMA,
     max: role === 'consumer' ? Math.max(2, settings.poolMax) : 2,
+    // An unreachable database fails start() instead of hanging it.
+    connectionTimeoutMillis: 10_000,
     migrate: role === 'install',
     createSchema: role === 'install',
     supervise: role === 'consumer',

@@ -13,10 +13,16 @@ import type { LogEvent } from '@knowscroll/backend/infrastructure/observability'
 import { LOG_EVENT } from '../tokens.js';
 import { currentRequest } from './request-context.js';
 
+export interface ProblemData {
+  readonly detail?: string;
+  readonly issues?: ProblemIssue[];
+}
+
 /**
  * The single outcome → HTTP mapping of the API (blueprint §23 pattern 3). Contract handlers
- * raise oRPC errors whose code is a catalogue problem code; everything else that fails is an
- * unexpected error, logged once here and answered with a sanitised `INTERNAL` problem.
+ * raise oRPC errors whose code is a catalogue problem code; oRPC's own codes map to their
+ * problem equivalents (any other 4xx keeps a 4xx meaning); everything else is an unexpected error,
+ * logged once here and answered with a sanitised `INTERNAL` problem.
  */
 export function problem(code: ProblemCode, extras: ProblemData = {}): ORPCError<ProblemCode, ProblemData> {
   return new ORPCError(code, {
@@ -26,14 +32,26 @@ export function problem(code: ProblemCode, extras: ProblemData = {}): ORPCError<
   });
 }
 
-export interface ProblemData {
-  readonly detail?: string;
-  readonly issues?: ProblemIssue[];
-}
-
 function isProblemCode(code: string): code is ProblemCode {
   return Object.hasOwn(problemCatalogue, code);
 }
+
+/** oRPC's standard error codes and the problem each one means here. */
+const orpcCodes: Partial<Record<string, ProblemCode>> = {
+  BAD_REQUEST: 'INVALID_REQUEST',
+  UNAUTHORIZED: 'UNAUTHENTICATED',
+  FORBIDDEN: 'FORBIDDEN',
+  NOT_FOUND: 'NOT_FOUND',
+  METHOD_NOT_SUPPORTED: 'METHOD_NOT_ALLOWED',
+  NOT_ACCEPTABLE: 'INVALID_REQUEST',
+  CONFLICT: 'CONFLICT',
+  PRECONDITION_FAILED: 'CONFLICT',
+  PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
+  UNSUPPORTED_MEDIA_TYPE: 'UNSUPPORTED_MEDIA_TYPE',
+  UNPROCESSABLE_CONTENT: 'UNPROCESSABLE_REQUEST',
+  TOO_MANY_REQUESTS: 'TOO_MANY_REQUESTS',
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+};
 
 /** Converts any oRPC error into problem details. Used as oRPC's error body encoder. */
 export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent: LogEvent): ProblemDetails {
@@ -41,24 +59,33 @@ export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent
     const data = (error.data ?? {}) as ProblemData;
     return finish(problemDetails(error.code, data));
   }
-  switch (error.code) {
-    case 'BAD_REQUEST':
-      return finish(problemDetails('INVALID_REQUEST', { issues: validationIssues(error) }));
-    case 'NOT_FOUND':
-      return finish(problemDetails('NOT_FOUND'));
-    case 'METHOD_NOT_SUPPORTED':
-      return finish(problemDetails('METHOD_NOT_ALLOWED'));
-    case 'PAYLOAD_TOO_LARGE':
-      return finish(problemDetails('PAYLOAD_TOO_LARGE'));
-    case 'UNSUPPORTED_MEDIA_TYPE':
-      return finish(problemDetails('UNSUPPORTED_MEDIA_TYPE'));
-    default:
-      // Personal-scope lock not granted in time: retryable, not a fault.
-      if ((error.cause as { code?: unknown } | undefined)?.code === 'SCOPE_BUSY')
-        return finish(problemDetails('SERVICE_UNAVAILABLE'));
-      logUnexpected(logEvent, error.cause ?? error);
-      return finish(problemDetails('INTERNAL'));
+  if (error.code === 'BAD_REQUEST')
+    return finish(problemDetails('INVALID_REQUEST', { issues: validationIssues(error) }));
+  const mapped =
+    orpcCodes[error.code] ??
+    (error.status >= 400 && error.status < 500 ? (statusCodes[error.status] ?? 'INVALID_REQUEST') : undefined);
+  if (mapped !== undefined) return finish(problemDetails(mapped));
+  // Lock waits, statement timeouts, deadlocks and serialisation failures are retryable, not faults.
+  if (isRetryableDatabaseFailure(error.cause)) return finish(problemDetails('SERVICE_UNAVAILABLE'));
+  logUnexpected(logEvent, error.cause ?? error);
+  return finish(problemDetails('INTERNAL'));
+}
+
+/**
+ * PostgreSQL and personal-scope failures a client may simply retry: `SCOPE_BUSY` (personal-scope
+ * lock not granted in time), `55P03` lock_not_available, `57014` query_canceled (statement
+ * timeout), `40P01` deadlock_detected, `40001` serialization_failure. Searched through the cause
+ * chain, because drivers and Kysely wrap errors.
+ */
+export function isRetryableDatabaseFailure(error: unknown): boolean {
+  const retryable = new Set(['SCOPE_BUSY', '55P03', '57014', '40P01', '40001']);
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current !== null && typeof current === 'object'; depth += 1) {
+    const code: unknown = (current as { code?: unknown }).code;
+    if (typeof code === 'string' && retryable.has(code)) return true;
+    current = (current as { cause?: unknown }).cause;
   }
+  return false;
 }
 
 /** Stable issue locations from an oRPC input validation failure; never the rejected values. */
@@ -129,6 +156,9 @@ const statusCodes: Partial<Record<number, ProblemCode>> = {
   403: 'FORBIDDEN',
   404: 'NOT_FOUND',
   405: 'METHOD_NOT_ALLOWED',
+  409: 'CONFLICT',
+  422: 'UNPROCESSABLE_REQUEST',
+  429: 'TOO_MANY_REQUESTS',
   413: 'PAYLOAD_TOO_LARGE',
   415: 'UNSUPPORTED_MEDIA_TYPE',
   503: 'SERVICE_UNAVAILABLE',

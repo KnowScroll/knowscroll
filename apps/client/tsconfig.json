@@ -5,7 +5,8 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true,
-    "types": ["jest"]
+    "types": ["jest"],
+    "customConditions": ["@knowscroll/source"]
   },
   "include": ["app", "features", "theme", "assets.d.ts"]
 }

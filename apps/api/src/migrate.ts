@@ -1,4 +1,9 @@
-import { ConfigurationError, readMigrateConfig, worldForDiagnostics } from '@knowscroll/backend/infrastructure/config';
+import {
+  ConfigurationError,
+  commitForDiagnostics,
+  readMigrateConfig,
+  worldForDiagnostics,
+} from '@knowscroll/backend/infrastructure/config';
 import { applyQueueDeclarations, createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { createEventLog } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, migrateToLatest } from '@knowscroll/backend/infrastructure/postgres';
@@ -15,7 +20,7 @@ async function main(): Promise<number> {
   const logEvent = createEventLog({
     service: 'migrate',
     environment: worldForDiagnostics(process.env),
-    revision: 'unknown',
+    revision: commitForDiagnostics(process.env),
   });
   let config;
   try {
@@ -33,6 +38,10 @@ async function main(): Promise<number> {
     const migrations = loadMigrations();
     logEvent('migrate.started', { count: migrations.length });
     const outcome = await migrateToLatest(database.db, migrations);
+    if (outcome.kind === 'refused') {
+      logEvent('migrate.failed', { migration: outcome.migration, reasonCode: outcome.reason });
+      return 1;
+    }
     if (outcome.kind === 'failed') {
       logEvent('migrate.failed', {
         ...(outcome.failedMigration === undefined ? {} : { migration: outcome.failedMigration }),
@@ -44,8 +53,8 @@ async function main(): Promise<number> {
       onError: (error) => logEvent('jobs.error', { error }),
       onWarning: (reasonCode) => logEvent('jobs.warning', { reasonCode }),
     });
-    await boss.start();
     try {
+      await boss.start();
       await applyQueueDeclarations(boss, declaredQueues);
     } finally {
       await boss.stop({ graceful: false });

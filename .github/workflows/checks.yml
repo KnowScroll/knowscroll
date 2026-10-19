@@ -2,6 +2,12 @@
 # contract: deploy.yml and scripts/promote.sh wait for a successful `checks.yml` run on the exact
 # commit before deploying or promoting it.
 #
+# Release artifact contract (#228, docs/v2/operations/environments.md): when this workflow builds
+# the v2 release, it builds it for $GITHUB_SHA (`build.mjs --commit "$GITHUB_SHA"`), never a PR head
+# SHA, and uploads it as the artifact `release-$GITHUB_SHA` holding exactly
+# `release-$GITHUB_SHA.tar` and `release-$GITHUB_SHA.tar.sha256` at its root. deploy.yml takes it
+# only from successful runs triggered by a push in this repository.
+#
 # Jobs: `integrity` (main-update hook, vendored design and Cutroom snapshots), `static` (format,
 # lint, typecheck, import boundaries, unused code, migration lint), `backend` (unit tests and
 # real-PostgreSQL integration tests), `build` (production builds, the `pnpm deploy` release
@@ -22,6 +28,8 @@ jobs:
           node-version: 22.23.0
       - name: Main-update hook refuses what it must and allows what it may
         run: node --test .claude/hooks/refuse-main-update.test.mjs
+      - name: Server deploy tool decisions (ks plan, release tree and backup script tests)
+        run: node --test ops/vps/tool/plan.test.ts ops/vps/tool/tree.test.ts ops/vps/backup/scripts.test.ts
       - name: v2.1 design export matches its recorded SHA-256 list
         working-directory: docs/v2/design/KnowScroll-design-v2.1
         run: |
@@ -68,10 +76,16 @@ jobs:
         run: pnpm typecheck
       - name: Import boundaries (dependency-cruiser)
         run: pnpm boundaries
+      - name: Import boundary rules reject the forbidden probe imports
+        run: pnpm boundaries:probe
+      - name: Workspace imports in production code are declared dependencies
+        run: pnpm boundaries:manifests
       - name: Unused files, exports and dependencies (knip)
         run: pnpm knip
       - name: Migration hazards (squawk)
-        run: pnpm --filter @knowscroll/migrations lint:sql
+        run: |
+          pnpm --filter @knowscroll/migrations exec squawk --version
+          pnpm --filter @knowscroll/migrations lint:sql
 
   backend:
     runs-on: ubuntu-latest
@@ -142,11 +156,12 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build packages, API and worker (nest build)
         run: pnpm --filter '!@knowscroll/client' --filter '!@knowscroll/integration-tests' build
-      - name: Deploy release trees (pnpm deploy --prod --legacy)
+      - name: Deploy release trees (pnpm deploy --prod, from the lockfile)
         run: |
           release="$RUNNER_TEMP/release"
-          pnpm --filter @knowscroll/api deploy --prod --legacy "$release/api"
-          pnpm --filter @knowscroll/worker deploy --prod --legacy "$release/worker"
+          # Injected workspace packages make pnpm deploy install from the shared lockfile (D-014).
+          pnpm --config.inject-workspace-packages=true --filter @knowscroll/api deploy --prod "$release/api"
+          pnpm --config.inject-workspace-packages=true --filter @knowscroll/worker deploy --prod "$release/worker"
           for path in api/package.json api/dist/main.js api/dist/migrate.js api/node_modules worker/package.json worker/dist/main.js worker/node_modules; do
             test -e "$release/$path" || { echo "missing $path in the release tree"; exit 1; }
           done

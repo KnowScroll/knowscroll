@@ -9,7 +9,7 @@ print them.
 
 | Variable | Production | Development/test default | Meaning |
 |---|---|---|---|
-| `NODE_ENV` | `production` | `development` | `test` enables test-only adapters where a feature defines one |
+| `NODE_ENV` | `production` | `development` | `test` is required (with `KS_WORLD` `ci` or `local`) by any test-only adapter; production refuses them all |
 | `KS_WORLD` | required, `^[a-z][a-z0-9-]{0,31}$` | `local` | world name reported by `/health` and in every diagnostic record |
 | `KS_COMMIT` | required, 40 lowercase hex | `unknown` | commit the release was built from |
 | `KS_ARTIFACT_SHA256` | required, 64 lowercase hex | `unknown` | SHA-256 of the release artifact, reported by `/health` |

@@ -1,0 +1,190 @@
+# v2 in the existing dev and stage worlds (#228, D-004, docs/v2/operations/environments.md).
+# Adds, per world in ks_v2_worlds: a database and role of its own, a root-only database secret
+# generated on the server, a non-secret settings file, a media folder, and the ks2-* units. Nothing
+# here touches a v1 database, role, env file, media folder or unit, and nothing is started or
+# enabled: `ks deploy` enables ks2-world@<world>.target when it deploys a v2 release to the world.
+
+- name: V2 is only for dev and stage (live is owner-only)
+  ansible.builtin.assert:
+    that: ks_v2_worlds | difference(['dev', 'stage']) | length == 0
+    fail_msg: ks_v2_worlds may name only dev and stage; live stays untouched.
+    quiet: true
+
+- name: The v2 worlds, with their v1 settings (port, host, OOM score)
+  ansible.builtin.set_fact:
+    ks_v2_world_list: "{{ ks_worlds | selectattr('name', 'in', ks_v2_worlds) | list }}"
+
+- name: V2 secret folders (root only)
+  ansible.builtin.file:
+    path: /etc/knowscroll/secrets/v2-{{ item.name }}
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop: "{{ ks_v2_world_list }}"
+  loop_control:
+    label: v2-{{ item.name }}
+
+# Generated on the server once and never sent anywhere; Ansible reads it only with no_log.
+- name: V2 database passwords exist
+  ansible.builtin.shell: |
+    set -eu
+    umask 077
+    f=/etc/knowscroll/secrets/v2-{{ item.name }}/db_password
+    [ -s "$f" ] || { openssl rand -hex 24 > "$f"; echo created; }
+  loop: "{{ ks_v2_world_list }}"
+  loop_control:
+    label: v2-{{ item.name }}
+  register: ks_v2_secrets
+  changed_when: "'created' in ks_v2_secrets.stdout"
+
+- name: Read v2 database passwords
+  ansible.builtin.slurp:
+    src: /etc/knowscroll/secrets/v2-{{ item.name }}/db_password
+  loop: "{{ ks_v2_world_list }}"
+  loop_control:
+    label: v2-{{ item.name }}
+  register: ks_v2_db_passwords
+  no_log: true
+  when: not ansible_check_mode
+
+# Skipped in a preview: in check mode this module runs CREATE ROLE and rolls it back, which is not
+# read-only (the v1 role task is skipped the same way).
+- name: V2 database roles (no superuser, no createdb, no createrole; bounded connections)
+  community.postgresql.postgresql_user:
+    name: ks2_{{ item.name }}
+    password: "{{ ks_v2_db_passwords.results[ks_index].content | b64decode | trim }}"
+    role_attr_flags: LOGIN,NOSUPERUSER,NOCREATEDB,NOCREATEROLE
+    conn_limit: "{{ ks_v2_db_conn_limit }}"
+  loop: "{{ ks_v2_world_list }}"
+  loop_control:
+    index_var: ks_index
+    label: ks2_{{ item.name }}
+  become: true
+  become_user: postgres
+  no_log: true
+  when: not ansible_check_mode
+
+# In a preview this only reads pg_database and reports whether the database would be created.
+- name: V2 databases, each owned by its world's v2 role (pg-boss creates its schema there)
+  ignore_errors: "{{ ansible_check_mode }}"  # the role does not exist in a preview
+  community.postgresql.postgresql_db:
+    name: knowscroll_v2_{{ item.name }}
+    owner: ks2_{{ item.name }}
+    encoding: UTF8
+  loop: "{{ ks_v2_world_list }}"
+  loop_control:
+    label: knowscroll_v2_{{ item.name }}
+  become: true
+  become_user: postgres
+
+- name: Only a world's own v2 role may connect to its v2 database; its queries are bounded
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      REVOKE CONNECT ON DATABASE knowscroll_v2_{{ item.name }} FROM PUBLIC;
+      GRANT CONNECT ON DATABASE knowscroll_v2_{{ item.name }} TO ks2_{{ item.name }};
+      ALTER ROLE ks2_{{ item.name }} SET statement_timeout = '30s';
+  loop: "{{ ks_v2_world_list }}"
+  loop_control:
+    label: knowscroll_v2_{{ item.name }}
+  become: true
+  become_user: postgres
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: V2 database secret, assembled on the server (root only; values never reach Ansible output)
+  ansible.builtin.shell: |
+    set -eu
+    umask 077
+    d=/etc/knowscroll/secrets/v2-{{ item.name }}
+    f=$d/database.env
+    tmp=$(mktemp "$d/.database.env.XXXXXX")
+    {
+      echo "# Managed by ops/vps/ansible (#228). Root only; systemd and ks read it for the v2 units."
+      echo "DATABASE_URL=postgresql://ks2_{{ item.name }}:$(cat $d/db_password)@127.0.0.1:5432/knowscroll_v2_{{ item.name }}"
+    } > "$tmp"
+    chmod 0600 "$tmp"
+    if cmp -s "$tmp" "$f"; then rm -f "$tmp"; echo KS_SAME; else mv "$tmp" "$f"; echo KS_UPDATED; fi
+  loop: "{{ ks_v2_world_list }}"
+  loop_control:
+    label: v2-{{ item.name }}
+  register: ks_v2_envs
+  changed_when: "'KS_UPDATED' in ks_v2_envs.stdout"
+  no_log: true
+  when: not ansible_check_mode
+
+- name: V2 settings (no secrets; the world's user may read them)
+  ignore_errors: "{{ ansible_check_mode }}"  # a preview may not know the group yet
+  ansible.builtin.copy:
+    dest: /etc/knowscroll/{{ item.name }}.v2.env
+    owner: root
+    group: ks-{{ item.name }}
+    mode: "0640"
+    content: |
+      # KnowScroll v2 settings for world {{ item.name }} — managed by ops/vps/ansible (#228).
+      # No secrets here: DATABASE_URL is in /etc/knowscroll/secrets/v2-{{ item.name }}/database.env.
+      KS_WORLD={{ item.name }}
+      PORT={{ item.port }}
+      NODE_ENV=production
+      KS_MEDIA_ROOT=/srv/knowscroll/{{ item.name }}/media-v2
+      KS_PUBLIC_ORIGIN=https://{{ item.app_host }}
+  loop: "{{ ks_v2_world_list }}"
+  loop_control:
+    label: "{{ item.name }}.v2.env"
+
+- name: V2 media folders (KS_MEDIA_ROOT), private to the world; v1 media is left alone
+  ignore_errors: "{{ ansible_check_mode }}"
+  ansible.builtin.file:
+    path: /srv/knowscroll/{{ item.name }}/media-v2
+    state: directory
+    owner: ks-{{ item.name }}
+    group: ks-{{ item.name }}
+    mode: "0750"
+  loop: "{{ ks_v2_world_list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Tool folder
+  ansible.builtin.file:
+    path: /usr/local/lib/knowscroll-ops
+    state: directory
+    mode: "0755"
+
+- name: The v2 program launcher (runs what a release's release.json names)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../tool/ks2-run.sh"
+    dest: /usr/local/lib/knowscroll-ops/ks2-run
+    mode: "0755"
+
+- name: V2 units (the instance name is the world; installed, not enabled)
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop:
+    - ks2-api@.service
+    - ks2-worker@.service
+    - ks2-world@.target
+  notify: Reload systemd for v2
+
+- name: Drop-in folders for each world's v2 services
+  ansible.builtin.file:
+    path: /etc/systemd/system/ks2-{{ item.1 }}@{{ item.0.name }}.service.d
+    state: directory
+    mode: "0755"
+  loop: "{{ ks_v2_world_list | product(ks_v2_services | list) | list }}"
+  loop_control:
+    label: ks2-{{ item.1 }}@{{ item.0.name }}
+
+- name: Under memory pressure v2 dies in the same order as v1 (dev first, never Postgres)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/ks2-{{ item.1 }}@{{ item.0.name }}.service.d/oom.conf
+    mode: "0644"
+    content: |
+      [Service]
+      OOMScoreAdjust={{ item.0.oom_score_adjust }}
+  loop: "{{ ks_v2_world_list | product(ks_v2_services | list) | list }}"
+  loop_control:
+    label: ks2-{{ item.1 }}@{{ item.0.name }}
+  notify: Reload systemd for v2

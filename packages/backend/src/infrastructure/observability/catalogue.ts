@@ -65,6 +65,7 @@ export const diagnosticCatalogue = {
   'process.stopped': { severity: 'info', module: 'process', fields: ['durationMs', 'outcome'] },
   'process.start_failed': { severity: 'fatal', module: 'process', fields: ['reasonCode', 'error'] },
   'process.stop_failed': { severity: 'error', module: 'process', fields: ['reasonCode', 'error'] },
+  'process.crashed': { severity: 'fatal', module: 'process', fields: ['reasonCode', 'error'] },
   'config.invalid': { severity: 'fatal', module: 'config', fields: ['problems'] },
   'framework.message': {
     severity: 'by-call',
@@ -74,7 +75,7 @@ export const diagnosticCatalogue = {
   'http.request_completed': {
     severity: 'info',
     module: 'http',
-    fields: ['requestId', 'method', 'route', 'status', 'durationMs', 'reasonCode'],
+    fields: ['requestId', 'method', 'route', 'status', 'durationMs', 'outcome', 'reasonCode'],
   },
   'http.unexpected_error': { severity: 'error', module: 'http', fields: ['requestId', 'method', 'route', 'error'] },
   'database.idle_client_error': { severity: 'error', module: 'postgres', fields: ['error'] },
@@ -100,7 +101,7 @@ export const diagnosticCatalogue = {
   },
   'migrate.started': { severity: 'info', module: 'migrate', fields: ['count'] },
   'migrate.completed': { severity: 'info', module: 'migrate', fields: ['count', 'migration', 'durationMs'] },
-  'migrate.failed': { severity: 'fatal', module: 'migrate', fields: ['migration', 'error'] },
+  'migrate.failed': { severity: 'fatal', module: 'migrate', fields: ['migration', 'reasonCode', 'error'] },
 } as const satisfies Record<string, EventSpec>;
 
 export type DiagnosticEvent = keyof typeof diagnosticCatalogue;

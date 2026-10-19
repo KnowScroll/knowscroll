@@ -20,15 +20,19 @@ export function currentRequest(): RequestContext | undefined {
 }
 
 /**
- * Express middleware: assigns the request ID, and logs `http.request_completed` with the route
- * template (never the raw URL), status, duration and problem code once the response finishes.
+ * Express middleware: assigns the request ID, and logs `http.request_completed` exactly once with
+ * the route template (never the raw URL), status, duration and problem code when the response
+ * finishes, or with `outcome: client_aborted` when the client disconnects first.
  */
 export function requestContextMiddleware(logEvent: LogEvent) {
   return (request: Request, response: Response, next: NextFunction): void => {
     const context: RequestContext = { requestId: randomUUID() };
     const startedAt = performance.now();
     response.setHeader('x-request-id', context.requestId);
-    response.on('finish', () => {
+    let logged = false;
+    const complete = (aborted: boolean): void => {
+      if (logged) return;
+      logged = true;
       const route: unknown = (request.route as { path?: unknown } | undefined)?.path;
       logEvent('http.request_completed', {
         requestId: context.requestId,
@@ -36,9 +40,13 @@ export function requestContextMiddleware(logEvent: LogEvent) {
         route: typeof route === 'string' ? route : 'unmatched',
         status: response.statusCode,
         durationMs: Math.round(performance.now() - startedAt),
+        // A client that disconnects before the response finished is recorded once as aborted.
+        ...(aborted ? { outcome: 'client_aborted' } : {}),
         ...(context.problemCode === undefined ? {} : { reasonCode: context.problemCode }),
       });
-    });
+    };
+    response.once('finish', () => complete(false));
+    response.once('close', () => complete(!response.writableFinished));
     storage.run(context, next);
   };
 }

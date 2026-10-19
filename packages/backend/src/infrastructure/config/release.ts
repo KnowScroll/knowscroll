@@ -4,7 +4,9 @@ import {
   NodeEnvSchema,
   Sha256Schema,
   WorldSchema,
-  parseEnvironment,
+  checkEnvironment,
+  combineChecks,
+  type Checked,
   type Environment,
   type NodeEnv,
 } from './environment.js';
@@ -35,24 +37,48 @@ const nonProductionSchema = z.object({
   KS_ARTIFACT_SHA256: Sha256Schema.or(z.literal('unknown')).default('unknown'),
 });
 
-/** Reads `NODE_ENV`, `KS_WORLD`, `KS_COMMIT` and `KS_ARTIFACT_SHA256`. Throws `ConfigurationError`. */
-export function readReleaseIdentity(env: Environment): ReleaseIdentity {
+/**
+ * Checks `NODE_ENV`, `KS_WORLD`, `KS_COMMIT` and `KS_ARTIFACT_SHA256`, returning every problem
+ * (so a process can report them together with its own variables' problems).
+ */
+export function checkReleaseIdentity(env: Environment): Checked<ReleaseIdentity> {
   const variables = {
     NODE_ENV: env['NODE_ENV'],
     KS_WORLD: env['KS_WORLD'],
     KS_COMMIT: env['KS_COMMIT'],
     KS_ARTIFACT_SHA256: env['KS_ARTIFACT_SHA256'],
   };
-  const nodeEnv = parseEnvironment(z.object({ NODE_ENV: NodeEnvSchema.default('development') }), variables).NODE_ENV;
+  const nodeEnv = checkEnvironment(z.object({ NODE_ENV: NodeEnvSchema.default('development') }), variables);
+  if (!nodeEnv.ok) return nodeEnv;
   const parsed =
-    nodeEnv === 'production'
-      ? parseEnvironment(productionSchema, variables)
-      : parseEnvironment(nonProductionSchema, variables);
-  return { nodeEnv, world: parsed.KS_WORLD, commit: parsed.KS_COMMIT, artifactSha256: parsed.KS_ARTIFACT_SHA256 };
+    nodeEnv.value.NODE_ENV === 'production'
+      ? checkEnvironment(productionSchema, variables)
+      : checkEnvironment(nonProductionSchema, variables);
+  if (!parsed.ok) return parsed;
+  return {
+    ok: true,
+    value: {
+      nodeEnv: nodeEnv.value.NODE_ENV,
+      world: parsed.value.KS_WORLD,
+      commit: parsed.value.KS_COMMIT,
+      artifactSha256: parsed.value.KS_ARTIFACT_SHA256,
+    },
+  };
+}
+
+/** Reads the release identity. Throws one `ConfigurationError` listing every problem. */
+export function readReleaseIdentity(env: Environment): ReleaseIdentity {
+  return combineChecks(checkReleaseIdentity(env))[0];
 }
 
 /** The world name for diagnostics before full validation: the validated `KS_WORLD` or `unknown`. */
 export function worldForDiagnostics(env: Environment): string {
   const result = WorldSchema.safeParse(env['KS_WORLD']);
+  return result.success ? result.data : 'unknown';
+}
+
+/** The commit for diagnostics before full validation: the validated `KS_COMMIT` or `unknown`. */
+export function commitForDiagnostics(env: Environment): string {
+  const result = CommitSchema.safeParse(env['KS_COMMIT']);
   return result.success ? result.data : 'unknown';
 }
