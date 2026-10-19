@@ -1,80 +1,119 @@
 /**
  * Validation cost (review of #254, M1). A renderer parses each block on the device and the server
- * validates every stored revision, so the worst valid inputs must stay cheap: every simulation is
- * proven over its whole grid (at most 10,000 points), so a worst-case simulation is the largest
- * grid, six outputs, twelve constants and a plot. Timings are medians after warm-up, measured on
- * the CI runner.
+ * validates every stored revision, so the worst valid inputs must stay cheap. Every simulation is
+ * proven over its whole grid (at most 10,000 points), so the worst simulation is the largest grid
+ * with six outputs that all depend on every parameter, five of them fractional powers (the
+ * costliest formula: `Math.pow` with a non-integer exponent), twelve constants and a cards view
+ * (whose bars are checked for negatives at every point).
+ *
+ * Timings are medians, after warm-up, of the CPU time of the test process (`process.cpuUsage`):
+ * the CI runner shares its cores with the other packages' test suites, so wall-clock time there
+ * measures the wait for a core as much as the work. Both are printed as the CI record.
  */
 import { describe, expect, it } from 'vitest';
-import { LIMITS, parseBlock, validateDocument, type Block, type SimulationData } from './index.js';
+import {
+  LIMITS,
+  parseBlock,
+  simulationGridPoints,
+  validateDocument,
+  type Block,
+  type SimulationData,
+} from './index.js';
 import { make, seal } from './test-support/arbitraries.js';
 
 const format = { decimals: 0, grouping: false, approximate: false };
 const letters = 'abcdefghijklmnopqrstuvwxyz';
 
-/** 625 × 2 × 2 × 4 = 10,000 grid points, six outputs, twelve constants, a plot over 625 values. */
+/** 625 × 2 × 2 × 4 = 10,000 grid points; every output depends on all four parameters. */
 function worstSimulation(id: string): Block {
   const param = (key: string, max: number) => ({
     key,
     label: `Dial ${key}`,
-    min: 0,
+    min: 1,
     max,
     step: 1,
-    default: 0,
+    default: 1,
     control: 'slider' as const,
     format,
   });
+  const power = (key: string, exponent: number) => ({
+    key,
+    label: 'Power',
+    formula: { kind: 'power' as const, x: 'all', base: 'ka', exponent, scale: 'kb' },
+    format,
+  });
+  const outputs = [
+    { key: 'all', label: 'Product', formula: { kind: 'product' as const, factors: ['a', 'b', 'c', 'd'] }, format },
+    power('pa', 1.37),
+    power('pb', 0.75),
+    power('pc', -0.37),
+    power('pd', 2.5),
+    power('pe', 3.21),
+  ];
   const data: SimulationData = {
     title: 'The heaviest simulation',
-    params: [param('a', 624), param('b', 1), param('c', 1), param('d', 3)],
+    params: [param('a', 625), param('b', 2), param('c', 2), param('d', 4)],
     constants: Array.from({ length: 12 }, (_, index) => ({
       key: `k${letters.charAt(index)}`,
       label: 'A constant',
       value: 1.5,
     })),
-    outputs: [
-      { key: 'oa', label: 'Product', formula: { kind: 'product', factors: ['a', 'b', 'c', 'ka'] }, format },
-      { key: 'ob', label: 'Line', formula: { kind: 'linear', x: 'a', a: 'kb', b: 'kc' }, format },
-      { key: 'oc', label: 'Power', formula: { kind: 'power', x: 'ob', base: 'kd', exponent: 2, scale: 'ke' }, format },
-      { key: 'od', label: 'Growth', formula: { kind: 'exponential', x: 'd', rate: 'kf', initial: 'kg' }, format },
-      { key: 'oe', label: 'Pull', formula: { kind: 'inverse-square', r: 'ob', k: 'kh' }, format },
-      {
-        key: 'of',
-        label: 'Table',
-        formula: {
-          kind: 'lookup',
-          input: 'a',
-          mode: 'interpolate',
-          table: Array.from({ length: 12 }, (_, index) => ({ at: index * 50, value: 'ki' })),
-        },
-        format,
-      },
-    ],
-    view: { kind: 'plot', x: 'a', y: 'oc', yLabel: 'Curve' },
-    readout: { template: 'The curve is {oc}', bands: [{ output: 'oc', min: 1, text: 'Above one.' }] },
+    outputs,
+    view: {
+      kind: 'cards',
+      items: outputs.map((output, index) => ({
+        id: `card-${letters.charAt(index)}`,
+        label: 'Card',
+        output: output.key,
+      })),
+    },
+    readout: { template: 'The product is {all}', bands: [{ output: 'pa', min: 1, text: 'Above one.' }] },
     modelNote: 'The heaviest simulation the limits allow.',
     illustrative: { notice: 'Illustrative' },
   };
   return { ...make('simulation', data), id, a11y: { label: 'Heaviest', description: 'D'.repeat(599).concat('.') } };
 }
 
-function median(run: () => unknown, times: number): number {
-  for (let warm = 0; warm < 3; warm += 1) run();
-  const samples: number[] = [];
-  for (let index = 0; index < times; index += 1) {
-    const started = performance.now();
-    run();
-    samples.push(performance.now() - started);
-  }
+interface Cost {
+  readonly cpu: number;
+  readonly wall: number;
+}
+
+function median(samples: number[]): number {
   samples.sort((a, b) => a - b);
   return samples[Math.floor(samples.length / 2)] ?? Number.POSITIVE_INFINITY;
+}
+
+/** Median CPU and wall-clock milliseconds of `run`, after warm-up. */
+function measure(run: () => unknown, times: number): Cost {
+  for (let warm = 0; warm < 3; warm += 1) run();
+  const cpu: number[] = [];
+  const wall: number[] = [];
+  for (let index = 0; index < times; index += 1) {
+    const cpuStarted = process.cpuUsage();
+    const started = performance.now();
+    run();
+    wall.push(performance.now() - started);
+    const used = process.cpuUsage(cpuStarted);
+    cpu.push((used.user + used.system) / 1000);
+  }
+  return { cpu: median(cpu), wall: median(wall) };
+}
+
+function record(label: string, cost: Cost): void {
+  // eslint-disable-next-line no-console -- the measured cost is the CI record M1 asks for
+  console.info(`${label}: median CPU ${cost.cpu.toFixed(2)} ms, wall ${cost.wall.toFixed(2)} ms`);
 }
 
 describe('validation cost (M1)', () => {
   it('parses and proves a worst-case simulation block in under 5 ms', () => {
     const block = worstSimulation('heaviest');
+    if (block.type !== 'simulation') throw new Error('not a simulation');
+    expect(simulationGridPoints(block.data)).toBe(LIMITS.simulationGridPoints);
     expect(parseBlock(block).kind).toBe('block');
-    expect(median(() => parseBlock(structuredClone(block)), 9)).toBeLessThan(5);
+    const cost = measure(() => parseBlock(structuredClone(block)), 15);
+    record('worst-case simulation parseBlock', cost);
+    expect(cost.cpu).toBeLessThan(5);
   });
 
   it('validates a worst-case stored document in under 200 ms', () => {
@@ -121,6 +160,8 @@ describe('validation cost (M1)', () => {
     const document = seal(sections);
     const outcome = validateDocument(document);
     expect(outcome.kind, JSON.stringify(outcome.kind === 'invalid' ? outcome.issues.slice(0, 5) : [])).toBe('valid');
-    expect(median(() => validateDocument(structuredClone(document)), 5)).toBeLessThan(200);
+    const cost = measure(() => validateDocument(structuredClone(document)), 7);
+    record('worst-case document validateDocument', cost);
+    expect(cost.cpu).toBeLessThan(200);
   });
 });

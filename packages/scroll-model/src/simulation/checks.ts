@@ -2,14 +2,7 @@ import type { SimulationData } from '../blocks/simulation.js';
 import { templateKeys } from '../blocks/simulation.js';
 import type { Issue, ReasonCode } from '../issues.js';
 import { FIELD_LIMITS, LIMITS } from '../limits.js';
-import {
-  compileSimulation,
-  forEachGridPoint,
-  formulaReferences,
-  gridPositions,
-  isOnGrid,
-  simulationGridPoints,
-} from './evaluate.js';
+import { formulaReferences, gridPositions, isOnGrid, simulationGridPoints, sweepGrid } from './evaluate.js';
 
 type CheckedSimulation = Pick<SimulationData, 'params' | 'constants' | 'outputs' | 'view' | 'readout'>;
 
@@ -87,30 +80,29 @@ export function simulationIssues(data: CheckedSimulation, path: string): Issue[]
   return [...codes].map((code) => ({ code, path }));
 }
 
-/** Evaluates the whole grid (and every plot sample); stops at the first failure. */
+/**
+ * Evaluates the whole grid (plot samples are grid values). Reports `sim_output_not_finite` when
+ * any output is non-finite or beyond ±1e15 at any point, and `sim_view_out_of_range` when any bar
+ * or area is negative at any point; the result does not depend on the order of the sweep.
+ */
 function gridIssues(data: CheckedSimulation): ReasonCode[] {
-  const compiled = compileSimulation(data);
   const view = data.view;
-  const outputPosition = (key: string) => data.outputs.findIndex((output) => output.key === key);
+  const positionOf = (key: string) => data.outputs.findIndex((output) => output.key === key);
   const nonNegative =
     view.kind === 'cards'
-      ? view.items.map((item) => compiled.outputSlots[outputPosition(item.output)] ?? -1)
+      ? view.items.map((item) => positionOf(item.output))
       : view.kind === 'area'
-        ? [compiled.outputSlots[outputPosition(view.area)] ?? -1]
+        ? [positionOf(view.area)]
         : [];
-  let failure: ReasonCode | null = null;
-  forEachGridPoint(data, (state) => {
-    if (!state.finite) {
-      failure = 'sim_output_not_finite';
-      return false;
-    }
-    for (const slot of nonNegative) {
-      if ((state.slots[slot] ?? -1) < 0) {
-        failure = 'sim_view_out_of_range';
-        return false;
-      }
-    }
-    return true;
+  let notFinite = false;
+  let negative = false;
+  sweepGrid(data, (row) => {
+    if (!row.finite) notFinite = true;
+    if (!negative && nonNegative.some((position) => row.lowest(position) < 0)) negative = true;
+    return !(notFinite && negative);
   });
-  return failure === null ? [] : [failure];
+  const codes: ReasonCode[] = [];
+  if (notFinite) codes.push('sim_output_not_finite');
+  if (negative) codes.push('sim_view_out_of_range');
+  return codes;
 }

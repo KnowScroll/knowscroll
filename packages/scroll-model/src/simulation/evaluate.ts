@@ -11,115 +11,163 @@ import { templateKeys } from '../blocks/simulation.js';
 import { FIELD_LIMITS, LIMITS } from '../limits.js';
 
 /**
- * Pure, bounded and deterministic evaluation of a simulation (what the renderer calls). A
- * simulation is compiled once into closures over a `Float64Array` of slots (parameters, constants,
- * outputs), so evaluating a point allocates nothing; every formula kind runs in constant time
- * (lookup: at most 12 entries), a simulation has at most six outputs, its grid at most 10,000
- * points and a curve at most 200 samples. A non-finite result, or one beyond ±1e15, becomes `null`
- * and renders as "—"; evaluation never throws.
+ * Pure, bounded and deterministic evaluation of a simulation (what the renderer calls, and what
+ * the full-grid proof runs). Every key and literal has a cell in one `Float64Array`; a key that
+ * varies along the current row (a parameter laid out along the row, or an output depending on
+ * one) has `length` consecutive cells. Each formula is compiled once into a kernel that fills its
+ * output's cells in one tight loop, reading each operand at `offset + i·stride` (stride 0 for a
+ * cell that is the same all along the row). The same kernels evaluate a single point (`length`
+ * 1), a curve (a row of x values) and the full grid (rows of the largest grids), so the proof
+ * checks exactly the arithmetic the renderer runs. Every formula kind runs in constant time per
+ * value (lookup: at most 12 entries), a simulation has at most six outputs and its grid at most
+ * 10,000 points. A non-finite result, or one beyond ±1e15, becomes `null` and renders as "—";
+ * evaluation never throws.
  */
 
-type Slots = Float64Array;
-type Run = (slots: Slots) => number;
+/** Where a value lives: `cells[offset + i·stride]` for the i-th value along the row. */
+interface Cell {
+  readonly offset: number;
+  readonly stride: 0 | 1;
+}
 
-/**
- * Resolves an operand to a slot: a key's slot, a slot holding the literal, or the shared NaN slot
- * for an unknown key. Every operand is then one typed-array read, with no call per operand.
- */
-type SlotOf = (operand: Operand) => number;
+/** A cell that is never written: reads of a missing operand land here (only for invalid data). */
+const NAN_CELL: Cell = { offset: -1, stride: 0 };
 
-function compileFormula(formula: Formula, slot: SlotOf): Run {
+/** Fills an output's cells (`length` of them when it varies along the row, else 1). */
+type Kernel = (cells: Float64Array, length: number) => void;
+
+/** Resolves an operand to its cell: a key's cell, a literal's own cell or the NaN cell. */
+type CellOf = (operand: Operand) => Cell;
+
+function compileKernel(formula: Formula, cell: CellOf, out: number): Kernel {
   switch (formula.kind) {
     case 'linear': {
-      const [x, a, b] = [slot(formula.x), slot(formula.a), slot(formula.b)];
-      return (s) => s[a]! * s[x]! + s[b]!;
+      const { offset: xo, stride: xs } = cell(formula.x);
+      const { offset: ao, stride: as_ } = cell(formula.a);
+      const { offset: bo, stride: bs } = cell(formula.b);
+      return (c, n) => {
+        for (let i = 0; i < n; i += 1) c[out + i] = c[ao + i * as_]! * c[xo + i * xs]! + c[bo + i * bs]!;
+      };
     }
     case 'product': {
-      const factors = formula.factors.map(slot);
-      const [f0 = 0, f1 = 0, f2, f3] = factors;
-      if (f2 === undefined) return (s) => s[f0]! * s[f1]!;
-      if (f3 === undefined) return (s) => s[f0]! * s[f1]! * s[f2]!;
-      return (s) => s[f0]! * s[f1]! * s[f2]! * s[f3]!;
+      const factors = formula.factors.map(cell);
+      const [{ offset: fo, stride: fs } = NAN_CELL, { offset: go, stride: gs } = NAN_CELL] = factors;
+      const third = factors[2];
+      const fourth = factors[3];
+      if (third === undefined) {
+        return (c, n) => {
+          for (let i = 0; i < n; i += 1) c[out + i] = c[fo + i * fs]! * c[go + i * gs]!;
+        };
+      }
+      const { offset: ho, stride: hs } = third;
+      if (fourth === undefined) {
+        return (c, n) => {
+          for (let i = 0; i < n; i += 1) c[out + i] = c[fo + i * fs]! * c[go + i * gs]! * c[ho + i * hs]!;
+        };
+      }
+      const { offset: jo, stride: js } = fourth;
+      return (c, n) => {
+        for (let i = 0; i < n; i += 1)
+          c[out + i] = c[fo + i * fs]! * c[go + i * gs]! * c[ho + i * hs]! * c[jo + i * js]!;
+      };
     }
     case 'ratio': {
-      const [numerator, denominator] = [slot(formula.numerator), slot(formula.denominator)];
-      return (s) => s[numerator]! / s[denominator]!;
+      const { offset: no, stride: ns } = cell(formula.numerator);
+      const { offset: do_, stride: ds } = cell(formula.denominator);
+      return (c, n) => {
+        for (let i = 0; i < n; i += 1) c[out + i] = c[no + i * ns]! / c[do_ + i * ds]!;
+      };
     }
     case 'power': {
-      const [x, base, scale] = [slot(formula.x), slot(formula.base), slot(formula.scale)];
+      const { offset: xo, stride: xs } = cell(formula.x);
+      const { offset: bo, stride: bs } = cell(formula.base);
+      const { offset: so, stride: ss } = cell(formula.scale);
       const exponent = formula.exponent;
-      return (s) => s[scale]! * (s[x]! / s[base]!) ** exponent;
+      return (c, n) => {
+        for (let i = 0; i < n; i += 1) c[out + i] = c[so + i * ss]! * (c[xo + i * xs]! / c[bo + i * bs]!) ** exponent;
+      };
     }
     case 'exponential': {
-      const [x, rate, initial] = [slot(formula.x), slot(formula.rate), slot(formula.initial)];
-      return (s) => s[initial]! * Math.exp(s[rate]! * s[x]!);
+      const { offset: xo, stride: xs } = cell(formula.x);
+      const { offset: ro, stride: rs } = cell(formula.rate);
+      const { offset: io, stride: is } = cell(formula.initial);
+      return (c, n) => {
+        for (let i = 0; i < n; i += 1) c[out + i] = c[io + i * is]! * Math.exp(c[ro + i * rs]! * c[xo + i * xs]!);
+      };
     }
     case 'inverse-square': {
-      const [r, k] = [slot(formula.r), slot(formula.k)];
-      return (s) => s[k]! / (s[r]! * s[r]!);
+      const { offset: ro, stride: rs } = cell(formula.r);
+      const { offset: ko, stride: ks } = cell(formula.k);
+      return (c, n) => {
+        for (let i = 0; i < n; i += 1) {
+          const r = c[ro + i * rs]!;
+          c[out + i] = c[ko + i * ks]! / (r * r);
+        }
+      };
     }
     case 'lookup': {
-      const input = slot(formula.input);
+      const { offset: xo, stride: xs } = cell(formula.input);
       const at = Float64Array.from(formula.table.map((entry) => entry.at));
-      const values = Int32Array.from(formula.table.map((entry) => slot(entry.value)));
+      const values = formula.table.map((entry) => cell(entry.value));
+      const vo = Int32Array.from(values.map((value) => value.offset));
+      const vs = Int32Array.from(values.map((value) => value.stride));
       const interpolate = formula.mode === 'interpolate';
       const last = at.length - 1;
-      return (s) => {
-        const x = s[input]!;
-        if (Number.isNaN(x) || last < 1) return Number.NaN;
-        if (x <= at[0]!) return s[values[0]!]!;
-        if (x >= at[last]!) return s[values[last]!]!;
-        for (let index = 0; index < last; index += 1) {
-          const low = at[index]!;
-          const high = at[index + 1]!;
-          if (x >= low && x < high) {
-            const lowValue = s[values[index]!]!;
-            if (!interpolate) return lowValue;
-            return lowValue + ((s[values[index + 1]!]! - lowValue) * (x - low)) / (high - low);
+      return (c, n) => {
+        for (let i = 0; i < n; i += 1) {
+          const x = c[xo + i * xs]!;
+          let value: number;
+          if (Number.isNaN(x) || last < 1) value = Number.NaN;
+          else if (x <= at[0]!) value = c[vo[0]! + i * vs[0]!]!;
+          else if (x >= at[last]!) value = c[vo[last]! + i * vs[last]!]!;
+          else {
+            // Binary search for the entry with at[low] <= x < at[low + 1] (the table is increasing).
+            let low = 0;
+            let high = last;
+            while (high - low > 1) {
+              const middle = (low + high) >> 1;
+              if (at[middle]! <= x) low = middle;
+              else high = middle;
+            }
+            const lowValue = c[vo[low]! + i * vs[low]!]!;
+            value = interpolate
+              ? lowValue + ((c[vo[high]! + i * vs[high]!]! - lowValue) * (x - at[low]!)) / (at[high]! - at[low]!)
+              : lowValue;
           }
+          c[out + i] = value;
         }
-        return Number.NaN;
       };
     }
   }
 }
 
-/** Slot allocation for one compiled simulation or formula: keys first, then literals, then NaN. */
-class SlotTable {
-  private readonly keys = new Map<string, number>();
-  private readonly literals = new Map<number, number>();
+/** Running allocation of cells; values are written once the layout is known. */
+class CellLayout {
   readonly initial: number[] = [];
 
-  key(name: string): number {
-    const existing = this.keys.get(name);
-    if (existing !== undefined) return existing;
-    this.keys.set(name, this.initial.length);
-    this.initial.push(Number.NaN);
-    return this.initial.length - 1;
-  }
-
-  has(name: string): boolean {
-    return this.keys.has(name);
-  }
-
-  literal(value: number): number {
-    const existing = this.literals.get(value);
-    if (existing !== undefined) return existing;
-    this.literals.set(value, this.initial.length);
-    this.initial.push(value);
-    return this.initial.length - 1;
+  /** `count` cells holding `value` (a varying cell has `count` = the row length). */
+  add(value: number, count = 1): Cell {
+    const offset = this.initial.length;
+    for (let index = 0; index < count; index += 1) this.initial.push(value);
+    return { offset, stride: count > 1 ? 1 : 0 };
   }
 }
 
 /** Evaluates one formula against parameter, constant and earlier output values. */
 export function evaluateFormula(formula: Formula, scope: ReadonlyMap<string, number>): number {
-  const table = new SlotTable();
-  for (const [key, value] of scope) table.initial[table.key(key)] = value;
-  const unknown = table.literal(Number.NaN);
-  const run = compileFormula(formula, (operand) =>
-    typeof operand === 'number' ? table.literal(operand) : table.has(operand) ? table.key(operand) : unknown,
+  const layout = new CellLayout();
+  const named = new Map<string, Cell>();
+  for (const [key, value] of scope) named.set(key, layout.add(value));
+  const unknown = layout.add(Number.NaN);
+  const out = layout.add(Number.NaN);
+  const kernel = compileKernel(
+    formula,
+    (operand) => (typeof operand === 'number' ? layout.add(operand) : (named.get(operand) ?? unknown)),
+    out.offset,
   );
-  return run(Float64Array.from(table.initial));
+  const cells = Float64Array.from(layout.initial);
+  kernel(cells, 1);
+  return cells[out.offset] ?? Number.NaN;
 }
 
 /** Keys a formula reads. */
@@ -225,86 +273,97 @@ export function resolveParams(
   return resolved;
 }
 
-/** A simulation compiled for repeated evaluation. */
-export interface CompiledSimulation {
-  readonly slots: Slots;
-  readonly paramSlots: readonly number[];
-  readonly outputSlots: readonly number[];
-  /** Evaluates every output in order, writing each (bounded; NaN for null) into its slot. */
-  run(): void;
+/** A simulation compiled for repeated evaluation over rows of `length` values. */
+interface CompiledSimulation {
+  readonly cells: Float64Array;
+  readonly length: number;
+  /** Cell of each parameter and each output, by position (writes to parameter cells are the caller's). */
+  readonly params: readonly Cell[];
+  readonly outputs: readonly Cell[];
   /**
-   * Re-evaluates only the outputs that depend (directly or through earlier outputs) on a parameter
-   * in `changed` (a bit mask of parameter positions); the others keep their values.
+   * Re-evaluates the outputs that depend (directly or through earlier outputs) on a parameter in
+   * `changed`, a bit mask of parameter positions; `-1` evaluates every output.
    */
-  runChanged(changed: number): void;
-  /** After `run` or `runChanged`: true when every re-evaluated output was finite and within ±1e15. */
+  run(changed: number): void;
+  /** After `run`: every output value finite and within ±1e15 (the others are NaN). */
   readonly finite: boolean;
 }
 
-const compiledCache = new WeakMap<object, CompiledSimulation>();
 const MAGNITUDE = FIELD_LIMITS.numberMagnitude;
 
-/** Compiles (and caches per data object) a simulation's formulas into slot closures. */
-export function compileSimulation(data: SimulationCore): CompiledSimulation {
-  const cached = compiledCache.get(data);
-  if (cached !== undefined) return cached;
-  const table = new SlotTable();
-  const paramSlots = data.params.map((param) => table.key(param.key));
-  const constantSlots = data.constants.map((constant) => table.key(constant.key));
-  const defined = new Set<string>([
-    ...data.params.map((param) => param.key),
-    ...data.constants.map((constant) => constant.key),
-  ]);
-  const unknown = table.literal(Number.NaN);
-  const runs: Run[] = [];
-  const outputSlotList: number[] = [];
-  // Which parameters each output depends on, directly or through earlier outputs (bit per position).
-  const dependsOn = new Map<string, number>(data.params.map((param, position) => [param.key, 1 << position]));
-  const masks: number[] = [];
-  for (const output of data.outputs) {
-    runs.push(
-      compileFormula(output.formula, (operand) =>
-        typeof operand === 'number' ? table.literal(operand) : defined.has(operand) ? table.key(operand) : unknown,
-      ),
-    );
-    const mask = formulaReferences(output.formula).reduce((bits, key) => bits | (dependsOn.get(key) ?? 0), 0);
-    masks.push(mask);
-    dependsOn.set(output.key, mask);
-    outputSlotList.push(table.key(output.key));
-    defined.add(output.key);
+/** Turns every non-finite or out-of-range value in the range into NaN; false when there was one. */
+function bound(cells: Float64Array, offset: number, count: number): boolean {
+  let finite = true;
+  for (let index = offset; index < offset + count; index += 1) {
+    const value = cells[index]!;
+    // `value - value === 0` is false exactly for NaN and ±Infinity.
+    if (!(value - value === 0 && value <= MAGNITUDE && value >= -MAGNITUDE)) {
+      cells[index] = Number.NaN;
+      finite = false;
+    }
   }
-  const slots = Float64Array.from(table.initial);
-  data.constants.forEach((constant, position) => {
-    slots[constantSlots[position] ?? 0] = constant.value;
+  return finite;
+}
+
+/**
+ * Compiles a simulation with the parameters in `rowMask` (bit per position) laid out along a row
+ * of `length` values. Unknown keys read NaN; a later definition of a key shadows an earlier one
+ * (validation refuses both, but evaluation must not throw on them).
+ */
+function compileSimulation(data: SimulationCore, rowMask = 0, length = 1): CompiledSimulation {
+  const layout = new CellLayout();
+  const named = new Map<string, Cell>();
+  const dependsOn = new Map<string, number>();
+  const params = data.params.map((param, position) => {
+    const cell = layout.add(Number.NaN, (rowMask & (1 << position)) === 0 ? 1 : length);
+    named.set(param.key, cell);
+    dependsOn.set(param.key, 1 << position);
+    return cell;
   });
-  const outputs = Int32Array.from(outputSlotList);
+  for (const constant of data.constants) {
+    named.set(constant.key, layout.add(constant.value));
+    dependsOn.set(constant.key, 0);
+  }
+  const unknown = layout.add(Number.NaN);
+  const resolve: CellOf = (operand) =>
+    typeof operand === 'number' ? layout.add(operand) : (named.get(operand) ?? unknown);
+  const kernels: Kernel[] = [];
+  const masks: number[] = [];
+  const outputs = data.outputs.map((output) => {
+    const mask = formulaReferences(output.formula).reduce((bits, key) => bits | (dependsOn.get(key) ?? 0), 0);
+    const cell = layout.add(Number.NaN, (mask & rowMask) === 0 ? 1 : length);
+    kernels.push(compileKernel(output.formula, resolve, cell.offset));
+    masks.push(mask);
+    named.set(output.key, cell);
+    dependsOn.set(output.key, mask);
+    return cell;
+  });
+  const cells = Float64Array.from(layout.initial);
+  const count = kernels.length;
+  const offsets = Int32Array.from(outputs.map((cell) => cell.offset));
+  const lengths = Int32Array.from(outputs.map((cell) => (cell.stride === 1 ? length : 1)));
   const dependencies = Int32Array.from(masks);
-  const count = runs.length;
+  const finiteByOutput = new Uint8Array(count).fill(1);
+  let failing = 0;
   const compiled = {
-    slots,
-    paramSlots,
-    outputSlots: outputSlotList,
+    cells,
+    length,
+    params,
+    outputs,
     finite: true,
-    runChanged(changed: number) {
-      let finite = true;
+    run(changed: number) {
       for (let index = 0; index < count; index += 1) {
-        // An output of constants only (mask 0) is evaluated whenever everything is (`changed` = -1).
-        if ((dependencies[index]! & changed) === 0 && changed !== -1) continue;
-        const value = runs[index]!(slots);
-        // `value - value === 0` is false exactly for NaN and ±Infinity.
-        if (value - value === 0 && value <= MAGNITUDE && value >= -MAGNITUDE) slots[outputs[index]!] = value;
-        else {
-          slots[outputs[index]!] = Number.NaN;
-          finite = false;
+        if (changed !== -1 && (dependencies[index]! & changed) === 0) continue;
+        kernels[index]!(cells, lengths[index]!);
+        const finite = bound(cells, offsets[index]!, lengths[index]!) ? 1 : 0;
+        if (finite !== finiteByOutput[index]) {
+          finiteByOutput[index] = finite;
+          failing += finite === 1 ? -1 : 1;
         }
       }
-      compiled.finite = finite;
-    },
-    run() {
-      compiled.runChanged(-1);
+      compiled.finite = failing === 0;
     },
   };
-  compiledCache.set(data, compiled);
   return compiled;
 }
 
@@ -324,12 +383,12 @@ export function evaluateSimulation(
   const params = resolveParams(data, values);
   const compiled = compileSimulation(data);
   data.params.forEach((param, position) => {
-    compiled.slots[compiled.paramSlots[position] ?? 0] = params[param.key] ?? Number.NaN;
+    compiled.cells[compiled.params[position]?.offset ?? -1] = params[param.key] ?? Number.NaN;
   });
-  compiled.run();
+  compiled.run(-1);
   const outputs: Record<string, number | null> = {};
   data.outputs.forEach((output, position) => {
-    const value = compiled.slots[compiled.outputSlots[position] ?? 0] ?? Number.NaN;
+    const value = compiled.cells[compiled.outputs[position]?.offset ?? -1] ?? Number.NaN;
     outputs[output.key] = Number.isNaN(value) ? null : value;
   });
   return { params, outputs };
@@ -367,44 +426,102 @@ export function sampleCurve(
   const xParam = data.params[xIndex];
   if (xParam === undefined || yIndex < 0) return [];
   const params = resolveParams(data, values);
-  const compiled = compileSimulation(data);
+  const samples = curveSamples(xParam);
+  const compiled = compileSimulation(data, 1 << xIndex, samples.length);
   data.params.forEach((param, position) => {
-    compiled.slots[compiled.paramSlots[position] ?? 0] = params[param.key] ?? Number.NaN;
+    const cell = compiled.params[position];
+    if (cell !== undefined && position !== xIndex) compiled.cells[cell.offset] = params[param.key] ?? Number.NaN;
   });
-  const xSlot = compiled.paramSlots[xIndex] ?? 0;
-  const ySlot = compiled.outputSlots[yIndex] ?? 0;
-  return curveSamples(xParam).map((x) => {
-    compiled.slots[xSlot] = x;
-    compiled.run();
-    const y = compiled.slots[ySlot] ?? Number.NaN;
-    return { x, y: Number.isNaN(y) ? null : y };
+  compiled.cells.set(samples, compiled.params[xIndex]?.offset ?? 0);
+  compiled.run(-1);
+  const y = compiled.outputs[yIndex] ?? { offset: -1, stride: 0 };
+  return samples.map((x, index) => {
+    const value = compiled.cells[y.offset + index * y.stride] ?? Number.NaN;
+    return { x, y: Number.isNaN(value) ? null : value };
   });
 }
 
+/** The full-grid sweep packs the largest grids into one row while it stays within this many values. */
+const ROW_VALUES = 1024;
+
+/** One row of the full-grid sweep. */
+export interface GridRow {
+  /** Every output finite and within ±1e15 at every point of the row. */
+  readonly finite: boolean;
+  /** Lowest value of the output at `position` along the row, ignoring NaN (NaN when none). */
+  lowest(position: number): number;
+  /** Highest value of the output at `position` along the row, ignoring NaN (NaN when none). */
+  highest(position: number): number;
+}
+
 /**
- * Visits every point of the full parameter grid (the caller bounds its size); `visit` returns
- * false to stop. Curve samples are grid values, so they are among the points visited.
+ * Visits the full parameter grid (the caller bounds its size) one row at a time; `visit` returns
+ * false to stop. The rows lay out the largest grids (up to 1,024 values per row); an odometer
+ * runs over the other parameters, and only the outputs depending on a parameter that changed are
+ * re-evaluated. Curve samples are grid values, so a plot's curve is among the points visited.
  */
-export function forEachGridPoint(data: SimulationCore, visit: (compiled: CompiledSimulation) => boolean): void {
-  const compiled = compileSimulation(data);
+export function sweepGrid(data: SimulationCore, visit: (row: GridRow) => boolean): void {
   const axes = data.params.map((param) => gridValues(param));
   if (axes.some((axis) => axis.length === 0)) return;
-  const positions = axes.map(() => 0);
-  const slots = compiled.slots;
-  const paramSlots = compiled.paramSlots;
-  const write = (position: number) => {
-    slots[paramSlots[position]!] = axes[position]![positions[position]!]!;
+  const bySize = axes.map((_, position) => position).sort((p, q) => axes[q]!.length - axes[p]!.length || p - q);
+  const rowAxes: number[] = [];
+  let length = 1;
+  for (const position of bySize) {
+    const size = axes[position]!.length;
+    if (rowAxes.length === 0 || length * size <= ROW_VALUES) {
+      rowAxes.push(position);
+      length *= size;
+    }
+  }
+  const compiled = compileSimulation(
+    data,
+    rowAxes.reduce((mask, position) => mask | (1 << position), 0),
+    length,
+  );
+  const cells = compiled.cells;
+  let repeat = 1;
+  for (const position of rowAxes) {
+    const axis = axes[position]!;
+    const offset = compiled.params[position]!.offset;
+    for (let index = 0; index < length; index += 1)
+      cells[offset + index] = axis[Math.floor(index / repeat) % axis.length]!;
+    repeat *= axis.length;
+  }
+  const outer = axes.map((_, position) => position).filter((position) => !rowAxes.includes(position));
+  const positions = outer.map(() => 0);
+  const write = (index: number) => {
+    const position = outer[index]!;
+    cells[compiled.params[position]!.offset] = axes[position]![positions[index]!]!;
   };
-  for (let position = 0; position < axes.length; position += 1) write(position);
-  compiled.run();
+  outer.forEach((_, index) => write(index));
+  const extreme = (position: number, highest: boolean): number => {
+    const cell = compiled.outputs[position];
+    if (cell === undefined) return Number.NaN;
+    let best = Number.NaN;
+    const count = cell.stride === 1 ? length : 1;
+    for (let index = cell.offset; index < cell.offset + count; index += 1) {
+      const value = cells[index]!;
+      if (Number.isNaN(value)) continue;
+      if (Number.isNaN(best) || (highest ? value > best : value < best)) best = value;
+    }
+    return best;
+  };
+  const row: GridRow = {
+    get finite() {
+      return compiled.finite;
+    },
+    lowest: (position) => extreme(position, false),
+    highest: (position) => extreme(position, true),
+  };
+  compiled.run(-1);
   for (;;) {
-    if (!visit(compiled)) return;
-    // Odometer: the first parameter changes fastest; only the parameters that change are written,
-    // and only the outputs that depend on them are re-evaluated.
+    if (!visit(row)) return;
     let carry = 0;
-    while (carry < positions.length) {
+    let changed = 0;
+    while (carry < outer.length) {
+      changed |= 1 << outer[carry]!;
       const next = positions[carry]! + 1;
-      if (next < axes[carry]!.length) {
+      if (next < axes[outer[carry]!]!.length) {
         positions[carry] = next;
         write(carry);
         break;
@@ -413,8 +530,8 @@ export function forEachGridPoint(data: SimulationCore, visit: (compiled: Compile
       write(carry);
       carry += 1;
     }
-    if (carry === positions.length) return;
-    compiled.runChanged((2 << carry) - 1);
+    if (carry === outer.length) return;
+    compiled.run(changed);
   }
 }
 
@@ -422,11 +539,11 @@ export function forEachGridPoint(data: SimulationCore, visit: (compiled: Compile
 export function cardsScale(data: SimulationCore & { view: SimulationView }): number {
   const view = data.view;
   if (view.kind !== 'cards') return 1;
-  const slots = view.items.map((item) => data.outputs.findIndex((output) => output.key === item.output));
+  const positions = view.items.map((item) => data.outputs.findIndex((output) => output.key === item.output));
   let largest = 0;
-  forEachGridPoint(data, (compiled) => {
-    for (const position of slots) {
-      const value = compiled.slots[compiled.outputSlots[position] ?? -1] ?? Number.NaN;
+  sweepGrid(data, (row) => {
+    for (const position of positions) {
+      const value = row.highest(position);
       if (value > largest) largest = value;
     }
     return true;
@@ -434,19 +551,18 @@ export function cardsScale(data: SimulationCore & { view: SimulationView }): num
   return largest > 0 ? largest : 1;
 }
 
-/** The y range of a plot over its whole grid and every curve sample: `[min(0, lowest), highest]`. */
+/** The y range of a plot over its whole grid (curve samples included): `[min(0, lowest), highest]`. */
 export function plotRange(data: SimulationCore & { view: SimulationView }): readonly [number, number] {
   const view = data.view;
   if (view.kind !== 'plot') return [0, 1];
   const position = data.outputs.findIndex((output) => output.key === view.y);
   let low = 0;
   let high = Number.NEGATIVE_INFINITY;
-  forEachGridPoint(data, (compiled) => {
-    const value = compiled.slots[compiled.outputSlots[position] ?? -1] ?? Number.NaN;
-    if (!Number.isNaN(value)) {
-      if (value < low) low = value;
-      if (value > high) high = value;
-    }
+  sweepGrid(data, (row) => {
+    const lowest = row.lowest(position);
+    const highest = row.highest(position);
+    if (lowest < low) low = lowest;
+    if (highest > high) high = highest;
     return true;
   });
   return high > low ? [low, high] : [low, low + 1];

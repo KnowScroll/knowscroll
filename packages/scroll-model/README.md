@@ -200,7 +200,7 @@ Bars, areas and plot ranges are scaled by code from the grid (`cardsScale`, `plo
 - The product of all the parameters' grid sizes must be at most **10,000** points (`sim_grid_too_large`).
 - The validator evaluates every output at **every** grid point. Plot samples are grid values, so they are covered.
 - It refuses any non-finite output, any output beyond ±1e15, and any negative bar or area.
-- Evaluation is compiled into slot closures over a `Float64Array`: it allocates nothing per point, re-evaluates only the outputs that depend on a parameter that changed, and never throws. Outside validation, a bad value becomes `null` and renders as "—".
+- Each formula is compiled once into a kernel over one `Float64Array`. The proof sweeps the grid a row at a time (the largest grids laid out along the row, up to 1,024 values) and re-evaluates only the outputs that depend on a parameter that changed. The same kernels evaluate a single point and a curve, so the proof checks exactly the arithmetic the renderer runs. Evaluation never throws; outside validation, a bad value becomes `null` and renders as "—".
 
 **`illustrative`.**
 - A drafted `illustrative: true` becomes the stored notice `{notice: "Illustrative"}`. The renderer must always show it, next to the view and in the text version.
@@ -397,7 +397,7 @@ Vitest with fast-check property tests, run in GitHub Actions only (D-010). They 
 - **Simulations:** the full-grid proof. An adversarial generator includes poles and negative bars, so the test fails if the proof is removed. Evaluation stays finite and bounded for any schema-valid input.
 - **Primitives:** typed outcomes for unknown versions, SHA-256 against Node's, canonical JSON, number tokens, lone surrogates.
 - **Personal values:** excluded from snapshots by default.
-- **Timing (`performance.test.ts`):** a worst-case stored document validates in under 200 ms, and a worst-case simulation `parseBlock` takes under 5 ms, on the runner.
+- **Timing (`performance.test.ts`):** a worst-case stored document validates in under 200 ms, and a worst-case simulation `parseBlock` takes under 5 ms (six outputs that all depend on every parameter, five of them fractional powers, over 10,000 points). These are medians of the test process's CPU time on the runner, which shares its cores with other suites; the wall-clock medians are printed beside them.
 
 `review-254.test.ts` reproduces each of the reviewer's proof-of-concept inputs (p1–p11) as a regression test.
 

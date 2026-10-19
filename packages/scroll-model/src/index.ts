@@ -167,7 +167,6 @@ export {
 } from './locators.js';
 export {
   cardsScale,
-  compileSimulation,
   curveSampleCount,
   curveSamples,
   evaluateFormula,
@@ -184,7 +183,6 @@ export {
   sampleCurve,
   simulationGridPoints,
   snapToGrid,
-  type CompiledSimulation,
   type SimulationValues,
 } from './simulation/evaluate.js';
 export { simulationNumbers, type SimulationNumber } from './simulation/numbers.js';
