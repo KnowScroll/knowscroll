@@ -8,6 +8,8 @@
 !/package.json
 !/pnpm-workspace.yaml
 !/tsconfig.base.json
+!/tsconfig.json
+!/vitest.workspace-sources.ts
 !/eslint.config.js
 !/.dependency-cruiser.cjs
 !/knip.json

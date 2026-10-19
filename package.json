@@ -11,7 +11,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint --max-warnings 0 .",
-    "typecheck": "pnpm -r --workspace-concurrency=1 typecheck",
+    "typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",
     "boundaries": "depcruise --config .dependency-cruiser.cjs apps packages migrations tests",
     "knip": "knip",
     "build": "pnpm -r build",
