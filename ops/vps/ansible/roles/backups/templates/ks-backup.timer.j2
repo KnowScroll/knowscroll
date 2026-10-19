@@ -1,0 +1,11 @@
+[Unit]
+Description=KnowScroll nightly database backups
+
+[Timer]
+# Before the nightly cleanup (03:30 UTC); a missed run (server off) runs at the next boot.
+OnCalendar=*-*-* 02:15:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

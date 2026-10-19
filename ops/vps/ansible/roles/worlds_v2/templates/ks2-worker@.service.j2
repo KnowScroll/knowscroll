@@ -1,0 +1,45 @@
+# KnowScroll v2 worker for world %i — managed by ops/vps/ansible (#228). Runs a verified release's
+# `worker` program as its release.json names it (ks2-run), never source. It listens on no port.
+# Installed, not enabled: `ks deploy` starts ks2-world@%i.target when it deploys a v2 release.
+[Unit]
+Description=KnowScroll v2 worker (%i)
+After=network-online.target postgresql@16-main.service
+Wants=network-online.target
+PartOf=ks2-world@%i.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ks-%i
+Group=ks-%i
+Slice=ks-%i.slice
+WorkingDirectory=/srv/knowscroll/%i/current
+EnvironmentFile=/etc/knowscroll/%i.v2.env
+EnvironmentFile=/etc/knowscroll/secrets/v2-%i/database.env
+EnvironmentFile=/srv/knowscroll/%i/current/.ks/release.env
+Environment=NODE_ENV=production
+Environment=KS_WORLD=%i
+ExecStart=/usr/local/lib/knowscroll-ops/ks2-run %i worker
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+MemoryHigh={{ ks_v2_services.worker.memory_high }}
+MemoryMax={{ ks_v2_services.worker.memory_max }}
+
+# Sandbox: read-only system, private /tmp, writes only to this world's v2 media.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+ReadWritePaths=/srv/knowscroll/%i/media-v2
+
+[Install]
+WantedBy=ks2-world@%i.target

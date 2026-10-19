@@ -1,0 +1,16 @@
+# Weekly restore check of the newest backups (#228) — managed by ops/vps/ansible. Restores into the
+# scratch database knowscroll_restore_check only. See docs/v2/operations/backups.md.
+[Unit]
+Description=KnowScroll weekly backup restore check
+After=postgresql@16-main.service
+Wants=postgresql@16-main.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/knowscroll-ops/ks-restore-check {{ ks_restore_check_databases | join(' ') }}
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+NoNewPrivileges=yes
