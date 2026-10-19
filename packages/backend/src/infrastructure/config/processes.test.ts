@@ -38,7 +38,7 @@ describe('process configuration', () => {
         publicOrigin: 'https://app.dev.knowscroll.space',
         secureCookies: true,
         mail: { sender: 'agentmail', baseUrl: 'https://api.agentmail.to', timeoutMs: 10_000 },
-        operatorSignIn: false,
+        operatorSignIn: undefined,
       },
     });
     expect(config.database.applicationName).toBe('knowscroll-api-dev');
@@ -226,41 +226,71 @@ describe('process configuration', () => {
       expect(readApiConfig({ ...local, ...agentMail }).identity.publicOrigin).toBe('http://127.0.0.1:4330');
     });
 
-    it('accepts operator sign-in only as exactly 1, and never in live', () => {
+    const pattern = { KS_OPERATOR_SIGN_IN_PATTERN: '*@test.knowscroll.space' };
+
+    it('accepts operator sign-in only as exactly 1, with a disposable pattern, in an allow-listed world', () => {
       const env = { ...local, ...agentMail };
-      expect(readApiConfig(env).identity.operatorSignIn).toBe(false);
-      expect(readApiConfig({ ...env, KS_ALLOW_OPERATOR_SIGN_IN: '1' }).identity.operatorSignIn).toBe(true);
+      expect(readApiConfig(env).identity.operatorSignIn).toBeUndefined();
+      expect(readApiConfig({ ...env, KS_ALLOW_OPERATOR_SIGN_IN: '1', ...pattern }).identity.operatorSignIn).toEqual({
+        pattern: '*@test.knowscroll.space',
+      });
       for (const value of ['true', 'yes', '0', ' 1'])
-        expect(problemsOf({ ...env, KS_ALLOW_OPERATOR_SIGN_IN: value })).toEqual([
+        expect(problemsOf({ ...env, KS_ALLOW_OPERATOR_SIGN_IN: value, ...pattern })).toEqual([
           'KS_ALLOW_OPERATOR_SIGN_IN: not_allowed',
         ]);
-      expect(
-        problemsOf({
-          ...production,
-          ...release,
-          KS_WORLD: 'live',
-          DATABASE_URL: secretUrl,
-          PORT: '4310',
-          KS_ALLOW_OPERATOR_SIGN_IN: '1',
-        }),
-      ).toEqual(['KS_ALLOW_OPERATOR_SIGN_IN: refused_in_live']);
+      expect(problemsOf({ ...env, KS_ALLOW_OPERATOR_SIGN_IN: '1' })).toEqual([
+        'KS_OPERATOR_SIGN_IN_PATTERN: missing_or_wrong_type',
+      ]);
+      for (const bad of ['*@*.test', '*@gmail', 'someone*@*', '*@Test.example.com'])
+        expect(problemsOf({ ...env, KS_ALLOW_OPERATOR_SIGN_IN: '1', KS_OPERATOR_SIGN_IN_PATTERN: bad })).toEqual([
+          'KS_OPERATOR_SIGN_IN_PATTERN: invalid_format',
+        ]);
+      // An allow-list (review m3): live, and a production world under any other name, are refused.
+      for (const world of ['live', 'prod', 'production', 'live-2'])
+        expect(
+          configurationError(() =>
+            readApiConfig({
+              ...production,
+              ...release,
+              KS_WORLD: world,
+              DATABASE_URL: secretUrl,
+              PORT: '4310',
+              KS_ALLOW_OPERATOR_SIGN_IN: '1',
+              ...pattern,
+            }),
+          ).problems,
+          world,
+        ).toEqual(['KS_ALLOW_OPERATOR_SIGN_IN: refused_in_this_world']);
     });
 
-    it('refuses the operator command in live and without the flag', () => {
-      const env = { KS_WORLD: 'dev', DATABASE_URL: secretUrl, KS_PUBLIC_ORIGIN: 'https://app.dev.knowscroll.space' };
+    it('refuses the operator command outside dev, stage, ci and local, without the flag, and without a pattern', () => {
+      const env = {
+        KS_WORLD: 'dev',
+        DATABASE_URL: secretUrl,
+        KS_PUBLIC_ORIGIN: 'https://app.dev.knowscroll.space',
+        ...pattern,
+      };
       expect(configurationError(() => readOperatorConfig(env)).problems).toEqual([
         'KS_ALLOW_OPERATOR_SIGN_IN: not_enabled',
       ]);
       expect(
         configurationError(() => readOperatorConfig({ ...env, KS_ALLOW_OPERATOR_SIGN_IN: 'true' })).problems,
       ).toEqual(['KS_ALLOW_OPERATOR_SIGN_IN: not_enabled']);
+      for (const world of ['live', 'prod', 'production', 'live-2'])
+        expect(
+          configurationError(() => readOperatorConfig({ ...env, KS_WORLD: world, KS_ALLOW_OPERATOR_SIGN_IN: '1' }))
+            .problems,
+          world,
+        ).toEqual(['KS_WORLD: operator_sign_in_refused_in_this_world']);
       expect(
-        configurationError(() => readOperatorConfig({ ...env, KS_WORLD: 'live', KS_ALLOW_OPERATOR_SIGN_IN: '1' }))
-          .problems,
-      ).toEqual(['KS_WORLD: operator_sign_in_refused_in_live']);
+        configurationError(() =>
+          readOperatorConfig({ ...env, KS_ALLOW_OPERATOR_SIGN_IN: '1', KS_OPERATOR_SIGN_IN_PATTERN: '' }),
+        ).problems,
+      ).toEqual(['KS_OPERATOR_SIGN_IN_PATTERN: missing_or_wrong_type']);
       expect(readOperatorConfig({ ...env, KS_ALLOW_OPERATOR_SIGN_IN: '1' })).toMatchObject({
         world: 'dev',
         publicOrigin: 'https://app.dev.knowscroll.space',
+        pattern: '*@test.knowscroll.space',
         database: { applicationName: 'knowscroll-operator-dev' },
       });
     });

@@ -6,9 +6,23 @@ import {
   transactionOf,
   withTransaction,
 } from '../../../infrastructure/postgres/personal-scope.js';
-import type { AccountRoot, ActiveSession, LinkOrigin, LockedLink, SessionClient } from '../application/ports.js';
-import { admitLink, SESSION_TTL_DAYS, SIGN_IN_LINK_TTL_MINUTES, type LinkLimit } from '../domain/policy.js';
-import type { AccountUniverse, PersonalScopeTx, RootResolutionTx, UniverseAccess } from '../public.js';
+import type {
+  AccountRoot,
+  ActiveSession,
+  BudgetCheck,
+  LinkOrigin,
+  LinkRecord,
+  SessionClient,
+} from '../application/ports.js';
+import { admitLink, SESSION_TTL_DAYS, SIGN_IN_LINK_TTL_MINUTES } from '../domain/policy.js';
+import type {
+  AccountUniverse,
+  PersonalScopeTx,
+  RootResolutionTx,
+  SessionEndReason,
+  SignInBudget,
+  UniverseAccess,
+} from '../public.js';
 
 /** Reads an account and its universe (read-only, no lock). One universe per account (unique). */
 export async function readAccountUniverse(
@@ -50,7 +64,7 @@ export async function readUniverseAccess(
   };
 }
 
-// ── Sign-in: identity's lock order is address → sign-in link → personal root. ──────────────────
+// ── Sign-in: identity's lock order is address → (world budget) → sign-in link → personal root. ──
 
 /**
  * Identity's first lock: a transaction-scoped advisory lock on one address. Everything that reads
@@ -65,11 +79,40 @@ export async function lockAddress(tx: RootResolutionTx, address: string): Promis
   await lockAddressIn(resolutionTransactionOf(tx), address);
 }
 
+const linkColumns = [
+  'address',
+  'origin',
+  'code_challenge',
+  'consumed_command_id',
+  'consumed_account_id',
+  sql<boolean>`expires_at <= now()`.as('expired'),
+] as const;
+
+function linkRecord(row: {
+  readonly address: string;
+  readonly origin: string;
+  readonly code_challenge: string | null;
+  readonly consumed_command_id: string | null;
+  readonly consumed_account_id: string | null;
+  readonly expired: boolean;
+}): LinkRecord {
+  return {
+    address: row.address,
+    origin: row.origin as LinkOrigin,
+    expired: row.expired,
+    codeChallenge: row.code_challenge ?? undefined,
+    consumed:
+      row.consumed_command_id === null || row.consumed_account_id === null
+        ? undefined
+        : { commandId: row.consumed_command_id, accountId: row.consumed_account_id },
+  };
+}
+
 /**
  * Reads the link's address (no lock), takes the address lock, then re-reads the link `FOR
  * UPDATE`: after the wait it reflects any redemption that committed meanwhile.
  */
-export async function lockLink(tx: RootResolutionTx, tokenHash: string): Promise<LockedLink | undefined> {
+export async function lockLink(tx: RootResolutionTx, tokenHash: string): Promise<LinkRecord | undefined> {
   const trx = resolutionTransactionOf(tx);
   const first = await trx
     .selectFrom('identity.sign_in_links')
@@ -80,26 +123,21 @@ export async function lockLink(tx: RootResolutionTx, tokenHash: string): Promise
   await lockAddressIn(trx, first.address);
   const row = await trx
     .selectFrom('identity.sign_in_links')
-    .select([
-      'address',
-      'origin',
-      'consumed_command_id',
-      'consumed_account_id',
-      sql<boolean>`expires_at <= now()`.as('expired'),
-    ])
+    .select(linkColumns)
     .where('token_hash', '=', tokenHash)
     .forUpdate()
     .executeTakeFirst();
-  if (row === undefined) return undefined;
-  return {
-    address: row.address,
-    origin: row.origin as LinkOrigin,
-    expired: row.expired,
-    consumed:
-      row.consumed_command_id === null || row.consumed_account_id === null
-        ? undefined
-        : { commandId: row.consumed_command_id, accountId: row.consumed_account_id },
-  };
+  return row === undefined ? undefined : linkRecord(row);
+}
+
+/** The link behind a token hash, read without a lock (peek). */
+export async function readLink(db: Kysely<Database>, tokenHash: string): Promise<LinkRecord | undefined> {
+  const row = await db
+    .selectFrom('identity.sign_in_links')
+    .select(linkColumns)
+    .where('token_hash', '=', tokenHash)
+    .executeTakeFirst();
+  return row === undefined ? undefined : linkRecord(row);
 }
 
 function accountRoots(trx: Transaction<Database>) {
@@ -163,45 +201,81 @@ export async function consumeLink(
   if (result.numUpdatedRows !== 1n) throw new Error('Sign-in link to consume was not pending');
 }
 
+/** The address proved itself by a mailed link: the account is no longer disposable (review m2). */
+export async function markAddressProved(tx: RootResolutionTx, accountId: string): Promise<void> {
+  await resolutionTransactionOf(tx)
+    .updateTable('identity.email_addresses')
+    .set({ disposable: false })
+    .where('account_id', '=', accountId)
+    .where('disposable', '=', true)
+    .execute();
+}
+
 const linkLifetime = sql<Date>`now() + make_interval(mins => ${SIGN_IN_LINK_TTL_MINUTES})`;
 
-/** Removes at most 100 links that expired over a day ago (personal data kept no longer). */
-async function removeOldLinks(trx: Transaction<Database>): Promise<void> {
-  await sql`
-    delete from identity.sign_in_links
-    where token_hash in (
-      select token_hash from identity.sign_in_links
-      where expires_at < now() - interval '1 day'
-      limit 100
-    )`.execute(trx);
+/** The world-wide budget's own lock, always taken after the address lock (one order everywhere). */
+const WORLD_BUDGET_LOCK = 'identity.world-sign-in-budget';
+
+/**
+ * The ages (seconds) of the newest email links a budget counts, at most `max` of them: enough to
+ * decide admission and, when full, when the next link fits (`admitLink`).
+ */
+async function budgetAges(
+  trx: Transaction<Database>,
+  budget: SignInBudget,
+  key: { readonly address: string; readonly domain: string },
+  check: BudgetCheck,
+): Promise<readonly number[]> {
+  let query = trx
+    .selectFrom('identity.sign_in_links')
+    .select(sql<number>`extract(epoch from now() - created_at)::float8`.as('age'))
+    .where('origin', '=', 'email')
+    .where('created_at', '>', sql<Date>`now() - make_interval(secs => ${check.limit.windowSeconds})`);
+  if (budget === 'address') query = query.where('address', '=', key.address);
+  if (budget === 'domain') query = query.where('domain', '=', key.domain);
+  const rows = await query.orderBy('created_at', 'desc').limit(check.limit.max).execute();
+  return rows.map((row) => Number(row.age));
 }
 
 /**
- * One short transaction under the address lock: the ages of the address's links inside the
- * window, the admission decision (`admitLink`), then the new email link and the removal of old
- * links. Nothing is written when the address is rate-limited.
+ * One short transaction: the address lock; each budget in order (address, then domain, then,
+ * under the world budget's own lock, world-wide), counting only email links already issued; the
+ * first full one refuses with nothing written; otherwise the new link. Old links are removed by
+ * the scheduled sweep, never here.
  */
 export function makeCreateEmailLink(db: Kysely<Database>, options: { readonly lockTimeoutMs: number }) {
-  return (request: { readonly address: string; readonly tokenHash: string; readonly limit: LinkLimit }) =>
+  return (request: {
+    readonly address: string;
+    readonly domain: string;
+    readonly tokenHash: string;
+    readonly codeChallenge: string | undefined;
+    readonly budgets: readonly BudgetCheck[];
+  }) =>
     withTransaction(db, 'identity.request-sign-in', async (trx) => {
       await sql`select set_config('lock_timeout', ${`${options.lockTimeoutMs}ms`}, true)`.execute(trx);
       await lockAddressIn(trx, request.address);
-      const recent = await trx
-        .selectFrom('identity.sign_in_links')
-        .select(sql<number>`extract(epoch from now() - created_at)::float8`.as('age'))
-        .where('address', '=', request.address)
-        .where('created_at', '>', sql<Date>`now() - make_interval(secs => ${request.limit.windowSeconds})`)
-        .execute();
-      const admission = admitLink(
-        recent.map((row) => Number(row.age)),
-        request.limit,
-      );
-      if (admission.kind === 'rate_limited') return admission;
+      for (const check of request.budgets) {
+        if (check.budget === 'world')
+          await sql`select pg_advisory_xact_lock(hashtextextended(${WORLD_BUDGET_LOCK}, 0))`.execute(trx);
+        const admission = admitLink(await budgetAges(trx, check.budget, request, check), check.limit);
+        if (admission.kind === 'rate_limited')
+          return {
+            kind: 'rate_limited' as const,
+            budget: check.budget,
+            retryAfterSeconds: admission.retryAfterSeconds,
+          };
+      }
       await trx
         .insertInto('identity.sign_in_links')
-        .values({ token_hash: request.tokenHash, address: request.address, origin: 'email', expires_at: linkLifetime })
+        .values({
+          token_hash: request.tokenHash,
+          address: request.address,
+          domain: request.domain,
+          origin: 'email',
+          code_challenge: request.codeChallenge ?? null,
+          expires_at: linkLifetime,
+        })
         .execute();
-      await removeOldLinks(trx);
       return { kind: 'created' as const };
     });
 }
@@ -209,14 +283,40 @@ export function makeCreateEmailLink(db: Kysely<Database>, options: { readonly lo
 /** Inserts an operator link for the scope's account, inside its locked scope. */
 export async function createOperatorLink(
   scope: PersonalScopeTx,
-  link: { readonly tokenHash: string; readonly address: string },
+  link: { readonly tokenHash: string; readonly address: string; readonly domain: string },
 ): Promise<void> {
-  const trx = transactionOf(scope);
-  await trx
+  await transactionOf(scope)
     .insertInto('identity.sign_in_links')
-    .values({ token_hash: link.tokenHash, address: link.address, origin: 'operator', expires_at: linkLifetime })
+    .values({
+      token_hash: link.tokenHash,
+      address: link.address,
+      domain: link.domain,
+      origin: 'operator',
+      expires_at: linkLifetime,
+    })
     .execute();
-  await removeOldLinks(trx);
+}
+
+/**
+ * The operator audit row (`ops.operator_sign_ins`, review m9), in the issuing transaction: the
+ * world, the time, who ran the command and the account it opens.
+ */
+export function makeRecordOperatorIssue(context: { readonly world: string; readonly operatorSource: string }) {
+  return async (
+    scope: PersonalScopeTx,
+    audit: { readonly id: string; readonly accountId: string; readonly accountCreated: boolean },
+  ): Promise<void> => {
+    await transactionOf(scope)
+      .insertInto('ops.operator_sign_ins')
+      .values({
+        id: audit.id,
+        world: context.world,
+        operator_source: context.operatorSource,
+        account_id: audit.accountId,
+        account_created: audit.accountCreated,
+      })
+      .execute();
+  };
 }
 
 // ── Sessions ───────────────────────────────────────────────────────────────────────────────
@@ -232,6 +332,7 @@ export async function issueSession(
     readonly accountId: string;
     readonly tokenHash: string;
     readonly client: SessionClient;
+    readonly issuedByCommand: string;
   },
 ): Promise<{ readonly expiresAt: Date }> {
   const trx = transactionOf(scope);
@@ -247,11 +348,31 @@ export async function issueSession(
       account_id: session.accountId,
       token_hash: session.tokenHash,
       client: session.client,
+      issued_by_command: session.issuedByCommand,
       expires_at: sql<Date>`now() + make_interval(days => ${SESSION_TTL_DAYS})`,
     })
     .returning('expires_at')
     .executeTakeFirstOrThrow();
   return { expiresAt: row.expires_at };
+}
+
+/**
+ * A replay's guard (review m5): revokes, as replaced, the account's live sessions issued by this
+ * redemption command inside the locked scope, and answers how many there were.
+ */
+export async function replaceCommandSessions(
+  scope: PersonalScopeTx,
+  request: { readonly accountId: string; readonly commandId: string },
+): Promise<number> {
+  const result = await transactionOf(scope)
+    .updateTable('identity.sessions')
+    .set({ revoked_at: sql`now()`, revoked_reason: 'replaced' })
+    .where('account_id', '=', request.accountId)
+    .where('issued_by_command', '=', request.commandId)
+    .where('revoked_at', 'is', null)
+    .where('expires_at', '>', sql<Date>`now()`)
+    .executeTakeFirst();
+  return Number(result.numUpdatedRows);
 }
 
 /** The live session behind a token hash, with its account's current universe and epoch. */
@@ -279,7 +400,7 @@ export async function readActiveSession(db: Kysely<Database>, tokenHash: string)
   return row === undefined ? undefined : { ...row, client: row.client as SessionClient };
 }
 
-/** Whether a session is still unrevoked and unexpired and its account active. */
+/** Whether a session is still unrevoked and unexpired and its account and universe active. */
 export async function sessionStillValid(
   db: Kysely<Database>,
   session: { readonly sessionId: string; readonly accountId: string },
@@ -287,12 +408,14 @@ export async function sessionStillValid(
   const row = await db
     .selectFrom('identity.sessions as session')
     .innerJoin('identity.accounts as account', 'account.id', 'session.account_id')
+    .innerJoin('identity.universes as universe', 'universe.account_id', 'session.account_id')
     .select('session.id')
     .where('session.id', '=', session.sessionId)
     .where('session.account_id', '=', session.accountId)
     .where('session.revoked_at', 'is', null)
     .where('session.expires_at', '>', sql<Date>`now()`)
     .where('account.status', '=', 'active')
+    .where('universe.status', '=', 'active')
     .executeTakeFirst();
   return row !== undefined;
 }
@@ -302,14 +425,16 @@ export async function sessionStillValid(
  * the access-revocation notice so every API process drops the account's sockets on commit.
  */
 export function makeRevokeSessions(db: Kysely<Database>) {
-  return (request: { readonly sessionId: string; readonly accountId: string; readonly everywhere: boolean }) =>
+  return (request: {
+    readonly sessionId: string;
+    readonly accountId: string;
+    readonly everywhere: boolean;
+    readonly reason: SessionEndReason;
+  }) =>
     withTransaction(db, 'identity.sign-out', async (trx) => {
       let update = trx
         .updateTable('identity.sessions')
-        .set({
-          revoked_at: sql`now()`,
-          revoked_reason: request.everywhere ? 'signed_out_everywhere' : 'signed_out',
-        })
+        .set({ revoked_at: sql`now()`, revoked_reason: request.reason })
         .where('account_id', '=', request.accountId)
         .where('revoked_at', 'is', null);
       if (!request.everywhere) update = update.where('id', '=', request.sessionId);
@@ -318,4 +443,49 @@ export function makeRevokeSessions(db: Kysely<Database>) {
       if (revoked > 0) await revokeAccountSockets(trx, request.accountId);
       return revoked;
     });
+}
+
+/** Rows one sweep batch deletes per table; a sweep runs at most this many batches per table. */
+const SWEEP_BATCH = 500;
+const SWEEP_BATCHES = 20;
+
+/**
+ * The scheduled sweep (review m12): links a day past expiry and sessions 30 days past their end
+ * (expiry or revocation), each in short transactions of at most 500 rows chosen with `FOR UPDATE
+ * SKIP LOCKED`, so it never waits for or deadlocks with a sign-in holding a row.
+ */
+export function makeSweep(db: Kysely<Database>) {
+  const sweepLinks = sql`
+    delete from identity.sign_in_links
+    where token_hash in (
+      select token_hash from identity.sign_in_links
+      where expires_at < now() - interval '1 day'
+      order by expires_at
+      limit ${SWEEP_BATCH}
+      for update skip locked
+    )`;
+  const sweepSessions = sql`
+    delete from identity.sessions
+    where id in (
+      select id from identity.sessions
+      where (revoked_at is not null and revoked_at < now() - interval '30 days')
+         or expires_at < now() - interval '30 days'
+      order by expires_at
+      limit ${SWEEP_BATCH}
+      for update skip locked
+    )`;
+  async function inBatches(purpose: string, statement: typeof sweepLinks): Promise<number> {
+    let removed = 0;
+    for (let batch = 0; batch < SWEEP_BATCHES; batch += 1) {
+      const result = await withTransaction(db, purpose, (trx) => statement.execute(trx));
+      const count = Number(result.numAffectedRows ?? 0n);
+      removed += count;
+      if (count < SWEEP_BATCH) break;
+    }
+    return removed;
+  }
+  return async () => ({
+    links: await inBatches('identity.sweep-links', sweepLinks),
+    sessions: await inBatches('identity.sweep-sessions', sweepSessions),
+  });
 }

@@ -8,6 +8,7 @@ import type {
   RootResolutionTx,
   ScopeOutcome,
   ScopeRefusal,
+  ScopeWork,
   SharedScopeTx,
   WithPersonalScope,
   WithResolvedPersonalScope,
@@ -90,9 +91,10 @@ const openResolutions = new WeakMap<RootResolutionTx, Transaction<Database>>();
  * Steps: BEGIN; `SET LOCAL lock_timeout`; `resolve(tx)` (identity's earlier locks, inserts of a new
  *   account and universe); `SELECT … FOR NO KEY UPDATE` on the named universe and the same
  *   rechecks; `work(scope, context)`; commit.
- * Outputs: `entered` (committed), `stopped` (the resolver's result) or `refused` (a recheck
- *   failed). A stop, a refusal or an exception rolls back everything, including what `resolve`
- *   wrote, so a refusal never consumes a link or leaves an account behind.
+ * Outputs: `entered` (committed), `stopped` (the resolver's or the work's rollback result) or
+ *   `refused` (a recheck failed). A stop, a refusal, a rollback or an exception rolls back
+ *   everything, including what `resolve` wrote, so a refusal never consumes a link or leaves an
+ *   account behind.
  * Failure/retry: a root lock wait beyond `lockTimeoutMs` throws `ScopeBusyError`; any other lock
  *   wait beyond it surfaces as PostgreSQL `55P03` (both retryable).
  */
@@ -102,7 +104,7 @@ export function makeWithResolvedPersonalScope(
 ): WithResolvedPersonalScope {
   return async <C, R, T>(
     resolve: (tx: RootResolutionTx) => Promise<RootResolution<C, R>>,
-    work: (scope: PersonalScopeTx, context: C) => Promise<T>,
+    work: (scope: PersonalScopeTx, context: C) => Promise<ScopeWork<T, R>>,
   ): Promise<ResolvedScopeOutcome<T, R>> => {
     try {
       return await runMarkedTransaction('personal-scope', () =>
@@ -121,10 +123,9 @@ export function makeWithResolvedPersonalScope(
           const entry = await lockAndRecheck(trx, authority);
           if (entry.kind === 'refused') throw new RollbackWith(entry);
           const { context } = resolution;
-          return {
-            kind: 'entered',
-            value: await runInScope(trx, authority, entry.revision, (scope) => work(scope, context)),
-          };
+          const done = await runInScope(trx, authority, entry.revision, (scope) => work(scope, context));
+          if (done.kind === 'rollback') throw new RollbackWith({ kind: 'stopped', result: done.result });
+          return { kind: 'entered', value: done.value };
         }),
       );
     } catch (error) {

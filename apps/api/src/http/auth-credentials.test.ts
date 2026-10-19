@@ -1,8 +1,10 @@
 import type { Request, Response } from 'express';
 import { describe, expect, it } from 'vitest';
 import {
+  apiSecurityHeaders,
   clearedSessionCookie,
   clientAddress,
+  clientKey,
   cookieValue,
   credentialFrom,
   originGuard,
@@ -103,5 +105,45 @@ describe('clientAddress', () => {
     expect(clientAddress(request('127.0.0.1', '203.0.113.9, 198.51.100.4'))).toBe('198.51.100.4');
     expect(clientAddress(request('127.0.0.1'))).toBe('127.0.0.1');
     expect(clientAddress(request('192.0.2.1', '203.0.113.9'))).toBe('192.0.2.1');
+  });
+
+  it('keys IPv6 clients by their /64 and IPv4-mapped clients by their IPv4 (review M2)', () => {
+    expect(clientKey('2001:db8:1:2:aaaa::1')).toBe('2001:db8:1:2::/64');
+    expect(clientKey('2001:db8:1:2:ffff:ffff:ffff:ffff')).toBe('2001:db8:1:2::/64');
+    expect(clientKey('2001:DB8:0001:0002::9')).toBe('2001:db8:1:2::/64');
+    expect(clientKey('2001:db8::1')).toBe('2001:db8:0:0::/64');
+    expect(clientKey('2001:db8:1:2:3:4:192.0.2.1')).toBe('2001:db8:1:2::/64');
+    expect(clientKey('fe80::1%eth0')).toBe('fe80:0:0:0::/64');
+    expect(clientKey('::ffff:203.0.113.9')).toBe('203.0.113.9');
+    expect(clientKey('203.0.113.9')).toBe('203.0.113.9');
+    expect(clientKey('unknown')).toBe('unknown');
+    // Every address of one /64, however written, shares one budget.
+    expect(clientAddress(request('127.0.0.1', '2001:db8:1:2::abcd'))).toBe(
+      clientAddress(request('127.0.0.1', '2001:db8:1:2:1234:5678:9abc:def0')),
+    );
+    expect(clientAddress(request('127.0.0.1', '2001:db8:1:3::1'))).not.toBe(
+      clientAddress(request('127.0.0.1', '2001:db8:1:2::1')),
+    );
+  });
+});
+
+describe('apiSecurityHeaders', () => {
+  it('lets no API answer be framed, run anything or leak a referrer (review m7)', () => {
+    const headers = new Map<string, string>();
+    let nextCalled = false;
+    apiSecurityHeaders()(
+      {} as Request,
+      { setHeader: (name: string, value: string) => headers.set(name, value) } as unknown as Response,
+      () => {
+        nextCalled = true;
+      },
+    );
+    expect(nextCalled).toBe(true);
+    expect(Object.fromEntries(headers)).toEqual({
+      'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+      'x-frame-options': 'DENY',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'no-referrer',
+    });
   });
 });

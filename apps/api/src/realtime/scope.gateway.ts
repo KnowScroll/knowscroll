@@ -24,7 +24,7 @@ import type { LogEvent } from '@knowscroll/backend/infrastructure/observability'
 import { READ_UNIVERSE_ACCESS, type ReadUniverseAccess } from '@knowscroll/backend/modules/identity';
 import { API_CONFIG, CALLERS, LOG_EVENT } from '../tokens.js';
 import { cookieValue, sessionCookieName } from '../http/auth-credentials.js';
-import type { AuthenticatedCallers, Caller } from '../http/callers.js';
+import { scopeClaimMatches, type AuthenticatedCallers, type Caller } from '../http/callers.js';
 
 function room(scope: ScopeRef): string {
   return `scope:${scope.kind}:${scope.id}`;
@@ -78,7 +78,7 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
     server.use((socket, next) => {
       // Native clients send their bearer token in `auth.token`; browsers send the session cookie,
       // which every page could make them attach, so a cookie handshake must come from this origin
-      // (cross-site WebSocket hijacking).
+      // (cross-site WebSocket hijacking). Every handshake names its scope in `auth.scope`.
       const token: unknown = (socket.handshake.auth as { token?: unknown }).token;
       const cookie = socket.handshake.headers.cookie;
       if (
@@ -90,11 +90,19 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
         next(new Error('ORIGIN_NOT_ALLOWED'));
         return;
       }
+      const scope: unknown = (socket.handshake.auth as { scope?: unknown }).scope;
       this.callers.resolve(typeof token === 'string' ? { authorization: `Bearer ${token}` } : { cookie }).then(
         (caller) => {
           if (caller === undefined) {
             this.logEvent('realtime.connection_refused', { reasonCode: 'UNAUTHENTICATED' });
             next(new Error('UNAUTHENTICATED'));
+            return;
+          }
+          // The handshake names the scope it opens for (review M1): another account's or an
+          // older epoch's socket is refused, and the client rereads its session.
+          if (!scopeClaimMatches(caller, scope)) {
+            this.logEvent('realtime.connection_refused', { reasonCode: 'SCOPE_MISMATCH' });
+            next(new Error('SCOPE_MISMATCH'));
             return;
           }
           (socket.data as { caller?: Caller }).caller = caller;

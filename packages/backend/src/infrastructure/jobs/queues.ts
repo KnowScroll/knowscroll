@@ -39,6 +39,12 @@ export interface QueueDefinition<Payload> {
   readonly payload: z.ZodType<Payload>;
   readonly policy: QueuePolicy;
   readonly consumer: ConsumerPolicy;
+  /**
+   * Recurring work: pg-boss sends `payload` on this cron expression (UTC). Registered by the
+   * migrate command with the queue; the worker's pg-boss instance runs the schedule. A job's
+   * work must be safe to run twice or late (a schedule is not an exactly-once timer).
+   */
+  readonly schedule?: { readonly cron: string; readonly payload: Payload };
 }
 
 const queueNamePattern = /^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$/;

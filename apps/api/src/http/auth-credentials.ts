@@ -1,3 +1,4 @@
+import { isIPv4, isIPv6 } from 'node:net';
 import type { NextFunction, Request, Response } from 'express';
 import { DEVELOPMENT_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME, problemDetails } from '@knowscroll/contracts';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
@@ -114,16 +115,63 @@ export function noStoreForAuth() {
 
 const loopback = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
+/** The 16-bit groups of an IPv6 address (`::` expanded, an embedded IPv4 tail as two groups). */
+function ipv6Groups(address: string): readonly number[] {
+  const bare = address.split('%')[0] ?? address;
+  const groups = (part: string): number[] =>
+    (part === '' ? [] : part.split(':')).flatMap((group) => {
+      if (!group.includes('.')) return [Number.parseInt(group, 16)];
+      const [a = 0, b = 0, c = 0, d = 0] = group.split('.').map(Number);
+      return [a * 256 + b, c * 256 + d];
+    });
+  const [head = '', tail] = bare.split('::');
+  const left = groups(head);
+  const right = tail === undefined ? [] : groups(tail);
+  const fill = tail === undefined ? [] : new Array<number>(Math.max(0, 8 - left.length - right.length)).fill(0);
+  return [...left, ...fill, ...right];
+}
+
 /**
- * The client's address for rate limits. The API listens on loopback behind Caddy (D-008), which
- * sets `X-Forwarded-For`; its last entry is the address Caddy saw. A request that did not come
- * through a loopback peer is keyed by its own peer address.
+ * The key one client is limited under (review M2): an IPv4 address as it is (an IPv4-mapped IPv6
+ * address as its IPv4), an IPv6 address by its /64 prefix, because one subscriber usually holds a
+ * whole /64 and could otherwise rotate through 2^64 addresses.
+ */
+export function clientKey(address: string): string {
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(address);
+  if (mapped?.[1] !== undefined) return mapped[1];
+  if (isIPv4(address) || !isIPv6(address)) return address;
+  const prefix = ipv6Groups(address)
+    .slice(0, 4)
+    .map((group) => group.toString(16))
+    .join(':');
+  return `${prefix}::/64`;
+}
+
+/**
+ * The client's key for rate limits (`clientKey`). The API listens on loopback behind Caddy
+ * (D-008), which sets `X-Forwarded-For`; its last entry is the address Caddy saw. A request that
+ * did not come through a loopback peer is keyed by its own peer address.
  */
 export function clientAddress(request: Request): string {
   const peer = request.socket.remoteAddress ?? 'unknown';
-  if (!loopback.has(peer)) return peer;
+  if (!loopback.has(peer)) return clientKey(peer);
   const forwarded = request.headers['x-forwarded-for'];
   const value = Array.isArray(forwarded) ? forwarded.at(-1) : forwarded;
   const last = value?.split(',').at(-1)?.trim();
-  return last === undefined || last === '' ? peer : last;
+  return clientKey(last === undefined || last === '' ? peer : last);
+}
+
+/**
+ * Express middleware (review m7): every API answer is JSON or a problem, so it may load nothing,
+ * be framed nowhere and send no referrer. The web app's own policy is set by the edge (Caddy,
+ * `roles/caddy/files/app-content-security-policy.txt`).
+ */
+export function apiSecurityHeaders() {
+  return (_request: Request, response: Response, next: NextFunction): void => {
+    response.setHeader('content-security-policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+    response.setHeader('x-frame-options', 'DENY');
+    response.setHeader('x-content-type-options', 'nosniff');
+    response.setHeader('referrer-policy', 'no-referrer');
+    next();
+  };
 }

@@ -13,9 +13,11 @@ import { makeIssueOperatorSignIn } from '../application/issue-operator-sign-in.j
 import type { MailSender, ReceiptPorts, SessionPorts } from '../application/ports.js';
 import { makeRedeemSignIn } from '../application/redeem-sign-in.js';
 import { makeRequestSignIn } from '../application/request-sign-in.js';
-import { makeResolveSession, makeSessionValid, makeSignOut } from '../application/sessions.js';
-import { signInLinkFor } from '../domain/policy.js';
+import { makePeekSignInLink } from '../application/peek-sign-in-link.js';
+import { makeResolveSession, makeSessionValid, makeSignOut, makeSweepSignInRecords } from '../application/sessions.js';
+import { operatorAddressMatcher, signInLinkFor } from '../domain/policy.js';
 import {
+  PEEK_SIGN_IN_LINK,
   READ_ACCOUNT_UNIVERSE,
   READ_UNIVERSE_ACCESS,
   REDEEM_SIGN_IN,
@@ -23,8 +25,10 @@ import {
   RESOLVE_SESSION,
   SESSION_VALID,
   SIGN_OUT,
+  SWEEP_SIGN_IN_RECORDS,
   type ReadAccountUniverse,
   type ReadUniverseAccess,
+  type SweepSignInRecords,
 } from '../public.js';
 import { agentMailSender } from './agentmail-sender.js';
 import { fixtureMailSender } from './fixture-mail-sender.js';
@@ -38,10 +42,15 @@ import {
   lockAddress,
   lockLink,
   makeCreateEmailLink,
+  makeRecordOperatorIssue,
   makeRevokeSessions,
+  makeSweep,
+  markAddressProved,
   readAccountUniverse,
   readActiveSession,
+  readLink,
   readUniverseAccess,
+  replaceCommandSessions,
   sessionStillValid,
 } from './postgres-store.js';
 import { cryptoSecrets } from './secrets.js';
@@ -93,7 +102,17 @@ export function mailSenderFor(settings: IdentitySettings['mail']): MailSender {
   }
 }
 
-/** Identity's sign-in use cases over one database (framework-free; also used by the operator command). */
+/**
+ * Whether operator links may be issued or redeemed for an address on this process: only with
+ * operator sign-in configured (an allow-listed world, the flag, a pattern; `readApiConfig` and
+ * `readOperatorConfig` check those) and only for addresses the pattern matches.
+ */
+function operatorAddressAllowedBy(pattern: string | undefined): (address: string) => boolean {
+  const matches = pattern === undefined ? undefined : operatorAddressMatcher(pattern);
+  return matches ?? (() => false);
+}
+
+/** Identity's sign-in use cases over one database (framework-free). */
 export function identityUseCases(deps: {
   readonly db: Kysely<Database>;
   readonly settings: IdentitySettings;
@@ -103,6 +122,7 @@ export function identityUseCases(deps: {
 }) {
   const withResolvedPersonalScope = makeWithResolvedPersonalScope(deps.db, { lockTimeoutMs: deps.lockTimeoutMs });
   const linkFor = (token: string) => signInLinkFor(deps.settings.publicOrigin, token);
+  const operatorAddressAllowed = operatorAddressAllowedBy(deps.settings.operatorSignIn?.pattern);
   const sessionPorts: SessionPorts = {
     readActiveSession: (tokenHash) => readActiveSession(deps.db, tokenHash),
     sessionStillValid: (session) => sessionStillValid(deps.db, session),
@@ -118,6 +138,11 @@ export function identityUseCases(deps: {
       logEvent: deps.logEvent,
       now: () => performance.now(),
     }),
+    peekSignInLink: makePeekSignInLink({
+      readLink: (tokenHash) => readLink(deps.db, tokenHash),
+      operatorAddressAllowed,
+      secrets: cryptoSecrets,
+    }),
     redeemSignIn: makeRedeemSignIn({
       ...receiptPorts,
       withResolvedPersonalScope,
@@ -127,9 +152,11 @@ export function identityUseCases(deps: {
       findAccountById,
       createAccount,
       consumeLink,
+      markAddressProved,
       issueSession,
+      replaceCommandSessions,
+      operatorAddressAllowed,
       secrets: cryptoSecrets,
-      operatorSignInEnabled: deps.settings.operatorSignIn,
     }),
     resolveSession: makeResolveSession(sessionPorts),
     sessionValid: makeSessionValid(sessionPorts),
@@ -142,20 +169,26 @@ export type IdentityUseCases = ReturnType<typeof identityUseCases>;
 /**
  * The operator command's use case alone (D-007: `dist/operator.js issue-sign-in` on dev/stage).
  * It sends no mail and redeems nothing; whether it may run at all is the caller's check
- * (`readOperatorConfig` refuses live and a missing `KS_ALLOW_OPERATOR_SIGN_IN=1`).
+ * (`readOperatorConfig`: an allow-listed world, `KS_ALLOW_OPERATOR_SIGN_IN=1`, a pattern). Each
+ * issue is audited in `ops.operator_sign_ins` with `world` and `operatorSource`.
  */
 export function operatorSignInUseCase(deps: {
   readonly db: Kysely<Database>;
   readonly publicOrigin: string;
   readonly lockTimeoutMs: number;
+  readonly pattern: string;
+  readonly world: string;
+  readonly operatorSource: string;
 }) {
   return makeIssueOperatorSignIn({
     ...receiptPorts,
     withResolvedPersonalScope: makeWithResolvedPersonalScope(deps.db, { lockTimeoutMs: deps.lockTimeoutMs }),
+    operatorAddressAllowed: operatorAddressAllowedBy(deps.pattern),
     lockAddress,
     findAccountByAddress,
     createAccount,
     createOperatorLink,
+    recordOperatorIssue: makeRecordOperatorIssue({ world: deps.world, operatorSource: deps.operatorSource }),
     linkFor: (token) => signInLinkFor(deps.publicOrigin, token),
     secrets: cryptoSecrets,
   });
@@ -173,9 +206,26 @@ export function signInProviders(tokens: { readonly useCases: symbol }) {
   });
   return [
     pick(REQUEST_SIGN_IN, 'requestSignIn'),
+    pick(PEEK_SIGN_IN_LINK, 'peekSignInLink'),
     pick(REDEEM_SIGN_IN, 'redeemSignIn'),
     pick(RESOLVE_SESSION, 'resolveSession'),
     pick(SESSION_VALID, 'sessionValid'),
     pick(SIGN_OUT, 'signOut'),
+  ];
+}
+
+/** Identity's scheduled sweep over one database (framework-free; the worker runs it every 15 minutes). */
+export function identitySweepUseCase(db: Kysely<Database>): SweepSignInRecords {
+  return makeSweepSignInRecords({ sweep: makeSweep(db) });
+}
+
+/** Nest wiring of the identity sweep for the worker composition root (`identity.sweep-sign-in-records`). */
+export function identitySweepProviders(tokens: { readonly database: symbol }) {
+  return [
+    {
+      provide: SWEEP_SIGN_IN_RECORDS,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>): SweepSignInRecords => identitySweepUseCase(db),
+    },
   ];
 }

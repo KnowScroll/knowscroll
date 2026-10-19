@@ -18,6 +18,7 @@ export const problemCatalogue = {
   CONFLICT: { status: 409, title: 'This conflicts with the current state; reload and try again.' },
   ASSET_REVISION_STALE: { status: 409, title: 'This content has changed; reload it and try again.' },
   PRIVACY_EPOCH_CHANGED: { status: 409, title: 'Your privacy settings changed; reload and try again.' },
+  SCOPE_MISMATCH: { status: 409, title: 'This request was made for another account or privacy epoch; reload.' },
   PAYLOAD_TOO_LARGE: { status: 413, title: 'The request body is too large.' },
   UNSUPPORTED_MEDIA_TYPE: { status: 415, title: 'The request body type is not supported.' },
   UNPROCESSABLE_REQUEST: { status: 422, title: 'The request is well-formed but cannot be processed.' },

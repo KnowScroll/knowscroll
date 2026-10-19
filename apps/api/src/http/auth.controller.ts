@@ -5,10 +5,12 @@ import { apiContract, type ProblemCode } from '@knowscroll/contracts';
 import type { ApiConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import {
+  PEEK_SIGN_IN_LINK,
   REDEEM_SIGN_IN,
   REQUEST_SIGN_IN,
   RESOLVE_SESSION,
   SIGN_OUT,
+  type PeekSignInLink,
   type RedeemRefusal,
   type RedeemSignIn,
   type RequestSignIn,
@@ -60,6 +62,7 @@ export class AuthController {
     @Inject(LOG_EVENT) private readonly logEvent: LogEvent,
     @Inject(AUTH_LIMITERS) private readonly limits: AuthLimiters,
     @Inject(REQUEST_SIGN_IN) private readonly requestSignIn: RequestSignIn,
+    @Inject(PEEK_SIGN_IN_LINK) private readonly peekSignInLink: PeekSignInLink,
     @Inject(REDEEM_SIGN_IN) private readonly redeemSignIn: RedeemSignIn,
     @Inject(RESOLVE_SESSION) private readonly resolveSession: ResolveSession,
     @Inject(SIGN_OUT) private readonly signOut: SignOut,
@@ -67,30 +70,54 @@ export class AuthController {
     this.cookieName = sessionCookieName(config.identity.secureCookies);
   }
 
-  /** `POST /auth/sign-in`: 202 for every well-formed address; the mail goes out after the answer. */
+  /**
+   * `POST /auth/sign-in`: 202 for every acceptable address; the mail goes out after the answer.
+   * This client's own limit comes first (its junk spends only its budget); the address, domain and
+   * world budgets are taken by the use case and count only links it issues (review M2).
+   */
   @Implement(apiContract.identity.requestSignIn)
   requestSignInRoute(@Req() request: Request) {
     return implement(apiContract.identity.requestSignIn).handler(async ({ input }) => {
       const response = responseOf(request);
-      const wait =
-        this.limits.signInPerClient.take(clientAddress(request)) ?? this.limits.signInPerProcess.take('process');
+      const wait = this.limits.signInPerClient.take(clientAddress(request));
       if (wait !== undefined) {
         this.logEvent('identity.sign_in_requested', { ...requestIdField(), outcome: 'client_rate_limited' });
         response.setHeader('retry-after', String(wait));
         throw problem('TOO_MANY_REQUESTS');
       }
-      const result = await this.requestSignIn({ email: input.email });
+      const result = await this.requestSignIn({
+        email: input.email,
+        ...(input.codeChallenge === undefined ? {} : { codeChallenge: input.codeChallenge }),
+      });
       switch (result.kind) {
         case 'requested':
           // Not awaited: delivery never changes or delays this answer (no address oracle).
           void result.delivery;
           return { status: 'requested' as const };
         case 'refused':
-          throw problem('INVALID_REQUEST', { issues: [{ path: ['email'], code: 'invalid_format' }] });
+          throw problem('UNPROCESSABLE_REQUEST', { issues: [{ path: ['email'], code: 'invalid_format' }] });
         case 'rate_limited':
           response.setHeader('retry-after', String(result.retryAfterSeconds));
           throw problem('TOO_MANY_REQUESTS');
       }
+    });
+  }
+
+  /**
+   * `POST /auth/peek`: whose account a link opens, masked, without consuming it (review m8). The
+   * redeem page asks this first and redeems only after the person confirms the address.
+   */
+  @Implement(apiContract.identity.peekSignIn)
+  peekSignInRoute(@Req() request: Request) {
+    return implement(apiContract.identity.peekSignIn).handler(async ({ input }) => {
+      const wait = this.limits.redeemPerClient.take(clientAddress(request));
+      if (wait !== undefined) {
+        responseOf(request).setHeader('retry-after', String(wait));
+        throw problem('TOO_MANY_REQUESTS');
+      }
+      const result = await this.peekSignInLink({ token: input.token, client: input.client });
+      if (result.kind === 'link_invalid') throw problem('SIGN_IN_LINK_INVALID');
+      return { maskedEmail: result.maskedEmail };
     });
   }
 
@@ -109,7 +136,12 @@ export class AuthController {
       }
       if (input.client === 'web' && request.headers.origin !== this.config.identity.publicOrigin)
         throw problem('ORIGIN_NOT_ALLOWED');
-      const result = await this.redeemSignIn(input);
+      const result = await this.redeemSignIn({
+        token: input.token,
+        commandId: input.commandId,
+        client: input.client,
+        ...(input.codeVerifier === undefined ? {} : { codeVerifier: input.codeVerifier }),
+      });
       if (result.kind === 'refused') {
         this.logEvent('identity.sign_in_refused', { ...requestIdField(), reasonCode: result.reason });
         throw problem(refusalProblems[result.reason]);
@@ -163,6 +195,7 @@ export class AuthController {
         sessionId: previous.sessionId,
         accountId: previous.accountId,
         everywhere: false,
+        reason: 'replaced',
       });
       this.logEvent('identity.signed_out', { ...requestIdField(), count: revoked, reasonCode: 'replaced' });
     } catch (error) {

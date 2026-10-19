@@ -79,6 +79,7 @@ export interface IdentitySessions {
   created_at: Generated<Timestamp>;
   expires_at: Timestamp;
   id: string;
+  issued_by_command: string | null;
   revoked_at: Timestamp | null;
   revoked_reason: string | null;
   token_hash: string;
@@ -86,10 +87,12 @@ export interface IdentitySessions {
 
 export interface IdentitySignInLinks {
   address: string;
+  code_challenge: string | null;
   consumed_account_id: string | null;
   consumed_at: Timestamp | null;
   consumed_command_id: string | null;
   created_at: Generated<Timestamp>;
+  domain: string;
   expires_at: Timestamp;
   origin: string;
   token_hash: string;
@@ -102,6 +105,15 @@ export interface IdentityUniverses {
   privacy_epoch: Generated<number>;
   revision: Generated<number>;
   status: Generated<string>;
+}
+
+export interface OpsOperatorSignIns {
+  account_created: boolean;
+  account_id: string | null;
+  id: string;
+  issued_at: Generated<Timestamp>;
+  operator_source: string;
+  world: string;
 }
 
 export interface ReasoningBusinessRuns {
@@ -165,6 +177,7 @@ export interface DB {
   "identity.sessions": IdentitySessions;
   "identity.sign_in_links": IdentitySignInLinks;
   "identity.universes": IdentityUniverses;
+  "ops.operator_sign_ins": OpsOperatorSignIns;
   "reasoning.business_runs": ReasoningBusinessRuns;
   "reasoning.external_attempts": ReasoningExternalAttempts;
   "receipts.personal_commands": ReceiptsPersonalCommands;

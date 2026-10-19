@@ -1,9 +1,10 @@
 /**
- * In-process request limits for the unauthenticated sign-in routes, keyed by client address
- * (and one process-wide bucket for sign-in mail). They protect the mail inbox and the database
- * from floods; the per-address link limit that a person sees ("try again in a few minutes") is
- * durable and lives in the identity module. One API process per world (D-008), so a per-process
- * count is the world's count; it restarts empty with the process, which only ever loosens it.
+ * In-process request limits for the unauthenticated sign-in routes, keyed by client (`clientKey`:
+ * an IPv4 address, or an IPv6 /64). They keep one client from flooding the database; they are
+ * taken before anything else, so a client's junk spends only its own budget. The budgets that
+ * protect the mail inbox (per address, per recipient domain, world-wide) count links actually
+ * issued and live durably in the identity module (review M2), so refused and malformed requests
+ * spend none of them.
  */
 export interface WindowLimit {
   readonly max: number;
@@ -42,24 +43,20 @@ export class WindowLimiter {
 
 /** The limits of the sign-in routes. */
 export const authLimits = {
-  /** Sign-in links asked for by one client address. */
+  /** Sign-in requests by one client. */
   signInPerClient: { max: 10, windowSeconds: 15 * 60 },
-  /** Sign-in links asked for across the process (the AgentMail inbox's budget). */
-  signInPerProcess: { max: 300, windowSeconds: 15 * 60 },
-  /** Redemption attempts by one client address. */
+  /** Redemption and peek attempts by one client. */
   redeemPerClient: { max: 30, windowSeconds: 15 * 60 },
 } as const satisfies Record<string, WindowLimit>;
 
 export interface AuthLimiters {
   readonly signInPerClient: WindowLimiter;
-  readonly signInPerProcess: WindowLimiter;
   readonly redeemPerClient: WindowLimiter;
 }
 
 export function createAuthLimiters(now: () => number = Date.now): AuthLimiters {
   return {
     signInPerClient: new WindowLimiter(authLimits.signInPerClient, now),
-    signInPerProcess: new WindowLimiter(authLimits.signInPerProcess, now),
     redeemPerClient: new WindowLimiter(authLimits.redeemPerClient, now),
   };
 }

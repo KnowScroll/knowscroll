@@ -9,14 +9,16 @@ single-use sign-in links and sessions (D-007, decided as the first-party impleme
 |---|---|---|---|
 | `identity.accounts` | `0001_identity` | One row per person: `status` (`active`/`suspended`) | Account deletion (privacy work) |
 | `identity.universes` | `0001_identity` | The personal root: one per account (`universes_account_key`), `privacy_epoch`, `status`, `revision` | Account deletion |
-| `identity.email_addresses` | `0007_identity_sign_in` | The account's normalised address (unique) and `disposable` (made by operator sign-in) | Account table: account deletion |
-| `identity.sign_in_links` | `0007_identity_sign_in` | SHA-256 of each link token, the address, `origin` (`email`/`operator`), expiry ≤ 15 min (checked by the database), and who consumed it (`consumed_command_id`, `consumed_account_id`) | Account table: deleted a day after expiry by the request path; account deletion removes the rest |
-| `identity.sessions` | `0007_identity_sign_in` | SHA-256 of each session token, `client` (`web` cookie / `native` bearer), expiry ≤ 30 days (checked), `revoked_at`/`revoked_reason` | Account table: an account's ended sessions are deleted at its next sign-in; account deletion removes the rest |
+| `identity.email_addresses` | `0007_identity_sign_in` | The account's normalised address (unique) and `disposable` (made by operator sign-in; cleared when the address proves itself by a mailed link) | Account table: account deletion |
+| `identity.sign_in_links` | `0007_identity_sign_in` | SHA-256 of each link token, the address and its `domain`, `origin` (`email`/`operator`), the native `code_challenge` (or none), expiry ≤ 15 min (checked by the database), and who consumed it (`consumed_command_id`, `consumed_account_id`) | Account table: deleted a day after expiry by the scheduled sweep; account deletion removes the rest |
+| `identity.sessions` | `0007_identity_sign_in` | SHA-256 of each session token, `client` (`web` cookie / `native` bearer), the redemption command that issued it (`issued_by_command`), expiry ≤ 30 days (checked), `revoked_at`/`revoked_reason` (`signed_out`, `signed_out_everywhere`, `replaced`) | Account table: an account's ended sessions are deleted at its next sign-in, and by the sweep 30 days after they ended; account deletion removes the rest |
+| `ops.operator_sign_ins` | `0008_ops_operator_sign_ins` | The audit of every operator link: `world`, `issued_at`, `operator_source` (`cli:<user>`), `account_id`, `account_created` | Kept as an audit (not exploration history): clearing a universe leaves it; account deletion sets `account_id` to null (declared as an account-linked column) |
 
 No token is ever stored: links and sessions are looked up by the hash of the presented token.
 The erasure declaration (`adapters/erasure.ts`) lists the three account-keyed tables (the
-inventory test fails for an undeclared identity table) and AgentMail's sent copies of sign-in
-mail, which no eraser of ours reaches. Clearing or resetting a universe leaves identity alone.
+inventory test fails for an undeclared identity table), the audit's account column, and
+AgentMail's sent copies of sign-in mail, which no eraser of ours reaches. Clearing or resetting a
+universe leaves identity alone.
 
 ## Public surface (`public.ts`, framework-free)
 
@@ -25,39 +27,49 @@ mail, which no eraser of ours reaches. Clearing or resetting a universe leaves i
   `RootResolutionTx`/`RootResolution` (implemented by `infrastructure/postgres`).
 - Read ports `ReadAccountUniverse`, `ReadUniverseAccess` (tokens `READ_ACCOUNT_UNIVERSE`,
   `READ_UNIVERSE_ACCESS`): claims that `withPersonalScope` rechecks under the lock.
-- Sign-in use cases (tokens `REQUEST_SIGN_IN`, `REDEEM_SIGN_IN`, `RESOLVE_SESSION`,
-  `SESSION_VALID`, `SIGN_OUT`) and `IssueOperatorSignIn`, with their typed results.
+- Sign-in use cases (tokens `REQUEST_SIGN_IN`, `PEEK_SIGN_IN_LINK`, `REDEEM_SIGN_IN`,
+  `RESOLVE_SESSION`, `SESSION_VALID`, `SIGN_OUT`, `SWEEP_SIGN_IN_RECORDS`) and
+  `IssueOperatorSignIn`, with their typed results; `OPERATOR_WORLDS`, `operatorAddressMatcher`;
+  the sweep's queue `sweepSignInRecordsQueue` (`events.ts`).
 - Built by `adapters/nest-providers.ts`: `identityProviders` (read ports), `identityUseCases`
   (all sign-in use cases over one database; the mail sender from `IdentitySettings`),
-  `signInProviders` (Nest wiring), `operatorSignInUseCase` (the operator command alone).
+  `signInProviders` (Nest wiring), `operatorSignInUseCase` (the operator command alone),
+  `identitySweepUseCase`/`identitySweepProviders` (the worker's sweep).
 
 ## Use cases
 
 | Use case | Route | Authority, effects, failure |
 |---|---|---|
-| `requestSignIn({email})` | `POST /auth/sign-in` | None. Normalise the address (NFC, trim, lower-case). One short transaction under the address lock: ≥ 3 links for the address in 15 minutes → `rate_limited` (429 with `Retry-After`), else insert the link hash (15 minutes, database clock) and delete links that expired over a day ago. After commit, one AgentMail send is started and **not awaited**: the answer is 202 for every well-formed address whether or not an account exists or the mail is delivered. No account is created. |
-| `redeemSignIn({token, commandId, client})` | `POST /auth/redeem` | Possession of an unexpired, unconsumed link. One transaction (below). Unknown, expired, consumed-by-another-command, or operator links where operator sign-in is off → `link_invalid` (400 `SIGN_IN_LINK_INVALID`, one answer for each). A suspended account → `account_unavailable`, rolling back the consumption. |
+| `requestSignIn({email, codeChallenge?})` | `POST /auth/sign-in` | None. Accept the address only in a strict RFC 5321 subset (`domain/addresses.ts`: printable ASCII, one `@`, dot-atom local part ≤ 64, LDH domain with ≥ 2 labels and a non-numeric TLD, ≤ 254 in all; trimmed and lower-cased) or `refused` (422). One short transaction under the address lock: the address (3), recipient-domain (60) and, under its own lock, world-wide (300) budgets per 15 minutes in that order, each counting only email links **already issued** (so malformed or refused requests spend none: review M2); the first full one → `rate_limited` (429 with `Retry-After`; a filled domain or world budget is logged once per window as `identity.sign_in_budget_full`), else insert the link hash (15 minutes, database clock) with the native app's challenge if any. After commit, one AgentMail send is started and **not awaited**: the answer is 202 for every acceptable address whether or not an account exists or the mail is delivered. No account is created. |
+| `peekSignInLink({token, client})` | `POST /auth/peek` | Possession of the link. Read-only: the masked address it opens (`m•••@example.com`), or `link_invalid` exactly when redeeming it from this client would be. The redeem page shows "Continue as …" before it redeems (review m8). |
+| `redeemSignIn({token, commandId, client, codeVerifier?})` | `POST /auth/redeem` | Possession of an unexpired, unconsumed link, and for a native link its verifier. One transaction (below). Unknown, expired, consumed-by-another-command, bound to another client (a native link needs its verifier; the web redeems only links without a challenge), operator links this world refuses (no operator sign-in, or an address outside its pattern), or a replay whose session has ended → `link_invalid` (400 `SIGN_IN_LINK_INVALID`, one answer for each). A suspended account → `account_unavailable`. Every refusal rolls everything back: a refused redemption consumes nothing (review m1). |
 | `resolveSession(token)` | every authenticated request | Session unrevoked and unexpired, account and universe active; returns the account, its universe and the **current** privacy epoch (re-read every time, never remembered from sign-in). |
 | `sessionValid({sessionId, accountId})` | sockets | The same session checks for a socket's session, on every subscribe and re-authorisation. |
-| `signOut({sessionId, accountId, everywhere})` | `POST /auth/sign-out` | One transaction: revoke the session (or all live sessions of the account) and `revokeAccountSockets` in the same transaction, so every API process drops the account's sockets on commit. |
-| `issueOperatorSignIn({email})` | `dist/operator.js issue-sign-in` | dev/stage only (below). Finds or creates a **disposable** account, refuses an address that signed up by mail (`not_disposable`), writes a receipt and an operator link, returns the link to print. |
+| `signOut({sessionId, accountId, everywhere, reason?})` | `POST /auth/sign-out`; an account switch on a device (`replaced`) | One transaction: revoke the session (or all live sessions of the account) and `revokeAccountSockets` in the same transaction, so every API process drops the account's sockets on commit. |
+| `issueOperatorSignIn({email})` | `dist/operator.js issue-sign-in` | Allow-listed worlds only (below). The address must match the world's pattern (`address_not_allowed`); finds or creates a **disposable** account, refuses an address that signed up by mail (`not_disposable`), writes a receipt, an operator link and the audit row, returns the link to print. |
+| `sweepSignInRecords()` | pg-boss `identity.sweep-sign-in-records`, every 15 minutes (worker) | Deletes links a day past expiry and sessions 30 days after they ended, in transactions of at most 500 rows chosen `FOR UPDATE SKIP LOCKED` (never waits on or deadlocks with a sign-in; review m12). |
 
 ### Redemption, in one transaction
 
 1. `lockLink`: read the link's address (no lock) → `pg_advisory_xact_lock` on the address →
    re-read the link `FOR UPDATE` (it now reflects any redemption that committed meanwhile).
-2. Consumed by this same command: the retry of a redemption whose answer was lost → enter that
-   account's scope and replay. Consumed by another command, expired, unknown → stop.
+2. Not bound to this client (PKCE-style S256: native needs the verifier of the link's challenge,
+   the web a link without one), or an operator link this world refuses → stop. Consumed by this
+   same command: the retry of a redemption whose answer was lost → enter that account's scope and
+   replay. Consumed by another command, expired, unknown → stop.
 3. Find the account by address, or insert the account, its address and its universe root
-   (privacy epoch 1); consume the link for this command.
+   (privacy epoch 1); a mailed link redeemed into a disposable account makes it a real one;
+   consume the link for this command.
 4. `WithResolvedPersonalScope` locks the universe root (`FOR NO KEY UPDATE`) and rechecks it exactly
    as `withPersonalScope` does; a refusal rolls back steps 1–3.
 5. Receipt `(universe, commandId)`, operation `identity.redeem-sign-in`, request hash over the
-   link's token hash and the client: identical replay → stored outcome; another request under the
-   ID → `command_key_reused`; else insert it.
+   link's token hash and the client: identical replay → stored outcome, but only while a session
+   this command issued is still live, which is revoked as `replaced` (a signed-out session is never
+   revived: review m5); another request under the ID → `command_key_reused`; else insert it.
+   Every refusal here throws, so steps 1–4 roll back too.
 6. Issue a session (and delete the account's ended sessions), store the outcome
    `{accountId, universeId, accountCreated}` (version 1), commit. A replay issues a **fresh**
-   session: the first session's token travelled only in the lost answer.
+   session in place of the one whose token travelled only in the lost answer.
 
 Concurrent retries of one redemption, two links for one new address, or several commands racing
 for one link all serialise on the address lock: there is never a second account or universe for
@@ -65,8 +77,9 @@ an address (also enforced by `email_addresses_address_key` and `universes_accoun
 
 ## Lock order
 
-**address (advisory) → sign-in link row → personal root → this universe's rows**. Redemption and
-operator issue take them in this order; request-sign-in takes only the address lock. Suspension
+**address (advisory) → (world sign-in budget, advisory) → sign-in link row → personal root → this
+universe's rows**. Redemption and operator issue take them in this order; request-sign-in takes
+the address lock and then the world budget's lock. Suspension
 locks the universe row before changing the account status (so a command that passed its account
 check cannot commit afterwards). Account deletion (privacy work) must take the address lock first,
 then the root. Every wait is bounded by the personal-scope lock timeout (a timeout is a retryable
@@ -78,10 +91,13 @@ then the root. Every wait is bounded by the personal-scope lock timeout (a timeo
    API answers 202 and AgentMail sends `<KS_PUBLIC_ORIGIN>/redeem#token=ksl_…`. The token rides in
    the URL **fragment**: it never reaches a server, proxy log or `Referer`.
 2. **Open.** The link opens the client's redeem page (`/redeem`, served as the static web export;
-   `/auth/*` is the API's). The page reads the fragment, removes it from the address bar, and asks
-   the person to confirm with one tap. Nothing is consumed by opening the link: a mail scanner
-   or prefetcher that fetches or even renders the page signs nobody in.
-3. **Redeem.** The tap POSTs `/auth/redeem {token, commandId, client}`. Web: the response sets
+   `/auth/*` is the API's). The page reads the fragment, removes it from the address bar, asks
+   `POST /auth/peek` whose account it opens, and asks the person to confirm with one tap:
+   "Continue as m•••@example.com" (a link someone sent to sign you into *their* account says so).
+   Nothing is consumed by opening the link: a mail scanner or prefetcher that fetches or even
+   renders the page signs nobody in. A native app asked for its link with the S256 challenge of a
+   verifier in its secure store, and redeems with that verifier.
+3. **Redeem.** The tap POSTs `/auth/redeem {token, commandId, client, codeVerifier?}`. Web: the response sets
    `__Host-ks_session` (HTTPS) or `ks_session` (plain-HTTP development) — HttpOnly, SameSite=Lax,
    Path=/, Secure on HTTPS, 30 days — and carries no token; the redemption must come from the
    world's own origin. Native: the response carries the bearer token once, for the platform's
@@ -92,18 +108,31 @@ then the root. Every wait is bounded by the personal-scope lock timeout (a timeo
    accepted only as the cookie and a native one only as a bearer token. Cookie-authenticated
    POST/PUT/PATCH/DELETE must carry `Origin` equal to `KS_PUBLIC_ORIGIN`, and a cookie socket
    handshake likewise (`ORIGIN_NOT_ALLOWED`, 403). Sockets: bearer in `auth.token`, or the cookie.
+   Every account request also names its scope, `X-KS-Scope: <accountId>:<privacyEpoch>` (a
+   socket: `auth.scope`); the API refuses any other claim than the presented session's account
+   and current epoch with `409 SCOPE_MISMATCH`, so a tab whose cookie another tab replaced, or a
+   scope from before a privacy reset, is never served (review M1, m11). The client's AccountScope
+   owns its own credential, ends before a switching redemption is sent, and rereads the session
+   on `SCOPE_MISMATCH`.
 5. **Sign out.** `POST /auth/sign-out` revokes the session (or every session) and drops the
    account's sockets; the next request with that credential is 401.
 
 ## Operator sign-in (D-007)
 
 `node dist/operator.js issue-sign-in --email <address>` in the API release tree, on the server
-shell with the world's environment (`docs/v2/operations/environments.md`). Refused before touching
-the database, and again right before issuing, when `KS_WORLD=live` or `KS_ALLOW_OPERATOR_SIGN_IN`
-is not exactly `1`; the API also refuses to start with the flag in live, and refuses operator links
-wherever the flag is not set. It only ever opens disposable accounts (made by itself). Every use
-writes one `identity.operator_sign_in` record (stderr; never the address, token or link) and a
-receipt in the account's universe; the link is printed on stdout only.
+shell as the world's v2 user with the world's environment (`docs/v2/operations/environments.md`).
+Refused before touching the database, and again right before issuing, outside the allow-listed
+worlds `dev`, `stage`, `ci`, `local` (never live, whatever a production world is called), when
+`KS_ALLOW_OPERATOR_SIGN_IN` is not exactly `1`, or without a valid `KS_OPERATOR_SIGN_IN_PATTERN`
+(one address, at most one `*` in the local part, a literal domain: dev and stage use
+`*@test.knowscroll.space`, a domain that receives no mail). Only addresses matching the pattern
+get a link, and the API checks the pattern again when the link is redeemed (an API without
+operator sign-in refuses every operator link). It only ever opens disposable accounts (made by
+itself; an address that proved itself by mail is `not_disposable`). Every use writes the audit
+row in `ops.operator_sign_ins` (world, time, `cli:<SUDO_USER or USER>`, account), one
+`identity.operator_sign_in` record (stderr; never the address, token or link) and a receipt in the
+account's universe; the link is printed on stdout only. Operator links carry no native binding:
+they are redeemed on the web.
 
 ## Mail
 
@@ -127,12 +156,15 @@ refused outside `NODE_ENV=test` in a `ci`/`local` world.
 - A refused redemption (suspended account, stale receipt) writes nothing: the link stays usable.
 - A lost access-revocation notice: the gateway rechecks `sessionValid` on every subscribe and
   relayed hint and makes every socket authenticate again after a relay reconnect.
-- Rate limits: 3 links per address per 15 minutes (durable, per address, whoever asks); per API
-  process 10 sign-in requests and 30 redemptions per client address per 15 minutes, and 300
-  sign-in requests in all (in memory; resets with the process, which only loosens it).
+- Rate limits: per API process 10 sign-in requests and 30 peeks or redemptions per client per 15
+  minutes (an IPv6 client is its /64; in memory, taken first, so a client's junk spends only its
+  own budget); then, durably and counting only links issued, 3 per address, 60 per recipient
+  domain and 300 per world per 15 minutes.
 
 ## Not here yet
 
-Privacy-epoch changes (privacy work) must call `revokeAccountSockets` in their transaction and the
-client remounts its AccountScope on the new epoch. Account deletion must erase the account tables
-above. Native magic-link opening (universal/app links) needs mobile builds (owner decision 2).
+Privacy-epoch changes (privacy work) must call `revokeAccountSockets` in their transaction (the
+scope claim already refuses an old epoch's requests if the notice is lost). Account deletion must
+erase the account tables above and null `ops.operator_sign_ins.account_id`. Native magic-link
+opening (universal/app links) needs mobile builds (owner decision 2); the device binding is built
+and tested only against fixtures until then.

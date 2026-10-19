@@ -6,14 +6,15 @@ import type {
   RedeemSignInResult,
   RootResolution,
   ScopeRefusal,
+  ScopeWork,
 } from '../public.js';
-import type { AccountRoot, RedeemSignInPorts } from './ports.js';
+import type { AccountRoot, LinkRecord, RedeemSignInPorts } from './ports.js';
 
 export const REDEEM_SIGN_IN_OPERATION = 'identity.redeem-sign-in';
 /** Version of the stored outcome below. A new shape gets a new version (blueprint §5). */
 export const REDEEM_OUTCOME_VERSION = 1;
 
-/** The stored outcome of a redemption. A replay returns it with a fresh session. */
+/** The stored outcome of a redemption. A replay returns it with a replacement session. */
 export const RedeemOutcomeSchema = z.object({
   accountId: z.uuid(),
   universeId: z.uuid(),
@@ -31,25 +32,48 @@ interface ResolvedLink {
 }
 
 /**
+ * Whether this client may redeem this link (review m10): a link requested by a native app is
+ * bound to the verifier in that app's secure store (PKCE-style S256) and is redeemed only with
+ * it; a native redemption needs such a binding; the web redeems unbound links only, after the
+ * person confirmed the masked address (review m8).
+ */
+function boundToThisClient(
+  link: LinkRecord,
+  command: RedeemSignInCommand,
+  challengeOf: (verifier: string) => string,
+): boolean {
+  if (command.client === 'native')
+    return (
+      link.codeChallenge !== undefined &&
+      command.codeVerifier !== undefined &&
+      challengeOf(command.codeVerifier) === link.codeChallenge
+    );
+  return link.codeChallenge === undefined;
+}
+
+/**
  * `redeemSignIn`: exchange a sign-in link for a session (POST /auth/redeem). A link is consumed by
  * this POST only, so a mail scanner that fetches the link page signs nobody in.
  *
- * Authority: possession of an unexpired, unconsumed link. The account is the link's address.
+ * Authority: possession of an unexpired, unconsumed link (and, for native, its verifier). The
+ *   account is the link's address.
  * Steps (one transaction; identity's lock order address → link → personal root):
- *   1. address lock, then the link's row lock; unknown, expired, consumed by another command, or
- *      operator-minted where operator sign-in is off → `link_invalid` (nothing written);
+ *   1. address lock, then the link's row lock; unknown, expired, consumed by another command, not
+ *      bound to this client (PKCE), or an operator link this world refuses (flag, world or
+ *      pattern) → `link_invalid`;
  *   2. consumed by this same command → the retry of a redemption whose answer was lost: enter
  *      that account's scope to replay;
  *   3. otherwise find the account by address, or create the account, its address and its
- *      universe root (privacy epoch 1); then consume the link for this command;
- *   4. lock the universe root and recheck it (suspended → `account_unavailable`, rolling back
- *      the consumption and any creation);
- *   5. receipt `(universe, commandId)`: identical replay → stored outcome; another request under
- *      this ID → `command_key_reused`; else insert it;
+ *      universe root (privacy epoch 1); a mailed link redeemed into a disposable account makes it
+ *      a real one (no more operator links for it; review m2); then consume the link;
+ *   4. lock the universe root and recheck it (suspended → `account_unavailable`);
+ *   5. receipt `(universe, commandId)`: another request under this ID → `command_key_reused`; an
+ *      identical replay needs one of this command's sessions still live (review m5) and replaces
+ *      it; else insert the receipt;
  *   6. issue a session (web cookie or native bearer, 30 days), store the outcome, commit.
+ *   Every refusal rolls everything back (review m1): a refused redemption consumes nothing.
  * Side effects: the link's consumption, at most one new account + address + universe, one receipt
- *   and one session per call (a replay issues a fresh session: the first one's token travelled
- *   only in the lost answer). All or nothing.
+ *   and one live session per redemption command. All or nothing.
  * Concurrency: retries of one command, or two links for one new address, serialise on the address
  *   lock, so there is never a second account or universe for an address (also enforced by unique
  *   keys on the address and on the universe's account).
@@ -69,7 +93,10 @@ export function makeRedeemSignIn(ports: RedeemSignInPorts): RedeemSignIn {
     ): Promise<RootResolution<ResolvedLink, RedeemRefusal>> => {
       const link = await ports.lockLink(tx, tokenHash);
       if (link === undefined || link.expired) return { kind: 'stop', result: 'link_invalid' };
-      if (link.origin === 'operator' && !ports.operatorSignInEnabled) return { kind: 'stop', result: 'link_invalid' };
+      if (link.origin === 'operator' && !ports.operatorAddressAllowed(link.address))
+        return { kind: 'stop', result: 'link_invalid' };
+      if (!boundToThisClient(link, command, (verifier) => ports.secrets.challengeOf(verifier)))
+        return { kind: 'stop', result: 'link_invalid' };
       if (link.consumed !== undefined) {
         if (link.consumed.commandId !== command.commandId) return { kind: 'stop', result: 'link_invalid' };
         const account = await ports.findAccountById(tx, link.consumed.accountId);
@@ -78,6 +105,8 @@ export function makeRedeemSignIn(ports: RedeemSignInPorts): RedeemSignIn {
       }
       let account = await ports.findAccountByAddress(tx, link.address);
       let accountCreated = false;
+      if (account !== undefined && account.disposable && link.origin === 'email')
+        await ports.markAddressProved(tx, account.accountId);
       if (account === undefined) {
         account = {
           accountId: ports.secrets.newId(),
@@ -94,7 +123,7 @@ export function makeRedeemSignIn(ports: RedeemSignInPorts): RedeemSignIn {
 
     const outcome = await ports.withResolvedPersonalScope(
       resolve,
-      async (scope, resolved): Promise<RedeemSignInResult> => {
+      async (scope, resolved): Promise<ScopeWork<RedeemSignInResult, RedeemRefusal>> => {
         const lookup = await ports.findReceipt(scope, key);
         let stored: RedeemOutcome;
         let replayed = false;
@@ -102,13 +131,21 @@ export function makeRedeemSignIn(ports: RedeemSignInPorts): RedeemSignIn {
           case 'key_reused':
           case 'epoch_mismatch':
           case 'outcome_version_older':
-            return { kind: 'refused', reason: 'command_key_reused' };
+            return { kind: 'rollback', result: 'command_key_reused' };
           case 'outcome_version_newer':
-            return { kind: 'refused', reason: 'outcome_from_newer_release' };
-          case 'replay':
+            return { kind: 'rollback', result: 'outcome_from_newer_release' };
+          case 'replay': {
             stored = RedeemOutcomeSchema.parse(lookup.outcome);
+            // Only while the redemption's own session is live: a signed-out or revoked session
+            // is never revived by replaying its request (review m5).
+            const live = await ports.replaceCommandSessions(scope, {
+              accountId: stored.accountId,
+              commandId: command.commandId,
+            });
+            if (live === 0) return { kind: 'rollback', result: 'link_invalid' };
             replayed = true;
             break;
+          }
           case 'new':
             await ports.insertReceipt(scope, key);
             stored = {
@@ -125,16 +162,20 @@ export function makeRedeemSignIn(ports: RedeemSignInPorts): RedeemSignIn {
           accountId: stored.accountId,
           tokenHash: secret.hash,
           client: command.client,
+          issuedByCommand: command.commandId,
         });
         if (!replayed) await ports.completeReceipt(scope, command.commandId, stored);
         return {
-          kind: 'signed_in',
-          outcome: stored,
-          privacyEpoch: scope.authority.privacyEpoch,
-          session: { id: sessionId, token: secret.token, expiresAt },
-          replayed,
-          origin: resolved.origin,
-          address: resolved.address,
+          kind: 'commit',
+          value: {
+            kind: 'signed_in',
+            outcome: stored,
+            privacyEpoch: scope.authority.privacyEpoch,
+            session: { id: sessionId, token: secret.token, expiresAt },
+            replayed,
+            origin: resolved.origin,
+            address: resolved.address,
+          },
         };
       },
     );

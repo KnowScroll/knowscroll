@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -30,7 +30,21 @@ import {
 const agentMailCanaryKey = 'canary-agentmail-key-Rt55';
 const fixtureAgentMail = { AGENTMAIL_API_KEY: 'fixture-not-a-key', AGENTMAIL_INBOX_ID: 'fixture@agentmail.invalid' };
 let addressCounter = 0;
-const freshAddress = () => `release-${Date.now()}-${(addressCounter += 1)}@identity.test`;
+/** A fixture address, each on its own subdomain so no test runs into another's domain budget. */
+const freshAddress = (domain?: string) => {
+  addressCounter += 1;
+  return `release-${Date.now()}-${addressCounter}@${domain ?? `d${addressCounter}.identity.test`}`;
+};
+/** Any fixture address this journey used (each is under identity.test or operator.test). */
+const fixtureAddress = /@[a-z0-9.-]*(identity|operator)\.test/;
+/** A native app's sign-in binding (review m10): its verifier and the S256 challenge. */
+function nativeDevice(): { readonly verifier: string; readonly challenge: string } {
+  const verifier = randomBytes(32).toString('base64url');
+  return { verifier, challenge: createHash('sha256').update(verifier, 'ascii').digest('base64url') };
+}
+/** The scope claim of an account (review M1): `X-KS-Scope: <accountId>:<epoch>`. */
+const scopeOf = (account: { readonly accountId: string; readonly privacyEpoch: number }) =>
+  `${account.accountId}:${account.privacyEpoch}`;
 /** A distinct client address per call (the API trusts X-Forwarded-For only from its loopback peer). */
 let clientCounter = 0;
 const freshClient = () => `198.51.100.${(clientCounter += 1) % 250}`;
@@ -75,6 +89,7 @@ describe('sign-in through the built API', () => {
       KS_MAIL_SENDER: 'fixture',
       KS_FIXTURE_MAIL_FILE: outboxFile,
       KS_ALLOW_OPERATOR_SIGN_IN: '1',
+      KS_OPERATOR_SIGN_IN_PATTERN: '*@operator.test',
       KS_SOCKET_AUTH_CACHE_MS: '0',
       KS_SHUTDOWN_GRACE_SECONDS: '10',
     });
@@ -126,8 +141,11 @@ describe('sign-in through the built API', () => {
     return token;
   }
 
-  async function requestLink(address: string): Promise<string> {
-    const response = await post('/auth/sign-in', { email: address });
+  async function requestLink(address: string, codeChallenge?: string): Promise<string> {
+    const response = await post('/auth/sign-in', {
+      email: address,
+      ...(codeChallenge === undefined ? {} : { codeChallenge }),
+    });
     expect(response.status).toBe(202);
     expect(await response.json()).toEqual({ status: 'requested' });
     await expect.poll(() => readOutbox().includes(address), { timeout: 10_000 }).toBe(true);
@@ -142,17 +160,21 @@ describe('sign-in through the built API', () => {
     }
   }
 
+  interface SignedIn {
+    readonly universeId: string;
+    readonly accountId: string;
+    readonly privacyEpoch: number;
+  }
+
   /** Signs in on the web; returns the `Cookie` header value. */
-  async function webSignIn(
-    address = freshAddress(),
-  ): Promise<{ cookie: string; universeId: string; accountId: string }> {
+  async function webSignIn(address = freshAddress()): Promise<SignedIn & { cookie: string }> {
     const response = await post(
       '/auth/redeem',
       { token: await requestLink(address), commandId: randomUUID(), client: 'web' },
       { origin: baseUrl },
     );
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { account: { universeId: string; accountId: string } };
+    const body = (await response.json()) as { account: SignedIn };
     const setCookie = response.headers.getSetCookie();
     const value = /^ks_session=(kss_[A-Za-z0-9_-]{43});/.exec(setCookie[0] ?? '')?.[1];
     if (value === undefined) throw new Error('no session cookie');
@@ -160,29 +182,30 @@ describe('sign-in through the built API', () => {
     return { cookie: `ks_session=${value}`, ...body.account };
   }
 
-  async function nativeSignIn(
-    address = freshAddress(),
-  ): Promise<{ token: string; universeId: string; accountId: string }> {
+  /** Signs in as a native app: the link is bound to this "device" (review m10). */
+  async function nativeSignIn(address = freshAddress()): Promise<SignedIn & { token: string }> {
+    const device = nativeDevice();
     const response = await post('/auth/redeem', {
-      token: await requestLink(address),
+      token: await requestLink(address, device.challenge),
       commandId: randomUUID(),
       client: 'native',
+      codeVerifier: device.verifier,
     });
     expect(response.status).toBe(200);
-    const body = (await response.json()) as {
-      session: { token: string };
-      account: { universeId: string; accountId: string };
-    };
+    const body = (await response.json()) as { session: { token: string }; account: SignedIn };
     secrets.add(body.session.token);
     return { token: body.session.token, ...body.account };
   }
 
-  function connect(options: { cookie?: string; origin?: string; token?: string }): Socket {
+  function connect(options: { cookie?: string; origin?: string; token?: string; scope?: string }): Socket {
     const socket = io(baseUrl, {
       path: SOCKET_PATH,
       transports: ['websocket'],
       reconnection: false,
-      ...(options.token === undefined ? {} : { auth: { token: options.token } }),
+      auth: {
+        ...(options.token === undefined ? {} : { token: options.token }),
+        ...(options.scope === undefined ? {} : { scope: options.scope }),
+      },
       extraHeaders: {
         ...(options.cookie === undefined ? {} : { cookie: options.cookie }),
         ...(options.origin === undefined ? {} : { origin: options.origin }),
@@ -213,7 +236,48 @@ describe('sign-in through the built API', () => {
       .where('address', '=', address)
       .execute();
     expect(accounts).toEqual([]);
-    await expectProblem(await post('/auth/sign-in', { email: 'not an address' }), 400, 'INVALID_REQUEST');
+    // Outside the accepted grammar (review m4): 422, never a database error; not a string: 400.
+    for (const email of ['not an address', 'nul\u0000@identity.test', 'x<attacker@evil.test>', 'a,b@evil.test'])
+      await expectProblem(await post('/auth/sign-in', { email }), 422, 'UNPROCESSABLE_REQUEST');
+    await expectProblem(await post('/auth/sign-in', { email: '' }), 400, 'INVALID_REQUEST');
+    expect(api.records.some((record) => record.event === 'http.unexpected_error')).toBe(false);
+  });
+
+  it('sends security headers with every API answer (review m7)', async () => {
+    for (const response of [
+      await fetch(`${baseUrl}/health`),
+      await fetch(`${baseUrl}/auth/session`),
+      await post('/auth/sign-in', { email: 'not an address' }),
+    ]) {
+      expect(response.headers.get('content-security-policy')).toBe(
+        "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+      );
+      expect(response.headers.get('x-frame-options')).toBe('DENY');
+      expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+    }
+  });
+
+  it('peeks at a link without consuming it, showing only the masked address (review m8)', async () => {
+    const address = freshAddress();
+    const token = await requestLink(address);
+    const peek = await post('/auth/peek', { token, client: 'web' });
+    expect(peek.status).toBe(200);
+    expect(peek.headers.get('cache-control')).toBe('no-store');
+    expect(await peek.json()).toEqual({ maskedEmail: `r•••@${address.split('@')[1] ?? ''}` });
+    const link = await handle.db
+      .selectFrom('identity.sign_in_links')
+      .select('consumed_at')
+      .where('address', '=', address)
+      .executeTakeFirst();
+    expect(link).toEqual({ consumed_at: null });
+    // A web link is not a native app's, and an unknown token is like a used one.
+    await expectProblem(await post('/auth/peek', { token, client: 'native' }), 400, 'SIGN_IN_LINK_INVALID');
+    await expectProblem(
+      await post('/auth/peek', { token: `ksl_${'Z'.repeat(43)}`, client: 'web' }),
+      400,
+      'SIGN_IN_LINK_INVALID',
+    );
   });
 
   it('signs in on the web with an HttpOnly, SameSite=Lax cookie and no token in the body', async () => {
@@ -239,8 +303,49 @@ describe('sign-in through the built API', () => {
       account: (body as { account: unknown }).account,
       client: 'web',
     });
-    const saved = await fetch(`${baseUrl}/v1/saved`, { headers: { cookie: value } });
+    const account = (body as { account: SignedIn }).account;
+    const saved = await fetch(`${baseUrl}/v1/saved`, { headers: { cookie: value, 'x-ks-scope': scopeOf(account) } });
     expect(saved.status).toBe(200);
+  });
+
+  it('serves a scope only its own requests: another account or an older epoch is refused, never served (review M1, m11)', async () => {
+    const web = await webSignIn();
+    const other = await webSignIn();
+    const read = (scope?: string) =>
+      fetch(`${baseUrl}/v1/saved`, {
+        headers: { cookie: web.cookie, ...(scope === undefined ? {} : { 'x-ks-scope': scope }) },
+      });
+    expect((await read(scopeOf(web))).status).toBe(200);
+    // No claim, another account's (a tab whose cookie another tab replaced), a malformed one.
+    for (const claim of [undefined, scopeOf(other), `${web.accountId}`, `${scopeOf(web)}, ${scopeOf(web)}`])
+      await expectProblem(await read(claim), 409, 'SCOPE_MISMATCH');
+    // A privacy reset whose revocation notice the client never got: its old-epoch scope is refused.
+    await handle.db
+      .updateTable('identity.universes')
+      .set({ privacy_epoch: 2 })
+      .where('id', '=', web.universeId)
+      .execute();
+    await expectProblem(await read(scopeOf(web)), 409, 'SCOPE_MISMATCH');
+    const action = await post(
+      '/v1/actions',
+      { commandId: randomUUID(), kind: 'save', target: { assetId: asset.assetId, assetRevision: asset.revision } },
+      { cookie: web.cookie, origin: baseUrl, 'x-ks-scope': scopeOf(web) },
+    );
+    await expectProblem(action, 409, 'SCOPE_MISMATCH');
+    expect(
+      await handle.db
+        .selectFrom('experience.saved_items')
+        .select('asset_id')
+        .where('universe_id', '=', web.universeId)
+        .execute(),
+    ).toEqual([]);
+    expect((await read(scopeOf({ ...web, privacyEpoch: 2 }))).status).toBe(200);
+    // The socket handshake carries the same claim.
+    await expect(connected(connect({ cookie: web.cookie, origin: baseUrl, scope: scopeOf(web) }))).rejects.toThrow(
+      'SCOPE_MISMATCH',
+    );
+    await expect(connected(connect({ cookie: web.cookie, origin: baseUrl }))).rejects.toThrow('SCOPE_MISMATCH');
+    await connected(connect({ cookie: web.cookie, origin: baseUrl, scope: scopeOf({ ...web, privacyEpoch: 2 }) }));
   });
 
   it('refuses cookie-authenticated changes that do not come from this origin, and web redemption from elsewhere', async () => {
@@ -250,6 +355,8 @@ describe('sign-in through the built API', () => {
       kind: 'save',
       target: { assetId: asset.assetId, assetRevision: asset.revision },
     });
+    const signedIn = await fetch(`${baseUrl}/auth/session`, { headers: { cookie } });
+    const scope = scopeOf(((await signedIn.json()) as { account: SignedIn }).account);
     await expectProblem(await post('/v1/actions', action(), { cookie }), 403, 'ORIGIN_NOT_ALLOWED');
     await expectProblem(
       await post('/v1/actions', action(), { cookie, origin: 'https://attacker.invalid' }),
@@ -257,7 +364,7 @@ describe('sign-in through the built API', () => {
       'ORIGIN_NOT_ALLOWED',
     );
     await expectProblem(await post('/auth/sign-out', {}, { cookie }), 403, 'ORIGIN_NOT_ALLOWED');
-    const allowed = await post('/v1/actions', action(), { cookie, origin: baseUrl });
+    const allowed = await post('/v1/actions', action(), { cookie, origin: baseUrl, 'x-ks-scope': scope });
     expect(allowed.status).toBe(200);
 
     // A web redemption must come from this origin; a refused one leaves the link usable.
@@ -284,16 +391,51 @@ describe('sign-in through the built API', () => {
   it('gives a native client its bearer token once, and accepts each kind of token only as itself', async () => {
     const native = await nativeSignIn();
     expect(native.token).toMatch(/^kss_[A-Za-z0-9_-]{43}$/);
-    expect((await fetch(`${baseUrl}/v1/saved`, { headers: { authorization: `Bearer ${native.token}` } })).status).toBe(
-      200,
-    );
+    expect(
+      (
+        await fetch(`${baseUrl}/v1/saved`, {
+          headers: { authorization: `Bearer ${native.token}`, 'x-ks-scope': scopeOf(native) },
+        })
+      ).status,
+    ).toBe(200);
     // A bearer request needs no Origin: no browser attaches it on its own.
     const saved = await post(
       '/v1/actions',
       { commandId: randomUUID(), kind: 'save', target: { assetId: asset.assetId, assetRevision: asset.revision } },
-      { authorization: `Bearer ${native.token}` },
+      { authorization: `Bearer ${native.token}`, 'x-ks-scope': scopeOf(native) },
     );
     expect(saved.status).toBe(200);
+    // A native link redeemed without its verifier, or by the web, signs nobody in (review m10).
+    const device = nativeDevice();
+    const bound = await requestLink(freshAddress(), device.challenge);
+    await expectProblem(
+      await post('/auth/redeem', { token: bound, commandId: randomUUID(), client: 'native' }),
+      400,
+      'SIGN_IN_LINK_INVALID',
+    );
+    await expectProblem(
+      await post('/auth/redeem', {
+        token: bound,
+        commandId: randomUUID(),
+        client: 'native',
+        codeVerifier: nativeDevice().verifier,
+      }),
+      400,
+      'SIGN_IN_LINK_INVALID',
+    );
+    await expectProblem(
+      await post('/auth/redeem', { token: bound, commandId: randomUUID(), client: 'web' }, { origin: baseUrl }),
+      400,
+      'SIGN_IN_LINK_INVALID',
+    );
+    const redeemed = await post('/auth/redeem', {
+      token: bound,
+      commandId: randomUUID(),
+      client: 'native',
+      codeVerifier: device.verifier,
+    });
+    expect(redeemed.status).toBe(200);
+    secrets.add(((await redeemed.json()) as { session: { token: string } }).session.token);
     // A native token presented as the cookie, and a web cookie presented as a bearer token: refused.
     await expectProblem(
       await fetch(`${baseUrl}/v1/saved`, { headers: { cookie: `ks_session=${native.token}` } }),
@@ -325,42 +467,56 @@ describe('sign-in through the built API', () => {
       .where('address', '=', address)
       .executeTakeFirst();
     expect(link).toEqual({ consumed_at: null });
-    expect((await post('/auth/redeem', { token, commandId: randomUUID(), client: 'native' })).status).toBe(200);
+    expect(
+      (await post('/auth/redeem', { token, commandId: randomUUID(), client: 'web' }, { origin: baseUrl })).status,
+    ).toBe(200);
   });
 
-  it('replays a retried redemption with a fresh session and refuses the link to any other command', async () => {
-    const token = await requestLink(freshAddress());
+  it('replays a retried redemption with a replacement session and refuses the link to any other command', async () => {
+    const device = nativeDevice();
+    const token = await requestLink(freshAddress(), device.challenge);
     const commandId = randomUUID();
-    const first = (await (await post('/auth/redeem', { token, commandId, client: 'native' })).json()) as {
+    const redeem = { token, commandId, client: 'native', codeVerifier: device.verifier };
+    const first = (await (await post('/auth/redeem', redeem)).json()) as {
       account: unknown;
       session: { token: string };
     };
-    const retry = await post('/auth/redeem', { token, commandId, client: 'native' });
+    const retry = await post('/auth/redeem', redeem);
     expect(retry.status).toBe(200);
     const replay = (await retry.json()) as { account: unknown; replayed: boolean; session: { token: string } };
     secrets.add(first.session.token);
     secrets.add(replay.session.token);
     expect(replay).toMatchObject({ account: first.account, replayed: true });
     expect(replay.session.token).not.toBe(first.session.token);
+    // The replaced session ended (review m5: a replay never adds a live session).
     await expectProblem(
-      await post('/auth/redeem', { token, commandId: randomUUID(), client: 'native' }),
+      await fetch(`${baseUrl}/auth/session`, { headers: { authorization: `Bearer ${first.session.token}` } }),
+      401,
+      'UNAUTHENTICATED',
+    );
+    await expectProblem(
+      await post('/auth/redeem', { ...redeem, commandId: randomUUID() }),
       400,
       'SIGN_IN_LINK_INVALID',
     );
+    // Once its session is signed out, the same retry signs nobody in.
+    const out = await post('/auth/sign-out', {}, { authorization: `Bearer ${replay.session.token}` });
+    expect(out.status).toBe(200);
+    await expectProblem(await post('/auth/redeem', redeem), 400, 'SIGN_IN_LINK_INVALID');
   });
 
   it('authenticates sockets by cookie from this origin or by bearer token, and drops them at sign-out', async () => {
     const web = await webSignIn();
-    const fromElsewhere = connect({ cookie: web.cookie, origin: 'https://attacker.invalid' });
+    const fromElsewhere = connect({ cookie: web.cookie, origin: 'https://attacker.invalid', scope: scopeOf(web) });
     await expect(connected(fromElsewhere)).rejects.toThrow('ORIGIN_NOT_ALLOWED');
-    const socket = connect({ cookie: web.cookie, origin: baseUrl });
+    const socket = connect({ cookie: web.cookie, origin: baseUrl, scope: scopeOf(web) });
     await connected(socket);
     expect(
       await socket.emitWithAck(socketEvents.subscribeScope, { scope: { kind: 'universe', id: web.universeId } }),
     ).toEqual({ ok: true, revision: 0 });
 
     const native = await nativeSignIn();
-    const nativeSocket = connect({ token: native.token });
+    const nativeSocket = connect({ token: native.token, scope: scopeOf(native) });
     await connected(nativeSocket);
 
     const disconnected = new Promise<string>((resolve) => socket.once('disconnect', resolve));
@@ -378,11 +534,13 @@ describe('sign-in through the built API', () => {
       'UNAUTHENTICATED',
     );
     await expectProblem(
-      await fetch(`${baseUrl}/v1/saved`, { headers: { cookie: web.cookie } }),
+      await fetch(`${baseUrl}/v1/saved`, { headers: { cookie: web.cookie, 'x-ks-scope': scopeOf(web) } }),
       401,
       'UNAUTHENTICATED',
     );
-    await expect(connected(connect({ cookie: web.cookie, origin: baseUrl }))).rejects.toThrow('UNAUTHENTICATED');
+    await expect(connected(connect({ cookie: web.cookie, origin: baseUrl, scope: scopeOf(web) }))).rejects.toThrow(
+      'UNAUTHENTICATED',
+    );
   });
 
   it('replaces the session a device still presents when it redeems another link (account switch)', async () => {
@@ -435,6 +593,61 @@ describe('sign-in through the built API', () => {
     const flooded = await post('/auth/sign-in', { email: freshAddress() }, { 'x-forwarded-for': client });
     await expectProblem(flooded, 429, 'TOO_MANY_REQUESTS');
     expect(Number(flooded.headers.get('retry-after'))).toBeGreaterThan(0);
+
+    // One IPv6 client is its whole /64 (review M2): rotating the interface ID buys nothing.
+    for (let index = 0; index < 10; index += 1)
+      expect(
+        (
+          await post(
+            '/auth/sign-in',
+            { email: 'junk' },
+            { 'x-forwarded-for': `2001:db8:77:1::${(index + 1).toString(16)}` },
+          )
+        ).status,
+      ).toBe(422);
+    await expectProblem(
+      await post('/auth/sign-in', { email: freshAddress() }, { 'x-forwarded-for': '2001:db8:77:1:ffff:1:2:3' }),
+      429,
+      'TOO_MANY_REQUESTS',
+    );
+    expect(
+      (await post('/auth/sign-in', { email: freshAddress() }, { 'x-forwarded-for': '2001:db8:77:2::1' })).status,
+    ).toBe(202);
+  });
+
+  it('never lets malformed requests from many clients shut sign-in for everyone (review M2, probe p6)', async () => {
+    const statuses: Record<number, number> = {};
+    for (let client = 0; client < 31; client += 1)
+      for (let index = 0; index < 10; index += 1) {
+        const response = await post('/auth/sign-in', { email: 'abc' }, { 'x-forwarded-for': `192.0.2.${client + 1}` });
+        statuses[response.status] = (statuses[response.status] ?? 0) + 1;
+      }
+    expect(statuses).toEqual({ 422: 310 });
+    const person = await post('/auth/sign-in', { email: freshAddress() }, { 'x-forwarded-for': '203.0.113.77' });
+    expect(person.status).toBe(202);
+  });
+
+  it('a redemption refused for a reused command ID leaves the link usable (review m1, probe p4)', async () => {
+    const address = freshAddress();
+    const commandId = randomUUID();
+    const first = await post(
+      '/auth/redeem',
+      { token: await requestLink(address), commandId, client: 'web' },
+      { origin: baseUrl },
+    );
+    expect(first.status).toBe(200);
+    const cookie = /^ks_session=(kss_[A-Za-z0-9_-]{43});/.exec(first.headers.getSetCookie()[0] ?? '')?.[1];
+    if (cookie !== undefined) secrets.add(cookie);
+    const token = await requestLink(address);
+    await expectProblem(
+      await post('/auth/redeem', { token, commandId, client: 'web' }, { origin: baseUrl }),
+      422,
+      'COMMAND_KEY_REUSED',
+    );
+    const again = await post('/auth/redeem', { token, commandId: randomUUID(), client: 'web' }, { origin: baseUrl });
+    expect(again.status).toBe(200);
+    const second = /^ks_session=(kss_[A-Za-z0-9_-]{43});/.exec(again.headers.getSetCookie()[0] ?? '')?.[1];
+    if (second !== undefined) secrets.add(second);
   });
 
   /** Runs the release's operator command with a clean environment; stdout and stderr apart. */
@@ -458,20 +671,25 @@ describe('sign-in through the built API', () => {
     return { code, stdout, records };
   }
 
-  it('issues operator links only outside live with the flag set, for a disposable account the API then signs in', async () => {
-    const address = freshAddress();
+  it('issues operator links only in allow-listed worlds, for the world pattern, audited, and the API then signs in (review m2, m3, m9)', async () => {
+    const address = freshAddress('operator.test');
     const env = {
       KS_WORLD: 'ci',
       DATABASE_URL: database.url,
       KS_PUBLIC_ORIGIN: baseUrl,
       KS_ALLOW_OPERATOR_SIGN_IN: '1',
+      KS_OPERATOR_SIGN_IN_PATTERN: '*@operator.test',
     };
     const args = ['issue-sign-in', '--email', address];
 
     for (const [overrides, reasonCode] of [
-      [{ KS_WORLD: 'live' }, 'refused_in_live'],
+      [{ KS_WORLD: 'live' }, 'refused_in_this_world'],
+      [{ KS_WORLD: 'prod' }, 'refused_in_this_world'],
+      [{ KS_WORLD: 'production' }, 'refused_in_this_world'],
       [{ KS_ALLOW_OPERATOR_SIGN_IN: '' }, 'not_enabled'],
       [{ KS_ALLOW_OPERATOR_SIGN_IN: 'true' }, 'not_enabled'],
+      [{ KS_OPERATOR_SIGN_IN_PATTERN: '' }, 'pattern_invalid'],
+      [{ KS_OPERATOR_SIGN_IN_PATTERN: '*@*' }, 'pattern_invalid'],
     ] as const) {
       const refused = await operator({ ...env, ...overrides }, args);
       expect({ code: refused.code, stdout: refused.stdout }).toEqual({ code: 1, stdout: '' });
@@ -481,13 +699,19 @@ describe('sign-in through the built API', () => {
         reasonCode,
       });
     }
-    expect(
-      await handle.db
-        .selectFrom('identity.email_addresses')
-        .select('account_id')
-        .where('address', '=', address)
-        .execute(),
-    ).toEqual([]);
+    // An address the pattern does not match: refused, nothing created.
+    const outside = freshAddress();
+    const notAllowed = await operator(env, ['issue-sign-in', '--email', outside]);
+    expect({ code: notAllowed.code, stdout: notAllowed.stdout }).toEqual({ code: 1, stdout: '' });
+    expect(notAllowed.records.at(-1)).toMatchObject({ reasonCode: 'address_not_allowed' });
+    for (const candidate of [address, outside])
+      expect(
+        await handle.db
+          .selectFrom('identity.email_addresses')
+          .select('account_id')
+          .where('address', '=', candidate)
+          .execute(),
+      ).toEqual([]);
     expect((await operator(env, ['issue-sign-in'])).code).toBe(2);
 
     const issued = await operator(env, args);
@@ -499,18 +723,35 @@ describe('sign-in through the built API', () => {
     expect(issued.stdout).toBe(`${link}\n`);
     secrets.add(link);
     const token = tokenOf(link);
-    const redeemed = await post('/auth/redeem', { token, commandId: randomUUID(), client: 'native' });
+    const redeemed = await post('/auth/redeem', { token, commandId: randomUUID(), client: 'web' }, { origin: baseUrl });
     expect(redeemed.status).toBe(200);
-    secrets.add(((await redeemed.json()) as { session: { token: string } }).session.token);
+    const redeemedBody = (await redeemed.json()) as { account: SignedIn };
+    const cookie = /^ks_session=(kss_[A-Za-z0-9_-]{43});/.exec(redeemed.headers.getSetCookie()[0] ?? '')?.[1];
+    if (cookie !== undefined) secrets.add(cookie);
     const disposable = await handle.db
       .selectFrom('identity.email_addresses')
       .select('disposable')
       .where('address', '=', address)
       .executeTakeFirst();
     expect(disposable).toEqual({ disposable: true });
+    // The durable audit row (review m9): world, time, who ran it, the account.
+    const audit = await handle.db
+      .selectFrom('ops.operator_sign_ins')
+      .select(['world', 'operator_source', 'account_id', 'account_created', 'issued_at'])
+      .where('account_id', '=', redeemedBody.account.accountId)
+      .execute();
+    expect(audit).toEqual([
+      {
+        world: 'ci',
+        operator_source: expect.stringMatching(/^cli:[a-z_][a-z0-9_.-]{0,31}$/) as unknown,
+        account_id: redeemedBody.account.accountId,
+        account_created: true,
+        issued_at: expect.any(Date) as unknown,
+      },
+    ]);
 
     // An address that signed up by mail is never opened by the operator command.
-    const real = freshAddress();
+    const real = freshAddress('operator.test');
     await webSignIn(real);
     const refused = await operator(env, ['issue-sign-in', '--email', real]);
     expect({ code: refused.code, stdout: refused.stdout }).toEqual({ code: 1, stdout: '' });
@@ -522,7 +763,7 @@ describe('sign-in through the built API', () => {
     expect(secrets.size).toBeGreaterThan(10);
     for (const secret of secrets) expect(output.includes(secret)).toBe(false);
     expect(output).not.toMatch(/ksl_|kss_/);
-    expect(output).not.toContain('@identity.test');
+    expect(output).not.toMatch(fixtureAddress);
     expect(output).not.toContain(database.url);
     expect(output.split('\n').filter((line) => line.includes('"identity.signed_in"')).length).toBeGreaterThan(5);
   });
@@ -674,9 +915,19 @@ describe('the production configuration of sign-in', () => {
     ]);
   });
 
-  it('refuses operator sign-in in live', async () => {
-    expect(await refusal({ ...fixtureAgentMail, KS_WORLD: 'live', KS_ALLOW_OPERATOR_SIGN_IN: '1' })).toEqual([
-      'KS_ALLOW_OPERATOR_SIGN_IN: refused_in_live',
+  it('refuses operator sign-in outside dev, stage, ci and local, whatever the production world is called (review m3)', async () => {
+    for (const world of ['live', 'prod', 'live-2'])
+      expect(
+        await refusal({
+          ...fixtureAgentMail,
+          KS_WORLD: world,
+          KS_ALLOW_OPERATOR_SIGN_IN: '1',
+          KS_OPERATOR_SIGN_IN_PATTERN: '*@test.knowscroll.space',
+        }),
+        world,
+      ).toEqual(['KS_ALLOW_OPERATOR_SIGN_IN: refused_in_this_world']);
+    expect(await refusal({ ...fixtureAgentMail, KS_ALLOW_OPERATOR_SIGN_IN: '1' })).toEqual([
+      'KS_OPERATOR_SIGN_IN_PATTERN: missing_or_wrong_type',
     ]);
   });
 });

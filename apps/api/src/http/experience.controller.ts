@@ -5,7 +5,13 @@ import { apiContract, type ProblemCode } from '@knowscroll/contracts';
 import type { ApplyAction, ApplyActionResult, ListSaved } from '@knowscroll/backend/modules/experience';
 import { APPLY_ACTION, LIST_SAVED } from '../modules/experience.js';
 import { CALLERS } from '../tokens.js';
-import { authorityOf, type AuthenticatedCallers, type Caller } from './callers.js';
+import {
+  authorityOf,
+  scopeClaimMatches,
+  scopeClaimOfRequest,
+  type AuthenticatedCallers,
+  type Caller,
+} from './callers.js';
 import { problem } from './problems.js';
 
 const refusalProblems: Record<Extract<ApplyActionResult, { kind: 'refused' }>['reason'], ProblemCode> = {
@@ -54,9 +60,14 @@ export class ExperienceController {
     });
   }
 
+  /**
+   * The authenticated caller, whose scope claim must name its account and current epoch (review
+   * M1): a request of another scope is refused (`SCOPE_MISMATCH`) and never served.
+   */
   private async requireCaller(request: Request): Promise<Caller> {
     const caller = await this.callers.resolve(request.headers);
     if (caller === undefined) throw problem('UNAUTHENTICATED');
+    if (!scopeClaimMatches(caller, scopeClaimOfRequest(request.headers))) throw problem('SCOPE_MISMATCH');
     return caller;
   }
 }

@@ -21,6 +21,9 @@ export const identityErasure: ModuleErasure = {
     { schema: 'identity', table: 'sign_in_links', ownerColumn: 'address' },
     { schema: 'identity', table: 'sessions', ownerColumn: 'account_id' },
   ],
+  // The operator audit (ops.operator_sign_ins, review m9) outlives clearing a universe; account
+  // deletion keeps each row as a tombstone (account_id set to null).
+  accountColumns: [{ schema: 'ops', table: 'operator_sign_ins', column: 'account_id' }],
   nonRowStores: [
     {
       name: 'agentmail/sent-sign-in-mail',

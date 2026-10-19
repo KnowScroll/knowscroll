@@ -92,17 +92,25 @@ export type ResolvedScopeOutcome<T, R> =
   | { readonly kind: 'refused'; readonly refusal: ScopeRefusal };
 
 /**
+ * What the second phase decided: commit its value, or roll everything back (the resolution's
+ * writes too) and answer `stopped` with `result`. A refusal inside the scope therefore writes
+ * nothing: a refused redemption never consumes its link (review m1).
+ */
+export type ScopeWork<T, R> =
+  { readonly kind: 'commit'; readonly value: T } | { readonly kind: 'rollback'; readonly result: R };
+
+/**
  * `withPersonalScope` for commands that find or create the personal root themselves (sign-in:
  * the universe is known only after the sign-in link is read, and created on first sign-in).
  * Runs in one transaction: `resolve` (with the bounded lock timeout already set) takes identity's
  * earlier locks, may create the account and its universe, and names the universe to enter; the
  * root is then locked and rechecked exactly as `withPersonalScope` does, and `work` runs with the
- * scope. A `stop`, a refusal or an exception rolls back everything `resolve` wrote; nothing
- * commits unless `work` returns.
+ * scope. A `stop`, a refusal, a `rollback` from `work` or an exception rolls back everything
+ * `resolve` wrote; nothing commits unless `work` answers `commit`.
  */
 export type WithResolvedPersonalScope = <C, R, T>(
   resolve: (tx: RootResolutionTx) => Promise<RootResolution<C, R>>,
-  work: (scope: PersonalScopeTx, context: C) => Promise<T>,
+  work: (scope: PersonalScopeTx, context: C) => Promise<ScopeWork<T, R>>,
 ) => Promise<ResolvedScopeOutcome<T, R>>;
 
 /**
@@ -145,7 +153,13 @@ export const READ_UNIVERSE_ACCESS = Symbol('identity.readUniverseAccess');
 // ── Sign-in and sessions (S1.3, D-022) ──────────────────────────────────────────────────────
 // The use cases are implemented in `application/` and built by `adapters/nest-providers.ts`.
 
-export { SESSION_TTL_DAYS, SIGN_IN_LINK_TTL_MINUTES } from './domain/policy.js';
+export {
+  OPERATOR_WORLDS,
+  SESSION_TTL_DAYS,
+  SIGN_IN_LINK_TTL_MINUTES,
+  operatorAddressMatcher,
+} from './domain/policy.js';
+export { SweepSignInRecordsPayloadSchema, sweepSignInRecordsQueue, type SweepSignInRecordsPayload } from './events.js';
 
 /** Which client a session belongs to: a web cookie or a native bearer token. */
 export type SessionClient = 'web' | 'native';
@@ -174,6 +188,9 @@ export type MailDelivery =
       readonly status?: number;
     };
 
+/** The budget a refused sign-in request ran into (review M2). */
+export type SignInBudget = 'address' | 'domain' | 'world';
+
 export type RequestSignInResult =
   | {
       readonly kind: 'requested';
@@ -185,10 +202,20 @@ export type RequestSignInResult =
       readonly delivery: Promise<MailDelivery>;
     }
   | { readonly kind: 'refused'; readonly reason: 'invalid_address' }
-  | { readonly kind: 'rate_limited'; readonly retryAfterSeconds: number };
+  | { readonly kind: 'rate_limited'; readonly budget: SignInBudget; readonly retryAfterSeconds: number };
 
 /** Use case: mail a single-use sign-in link (`application/request-sign-in.ts`). */
-export type RequestSignIn = (input: { readonly email: string }) => Promise<RequestSignInResult>;
+export type RequestSignIn = (input: {
+  readonly email: string;
+  /** Native only: base64url SHA-256 of the app's verifier (PKCE-style binding, review m10). */
+  readonly codeChallenge?: string;
+}) => Promise<RequestSignInResult>;
+
+/** Use case: which address a link signs into, masked, without consuming it (review m8). */
+export type PeekSignInLink = (request: {
+  readonly token: string;
+  readonly client: SessionClient;
+}) => Promise<{ readonly kind: 'usable'; readonly maskedEmail: string } | { readonly kind: 'link_invalid' }>;
 
 export interface RedeemSignInCommand {
   /** The link token as presented (its shape is checked by the wire contract). */
@@ -196,10 +223,16 @@ export interface RedeemSignInCommand {
   /** Minted by the client once per redemption and reused on its retries. */
   readonly commandId: string;
   readonly client: SessionClient;
+  /** Native: the verifier whose challenge the link was requested with (review m10). */
+  readonly codeVerifier?: string;
 }
 
 export type RedeemRefusal =
-  /** Unknown, expired, or already redeemed by another command: one answer for each (A02). */
+  /**
+   * Unknown, expired, redeemed by another command, bound to another device (PKCE), an operator
+   * link where operator sign-in is off or for an address outside the pattern, or a replay whose
+   * session has ended: one answer for each (A02).
+   */
   | 'link_invalid'
   /** The account or its universe is suspended or missing. */
   | 'account_unavailable'
@@ -231,8 +264,11 @@ export type IssueOperatorSignInResult =
     }
   | {
       readonly kind: 'refused';
-      /** `not_disposable`: the address belongs to an account that signed up by mail. */
-      readonly reason: 'invalid_address' | 'not_disposable' | 'account_unavailable';
+      /**
+       * `address_not_allowed`: the address does not match the world's operator pattern;
+       * `not_disposable`: its account proved the address by a mailed link.
+       */
+      readonly reason: 'invalid_address' | 'address_not_allowed' | 'not_disposable' | 'account_unavailable';
     };
 
 /** Use case: mint an operator sign-in link for a disposable test account (`application/issue-operator-sign-in.ts`). */
@@ -244,16 +280,26 @@ export type ResolveSession = (token: string) => Promise<ActiveSession | undefine
 /** Use case: whether a session that authenticated a socket still holds. */
 export type SessionValid = (session: { readonly sessionId: string; readonly accountId: string }) => Promise<boolean>;
 
+/** Why sessions end: the person signed out (here or everywhere), or another sign-in replaced it. */
+export type SessionEndReason = 'signed_out' | 'signed_out_everywhere' | 'replaced';
+
 /** Use case: end this session, or every session of the account; drops the account's sockets. */
 export type SignOut = (request: {
   readonly sessionId: string;
   readonly accountId: string;
   readonly everywhere: boolean;
+  /** Defaults to signed out; an account switch on a device ends the old session as replaced. */
+  readonly reason?: 'replaced';
 }) => Promise<{ readonly revoked: number }>;
 
-/** Injection tokens of identity's sign-in use cases (bound by the API composition root). */
+/** Use case: delete sign-in records past their retention (the scheduled sweep, review m12). */
+export type SweepSignInRecords = () => Promise<{ readonly links: number; readonly sessions: number }>;
+
+/** Injection tokens of identity's sign-in use cases (bound by the composition roots). */
 export const REQUEST_SIGN_IN = Symbol('identity.requestSignIn');
+export const PEEK_SIGN_IN_LINK = Symbol('identity.peekSignInLink');
 export const REDEEM_SIGN_IN = Symbol('identity.redeemSignIn');
 export const RESOLVE_SESSION = Symbol('identity.resolveSession');
 export const SESSION_VALID = Symbol('identity.sessionValid');
 export const SIGN_OUT = Symbol('identity.signOut');
+export const SWEEP_SIGN_IN_RECORDS = Symbol('identity.sweepSignInRecords');

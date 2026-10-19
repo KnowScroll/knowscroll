@@ -101,6 +101,10 @@ export const diagnosticCatalogue = {
   'realtime.sockets_reauthenticated': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'count'] },
   // Identity (S1.3). Never an address, token, link, cookie or key: outcomes and codes only.
   'identity.sign_in_requested': { severity: 'info', module: 'identity', fields: ['requestId', 'outcome'] },
+  // Once per window per budget (domain, world, client): the alert that sign-in mail is throttled.
+  'identity.sign_in_budget_full': { severity: 'warn', module: 'identity', fields: ['reasonCode'] },
+  // The scheduled sweep (worker, every 15 minutes): how many expired links and ended sessions went.
+  'identity.sign_in_records_swept': { severity: 'info', module: 'identity', fields: ['count'] },
   'identity.sign_in_mail': {
     severity: 'by-call',
     module: 'identity',

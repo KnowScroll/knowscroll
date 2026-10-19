@@ -32,6 +32,11 @@ const canaries = {
   chat: 'CANARY CHAT BODY meet me later',
 } as const;
 
+/** The scope a test-bearer token's account claims: every fixture person starts at epoch 1. */
+function scopeFromTestToken(token: string): string {
+  return `${token.replace(/^test\./, '')}:1`;
+}
+
 describe('the spike journey through the built API, worker and Socket.IO', () => {
   let database: Awaited<ReturnType<typeof createEmptyDatabase>>;
   let handle: DatabaseHandle<Database>;
@@ -81,8 +86,14 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     await database.drop();
   });
 
-  function connect(token: string): Socket {
-    const socket = io(baseUrl, { path: SOCKET_PATH, transports: ['websocket'], auth: { token }, reconnection: false });
+  /** A socket for `token`, claiming the scope `<accountId>:<epoch>` (S1.3 review M1). */
+  function connect(token: string, scope = scopeFromTestToken(token)): Socket {
+    const socket = io(baseUrl, {
+      path: SOCKET_PATH,
+      transports: ['websocket'],
+      auth: { token, scope },
+      reconnection: false,
+    });
     sockets.push(socket);
     return socket;
   }
@@ -111,7 +122,7 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
       await socket.emitWithAck(socketEvents.subscribeScope, { scope: { kind: 'universe', id: person.universeId } }),
     ).toEqual({ ok: true, revision: 0 });
 
-    const client = apiClient(baseUrl, `Bearer test.${person.accountId}`);
+    const client = apiClient(baseUrl, `Bearer test.${person.accountId}`, `${person.accountId}:1`);
     const commandId = randomUUID();
     const saved = await client.experience.applyAction({
       commandId,
@@ -168,7 +179,10 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
   it('answers refusals as RFC 9457 problems with stable codes', async () => {
     const post = (
       body: unknown,
-      headers: Record<string, string> = { authorization: `Bearer test.${person.accountId}` },
+      headers: Record<string, string> = {
+        authorization: `Bearer test.${person.accountId}`,
+        'x-ks-scope': `${person.accountId}:1`,
+      },
     ) =>
       fetch(`${baseUrl}/v1/actions`, {
         method: 'POST',
@@ -244,7 +258,8 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
       .set({ privacy_epoch: 2 })
       .where('id', '=', owner.universeId)
       .execute();
-    const client = apiClient(baseUrl, `Bearer test.${owner.accountId}`);
+    // The client of the new epoch (its claim names epoch 2).
+    const client = apiClient(baseUrl, `Bearer test.${owner.accountId}`, `${owner.accountId}:2`);
     await client.experience.applyAction({
       commandId: randomUUID(),
       kind: 'save',
@@ -329,7 +344,11 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     });
     await fetch(`${baseUrl}/v1/actions?token=${canaries.token}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer test.${person.accountId}` },
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer test.${person.accountId}`,
+        'x-ks-scope': `${person.accountId}:1`,
+      },
       body: JSON.stringify({
         commandId: randomUUID(),
         kind: 'save',

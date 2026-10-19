@@ -1,4 +1,4 @@
-import { SESSION_TOKEN_PATTERN } from '@knowscroll/contracts';
+import { SCOPE_HEADER, SESSION_TOKEN_PATTERN, scopeClaimOf } from '@knowscroll/contracts';
 import type { AuthAdapter } from '@knowscroll/backend/infrastructure/config';
 import type {
   ActiveSession,
@@ -37,6 +37,22 @@ export interface AuthenticatedCallers {
    * on every subscribe and whenever it re-authorises a socket for a relayed hint.
    */
   sessionValid(caller: Caller): Promise<boolean>;
+}
+
+/**
+ * Whether a request's scope claim (`X-KS-Scope`, or a socket's `auth.scope`) names exactly this
+ * caller's account and current privacy epoch (review M1, m11). A missing, repeated or different
+ * claim does not: the request was made by a scope that is no longer this credential's (an
+ * account switch in another tab, a privacy reset) and is refused with `SCOPE_MISMATCH` before
+ * anything is read or written.
+ */
+export function scopeClaimMatches(caller: Caller, claim: unknown): boolean {
+  return typeof claim === 'string' && claim === scopeClaimOf(caller);
+}
+
+/** The scope claim of an HTTP request (`X-KS-Scope`), as received. */
+export function scopeClaimOfRequest(headers: Readonly<Record<string, string | string[] | undefined>>): unknown {
+  return headers[SCOPE_HEADER];
 }
 
 /** The claim a caller makes on its personal universe; `withPersonalScope` rechecks it. */

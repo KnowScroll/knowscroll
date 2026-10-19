@@ -32,7 +32,8 @@ export function createBoss(settings: DatabaseSettings, role: BossRole, diagnosti
     migrate: role === 'install',
     createSchema: role === 'install',
     supervise: role === 'consumer',
-    schedule: false,
+    // Only the worker sends scheduled jobs (declared queues' `schedule`, registered by migrate).
+    schedule: role === 'consumer',
   });
   boss.on('error', (error) => diagnostics.onError(error));
   boss.on('warning', (warning: { readonly data?: { readonly type?: unknown } }) => {
@@ -44,8 +45,9 @@ export function createBoss(settings: DatabaseSettings, role: BossRole, diagnosti
 
 /**
  * Creates every declared queue (and its dead-letter queue) or brings an existing queue's policy
- * in line with its declaration. Run by the migrate command with an `install` instance.
- * Idempotent. Queue policy changes apply to jobs sent afterwards.
+ * in line with its declaration, and registers (or removes) its recurring schedule. Run by the
+ * migrate command with an `install` instance. Idempotent. Queue policy changes apply to jobs sent
+ * afterwards.
  */
 export async function applyQueueDeclarations(boss: PgBoss, queues: readonly QueueDefinition<unknown>[]): Promise<void> {
   for (const queue of queues) {
@@ -77,5 +79,8 @@ export async function applyQueueDeclarations(boss: PgBoss, queues: readonly Queu
     } else {
       await boss.updateQueue(queue.name, { ...options, deadLetter: deadLetter ?? null });
     }
+    // Upserts the recurring job (pg-boss keys it by queue name); a queue without one has none.
+    if (queue.schedule === undefined) await boss.unschedule(queue.name);
+    else await boss.schedule(queue.name, queue.schedule.cron, queue.schedule.payload as object, { tz: 'UTC' });
   }
 }

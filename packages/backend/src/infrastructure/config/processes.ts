@@ -10,6 +10,7 @@ import {
   type Checked,
   type Environment,
 } from './environment.js';
+import { OPERATOR_WORLDS, operatorAddressMatcher } from '../../modules/identity/public.js';
 import { checkReleaseIdentity, type ReleaseIdentity } from './release.js';
 
 /** Connection settings for one process's PostgreSQL pool. `url` is a credential: never log it. */
@@ -51,14 +52,18 @@ export interface IdentitySettings {
   /** HTTPS origin: the session cookie is `__Host-` prefixed and Secure. */
   readonly secureCookies: boolean;
   readonly mail: MailSettings;
-  /** `KS_ALLOW_OPERATOR_SIGN_IN=1` (never in live): operator-minted links may be redeemed. */
-  readonly operatorSignIn: boolean;
+  /**
+   * `KS_ALLOW_OPERATOR_SIGN_IN=1` in an allow-listed world (dev, stage, ci, local) with a
+   * disposable-address pattern (`KS_OPERATOR_SIGN_IN_PATTERN`): operator-minted links may be
+   * redeemed here, for addresses the pattern matches only. `undefined` everywhere else.
+   */
+  readonly operatorSignIn: { readonly pattern: string } | undefined;
 }
 
 /** The real AgentMail API; a different base URL is accepted only outside production (tests). */
 export const AGENTMAIL_BASE_URL = 'https://api.agentmail.to';
 
-/** The world in which operator sign-in is refused whatever the flag says (D-007). */
+/** The live world. Operator sign-in is refused there, as in every world outside `OPERATOR_WORLDS`. */
 export const LIVE_WORLD = 'live';
 
 /** The only worlds in which test-only adapters may run. */
@@ -83,6 +88,8 @@ export interface OperatorConfig {
   readonly database: DatabaseSettings;
   readonly publicOrigin: string;
   readonly scopeLockTimeoutMs: number;
+  /** The disposable-address pattern operator links may be issued for. */
+  readonly pattern: string;
 }
 
 export interface WorkerConfig extends ReleaseIdentity {
@@ -231,7 +238,8 @@ function checkPublicOrigin(
  *   `AGENTMAIL_INBOX_ID` (credentials), takes `AGENTMAIL_TIMEOUT_MS` (default 10000, at most
  *   30000) and, outside production only, `AGENTMAIL_BASE_URL`; `fixture` (with an optional
  *   `KS_FIXTURE_MAIL_FILE`) is refused unless `NODE_ENV=test` in a `ci` or `local` world;
- * - `KS_ALLOW_OPERATOR_SIGN_IN`: unset, or exactly `1`; refused in the `live` world.
+ * - `KS_ALLOW_OPERATOR_SIGN_IN`: unset, or exactly `1`, and then only in an allow-listed world
+ *   (`dev`, `stage`, `ci`, `local`) with a valid `KS_OPERATOR_SIGN_IN_PATTERN`.
  * Production therefore cannot start without AgentMail fully configured.
  */
 function checkIdentitySettings(
@@ -272,11 +280,8 @@ function checkIdentitySettings(
   } else {
     problems.push('KS_MAIL_SENDER: not_allowed');
   }
-  const operatorFlag = env['KS_ALLOW_OPERATOR_SIGN_IN'];
-  if (operatorFlag !== undefined && operatorFlag !== '' && operatorFlag !== '1')
-    problems.push('KS_ALLOW_OPERATOR_SIGN_IN: not_allowed');
-  else if (operatorFlag === '1' && release.world === LIVE_WORLD)
-    problems.push('KS_ALLOW_OPERATOR_SIGN_IN: refused_in_live');
+  const operator = checkOperatorSignIn(env, release.world);
+  problems.push(...operator.problems);
   if (problems.length > 0 || origin.origin === undefined || mail === undefined)
     return { ok: false, problems: problems.length > 0 ? problems : ['KS_PUBLIC_ORIGIN: invalid_format'] };
   return {
@@ -285,16 +290,39 @@ function checkIdentitySettings(
       publicOrigin: origin.origin,
       secureCookies: origin.origin.startsWith('https:'),
       mail,
-      operatorSignIn: operatorFlag === '1',
+      operatorSignIn: operator.pattern === undefined ? undefined : { pattern: operator.pattern },
     },
   };
 }
 
 /**
+ * The operator sign-in switch (D-007, review m2/m3): `KS_ALLOW_OPERATOR_SIGN_IN` is unset or
+ * exactly `1`; `1` is accepted only in an allow-listed world (`OPERATOR_WORLDS`: dev, stage, ci,
+ * local; never live or any other name) and only with `KS_OPERATOR_SIGN_IN_PATTERN`, a
+ * disposable-address pattern such as `*@test.knowscroll.space` (one `*` in the local part, a
+ * literal domain).
+ */
+function checkOperatorSignIn(
+  env: Environment,
+  world: string,
+): { readonly pattern?: string; readonly problems: readonly string[] } {
+  const flag = env['KS_ALLOW_OPERATOR_SIGN_IN'];
+  if (flag === undefined || flag === '') return { problems: [] };
+  if (flag !== '1') return { problems: ['KS_ALLOW_OPERATOR_SIGN_IN: not_allowed'] };
+  const problems: string[] = [];
+  if (!OPERATOR_WORLDS.includes(world)) problems.push('KS_ALLOW_OPERATOR_SIGN_IN: refused_in_this_world');
+  const pattern = env['KS_OPERATOR_SIGN_IN_PATTERN'];
+  if (pattern === undefined || pattern === '') problems.push('KS_OPERATOR_SIGN_IN_PATTERN: missing_or_wrong_type');
+  else if (operatorAddressMatcher(pattern) === undefined) problems.push('KS_OPERATOR_SIGN_IN_PATTERN: invalid_format');
+  return problems.length > 0 || pattern === undefined ? { problems } : { pattern, problems };
+}
+
+/**
  * The operator sign-in command's configuration (`dist/operator.js`, D-007): `KS_WORLD`,
  * `DATABASE_URL`, `KS_PUBLIC_ORIGIN` (as for the API; required), `KS_DB_STATEMENT_TIMEOUT_MS`,
- * `KS_SCOPE_LOCK_TIMEOUT_MS`, and `KS_ALLOW_OPERATOR_SIGN_IN`, which must be exactly `1`. Refused
- * whatever the flag says in the `live` world. Throws one `ConfigurationError` listing every problem.
+ * `KS_SCOPE_LOCK_TIMEOUT_MS`, `KS_ALLOW_OPERATOR_SIGN_IN` (exactly `1`) and
+ * `KS_OPERATOR_SIGN_IN_PATTERN`. Refused in every world outside `OPERATOR_WORLDS` (live
+ * included, whatever it is called). Throws one `ConfigurationError` listing every problem.
  */
 export function readOperatorConfig(env: Environment): OperatorConfig {
   const [parsed] = combineChecks(
@@ -308,9 +336,13 @@ export function readOperatorConfig(env: Environment): OperatorConfig {
     ),
   );
   const origin = checkPublicOrigin(env['KS_PUBLIC_ORIGIN'] ?? '', 'production', 0);
+  const operator = checkOperatorSignIn(env, parsed.KS_WORLD);
   crossChecks([
-    [parsed.KS_WORLD === LIVE_WORLD, 'KS_WORLD: operator_sign_in_refused_in_live'],
+    [!OPERATOR_WORLDS.includes(parsed.KS_WORLD), 'KS_WORLD: operator_sign_in_refused_in_this_world'],
     [env['KS_ALLOW_OPERATOR_SIGN_IN'] !== '1', 'KS_ALLOW_OPERATOR_SIGN_IN: not_enabled'],
+    ...operator.problems
+      .filter((problem) => !problem.startsWith('KS_ALLOW_OPERATOR_SIGN_IN'))
+      .map((problem) => [true, problem] as const),
     [origin.problem !== undefined, origin.problem ?? ''],
     [
       parsed.KS_SCOPE_LOCK_TIMEOUT_MS >= parsed.KS_DB_STATEMENT_TIMEOUT_MS,
@@ -322,6 +354,7 @@ export function readOperatorConfig(env: Environment): OperatorConfig {
     database: databaseSettings(parsed, `knowscroll-operator-${parsed.KS_WORLD}`, 2),
     publicOrigin: origin.origin ?? '',
     scopeLockTimeoutMs: parsed.KS_SCOPE_LOCK_TIMEOUT_MS,
+    pattern: operator.pattern ?? '',
   };
 }
 

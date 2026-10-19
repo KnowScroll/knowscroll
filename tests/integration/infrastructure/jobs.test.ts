@@ -78,6 +78,29 @@ describe('pg-boss queue declarations and consumers (real database)', () => {
     }
   });
 
+  it('registers a declared recurring schedule, and removes it when the declaration drops it', async () => {
+    const scheduled = defineQueue({
+      ...fixtureQueue,
+      schedule: { cron: '*/15 * * * *', payload: { v: 1, taskId: 'scheduled', holdMs: 0 } },
+    });
+    const boss = createBoss(database.settings, 'install', diagnostics);
+    await boss.start();
+    const schedules = async () =>
+      (
+        await sql<{ name: string; cron: string; timezone: string }>`
+          select name, cron, timezone from pgboss.schedule where name = ${fixtureQueue.name}`.execute(database.db)
+      ).rows;
+    try {
+      await applyQueueDeclarations(boss, [scheduled]);
+      await applyQueueDeclarations(boss, [scheduled]);
+      expect(await schedules()).toEqual([{ name: fixtureQueue.name, cron: '*/15 * * * *', timezone: 'UTC' }]);
+      await applyQueueDeclarations(boss, [fixtureQueue]);
+      expect(await schedules()).toEqual([]);
+    } finally {
+      await boss.stop({ graceful: false });
+    }
+  });
+
   it('lets a running handler finish when consumers drain', async () => {
     const finished: string[] = [];
     let started!: () => void;

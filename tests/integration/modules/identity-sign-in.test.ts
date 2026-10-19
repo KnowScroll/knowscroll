@@ -1,12 +1,18 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { personalStores } from '@knowscroll/backend/erasure-registry';
 import type { IdentitySettings } from '@knowscroll/backend/infrastructure/config';
+import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { ScopeNoticeRelay } from '@knowscroll/backend/infrastructure/notices';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
-import type { Database } from '@knowscroll/backend/infrastructure/postgres';
+import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { MailDelivery, RedeemSignInResult } from '@knowscroll/backend/modules/identity';
-import { identityUseCases, operatorSignInUseCase } from '@knowscroll/backend/modules/identity/nest-providers';
+import {
+  identitySweepUseCase,
+  identityUseCases,
+  operatorSignInUseCase,
+} from '@knowscroll/backend/modules/identity/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 
 /**
@@ -16,6 +22,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
  */
 const silent: LogEvent = () => undefined;
 const origin = 'https://app.ci.invalid';
+const operatorPattern = '*@operator.test';
 
 interface Outbox {
   readonly sent: { readonly to: string; readonly link: string }[];
@@ -38,7 +45,7 @@ function settings(overrides: Partial<IdentitySettings> = {}): IdentitySettings {
     publicOrigin: origin,
     secureCookies: true,
     mail: { sender: 'fixture', outboxFile: undefined },
-    operatorSignIn: false,
+    operatorSignIn: undefined,
     ...overrides,
   };
 }
@@ -49,9 +56,20 @@ function tokenOf(link: string): string {
   return token;
 }
 
+/** A native app's binding (review m10): a verifier it keeps, and the S256 challenge it asks with. */
+interface Device {
+  readonly verifier: string;
+  readonly challenge: string;
+}
+
+function device(): Device {
+  const verifier = randomBytes(32).toString('base64url');
+  return { verifier, challenge: createHash('sha256').update(verifier, 'ascii').digest('base64url') };
+}
+
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 let addressCounter = 0;
-const freshAddress = () => `person-${Date.now()}-${(addressCounter += 1)}@identity.test`;
+const freshAddress = (domain = 'identity.test') => `person-${Date.now()}-${(addressCounter += 1)}@${domain}`;
 
 describe('sign-in, sessions and operator links (real database)', () => {
   let database: TestDatabase<Database>;
@@ -76,10 +94,13 @@ describe('sign-in, sessions and operator links (real database)', () => {
   const count = async (table: 'identity.accounts' | 'identity.universes' | 'identity.email_addresses') =>
     Number((await sql<{ n: string }>`select count(*) as n from ${sql.table(table)}`.execute(database.db)).rows[0]?.n);
 
-  /** Requests a link for `address` and returns its token from the fixture outbox. */
-  async function linkFor(address: string): Promise<string> {
+  /** Requests a link for `address` (bound to `bound` when given) and returns its token from the outbox. */
+  async function linkFor(address: string, bound?: Device, use = identity): Promise<string> {
     const before = mail.sent.length;
-    const result = await identity.requestSignIn({ email: address });
+    const result = await use.requestSignIn({
+      email: address,
+      ...(bound === undefined ? {} : { codeChallenge: bound.challenge }),
+    });
     expect(result.kind).toBe('requested');
     if (result.kind === 'requested') expect(await result.delivery).toEqual({ kind: 'sent' });
     expect(mail.sent).toHaveLength(before + 1);
@@ -88,9 +109,21 @@ describe('sign-in, sessions and operator links (real database)', () => {
     return tokenOf(sent?.link ?? '');
   }
 
+  /** A native redemption of a link asked for by `bound`. */
+  const redeemNative = (token: string, commandId: string, bound: Device) =>
+    identity.redeemSignIn({ token, commandId, client: 'native', codeVerifier: bound.verifier });
+
   function signedIn(result: RedeemSignInResult) {
     if (result.kind !== 'signed_in') throw new Error(`expected a sign-in, got ${result.reason}`);
     return result;
+  }
+
+  async function linkRow(token: string) {
+    return database.db
+      .selectFrom('identity.sign_in_links')
+      .select(['consumed_at', 'consumed_command_id'])
+      .where('token_hash', '=', sha256(token))
+      .executeTakeFirst();
   }
 
   it('stores only the hash of a link, sends one mail, and creates no account for an unredeemed address', async () => {
@@ -102,12 +135,16 @@ describe('sign-in, sessions and operator links (real database)', () => {
       .select([
         'token_hash',
         'address',
+        'domain',
         'origin',
+        'code_challenge',
         sql<number>`extract(epoch from expires_at - created_at)::int`.as('ttl'),
       ])
       .where('address', '=', address)
       .execute();
-    expect(rows).toEqual([{ token_hash: sha256(token), address, origin: 'email', ttl: 900 }]);
+    expect(rows).toEqual([
+      { token_hash: sha256(token), address, domain: 'identity.test', origin: 'email', code_challenge: null, ttl: 900 },
+    ]);
     const stored = JSON.stringify(
       await sql`select * from identity.sign_in_links where address = ${address}`.execute(database.db),
     );
@@ -116,16 +153,33 @@ describe('sign-in, sessions and operator links (real database)', () => {
     expect(mail.sent.at(-1)?.link.startsWith(`${origin}/redeem#token=`)).toBe(true);
   });
 
-  it('refuses a malformed address and limits one address to three links per fifteen minutes', async () => {
-    expect(await identity.requestSignIn({ email: 'not an address' })).toEqual({
-      kind: 'refused',
-      reason: 'invalid_address',
-    });
+  it('refuses addresses outside the RFC 5321 subset, a NUL included, without a database error (review m4)', async () => {
+    const sentBefore = mail.sent.length;
+    for (const email of [
+      'not an address',
+      'x<attacker@evil.test>',
+      'a,b@evil.test',
+      '"a";b@evil.test',
+      'nul\u0000@identity.test',
+      'zw​@identity.test',
+      'nel\u0085@identity.test',
+      'kelvinK@identity.test',
+      'a@b',
+      `${'a'.repeat(65)}@identity.test`,
+    ])
+      expect(await identity.requestSignIn({ email }), JSON.stringify(email)).toEqual({
+        kind: 'refused',
+        reason: 'invalid_address',
+      });
+    expect(mail.sent).toHaveLength(sentBefore);
+  });
+
+  it('limits one address to three links per fifteen minutes', async () => {
     const address = freshAddress();
     for (let index = 0; index < 3; index += 1) await linkFor(address);
     const sentBefore = mail.sent.length;
     const limited = await identity.requestSignIn({ email: address });
-    expect(limited).toMatchObject({ kind: 'rate_limited' });
+    expect(limited).toMatchObject({ kind: 'rate_limited', budget: 'address' });
     if (limited.kind === 'rate_limited') {
       expect(limited.retryAfterSeconds).toBeGreaterThan(0);
       expect(limited.retryAfterSeconds).toBeLessThanOrEqual(900);
@@ -167,34 +221,51 @@ describe('sign-in, sessions and operator links (real database)', () => {
     });
     const session = await database.db
       .selectFrom('identity.sessions')
-      .select(['token_hash', 'client', sql<number>`extract(epoch from expires_at - created_at)::int`.as('ttl')])
+      .select([
+        'token_hash',
+        'client',
+        'issued_by_command',
+        sql<number>`extract(epoch from expires_at - created_at)::int`.as('ttl'),
+      ])
       .where('id', '=', result.session.id)
       .executeTakeFirst();
-    expect(session).toEqual({ token_hash: sha256(result.session.token), client: 'web', ttl: 30 * 86_400 });
+    expect(session).toEqual({
+      token_hash: sha256(result.session.token),
+      client: 'web',
+      issued_by_command: commandId,
+      ttl: 30 * 86_400,
+    });
 
-    // A later link for the same address signs into the same account.
-    const again = signedIn(
-      await identity.redeemSignIn({ token: await linkFor(address), commandId: randomUUID(), client: 'native' }),
-    );
+    // A later link for the same address, from a native app, signs into the same account.
+    const phone = device();
+    const again = signedIn(await redeemNative(await linkFor(address, phone), randomUUID(), phone));
     expect(again.outcome).toEqual({ ...result.outcome, accountCreated: false });
   });
 
-  it('consumes a link once: another command is refused, the same command replays with a fresh session', async () => {
-    const token = await linkFor(freshAddress());
+  it('consumes a link once: another command is refused, the same command replays and replaces its session', async () => {
+    const phone = device();
+    const token = await linkFor(freshAddress(), phone);
     const commandId = randomUUID();
-    const first = signedIn(await identity.redeemSignIn({ token, commandId, client: 'native' }));
-    expect(await identity.redeemSignIn({ token, commandId: randomUUID(), client: 'native' })).toEqual({
-      kind: 'refused',
-      reason: 'link_invalid',
-    });
-    const replay = signedIn(await identity.redeemSignIn({ token, commandId, client: 'native' }));
+    const first = signedIn(await redeemNative(token, commandId, phone));
+    expect(await redeemNative(token, randomUUID(), phone)).toEqual({ kind: 'refused', reason: 'link_invalid' });
+    const replay = signedIn(await redeemNative(token, commandId, phone));
     expect(replay.replayed).toBe(true);
     expect(replay.outcome).toEqual(first.outcome);
     expect(replay.session.token).not.toBe(first.session.token);
+    // The replaced session ends: a replay never leaves two live sessions behind.
+    expect(await identity.resolveSession(first.session.token)).toBeUndefined();
+    expect((await identity.resolveSession(replay.session.token))?.sessionId).toBe(replay.session.id);
+    const revoked = await database.db
+      .selectFrom('identity.sessions')
+      .select('revoked_reason')
+      .where('id', '=', first.session.id)
+      .executeTakeFirst();
+    // Ended sessions are removed when the account gets a new one; either way it is not live.
+    expect(revoked === undefined || revoked.revoked_reason === 'replaced').toBe(true);
     // The same command ID with another client is a different request.
     expect(await identity.redeemSignIn({ token, commandId, client: 'web' })).toEqual({
       kind: 'refused',
-      reason: 'command_key_reused',
+      reason: 'link_invalid',
     });
     // An unknown token looks exactly like a used one.
     expect(
@@ -202,13 +273,100 @@ describe('sign-in, sessions and operator links (real database)', () => {
     ).toEqual({ kind: 'refused', reason: 'link_invalid' });
   });
 
-  it('creates exactly one account and universe under concurrent retries of one redemption', async () => {
+  it('never revives a signed-out session by replaying its redemption (review m5)', async () => {
+    const token = await linkFor(freshAddress());
+    const commandId = randomUUID();
+    const first = signedIn(await identity.redeemSignIn({ token, commandId, client: 'web' }));
+    expect(
+      await identity.signOut({ sessionId: first.session.id, accountId: first.outcome.accountId, everywhere: true }),
+    ).toEqual({ revoked: 1 });
+    const sessionsBefore = await database.db
+      .selectFrom('identity.sessions')
+      .select('id')
+      .where('account_id', '=', first.outcome.accountId)
+      .execute();
+    expect(await identity.redeemSignIn({ token, commandId, client: 'web' })).toEqual({
+      kind: 'refused',
+      reason: 'link_invalid',
+    });
+    expect(
+      await database.db
+        .selectFrom('identity.sessions')
+        .select('id')
+        .where('account_id', '=', first.outcome.accountId)
+        .execute(),
+    ).toEqual(sessionsBefore);
+  });
+
+  it('a refused redemption consumes nothing: a reused command ID leaves the link usable (review m1)', async () => {
+    const address = freshAddress();
+    const commandId = randomUUID();
+    signedIn(await identity.redeemSignIn({ token: await linkFor(address), commandId, client: 'web' }));
+    // A second link for the same account, redeemed under the first redemption's command ID.
+    const token = await linkFor(address);
+    expect(await identity.redeemSignIn({ token, commandId, client: 'web' })).toEqual({
+      kind: 'refused',
+      reason: 'command_key_reused',
+    });
+    expect(await linkRow(token)).toEqual({ consumed_at: null, consumed_command_id: null });
+    const later = signedIn(await identity.redeemSignIn({ token, commandId: randomUUID(), client: 'web' }));
+    expect(later.outcome.accountCreated).toBe(false);
+  });
+
+  it('binds a native link to its device: only the verifier of its challenge redeems it (review m10)', async () => {
+    const phone = device();
+    const address = freshAddress();
+    const token = await linkFor(address, phone);
+    const stored = await database.db
+      .selectFrom('identity.sign_in_links')
+      .select('code_challenge')
+      .where('token_hash', '=', sha256(token))
+      .executeTakeFirst();
+    expect(stored).toEqual({ code_challenge: phone.challenge });
+    // Intercepted: another device's verifier, no verifier, or the web.
+    for (const attempt of [
+      { client: 'native' as const, codeVerifier: device().verifier },
+      { client: 'native' as const },
+      { client: 'web' as const },
+    ])
+      expect(await identity.redeemSignIn({ token, commandId: randomUUID(), ...attempt })).toEqual({
+        kind: 'refused',
+        reason: 'link_invalid',
+      });
+    expect(await linkRow(token)).toEqual({ consumed_at: null, consumed_command_id: null });
+    expect(await identity.peekSignInLink({ token, client: 'web' })).toEqual({ kind: 'link_invalid' });
+    expect(await identity.peekSignInLink({ token, client: 'native' })).toMatchObject({ kind: 'usable' });
+    signedIn(await redeemNative(token, randomUUID(), phone));
+
+    // A link asked for without a challenge (the web's) is never redeemed by a native client.
+    const webToken = await linkFor(address);
+    expect(await identity.redeemSignIn({ token: webToken, commandId: randomUUID(), client: 'native' })).toEqual({
+      kind: 'refused',
+      reason: 'link_invalid',
+    });
+  });
+
+  it('peeks at a link without consuming it, showing only the masked address (review m8)', async () => {
     const address = freshAddress();
     const token = await linkFor(address);
+    expect(await identity.peekSignInLink({ token, client: 'web' })).toEqual({
+      kind: 'usable',
+      maskedEmail: `p•••@identity.test`,
+    });
+    expect(await linkRow(token)).toEqual({ consumed_at: null, consumed_command_id: null });
+    signedIn(await identity.redeemSignIn({ token, commandId: randomUUID(), client: 'web' }));
+    expect(await identity.peekSignInLink({ token, client: 'web' })).toEqual({ kind: 'link_invalid' });
+    expect(await identity.peekSignInLink({ token: `ksl_${'C'.repeat(43)}`, client: 'web' })).toEqual({
+      kind: 'link_invalid',
+    });
+  });
+
+  it('creates exactly one account and universe under concurrent retries of one redemption', async () => {
+    const address = freshAddress();
+    const phone = device();
+    const token = await linkFor(address, phone);
     const commandId = randomUUID();
-    const results = await Promise.all(
-      Array.from({ length: 6 }, () => identity.redeemSignIn({ token, commandId, client: 'native' })),
-    );
+    const results = await Promise.all(Array.from({ length: 6 }, () => redeemNative(token, commandId, phone)));
     const accounts = new Set(results.map((result) => signedIn(result).outcome.accountId));
     expect(accounts.size).toBe(1);
     expect(results.filter((result) => signedIn(result).replayed)).toHaveLength(5);
@@ -226,6 +384,14 @@ describe('sign-in, sessions and operator links (real database)', () => {
       .where('operation', '=', 'identity.redeem-sign-in')
       .execute();
     expect(receipts).toHaveLength(1);
+    // Each replay replaced the previous one's session: one live session for the command.
+    const live = await database.db
+      .selectFrom('identity.sessions')
+      .select('id')
+      .where('issued_by_command', '=', commandId)
+      .where('revoked_at', 'is', null)
+      .execute();
+    expect(live).toHaveLength(1);
   });
 
   it('creates one account when two links for one new address are redeemed at once', async () => {
@@ -271,12 +437,14 @@ describe('sign-in, sessions and operator links (real database)', () => {
       kind: 'refused',
       reason: 'link_invalid',
     });
+    expect(await identity.peekSignInLink({ token, client: 'web' })).toEqual({ kind: 'link_invalid' });
     await expect(
       database.db
         .insertInto('identity.sign_in_links')
         .values({
           token_hash: sha256(`ksl_${randomUUID()}`),
           address,
+          domain: 'identity.test',
           origin: 'email',
           expires_at: sql`now() + interval '16 minutes'`,
         })
@@ -299,12 +467,7 @@ describe('sign-in, sessions and operator links (real database)', () => {
       kind: 'refused',
       reason: 'account_unavailable',
     });
-    const link = await database.db
-      .selectFrom('identity.sign_in_links')
-      .select(['consumed_at', 'consumed_command_id'])
-      .where('token_hash', '=', sha256(token))
-      .executeTakeFirst();
-    expect(link).toEqual({ consumed_at: null, consumed_command_id: null });
+    expect(await linkRow(token)).toEqual({ consumed_at: null, consumed_command_id: null });
     // Sessions of a suspended account no longer resolve.
     expect(await identity.resolveSession(first.session.token)).toBeUndefined();
     await database.db
@@ -316,9 +479,8 @@ describe('sign-in, sessions and operator links (real database)', () => {
   });
 
   it('resolves a session to its account, universe and current epoch, and refuses revoked and expired ones', async () => {
-    const result = signedIn(
-      await identity.redeemSignIn({ token: await linkFor(freshAddress()), commandId: randomUUID(), client: 'native' }),
-    );
+    const phone = device();
+    const result = signedIn(await redeemNative(await linkFor(freshAddress(), phone), randomUUID(), phone));
     const session = await identity.resolveSession(result.session.token);
     expect(result.address).toMatch(/@identity\.test$/);
     expect(session).toMatchObject({
@@ -337,6 +499,20 @@ describe('sign-in, sessions and operator links (real database)', () => {
       .execute();
     expect((await identity.resolveSession(result.session.token))?.privacyEpoch).toBe(2);
     expect(await identity.resolveSession(`kss_${'B'.repeat(43)}`)).toBeUndefined();
+    // A suspended universe ends its sessions' validity too.
+    await database.db
+      .updateTable('identity.universes')
+      .set({ status: 'suspended' })
+      .where('id', '=', result.outcome.universeId)
+      .execute();
+    expect(await identity.sessionValid({ sessionId: result.session.id, accountId: result.outcome.accountId })).toBe(
+      false,
+    );
+    await database.db
+      .updateTable('identity.universes')
+      .set({ status: 'active' })
+      .where('id', '=', result.outcome.universeId)
+      .execute();
 
     const relayed: string[] = [];
     const relay = new ScopeNoticeRelay({
@@ -383,10 +559,13 @@ describe('sign-in, sessions and operator links (real database)', () => {
   it('signs out everywhere: every session of the account ends', async () => {
     const address = freshAddress();
     const sessions = [];
-    for (const client of ['web', 'native', 'native'] as const)
-      sessions.push(
-        signedIn(await identity.redeemSignIn({ token: await linkFor(address), commandId: randomUUID(), client })),
-      );
+    sessions.push(
+      signedIn(await identity.redeemSignIn({ token: await linkFor(address), commandId: randomUUID(), client: 'web' })),
+    );
+    for (let index = 0; index < 2; index += 1) {
+      const phone = device();
+      sessions.push(signedIn(await redeemNative(await linkFor(address, phone), randomUUID(), phone)));
+    }
     const [first] = sessions;
     if (first === undefined) throw new Error('no session');
     expect(
@@ -395,34 +574,72 @@ describe('sign-in, sessions and operator links (real database)', () => {
     for (const session of sessions) expect(await identity.resolveSession(session.session.token)).toBeUndefined();
   });
 
-  it('issues operator links only for disposable accounts, and redeems them only where operator sign-in is on', async () => {
-    const issue = operatorSignInUseCase({ db: database.db, publicOrigin: origin, lockTimeoutMs: 5_000 });
-    const address = freshAddress();
+  it('issues operator links only for the world pattern and disposable accounts, audited, and checks the pattern again at redemption (review m2, m9)', async () => {
+    const issue = operatorSignInUseCase({
+      db: database.db,
+      publicOrigin: origin,
+      lockTimeoutMs: 5_000,
+      pattern: operatorPattern,
+      world: 'ci',
+      operatorSource: 'cli:ci-runner',
+    });
+    // Outside the pattern: never issued, nothing written.
+    const outside = freshAddress();
+    expect(await issue({ email: outside })).toEqual({ kind: 'refused', reason: 'address_not_allowed' });
+    expect(await issue({ email: 'x<attacker@operator.test>' })).toEqual({ kind: 'refused', reason: 'invalid_address' });
+    expect(
+      await database.db
+        .selectFrom('identity.email_addresses')
+        .select('account_id')
+        .where('address', '=', outside)
+        .execute(),
+    ).toEqual([]);
+
+    const address = freshAddress('operator.test');
     const issued = await issue({ email: address });
     if (issued.kind !== 'issued') throw new Error(`operator issue refused: ${issued.reason}`);
     expect(issued.outcome.accountCreated).toBe(true);
     const token = tokenOf(issued.link);
     const stored = await database.db
       .selectFrom('identity.sign_in_links')
-      .select(['origin', 'address'])
+      .select(['origin', 'address', 'domain'])
       .where('token_hash', '=', sha256(token))
       .executeTakeFirst();
-    expect(stored).toEqual({ origin: 'operator', address });
+    expect(stored).toEqual({ origin: 'operator', address, domain: 'operator.test' });
     const receipt = await database.db
       .selectFrom('receipts.personal_commands')
       .select('operation')
       .where('universe_id', '=', issued.outcome.universeId)
       .execute();
     expect(receipt).toEqual([{ operation: 'identity.issue-operator-sign-in' }]);
+    const audit = await database.db
+      .selectFrom('ops.operator_sign_ins')
+      .select(['world', 'operator_source', 'account_id', 'account_created'])
+      .where('account_id', '=', issued.outcome.accountId)
+      .execute();
+    expect(audit).toEqual([
+      { world: 'ci', operator_source: 'cli:ci-runner', account_id: issued.outcome.accountId, account_created: true },
+    ]);
 
-    // An API without operator sign-in refuses the operator link like any unusable link.
-    expect(await identity.redeemSignIn({ token, commandId: randomUUID(), client: 'web' })).toEqual({
-      kind: 'refused',
-      reason: 'link_invalid',
+    // An API without operator sign-in, or with another pattern, refuses the link like any unusable one.
+    const elsewhere = identityUseCases({
+      db: database.db,
+      settings: settings({ operatorSignIn: { pattern: '*@other.test' } }),
+      lockTimeoutMs: 5_000,
+      logEvent: silent,
+      mailSender: mail.send,
     });
+    for (const api of [identity, elsewhere]) {
+      expect(await api.peekSignInLink({ token, client: 'web' })).toEqual({ kind: 'link_invalid' });
+      expect(await api.redeemSignIn({ token, commandId: randomUUID(), client: 'web' })).toEqual({
+        kind: 'refused',
+        reason: 'link_invalid',
+      });
+    }
+    expect(await linkRow(token)).toEqual({ consumed_at: null, consumed_command_id: null });
     const operatorWorld = identityUseCases({
       db: database.db,
-      settings: settings({ operatorSignIn: true }),
+      settings: settings({ operatorSignIn: { pattern: operatorPattern } }),
       lockTimeoutMs: 5_000,
       logEvent: silent,
       mailSender: mail.send,
@@ -433,24 +650,194 @@ describe('sign-in, sessions and operator links (real database)', () => {
       outcome: { accountId: issued.outcome.accountId, accountCreated: false },
     });
 
-    // A second issue finds the same disposable account.
+    // A second issue finds the same disposable account and is audited again.
     const second = await issue({ email: address });
     expect(second).toMatchObject({
       kind: 'issued',
       outcome: { accountId: issued.outcome.accountId, accountCreated: false },
     });
 
-    // An account that signed up by mail is never opened by an operator link.
-    const real = freshAddress();
+    // The audit survives clearing the universe's history; receipts do not.
+    const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+    await withPersonalScope(
+      {
+        universeId: issued.outcome.universeId,
+        privacyEpoch: 1,
+        actor: { kind: 'account', accountId: issued.outcome.accountId },
+      },
+      (scope) => eraseUniverse(scope, personalStores),
+    );
+    expect(
+      await database.db
+        .selectFrom('receipts.personal_commands')
+        .select('command_id')
+        .where('universe_id', '=', issued.outcome.universeId)
+        .execute(),
+    ).toEqual([]);
+    expect(
+      await database.db
+        .selectFrom('ops.operator_sign_ins')
+        .select('account_created')
+        .where('account_id', '=', issued.outcome.accountId)
+        .orderBy('issued_at')
+        .execute(),
+    ).toEqual([{ account_created: true }, { account_created: false }]);
+
+    // An account that signed up by mail, even under the pattern, is never opened by an operator link.
+    const real = freshAddress('operator.test');
     signedIn(await identity.redeemSignIn({ token: await linkFor(real), commandId: randomUUID(), client: 'web' }));
-    const linksBefore = await database.db
+    expect(await issue({ email: real })).toEqual({ kind: 'refused', reason: 'not_disposable' });
+
+    // A disposable account whose address then proves itself by mail stops being disposable.
+    const claimed = freshAddress('operator.test');
+    expect((await issue({ email: claimed })).kind).toBe('issued');
+    signedIn(await identity.redeemSignIn({ token: await linkFor(claimed), commandId: randomUUID(), client: 'web' }));
+    expect(
+      await database.db
+        .selectFrom('identity.email_addresses')
+        .select('disposable')
+        .where('address', '=', claimed)
+        .executeTakeFirst(),
+    ).toEqual({ disposable: false });
+    expect(await issue({ email: claimed })).toEqual({ kind: 'refused', reason: 'not_disposable' });
+  });
+
+  it('sweeps expired links and long-ended sessions, and keeps everything still in use (review m12)', async () => {
+    const sweep = identitySweepUseCase(database.db);
+    const address = freshAddress();
+    const live = await linkFor(address);
+    const old = sha256(`ksl_${randomUUID()}`);
+    await database.db
+      .insertInto('identity.sign_in_links')
+      .values({
+        token_hash: old,
+        address,
+        domain: 'identity.test',
+        origin: 'email',
+        created_at: sql`now() - interval '2 days'`,
+        expires_at: sql`now() - interval '2 days' + interval '15 minutes'`,
+      })
+      .execute();
+    const person = signedIn(
+      await identity.redeemSignIn({ token: await linkFor(freshAddress()), commandId: randomUUID(), client: 'web' }),
+    );
+    const sessionAt = (id: string, created: string, expires: string, revoked?: string) =>
+      database.db
+        .insertInto('identity.sessions')
+        .values({
+          id,
+          account_id: person.outcome.accountId,
+          token_hash: sha256(id),
+          client: 'web',
+          created_at: sql`now() - ${created}::interval`,
+          expires_at: sql`now() - ${expires}::interval`,
+          ...(revoked === undefined
+            ? {}
+            : { revoked_at: sql`now() - ${revoked}::interval`, revoked_reason: 'signed_out' }),
+        })
+        .execute();
+    const [longExpired, longRevoked, recentlyExpired] = [randomUUID(), randomUUID(), randomUUID()];
+    await sessionAt(longExpired, '61 days', '31 days');
+    await sessionAt(longRevoked, '40 days', '10 days', '31 days');
+    await sessionAt(recentlyExpired, '31 days', '1 day');
+
+    const removed = await sweep();
+    expect(removed.links).toBeGreaterThanOrEqual(1);
+    expect(removed.sessions).toBeGreaterThanOrEqual(2);
+    const links = await database.db
       .selectFrom('identity.sign_in_links')
       .select('token_hash')
-      .where('address', '=', real)
+      .where('token_hash', 'in', [old, sha256(live)])
       .execute();
-    expect(await issue({ email: real })).toEqual({ kind: 'refused', reason: 'not_disposable' });
-    expect(
-      await database.db.selectFrom('identity.sign_in_links').select('token_hash').where('address', '=', real).execute(),
-    ).toHaveLength(linksBefore.length);
+    expect(links).toEqual([{ token_hash: sha256(live) }]);
+    const sessions = await database.db
+      .selectFrom('identity.sessions')
+      .select('id')
+      .where('id', 'in', [longExpired, longRevoked, recentlyExpired, person.session.id])
+      .orderBy('id')
+      .execute();
+    expect(sessions.map((row) => row.id).sort()).toEqual([recentlyExpired, person.session.id].sort());
+    expect(await sweep()).toEqual({ links: 0, sessions: 0 });
+  });
+
+  it('spends the domain and world budgets only on links it issues, and alerts once when one fills (review M2)', async () => {
+    const events: { readonly name: string; readonly fields: unknown }[] = [];
+    const watched = identityUseCases({
+      db: database.db,
+      settings: settings(),
+      lockTimeoutMs: 5_000,
+      logEvent: (name: string, fields: unknown) => void events.push({ name, fields }),
+      mailSender: mail.send,
+    });
+    const fill = async (rows: readonly { readonly address: string; readonly domain: string }[]) => {
+      for (let start = 0; start < rows.length; start += 100)
+        await database.db
+          .insertInto('identity.sign_in_links')
+          .values(
+            rows.slice(start, start + 100).map((row) => ({
+              token_hash: sha256(`ksl_${randomUUID()}`),
+              address: row.address,
+              domain: row.domain,
+              origin: 'email',
+              expires_at: sql<Date>`now() + interval '15 minutes'`,
+            })),
+          )
+          .execute();
+    };
+    const alerts = () => events.filter((event) => event.name === 'identity.sign_in_budget_full');
+    try {
+      // One recipient domain: 60 links per 15 minutes.
+      await fill(Array.from({ length: 60 }, (_, index) => ({ address: `f${index}@busy.test`, domain: 'busy.test' })));
+      expect(await watched.requestSignIn({ email: freshAddress('busy.test') })).toMatchObject({
+        kind: 'rate_limited',
+        budget: 'domain',
+      });
+      expect(await watched.requestSignIn({ email: freshAddress('busy.test') })).toMatchObject({ budget: 'domain' });
+      await linkFor(freshAddress('quiet.test'), undefined, watched);
+      expect(alerts()).toEqual([{ name: 'identity.sign_in_budget_full', fields: { reasonCode: 'domain' } }]);
+
+      // The world: 300 email links per 15 minutes. An address already at its own limit, then the
+      // world filled to one below.
+      const limitedAddress = freshAddress('limited.test');
+      await fill(Array.from({ length: 3 }, () => ({ address: limitedAddress, domain: 'limited.test' })));
+      const inWindow = await sql<{ n: number }>`
+        select count(*)::int as n from identity.sign_in_links
+        where origin = 'email' and created_at > now() - interval '15 minutes'`.execute(database.db);
+      const filled = 299 - (inWindow.rows[0]?.n ?? 0);
+      expect(filled).toBeGreaterThan(0);
+      await fill(
+        Array.from({ length: filled }, (_, index) => ({
+          address: `w${index}@w${index}.test`,
+          domain: `w${index}.test`,
+        })),
+      );
+      // Malformed requests and requests for the limited address spend none of it.
+      for (let index = 0; index < 25; index += 1)
+        expect((await watched.requestSignIn({ email: `junk-${index}` })).kind).toBe('refused');
+      for (let index = 0; index < 5; index += 1)
+        expect(await watched.requestSignIn({ email: limitedAddress })).toMatchObject({ budget: 'address' });
+      // So one more person still gets a link (the world's 300th), and the next one does not.
+      const sentBefore = mail.sent.length;
+      expect((await watched.requestSignIn({ email: freshAddress('fresh.test') })).kind).toBe('requested');
+      const refused = await watched.requestSignIn({ email: freshAddress('fresh.test') });
+      expect(refused).toMatchObject({ kind: 'rate_limited', budget: 'world' });
+      if (refused.kind === 'rate_limited') {
+        expect(refused.retryAfterSeconds).toBeGreaterThan(0);
+        expect(refused.retryAfterSeconds).toBeLessThanOrEqual(900);
+      }
+      expect((await watched.requestSignIn({ email: freshAddress('fresh2.test') })).kind).toBe('rate_limited');
+      await expect.poll(() => mail.sent.length).toBe(sentBefore + 1);
+      expect(alerts()).toEqual([
+        { name: 'identity.sign_in_budget_full', fields: { reasonCode: 'domain' } },
+        { name: 'identity.sign_in_budget_full', fields: { reasonCode: 'world' } },
+      ]);
+    } finally {
+      // Out of the window again, so nothing after this test is limited by the filler.
+      await database.db
+        .updateTable('identity.sign_in_links')
+        .set({ created_at: sql`now() - interval '1 hour'`, expires_at: sql`now() - interval '45 minutes'` })
+        .where('created_at', '>', sql<Date>`now() - interval '15 minutes'`)
+        .execute();
+    }
   });
 });

@@ -1,7 +1,7 @@
+import { userInfo } from 'node:os';
 import { parseArgs } from 'node:util';
 import {
   ConfigurationError,
-  LIVE_WORLD,
   commitForDiagnostics,
   readOperatorConfig,
   worldForDiagnostics,
@@ -9,6 +9,7 @@ import {
 } from '@knowscroll/backend/infrastructure/config';
 import { createEventLog, type LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { OPERATOR_WORLDS } from '@knowscroll/backend/modules/identity';
 import { operatorSignInUseCase } from './modules/identity.js';
 
 /**
@@ -16,29 +17,52 @@ import { operatorSignInUseCase } from './modules/identity.js';
  *
  *   node dist/operator.js issue-sign-in --email <address>
  *
- * Run on the server shell with the world's environment (its v2 settings and database secret).
- * Creates the disposable account for the address if it has none (an address that signed up by
- * mail is refused: this never opens a real person's account), then prints one sign-in link on
- * stdout: it works once, for 15 minutes, like a mailed link.
+ * Run on the server shell as the world's v2 user with the world's environment (its v2 settings
+ * and database secret). Only for addresses the world's disposable pattern matches
+ * (`KS_OPERATOR_SIGN_IN_PATTERN`, for example `*@test.knowscroll.space`; review m2), so it never
+ * opens a real person's account. Creates the disposable account for the address if it has none,
+ * then prints one sign-in link on stdout: it works once, for 15 minutes, like a mailed link (on
+ * the web; operator links carry no native binding).
  *
- * Refused, before touching the database and again just before issuing, when `KS_WORLD` is `live`
- * or `KS_ALLOW_OPERATOR_SIGN_IN` is not exactly `1`. The API refuses to start with the flag in
- * live and refuses operator links wherever it is not set. Every use writes one
- * `identity.operator_sign_in` record (stderr, JSON; never the address, token or link) and a
- * durable receipt in the account's universe. Exit 0 issued, 1 refused or failed, 2 usage.
+ * Refused, before touching the database and again just before issuing, outside the allow-listed
+ * worlds (`dev`, `stage`, `ci`, `local`: never live, whatever it is called; review m3), when
+ * `KS_ALLOW_OPERATOR_SIGN_IN` is not exactly `1`, or without a valid pattern. The API refuses the
+ * same and checks the pattern again when the link is redeemed. Every issue writes a durable audit
+ * row in `ops.operator_sign_ins` (world, time, who ran it, the account; it survives "clear
+ * history" and is tombstoned by account deletion; review m9), one `identity.operator_sign_in`
+ * record on stderr (JSON; never the address, token or link) and a receipt in the account's
+ * universe. Exit 0 issued, 1 refused or failed, 2 usage.
  */
 const usage = 'usage: node dist/operator.js issue-sign-in --email <address>\n';
 
-/** The run-time check, repeated just before issuing: never live, flag exactly `1`. */
+/** The run-time check, repeated just before issuing: an allow-listed world, flag exactly `1`. */
 function operatorSignInAllowed(env: Environment): boolean {
-  return env['KS_WORLD'] !== LIVE_WORLD && env['KS_ALLOW_OPERATOR_SIGN_IN'] === '1';
+  return OPERATOR_WORLDS.includes(env['KS_WORLD'] ?? '') && env['KS_ALLOW_OPERATOR_SIGN_IN'] === '1';
 }
 
 function refusalCode(problems: readonly string[]): string {
-  if (problems.some((problem) => problem.startsWith('KS_WORLD: operator_sign_in_refused_in_live')))
-    return 'refused_in_live';
+  if (problems.some((problem) => problem.startsWith('KS_WORLD: operator_sign_in_refused')))
+    return 'refused_in_this_world';
   if (problems.some((problem) => problem.startsWith('KS_ALLOW_OPERATOR_SIGN_IN'))) return 'not_enabled';
+  if (problems.some((problem) => problem.startsWith('KS_OPERATOR_SIGN_IN_PATTERN'))) return 'pattern_invalid';
   return 'config_invalid';
+}
+
+const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
+
+/**
+ * Who ran the command, for the audit row: the user behind `sudo` (`SUDO_USER`), else the login
+ * user, as `cli:<name>`; `cli:unknown` when neither is a plain user name.
+ */
+function operatorSource(env: Environment): string {
+  const candidates = [env['SUDO_USER'], env['USER'], env['LOGNAME']];
+  try {
+    candidates.push(userInfo().username);
+  } catch {
+    // No passwd entry for this uid: the environment's names are all there is.
+  }
+  const name = candidates.find((candidate) => candidate !== undefined && operatorName.test(candidate));
+  return `cli:${name ?? 'unknown'}`;
 }
 
 async function run(env: Environment, logEvent: LogEvent): Promise<number> {
@@ -87,6 +111,9 @@ async function run(env: Environment, logEvent: LogEvent): Promise<number> {
       db: database.db,
       publicOrigin: config.publicOrigin,
       lockTimeoutMs: config.scopeLockTimeoutMs,
+      pattern: config.pattern,
+      world: config.world,
+      operatorSource: operatorSource(env),
     });
     const result = await issue({ email: parsed.values.email });
     if (result.kind === 'refused') {
