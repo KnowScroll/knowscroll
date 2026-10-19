@@ -55,7 +55,11 @@ export const Measures = z.strictObject({
   version: z.literal(SCROLL_MEASURES_VERSION),
   readingMinutes: z.number().int().min(1).max(240),
   totalWeight: z.number().int().min(0),
-  blocks: z.array(z.strictObject({ blockId: LocalId, weight: z.number().int().min(0) })).max(LIMITS.blocks),
+  // One entry per top-level block. Bounded structurally (sections × blocks per section) so that a
+  // document over the block limit is reported as `too_many_blocks`, not as a schema error here.
+  blocks: z
+    .array(z.strictObject({ blockId: LocalId, weight: z.number().int().min(0) }))
+    .max(LIMITS.sections * LIMITS.blocks),
 });
 export type Measures = z.infer<typeof Measures>;
 

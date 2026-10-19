@@ -5,7 +5,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compileDraft } from '../dist/producer/index.js';
+// The package's own name resolves to its built `dist/` here (Node self-reference, default condition).
+import { compileDraft } from '@knowscroll/scroll-model/producer';
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const names = ['attention-slowly', 'weight-other-worlds', 'spring-neap-tides'];

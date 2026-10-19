@@ -14,7 +14,7 @@ export function simulationIssues(data: SimulationData, path: string): Issue[] {
   const params = new Map(data.params.map((param) => [param.key, param]));
   const constants = new Set(data.constants.map((constant) => constant.key));
   const outputs = new Set(data.outputs.map((output) => output.key));
-  const keys = [...params.keys(), ...constants, ...outputs];
+  const keys = [...data.params, ...data.constants, ...data.outputs].map((item) => item.key);
   if (new Set(keys).size !== keys.length) codes.add('sim_key_duplicate');
 
   for (const param of data.params) {
