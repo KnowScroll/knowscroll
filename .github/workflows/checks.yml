@@ -19,6 +19,8 @@ jobs:
           node-version: 22.23.0
       - name: Main-update hook refuses what it must and allows what it may
         run: node --test .claude/hooks/refuse-main-update.test.mjs
+      - name: Server deploy tool decisions (ks plan tests)
+        run: node --test ops/vps/tool/plan.test.ts
       - name: v2.1 design export matches its recorded SHA-256 list
         working-directory: docs/v2/design/KnowScroll-design-v2.1
         run: |
