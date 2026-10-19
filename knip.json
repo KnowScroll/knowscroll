@@ -14,7 +14,14 @@
     },
     "apps/client": {
       "entry": ["app/**/*.tsx", "platform/**/*.web.ts", "e2e/*.spec.ts"],
-      "project": ["app/**/*.tsx", "features/**/*.{ts,tsx}", "platform/**/*.ts", "theme/**/*.ts", "e2e/**/*.{ts,mjs}"],
+      "project": [
+        "app/**/*.tsx",
+        "features/**/*.{ts,tsx}",
+        "platform/**/*.ts",
+        "providers/**/*.{ts,tsx}",
+        "theme/**/*.ts",
+        "e2e/**/*.{ts,mjs}"
+      ],
       "ignoreDependencies": ["babel-jest"]
     },
     "packages/backend": {

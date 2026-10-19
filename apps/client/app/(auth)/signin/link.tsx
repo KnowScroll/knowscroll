@@ -1,5 +1,5 @@
-import { AuthPlaceholderScreen } from '../../../features/auth/auth-placeholder-screen';
+import { LinkSentScreen } from '../../../features/auth/link-sent-screen';
 
-export default function SignInLink() {
-  return <AuthPlaceholderScreen pageTitle="Check your email" />;
+export default function LinkSent() {
+  return <LinkSentScreen />;
 }

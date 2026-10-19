@@ -1,8 +1,9 @@
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { borderWidth, content, dimension, radius } from '@knowscroll/design-tokens';
-import { Icon, IconButton, StateBlock } from '@knowscroll/ui';
+import { borderWidth, content, dimension, radius, spacing } from '@knowscroll/design-tokens';
+import { Banner, Button, Icon, IconButton, StateBlock, Text } from '@knowscroll/ui';
+import { useAccountScope } from '../../providers/account-scope';
 import { ScreenFrame } from '../shell/screen-frame';
 
 function PersonTile() {
@@ -40,14 +41,57 @@ export function previousTab(state: TabsState | undefined): string {
   return 'Explore';
 }
 
+/** Signed in: who, and the two ways out (this device, or every device). */
+function SignedIn({ email }: { readonly email: string }) {
+  const { manager } = useAccountScope();
+  const [busy, setBusy] = useState<'here' | 'everywhere' | undefined>(undefined);
+  const [failed, setFailed] = useState(false);
+  const signOut = async (everywhere: boolean) => {
+    setBusy(everywhere ? 'everywhere' : 'here');
+    setFailed(false);
+    const answer = await manager.signOut({ everywhere });
+    setBusy(undefined);
+    setFailed(answer === 'unavailable');
+  };
+  return (
+    <View style={styles.signedIn}>
+      <Text variant="meta" color={content.ink2}>
+        Signed in as
+      </Text>
+      <Text variant="title" heading={2}>
+        {email}
+      </Text>
+      {failed ? (
+        <Banner kind="offline" lead="Not signed out." message="We couldn't reach KnowScroll. Try again." />
+      ) : null}
+      <Button
+        label="Sign out"
+        busyLabel="Signing out…"
+        busy={busy === 'here'}
+        disabled={busy === 'everywhere'}
+        onPress={() => void signOut(false)}
+      />
+      <Button
+        label="Sign out on every device"
+        busyLabel="Signing out…"
+        variant="ghost"
+        busy={busy === 'everywhere'}
+        disabled={busy === 'here'}
+        onPress={() => void signOut(true)}
+      />
+    </View>
+  );
+}
+
 /**
- * `/account`, reached from the avatar on every tab (D-006 c). P01's identity, sessions and
- * settings rows all need the identity backend (S1.3, #226); until a person can sign in, the
- * screen says so and offers nothing it cannot do. Back names where it goes ("Back to Keep").
+ * `/account`, reached from the avatar on every tab (D-006 c): who is signed in, and signing out
+ * (here or everywhere); signed out, the way to sign in. P01's privacy and settings rows arrive
+ * with the privacy work. Back names where it goes ("Back to Keep").
  */
 export function AccountScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { state, manager } = useAccountScope();
   const [destination, setDestination] = useState('Explore');
   useFocusEffect(
     useCallback(() => {
@@ -66,11 +110,35 @@ export function AccountScreen() {
       showAccount={false}
       leading={<IconButton icon="back" label={`Back to ${destination}`} onPress={back} />}
     >
-      <StateBlock
-        illustration={<PersonTile />}
-        title="You're not signed in"
-        body="Your account, sessions, privacy and settings appear here once you sign in."
-      />
+      {state.status === 'signed_in' ? (
+        <SignedIn email={state.scope.account.email} />
+      ) : state.status === 'unavailable' ? (
+        <StateBlock
+          illustration={<PersonTile />}
+          title="Can't reach KnowScroll"
+          body="Your account appears here once the connection is back."
+          actions={[{ label: 'Try again', onPress: () => void manager.refresh() }]}
+        />
+      ) : (
+        <StateBlock
+          illustration={<PersonTile />}
+          title={
+            state.status === 'signed_out' && state.reason === 'session_ended'
+              ? 'You were signed out'
+              : "You're not signed in"
+          }
+          body="Sign in with your email to keep what you save and grow your universe."
+          actions={[
+            {
+              label: 'Sign in',
+              role: 'link',
+              href: '/welcome',
+              variant: 'primary',
+              onPress: () => router.navigate('/welcome'),
+            },
+          ]}
+        />
+      )}
     </ScreenFrame>
   );
 }
@@ -86,4 +154,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  signedIn: { gap: spacing[4], alignItems: 'flex-start' },
 });

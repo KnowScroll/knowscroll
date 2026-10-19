@@ -13,8 +13,12 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 | `/universe` | `app/(tabs)/universe.tsx` | U01 empty universe | Universe |
 | `/conversations` | `app/(tabs)/conversations.tsx` | C01 empty Talk ("Talk" is the label) | Talk |
 | `/saved` | `app/(tabs)/saved.tsx` | S01 empty Keep ("Keep" is the label) | Keep |
-| `/account` | `app/(tabs)/account/` | The account stack, reached from the avatar on every tab (D-006 c); signed-out state until identity (#226); Back names where it goes ("Back to Keep") | Account |
-| `/welcome`, `/signin`, `/signin/link`, `/recover` | `app/(auth)/` | Reserved for S1.3 (#226): the A01 ground, a plain notice that sign-in isn't available, and "Go to Explore" | Welcome · Sign in · Check your email · Recover your account |
+| `/account` | `app/(tabs)/account/` | The account stack, reached from the avatar on every tab (D-006 c): signed in, the address with "Sign out" and "Sign out on every device"; signed out, "Sign in"; API unreachable, "Try again". Back names where it goes ("Back to Keep") | Account |
+| `/welcome` | `app/(auth)/welcome.tsx` | A01 sign in: "Continue with email", "I have a sign-in link" (S1.3 #226) | Welcome |
+| `/signin` | `app/(auth)/signin/index.tsx` | The email form (labelled field; invalid · sending · too many links · can't reach) | Sign in |
+| `/signin/link` | `app/(auth)/signin/link.tsx` | A01 link sent: the address from this session (never the URL), "Resend the link", "Use a different email" | Check your inbox |
+| `/redeem` | `app/(auth)/redeem.tsx` | Where a link lands (`/redeem#token=…`): the token is read from the fragment and removed from the address bar; one tap POSTs it (opening the link consumes nothing); without a link, a paste field | Finish signing in · Use your sign-in link |
+| `/recover` | `app/(auth)/recover.tsx` | A02: `?reason=link` "This link didn't work" (send a new link); otherwise "You were signed out" | This link didn't work · You were signed out |
 | `/gallery` | `app/gallery.tsx` | Developer component gallery and API health, only when built with `EXPO_PUBLIC_KS_GALLERY=1` (stable marker `testID="ks-component-gallery"`); otherwise "This page isn't here" | Component gallery |
 | `/s/<token>` | none (reserved) | Share links (D-006 d). On the web the edge sends `/s/*` to the API's public page (D-008); the client's `/s/[token]` screen arrives with sharing (H01–H02). No route, group or catch-all may claim `/s` before then (`features/shell/route-map.test.ts`) | — |
 | anything else | `app/+not-found.tsx` | Not found, with "Go to Explore" | Page not found |
@@ -49,6 +53,17 @@ margin the screens leave free (`sceneStyle`), with the desktop avatar last in th
 - `features/shell/`: the tab bar / rail adapter and the screen frame (safe areas, header with
   the account avatar, room for the floating tab bar).
 - `platform/api.ts`: the API origin for this build and the typed client (`@knowscroll/client-core`).
+- `providers/account-scope.tsx`: the AccountScope provider (#226). It reads the session once
+  (nothing renders before), gives the tree the QueryClient of the signed-in scope (one per account
+  and privacy epoch) or of the signed-out period, and is keyed by the scope, so sign-out, an account
+  switch or a new epoch ends the old scope (socket closed, requests cancelled and fenced, cache
+  cleared, storage purged) and remounts the screens. `useAccountScope()` gives screens the state
+  and the manager. Its test (`providers/account-scope.test.tsx`) proves that an answer the old
+  account asked for, arriving after a switch, never reaches the new scope.
+- `platform/session-tokens(.web).ts` (native: the bearer token in `expo-secure-store`; web: none,
+  the HttpOnly cookie), `platform/scope-storage(.web).ts` (web: `localStorage`; native: memory),
+  `platform/command-id(.web).ts` (UUIDs for command IDs), `platform/sign-in-link(.web).ts` (the
+  token of the link that opened the page or app).
   Production native builds refuse plain HTTP; development builds (`__DEV__`) may use it to
   localhost, 127.0.0.1 and the emulator's 10.0.2.2. The root layout imports only
   `@knowscroll/client-core/query-client`, so the first chunk carries no API client, contracts,

@@ -19,7 +19,11 @@ export default defineConfig({
   outputDir: '../test-results',
   use: { ...devices['Desktop Chrome'], trace: 'retain-on-failure' },
   projects: [
-    { name: 'production', testMatch: 'web-smoke.spec.ts', use: { baseURL: `http://127.0.0.1:${production}` } },
+    {
+      name: 'production',
+      testMatch: ['web-smoke.spec.ts', 'auth-smoke.spec.ts'],
+      use: { baseURL: `http://127.0.0.1:${production}` },
+    },
     { name: 'gallery', testMatch: 'gallery-smoke.spec.ts', use: { baseURL: `http://127.0.0.1:${gallery}` } },
   ],
   webServer: [

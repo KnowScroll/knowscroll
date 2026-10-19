@@ -1,29 +1,26 @@
-import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import { createQueryClient } from '@knowscroll/client-core/query-client';
 import { DisplayRoot } from '@knowscroll/ui';
+import { AccountScopeProvider } from '../providers/account-scope';
 import { fontFamilies } from '../theme/fonts';
 
 /**
  * Root layout: nothing renders until the bundled fonts are loaded, so text never reflows. The
- * display (window, text size, reduce motion) is read once here for every component. The query
- * client serves operations reads (the dev health check) only; account-scoped data gets its own
- * client per (account, privacy epoch) from the AccountScope (#226). It is imported from its own
- * entry so the first chunk does not carry the API client, the contracts, Zod and oRPC.
+ * display (window, text size, reduce motion) is read once here for every component. The
+ * AccountScope (#226) reads the session once, then gives the tree the query client of the
+ * signed-in scope (one per account and privacy epoch) or of the signed-out period, and remounts
+ * the tree when that changes, so no state of one account survives into another.
  */
 export default function RootLayout() {
   const [loaded, error] = useFonts(fontFamilies);
-  const [queryClient] = useState(createQueryClient);
   if (!loaded && error === null) return null;
   return (
     <DisplayRoot>
-      <QueryClientProvider client={queryClient}>
+      <AccountScopeProvider>
         <StatusBar style="auto" />
         <Stack screenOptions={{ headerShown: false }} />
-      </QueryClientProvider>
+      </AccountScopeProvider>
     </DisplayRoot>
   );
 }

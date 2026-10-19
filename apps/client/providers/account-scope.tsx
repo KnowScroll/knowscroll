@@ -1,0 +1,89 @@
+import { QueryClientProvider } from '@tanstack/react-query';
+import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Platform } from 'react-native';
+import {
+  connectScopeSocket,
+  createAccountScopeManager,
+  type AccountScopeManager,
+  type AccountScopeState,
+} from '@knowscroll/client-core';
+import { appApiOrigin } from '../platform/api';
+import { scopeStorage } from '../platform/scope-storage';
+import { sessionTokens } from '../platform/session-tokens';
+
+const AccountScopeContext = createContext<AccountScopeManager | null>(null);
+
+/**
+ * The app's scope manager: the world's API origin (D-008), the platform's credential (web: the
+ * HttpOnly cookie; native: the bearer token in the secure store), the scope storage and the hint
+ * socket. Without a usable origin (a native build without `EXPO_PUBLIC_KS_API_ORIGIN`) every
+ * request fails and the state is `unavailable`.
+ */
+export function createAppAccountScopeManager(): AccountScopeManager {
+  const origin = appApiOrigin();
+  return createAccountScopeManager({
+    baseUrl: origin.ok ? origin.baseUrl : '',
+    platform: Platform.OS === 'web' ? 'web' : 'native',
+    ...(sessionTokens === undefined ? {} : { tokens: sessionTokens }),
+    store: scopeStorage,
+    connect: connectScopeSocket,
+  });
+}
+
+/**
+ * The AccountScope provider (blueprint §18). It owns one scope per `(accountId, privacyEpoch)`:
+ * the subtree gets that scope's QueryClient, and the provider is keyed by the scope, so on
+ * sign-out, an account switch or a privacy epoch change the old subtree unmounts with its state
+ * after the manager ended the old scope (socket closed, in-flight requests cancelled and fenced,
+ * cache cleared, storage purged), and the new one mounts fresh. While the session is first read,
+ * nothing renders (like the fonts above it), so the tree mounts once.
+ */
+export function AccountScopeProvider({
+  children,
+  manager: given,
+}: {
+  readonly children: ReactNode;
+  /** Test seam: a manager over fixtures. */
+  readonly manager?: AccountScopeManager;
+}) {
+  const [manager] = useState(() => given ?? createAppAccountScopeManager());
+  useEffect(() => {
+    void manager.start();
+    return () => manager.dispose();
+  }, [manager]);
+  const state = useSyncExternalStore(manager.subscribe, manager.getState, manager.getState);
+  if (state.status === 'starting') return null;
+  const key = state.status === 'signed_in' ? state.scope.id : 'signed-out';
+  return (
+    <AccountScopeContext.Provider value={manager}>
+      <QueryClientProvider key={key} client={manager.queryClient()}>
+        {children}
+      </QueryClientProvider>
+    </AccountScopeContext.Provider>
+  );
+}
+
+/** The current account state and its manager (sign-in, sign-out, refresh). */
+export function useAccountScope(): { readonly state: AccountScopeState; readonly manager: AccountScopeManager } {
+  const manager = useContext(AccountScopeContext);
+  if (manager === null) throw new Error('useAccountScope outside AccountScopeProvider');
+  const state = useSyncExternalStore(manager.subscribe, manager.getState, manager.getState);
+  return { state, manager };
+}
+
+/** The signed-in person's initial for the avatar, or `undefined` when nobody is signed in. */
+export function useAccountInitial(): string | undefined {
+  const manager = useContext(AccountScopeContext);
+  const state = useSyncExternalStore(
+    manager?.subscribe ?? noSubscription,
+    manager?.getState ?? signedOutState,
+    manager?.getState ?? signedOutState,
+  );
+  if (state.status !== 'signed_in') return undefined;
+  const first = state.scope.account.email.trim().charAt(0);
+  return first === '' ? undefined : first.toUpperCase();
+}
+
+const noSubscription = () => () => undefined;
+const signedOut: AccountScopeState = { status: 'signed_out', reason: 'none' };
+const signedOutState = () => signedOut;

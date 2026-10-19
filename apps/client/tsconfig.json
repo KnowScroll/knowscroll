@@ -8,5 +8,5 @@
     "customConditions": ["@knowscroll/source", "react-native"],
     "types": ["jest"]
   },
-  "include": ["app", "features", "platform", "theme", "e2e", "assets.d.ts"]
+  "include": ["app", "features", "platform", "providers", "theme", "e2e", "assets.d.ts"]
 }
