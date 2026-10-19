@@ -1,0 +1,97 @@
+# Database backups (#228, docs/v2/operations/backups.md): a nightly pg_dump of every v2 database and
+# the shared pool into /srv/knowscroll/backups (root only), kept ks_backup_keep_days, and a weekly
+# restore of the newest dumps into a scratch database. The operator's Mac copies the folder with
+# ops/vps/pull-backups.sh. v1's databases are not backed up here (dev and stage are disposable by
+# design; that was true before #228 too).
+
+- name: The databases backed up every night, and the ones restored every week
+  ansible.builtin.set_fact:
+    ks_backup_databases: "{{ ks_v2_worlds | map('regex_replace', '^', 'knowscroll_v2_') | list + ['knowscroll_pool'] }}"
+    ks_restore_check_databases: "{{ ks_v2_worlds | map('regex_replace', '^', 'knowscroll_v2_') | list + ['knowscroll_pool'] }}"
+
+# M1: the weekly restore check restores and queries as this role, never as postgres. It is no
+# superuser, has no password (so no network login), and logs in only over the local socket by peer
+# authentication as the OS user of the same name; it owns only the scratch database it is given.
+- name: OS user for the restore check (no shell, no home)
+  ansible.builtin.user:
+    name: ks_restore_check
+    system: true
+    shell: /usr/sbin/nologin
+    home: /nonexistent
+    create_home: false
+
+- name: Database role for the restore check (no superuser, no password, few connections)
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ks_restore_check') THEN
+          CREATE ROLE ks_restore_check LOGIN;
+        END IF;
+      END $$;
+      ALTER ROLE ks_restore_check WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION
+        NOBYPASSRLS NOINHERIT CONNECTION LIMIT 3 PASSWORD NULL;
+  become: true
+  become_user: postgres
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Rsync, so the operator's Mac can copy the backups
+  ignore_errors: "{{ ansible_check_mode }}"
+  ansible.builtin.apt:
+    name: rsync
+    state: present
+
+- name: Backup folder (dumps are personal data; root only)
+  ansible.builtin.file:
+    path: /srv/knowscroll/backups
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: One folder per database
+  ansible.builtin.file:
+    path: /srv/knowscroll/backups/{{ item }}
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop: "{{ ks_backup_databases }}"
+
+- name: Tool folder
+  ansible.builtin.file:
+    path: /usr/local/lib/knowscroll-ops
+    state: directory
+    mode: "0755"
+
+- name: Backup and restore-check scripts
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../backup/{{ item }}.sh"
+    dest: /usr/local/lib/knowscroll-ops/{{ item }}
+    mode: "0755"
+  loop: [ks-backup, ks-restore-check]
+
+- name: Backup and restore-check units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop:
+    - ks-backup.service
+    - ks-backup.timer
+    - ks-restore-check.service
+    - ks-restore-check.timer
+  notify: Reload systemd for backups
+
+- name: Flush so the timer units are known before they are enabled
+  ansible.builtin.meta: flush_handlers
+
+- name: Backup timers run
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop: [ks-backup.timer, ks-restore-check.timer]
+  ignore_errors: "{{ ansible_check_mode }}"

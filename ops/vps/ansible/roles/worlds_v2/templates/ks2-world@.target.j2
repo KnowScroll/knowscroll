@@ -1,0 +1,11 @@
+# Everything one KnowScroll world runs on a v2 release — managed by ops/vps/ansible (#228).
+# `ks` enables it (and stops and disables ks-world@%i.target) when it deploys a v2 release to the
+# world, and does the reverse when the world goes back to a v1 release.
+[Unit]
+Description=KnowScroll world %i (v2)
+Wants=ks2-api@%i.service ks2-worker@%i.service
+# One generation per world: starting this target stops v1's, and the other way round.
+Conflicts=ks-world@%i.target
+
+[Install]
+WantedBy=multi-user.target

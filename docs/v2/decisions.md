@@ -88,9 +88,17 @@ Automated suites and release checks run in GitHub Actions (owner rule 2026-10-19
 
 `.claude/hooks/refuse-main-update.mjs` now also refuses `git -C <dir> push … main`, quoted refs, a bare `git push` from a `main` checkout, `gh pr merge` whose base is `main` (or cannot be confirmed), `gh api … base=main` and `gh repo sync --branch main`. `gh pr create --base main` stays allowed: preparing the owner's PR is in scope, merging it is not. The hook only loads for Claude sessions started inside a checkout of this repository; sessions started elsewhere rely on discipline.
 
-## D-012 · 2026-10-19 · Workspace, toolchain and release-tree conventions (proposed, S1.1 #224)
+## D-012 · 2026-10-19 · Scroll document DSL `scroll-document.v1`
 
-Status: proposed by the S1.1 agent; the coordinator accepts or amends it when merging #224.
+The blueprint names a ScrollDocument but defines no schema; against the v2.1 screens it covers 4 of 37 needed capabilities (discovery `scroll-dsl.md`). v2 adopts the proposed declarative DSL with these rulings: 17 authored block types (paragraph with passage offsets, subheading, list, quote, callout, disclosure, code, table, figure/media, comparison, timeline, sequence, diagram with authored frames, chart, simulation with a closed set of formula kinds and views) plus a server-emitted `fallback`; no `predict_reveal` in v1 (it risks reading as a quiz); no expression grammar in v1; three separate artefacts (model draft, consumer document, internal provenance) with the client forbidden from importing provenance; code, not the model, sets reading time, coverage weights, gestures and the integrity hash; personal simulation parameters never enter telemetry and enter a snippet only when explicitly included; limits `scroll-limits.v1` as listed in the package README; client capability negotiation with per-block fallbacks. No model-generated JavaScript is ever executed.
+
+## D-013 · 2026-10-19 · Research sources for generated Scrolls
+
+v1 allowed only NASA, NOAA and USGS pages, which cannot support ML, history or football Scrolls. v2's research allowlist adds, per host and reviewed in code: English Wikipedia, arXiv abstract pages, US government `.gov` sites, Our World in Data, and official technical documentation (e.g. MDN, language/framework docs). OpenStax stays excluded (owner, 2026-09-24). The writer produces original prose: a copy check refuses any run of more than eight consecutive words from the material, quotes are kept internally for claim checking, and readers never see sources (owner rule) while provenance stays correctable. Pages are fetched by code (https only, size-bounded, redirects re-checked, no cookies), never by the model.
+
+## D-014 · 2026-10-19 · Workspace, toolchain and release-tree conventions (S1.1 #224)
+
+Status: accepted (coordinator, 2026-10-19).
 
 - **Pinned matrix.** Every third-party version is pinned exactly in the pnpm catalog (`catalogMode: strict`, `savePrefix: ''`, `strictPeerDependencies: true`) and recorded with dates, peers, licences and what CI proves in `operations/dependency-matrix.md`. Node 22.23.x (engines `>=22.23.0 <23`), pnpm 10.34.7, TypeScript 6.0.3, Nest 12.1.3 (not 12.2.0, released the same day with behaviour changes), oRPC 1.15.7, Expo SDK 58 (`expo@58.0.14` and its bundled module versions), PostgreSQL 16. pnpm 11/12 are not adopted: 11 renames build-script settings and adds release-age gates, 12 is moving fast (14 minors in 7 weeks); neither gives this workspace something it needs yet.
 - **Sources inside, `dist/` outside.** Library packages (`contracts`, `backend`, `migrations`) export their TypeScript sources under the custom condition `@knowscroll/source` (type-checking, Vitest, dependency-cruiser) and their compiled `dist/` otherwise (builds, Node at runtime). A build never compiles another package's sources.
