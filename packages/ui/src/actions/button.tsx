@@ -14,7 +14,8 @@ import {
 } from '@knowscroll/design-tokens';
 import { useDisplay } from '../display/display';
 import { useFocusRing } from '../display/focus-ring';
-import { toggleSemantics } from '../display/semantics';
+import { linkPress } from '../display/link';
+import { linkSemantics, toggleSemantics } from '../display/semantics';
 import { Spinner } from '../feedback/spinner';
 import { Icon } from '../icons/icon';
 import type { IconName } from '../icons/icon-paths';
@@ -83,6 +84,8 @@ export interface ButtonProps {
   readonly accessibilityHint?: string;
   /** `link` for buttons that navigate (an `<a>` in the export). */
   readonly role?: 'button' | 'link';
+  /** For links: the address. On the web the button becomes a real `<a href>` (Enter, new tab). */
+  readonly href?: string;
   /** Stretch across the parent even where the parent does not stretch its children. */
   readonly fullWidth?: boolean;
   /** A two-state button (Like, Save in the large-text grid): announced as pressed or not. */
@@ -109,6 +112,7 @@ export function Button({
   busyLabel,
   accessibilityHint,
   role = 'button',
+  href,
   fullWidth = false,
   toggled,
   surface,
@@ -120,6 +124,8 @@ export function Button({
   const inert = disabled || busy;
   const shown = busy ? (busyLabel ?? label) : label;
   const iconSize = size === 'md' ? 18 : 16;
+  const navigation =
+    role === 'link' && onPress !== undefined && !inert ? linkPress({ href, onNavigate: onPress }) : undefined;
   const iconElement = busy ? (
     <Spinner size={iconSize} color={look.foreground} />
   ) : icon === undefined ? null : (
@@ -131,10 +137,11 @@ export function Button({
       {...focus.props}
       testID={testID}
       onPress={inert ? undefined : onPress}
+      {...navigation}
       disabled={disabled}
       // Busy and disabled buttons take no presses at all (a busy command is never sent twice).
       pointerEvents={inert ? 'none' : 'auto'}
-      accessibilityRole={role}
+      {...(role === 'link' ? linkSemantics(href !== undefined) : { accessibilityRole: 'button' as const })}
       {...(toggled === undefined ? {} : toggleSemantics(toggled))}
       accessibilityLabel={shown}
       accessibilityHint={accessibilityHint}

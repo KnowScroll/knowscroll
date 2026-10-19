@@ -50,6 +50,15 @@ describe('TabBar', () => {
     expect(screen.getByRole('tab', { name: 'Universe' })).toHaveStyle({ width: 56, minHeight: 48 });
   });
 
+  it('cuts the icon-only unread dot out of the pill it sits on (ink pill, or space.s1 on the universe)', async () => {
+    const view = await renderOn(<TabBar active="explore" onSelect={() => undefined} unread />, { width: 320 });
+    expect(screen.getByTestId('destination-conversations-unread')).toHaveStyle({ borderColor: content.nav });
+    await view.unmount();
+
+    await renderOn(<TabBar active="universe" onSelect={() => undefined} tone="space" unread />, { width: 320 });
+    expect(screen.getByTestId('destination-conversations-unread')).toHaveStyle({ borderColor: space.s1 });
+  });
+
   it('marks the current item with the accent pill and uses the space pill on the universe', async () => {
     await renderOn(<TabBar active="universe" onSelect={() => undefined} tone="space" />);
     expect(screen.getByRole('tab', { name: 'Universe' })).toHaveStyle({ backgroundColor: content.accent });

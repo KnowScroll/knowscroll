@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { borderWidth, content, radius, spacing, typeScaling } from '@knowscroll/design-tokens';
 import { useDisplay, type Display } from '../display/display';
 import type { IconName } from '../icons/icon-paths';
@@ -15,20 +15,18 @@ export type EncounterAction = 'like' | 'save' | 'share' | 'ask' | 'more';
 interface ActionSpec {
   readonly id: EncounterAction;
   readonly icon: IconName;
-  /** Visible word. */
-  readonly word: string;
   /**
-   * Visible word once pressed (toggles only). Icon toggles keep their name ("Save") and report
-   * the pressed state; the large-text grid shows the word, so there the word is the name.
+   * The visible word. It does not change when a toggle is pressed: the name stays the label
+   * (WCAG 2.5.3) and the pressed state is announced and drawn instead.
    */
-  readonly pressedWord?: string;
-  /** Accessible name, when it says more than the word. */
+  readonly word: string;
+  /** Accessible name of the icon button, when it says more than the word. */
   readonly name?: string;
 }
 
 export const encounterActionSet: readonly ActionSpec[] = [
-  { id: 'like', icon: 'like', word: 'Like', pressedWord: 'Liked' },
-  { id: 'save', icon: 'save', word: 'Save', pressedWord: 'Saved' },
+  { id: 'like', icon: 'like', word: 'Like' },
+  { id: 'save', icon: 'save', word: 'Save' },
   { id: 'share', icon: 'share', word: 'Share' },
   { id: 'ask', icon: 'ask', word: 'Ask', name: 'Ask about this' },
   { id: 'more', icon: 'more', word: 'More', name: 'More options' },
@@ -45,13 +43,19 @@ export interface EncounterActionPlacement {
 
 /**
  * Where and how the encounter actions sit. It takes no format: Reel and Scroll get the same
- * answer for every display (D-006 b); only the orientation of a line differs (a column along
- * the Reel's edge, a row in the Scroll's strip).
+ * answer for every display (D-006 b), and both components lay themselves out from it; only the
+ * direction of a line differs (a column along the Reel's edge, a row in the Scroll's strip).
  */
 export function encounterActionPlacement(display: Pick<Display, 'breakpoint' | 'textScale'>): EncounterActionPlacement {
   if (display.textScale > typeScaling.labelsSentenceCaseAbove)
     return { side: 'end', arrangement: 'grid', compact: false };
   return { side: 'end', arrangement: 'line', compact: display.breakpoint === 'compact' };
+}
+
+/** The container style a placement means, shared by the rail and the strip. */
+function placementStyle(placement: EncounterActionPlacement): ViewStyle {
+  if (placement.arrangement === 'grid') return { alignSelf: 'stretch' };
+  return { alignSelf: placement.side === 'end' ? 'flex-end' : 'flex-start' };
 }
 
 export interface EncounterActionsProps {
@@ -74,20 +78,21 @@ function pressedFor(spec: ActionSpec, props: EncounterActionsProps): boolean | u
   return undefined;
 }
 
-function wordFor(spec: ActionSpec, pressed: boolean | undefined): string {
-  return pressed === true && spec.pressedWord !== undefined ? spec.pressedWord : spec.word;
-}
+/*
+ * The containers are `group`s named "Actions": a `toolbar` would promise arrow-key roving focus,
+ * and each action is its own Tab stop instead.
+ */
 
-function ActionGrid({ props }: { props: EncounterActionsProps }) {
+function ActionGrid({ props, placement }: { props: EncounterActionsProps; placement: EncounterActionPlacement }) {
   return (
-    <View role="toolbar" accessibilityLabel="Actions" style={styles.grid}>
+    <View role="group" accessibilityLabel="Actions" style={[styles.grid, placementStyle(placement)]}>
       {visibleSet(props.available).map((spec) => {
         const pressed = pressedFor(spec, props);
         return (
           <View key={spec.id} style={styles.gridCell}>
             <Button
-              label={wordFor(spec, pressed)}
-              variant={pressed === true ? 'continue' : 'ghost'}
+              label={spec.word}
+              variant={pressed === true ? 'primary' : 'ghost'}
               toggled={pressed}
               busy={spec.id === 'save' && props.saving === true}
               busyLabel="Saving"
@@ -105,12 +110,11 @@ function ActionGrid({ props }: { props: EncounterActionsProps }) {
 export function ActionRail(props: EncounterActionsProps) {
   const display = useDisplay();
   const placement = encounterActionPlacement(display);
-  if (placement.arrangement === 'grid') return <ActionGrid props={props} />;
+  if (placement.arrangement === 'grid') return <ActionGrid props={props} placement={placement} />;
   return (
-    <View role="toolbar" accessibilityLabel="Actions" style={styles.rail}>
+    <View role="group" accessibilityLabel="Actions" style={[styles.rail, placementStyle(placement)]}>
       {visibleSet(props.available).map((spec) => {
         const pressed = pressedFor(spec, props);
-        const word = wordFor(spec, pressed);
         return (
           <View key={spec.id} style={styles.railItem}>
             <IconButton
@@ -126,7 +130,7 @@ export function ActionRail(props: EncounterActionsProps) {
               // The word repeats the button's name, so assistive technology skips it.
               <View aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
                 <Text variant="uiLabel" color={content.paper}>
-                  {word}
+                  {spec.word}
                 </Text>
               </View>
             )}
@@ -141,33 +145,29 @@ export function ActionRail(props: EncounterActionsProps) {
 export function ActionStrip(props: EncounterActionsProps) {
   const display = useDisplay();
   const placement = encounterActionPlacement(display);
-  if (placement.arrangement === 'grid') return <ActionGrid props={props} />;
+  if (placement.arrangement === 'grid') return <ActionGrid props={props} placement={placement} />;
   return (
-    <View role="toolbar" accessibilityLabel="Actions" style={styles.strip}>
-      {visibleSet(props.available).map((spec) => {
-        const pressed = pressedFor(spec, props);
-        return (
-          <IconButton
-            key={spec.id}
-            icon={spec.icon}
-            label={spec.name ?? spec.word}
-            variant="plain"
-            size={placement.compact ? 44 : 48}
-            pressed={pressed}
-            busy={spec.id === 'save' && props.saving === true}
-            onPress={() => props.onAction(spec.id)}
-          />
-        );
-      })}
+    <View role="group" accessibilityLabel="Actions" style={[styles.strip, placementStyle(placement)]}>
+      {visibleSet(props.available).map((spec) => (
+        <IconButton
+          key={spec.id}
+          icon={spec.icon}
+          label={spec.name ?? spec.word}
+          variant="plain"
+          size={placement.compact ? 44 : 48}
+          pressed={pressedFor(spec, props)}
+          busy={spec.id === 'save' && props.saving === true}
+          onPress={() => props.onAction(spec.id)}
+        />
+      ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  rail: { alignSelf: 'flex-end', alignItems: 'center', gap: spacing['3.5'] },
+  rail: { alignItems: 'center', gap: spacing['3.5'] },
   railItem: { alignItems: 'center', gap: spacing[1] },
   strip: {
-    alignSelf: 'flex-end',
     flexDirection: 'row',
     gap: spacing[2],
     padding: spacing[2],
@@ -176,6 +176,6 @@ const styles = StyleSheet.create({
     borderColor: content.ink,
     backgroundColor: content.paper,
   },
-  grid: { alignSelf: 'stretch', flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
   gridCell: { flexBasis: '45%', flexGrow: 1 },
 });

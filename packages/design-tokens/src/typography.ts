@@ -43,7 +43,11 @@ export interface TypeStyle {
   readonly tracking: number;
   /** Uppercase rendering (labels). The text itself stays in sentence case. */
   readonly caps: boolean;
-  /** Scaled by the desktop factor at ≥ 1024 px. */
+  /**
+   * Scaled by the desktop factor at ≥ 1024 px: the authored roles and the control and copy roles
+   * that sit beside them (buttons grow with body text). Nav, rail and map labels keep their
+   * drawn phone sizes (D01–D05 draw them at 11).
+   */
   readonly desktopScaled: boolean;
   /** Size and line height at 200 % text size (Tokens.html, V01). */
   readonly at200: { readonly size: number; readonly line: number };
@@ -86,17 +90,17 @@ export const typeScale = {
   /** Panel and card heading ("Your universe" header, settings cards): Bricolage 800 26. */
   heading: role('display', 800, 26, 30, { tracking: -0.01, desktopScaled: true, at200: { size: 32, line: 36 } }),
   /** Medium controls (`.btn`). */
-  ui: role('text', 600, 15, 20, { at200: { size: 20, line: 26 } }),
+  ui: role('text', 600, 15, 20, { desktopScaled: true, at200: { size: 20, line: 26 } }),
   /** Small controls (`.btn.sm`, segment, chip). */
-  uiS: role('text', 600, 14, 18, { at200: { size: 18, line: 24 } }),
+  uiS: role('text', 600, 14, 18, { desktopScaled: true, at200: { size: 18, line: 24 } }),
   /** Icon-plus-word controls (nav items, action rail). */
   uiLabel: role('text', 600, 11, 13, { tracking: 0.01, at200: { size: 15, line: 18 } }),
   /** Secondary lines in cards, rows, notes and banners' helpers. */
-  meta: role('text', 400, 13, 18, { at200: { size: 18, line: 25 } }),
+  meta: role('text', 400, 13, 18, { desktopScaled: true, at200: { size: 18, line: 25 } }),
   /** Sender names, presence, emphasised meta. */
-  metaS: role('text', 600, 12, 16, { at200: { size: 17, line: 22 } }),
+  metaS: role('text', 600, 12, 16, { desktopScaled: true, at200: { size: 17, line: 22 } }),
   /** Banner copy (`.banner`): Instrument 14/1.4. */
-  notice: role('text', 400, 14, 20, { at200: { size: 19, line: 27 } }),
+  notice: role('text', 400, 14, 20, { desktopScaled: true, at200: { size: 19, line: 27 } }),
   /** Reel captions over media. */
   captionMedia: role('text', 500, 16, 22, { at200: { size: 22, line: 30 } }),
   /** Edge-tab and episode part labels. */

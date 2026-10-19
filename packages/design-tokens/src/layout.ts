@@ -51,6 +51,31 @@ export const layout = {
   entryCard: 480,
 } as const;
 
+/**
+ * Component dimensions the export draws and the library reuses (so no component carries a raw
+ * number): nav items (NavBar.html, V01 `.tnav`, D01 `.rnav`), the segment inset, tag height, the
+ * unread dot, the sheet grab handle and the empty-state tile.
+ */
+export const dimension = {
+  tagHeight: 26,
+  segmentInset: 3,
+  navItem: { width: 74, height: 56 },
+  navItemCompact: { width: 56, height: 48, radius: 18 },
+  navPillCompactPadding: 5,
+  railItemTablet: { width: 60, height: 60 },
+  railItemDesktop: { width: 72, height: 64 },
+  unreadDot: 10,
+  grabHandle: { width: 44, height: 5, radius: 9 },
+  stateTile: 72,
+  /**
+   * Where empty states start on phones, below the header row: S01-02 draws the block 106 px and
+   * C01-02 116 px below it. The frames have no status bar but leave a 44 px region for one (the
+   * header sits at 56, 12 below it, as the app puts it 12 below the safe area), so the positions
+   * are matched inside the safe area, not from the top of the frame.
+   */
+  stateOffsetPhone: { keep: 106, talk: 116 },
+} as const;
+
 export type Breakpoint = 'compact' | 'phone' | 'tablet' | 'desktop';
 
 /** V01: ≤ 360 compact · 361–599 phone · 600–1023 tablet · ≥ 1024 desktop. */

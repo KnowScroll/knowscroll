@@ -1,12 +1,15 @@
 import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import { avatar, borderWidth, content, radius, target, type FocusTone } from '@knowscroll/design-tokens';
 import { useFocusRing } from '../display/focus-ring';
-import { currentPageSemantics } from '../display/semantics';
+import { linkPress } from '../display/link';
+import { currentPageSemantics, linkSemantics } from '../display/semantics';
 import { Icon } from '../icons/icon';
 import { Text } from '../text/text';
 
 export interface AccountButtonProps {
   readonly onPress: () => void;
+  /** The account address; on the web the avatar is a real `<a href>`. */
+  readonly href?: string;
   /** The signed-in person's initial; without one (signed out) the button shows a person glyph. */
   readonly initial?: string;
   /** The account screen is showing (the rail marks it current). */
@@ -20,16 +23,23 @@ export interface AccountButtonProps {
  * The avatar that opens Account and settings from every tab header (D-006 c) and from the
  * bottom of the desktop rail.
  */
-export function AccountButton({ onPress, initial, current = false, size = 48, surface = 'light' }: AccountButtonProps) {
+export function AccountButton({
+  onPress,
+  href,
+  initial,
+  current = false,
+  size = 48,
+  surface = 'light',
+}: AccountButtonProps) {
   const tone: FocusTone = surface === 'dark' ? 'onDark' : 'onLight';
   const focus = useFocusRing(tone);
   return (
     <Pressable
       {...focus.props}
-      accessibilityRole="link"
+      {...linkSemantics(href !== undefined)}
       accessibilityLabel="Account and settings"
       {...currentPageSemantics(current)}
-      onPress={onPress}
+      {...linkPress({ href, onNavigate: onPress })}
       testID="account-button"
       style={() => {
         const frame: ViewStyle[] = [styles.target];

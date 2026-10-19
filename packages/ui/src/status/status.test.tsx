@@ -72,6 +72,13 @@ describe('Banner', () => {
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
+  it('has a plain notice kind that is not a live region', async () => {
+    await renderOn(
+      <Banner kind="info" lead="Sign-in isn't available yet." message="This build has no accounts." testID="banner" />,
+    );
+    expect(screen.getByTestId('banner')).not.toHaveProp('role');
+  });
+
   it('gives its inline action a 44 px target', async () => {
     await renderOn(
       <Banner
@@ -81,7 +88,7 @@ describe('Banner', () => {
         action={{ label: 'Resume', onPress: () => undefined }}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Resume' })).toHaveStyle({ minHeight: 44 });
+    expect(screen.getByRole('button', { name: 'Resume' })).toHaveStyle({ minHeight: 44, minWidth: 44 });
   });
 });
 

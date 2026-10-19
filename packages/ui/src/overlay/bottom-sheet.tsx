@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   borderWidth,
   content,
+  dimension,
   easing,
   layer,
   motion,
@@ -15,7 +16,9 @@ import {
 } from '@knowscroll/design-tokens';
 import { IconButton } from '../actions/icon-button';
 import { useDisplay } from '../display/display';
+import { dialogHostSemantics, dialogSemantics } from '../display/semantics';
 import { Text } from '../text/text';
+import { useOverlayHistory } from './overlay-history';
 
 /**
  * The dimmed layer behind an overlay. Tapping it closes the overlay; it is not focusable, since
@@ -47,14 +50,16 @@ export interface BottomSheetProps {
 
 /**
  * A bottom sheet over a scrim (Components "Share sheet"; `.msheet` + `.grab`). It is an overlay,
- * not a route: opening it adds no history entry and closing it returns to exactly where the
- * person was (N01, D-006 k). It rises 24 px over 240 ms (ease-out); under reduced motion it fades
- * in over 140 ms.
+ * not a route: closing it returns to exactly where the person was (N01, D-006 k). Close, the
+ * scrim, Esc, Android back and browser Back all close only the sheet (on the web through one
+ * transient history entry, `overlay-history.web.ts`). It rises 24 px over 240 ms (ease-out);
+ * under reduced motion it fades in over 140 ms.
  */
 export function BottomSheet({ visible, title, onClose, closeLabel = 'Close', children, testID }: BottomSheetProps) {
   const { reducedMotion, breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
   const [progress] = useState(() => new Animated.Value(0));
+  useOverlayHistory(visible, onClose);
 
   useEffect(() => {
     if (!visible) {
@@ -83,8 +88,7 @@ export function BottomSheet({ visible, title, onClose, closeLabel = 'Close', chi
       onRequestClose={onClose}
       statusBarTranslucent
       testID={testID === undefined ? undefined : `${testID}-modal`}
-      // On the web the modal itself is the labelled dialog (React Native Web forwards the label).
-      {...(Platform.OS === 'web' ? { 'aria-label': title } : {})}
+      {...dialogHostSemantics(title)}
     >
       <View style={styles.host}>
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: progress }]}>
@@ -92,10 +96,7 @@ export function BottomSheet({ visible, title, onClose, closeLabel = 'Close', chi
         </Animated.View>
         <Animated.View
           testID={testID}
-          role={Platform.OS === 'web' ? undefined : 'dialog'}
-          aria-modal
-          accessibilityLabel={title}
-          accessibilityViewIsModal
+          {...dialogSemantics(title)}
           style={[
             styles.sheet,
             wide ? styles.sheetWide : null,
@@ -154,9 +155,9 @@ const styles = StyleSheet.create({
   },
   grab: {
     alignSelf: 'center',
-    width: 44,
-    height: 5,
-    borderRadius: 9,
+    width: dimension.grabHandle.width,
+    height: dimension.grabHandle.height,
+    borderRadius: dimension.grabHandle.radius,
     backgroundColor: content.ink,
     opacity: opacity.grabHandle,
   },

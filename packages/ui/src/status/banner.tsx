@@ -7,10 +7,12 @@ import type { IconName } from '../icons/icon-paths';
 import { Text } from '../text/text';
 
 /**
- * Inline state messaging (Components.html "Banner"). `error` is not drawn in the export; it is
- * composed from the danger tokens for failed loads and commands.
+ * Inline state messaging (Components.html "Banner"). `info` and `error` are not drawn in the
+ * export; they are composed from the paper and danger tokens (a plain notice, and failed loads
+ * and commands).
  */
-export type BannerKind = 'offline' | 'reconnecting' | 'corrected' | 'accessEnded' | 'recordingPaused' | 'error';
+export type BannerKind =
+  'offline' | 'reconnecting' | 'corrected' | 'accessEnded' | 'recordingPaused' | 'info' | 'error';
 
 interface BannerLook {
   readonly background: string;
@@ -45,6 +47,7 @@ const looks: Record<BannerKind, BannerLook> = {
     icon: 'pause',
     live: null,
   },
+  info: { background: content.paper2, border: content.ink, foreground: content.ink, icon: 'info', live: null },
   error: {
     background: content.paper,
     border: status.danger.edge,
@@ -123,13 +126,15 @@ const styles = StyleSheet.create({
     gap: spacing['2.5'],
     paddingVertical: spacing[3],
     paddingHorizontal: spacing['3.5'],
-    borderRadius: radius.banner,
+    borderRadius: radius.card,
     borderWidth: borderWidth.regular,
   },
   copy: { flex: 1 },
   lead: { fontWeight: '700' },
   action: {
     minHeight: target.minimum,
+    minWidth: target.minimum,
+    alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing[1],
     cursor: 'pointer' as const,

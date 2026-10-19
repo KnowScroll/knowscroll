@@ -4,24 +4,29 @@
  */
 
 /**
- * Radii. Tokens.html authors `6 · 14 · 20 · 28 (top only) · pill`; the frames also draw 4, 8,
- * 12, 16, 18 and 26, named here. 9 (dots), 10 (outline rows), 22 and 24 map to the nearest
- * named step (README.md).
+ * Radii. Tokens.html authors `6 tag · 14 card · 20 panel · 28 sheet (top only) · pill control`;
+ * the frames also draw 4, 8, 12, 16, 18, 24 and 26, named here. 9 (dots), 10 (outline rows) and
+ * 22 map to the nearest named step (README.md). Components.html draws `.tag` as a pill, so the
+ * Tag component uses `pill`; `tag` (6) is kept for the small badges and key hints that use it.
  */
 export const radius = {
   xs: 4,
-  sm: 6,
+  /** Authored "tag": badges, key hints. */
+  tag: 6,
   thumb: 8,
   md: 12,
-  /** Banners (`.banner`) and the authored "card 14". */
-  banner: 14,
+  /** Authored "card": banners, cards, list rows that sit on paper. */
+  card: 14,
   lg: 16,
   edgeTab: 18,
-  xl: 20,
+  /** Authored "panel". */
+  panel: 20,
   navItem: 20,
+  navPillCompact: 24,
   navPill: 26,
-  /** Sheets: top corners only. */
+  /** Authored "sheet": top corners only. */
   sheet: 28,
+  /** Authored "control" (buttons, chips, tags): fully rounded. */
   pill: 999,
 } as const;
 

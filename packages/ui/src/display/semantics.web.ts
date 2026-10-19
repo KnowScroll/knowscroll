@@ -1,10 +1,20 @@
 import type { AccessibilityRole, ViewProps } from 'react-native';
 
-type Semantics = Pick<ViewProps, 'accessibilityRole' | 'aria-checked' | 'aria-selected' | 'accessibilityHint'>;
+type Semantics = Pick<
+  ViewProps,
+  | 'accessibilityRole'
+  | 'aria-checked'
+  | 'aria-selected'
+  | 'aria-modal'
+  | 'accessibilityHint'
+  | 'accessibilityLabel'
+  | 'accessibilityViewIsModal'
+  | 'role'
+>;
 
 /*
  * React Native Web passes these ARIA attributes through to the DOM; React Native's own types do
- * not declare them, so the web variants widen the returned props.
+ * not declare all of them, so the web variants widen the returned props.
  */
 
 /** A two-state button: `role="button"` with `aria-pressed`. */
@@ -12,9 +22,28 @@ export function toggleSemantics(pressed: boolean): Semantics {
   return { role: 'button', 'aria-pressed': pressed } as Semantics;
 }
 
-/** One destination of the primary navigation: a link, `aria-current="page"` when current. */
-export function destinationSemantics(current: boolean): Semantics {
-  return { role: 'link', 'aria-current': current ? 'page' : undefined } as Semantics;
+/** One option of a single-choice group: `role="radio"` with `aria-checked`. */
+export function radioSemantics(checked: boolean): Semantics {
+  return { role: 'radio', 'aria-checked': checked };
+}
+
+/** The group of single-choice options: `role="radiogroup"`, named. */
+export function radioGroupSemantics(label: string): Semantics {
+  return { role: 'radiogroup', 'aria-label': label } as Semantics;
+}
+
+/**
+ * One destination of the primary navigation. With an address it is a real link (`<a href>`,
+ * `aria-current="page"` when current); without one it must be a button, because React Native
+ * Web leaves Enter on a link-role element to the browser, which only acts on a real anchor.
+ */
+export function destinationSemantics(current: boolean, hasHref: boolean): Semantics {
+  return { role: hasHref ? 'link' : 'button', 'aria-current': current ? 'page' : undefined } as Semantics;
+}
+
+/** A control that navigates: a link when it has an address, otherwise a button (see above). */
+export function linkSemantics(hasHref: boolean): Semantics {
+  return { role: hasHref ? 'link' : 'button' };
 }
 
 /** A link to the page that is showing: `aria-current="page"`. */
@@ -36,6 +65,16 @@ export function navigationContainerSemantics(label: string): {
     accessibilityRole: AccessibilityRole;
     accessibilityLabel: string;
   };
+}
+
+/** On the web the Modal is the labelled dialog, so the sheet inside it carries no dialog props. */
+export function dialogSemantics(_label: string): Semantics {
+  return {};
+}
+
+/** React Native Web forwards these to the Modal's `role="dialog" aria-modal="true"` element. */
+export function dialogHostSemantics(label: string): object {
+  return { 'aria-label': label };
 }
 
 /** A description read after the name: `aria-describedby` pointing at the hidden element `id`. */

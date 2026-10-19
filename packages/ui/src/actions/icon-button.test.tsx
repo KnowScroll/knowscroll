@@ -1,5 +1,5 @@
 import { fireEvent, screen } from '@testing-library/react-native';
-import { content } from '@knowscroll/design-tokens';
+import { content, toggle } from '@knowscroll/design-tokens';
 import { expectPressed, renderOn } from '../test-support/render';
 import { IconButton } from './icon-button';
 
@@ -24,17 +24,26 @@ describe('IconButton', () => {
     expect(screen.getByRole('button', { name: 'Like' })).toHaveStyle({ width: 44, height: 44 });
   });
 
-  it('is a toggle when it has a pressed state; pressed fills yellow', async () => {
+  it('is a toggle when it has a pressed state; pressed is cobalt on paper, never yellow (D-006 b)', async () => {
     await renderOn(
       <>
         <IconButton icon="like" label="Like" pressed={false} />
-        <IconButton icon="save" label="Saved" pressed />
+        <IconButton icon="save" label="Save" pressed />
       </>,
     );
     expectPressed(screen.getByRole('togglebutton', { name: 'Like' }), false);
-    const saved = screen.getByRole('togglebutton', { name: 'Saved' });
-    expectPressed(saved, true);
-    expect(saved).toHaveStyle({ backgroundColor: content.continue });
+    const save = screen.getByRole('togglebutton', { name: 'Save' });
+    expectPressed(save, true);
+    expect(save).toHaveStyle({ backgroundColor: toggle.pressedOnLight.background });
+    expect(save).not.toHaveStyle({ backgroundColor: content.continue });
+  });
+
+  it('is filled cream with an ink glyph when pressed over media or the map', async () => {
+    await renderOn(<IconButton icon="like" label="Like" variant="onMedia" pressed />);
+    expect(screen.getByRole('togglebutton', { name: 'Like' })).toHaveStyle({
+      backgroundColor: toggle.pressedOnDark.background,
+    });
+    expect(toggle.pressedOnDark.foreground).toBe(content.ink);
   });
 
   it('ignores presses while disabled or busy', async () => {

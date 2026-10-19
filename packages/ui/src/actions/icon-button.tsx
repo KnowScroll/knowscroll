@@ -1,5 +1,14 @@
 import { Pressable, StyleSheet, type ViewStyle } from 'react-native';
-import { borderWidth, content, opacity, overlay, radius, target, type FocusTone } from '@knowscroll/design-tokens';
+import {
+  borderWidth,
+  content,
+  opacity,
+  overlay,
+  radius,
+  target,
+  toggle,
+  type FocusTone,
+} from '@knowscroll/design-tokens';
 import { useFocusRing } from '../display/focus-ring';
 import { toggleSemantics } from '../display/semantics';
 import { Spinner } from '../feedback/spinner';
@@ -28,7 +37,11 @@ export interface IconButtonProps {
   readonly variant?: IconButtonVariant;
   /** 48 by default; 44 for compact and landscape layouts. Never smaller (D-006 n). */
   readonly size?: 48 | 44;
-  /** A two-state control (Like, Save): pressed fills yellow and the glyph fills. */
+  /**
+   * A two-state control (Like, Save). Pressed is never yellow (continuation only, D-006 b as
+   * amended): filled cobalt with a filled cream glyph on paper; filled cream with a filled ink
+   * glyph over media and the map.
+   */
   readonly pressed?: boolean;
   readonly disabled?: boolean;
   readonly busy?: boolean;
@@ -53,13 +66,15 @@ export function IconButton({
 }: IconButtonProps) {
   const look = looks[variant];
   const focus = useFocusRing(look.focus);
-  const toggle = pressed === undefined ? { accessibilityRole: 'button' as const } : toggleSemantics(pressed);
+  const toggleProps = pressed === undefined ? { accessibilityRole: 'button' as const } : toggleSemantics(pressed);
   const inert = disabled || busy;
-  const foreground = color ?? look.foreground;
+  const pressedLook = look.focus === 'onDark' ? toggle.pressedOnDark : toggle.pressedOnLight;
+  const isPressed = pressed === true;
+  const foreground = isPressed ? pressedLook.foreground : (color ?? look.foreground);
   return (
     <Pressable
       {...focus.props}
-      {...toggle}
+      {...toggleProps}
       testID={testID}
       onPress={inert ? undefined : onPress}
       disabled={disabled}
@@ -74,8 +89,8 @@ export function IconButton({
           {
             width: size,
             height: size,
-            backgroundColor: pressed === true ? content.continue : look.background,
-            borderColor: look.border,
+            backgroundColor: isPressed ? pressedLook.background : look.background,
+            borderColor: isPressed ? pressedLook.edge : look.border,
           },
         ];
         if (down && !inert) frame.push(styles.down);
@@ -87,7 +102,7 @@ export function IconButton({
       {busy ? (
         <Spinner size={20} color={foreground} />
       ) : (
-        <Icon name={icon} size={22} color={foreground} filled={pressed === true && fillWhenPressed.has(icon)} />
+        <Icon name={icon} size={22} color={foreground} filled={isPressed && fillWhenPressed.has(icon)} />
       )}
     </Pressable>
   );

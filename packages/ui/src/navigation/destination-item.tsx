@@ -1,7 +1,8 @@
 import { useId } from 'react';
 import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
-import { content, overlay, spacing } from '@knowscroll/design-tokens';
+import { content, dimension, overlay, spacing } from '@knowscroll/design-tokens';
 import { useFocusRing } from '../display/focus-ring';
+import { linkPress } from '../display/link';
 import { describedByElement, descriptionSemantics, destinationSemantics } from '../display/semantics';
 import { Icon } from '../icons/icon';
 import { Text } from '../text/text';
@@ -17,6 +18,10 @@ export interface DestinationItemProps {
   readonly width: number;
   readonly height: number;
   readonly radius: number;
+  /** The address (on the web a real `<a href>`, so Enter and open-in-new-tab work). */
+  readonly href?: string;
+  /** Colour behind the item, for the unread dot's cut-out ring. */
+  readonly ground: string;
   readonly onSelect: (id: Destination) => void;
 }
 
@@ -36,6 +41,8 @@ export function DestinationItem({
   width,
   height,
   radius,
+  href,
+  ground,
   onSelect,
 }: DestinationItemProps) {
   const focus = useFocusRing('onDark');
@@ -44,10 +51,10 @@ export function DestinationItem({
   return (
     <Pressable
       {...focus.props}
-      {...destinationSemantics(current)}
+      {...destinationSemantics(current, href !== undefined)}
       {...descriptionSemantics(unread ? unreadDescription : undefined, descriptionId)}
       accessibilityLabel={label}
-      onPress={() => onSelect(id)}
+      {...linkPress({ href, onNavigate: () => onSelect(id) })}
       testID={`destination-${id}`}
       style={() => {
         const frame: ViewStyle[] = [styles.item, { width, minHeight: height, borderRadius: radius }];
@@ -60,7 +67,8 @@ export function DestinationItem({
         <Icon name={icon} size={22} color={foreground} />
         {unread && !showLabel ? (
           <View
-            style={[styles.dot, { backgroundColor: foreground, borderColor: current ? content.accent : content.nav }]}
+            testID={`destination-${id}-unread`}
+            style={[styles.dot, { backgroundColor: foreground, borderColor: current ? content.accent : ground }]}
           />
         ) : null}
       </View>
@@ -85,9 +93,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -2,
     right: -4,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: dimension.unreadDot,
+    height: dimension.unreadDot,
+    borderRadius: dimension.unreadDot / 2,
     borderWidth: 2,
   },
   hidden: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 },

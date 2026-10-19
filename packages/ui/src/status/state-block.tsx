@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { borderWidth, content, radius, space, spacing, status } from '@knowscroll/design-tokens';
+import { borderWidth, content, dimension, radius, space, spacing, status } from '@knowscroll/design-tokens';
 import { Button } from '../actions/button';
 import { Icon } from '../icons/icon';
 import type { IconName } from '../icons/icon-paths';
@@ -12,6 +12,8 @@ export interface StateAction {
   readonly variant?: 'primary' | 'default' | 'space';
   /** Navigation actions ("Go to Explore") are links. */
   readonly role?: 'button' | 'link';
+  /** For links: the address (a real `<a href>` on the web). */
+  readonly href?: string;
   readonly icon?: IconName;
 }
 
@@ -72,6 +74,7 @@ export function StateBlock({
               onPress={action.onPress}
               variant={action.variant ?? (tone === 'space' ? 'space' : 'primary')}
               role={action.role ?? 'button'}
+              href={action.href}
               icon={action.icon}
             />
           ))}
@@ -119,9 +122,9 @@ const styles = StyleSheet.create({
   actions: { gap: spacing[3], alignSelf: 'stretch', alignItems: 'flex-start' },
   stretch: { alignItems: 'stretch' },
   tile: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.xl,
+    width: dimension.stateTile,
+    height: dimension.stateTile,
+    borderRadius: radius.panel,
     borderWidth: borderWidth.regular,
     alignItems: 'center',
     justifyContent: 'center',

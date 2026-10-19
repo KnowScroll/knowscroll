@@ -28,15 +28,5 @@
     "jest-expo": "catalog:",
     "test-renderer": "catalog:",
     "typescript": "catalog:"
-  },
-  "jest": {
-    "preset": "jest-expo",
-    "testMatch": [
-      "<rootDir>/src/**/*.test.tsx",
-      "<rootDir>/src/**/*.test.ts"
-    ],
-    "setupFiles": [
-      "<rootDir>/jest.setup.js"
-    ]
   }
 }

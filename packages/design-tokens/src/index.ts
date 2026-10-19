@@ -8,6 +8,7 @@ export {
   space,
   spaceOpacity,
   status,
+  toggle,
   type TopicFamily,
 } from './color';
 export {
@@ -24,7 +25,7 @@ export {
   type TypeRole,
   type TypeStyle,
 } from './typography';
-export { breakpointFor, breakpoints, frames, layout, spacing, target, type Breakpoint } from './layout';
+export { breakpointFor, breakpoints, dimension, frames, layout, spacing, target, type Breakpoint } from './layout';
 export { borderStyle, borderWidth, elevation, icon, iconStroke, opacity, pressOffset, radius } from './shape';
 export {
   easing,

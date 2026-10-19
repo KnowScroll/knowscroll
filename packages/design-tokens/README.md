@@ -11,9 +11,9 @@ never mixes raw hexes from both.
 
 | File | Exports |
 |---|---|
-| `src/color.ts` | `content`, `status`, `overlay`, `space`, `spaceOpacity`, `family`, `dormant`, `avatar`, `color` |
+| `src/color.ts` | `content`, `status`, `overlay`, `space`, `spaceOpacity`, `family`, `dormant`, `toggle`, `avatar`, `color` |
 | `src/typography.ts` | `fontFamily`, `fontFallback`, `fontWeightRange`, `typeScale`, `typeScaling`, `resolveType()`, `letterSpacing()` |
-| `src/layout.ts` | `spacing`, `target`, `layout`, `breakpoints`, `breakpointFor()`, `frames` |
+| `src/layout.ts` | `spacing`, `target`, `layout`, `dimension`, `breakpoints`, `breakpointFor()`, `frames` |
 | `src/shape.ts` | `radius`, `borderWidth`, `borderStyle`, `elevation`, `pressOffset`, `opacity`, `icon`, `iconStroke()` |
 | `src/motion.ts` | `easing`, `motion`, `sheetRise`, `motionDuration()` |
 | `src/layers.ts` | `layer` (z-order), `focusRing`, `highlightRing` |
@@ -66,6 +66,19 @@ checks contrast, the spacing base, breakpoints, type scaling and motion.
 | `onDarkMuted` | `rgba(255,251,240,.78)` | Inactive nav items on ink (11.2:1) |
 | `onDarkEdge` | `rgba(255,251,240,.6)` | Ghost borders and tag edges on dark |
 
+### Pressed toggles (`toggle`) — never yellow (D-006 b, amended on #255)
+
+Yellow means continuation only, so a pressed two-state control (Like, Save, a selected filter)
+is never yellow. Components.html draws pressed toggles yellow; this set replaces that.
+
+| Token | Background / glyph / edge | Where |
+|---|---|---|
+| `pressedOnLight` | `#2C46E8` cobalt / `#FFFBF0` filled / `#111111` | Paper (poster register) |
+| `pressedOnDark` | `#FFFBF0` opaque cream / `#111111` filled / `#FFFBF0` | Over media, ink and the map (the resting control is cream 94 %) |
+
+The filled glyph is the cue that does not rely on colour. Large-text grid toggles use the
+primary (cobalt) button when pressed.
+
 ### Spatial register (`space`, `spaceOpacity`)
 
 `s0 #040A17` ground · `s1 #0B1A2E` raised / space nav pill · `s2 #14273F` pressed ·
@@ -91,7 +104,12 @@ Planet size never encodes consumption (D-006 m).
 
 Families (registered with expo-font under these names): `display` = `BricolageGrotesque`
 (variable, wght 200–800), `text` = `InstrumentSans` (variable, wght 400–700), `mono` = `DMMono`
-(static 500). Sizes are phone sizes; desktop (≥ 1024) multiplies the six authored roles by 1.15.
+(static 500). Sizes are phone sizes; desktop (≥ 1024) multiplies the six authored roles by 1.15,
+and also the control and copy roles that sit beside body text (`ui`, `uiS`, `meta`, `metaS`,
+`notice`), so a button grows with the paragraph above it (`ui` 15 → 17.5 next to `body`
+18 → 20.5). Navigation and map labels (`uiLabel`, `monoXs`, `spaceLabel`, `captionMedia`) keep
+their drawn size: the rails and the map are drawn at those sizes on desktop. Sizes round to the
+nearest half pixel.
 `resolveType(role, { desktop, textScale })` returns the React Native style, interpolating from
 100 % to the 200 % value and clamping there; above 150 % caps labels become Instrument 600 in
 sentence case.
@@ -130,10 +148,23 @@ Targets: `comfortable` 48, `minimum` 44 (D-006 n). Layout: phone gutter 20, top 
 96, rails 76 (tablet) / 88 (desktop), side panels 212 / 368, desktop entry card 480.
 Breakpoints (V01): `compact` ≤ 360 · `phone` 361–599 · `tablet` 600–1023 · `desktop` ≥ 1024.
 
+Component dimensions (`dimension`, so no component carries a raw number): tag height 26,
+segment inset 3, nav item 74 × 56 (compact 56 × 48, radius 18) with the compact pill padding 5,
+rail items 60 × 60 (tablet) and 72 × 64 (desktop), unread dot 10, grab handle 44 × 5 (radius 9),
+empty-state tile 72, and `stateOffsetPhone` (`keep` 106, `talk` 116): where a phone empty state
+starts below the header, as S01-02 and C01-02 draw it. The frames have no status bar but leave a
+44 px region for one (the header sits at y 56, 12 below it, as the app puts it 12 below the safe
+area), so positions are matched inside the safe area, not from the frame's top edge.
+
 ## Shape, elevation, motion, layers, focus
 
-- Radius: `xs 4 · sm 6 · thumb 8 · md 12 · banner 14 · lg 16 · edgeTab 18 · xl 20 · navItem 20 ·
-  navPill 26 · sheet 28 (top corners) · pill 999`.
+- Radius, by the roles Tokens.html authors (`6 tag · 14 card · 20 panel · 28 sheet · pill
+  control`) plus the drawn component radii: `xs 4 · tag 6 · thumb 8 · md 12 · card 14 · lg 16 ·
+  edgeTab 18 · panel 20 · navItem 20 · navPillCompact 24 · navPill 26 · sheet 28 (top corners) ·
+  pill 999`. Banners, skeleton cards and inline cards use `card`; empty-state tiles, gallery and
+  diagnostics panels use `panel`. Conflict: Tokens.html says "tag 6" but Components.html draws
+  `.tag` as a pill; the `Tag` component follows Components.html (`pill`) and `radius.tag` stays
+  for square-cornered tags drawn elsewhere.
 - Border width: `hairline 1 · light 1.5 · regular 2 · current 3`; style by relationship: Part
   solid, Related dashed, What-if dashed cobalt, AI dotted, Preparing dashed.
 - Elevation (CSS `box-shadow` strings): `press 3px 3px 0 ink` (removed when pressed or disabled;
@@ -164,13 +195,13 @@ component edges on paper; all three draw quiet, non-current edges); `rgba(17,17,
 `rgba(255,251,240,.55)` → `overlay.onDarkEdge` (.6); `rgba(255,251,240,.22)` → `space.edge`;
 the mini-bar ground `#070A14` → `space.s0`; type sizes 36, 26, 14 (banner), 13, 12, 10 and the
 control sizes → the named type roles above; spacing 2, 6, 10, 14 → half steps; radii 4, 8, 12,
-16, 18, 26 → named radii; the offset shadows `4px ink`, `3px cobalt`, `6px ink`, `4px yellow` →
+16, 18, 24, 26 → named radii; the offset shadows `4px ink`, `3px cobalt`, `6px ink`, `4px yellow` →
 named elevations.
 
 Normalised to an existing token: scrims `.35 / .4 / .5 / .55` → `.45` (the most used, five
 files); empty-state titles drawn at 30–32 → `displayL`; empty-state body drawn at 17/1.5 →
 `body` 18/28; U01's body at cream 80 % → `space.label2` (72 %); spacing 18 and 22 → 16 / 20 / 24
-by context; radii 9 (dots) → `pill`, 10 (outline rows) → `md`, 22 and 24 → `xl`; Reel titles
+by context; radii 9 (dots) → `pill`, 10 (outline rows) → `md`, 22 → `panel`; Reel titles
 drawn at 20–30 → `displayL` / `title` when the encounter is built.
 
 Dropped, with reason:

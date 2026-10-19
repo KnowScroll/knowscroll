@@ -5,7 +5,8 @@
   "description": "Client-side cores shared by every platform: the typed API client and the TanStack Query client factory.",
   "license": "UNLICENSED",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./query-client": "./src/query-client.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

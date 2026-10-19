@@ -30,40 +30,65 @@ describe('resolveApiOrigin', () => {
   });
 
   it('uses the configured origin on native and drops any path', () => {
-    expect(resolveApiOrigin({ platform: 'native', configuredOrigin: 'https://app.stage.knowscroll.space/x' })).toEqual({
+    expect(
+      resolveApiOrigin({
+        platform: 'native',
+        allowDevelopmentHttp: false,
+        configuredOrigin: 'https://app.stage.knowscroll.space/x',
+      }),
+    ).toEqual({
       ok: true,
       baseUrl: 'https://app.stage.knowscroll.space',
     });
   });
 
   it('refuses a native build without a configured origin', () => {
-    expect(resolveApiOrigin({ platform: 'native', configuredOrigin: undefined })).toEqual({
+    expect(resolveApiOrigin({ platform: 'native', allowDevelopmentHttp: false, configuredOrigin: undefined })).toEqual({
       ok: false,
       reason: 'missing_origin',
     });
-    expect(resolveApiOrigin({ platform: 'native', configuredOrigin: '  ' })).toEqual({
+    expect(resolveApiOrigin({ platform: 'native', allowDevelopmentHttp: false, configuredOrigin: '  ' })).toEqual({
       ok: false,
       reason: 'missing_origin',
     });
   });
 
-  it('refuses plain HTTP on native except for development hosts', () => {
-    expect(resolveApiOrigin({ platform: 'native', configuredOrigin: 'http://app.dev.knowscroll.space' })).toEqual({
+  it('refuses plain HTTP on native except to development hosts from development builds', () => {
+    expect(
+      resolveApiOrigin({
+        platform: 'native',
+        allowDevelopmentHttp: false,
+        configuredOrigin: 'http://app.dev.knowscroll.space',
+      }),
+    ).toEqual({
       ok: false,
       reason: 'insecure_origin',
     });
-    expect(resolveApiOrigin({ platform: 'native', configuredOrigin: 'http://10.0.2.2:3000' })).toEqual({
+    expect(
+      resolveApiOrigin({ platform: 'native', allowDevelopmentHttp: true, configuredOrigin: 'http://10.0.2.2:3000' }),
+    ).toEqual({
       ok: true,
       baseUrl: 'http://10.0.2.2:3000',
+    });
+    // A production build refuses plain HTTP even to a development host.
+    expect(
+      resolveApiOrigin({ platform: 'native', allowDevelopmentHttp: false, configuredOrigin: 'http://10.0.2.2:3000' }),
+    ).toEqual({
+      ok: false,
+      reason: 'insecure_origin',
     });
   });
 
   it('refuses something that is not an http(s) origin', () => {
-    expect(resolveApiOrigin({ platform: 'native', configuredOrigin: 'knowscroll://home' })).toEqual({
+    expect(
+      resolveApiOrigin({ platform: 'native', allowDevelopmentHttp: false, configuredOrigin: 'knowscroll://home' }),
+    ).toEqual({
       ok: false,
       reason: 'invalid_origin',
     });
-    expect(resolveApiOrigin({ platform: 'native', configuredOrigin: 'not a url' })).toEqual({
+    expect(
+      resolveApiOrigin({ platform: 'native', allowDevelopmentHttp: false, configuredOrigin: 'not a url' }),
+    ).toEqual({
       ok: false,
       reason: 'invalid_origin',
     });

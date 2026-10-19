@@ -19,14 +19,22 @@ export type ApiOrigin =
 /** Hosts a development build may reach over plain HTTP (the Android emulator reaches the Mac as 10.0.2.2). */
 const developmentHosts = new Set(['localhost', '127.0.0.1', '10.0.2.2']);
 
+export type ApiOriginOptions =
+  | { readonly platform: 'web'; readonly pageOrigin: string }
+  | {
+      readonly platform: 'native';
+      readonly configuredOrigin: string | undefined;
+      /** Development builds only (`__DEV__`): allow plain HTTP to localhost and the emulator host. */
+      readonly allowDevelopmentHttp: boolean;
+    };
+
 /**
  * Where the API lives (D-008, one origin per world). The web export is served by the same host as
  * the API, so the browser uses its own origin and never needs CORS. Native builds call the
- * configured world origin, which must be HTTPS except for a development host.
+ * configured world origin, which must be HTTPS; only a development build may use plain HTTP, and
+ * only to a development host.
  */
-export function resolveApiOrigin(
-  options: { platform: 'web'; pageOrigin: string } | { platform: 'native'; configuredOrigin: string | undefined },
-): ApiOrigin {
+export function resolveApiOrigin(options: ApiOriginOptions): ApiOrigin {
   const candidate = options.platform === 'web' ? options.pageOrigin : options.configuredOrigin;
   if (candidate === undefined || candidate.trim() === '') return { ok: false, reason: 'missing_origin' };
   let url: URL;
@@ -36,7 +44,11 @@ export function resolveApiOrigin(
     return { ok: false, reason: 'invalid_origin' };
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return { ok: false, reason: 'invalid_origin' };
-  if (url.protocol === 'http:' && options.platform === 'native' && !developmentHosts.has(url.hostname)) {
+  if (
+    url.protocol === 'http:' &&
+    options.platform === 'native' &&
+    !(options.allowDevelopmentHttp && developmentHosts.has(url.hostname))
+  ) {
     return { ok: false, reason: 'insecure_origin' };
   }
   return { ok: true, baseUrl: url.origin };

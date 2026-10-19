@@ -84,9 +84,18 @@ describe('Button', () => {
   });
 
   it('announces a two-state button as checked when pressed', async () => {
-    await renderOn(<Button label="Saved" toggled variant="continue" />);
-    const saved = screen.getByRole('togglebutton', { name: 'Saved' });
-    expectPressed(saved, true);
-    expect(saved).toHaveStyle({ backgroundColor: content.continue });
+    await renderOn(<Button label="Save" toggled variant="primary" />);
+    const save = screen.getByRole('togglebutton', { name: 'Save' });
+    expectPressed(save, true);
+    expect(save).toHaveStyle({ backgroundColor: content.accent });
+  });
+
+  it('navigates as a link: the press goes to the router, the address goes to the web anchor', async () => {
+    const onPress = jest.fn();
+    await renderOn(<Button label="Go to Explore" role="link" href="/explore" onPress={onPress} />);
+
+    await fireEvent.press(screen.getByRole('link', { name: 'Go to Explore' }));
+
+    expect(onPress).toHaveBeenCalledTimes(1);
   });
 });

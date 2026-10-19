@@ -26,7 +26,8 @@ export function PendingStripe({ compact = false }: { compact?: boolean }) {
             patternUnits="userSpaceOnUse"
             width={stripe * 2}
             height={stripe * 2}
-            patternTransform="rotate(45)"
+            // CSS draws the stripes at 135°; an SVG pattern of vertical stripes turns by angle − 90.
+            patternTransform={`rotate(${status.preparing.angle - 90})`}
           >
             <Rect x={0} y={0} width={stripe} height={stripe * 2} fill={status.preparing.a} />
             <Rect x={stripe} y={0} width={stripe} height={stripe * 2} fill={status.preparing.b} />

@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
-import { borderWidth, content, opacity, radius, spacing, target } from '@knowscroll/design-tokens';
+import { useRef } from 'react';
+import { Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { borderWidth, content, dimension, opacity, radius, spacing, target } from '@knowscroll/design-tokens';
 import { useFocusRing } from '../display/focus-ring';
-import { toggleSemantics } from '../display/semantics';
+import { radioGroupSemantics, radioSemantics } from '../display/semantics';
 import { PendingStripe } from '../feedback/pending-stripe';
 import { Icon } from '../icons/icon';
 import { Text } from '../text/text';
@@ -11,6 +12,7 @@ export type EncounterFormat = 'reel' | 'scroll';
 /** Whether a format of this explanation can be opened now. */
 export type FormatAvailability = 'ready' | 'preparing' | 'unavailable';
 
+const formats: readonly EncounterFormat[] = ['reel', 'scroll'];
 const formatLabel: Record<EncounterFormat, string> = { reel: 'Reel', scroll: 'Scroll' };
 
 export interface FormatSwitchProps {
@@ -22,27 +24,51 @@ export interface FormatSwitchProps {
   readonly showIcons?: boolean;
 }
 
+interface Focusable {
+  focus?: () => void;
+}
+
 function Option({
   format,
   selected,
   availability,
   showIcons,
   onSelect,
+  onArrow,
+  register,
 }: {
   format: EncounterFormat;
   selected: boolean;
   availability: FormatAvailability;
   showIcons: boolean;
   onSelect: (format: EncounterFormat) => void;
+  onArrow: (from: EncounterFormat) => void;
+  register: (format: EncounterFormat, node: Focusable | null) => void;
 }) {
   const focus = useFocusRing('onLight');
   const unavailable = availability === 'unavailable';
   const suffix = availability === 'preparing' ? ' · preparing' : unavailable ? ' · unavailable' : '';
   const foreground = selected ? content.paper : content.ink;
+  // Web: one Tab stop for the group (the checked option); arrow keys move between options.
+  const keyboard =
+    Platform.OS === 'web'
+      ? {
+          tabIndex: selected ? (0 as const) : (-1 as const),
+          onKeyDown: (event: { nativeEvent: unknown; preventDefault: () => void }) => {
+            const key = (event.nativeEvent as { key?: string }).key ?? '';
+            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key)) {
+              event.preventDefault();
+              onArrow(format);
+            }
+          },
+        }
+      : {};
   return (
     <Pressable
+      ref={(node) => register(format, node)}
       {...focus.props}
-      {...toggleSemantics(selected)}
+      {...radioSemantics(selected)}
+      {...keyboard}
       accessibilityLabel={`${formatLabel[format]}${suffix}`}
       disabled={unavailable}
       aria-disabled={unavailable}
@@ -70,21 +96,35 @@ function Option({
 
 /**
  * Reel ⇄ Scroll: the same explanation in the other format, with equal status (D-006 b). Tap
- * only, never a swipe; the same place in the top bar on both formats. A preparing sibling shows
- * the pending stripe and "· preparing"; pressing it is the caller's request flow. Options are
- * 44 px tall (the export draws 38; D-006 n).
+ * only, never a swipe; the same place in the top bar on both formats. A single-choice group
+ * (radio semantics, arrow keys on the web); the checked option is the current format. A preparing
+ * sibling shows the pending stripe and "· preparing"; choosing it starts the caller's request
+ * flow. Options are 44 px tall (the export draws 38; D-006 n).
  */
 export function FormatSwitch({ selected, availability = {}, onSelect, showIcons = false }: FormatSwitchProps) {
+  const nodes = useRef<Partial<Record<EncounterFormat, Focusable | null>>>({});
+  const availabilityOf = (format: EncounterFormat): FormatAvailability =>
+    format === selected ? 'ready' : (availability[format] ?? 'ready');
+  const onArrow = (from: EncounterFormat) => {
+    const next = formats.find((format) => format !== from);
+    if (next === undefined || availabilityOf(next) === 'unavailable') return;
+    nodes.current[next]?.focus?.();
+    onSelect(next);
+  };
   return (
-    <View role="group" accessibilityLabel="Format of this explanation" style={styles.group}>
-      {(['reel', 'scroll'] as const).map((format) => (
+    <View {...radioGroupSemantics('Format of this explanation')} style={styles.group}>
+      {formats.map((format) => (
         <Option
           key={format}
           format={format}
           selected={format === selected}
-          availability={format === selected ? 'ready' : (availability[format] ?? 'ready')}
+          availability={availabilityOf(format)}
           showIcons={showIcons}
           onSelect={onSelect}
+          onArrow={onArrow}
+          register={(key, node) => {
+            nodes.current[key] = node;
+          }}
         />
       ))}
     </View>
@@ -95,7 +135,7 @@ const styles = StyleSheet.create({
   group: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
-    padding: 3,
+    padding: dimension.segmentInset,
     gap: spacing['0.5'],
     borderRadius: radius.pill,
     borderWidth: borderWidth.regular,

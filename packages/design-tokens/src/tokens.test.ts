@@ -8,11 +8,13 @@ import {
   motion,
   motionDuration,
   overlay,
+  radius,
   resolveType,
   space,
   spacing,
   status,
   target,
+  toggle,
   typeScale,
   type TypeRole,
 } from './index';
@@ -89,6 +91,16 @@ describe('colour pairs', () => {
     expect(contrast(foreground, background)).toBeGreaterThanOrEqual(3);
   });
 
+  it('draws pressed toggles without yellow, which means continuation only (D-006 b, amended)', () => {
+    for (const treatment of Object.values(toggle)) {
+      expect(treatment.background).not.toBe(content.continue);
+      expect(contrast(treatment.foreground, treatment.background)).toBeGreaterThanOrEqual(4.5);
+    }
+    // The cream fill stands out from the dark ground and from cobalt media.
+    expect(contrast(toggle.pressedOnDark.background, space.s0)).toBeGreaterThanOrEqual(3);
+    expect(contrast(toggle.pressedOnDark.background, content.accent)).toBeGreaterThanOrEqual(3);
+  });
+
   it('keeps the cobalt focus ring off cobalt surfaces, where it would vanish', () => {
     expect(contrast(focusRing.onLight.color, content.accent)).toBeLessThan(3);
   });
@@ -138,10 +150,16 @@ describe('type scaling', () => {
     });
   });
 
-  it('adds 15 % to the authored roles on desktop and leaves controls at phone size', () => {
+  it('adds 15 % on desktop to the authored roles and to buttons, which grow with body text', () => {
     expect(resolveType('displayXl', { desktop: true, textScale: 1 }).fontSize).toBe(50.5);
     expect(resolveType('body', { desktop: true, textScale: 1 }).fontSize).toBe(20.5);
-    expect(resolveType('ui', { desktop: true, textScale: 1 }).fontSize).toBe(15);
+    expect(resolveType('ui', { desktop: true, textScale: 1 }).fontSize).toBe(17.5);
+    expect(resolveType('uiS', { desktop: true, textScale: 1 }).fontSize).toBe(16);
+  });
+
+  it('keeps nav, rail and map labels at their drawn size on desktop', () => {
+    expect(resolveType('uiLabel', { desktop: true, textScale: 1 }).fontSize).toBe(11);
+    expect(resolveType('spaceLabel', { desktop: true, textScale: 1 }).fontSize).toBe(13);
   });
 
   it('scales body to 26/38 at 200 % and no further', () => {
@@ -189,6 +207,12 @@ describe('motion', () => {
   it('fades sheets in 140 ms under reduced motion', () => {
     expect(motionDuration('sheet', true)).toBe(140);
     expect(motionDuration('sheet', false)).toBe(240);
+  });
+});
+
+describe('shape', () => {
+  it('names the radii by the roles Tokens.html authors: 6 tag · 14 card · 20 panel · 28 sheet · pill', () => {
+    expect(radius).toMatchObject({ tag: 6, card: 14, panel: 20, sheet: 28, pill: 999 });
   });
 });
 

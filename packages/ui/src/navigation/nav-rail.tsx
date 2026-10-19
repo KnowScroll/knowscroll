@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { borderWidth, content, layout, radius, space, spacing } from '@knowscroll/design-tokens';
+import { borderWidth, content, dimension, layout, radius, space, spacing } from '@knowscroll/design-tokens';
 import { navigationContainerSemantics } from '../display/semantics';
 import { Text } from '../text/text';
 import { AccountButton } from './account-button';
@@ -15,11 +15,18 @@ export interface NavRailProps {
   readonly tone?: 'paper' | 'space';
   readonly unread?: boolean;
   /** Desktop only: the account avatar at the bottom of the rail. */
-  readonly account?: { readonly onPress: () => void; readonly current: boolean; readonly initial?: string };
+  readonly account?: {
+    readonly onPress: () => void;
+    readonly current: boolean;
+    readonly initial?: string;
+    readonly href?: string;
+  };
+  /** The address of each destination; on the web the items become real links. */
+  readonly hrefFor?: (destination: Destination) => string;
 }
 
 /** The ink navigation rail of tablets and desktops (V01 `.tnav`, D01–D05 `.rnav`). */
-export function NavRail({ active, onSelect, size, tone = 'paper', unread = false, account }: NavRailProps) {
+export function NavRail({ active, onSelect, size, tone = 'paper', unread = false, account, hrefFor }: NavRailProps) {
   const desktop = size === 'desktop';
   return (
     <View
@@ -51,9 +58,11 @@ export function NavRail({ active, onSelect, size, tone = 'paper', unread = false
             current={destination.id === active}
             unread={destination.id === 'conversations' && unread}
             showLabel
-            width={desktop ? 72 : 60}
-            height={desktop ? 64 : 60}
+            width={desktop ? dimension.railItemDesktop.width : dimension.railItemTablet.width}
+            height={desktop ? dimension.railItemDesktop.height : dimension.railItemTablet.height}
             radius={desktop ? radius.edgeTab : radius.lg}
+            href={hrefFor?.(destination.id)}
+            ground={content.nav}
             onSelect={onSelect}
           />
         ))}
@@ -62,6 +71,7 @@ export function NavRail({ active, onSelect, size, tone = 'paper', unread = false
         <View style={styles.account}>
           <AccountButton
             onPress={account.onPress}
+            href={account.href}
             current={account.current}
             initial={account.initial}
             size={40}

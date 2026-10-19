@@ -154,7 +154,19 @@ export const family = {
 /** Dormant ("calm") bodies: same place, intact terrain, quieter. */
 export const dormant = { saturationDelta: -0.35, orbitOpacity: 0.1, glow: false, twinkle: false } as const;
 
+/**
+ * Pressed two-state controls (Like, Save, a selected filter). Yellow means continuation only
+ * (D-006 b, as amended on #255): a pressed toggle is filled cobalt with a filled cream glyph on
+ * the poster register, and filled cream (opaque, where the resting control is 94 % cream) with a
+ * filled ink glyph on dark and media surfaces. The filled glyph is the cue that does not rely on
+ * colour. Components.html draws pressed toggles yellow; this replaces that.
+ */
+export const toggle = {
+  pressedOnLight: { background: '#2C46E8', foreground: '#FFFBF0', edge: '#111111' },
+  pressedOnDark: { background: '#FFFBF0', foreground: '#111111', edge: '#FFFBF0' },
+} as const;
+
 /** The signed-in person's own avatar (yellow in D01, D02, D04, D05, S01, P01). */
 export const avatar = { self: '#FFE44D', onSelf: '#111111', edge: '#111111' } as const;
 
-export const color = { content, status, overlay, space, spaceOpacity, family, dormant, avatar } as const;
+export const color = { content, status, overlay, space, spaceOpacity, family, dormant, toggle, avatar } as const;

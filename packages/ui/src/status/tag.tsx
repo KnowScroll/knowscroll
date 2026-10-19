@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { borderWidth, content, overlay, radius, spacing, status } from '@knowscroll/design-tokens';
+import { borderWidth, content, dimension, overlay, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Icon } from '../icons/icon';
 import type { IconName } from '../icons/icon-paths';
 import { Text } from '../text/text';
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: spacing['1.5'],
-    minHeight: 26,
+    minHeight: dimension.tagHeight,
     paddingHorizontal: spacing['2.5'],
     borderRadius: radius.pill,
     borderWidth: borderWidth.light,

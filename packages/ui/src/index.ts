@@ -1,4 +1,4 @@
-export { DisplayProvider, useDisplay, type Display } from './display/display';
+export { DisplayProvider, DisplayRoot, useDisplay, type Display } from './display/display';
 export { Text, useTypeStyle, type TextProps } from './text/text';
 export { Icon, type IconProps } from './icons/icon';
 export { iconShapes, type IconName } from './icons/icon-paths';

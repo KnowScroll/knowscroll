@@ -21,7 +21,9 @@ Packages are created only when code needs them; the blueprint's other packages (
 `scene-core`) arrive with their first code.
 
 Client-only packages (`design-tokens`, `ui`, `client-core`, proposed in S1.4 #227) export their
-TypeScript sources directly (`"."` → `src/index.ts`): their only consumer is the Expo app, whose
+TypeScript sources directly (`"."` → `src/index.ts`; `client-core` also `"./query-client"`, so
+the app's root layout can take the query client without the API client): their only consumer is
+the Expo app, whose
 bundler (Metro) and test runner (jest-expo) compile workspace sources anyway, so a `dist/` would
 never be read. Packages shared with the server keep the three-condition map below; the Expo
 bundle reads `@knowscroll/contracts` from its `dist/` (build it first), while the client's Jest
