@@ -25,6 +25,12 @@ print them.
 | `KS_DB_STATEMENT_TIMEOUT_MS` | 15000 | per-statement timeout; idle-in-transaction timeout is twice this (≥ 60 s) |
 | `KS_BODY_LIMIT_BYTES` | 65536 | JSON body limit; larger bodies get a 413 problem |
 | `KS_SHUTDOWN_GRACE_SECONDS` | 20 | longest graceful stop before exit 1 |
+| `KS_SCOPE_LOCK_TIMEOUT_MS` | 5000 | longest wait for a personal-scope lock before a retryable 503 |
+| `KS_AUTH_ADAPTER` | `none` | how callers are authenticated. `none`: no caller, every personal route answers 401 (until S1.3 sessions). `test-bearer`: CI only, trusts `Authorization: Bearer test.<accountId>` (and the Socket.IO `auth.token` `test.<accountId>`); refused at startup unless `NODE_ENV=test` |
+
+The API also opens one dedicated LISTEN connection (`application_name` `knowscroll-api-<world>-relay`)
+and serves Socket.IO on `/socket.io` on the same port (D-008: Caddy proxies `/socket.io/*` with
+WebSocket upgrade).
 
 `GET /health` answers `{status: "ok", world, commit, artifact, migration}`, where `migration` is
 the newest applied migration name or `none`. A 200 also proves the database answers.
@@ -37,6 +43,7 @@ the newest applied migration name or `none`. A 200 also proves the database answ
 | `KS_DB_POOL_MAX` | 5 | pool size (pg-boss keeps its own small pool) |
 | `KS_DB_STATEMENT_TIMEOUT_MS` | 15000 | as above |
 | `KS_SHUTDOWN_GRACE_SECONDS` | 20 | how long running handlers may finish after SIGTERM |
+| `KS_SCOPE_LOCK_TIMEOUT_MS` | 5000 | longest wait for a personal-scope lock (the job is retried) |
 
 ## Migrate (`node dist/migrate.js` in the `api/` tree)
 

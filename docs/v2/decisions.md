@@ -97,3 +97,21 @@ Status: proposed by the S1.1 agent; the coordinator accepts or amends it when me
 - **Release trees.** After building, `pnpm --filter @knowscroll/api deploy --prod --legacy <release>/api` (contains `dist/main.js` and `dist/migrate.js`), the same for the worker, and the Expo web export for `web/`. The CI `build` job boots these exact trees against PostgreSQL. Layout and variables: `engineering/workspace.md`, `engineering/runtime-configuration.md`.
 - **Migrations** are the workspace package `@knowscroll/migrations`: reviewed `NNNN_name.sql` files at `migrations/` and a static registry with each file's SHA-256, applied forward-only by `dist/migrate.js`, which also installs pg-boss and applies every declared queue policy.
 - **One tool per job.** Prettier (formatter), typescript-eslint typed rules (linter), dependency-cruiser (boundaries, blueprint §22), knip (unused code), squawk (migration hazards), Vitest (backend and pure code), jest-expo + React Native Testing Library (client). Automated suites run in GitHub Actions only (D-010).
+
+## D-013 · 2026-10-19 · @orpc/nest 1.15.7 on Nest 12.1.3 accepted; no OpenAPI-first fallback (proposed, S1.2 #225)
+
+Status: proposed by the S1.2 agent; the coordinator accepts or amends it when merging #225.
+
+The compatibility spike passed in CI through the deployed release trees: contract-first routes with `@Implement`/`implement()` (GET and JSON POST), request-derived callers through Nest's `@Req()` inside the handler closure, input validation, `customErrorResponseBodyEncoder` plus a `sendResponseInterceptors` entry that answers every error as `application/problem+json` (RFC 9457) with stable codes, a Nest exception filter and an Express error middleware for failures outside oRPC (unknown routes, body parser 413/400, non-JSON 415), the typed `@orpc/openapi-client` link from `@knowscroll/contracts`, and OpenAPI generation (`@orpc/openapi` + `@orpc/zod/zod4`). oRPC errors are not used as the public error format. oRPC 2.x (beta, tested upstream on Nest ^12.1.3) is not adopted; revisit when it is stable. Consequence: blueprint §4's preferred integration stands; OpenAPI-first remains the fallback only if a later oRPC release breaks this test.
+
+## D-014 · 2026-10-19 · Command receipts are an infrastructure facility with their own schema (proposed, S1.2 #225)
+
+Status: proposed by the S1.2 agent.
+
+Blueprint §5 lists "command receipts" under Experience, but every module's commands need them (social, scenarios, privacy), and modules write only their own data. Receipts therefore live in `packages/backend/src/infrastructure/receipts` with the infrastructure-owned schema `receipts` (`personal_commands` keyed `(universe_id, command_id)`; `shared_commands` keyed by scope kind, scope ID, actor, operation and command ID), erased per universe through the erasure registry. A **refused** command (missing asset, stale revision, stale epoch) writes no receipt and is evaluated again on retry; only accepted commands have receipts and replay exactly. The request hash covers the operation and the canonical validated request including the revisions it relied on.
+
+## D-015 · 2026-10-19 · Diagnostics carry no free text (proposed, S1.2 #225)
+
+Status: proposed by the S1.2 agent.
+
+`logEvent` fields are IDs, codes, route templates, counts, durations, configuration problems as `VARIABLE: kind_code`, and sanitised errors (class, code, shortened frames; never messages). Framework messages are reduced to recognised lifecycle codes; pg-boss warnings to their kind. The journal projection withholds personal-linkable IDs (blueprint §26 "Logging retention and erasure must agree"). Secret-shaped values are refused even in identifier-shaped fields (the canary test found a token that passed an ID pattern). Consequence: some debugging detail (exception messages) is unavailable in the journal; rich, personal detail belongs in erasable, access-controlled decision records when they arrive.
