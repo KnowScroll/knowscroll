@@ -183,9 +183,22 @@ jobs:
           cache: pnpm
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
+      - name: Unit tests (design tokens, client core)
+        run: pnpm --filter @knowscroll/design-tokens --filter @knowscroll/client-core test
+      - name: UI primitive tests (jest-expo)
+        run: pnpm --filter @knowscroll/ui test
       - name: Component tests (jest-expo)
         run: pnpm --filter @knowscroll/client test
+      # The export bundles @knowscroll/contracts from its dist/, like every other build (D-012).
+      - name: Build the packages the web export bundles
+        run: pnpm --filter @knowscroll/contracts build
       - name: Web export (expo export --platform web)
         run: |
           pnpm --filter @knowscroll/client build
           test -f apps/client/dist/index.html
+      - name: The production export carries no developer gallery
+        run: |
+          if grep -rl 'ks-component-gallery' apps/client/dist; then
+            echo 'the component gallery is in a production export'; exit 1
+          fi
+          grep -rlq 'BricolageGrotesque' apps/client/dist

@@ -9,12 +9,18 @@
       "bundler": "metro",
       "output": "single"
     },
-    "plugins": ["expo-router"],
+    "plugins": ["expo-router", "./plugins/font-scale-config-changes.js"],
     "experiments": {
       "typedRoutes": false
     },
     "updates": {
       "enabled": false
+    },
+    "ios": {
+      "bundleIdentifier": "com.knowscroll.client"
+    },
+    "android": {
+      "package": "com.knowscroll.client"
     }
   }
 }

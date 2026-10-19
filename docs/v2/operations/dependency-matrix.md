@@ -83,7 +83,15 @@ published on 2026-10-19 and is not adopted the same day).
 | react-native-web | 0.21.4 | 2026-10-08 | MIT |
 | react-native-safe-area-context | 5.10.1 | 2026-09-29 | MIT |
 | react-native-screens | 4.30.0 | 2026-10-13 | MIT |
+| react-native-svg | 15.16.0 | 2026-10-15 | MIT (S1.4: icons, illustrations, pending stripe; the version in `bundledNativeModules.json`) |
 | @types/react | 19.3.0 | 2026-09-09 | MIT |
+
+Client data (S1.4, #227; not part of Expo's bundled modules):
+
+| Package | Version | Published | Licence | Peer notes |
+|---|---|---|---|---|
+| @orpc/client, @orpc/openapi-client | 1.15.7 (lockstep with the server's oRPC) | 2026-10-14 | MIT | ES modules only: the client's Jest config sends `.mjs` through jest-expo's Babel transform |
+| @tanstack/react-query | 5.104.4 | 2026-10-17 | MIT | react ^18‖^19, @types/react ^18‖^19; brings @tanstack/query-core 5.104.4 |
 
 | Client verification | Version | Published | Licence | Peer notes |
 |---|---|---|---|---|
@@ -105,7 +113,7 @@ false` (no OTA updates yet). pnpm's default isolated `node_modules` works with S
 | `static` | `pnpm install --frozen-lockfile` resolves the whole matrix with `strictPeerDependencies`; Prettier, typed ESLint (no-floating-promises, no-misused-promises, await-thenable, consistent-type-imports, switch-exhaustiveness-check, no-explicit-any), `tsc` per package, dependency-cruiser boundaries plus the probe that every forbidden probe import is rejected, the workspace-dependency manifest check, knip, the squawk binary (`squawk --version`; S1.1 has no migrations to lint yet) | CI fixture (source) |
 | `backend` | Vitest unit tests; real-PostgreSQL 16 integration tests (migrator, pg-boss queue declarations, consumer drain), one template-derived database per file | real database |
 | `build` | `nest build` (tsc) of API and worker; `pnpm deploy --prod` with injected workspace packages produces runnable `api/` and `worker/` trees whose installed versions match `pnpm-lock.yaml`; those trees run `dist/migrate.js` on an empty database (twice), serve `GET /health` in production mode through oRPC on Nest 12 + Express 5, answer RFC 9457 problems, refuse to start without release identity, and stop with exit 0 on SIGTERM (worker drains) | real database, CI fixture (commit/artifact values) |
-| `client` | jest-expo + React Native Testing Library component tests; `expo export --platform web` produces `apps/client/dist/index.html` with the bundled fonts | CI fixture |
+| `client` | Vitest unit tests of `design-tokens` (contrast, spacing, breakpoints, type scaling, motion) and `client-core` (API origin, oRPC client and RFC 9457 problems over a labelled `fetch` double, query retry rules, `/health` query); jest-expo + React Native Testing Library tests of `ui` and of the app's route tree (`expo-router/testing-library`); `expo export --platform web` produces `apps/client/dist/index.html` with the bundled fonts, after `@knowscroll/contracts` is built; the production export contains no developer gallery | CI fixture |
 
 ## Not proved by CI
 

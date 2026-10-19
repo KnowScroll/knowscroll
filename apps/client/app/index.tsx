@@ -1,5 +1,6 @@
-import { WelcomeScreen } from '../features/welcome/welcome-screen';
+import { Redirect } from 'expo-router';
 
+/** The site root opens Explore. */
 export default function Index() {
-  return <WelcomeScreen />;
+  return <Redirect href="/explore" />;
 }

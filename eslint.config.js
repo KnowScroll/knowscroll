@@ -67,13 +67,17 @@ export default defineConfig(
     rules: { 'no-console': 'off' },
   },
   {
-    files: ['apps/client/**/*.{ts,tsx}'],
+    files: ['apps/client/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}', 'packages/client-core/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: reactHooks.configs.recommended.rules,
     languageOptions: { globals: { ...globals.browser } },
   },
   {
-    files: ['apps/client/**/*.test.{ts,tsx}'],
+    files: [
+      'apps/client/**/*.test.{ts,tsx}',
+      'packages/ui/**/*.test.{ts,tsx}',
+      '{apps/client,packages/ui}/jest.setup.js',
+    ],
     languageOptions: { globals: { ...globals.jest } },
   },
   prettier,

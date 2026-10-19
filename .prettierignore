@@ -15,7 +15,7 @@
 !/knip.json
 !/.prettierrc.json
 packages/backend/src/modules/content/adapters/cutroom/wire-v1/
-packages/design-tokens/
+packages/design-tokens/fonts/
 **/*.md
 **/dist/
 **/node_modules/

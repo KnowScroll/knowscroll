@@ -13,6 +13,10 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "catalog:",
+    "@knowscroll/client-core": "workspace:*",
+    "@knowscroll/design-tokens": "workspace:*",
+    "@knowscroll/ui": "workspace:*",
+    "@tanstack/react-query": "catalog:",
     "expo": "catalog:",
     "expo-constants": "catalog:",
     "expo-font": "catalog:",
@@ -24,6 +28,7 @@
     "react-native": "catalog:",
     "react-native-safe-area-context": "catalog:",
     "react-native-screens": "catalog:",
+    "react-native-svg": "catalog:",
     "react-native-web": "catalog:"
   },
   "devDependencies": {
@@ -35,12 +40,5 @@
     "jest-expo": "catalog:",
     "test-renderer": "catalog:",
     "typescript": "catalog:"
-  },
-  "jest": {
-    "preset": "jest-expo",
-    "testMatch": [
-      "<rootDir>/features/**/*.test.tsx",
-      "<rootDir>/theme/**/*.test.ts"
-    ]
   }
 }

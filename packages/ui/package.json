@@ -1,0 +1,42 @@
+{
+  "name": "@knowscroll/ui",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Accessible UI primitives of the v2.1 design for React Native and React Native Web.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "jest --ci"
+  },
+  "dependencies": {
+    "@knowscroll/design-tokens": "workspace:*",
+    "react": "catalog:",
+    "react-native": "catalog:",
+    "react-native-safe-area-context": "catalog:",
+    "react-native-svg": "catalog:"
+  },
+  "devDependencies": {
+    "@react-native/jest-preset": "catalog:",
+    "@testing-library/react-native": "catalog:",
+    "@types/jest": "catalog:",
+    "@types/react": "catalog:",
+    "expo": "catalog:",
+    "jest": "catalog:",
+    "jest-expo": "catalog:",
+    "test-renderer": "catalog:",
+    "typescript": "catalog:"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testMatch": [
+      "<rootDir>/src/**/*.test.tsx",
+      "<rootDir>/src/**/*.test.ts"
+    ],
+    "setupFiles": [
+      "<rootDir>/jest.setup.js"
+    ]
+  }
+}
