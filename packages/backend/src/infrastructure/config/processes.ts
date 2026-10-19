@@ -3,6 +3,7 @@ import {
   ConfigurationError,
   PortSchema,
   PostgresUrlSchema,
+  WorldSchema,
   checkEnvironment,
   combineChecks,
   positiveInteger,
@@ -48,6 +49,7 @@ export interface WorkerConfig extends ReleaseIdentity {
 }
 
 export interface MigrateConfig {
+  readonly world: string;
   readonly database: DatabaseSettings;
 }
 
@@ -179,15 +181,23 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
   };
 }
 
-/** Migration command configuration: `DATABASE_URL` and `KS_DB_STATEMENT_TIMEOUT_MS` (default 15 minutes). */
+/**
+ * Migration command configuration: `KS_WORLD` (required), `DATABASE_URL` and
+ * `KS_DB_STATEMENT_TIMEOUT_MS` (default 15 minutes). Throws one `ConfigurationError` listing
+ * every problem.
+ */
 export function readMigrateConfig(env: Environment): MigrateConfig {
   const [parsed] = combineChecks(
     checkEnvironment(
-      z.object({ DATABASE_URL: PostgresUrlSchema, KS_DB_STATEMENT_TIMEOUT_MS: positiveInteger(900_000, 3_600_000) }),
-      pick(env, ['DATABASE_URL', 'KS_DB_STATEMENT_TIMEOUT_MS']),
+      z.object({
+        KS_WORLD: WorldSchema,
+        DATABASE_URL: PostgresUrlSchema,
+        KS_DB_STATEMENT_TIMEOUT_MS: positiveInteger(900_000, 3_600_000),
+      }),
+      pick(env, ['KS_WORLD', 'DATABASE_URL', 'KS_DB_STATEMENT_TIMEOUT_MS']),
     ),
   );
-  return { database: databaseSettings(parsed, 'knowscroll-migrate', 2) };
+  return { world: parsed.KS_WORLD, database: databaseSettings(parsed, `knowscroll-migrate-${parsed.KS_WORLD}`, 2) };
 }
 
 function pick(env: Environment, names: readonly string[]): Record<string, string | undefined> {

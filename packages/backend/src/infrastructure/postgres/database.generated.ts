@@ -91,6 +91,7 @@ export interface ReasoningExternalAttempts {
   id: string;
   model: string;
   outcome_code: string | null;
+  output: Json | null;
   provider: string;
   remote_id: string | null;
   request_hash: string;

@@ -21,14 +21,22 @@ export const ActionOutcomeSchema = z.object({
   assetRevision: z.number().int().min(1),
   saved: z.boolean(),
   changed: z.boolean(),
-  /** The universe revision this command committed: its catch-up watermark. */
-  revision: z.number().int().min(1),
+  /**
+   * The universe revision after this command: its catch-up watermark. A command that changed
+   * nothing a client reads (saving an item already saved) does not advance it.
+   */
+  revision: z.number().int().min(0),
 });
 
 export type ActionOutcome = z.infer<typeof ActionOutcomeSchema>;
 
 export type ApplyActionRefusal =
-  'asset_not_found' | 'asset_revision_stale' | 'command_key_reused' | 'epoch_changed' | 'universe_unavailable';
+  | 'asset_not_found'
+  | 'asset_revision_stale'
+  | 'command_key_reused'
+  | 'epoch_changed'
+  | 'universe_unavailable'
+  | 'outcome_from_newer_release';
 
 export type ApplyActionResult =
   | { readonly kind: 'applied'; readonly outcome: ActionOutcome; readonly replayed: boolean }
@@ -42,9 +50,9 @@ export type ApplyActionResult =
  * Steps (one transaction, blueprint §19): lock → receipt lookup (identical replay returns the
  *   stored outcome; different content under the same key is refused; a receipt from an older
  *   privacy epoch is never replayed) → asset exists, admitted, at the given revision → insert
- *   the receipt → saved-state change → action record → enqueue `evidence.apply-action` → advance
- *   the universe revision and `pg_notify` it (the command's own watermark; the evidence job
- *   advances it again for its own effect) → store the outcome → commit.
+ *   the receipt → saved-state change → action record → enqueue `evidence.apply-action` → if the
+ *   saved state changed, advance the universe revision and `pg_notify` it (the command's own
+ *   watermark; one notifying commit per change, and none for a no-op) → store the outcome → commit.
  * Side effects: `experience.saved_items`, `experience.actions`, `receipts.personal_commands`,
  *   `identity.universes.revision`, one pg-boss job, one disposable hint — all or nothing. No
  *   network call.
@@ -69,14 +77,16 @@ export function makeApplyAction(ports: ApplyActionPorts) {
     const entered = await ports.withPersonalScope(authority, async (scope): Promise<ApplyActionResult> => {
       const lookup = await ports.findReceipt(scope, key);
       switch (lookup.kind) {
-        // A reused key, or an outcome stored in another shape (which cannot be replayed as this
-        // one): the client must mint a new command ID.
+        // The client must mint a new command ID: the key was used for another request, the
+        // receipt is from before a privacy reset (never replayed; the caller is already at the
+        // current epoch, so retrying the same ID would loop), or its outcome shape is retired.
         case 'key_reused':
-        case 'outcome_version_unsupported':
-          return { kind: 'refused', reason: 'command_key_reused' };
-        // A receipt from before a privacy reset is never replayed under the new epoch.
         case 'epoch_mismatch':
-          return { kind: 'refused', reason: 'epoch_changed' };
+        case 'outcome_version_older':
+          return { kind: 'refused', reason: 'command_key_reused' };
+        // Written by a newer release during a rolling deploy: retry (never re-apply) later.
+        case 'outcome_version_newer':
+          return { kind: 'refused', reason: 'outcome_from_newer_release' };
         case 'replay':
           return { kind: 'applied', outcome: ActionOutcomeSchema.parse(lookup.outcome), replayed: true };
         case 'new':
@@ -112,8 +122,11 @@ export function makeApplyAction(ports: ApplyActionPorts) {
         privacyEpoch: authority.privacyEpoch,
         actionId,
       });
-      const revision = await ports.advanceRevision(scope);
-      await ports.notifyScopeChanged(scope, { revision, eventId: actionId });
+      let revision = scope.revisionAtEntry;
+      if (effect.changed) {
+        revision = await ports.advanceRevision(scope);
+        await ports.notifyScopeChanged(scope, { revision, eventId: actionId });
+      }
       const outcome: ActionOutcome = {
         actionId,
         kind: command.kind,

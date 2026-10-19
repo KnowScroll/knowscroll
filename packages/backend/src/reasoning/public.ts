@@ -4,6 +4,7 @@
  * in their owning modules and call this. Adapters are bound through `adapters/nest-providers.ts`.
  */
 export {
+  MAX_STORED_OUTPUT_BYTES,
   ModelRejectedError,
   type AttemptLedger,
   type ExecuteModelStepPorts,

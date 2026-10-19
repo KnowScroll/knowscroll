@@ -52,14 +52,15 @@ describe('evidence.apply-action consumer (real database, real pg-boss)', () => {
     }
   }
 
-  it('records the action once, advances the revision once, however often it is delivered', async () => {
+  it('records the action once, however often it is delivered, and leaves the revision to the command', async () => {
     const person = await seedPerson(database.db);
     const actionId = await saveOnce(person);
     const payload = { v: 1 as const, universeId: person.universeId, privacyEpoch: 1, actionId };
-    // The save advanced the revision to 1 in its own transaction; the evidence job advances it again.
-    expect(await applyActionEvidence(payload)).toMatchObject({ kind: 'applied', revision: 2 });
+    // The save advanced the revision to 1 in its own transaction. Evidence changes nothing a client
+    // reads, so the job advances nothing and notifies no one.
+    expect(await applyActionEvidence(payload)).toEqual({ kind: 'applied', eventId: expect.any(String) as unknown });
     expect(await applyActionEvidence(payload)).toEqual({ kind: 'skipped', reason: 'already_applied' });
-    expect(await evidenceAndRevision(person.universeId)).toEqual({ events: 1, revision: 2 });
+    expect(await evidenceAndRevision(person.universeId)).toEqual({ events: 1, revision: 1 });
   });
 
   it('is harmless when the worker crashes after committing and pg-boss redelivers the job', async () => {
@@ -76,13 +77,9 @@ describe('evidence.apply-action consumer (real database, real pg-boss)', () => {
           // Other tests in this file leave their own jobs in the queue; observe this person's only.
           if (payload.universeId !== person.universeId) return;
           deliveries.push(delivery.retryCount);
-          // Simulated crash after the effects committed but before pg-boss recorded completion. The
-          // error carries secret-shaped text: pg-boss must store none of it.
-          if (delivery.retryCount === 0)
-            throw Object.assign(new Error(`simulated crash after commit postgres://u:${secret}@db`), {
-              detail: secret,
-              code: 'FIXTURE_CRASH',
-            });
+          // Simulated crash after the effects committed but before pg-boss recorded completion.
+          // (What pg-boss stores about a failure is proved in infrastructure/jobs.test.ts.)
+          if (delivery.retryCount === 0) throw new Error('simulated crash after commit');
         }),
       ],
       silent,
@@ -105,16 +102,7 @@ describe('evidence.apply-action consumer (real database, real pg-boss)', () => {
       await drainConsumers(worker, 1, 5_000, silent);
     }
     expect(deliveries).toEqual([0, 1]);
-    const outputs = await sql<{
-      output: unknown;
-    }>`select output from pgboss.job where name = ${applyActionEvidenceQueue.name} and data ->> 'universeId' = ${person.universeId}`.execute(
-      database.db,
-    );
-    const stored = JSON.stringify(outputs.rows);
-    expect(stored).not.toContain(secret);
-    expect(stored).not.toContain('simulated crash');
-    expect(stored).not.toContain('stack');
-    expect(await evidenceAndRevision(person.universeId)).toEqual({ events: 1, revision: 2 });
+    expect(await evidenceAndRevision(person.universeId)).toEqual({ events: 1, revision: 1 });
   });
 
   it('dead-letters a job whose payload does not match its queue at once, with a code-only output', async () => {

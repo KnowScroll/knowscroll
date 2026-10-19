@@ -69,6 +69,13 @@ export type WithPersonalScope = <T>(
   work: (scope: PersonalScopeTx) => Promise<T>,
 ) => Promise<ScopeOutcome<T>>;
 
+/**
+ * Port: does `authority` still hold right now? The same checks as `withPersonalScope`, read
+ * without a lock and without writing (implemented by `infrastructure/postgres`). For decisions
+ * that change nothing; whatever writes later rechecks under the lock.
+ */
+export type AuthorityHolds = (authority: PersonalAuthority) => Promise<boolean>;
+
 /** An account with its personal universe, as authentication resolves a caller. */
 export interface AccountUniverse {
   readonly accountId: string;

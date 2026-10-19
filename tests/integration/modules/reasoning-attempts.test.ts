@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createBoss, drainConsumers, jobConsumer, startConsumers } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { makeAuthorityHolds, makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import type { AuthorityHolds } from '@knowscroll/backend/modules/identity';
 import { requestHash } from '@knowscroll/backend/infrastructure/receipts';
 import {
   ModelRejectedError,
@@ -30,7 +31,10 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     await database.drop();
   });
 
-  function executeModelStep(model: FixtureModel, options: { readonly crashBeforeSettling?: () => boolean } = {}) {
+  function executeModelStep(
+    model: FixtureModel,
+    options: { readonly crashBeforeSettling?: () => boolean; readonly authorityHolds?: AuthorityHolds } = {},
+  ) {
     const ledger = makeAttemptLedger(database.db);
     const crashing: AttemptLedger = {
       ...ledger,
@@ -43,6 +47,7 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     };
     return makeExecuteModelStep({
       withPersonalScope: makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 }),
+      authorityHolds: options.authorityHolds ?? makeAuthorityHolds(database.db),
       model,
       ledger: crashing,
       hashRequest: (request) => requestHash('fixture.model-step', { purpose: request.purpose, input: request.input }),
@@ -70,6 +75,15 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
       .select(['state', 'outcome_code', 'remote_id'])
       .where('universe_id', '=', universeId)
       .execute();
+  }
+
+  async function storedOutcome(universeId: string) {
+    const row = await database.db
+      .selectFrom('reasoning.external_attempts')
+      .select(['output', 'settled_at'])
+      .where('universe_id', '=', universeId)
+      .executeTakeFirstOrThrow();
+    return { output: row.output, settled: row.settled_at !== null };
   }
 
   /** Runs one fixture-model job through a real pg-boss consumer until it completes. */
@@ -122,8 +136,12 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     expect(model.calls).toHaveLength(1);
     expect(results).toEqual([expect.objectContaining({ kind: 'succeeded', output: 'fixture:fixture' })]);
     expect(await attempts(person.universeId)).toEqual([
-      { state: 'succeeded', outcome_code: null, remote_id: 'fixture-remote-1' },
+      { state: 'succeeded', outcome_code: 'SUCCEEDED', remote_id: 'fixture-remote-1' },
     ]);
+    expect(await storedOutcome(person.universeId)).toEqual({
+      output: { v: 1, text: 'fixture:fixture' },
+      settled: true,
+    });
   });
 
   it('leaves unknown after a crash following dispatch, and the redelivery never sends again', async () => {
@@ -136,6 +154,8 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     expect(await attempts(person.universeId)).toEqual([
       { state: 'unknown', outcome_code: 'OUTCOME_NOT_RECORDED', remote_id: null },
     ]);
+    // `unknown` is open liability, not a settlement.
+    expect(await storedOutcome(person.universeId)).toEqual({ output: null, settled: false });
   });
 
   it('records a conclusive rejection as failed and a transport error as unknown', async () => {
@@ -156,6 +176,7 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     expect(await attempts(timedOut.universeId)).toEqual([
       { state: 'unknown', outcome_code: 'TRANSPORT_OUTCOME_UNKNOWN', remote_id: null },
     ]);
+    expect(await storedOutcome(timedOut.universeId)).toEqual({ output: null, settled: false });
   });
 
   it('records the outcome even when authority changes during the call, and withholds the output', async () => {
@@ -176,8 +197,77 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     release.open({ remoteId: 'fixture-late', output: 'stale output' });
     expect(await running).toEqual({ kind: 'ineligible', attemptId: expect.any(String) as unknown });
     expect(await attempts(person.universeId)).toEqual([
-      { state: 'succeeded', outcome_code: null, remote_id: 'fixture-late' },
+      { state: 'succeeded', outcome_code: 'SUCCEEDED', remote_id: 'fixture-late' },
     ]);
+  });
+
+  it('checks eligibility without the personal lock, so a busy universe cannot cost a paid answer', async () => {
+    const person = await seedPerson(database.db);
+    const inFlight = gate();
+    const release = gate<ModelResponse>();
+    const model = fixtureModel(() => {
+      inFlight.open();
+      return release.promise;
+    });
+    const running = executeModelStep(model)(systemAuthority(person), step(randomUUID()), signal());
+    await inFlight.promise;
+    // Another transaction holds the personal root from now until the step has returned.
+    const holding = gate();
+    const locked = gate();
+    const holder = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(systemAuthority(person), async () => {
+      locked.open();
+      await holding.promise;
+    });
+    await locked.promise;
+    release.open({ remoteId: 'fixture-busy', output: 'answer while busy' });
+    expect(await running).toEqual({
+      kind: 'succeeded',
+      attemptId: expect.any(String) as unknown,
+      output: 'answer while busy',
+    });
+    holding.open();
+    await holder;
+  });
+
+  it('keeps a paid answer when the eligibility check fails, and the redelivery applies it without a second call', async () => {
+    const person = await seedPerson(database.db);
+    const model = fixtureModel(() => Promise.resolve({ remoteId: 'fixture-kept', output: 'kept output' }));
+    const holds = makeAuthorityHolds(database.db);
+    let failures = 1;
+    const flaky: AuthorityHolds = (authority) => {
+      if (failures > 0) {
+        failures -= 1;
+        return Promise.reject(new Error('fixture: eligibility read failed'));
+      }
+      return holds(authority);
+    };
+    const execute = executeModelStep(model, { authorityHolds: flaky });
+    const runId = randomUUID();
+    await expect(execute(systemAuthority(person), step(runId), signal())).rejects.toThrow('eligibility read failed');
+    expect(await execute(systemAuthority(person), step(runId), signal())).toEqual({
+      kind: 'succeeded',
+      attemptId: expect.any(String) as unknown,
+      output: 'kept output',
+    });
+    expect(model.calls).toHaveLength(1);
+    expect(await attempts(person.universeId)).toEqual([
+      { state: 'succeeded', outcome_code: 'SUCCEEDED', remote_id: 'fixture-kept' },
+    ]);
+  });
+
+  it('records an answer too large to keep as OUTPUT_TOO_LARGE and never applies it', async () => {
+    const person = await seedPerson(database.db);
+    const model = fixtureModel(() => Promise.resolve({ remoteId: 'fixture-large', output: 'x'.repeat(70_000) }));
+    const execute = executeModelStep(model);
+    const runId = randomUUID();
+    const tooLarge = { kind: 'failed', attemptId: expect.any(String) as unknown, code: 'OUTPUT_TOO_LARGE' };
+    expect(await execute(systemAuthority(person), step(runId), signal())).toEqual(tooLarge);
+    expect(await execute(systemAuthority(person), step(runId), signal())).toEqual(tooLarge);
+    expect(model.calls).toHaveLength(1);
+    expect(await attempts(person.universeId)).toEqual([
+      { state: 'succeeded', outcome_code: 'OUTPUT_TOO_LARGE', remote_id: 'fixture-large' },
+    ]);
+    expect(await storedOutcome(person.universeId)).toEqual({ output: null, settled: true });
   });
 
   it('marks an attempt not_sent when authority is gone before dispatch', async () => {
@@ -270,9 +360,21 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
       output: 'late but conclusive',
     });
     expect(model.calls).toHaveLength(1);
+    // The reconciled row records the late answer's real result, and keeps its output.
     expect(await attempts(person.universeId)).toEqual([
-      { state: 'reconciled', outcome_code: 'OUTCOME_NOT_RECORDED', remote_id: 'fixture-late' },
+      { state: 'reconciled', outcome_code: 'SUCCEEDED', remote_id: 'fixture-late' },
     ]);
+    expect(await storedOutcome(person.universeId)).toEqual({
+      output: { v: 1, text: 'late but conclusive' },
+      settled: true,
+    });
+    // A later delivery answers from the ledger with the stored output, without calling again.
+    expect(await execute(systemAuthority(person), step(runId), signal())).toEqual({
+      kind: 'reconciled',
+      attemptId: expect.any(String) as unknown,
+      output: 'late but conclusive',
+    });
+    expect(model.calls).toHaveLength(1);
   });
 
   it('does not run a step for a universe whose epoch moved on', async () => {

@@ -21,8 +21,10 @@ export interface ProblemData {
 /**
  * The single outcome → HTTP mapping of the API (blueprint §23 pattern 3). Contract handlers
  * raise oRPC errors whose code is a catalogue problem code; oRPC's own codes map to their
- * problem equivalents (any other 4xx keeps a 4xx meaning); everything else is an unexpected error,
- * logged once here and answered with a sanitised `INTERNAL` problem.
+ * problem equivalents (any other 4xx keeps a 4xx meaning); retryable database failures answer a
+ * 503 with `Retry-After` and are logged once as `http.retryable_failure`; everything else is an
+ * unexpected error, logged once as `http.unexpected_error` and answered with a sanitised
+ * `INTERNAL` problem.
  */
 export function problem(code: ProblemCode, extras: ProblemData = {}): ORPCError<ProblemCode, ProblemData> {
   return new ORPCError(code, {
@@ -65,28 +67,42 @@ export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent
     orpcCodes[error.code] ??
     (error.status >= 400 && error.status < 500 ? (statusCodes[error.status] ?? 'INVALID_REQUEST') : undefined);
   if (mapped !== undefined) return finish(problemDetails(mapped));
-  // Lock waits, statement timeouts, deadlocks and serialisation failures are retryable, not faults.
-  if (isRetryableDatabaseFailure(error.cause)) return finish(problemDetails('SERVICE_UNAVAILABLE'));
+  // Lock waits, statement timeouts, deadlocks and serialisation failures are answered as a
+  // retryable 503, and logged once with their code: a timeout or deadlock is usually a real fault
+  // (a slow query, a lock-order bug) even though the client may simply retry.
+  const retryable = retryableFailureCode(error.cause);
+  if (retryable !== undefined) {
+    const context = currentRequest();
+    logEvent('http.retryable_failure', {
+      ...(context === undefined ? {} : { requestId: context.requestId }),
+      reasonCode: retryable,
+      error: error.cause,
+    });
+    return finish(problemDetails('SERVICE_UNAVAILABLE'));
+  }
   logUnexpected(logEvent, error.cause ?? error);
   return finish(problemDetails('INTERNAL'));
 }
 
 /**
- * PostgreSQL and personal-scope failures a client may simply retry: `SCOPE_BUSY` (personal-scope
- * lock not granted in time), `55P03` lock_not_available, `57014` query_canceled (statement
- * timeout), `40P01` deadlock_detected, `40001` serialization_failure. Searched through the cause
- * chain, because drivers and Kysely wrap errors.
+ * The code of a PostgreSQL or personal-scope failure a client may simply retry, if `error` is one:
+ * `SCOPE_BUSY` (personal-scope lock not granted in time), `55P03` lock_not_available, `57014`
+ * query_canceled (statement timeout), `40P01` deadlock_detected, `40001` serialization_failure.
+ * Searched through the cause chain, because drivers and Kysely wrap errors.
  */
-export function isRetryableDatabaseFailure(error: unknown): boolean {
+export function retryableFailureCode(error: unknown): string | undefined {
   const retryable = new Set(['SCOPE_BUSY', '55P03', '57014', '40P01', '40001']);
   let current: unknown = error;
   for (let depth = 0; depth < 5 && current !== null && typeof current === 'object'; depth += 1) {
     const code: unknown = (current as { code?: unknown }).code;
-    if (typeof code === 'string' && retryable.has(code)) return true;
+    if (typeof code === 'string' && retryable.has(code)) return code;
     current = (current as { cause?: unknown }).cause;
   }
-  return false;
+  return undefined;
 }
+
+/** Seconds a client should wait before retrying a 503 (`Retry-After`). */
+export const RETRY_AFTER_SECONDS = 1;
 
 /** Stable issue locations from an oRPC input validation failure; never the rejected values. */
 function validationIssues(error: ORPCError<string, unknown>): ProblemIssue[] {
@@ -119,8 +135,9 @@ function logUnexpected(logEvent: LogEvent, error: unknown): void {
   logEvent('http.unexpected_error', { ...(context === undefined ? {} : { requestId: context.requestId }), error });
 }
 
-/** Writes problem details with the RFC 9457 media type. */
+/** Writes problem details with the RFC 9457 media type (and `Retry-After` on a 503). */
 export function sendProblem(response: Response, details: ProblemDetails): void {
+  if (details.status === 503) response.setHeader('retry-after', String(RETRY_AFTER_SECONDS));
   response.status(details.status).setHeader('content-type', PROBLEM_MEDIA_TYPE).end(JSON.stringify(details));
 }
 

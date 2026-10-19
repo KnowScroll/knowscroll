@@ -6,15 +6,24 @@ export interface Caller {
   readonly accountId: string;
   readonly universeId: string;
   readonly privacyEpoch: number;
+  /** Opaque identity of the session the caller authenticated with (S1.3: its session record). */
+  readonly sessionId: string;
 }
 
 /**
- * The AuthenticatedCaller port: resolves an `Authorization` header value to a caller, or nothing.
- * S1.3 implements it with real sessions (D-007). Until then the API runs with `none` (every
- * personal route answers 401), and CI runs with the test-only adapter below.
+ * The AuthenticatedCaller port. S1.3 implements it with real sessions (D-007). Until then the API
+ * runs with `none` (every personal route answers 401), and CI runs with the test-only adapter
+ * below.
  */
 export interface AuthenticatedCallers {
+  /** Resolves an `Authorization` header value to a caller, or nothing. */
   resolve(authorization: string | undefined): Promise<Caller | undefined>;
+  /**
+   * Whether the session `caller` authenticated with is still valid now (not signed out, revoked
+   * or expired). Sockets outlive the request that authenticated them, so the gateway asks again
+   * on every subscribe and whenever it re-authorises a socket for a relayed hint.
+   */
+  sessionValid(caller: Caller): Promise<boolean>;
 }
 
 /** The claim a caller makes on its personal universe; `withPersonalScope` rechecks it. */
@@ -26,14 +35,18 @@ export function authorityOf(caller: Caller): PersonalAuthority {
   };
 }
 
-const noCallers: AuthenticatedCallers = { resolve: () => Promise.resolve(undefined) };
+const noCallers: AuthenticatedCallers = {
+  resolve: () => Promise.resolve(undefined),
+  sessionValid: () => Promise.resolve(false),
+};
 
 const testBearerPattern = /^Bearer test\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 
 /**
  * TEST ONLY (CI fixture): trusts `Authorization: Bearer test.<accountId>` and reads the account's
- * universe. Configuration refuses it unless `NODE_ENV=test` in a `ci` or `local` world, and
- * `selectCallers` refuses it again, so a deployed world can never start with it.
+ * universe. Its "sessions" have no record and are always valid. Configuration refuses it unless
+ * `NODE_ENV=test` in a `ci` or `local` world, and `selectCallers` refuses it again, so a deployed
+ * world can never start with it.
  */
 function testBearerCallers(readAccountUniverse: ReadAccountUniverse): AuthenticatedCallers {
   return {
@@ -43,8 +56,14 @@ function testBearerCallers(readAccountUniverse: ReadAccountUniverse): Authentica
       const account = await readAccountUniverse(match[1]);
       if (account === undefined || account.accountStatus !== 'active' || account.universeStatus !== 'active')
         return undefined;
-      return { accountId: account.accountId, universeId: account.universeId, privacyEpoch: account.privacyEpoch };
+      return {
+        accountId: account.accountId,
+        universeId: account.universeId,
+        privacyEpoch: account.privacyEpoch,
+        sessionId: `test:${account.accountId}`,
+      };
     },
+    sessionValid: () => Promise.resolve(true),
   };
 }
 

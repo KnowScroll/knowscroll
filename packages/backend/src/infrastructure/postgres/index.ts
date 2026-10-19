@@ -14,6 +14,7 @@ export {
   ScopeClosedError,
   advanceScopeRevision,
   enterSharedRoot,
+  makeAuthorityHolds,
   makeWithPersonalScope,
   sharedTransactionOf,
   transactionOf,

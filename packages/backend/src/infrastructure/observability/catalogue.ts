@@ -78,6 +78,7 @@ export const diagnosticCatalogue = {
     fields: ['requestId', 'method', 'route', 'status', 'durationMs', 'outcome', 'reasonCode'],
   },
   'http.unexpected_error': { severity: 'error', module: 'http', fields: ['requestId', 'method', 'route', 'error'] },
+  'http.retryable_failure': { severity: 'warn', module: 'http', fields: ['requestId', 'reasonCode', 'error'] },
   'database.idle_client_error': { severity: 'error', module: 'postgres', fields: ['error'] },
   'jobs.error': { severity: 'error', module: 'jobs', fields: ['error'] },
   'jobs.warning': { severity: 'warn', module: 'jobs', fields: ['reasonCode'] },
@@ -96,6 +97,8 @@ export const diagnosticCatalogue = {
   'realtime.connection_refused': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'error'] },
   'realtime.subscription_refused': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'error'] },
   'realtime.access_revoked': { severity: 'info', module: 'realtime', fields: ['count'] },
+  'realtime.relay_failed': { severity: 'error', module: 'realtime', fields: ['reasonCode', 'error'] },
+  'realtime.sockets_reauthenticated': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'count'] },
   'reasoning.attempt_settled': {
     severity: 'info',
     module: 'reasoning',

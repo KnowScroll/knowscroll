@@ -22,6 +22,25 @@ export function canTransition(from: AttemptState, to: AttemptState): boolean {
 }
 
 /**
+ * Whether `state` is a settled outcome. `unknown` is not: it is open liability awaiting
+ * reconciliation or write-off, so entering it records no settlement time.
+ */
+export function isSettled(state: AttemptState): boolean {
+  switch (state) {
+    case 'not_sent':
+    case 'succeeded':
+    case 'failed':
+    case 'reconciled':
+    case 'written_off':
+      return true;
+    case 'reserved':
+    case 'dispatched':
+    case 'unknown':
+      return false;
+  }
+}
+
+/**
  * What a (re)delivered job may do with an attempt that already exists for its step:
  * - `dispatch`: reserved but never dispatched, so nothing was sent; sending now is safe.
  * - `mark_unknown`: a previous delivery committed dispatch intent and never recorded an outcome

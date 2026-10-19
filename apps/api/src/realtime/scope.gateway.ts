@@ -33,23 +33,37 @@ function callerOf(socket: { readonly data: unknown }): Caller | undefined {
   return (socket.data as { caller?: Caller } | undefined)?.caller;
 }
 
+/** Whether a socket may still receive a scope's hints: yes, not this scope, or not at all. */
+type Authorisation = 'ok' | 'scope_revoked' | 'session_invalid';
+
+function cacheKey(caller: Caller, universeId: string): string {
+  return `${caller.accountId}:${caller.sessionId}:${universeId}:${caller.privacyEpoch}`;
+}
+
 /**
  * Socket.IO gateway for live hints (blueprint §4, §7): authenticated connections, authorised
  * `subscribe_scope`/`unsubscribe_scope`, and `scope_changed`/`scope_resync`/`scope_revoked` hints
  * from the LISTEN relay. There are no socket commands; durable state is read over HTTP.
  *
  * Room membership is a delivery aid, never authority:
- * - every subscribe joins first and then reads current access (so a change committed between the
- *   read and the join cannot be missed), and leaves again when access is refused;
- * - every relayed hint is re-authorised per socket (cached at most `KS_SOCKET_AUTH_CACHE_MS`, ≤ 30 s);
- *   a socket whose access no longer holds is dropped from the room and told `scope_revoked`;
+ * - every subscribe joins first and then checks the caller's session validity and current access
+ *   (so a change committed between the read and the join cannot be missed), and leaves again
+ *   when either is refused;
+ * - every relayed hint is re-authorised per socket — session validity and scope access, cached at
+ *   most `KS_SOCKET_AUTH_CACHE_MS` (≤ 30 s) per session, scope and epoch; a socket whose access no
+ *   longer holds leaves the room and is told `scope_revoked`; one whose session is no longer valid
+ *   is disconnected;
  * - an access-revocation notice (`revokeAccountSockets`, S1.3 sign-out / session revocation /
- *   epoch change) disconnects every socket of that account at once.
+ *   epoch change) disconnects every socket of that account at once;
+ * - when the relay reconnects, notices sent meanwhile (revocations included) are lost, so the
+ *   gateway forgets every cached authorisation and closes every socket's connection before it
+ *   relays anything again: each client reconnects and authenticates again (validating its
+ *   session), then resubscribes and refetches.
  */
 @WebSocketGateway({ path: SOCKET_PATH, serveClient: false })
 export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
   @WebSocketServer() private server!: Server;
-  private readonly authorisations = new Map<string, { readonly ok: boolean; readonly at: number }>();
+  private readonly authorisations = new Map<string, { readonly result: Authorisation; readonly at: number }>();
 
   constructor(
     @Inject(CALLERS) private readonly callers: AuthenticatedCallers,
@@ -90,13 +104,18 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
     // therefore arrive before the ack; revisions only grow and clients tolerate duplicates.
     await socket.join(name);
     try {
+      if (!(await this.callers.sessionValid(caller))) {
+        await socket.leave(name);
+        this.logEvent('realtime.subscription_refused', { reasonCode: 'SESSION_INVALID' });
+        return { ok: false, code: 'UNAUTHENTICATED' };
+      }
       const access = await this.readAccess(caller.accountId, request.data.scope.id);
       if (access === undefined || !access.active || access.privacyEpoch !== caller.privacyEpoch) {
         await socket.leave(name);
         this.logEvent('realtime.subscription_refused', { reasonCode: 'FORBIDDEN' });
         return { ok: false, code: 'FORBIDDEN' };
       }
-      this.remember(caller, request.data.scope.id, true);
+      this.remember(cacheKey(caller, request.data.scope.id), 'ok');
       return { ok: true, revision: access.revision };
     } catch (error) {
       await socket.leave(name);
@@ -116,14 +135,31 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
   /** Relay sink: one committed change → a hint to each still-authorised socket of that scope. */
   onNotice(notice: ScopeNotice): void {
     this.relayNotice(notice).catch((error: unknown) =>
-      this.logEvent('realtime.subscription_refused', { reasonCode: 'RELAY_FAILED', error }),
+      this.logEvent('realtime.relay_failed', { reasonCode: 'RELAY_FAILED', error }),
     );
   }
 
-  /** Relay sink: hints may have been lost; every client refetches its subscribed scopes. */
+  /**
+   * Relay sink: notices may have been lost. At startup (`listening`) every client is asked to
+   * refetch. After a reconnect, lost notices may include revocations, so cached authorisations
+   * are forgotten and every socket in this process is made to authenticate again: it leaves its
+   * rooms at once (no further hint can reach it) and its connection is closed, so the client
+   * reconnects, which re-validates its session, and then resubscribes and refetches.
+   */
   onResync(reason: 'listening' | 'reconnected'): void {
-    const hint: ScopeResyncHint = { reason };
-    this.server.emit(socketEvents.scopeResync, hint);
+    if (reason === 'listening') {
+      const hint: ScopeResyncHint = { reason };
+      this.server.emit(socketEvents.scopeResync, hint);
+      return;
+    }
+    this.authorisations.clear();
+    let count = 0;
+    for (const socket of this.server.sockets.sockets.values()) {
+      for (const name of [...socket.rooms]) if (name !== socket.id) void socket.leave(name);
+      socket.conn.close();
+      count += 1;
+    }
+    this.logEvent('realtime.sockets_reauthenticated', { reasonCode: 'relay_reconnected', count });
   }
 
   /** Relay sink: an account's access was revoked somewhere; drop its sockets in this process. */
@@ -154,29 +190,43 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
     const hint: ScopeChangedHint = { scope: notice.scope, revision: notice.revision, eventId: notice.eventId };
     for (const socket of await this.server.in(name).fetchSockets()) {
       const caller = callerOf(socket);
-      if (caller !== undefined && (await this.stillAuthorised(caller, notice.scope.id))) {
-        socket.emit(socketEvents.scopeChanged, hint);
-        continue;
+      const authorisation = caller === undefined ? 'session_invalid' : await this.authorise(caller, notice.scope.id);
+      switch (authorisation) {
+        case 'ok':
+          socket.emit(socketEvents.scopeChanged, hint);
+          break;
+        case 'scope_revoked': {
+          socket.leave(name);
+          const revoked: ScopeRevokedHint = { scope: notice.scope };
+          socket.emit(socketEvents.scopeRevoked, revoked);
+          this.logEvent('realtime.subscription_refused', { reasonCode: 'REVOKED' });
+          break;
+        }
+        case 'session_invalid':
+          socket.disconnect(true);
+          this.logEvent('realtime.subscription_refused', { reasonCode: 'SESSION_INVALID' });
+          break;
       }
-      socket.leave(name);
-      const revoked: ScopeRevokedHint = { scope: notice.scope };
-      socket.emit(socketEvents.scopeRevoked, revoked);
-      this.logEvent('realtime.subscription_refused', { reasonCode: 'REVOKED' });
     }
   }
 
-  private async stillAuthorised(caller: Caller, universeId: string): Promise<boolean> {
-    const key = `${caller.accountId}:${universeId}:${caller.privacyEpoch}`;
+  /** Session validity first, then scope access; cached per session, scope and epoch. */
+  private async authorise(caller: Caller, universeId: string): Promise<Authorisation> {
+    const key = cacheKey(caller, universeId);
     const cached = this.authorisations.get(key);
-    if (cached !== undefined && Date.now() - cached.at < this.config.socketAuthorisationCacheMs) return cached.ok;
-    const access = await this.readAccess(caller.accountId, universeId);
-    const ok = access !== undefined && access.active && access.privacyEpoch === caller.privacyEpoch;
-    this.remember(caller, universeId, ok);
-    return ok;
+    if (cached !== undefined && Date.now() - cached.at < this.config.socketAuthorisationCacheMs) return cached.result;
+    let result: Authorisation = 'session_invalid';
+    if (await this.callers.sessionValid(caller)) {
+      const access = await this.readAccess(caller.accountId, universeId);
+      result =
+        access !== undefined && access.active && access.privacyEpoch === caller.privacyEpoch ? 'ok' : 'scope_revoked';
+    }
+    this.remember(key, result);
+    return result;
   }
 
-  private remember(caller: Caller, universeId: string, ok: boolean): void {
+  private remember(key: string, result: Authorisation): void {
     if (this.authorisations.size > 10_000) this.authorisations.clear();
-    this.authorisations.set(`${caller.accountId}:${universeId}:${caller.privacyEpoch}`, { ok, at: Date.now() });
+    this.authorisations.set(key, { result, at: Date.now() });
   }
 }

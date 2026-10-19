@@ -19,15 +19,20 @@ export type ReceiptLookup =
   | { readonly kind: 'replay'; readonly outcome: unknown }
   | { readonly kind: 'key_reused' }
   | { readonly kind: 'epoch_mismatch' }
-  | { readonly kind: 'outcome_version_unsupported' };
+  /** Stored by a newer release than this one (rolling deploy): retryable, never re-applied. */
+  | { readonly kind: 'outcome_version_newer' }
+  /** Stored in a shape this release no longer reads (releases read the previous version too). */
+  | { readonly kind: 'outcome_version_older' };
 
 /**
  * Looks up `(universe_id, command_id)` inside the locked personal scope (blueprint §19 step 2).
  * `replay` carries the stored outcome of an identical request; `key_reused` means the same key
  * arrived with a different operation or request hash (→ `COMMAND_KEY_REUSED`, 422);
  * `epoch_mismatch` means the receipt belongs to an earlier privacy epoch, whose results are never
- * replayed after a reset; `outcome_version_unsupported` means the stored outcome has a shape the
- * caller cannot parse. Read-only.
+ * replayed after a reset (the caller is already at the current epoch, so it must mint a new
+ * command ID); `outcome_version_newer` / `outcome_version_older` mean the stored outcome has a
+ * shape the caller cannot parse, written by a newer release (retry later) or an older one (mint a
+ * new ID). Read-only.
  */
 export async function findPersonalReceipt(scope: PersonalScopeTx, key: PersonalCommandKey): Promise<ReceiptLookup> {
   const existing = await transactionOf(scope)
@@ -39,7 +44,8 @@ export async function findPersonalReceipt(scope: PersonalScopeTx, key: PersonalC
   if (existing === undefined) return { kind: 'new' };
   if (existing.operation !== key.operation || existing.request_hash !== key.requestHash) return { kind: 'key_reused' };
   if (existing.privacy_epoch !== scope.authority.privacyEpoch) return { kind: 'epoch_mismatch' };
-  if (existing.outcome_version !== key.outcomeVersion) return { kind: 'outcome_version_unsupported' };
+  if (existing.outcome_version > key.outcomeVersion) return { kind: 'outcome_version_newer' };
+  if (existing.outcome_version < key.outcomeVersion) return { kind: 'outcome_version_older' };
   if (existing.outcome === null) throw new Error('Receipt without outcome outside its own transaction');
   return { kind: 'replay', outcome: existing.outcome };
 }

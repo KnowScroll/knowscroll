@@ -11,7 +11,9 @@
 --   reconciliation.
 -- Writes: run admission; attempt reserve → dispatched under personal authority; ledger-owned
 --   settlement (succeeded / failed / unknown / not_sent / reconciled) in short transactions that do
---   not depend on current authority, never across the provider call.
+--   not depend on current authority, never across the provider call. A successful call's output
+--   is stored on its attempt (bounded) so a later delivery can still apply it without a second
+--   paid call; S2.2 moves large or sensitive outputs to protected storage and keeps a reference.
 -- Growth: one run per admitted job, one attempt per external call (repairs are new steps).
 -- Retention/erasure: personal; erased per universe, except attempts whose outcome is still
 --   unsettled (dispatched/unknown), which are kept as open liability and reported as pending.
@@ -48,7 +50,11 @@ create table reasoning.external_attempts (
   request_hash text not null,
   state text not null default 'reserved',
   remote_id text,
+  -- SUCCEEDED, OUTPUT_TOO_LARGE, OUTCOME_NOT_RECORDED, TRANSPORT_OUTCOME_UNKNOWN, AUTHORITY_REFUSED,
+  -- or the provider's rejection code; a reconciled attempt keeps the late answer's real code.
   outcome_code text,
+  -- {"v": 1, "text": …} for a successful call; personal data, erased with the attempt.
+  output jsonb,
   reserved_at timestamptz not null default now(),
   dispatched_at timestamptz,
   settled_at timestamptz,
@@ -57,6 +63,11 @@ create table reasoning.external_attempts (
   constraint external_attempts_universe_fkey foreign key (universe_id) references identity.universes (id) on delete restrict,
   constraint external_attempts_run_fkey foreign key (universe_id, run_id) references reasoning.business_runs (universe_id, id) on delete restrict,
   constraint external_attempts_hash_check check (request_hash ~ '^[0-9a-f]{64}$'),
+  -- The application bound is 64 KiB of serialised JSON; the slack covers jsonb's own formatting.
+  constraint external_attempts_output_check check (
+    output is null
+    or (state in ('succeeded', 'reconciled') and jsonb_typeof(output) = 'object' and octet_length(output::text) <= 66560)
+  ),
   constraint external_attempts_state_check check (
     state in ('reserved', 'not_sent', 'dispatched', 'succeeded', 'failed', 'unknown', 'reconciled', 'written_off')
   )

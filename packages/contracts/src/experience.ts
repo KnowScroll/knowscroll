@@ -21,8 +21,12 @@ export const ApplyActionResponseSchema = z.object({
   assetRevision: z.number().int().min(1),
   saved: z.boolean(),
   changed: z.boolean(),
-  /** The universe revision this command committed (its catch-up watermark; compare with hints). */
-  revision: z.number().int().min(1),
+  /**
+   * The universe revision after this command (its catch-up watermark; compare with hints). A
+   * command that changed nothing a client reads does not advance it. Clients keep the highest
+   * revision they have seen from any source.
+   */
+  revision: z.number().int().min(0),
   /** True when this response is the stored outcome of an earlier identical request. */
   replayed: z.boolean(),
 });

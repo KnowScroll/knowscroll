@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
+import pg from 'pg';
 import { io, type Socket } from 'socket.io-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ScopeChangedHintSchema, SOCKET_PATH, socketEvents, type ScopeChangedHint } from '@knowscroll/contracts';
 import { revokeAccountSockets } from '@knowscroll/backend/infrastructure/notices';
 import { createDatabase, type Database, type DatabaseHandle } from '@knowscroll/backend/infrastructure/postgres';
+import { quoteIdentifier, withAdmin } from '../support/admin.js';
 import { apiClient } from '../support/api-client.js';
 import { createEmptyDatabase } from '../support/empty-database.js';
 import { seedAsset, seedPerson, type FixturePerson } from '../support/fixtures.js';
@@ -11,8 +13,9 @@ import { freePort, startReleaseProcess, waitForHttp, type ReleaseProcess } from 
 
 /**
  * The S1.2 spike journey through the deployed release trees: HTTP command → locked receipt +
- * saved item + pg-boss job in one transaction → worker job writes evidence, bumps the universe
- * revision and NOTIFYs → API relay → Socket.IO `scope_changed` → HTTP catch-up read.
+ * saved item + pg-boss job + revision bump and NOTIFY in one transaction → API relay → Socket.IO
+ * `scope_changed` → HTTP catch-up read; the worker job then writes evidence (which changes nothing
+ * a client reads, so it sends no hint).
  *
  * Evidence label: CI fixture + real database. Accounts, universes and assets are fixtures (S1.3
  * adds sign-up, Phase 2 adds admitted content); callers are authenticated by the test-only
@@ -118,11 +121,24 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
       replayed: false,
     });
 
-    // Revision 1 is the command's own commit; revision 2 is the evidence job's.
-    await expect.poll(() => hints.map((hint) => hint.revision), { timeout: 20_000 }).toEqual([1, 2]);
+    // Revision 1 is the command's own commit. The evidence job changes nothing a client reads.
+    await expect.poll(() => hints.map((hint) => hint.revision), { timeout: 20_000 }).toEqual([1]);
     expect(hints.every((hint) => hint.scope.id === person.universeId)).toBe(true);
+    await expect
+      .poll(
+        async () =>
+          (
+            await handle.db
+              .selectFrom('evidence.action_events')
+              .select('id')
+              .where('universe_id', '=', person.universeId)
+              .execute()
+          ).length,
+        { timeout: 20_000 },
+      )
+      .toBe(1);
     const list = await client.experience.listSaved({});
-    expect(list.revision).toBe(2);
+    expect(list.revision).toBe(1);
     expect(list.items).toEqual([expect.objectContaining({ assetId: asset.assetId, assetRevision: asset.revision })]);
 
     // A retried command returns the stored outcome and causes no second effect or hint.
@@ -133,7 +149,7 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     });
     expect(replay).toEqual({ ...saved, replayed: true });
     await new Promise((resolve) => setTimeout(resolve, 1_500));
-    expect(hints).toHaveLength(2);
+    expect(hints).toHaveLength(1);
     const evidence = await handle.db
       .selectFrom('evidence.action_events')
       .select('id')
@@ -244,6 +260,60 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     const disconnected = new Promise<string>((resolve) => socket.once('disconnect', resolve));
     await handle.db.transaction().execute((trx) => revokeAccountSockets(trx, owner.accountId));
     expect(await disconnected).toBe('io server disconnect');
+  });
+
+  it('makes every socket authenticate again after a relay reconnect, so a revocation lost meanwhile still applies', async () => {
+    const owner = await seedPerson(handle.db);
+    const socket = connect(`test.${owner.accountId}`);
+    const reasons: string[] = [];
+    socket.on('disconnect', (reason) => reasons.push(reason));
+    await connected(socket);
+    expect(
+      await socket.emitWithAck(socketEvents.subscribeScope, { scope: { kind: 'universe', id: owner.universeId } }),
+    ).toEqual({ ok: true, revision: 0 });
+    // Opened before the outage: the only connection that can send the revocation while it lasts.
+    const sender = new pg.Client({ connectionString: database.url, application_name: 'knowscroll-it-revoker' });
+    await sender.connect();
+    const relayBackends = async () =>
+      withAdmin(async (client) => {
+        const result = await client.query<{ n: number }>(
+          "select count(*)::int as n from pg_stat_activity where datname = $1 and application_name = 'knowscroll-api-ci-relay'",
+          [database.name],
+        );
+        return result.rows[0]?.n ?? 0;
+      });
+    try {
+      // The relay's connection is cut and cannot come back: the API is deaf to notices.
+      await withAdmin(async (client) => {
+        await client.query(`alter database ${quoteIdentifier(database.name)} with allow_connections false`);
+        await client.query(
+          "select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and application_name = 'knowscroll-api-ci-relay'",
+          [database.name],
+        );
+      });
+      await expect.poll(relayBackends, { timeout: 10_000 }).toBe(0);
+      // Sign-out / session revocation in S1.3 sends this notice; no relay hears it.
+      await sender.query('select pg_notify($1, $2)', [
+        'ks_access_revoked',
+        JSON.stringify({ v: 1, accountId: owner.accountId }),
+      ]);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(socket.connected).toBe(true);
+    } finally {
+      await withAdmin((client) =>
+        client.query(`alter database ${quoteIdentifier(database.name)} with allow_connections true`),
+      );
+      await sender.end();
+    }
+    // The relay is back: before relaying anything it closes every socket, so the client must
+    // reconnect and authenticate again (S1.3: a revoked session is refused there).
+    await expect.poll(() => reasons, { timeout: 20_000 }).toEqual(['transport close']);
+    await expect.poll(relayBackends, { timeout: 10_000 }).toBe(1);
+    await expect
+      .poll(async () => ((await (await fetch(`${baseUrl}/health`)).json()) as { relay?: string }).relay, {
+        timeout: 10_000,
+      })
+      .toBe('listening');
   });
 
   it('never writes secrets from URLs, headers or bodies to its output', async () => {

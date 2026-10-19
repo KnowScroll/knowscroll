@@ -75,16 +75,17 @@ describe('the outcome → RFC 9457 mapping', () => {
     });
   });
 
-  it('answers lock, timeout, deadlock and serialisation failures as a retryable 503 without logging a fault', () => {
-    const { events, logEvent } = recordingLog();
-    for (const code of ['SCOPE_BUSY', '55P03', '57014', '40P01', '40001']) {
+  it('answers lock, timeout, deadlock and serialisation failures as a retryable 503, logged once with their code', () => {
+    const codes = ['SCOPE_BUSY', '55P03', '57014', '40P01', '40001'];
+    for (const code of codes) {
+      const { events, logEvent } = recordingLog();
       const wrapped = new Error('kysely wrapper', { cause: Object.assign(new Error('driver says no'), { code }) });
       expect(problemFromOrpcError(new ORPCError('INTERNAL_SERVER_ERROR', { cause: wrapped }), logEvent)).toMatchObject({
         status: 503,
         code: 'SERVICE_UNAVAILABLE',
       });
+      expect(events).toEqual([{ event: 'http.retryable_failure', fields: { reasonCode: code, error: wrapped } }]);
     }
-    expect(events).toEqual([]);
   });
 
   it('answers an unexpected error with a sanitised INTERNAL problem and logs it exactly once', () => {

@@ -82,6 +82,53 @@ describe('experience applyAction with real adapters (real database)', () => {
     }
   });
 
+  it('does not advance the revision (or notify) for a save that changes nothing', async () => {
+    const person = await seedPerson(database.db);
+    const asset = await seedAsset(database.db);
+    const useCases = await experienceUseCases(database);
+    try {
+      const save = () =>
+        useCases.applyAction(person.authority, {
+          commandId: randomUUID(),
+          kind: 'save',
+          target: { assetId: asset.assetId, assetRevision: asset.revision },
+        });
+      expect(await save()).toMatchObject({ kind: 'applied', outcome: { changed: true, revision: 1 } });
+      expect(await save()).toMatchObject({ kind: 'applied', outcome: { saved: true, changed: false, revision: 1 } });
+      expect(await universeRevision(person.universeId)).toBe(1);
+      // Both actions are recorded (and their evidence queued); only the change moved the watermark.
+      expect(await counts(person.universeId)).toMatchObject({ actions: 2, receipts: 2, saved: 1 });
+      expect(await jobCount(person.universeId)).toBe(2);
+    } finally {
+      await useCases.close();
+    }
+  });
+
+  it('asks for a new command ID when a receipt is from before a privacy reset (no replay, no loop)', async () => {
+    const person = await seedPerson(database.db);
+    const asset = await seedAsset(database.db);
+    const useCases = await experienceUseCases(database);
+    try {
+      const command = {
+        commandId: randomUUID(),
+        kind: 'save' as const,
+        target: { assetId: asset.assetId, assetRevision: asset.revision },
+      };
+      expect(await useCases.applyAction(person.authority, command)).toMatchObject({ kind: 'applied' });
+      await database.db
+        .updateTable('identity.universes')
+        .set({ privacy_epoch: 2 })
+        .where('id', '=', person.universeId)
+        .execute();
+      expect(await useCases.applyAction({ ...person.authority, privacyEpoch: 2 }, command)).toEqual({
+        kind: 'refused',
+        reason: 'command_key_reused',
+      });
+    } finally {
+      await useCases.close();
+    }
+  });
+
   it('applies concurrent identical commands once: one applies, the other replays', async () => {
     const person = await seedPerson(database.db);
     const asset = await seedAsset(database.db);

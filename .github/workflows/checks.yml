@@ -80,6 +80,8 @@ jobs:
         run: pnpm boundaries:probe
       - name: Workspace imports in production code are declared dependencies
         run: pnpm boundaries:manifests
+      - name: The unmarked-transaction lint rule rejects every direct form (probe)
+        run: pnpm lint:probe
       - name: Unused files, exports and dependencies (knip)
         run: pnpm knip
       - name: Migration hazards (squawk)
@@ -170,7 +172,7 @@ jobs:
         run: |
           psql "$KS_TEST_DATABASE_URL" --no-psqlrc --quiet --command 'create database knowscroll_types'
           types_url="postgres://postgres:postgres@localhost:5432/knowscroll_types"
-          (cd "$KS_RELEASE_DIR/api" && DATABASE_URL="$types_url" node dist/migrate.js)
+          (cd "$KS_RELEASE_DIR/api" && KS_WORLD=ci DATABASE_URL="$types_url" node dist/migrate.js)
           DATABASE_URL="$types_url" pnpm --filter @knowscroll/backend db:types:verify
       - name: Boot the deployed release against PostgreSQL (health, refusals, spike journey)
         run: pnpm --filter @knowscroll/integration-tests test:release

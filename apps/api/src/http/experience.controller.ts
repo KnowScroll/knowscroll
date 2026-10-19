@@ -14,6 +14,7 @@ const refusalProblems: Record<Extract<ApplyActionResult, { kind: 'refused' }>['r
   command_key_reused: 'COMMAND_KEY_REUSED',
   epoch_changed: 'PRIVACY_EPOCH_CHANGED',
   universe_unavailable: 'UNIVERSE_UNAVAILABLE',
+  outcome_from_newer_release: 'SERVICE_UNAVAILABLE',
 };
 
 /** `POST /v1/actions` and `GET /v1/saved`: thin handlers over experience's use cases. */

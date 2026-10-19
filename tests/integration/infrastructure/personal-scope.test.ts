@@ -6,12 +6,14 @@ import {
   ScopeClosedError,
   advanceScopeRevision,
   createDatabase,
+  makeAuthorityHolds,
   makeWithPersonalScope,
   transactionOf,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
 import type { PersonalScopeTx } from '@knowscroll/backend/modules/identity';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
+import { gate } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
 
 describe('withPersonalScope (real database)', () => {
@@ -167,6 +169,58 @@ describe('withPersonalScope (real database)', () => {
       return Promise.resolve(scope.authority.universeId);
     });
     expect(outcome).toEqual({ kind: 'entered', value: person.universeId });
+  });
+
+  it('copies the claimed authority at entry, so a later change to the caller’s object cannot redirect the lock', async () => {
+    const person = await seedPerson(database.db);
+    const other = await seedPerson(database.db);
+    const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+    const claimed = { universeId: person.universeId, privacyEpoch: 1, actor: { ...person.authority.actor } };
+    const running = withPersonalScope(claimed, (scope) => Promise.resolve(scope.authority.universeId));
+    claimed.universeId = other.universeId;
+    claimed.privacyEpoch = 99;
+    expect(await running).toEqual({ kind: 'entered', value: person.universeId });
+  });
+
+  it('answers the same authority checks without a lock (authorityHolds)', async () => {
+    const person = await seedPerson(database.db);
+    const other = await seedPerson(database.db);
+    const authorityHolds = makeAuthorityHolds(database.db);
+    const system = {
+      universeId: person.universeId,
+      privacyEpoch: 1,
+      actor: { kind: 'system', purpose: 'fixture' },
+    } as const;
+    expect(await authorityHolds(person.authority)).toBe(true);
+    expect(await authorityHolds(system)).toBe(true);
+    expect(await authorityHolds({ ...person.authority, actor: other.authority.actor })).toBe(false);
+    expect(await authorityHolds({ ...person.authority, universeId: '00000000-0000-4000-8000-000000000000' })).toBe(
+      false,
+    );
+    // The read takes no lock: it answers while another transaction holds the personal root.
+    const holding = gate();
+    const locked = gate();
+    const holder = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(person.authority, async () => {
+      locked.open();
+      await holding.promise;
+    });
+    await locked.promise;
+    expect(await authorityHolds(person.authority)).toBe(true);
+    holding.open();
+    await holder;
+    await database.db
+      .updateTable('identity.accounts')
+      .set({ status: 'suspended' })
+      .where('id', '=', person.accountId)
+      .execute();
+    expect(await authorityHolds(person.authority)).toBe(false);
+    expect(await authorityHolds(system)).toBe(true);
+    await database.db
+      .updateTable('identity.universes')
+      .set({ privacy_epoch: 2 })
+      .where('id', '=', person.universeId)
+      .execute();
+    expect(await authorityHolds(system)).toBe(false);
   });
 
   it('refuses a nested guarded transaction and a scope used after its transaction', async () => {

@@ -13,8 +13,17 @@ export const AccessRevokedNoticeSchema = z.object({ v: z.literal(1), accountId: 
  * `ks_access_revoked`, which each API's relay hands to its gateway. Call it inside the
  * transaction that revokes access (sign-out, session revocation, privacy epoch change; S1.3
  * identity), so the notice goes out only if the revocation commits; outside a transaction it
- * goes out at once. Disposable like every hint: every subscribe also rechecks access, and relayed
- * hints are re-authorised (≤ 30 s cache), so a lost notice delays revocation, never skips it.
+ * goes out at once.
+ *
+ * The notice itself is disposable: an API whose relay is reconnecting at that moment never sees
+ * it. Revocation therefore does not rest on the notice alone:
+ * - when a relay reconnects, its gateway forgets every cached authorisation and closes every
+ *   socket, so each client authenticates again (which validates its session) before it gets
+ *   another hint;
+ * - every subscribe, and every relayed hint (cache ≤ `KS_SOCKET_AUTH_CACHE_MS`, at most 30 s),
+ *   rechecks the caller's session validity and its access to the scope.
+ * With the S1.3 session store, a revoked session is therefore refused at the latest on the next
+ * reconnect, subscribe or (after the cache) relayed hint, even if this notice was lost.
  */
 export async function revokeAccountSockets(db: Kysely<Database>, accountId: string): Promise<void> {
   const notice = AccessRevokedNoticeSchema.parse({ v: 1, accountId });

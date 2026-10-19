@@ -9,14 +9,16 @@ export type JsonValue = null | boolean | number | string | readonly JsonValue[] 
 /**
  * What the receipt store knows about a command key (see infrastructure/receipts): a new key, an
  * identical replay, a reused key, a receipt from an older privacy epoch (never replayed after a
- * reset), or an outcome stored in a version this code cannot read.
+ * reset), or an outcome stored in a version this code cannot read, written by a newer release or
+ * by a retired older one.
  */
 export type CommandLookup =
   | { readonly kind: 'new' }
   | { readonly kind: 'replay'; readonly outcome: unknown }
   | { readonly kind: 'key_reused' }
   | { readonly kind: 'epoch_mismatch' }
-  | { readonly kind: 'outcome_version_unsupported' };
+  | { readonly kind: 'outcome_version_newer' }
+  | { readonly kind: 'outcome_version_older' };
 
 export interface CommandKey {
   readonly commandId: string;
@@ -61,7 +63,10 @@ export interface ApplyActionPorts {
   ) => Promise<void>;
   readonly recordAction: (scope: PersonalScopeTx, action: ActionRecord) => Promise<void>;
   readonly enqueueActionEvidence: (scope: PersonalScopeTx, payload: ApplyActionEvidencePayload) => Promise<void>;
-  /** Advances the universe revision in this transaction; the command's own catch-up watermark. */
+  /**
+   * Advances the universe revision in this transaction: the command's own catch-up watermark.
+   * Called only when the command changed something a subscriber reads.
+   */
   readonly advanceRevision: (scope: PersonalScopeTx) => Promise<number>;
   /** `pg_notify` the scope change; delivered only if this transaction commits. */
   readonly notifyScopeChanged: (

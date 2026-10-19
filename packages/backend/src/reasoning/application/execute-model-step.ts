@@ -1,6 +1,14 @@
 import type { PersonalAuthority } from '../../modules/identity/public.js';
 import { decideOnDelivery } from '../domain/attempts.js';
-import { ModelRejectedError, type ExecuteModelStepPorts, type ModelRequest } from './ports.js';
+import {
+  MAX_STORED_OUTPUT_BYTES,
+  ModelRejectedError,
+  type AttemptRow,
+  type ExecuteModelStepPorts,
+  type ModelRequest,
+  type SettlementDetails,
+  type StoredModelOutput,
+} from './ports.js';
 
 export interface ModelStep {
   readonly runId: string;
@@ -12,16 +20,31 @@ export interface ModelStep {
 }
 
 export type ModelStepResult =
-  /** The call succeeded and the caller may still apply its output. */
+  /**
+   * The call succeeded (on this delivery, or on an earlier one whose output the ledger kept) and
+   * the authority it ran for still holds: the caller may apply the output, rechecking under the
+   * lock in the transaction that applies it.
+   */
   | { readonly kind: 'succeeded'; readonly attemptId: string; readonly output: string }
-  /** A late conclusive answer after the attempt was marked `unknown`; recorded as `reconciled`. */
+  /** A late successful answer after the attempt was marked `unknown`; recorded as `reconciled`. */
   | { readonly kind: 'reconciled'; readonly attemptId: string; readonly output: string }
-  /** The outcome is recorded, but authority changed during the call: the output must not be applied. */
+  /** The output is recorded, but the authority it was produced for no longer holds: do not apply it. */
   | { readonly kind: 'ineligible'; readonly attemptId: string }
   | { readonly kind: 'failed'; readonly attemptId: string; readonly code: string }
   | { readonly kind: 'unknown'; readonly attemptId: string }
+  /** Settled with nothing to apply (`not_sent`, `written_off`). */
   | { readonly kind: 'settled'; readonly attemptId: string }
   | { readonly kind: 'refused'; readonly reason: 'scope_refused' | 'dispatch_lost' | 'request_mismatch' };
+
+/** Outcome codes the engine writes itself; a provider's rejection code is recorded as it comes. */
+const outcomeCodes = {
+  succeeded: 'SUCCEEDED',
+  outputTooLarge: 'OUTPUT_TOO_LARGE',
+  notRecorded: 'OUTCOME_NOT_RECORDED',
+  transportUnknown: 'TRANSPORT_OUTCOME_UNKNOWN',
+  authorityRefused: 'AUTHORITY_REFUSED',
+  rejected: 'REJECTED',
+} as const;
 
 /**
  * `executeModelStep`: one admitted external call with attempt accounting (blueprint §15, §19).
@@ -29,21 +52,49 @@ export type ModelStepResult =
  *
  * 1. Ledger inspection (no authority needed): an attempt recorded with another request hash is
  *    refused; one left `dispatched` by an earlier delivery (crash, lost claim) becomes `unknown`
- *    and is never resent; a settled one is returned as such.
+ *    and is never resent; a settled one is answered from the ledger, including a stored output.
  * 2. Admission (personal scope; authority checked): admit the business run, re-read the attempt
  *    under the lock (concurrent deliveries serialise here) and reserve it if absent. If authority
  *    is refused, a reserved attempt becomes `not_sent`.
  * 3. Dispatch intent (personal scope; authority rechecked): `reserved → dispatched`. Refused →
  *    `not_sent`; lost to a concurrent delivery → `dispatch_lost` (nothing sent by this one).
  * 4. No transaction: the model call (the port refuses to run inside one).
- * 5. Ledger settlement (no authority): `succeeded`, `failed` (conclusive rejection) or `unknown`
- *    (any other error). If a concurrent delivery already marked it `unknown`, a conclusive answer
- *    is recorded as `reconciled`.
- * 6. Output eligibility (personal scope; authority rechecked, nothing written): an output produced
- *    for an authority that no longer holds is reported `ineligible` and must not be applied.
+ * 5. Ledger settlement (no authority): `succeeded` with the output stored (outcome `SUCCEEDED`,
+ *    or `OUTPUT_TOO_LARGE` when it exceeds the bound and is not kept), `failed` with the provider's
+ *    rejection code, or `unknown` (any other error). If a concurrent delivery already marked the
+ *    attempt `unknown`, a conclusive answer is recorded as `reconciled` with its real outcome code.
+ * 6. Output eligibility (lock-free read, nothing written): an output produced for an authority
+ *    that no longer holds is reported `ineligible`. A failure of this read propagates; the output
+ *    stays stored, so the next delivery answers from the ledger without calling the model again.
  */
 export function makeExecuteModelStep(ports: ExecuteModelStepPorts) {
   const { ledger } = ports;
+
+  /** What an attempt recorded in the ledger means for this delivery. */
+  async function fromLedger(authority: PersonalAuthority, attempt: AttemptRow): Promise<ModelStepResult> {
+    switch (attempt.state) {
+      case 'succeeded':
+      case 'reconciled':
+        // A reconciled late rejection, or a success too large to keep, has no output to apply.
+        if (attempt.output === null)
+          return { kind: 'failed', attemptId: attempt.id, code: attempt.outcomeCode ?? outcomeCodes.rejected };
+        if (!(await ports.authorityHolds(authority))) return { kind: 'ineligible', attemptId: attempt.id };
+        return attempt.state === 'reconciled'
+          ? { kind: 'reconciled', attemptId: attempt.id, output: attempt.output.text }
+          : { kind: 'succeeded', attemptId: attempt.id, output: attempt.output.text };
+      case 'failed':
+        return { kind: 'failed', attemptId: attempt.id, code: attempt.outcomeCode ?? outcomeCodes.rejected };
+      // `dispatched` is seen here only when another delivery holds the call in flight.
+      case 'dispatched':
+      case 'unknown':
+        return { kind: 'unknown', attemptId: attempt.id };
+      case 'reserved':
+      case 'not_sent':
+      case 'written_off':
+        return { kind: 'settled', attemptId: attempt.id };
+    }
+  }
+
   return async function executeModelStep(
     authority: PersonalAuthority,
     step: ModelStep,
@@ -51,6 +102,11 @@ export function makeExecuteModelStep(ports: ExecuteModelStepPorts) {
   ): Promise<ModelStepResult> {
     const requestHash = ports.hashRequest(step.request);
     const ref = (attemptId: string) => ({ universeId: authority.universeId, attemptId });
+    /** Re-reads the attempt after another delivery changed it, and answers from the ledger. */
+    const fromCurrentLedger = async (attemptId: string): Promise<ModelStepResult> => {
+      const current = await ledger.find(authority.universeId, step.runId, step.step);
+      return current === undefined ? { kind: 'settled', attemptId } : fromLedger(authority, current);
+    };
 
     const recorded = await ledger.find(authority.universeId, step.runId, step.step);
     if (recorded !== undefined) {
@@ -58,12 +114,12 @@ export function makeExecuteModelStep(ports: ExecuteModelStepPorts) {
       switch (decideOnDelivery(recorded.state)) {
         case 'mark_unknown': {
           const marked = await ledger.settle(ref(recorded.id), 'dispatched', 'unknown', {
-            outcomeCode: 'OUTCOME_NOT_RECORDED',
+            outcomeCode: outcomeCodes.notRecorded,
           });
-          return marked ? { kind: 'unknown', attemptId: recorded.id } : { kind: 'settled', attemptId: recorded.id };
+          return marked ? { kind: 'unknown', attemptId: recorded.id } : fromCurrentLedger(recorded.id);
         }
         case 'settled':
-          return { kind: 'settled', attemptId: recorded.id };
+          return fromLedger(authority, recorded);
         case 'dispatch':
           break;
       }
@@ -92,7 +148,7 @@ export function makeExecuteModelStep(ports: ExecuteModelStepPorts) {
     );
     if (admitted.kind === 'refused') {
       if (recorded?.state === 'reserved')
-        await ledger.settle(ref(recorded.id), 'reserved', 'not_sent', { outcomeCode: 'AUTHORITY_REFUSED' });
+        await ledger.settle(ref(recorded.id), 'reserved', 'not_sent', { outcomeCode: outcomeCodes.authorityRefused });
       return { kind: 'refused', reason: 'scope_refused' };
     }
     if (!('dispatch' in admitted.value)) return admitted.value;
@@ -100,56 +156,46 @@ export function makeExecuteModelStep(ports: ExecuteModelStepPorts) {
 
     const dispatched = await ports.withPersonalScope(authority, (scope) => ledger.commitDispatch(scope, attemptId));
     if (dispatched.kind === 'refused') {
-      await ledger.settle(ref(attemptId), 'reserved', 'not_sent', { outcomeCode: 'AUTHORITY_REFUSED' });
+      await ledger.settle(ref(attemptId), 'reserved', 'not_sent', { outcomeCode: outcomeCodes.authorityRefused });
       return { kind: 'refused', reason: 'scope_refused' };
     }
     if (!dispatched.value) return { kind: 'refused', reason: 'dispatch_lost' };
 
-    let answer: {
-      readonly to: 'succeeded' | 'failed' | 'unknown';
-      readonly remoteId?: string;
-      readonly outcomeCode?: string;
-      readonly output?: string;
-    };
+    let answer: { readonly to: 'succeeded' | 'failed' | 'unknown'; readonly details: SettlementDetails };
     try {
       const response = await ports.model.invoke(step.request, signal);
+      const output: StoredModelOutput = { v: 1, text: response.output };
+      const fits = new TextEncoder().encode(JSON.stringify(output)).length <= MAX_STORED_OUTPUT_BYTES;
       answer = {
         to: 'succeeded',
-        output: response.output,
-        ...(response.remoteId === undefined ? {} : { remoteId: response.remoteId }),
+        details: {
+          outcomeCode: fits ? outcomeCodes.succeeded : outcomeCodes.outputTooLarge,
+          ...(response.remoteId === undefined ? {} : { remoteId: response.remoteId }),
+          ...(fits ? { output } : {}),
+        },
       };
     } catch (error) {
       answer =
         error instanceof ModelRejectedError
-          ? { to: 'failed', outcomeCode: error.code }
-          : { to: 'unknown', outcomeCode: 'TRANSPORT_OUTCOME_UNKNOWN' };
+          ? { to: 'failed', details: { outcomeCode: error.code } }
+          : { to: 'unknown', details: { outcomeCode: outcomeCodes.transportUnknown } };
     }
-    const details = {
-      ...(answer.remoteId === undefined ? {} : { remoteId: answer.remoteId }),
-      ...(answer.outcomeCode === undefined ? {} : { outcomeCode: answer.outcomeCode }),
-    };
+    const settledAs = (state: AttemptRow['state']): AttemptRow => ({
+      id: attemptId,
+      state,
+      requestHash,
+      outcomeCode: answer.details.outcomeCode ?? null,
+      output: answer.details.output ?? null,
+    });
 
-    let reconciled = false;
-    if (!(await ledger.settle(ref(attemptId), 'dispatched', answer.to, details))) {
-      // A concurrent delivery decided this attempt was lost and marked it `unknown`. A conclusive
-      // answer is the evidence reconciliation needs; anything else leaves it `unknown`.
-      if (answer.to === 'unknown') return { kind: 'unknown', attemptId };
-      reconciled = await ledger.settle(ref(attemptId), 'unknown', 'reconciled', details);
-      if (!reconciled) return { kind: 'settled', attemptId };
-    }
-    switch (answer.to) {
-      case 'failed':
-        return { kind: 'failed', attemptId, code: answer.outcomeCode ?? 'REJECTED' };
-      case 'unknown':
-        return { kind: 'unknown', attemptId };
-      case 'succeeded': {
-        const eligible = await ports.withPersonalScope(authority, () => Promise.resolve(true));
-        if (eligible.kind === 'refused') return { kind: 'ineligible', attemptId };
-        return reconciled
-          ? { kind: 'reconciled', attemptId, output: answer.output ?? '' }
-          : { kind: 'succeeded', attemptId, output: answer.output ?? '' };
-      }
-    }
+    if (await ledger.settle(ref(attemptId), 'dispatched', answer.to, answer.details))
+      return fromLedger(authority, settledAs(answer.to));
+    // A concurrent delivery decided this attempt was lost and marked it `unknown`. A conclusive
+    // answer is the evidence reconciliation needs; anything else leaves it `unknown`.
+    if (answer.to === 'unknown') return { kind: 'unknown', attemptId };
+    if (await ledger.settle(ref(attemptId), 'unknown', 'reconciled', answer.details))
+      return fromLedger(authority, settledAs('reconciled'));
+    return fromCurrentLedger(attemptId);
   };
 }
 

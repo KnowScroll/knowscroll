@@ -1,6 +1,6 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
-import { canTransition, decideOnDelivery, type AttemptState } from './attempts.js';
+import { canTransition, decideOnDelivery, isSettled, type AttemptState } from './attempts.js';
 
 const states: readonly AttemptState[] = [
   'reserved',
@@ -30,5 +30,9 @@ describe('the external attempt state machine', () => {
 
   it('leaves unknown only by reconciliation or write-off', () => {
     expect(states.filter((to) => canTransition('unknown', to))).toEqual(['reconciled', 'written_off']);
+  });
+
+  it('treats unknown as open liability, not as a settled outcome', () => {
+    expect(states.filter((state) => !isSettled(state))).toEqual(['reserved', 'dispatched', 'unknown']);
   });
 });

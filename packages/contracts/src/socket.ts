@@ -5,6 +5,15 @@ import { UniverseIdSchema } from './ids.js';
  * Socket.IO live hints (blueprint §4, §7). Sockets carry subscriptions and disposable revision
  * hints only: no commands, no private content. A client that gets a hint (or a resync) refetches
  * through authorised HTTP reads.
+ *
+ * Client rules:
+ * - Revisions only grow, but hints, acks, command responses and reads can arrive in any order and
+ *   more than once: keep the **highest** revision seen per scope and refetch only when a hint is
+ *   above it.
+ * - When the server closes the connection ('transport close'), reconnect (which authenticates
+ *   again) and resubscribe; the API does this to every socket when its notice relay reconnects,
+ *   because a revocation sent while it was away may have been lost. 'io server disconnect' means
+ *   the account's access was revoked: reconnect only after signing in again.
  */
 export const socketEvents = {
   subscribeScope: 'subscribe_scope',

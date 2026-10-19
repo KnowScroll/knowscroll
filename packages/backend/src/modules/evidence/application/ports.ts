@@ -16,10 +16,5 @@ export interface ApplyActionEvidencePorts {
     scope: PersonalScopeTx,
     event: ActionToRecord & { readonly eventId: string },
   ) => Promise<boolean>;
-  readonly advanceRevision: (scope: PersonalScopeTx) => Promise<number>;
-  readonly notifyScopeChanged: (
-    scope: PersonalScopeTx,
-    change: { readonly revision: number; readonly eventId: string },
-  ) => Promise<void>;
   readonly newId: () => string;
 }

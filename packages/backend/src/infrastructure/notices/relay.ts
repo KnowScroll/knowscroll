@@ -9,8 +9,10 @@ export interface ScopeNoticeSink {
   /** One committed scope change. */
   onNotice(notice: ScopeNotice): void;
   /**
-   * The relay (re)established LISTEN after a gap in which hints may have been lost: every
-   * subscriber must refetch its scopes. Also called after the first LISTEN at startup.
+   * The relay (re)established LISTEN after a gap in which notices (hints *and* revocations) may
+   * have been lost: subscribers must refetch, and cached authorisations must not be trusted. Also
+   * called after the first LISTEN at startup. Always called before any notice received on the new
+   * connection is delivered.
    */
   onResync(reason: 'listening' | 'reconnected'): void;
   /** An account's access changed (sign-out, session revocation, epoch change): drop its sockets. */
@@ -73,6 +75,7 @@ export class ScopeNoticeRelay {
     this.stopped = true;
     this.firstListen?.resolve();
     if (this.reconnectTimer !== undefined) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
     this.stopHeartbeat();
     const client = this.client;
     this.client = undefined;
@@ -103,7 +106,14 @@ export class ScopeNoticeRelay {
       keepAliveInitialDelayMillis: 10_000,
       connectionTimeoutMillis: 10_000,
     });
-    client.on('notification', (message) => this.deliver(message));
+    // Notices that arrive before this connection is adopted (and before the sink was told to
+    // resynchronise) are held, so the sink never relays one on cached authorisations.
+    const held: pg.Notification[] = [];
+    let adopted = false;
+    client.on('notification', (message) => {
+      if (adopted) this.deliver(message);
+      else held.push(message);
+    });
     client.on('error', (error) => this.lost(client, 'connection_error', error));
     client.on('end', () => this.lost(client, 'connection_ended'));
     try {
@@ -130,6 +140,8 @@ export class ScopeNoticeRelay {
     logEvent('relay.listening', { reasonCode: reason });
     this.firstListen?.resolve();
     this.toSink((sink) => sink.onResync(reason));
+    adopted = true;
+    for (const message of held.splice(0)) this.deliver(message);
   }
 
   /** Hands one call to the sink. A sink fault is logged and never disturbs the connection. */

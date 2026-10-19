@@ -1,11 +1,32 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '../../infrastructure/postgres/database.js';
 import { transactionOf, withTransaction } from '../../infrastructure/postgres/personal-scope.js';
-import { canTransition, type AttemptState } from '../domain/attempts.js';
-import type { AttemptLedger, AttemptRow } from '../application/ports.js';
+import { canTransition, isSettled, type AttemptState } from '../domain/attempts.js';
+import type { AttemptLedger, AttemptRow, StoredModelOutput } from '../application/ports.js';
 
-function toRow(row: { id: string; state: string; request_hash: string; outcome_code: string | null }): AttemptRow {
-  return { id: row.id, state: row.state as AttemptState, requestHash: row.request_hash, outcomeCode: row.outcome_code };
+const attemptColumns = ['id', 'state', 'request_hash', 'outcome_code', 'output'] as const;
+
+function toRow(row: {
+  id: string;
+  state: string;
+  request_hash: string;
+  outcome_code: string | null;
+  output: unknown;
+}): AttemptRow {
+  return {
+    id: row.id,
+    state: row.state as AttemptState,
+    requestHash: row.request_hash,
+    outcomeCode: row.outcome_code,
+    output: storedOutput(row.output),
+  };
+}
+
+/** The stored output, if it has the shape this release writes; anything else counts as absent. */
+function storedOutput(value: unknown): StoredModelOutput | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const candidate = value as { v?: unknown; text?: unknown };
+  return candidate.v === 1 && typeof candidate.text === 'string' ? { v: 1, text: candidate.text } : null;
 }
 
 /**
@@ -19,7 +40,7 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
     async find(universeId, runId, step) {
       const row = await db
         .selectFrom('reasoning.external_attempts')
-        .select(['id', 'state', 'request_hash', 'outcome_code'])
+        .select(attemptColumns)
         .where('universe_id', '=', universeId)
         .where('run_id', '=', runId)
         .where('step', '=', step)
@@ -42,7 +63,7 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
     async findLocked(scope, runId, step) {
       const row = await transactionOf(scope)
         .selectFrom('reasoning.external_attempts')
-        .select(['id', 'state', 'request_hash', 'outcome_code'])
+        .select(attemptColumns)
         .where('universe_id', '=', scope.authority.universeId)
         .where('run_id', '=', runId)
         .where('step', '=', step)
@@ -80,9 +101,10 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
           .updateTable('reasoning.external_attempts')
           .set({
             state: to,
-            settled_at: new Date(),
+            ...(isSettled(to) ? { settled_at: new Date() } : {}),
             ...(details.remoteId === undefined ? {} : { remote_id: details.remoteId }),
             ...(details.outcomeCode === undefined ? {} : { outcome_code: details.outcomeCode }),
+            ...(details.output === undefined ? {} : { output: JSON.stringify(details.output) }),
           })
           .where('universe_id', '=', attempt.universeId)
           .where('id', '=', attempt.attemptId)

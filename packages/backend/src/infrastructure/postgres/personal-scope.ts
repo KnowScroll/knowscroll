@@ -1,8 +1,10 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type {
+  AuthorityHolds,
   PersonalAuthority,
   PersonalScopeTx,
   ScopeOutcome,
+  ScopeRefusal,
   SharedScopeTx,
   WithPersonalScope,
 } from '../../modules/identity/public.js';
@@ -46,8 +48,11 @@ export interface PersonalScopeOptions {
  *   (`assertOutsideTransaction`).
  */
 export function makeWithPersonalScope(db: Kysely<Database>, options: PersonalScopeOptions): WithPersonalScope {
-  return <T>(authority: PersonalAuthority, work: (scope: PersonalScopeTx) => Promise<T>): Promise<ScopeOutcome<T>> =>
-    runMarkedTransaction('personal-scope', () =>
+  return <T>(claimed: PersonalAuthority, work: (scope: PersonalScopeTx) => Promise<T>): Promise<ScopeOutcome<T>> => {
+    // Copied and frozen at entry: the universe that is locked and checked is the one the scope
+    // writes for, whatever the caller does with its object meanwhile.
+    const authority = freezeAuthority(claimed);
+    return runMarkedTransaction('personal-scope', () =>
       db.transaction().execute(async (trx): Promise<ScopeOutcome<T>> => {
         await sql`select set_config('lock_timeout', ${`${options.lockTimeoutMs}ms`}, true)`.execute(trx);
         let universe;
@@ -63,14 +68,10 @@ export function makeWithPersonalScope(db: Kysely<Database>, options: PersonalSco
             throw new ScopeBusyError('Personal scope lock not granted in time', { cause: error });
           throw error;
         }
+        const universeRefusal = refusalForUniverse(authority, universe);
+        if (universeRefusal !== undefined) return { kind: 'refused', refusal: universeRefusal };
         if (universe === undefined) return { kind: 'refused', refusal: { kind: 'universe_missing' } };
-        if (universe.status !== 'active') return { kind: 'refused', refusal: { kind: 'universe_suspended' } };
-        if (universe.privacy_epoch !== authority.privacyEpoch) {
-          return { kind: 'refused', refusal: { kind: 'epoch_changed', currentEpoch: universe.privacy_epoch } };
-        }
         if (authority.actor.kind === 'account') {
-          if (universe.account_id !== authority.actor.accountId)
-            return { kind: 'refused', refusal: { kind: 'account_mismatch' } };
           const account = await trx
             .selectFrom('identity.accounts')
             .select('status')
@@ -79,14 +80,8 @@ export function makeWithPersonalScope(db: Kysely<Database>, options: PersonalSco
             .executeTakeFirst();
           if (account?.status !== 'active') return { kind: 'refused', refusal: { kind: 'universe_suspended' } };
         }
-        // A frozen copy: callers cannot change which universe or epoch the scope writes for.
-        const frozen: PersonalAuthority = Object.freeze({
-          universeId: authority.universeId,
-          privacyEpoch: authority.privacyEpoch,
-          actor: Object.freeze({ ...authority.actor }),
-        });
         const scope = Object.freeze({
-          authority: frozen,
+          authority,
           revisionAtEntry: universe.revision,
         }) as unknown as PersonalScopeTx;
         openScopes.set(scope, trx);
@@ -98,6 +93,50 @@ export function makeWithPersonalScope(db: Kysely<Database>, options: PersonalSco
         }
       }),
     );
+  };
+}
+
+function freezeAuthority(authority: PersonalAuthority): PersonalAuthority {
+  return Object.freeze({
+    universeId: authority.universeId,
+    privacyEpoch: authority.privacyEpoch,
+    actor: Object.freeze({ ...authority.actor }),
+  });
+}
+
+/** The universe-row checks `withPersonalScope` makes after the lock wait (and `authorityHolds` without a lock). */
+function refusalForUniverse(
+  authority: PersonalAuthority,
+  universe: { readonly account_id: string; readonly privacy_epoch: number; readonly status: string } | undefined,
+): ScopeRefusal | undefined {
+  if (universe === undefined) return { kind: 'universe_missing' };
+  if (universe.status !== 'active') return { kind: 'universe_suspended' };
+  if (universe.privacy_epoch !== authority.privacyEpoch)
+    return { kind: 'epoch_changed', currentEpoch: universe.privacy_epoch };
+  if (authority.actor.kind === 'account' && universe.account_id !== authority.actor.accountId)
+    return { kind: 'account_mismatch' };
+  return undefined;
+}
+
+/**
+ * Creates the identity port `AuthorityHolds`: the same checks as `withPersonalScope` (universe
+ * exists and is active, privacy epoch unchanged, for an account actor ownership and account
+ * status) read **without** a lock and without writing. For decisions that change nothing, such
+ * as whether a finished model call's output may still be applied; whatever applies it later
+ * rechecks under the lock.
+ */
+export function makeAuthorityHolds(db: Kysely<Database>): AuthorityHolds {
+  return async (claimed) => {
+    const authority = freezeAuthority(claimed);
+    const row = await db
+      .selectFrom('identity.universes as universe')
+      .innerJoin('identity.accounts as account', 'account.id', 'universe.account_id')
+      .select(['universe.account_id', 'universe.privacy_epoch', 'universe.status', 'account.status as account_status'])
+      .where('universe.id', '=', authority.universeId)
+      .executeTakeFirst();
+    if (refusalForUniverse(authority, row) !== undefined || row === undefined) return false;
+    return authority.actor.kind !== 'account' || row.account_status === 'active';
+  };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigurationError, readApiConfig, readWorkerConfig } from './index.js';
+import { ConfigurationError, readApiConfig, readMigrateConfig, readWorkerConfig } from './index.js';
 
 const secretUrl = 'postgres://ks_api:hunter2-very-secret@127.0.0.1:5432/knowscroll_v2_dev';
 const release = {
@@ -42,14 +42,34 @@ describe('process configuration', () => {
     ]);
   });
 
-  it('defaults release identity outside production', () => {
-    const config = readWorkerConfig({ DATABASE_URL: secretUrl });
+  it('defaults the commit and artifact outside production, but never the world', () => {
+    const config = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' });
     expect(config).toMatchObject({
       nodeEnv: 'development',
       world: 'local',
       commit: 'unknown',
       artifactSha256: 'unknown',
     });
+    for (const nodeEnv of [undefined, 'development', 'test']) {
+      const env = { DATABASE_URL: secretUrl, PORT: '4330', ...(nodeEnv === undefined ? {} : { NODE_ENV: nodeEnv }) };
+      expect(configurationError(() => readWorkerConfig(env)).problems).toEqual(['KS_WORLD: missing_or_wrong_type']);
+      expect(configurationError(() => readApiConfig(env)).problems).toEqual(['KS_WORLD: missing_or_wrong_type']);
+    }
+    // A missing world cannot enable the test-only caller adapter.
+    expect(
+      configurationError(() =>
+        readApiConfig({ NODE_ENV: 'test', DATABASE_URL: secretUrl, PORT: '4330', KS_AUTH_ADAPTER: 'test-bearer' }),
+      ).problems,
+    ).toEqual(['KS_WORLD: missing_or_wrong_type']);
+  });
+
+  it('requires the world for the migration command too', () => {
+    expect(configurationError(() => readMigrateConfig({ DATABASE_URL: secretUrl })).problems).toEqual([
+      'KS_WORLD: missing_or_wrong_type',
+    ]);
+    const config = readMigrateConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'stage' });
+    expect(config.world).toBe('stage');
+    expect(config.database.applicationName).toBe('knowscroll-migrate-stage');
   });
 
   it('reports release identity and process problems together', () => {
@@ -72,7 +92,9 @@ describe('process configuration', () => {
         readApiConfig({ DATABASE_URL: secretUrl, PORT: '4330', KS_AUTH_ADAPTER: 'test-bearer', ...env }),
       ).problems;
     expect(problemsOf({ NODE_ENV: 'production', ...release })).toContain('KS_AUTH_ADAPTER: refused_outside_test');
-    expect(problemsOf({ NODE_ENV: 'development' })).toContain('KS_AUTH_ADAPTER: refused_outside_test');
+    expect(problemsOf({ NODE_ENV: 'development', KS_WORLD: 'local' })).toContain(
+      'KS_AUTH_ADAPTER: refused_outside_test',
+    );
     for (const world of ['dev', 'stage', 'live'])
       expect(problemsOf({ NODE_ENV: 'test', KS_WORLD: world })).toEqual(['KS_AUTH_ADAPTER: refused_in_this_world']);
     for (const world of ['ci', 'local']) {
@@ -92,6 +114,7 @@ describe('process configuration', () => {
     for (const read of [readApiConfig, readWorkerConfig]) {
       const error = configurationError(() =>
         read({
+          KS_WORLD: 'local',
           DATABASE_URL: secretUrl,
           PORT: '4330',
           KS_SCOPE_LOCK_TIMEOUT_MS: '20000',

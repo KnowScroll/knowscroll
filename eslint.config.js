@@ -64,16 +64,24 @@ export default defineConfig(
   {
     // Every database transaction is opened by infrastructure/postgres (withPersonalScope,
     // withTransaction), which marks it so network adapters refuse to run inside (blueprint §19).
+    // This catches the direct forms of Kysely's transaction and connection APIs (dot or literal
+    // bracket access, destructuring); aliasing through other variables is left to the runtime
+    // network guard and review.
     files: ['apps/**/*.ts', 'packages/backend/src/**/*.ts'],
     ignores: ['packages/backend/src/infrastructure/postgres/**', '**/*.test.ts'],
     rules: {
       'no-restricted-syntax': [
         'error',
-        {
-          selector: "CallExpression[callee.property.name='transaction']",
+        ...[
+          'MemberExpression[property.name=/^(transaction|startTransaction|connection)$/]',
+          'MemberExpression[computed=true][property.value=/^(transaction|startTransaction|connection)$/]',
+          'ObjectPattern > Property[key.name=/^(transaction|startTransaction|connection)$/]',
+          'ObjectPattern > Property[key.value=/^(transaction|startTransaction|connection)$/]',
+        ].map((selector) => ({
+          selector,
           message:
-            'Open transactions through infrastructure/postgres (withPersonalScope or withTransaction) so they are marked.',
-        },
+            'Open transactions and connections through infrastructure/postgres (withPersonalScope or withTransaction) so they are marked.',
+        })),
       ],
     },
   },

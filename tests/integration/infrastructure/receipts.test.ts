@@ -70,14 +70,18 @@ describe('command receipts (real database)', () => {
       await insertPersonalReceipt(scope, command);
       await completePersonalReceipt(scope, command.commandId, { result: 'epoch-1' });
     });
+    // Stored as version 1: a release that reads version 2 calls it older, one that reads only
+    // version 0 calls it newer (a rolling deploy).
     expect(
       await withPersonalScope(person.authority, (scope) =>
         findPersonalReceipt(scope, { ...command, outcomeVersion: 2 }),
       ),
-    ).toEqual({
-      kind: 'entered',
-      value: { kind: 'outcome_version_unsupported' },
-    });
+    ).toEqual({ kind: 'entered', value: { kind: 'outcome_version_older' } });
+    expect(
+      await withPersonalScope(person.authority, (scope) =>
+        findPersonalReceipt(scope, { ...command, outcomeVersion: 0 }),
+      ),
+    ).toEqual({ kind: 'entered', value: { kind: 'outcome_version_newer' } });
     await database.db
       .updateTable('identity.universes')
       .set({ privacy_epoch: 2 })
@@ -128,7 +132,6 @@ describe('command receipts (real database)', () => {
     const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
     const conversation = randomUUID();
     const command: SharedCommandKey = {
-      actorAccountId: actor.accountId,
       operation: 'social.send-message',
       commandId: randomUUID(),
       requestHash: requestHash('social.send-message', { text: 'fixture' }),
@@ -165,11 +168,7 @@ describe('command receipts (real database)', () => {
         otherOperation: { kind: 'new' },
       },
     });
-    expect(
-      await inShared(otherActor.authority, conversation, (shared) =>
-        findSharedReceipt(shared, { ...command, actorAccountId: otherActor.accountId }),
-      ),
-    ).toEqual({
+    expect(await inShared(otherActor.authority, conversation, (shared) => findSharedReceipt(shared, command))).toEqual({
       kind: 'entered',
       value: { kind: 'new' },
     });
