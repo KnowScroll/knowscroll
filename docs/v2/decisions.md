@@ -131,3 +131,19 @@ Blueprint §5 lists "command receipts" under Experience, but every module's comm
 Status: accepted (coordinator, 2026-10-19), amended after the independent review and re-review of #253.
 
 `logEvent` fields are IDs, codes, route templates, counts, durations, configuration problems as `VARIABLE: kind_code`, and sanitised errors (class, code, shortened frames; never messages). Framework messages are reduced to recognised lifecycle codes; pg-boss warnings to their kind; plain-object errors keep only their code. The journal projection withholds personal-linkable IDs (blueprint §26 "Logging retention and erasure must agree"). Secret-shaped values are refused even in identifier-shaped fields (the canary test found a token that passed an ID pattern). The same rule covers job state: a failed job's stored output (`pgboss.job.output`, kept for days, dead letters for two weeks) is a code-only record (`{failure, errorClass, code}`), never the error's message, stack or driver detail; a payload that does not match its queue is dead-lettered at once. Consequence: some debugging detail (exception messages) is unavailable in the journal; rich, personal detail belongs in erasable, access-controlled decision records when they arrive.
+
+## D-018 · 2026-10-19 · Owner: Cutroom budget for v2 Reels — up to $2
+
+The owner allows v2 to spend **up to $2 (200¢)** on new Cutroom Reels. The shared `knowscroll_pool` record stays the single money record: its cap moves from 700¢ to 900¢ ($7 + $2) through a new pool migration (never editing an applied one), and v2 holds one grant of at most 200¢; Cutroom's own per-Reel cap stays 75¢. The owner still approves each reel script in its PR (CF-62). Before the first paid order the fal balance is read server-side and must cover the order. Applies from S4.2 (Phase 4).
+
+## D-019 · 2026-10-19 · Owner: Android builds and native journeys run in GitHub Actions
+
+GitHub-hosted runners may build the Expo Android app (prebuild + Gradle) and run emulator/Maestro journeys; this supersedes the v1 "Android builds only on the owner's Mac" rule (CF-31) for v2. The owner tests on a real phone later; until then native acceptance is labelled emulator evidence, never physical-device evidence. No self-hosted runner, no signing secrets in CI until release work needs them.
+
+## D-020 · 2026-10-19 · Owner: `checks` is required on `dev`
+
+Ruleset `25423111` ("dev: v2 checks must pass") requires the GitHub Actions checks `integrity`, `static`, `backend`, `build`, `client` and `release` on `dev`, with no bypass actors. The two existing rulesets (no deletion/force-push; only promoters update main and stage) are unchanged.
+
+## D-021 · 2026-10-19 · Owner: personal-context model roles may use MiniMax for real users
+
+Planner, Cartographer, Scenario Planner and room AI roles may send bounded personal-context-derived inputs to MiniMax for real users, not only test accounts (owner, 2026-10-19), knowing MiniMax's terms allow inputs to improve its services. The blueprint's minimisation still applies: each role sends only its prepared, bounded context (topic/unit references and authorised thread excerpts), never secrets, raw observation streams or another person's private data; requests are not logged; the privacy screen (P02) states that a third-party model processes exploration context.
