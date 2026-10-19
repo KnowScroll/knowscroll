@@ -13,7 +13,8 @@
     "build": "nest build",
     "typecheck": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
-    "migrate": "node dist/migrate.js"
+    "migrate": "node dist/migrate.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@knowscroll/backend": "workspace:*",
@@ -36,6 +37,7 @@
     "@nestjs/cli": "catalog:",
     "@types/express": "catalog:",
     "@types/node": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
