@@ -1,8 +1,11 @@
 # v2 environments on the VPS
 
-> **Status: implemented, not yet applied to the server** (#228 part 1). The code, Ansible roles and
-> workflow below are in the repository; the coordinator applies Ansible and records the date here.
-> Until then the server runs v1 only, exactly as before, and no v2 release exists yet.
+> **Status (2026-10-19):** the server side is **applied** (#251, merged as `9acf2ab6`; the playbook
+> ran with `ok=108 changed=20 failed=0`): v2 databases, roles, settings, units (not enabled), Caddy
+> paths and the backup and restore-check timers exist, and a manual backup and restore check
+> succeeded. `checks` builds, smoke-tests and uploads the v2 release (`release` job, #228 part 2).
+> **No v2 release has been deployed to any world yet**: dev and stage still run v1. The first v2
+> deploy follows [the runbook below](#first-v2-deploy-to-a-world-runbook).
 
 How KnowScroll v2 runs on the one VPS: which world uses what, how a v2 release is built, shipped,
 deployed, promoted and rolled back, and how to change the server safely. Backups and restores are in
@@ -62,10 +65,26 @@ schema is refused. The rules live in one place, `ops/vps/tool/plan.ts` (`validat
   `scripts/release/files.mjs` re-exports it for the builder and the smoke test (a test checks they
   are the same functions).
 
-What the v2 programs get from their units (and `ks` gives `migrate`): `KS_WORLD`, `PORT`,
-`NODE_ENV=production`, `KS_MEDIA_ROOT`, `KS_PUBLIC_ORIGIN` (`https://app.<world>.knowscroll.space`)
-from the settings file; `DATABASE_URL` from the root-only secret; `KS_COMMIT` and
-`KS_ARTIFACT_SHA256` (the sha256 of the exact tar the server received) from `.ks/release.env`.
+What the v2 programs need at runtime, and where each comes from on the server (checked against
+`packages/backend/src/infrastructure/config` and `docs/v2/engineering/runtime-configuration.md`,
+2026-10-19):
+
+| Variable | Needed by | Source on the server |
+|---|---|---|
+| `NODE_ENV=production` | api, worker (production refuses placeholder identities) | `<world>.v2.env` and the units' `Environment=` |
+| `KS_WORLD` | api, worker (`/health`, diagnostics) | `<world>.v2.env` and the units' `Environment=KS_WORLD=%i` |
+| `KS_COMMIT` | api, worker (required in production) | `.ks/release.env`, written by `ks` when it receives the release |
+| `KS_ARTIFACT_SHA256` | api, worker (required in production; `/health` `artifact`) | `.ks/release.env`: the sha256 of the exact tar the server received |
+| `DATABASE_URL` | api, worker, migrate | `/etc/knowscroll/secrets/v2-<world>/database.env` (root only; `ks` adds a 15 min `statement_timeout` session option for migrate) |
+| `PORT` | api | `<world>.v2.env` (4330 dev, 4320 stage) |
+| `KS_MEDIA_ROOT`, `KS_PUBLIC_ORIGIN` | not read yet; provided for media and links | `<world>.v2.env` |
+
+Optional with defaults the server does not override: `KS_LISTEN_HOST` (127.0.0.1, which Caddy
+proxies), `KS_DB_POOL_MAX` (api 10, worker 5), `KS_DB_STATEMENT_TIMEOUT_MS` (15 s; migrate 15 min),
+`KS_BODY_LIMIT_BYTES`, `KS_SHUTDOWN_GRACE_SECONDS`; with S1.2 also `KS_SCOPE_LOCK_TIMEOUT_MS`,
+`KS_SOCKET_AUTH_CACHE_MS` and `KS_AUTH_ADAPTER` (default `none`: every personal route answers 401
+until S1.3 sessions; `test-bearer` is refused outside `NODE_ENV=test`). The connection budget fits
+the `ks2_<world>` limit of 30: api 10, worker 5 plus its pg-boss pool 5, and during a migrate 2 + 2.
 Later secrets (auth, mail, model keys) are added the same way, by a later change to
 `roles/worlds_v2`.
 
@@ -76,26 +95,35 @@ A deploy is healthy only when `world`, `commit` and `artifact` match.
 
 ## Build and test (CI)
 
-`checks.yml` (owned by the coordinator) is expected to, on every push and PR:
+The `release` job of `checks.yml` does this on every push and PR, after the `build` and `client`
+jobs passed (#228 part 2):
 
-1. build the workspace (`nest build` for api and worker, `expo export --platform web` for the client);
+1. build the workspace as those jobs do (`nest build` for packages, api and worker; `expo export
+   --platform web` for the client);
 2. `node scripts/release/build.mjs --out "$RUNNER_TEMP/release" --commit "$GITHUB_SHA"` — writes
-   `release-<sha>.tar` and `release-<sha>.tar.sha256` and prints the sha256. Layout defaults are at
-   the top of the script; `--config <json>` overrides them (e.g. `"migrations": "<folder>"` to fill
-   `release.json`'s migration list). The archive wrapper is deterministic with GNU tar (sorted,
+   `release-<sha>.tar` and `release-<sha>.tar.sha256` and prints the sha256. It runs
+   `pnpm --config.inject-workspace-packages=true --filter <app> deploy --prod` for api and worker
+   (each tree carries its own `pnpm-lock.yaml`, listed in `files.sha256` like every other file and
+   link), copies the web export, and lists `release.json`'s `migrations` from `migrations/*.sql`.
+   Layout defaults are at the top of the script; `--config <json>` overrides them. The archive
+   wrapper is deterministic with GNU tar (sorted,
    root-owned, timestamps = commit time), but `pnpm deploy` output is not guaranteed byte-stable
    (e.g. `node_modules/.modules.yaml`), so **two builds of one commit can differ: never rely on a
    rebuild**. The server keeps the first copy and deploy.yml always uses the earliest push run's
    artifact;
 3. `node scripts/release/smoke.mjs "$RUNNER_TEMP/release/release-<sha>.tar" --start --world dev`
-   with `DATABASE_URL` pointing at the job's disposable Postgres service — checks the release and
-   its archive with the server's own code, runs its migrate, starts its api with only the unit's
-   variables (plus `--pass-env NAME` for any the app needs in CI) and requires `/health` to report
-   the world, commit, artifact and latest migration;
-4. upload an artifact named **`release-$GITHUB_SHA`** (always `$GITHUB_SHA`, never a PR head SHA)
-   holding exactly `release-<sha>.tar` and `release-<sha>.tar.sha256` at its root, with a
-   retention long enough to cover a later promotion to stage (30 days suggested). Only artifacts of
-   runs triggered by a **push** in this repository are ever deployed;
+   with `DATABASE_URL` pointing at a fresh database in the job's postgres:16 service — checks the
+   release and its archive with the server's own code, then runs the programs as the v2 units do,
+   with only the units' variables (plus `--pass-env NAME` for any the app needs in CI): migrate
+   exits 0; the api answers `/health` with the world, commit, artifact and latest migration,
+   answers an unknown route with a 404 `application/problem+json`, answers each
+   `--unauthenticated <path>` with a 401 problem, and stops with exit 0; the worker starts and stops
+   with exit 0;
+4. upload the artifact **`release-$GITHUB_SHA`** (always `$GITHUB_SHA`, never a PR head SHA)
+   holding exactly `release-<sha>.tar` and `release-<sha>.tar.sha256` at its root, kept 30 days
+   (`if-no-files-found: error`). The job summary records the tar's sha256 and size. Only artifacts
+   of runs triggered by a **push** in this repository are ever deployed (a PR run's artifact is
+   named after the PR's merge commit and is never used);
 5. `node --test ops/vps/tool/plan.test.ts ops/vps/tool/tree.test.ts ops/vps/backup/scripts.test.ts`
    (already in the `integrity` job).
 
@@ -205,6 +233,58 @@ If the release it returns to does not become healthy, both links and the generat
 are put back, as a failed deploy does (#228 review m8). A rollback is code only: to undo a v2
 migration, restore the pre-migrate dump ([backups.md](backups.md)).
 
+### First v2 deploy to a world (runbook)
+
+The agent may do this for **dev** (by manual dispatch, below). **Stage** gets v2 only by promotion
+(`scripts/promote.sh stage`) once the owner agrees (D-004), never by dispatch. Live: never.
+
+**Preconditions** (all read-only):
+
+1. The server tool and Ansible match the integration branch (they were applied from it; re-apply
+   with `ops/vps/ansible/run.sh --check --diff` then `run.sh` after any change under `ops/`).
+2. `ssh knowscroll-vps ks status`: under `worlds.dev`, `v2Provisioned: true`, `openPoolOrders: 0`,
+   v1 `health` ok; `disk.critical: false`; `backups.nightly.ok: true` (a pre-migrate dump is taken
+   anyway).
+3. The commit to deploy, `<sha>`, has a **successful push-triggered** `checks` run with the release
+   artifact (the `release` job's summary shows its sha256):
+
+   ```sh
+   gh run list --workflow checks.yml --commit <sha> --event push --json databaseId,conclusion
+   gh api repos/KnowScroll/knowscroll/actions/runs/<run-id>/artifacts --jq '.artifacts[] | [.name, .size_in_bytes, .expired]'
+   ```
+
+**Dispatch** (dev only; `--ref` names the branch whose `deploy.yml` runs, which must be the v2
+workflow, e.g. the integration branch; `-f ref=` names the commit to deploy):
+
+```sh
+gh workflow run deploy.yml --ref codex/release-knowscroll-v2 -f ref=<sha>
+gh run watch "$(gh run list --workflow deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+```
+
+**What happens to v1 in dev:** after the pre-migrate dump and the v2 migrate, v1's API, worker,
+maintenance and generation services stop and `ks-world@dev.target` is disabled;
+`ks2-world@dev.target` is enabled and started on the same port 4330. v1's database
+`knowscroll_test_dev`, its media and `dev.env` are not touched. Once v2 is healthy, `previous`
+points at the v1 release. If v2 does not become healthy within 90 s, both links and v1 come back on
+their own and the deploy job fails.
+
+**Verify:**
+
+```sh
+curl -fsS https://app.dev.knowscroll.space/health      # {"status":"ok","world":"dev","commit":"<sha>","artifact":"<tar sha256>","migration":…}
+curl -fsS https://backend.dev.knowscroll.space/health  # the same
+ssh knowscroll-vps ks status                            # dev: generation v2, v2Services true, services false, lastDeploy names the predeployDump
+ssh knowscroll-vps journalctl -u ks2-api@dev -u ks2-worker@dev --since -15min
+```
+
+The deploy job itself requires `/health` on both hosts to report the commit, the world and the
+artifact hash of the tested tar.
+
+**Roll back to v1** (root on the server): `ks rollback dev`. It swaps `current` and `previous`
+(the v1 release), stops and disables the v2 units, enables and starts `ks-world@dev.target`, and
+waits for v1's `/health`. v1 resumes on its own database exactly where it stopped. v2's database is
+left as it is (restore its pre-migrate dump only if a migration must be undone: backups.md).
+
 To put a world back on **v1** for good while its `previous` is no longer v1, deploy a v1 release
 the server still holds (e.g. `legacy/v1-final` = `106c4701…` while dev or stage references it):
 dispatch deploy.yml with that commit; the server already has it, so it is a `promote` and runs v1's
@@ -283,15 +363,16 @@ are skipped (they would not be read-only), so they appear only when applying.
 
 ## Not proved yet
 
-- Nothing here has been applied to the server; no v2 release exists yet; no v2 deploy, promotion,
-  rollback, backup or restore has run on the VPS.
+- No v2 release has been deployed to any world: no v2 deploy, promotion, rollback or pre-migrate
+  dump has run on the VPS (the server side is applied; a manual backup and restore check ran).
+- The `release` job proves the tar is built, passes the server's checks and boots in production
+  against PostgreSQL 16 in CI; not yet on the server's Node, sandboxed units or loopback Caddy.
 - `caddy validate` of the new Caddyfile has not run (Caddy is not installed on the Mac; the
   independent review ran `caddy adapt` on the server and it adapted cleanly); the role validates the
   file before installing it, so an invalid one is never put in place.
 - The ks decisions, the release-tree reader (real folders, archives, `/proc/locks` under `flock`)
-  and the backup scripts' rules are tested in the `integrity` job; `build.mjs` and `smoke.mjs` have
-  not run yet (no workspace to build), and the side-effecting flows of `system.ts` (deploy,
-  rollback, the restore check against Postgres) have no automated test: they are proved only by
-  the first real runs on dev.
+  and the backup scripts' rules are tested in the `integrity` job, and `build.mjs`/`smoke.mjs` run
+  in the `release` job; the side-effecting flows of `system.ts` (deploy, rollback against systemd)
+  have no automated test: they are proved only by the first real runs on dev.
 - Whether Caddy's `file_server` follows a link out of `web/` was not tested; links under `web/` are
   refused, so it does not matter for v2 releases.

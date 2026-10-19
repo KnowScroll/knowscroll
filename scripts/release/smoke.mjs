@@ -2,7 +2,7 @@
 // Checks one built KnowScroll v2 release the way the server will (#228).
 //
 //   node scripts/release/smoke.mjs <out>/release-<commit>.tar [--start] [--world <name>] [--port <n>]
-//                                  [--pass-env NAME]... [--keep]
+//                                  [--unauthenticated <path>]... [--pass-env NAME]... [--keep]
 //
 // Always: release-<commit>.tar.sha256 beside the tar is exactly one line naming it and its hash
 // matches; the archive's listing has nothing the server refuses (devices, FIFOs, absolute paths,
@@ -13,11 +13,16 @@
 // and web/index.html exist. The rules and the reading are ops/vps/tool/plan.ts and tree.ts, the
 // same code `ks deploy` runs.
 //
-// With --start and DATABASE_URL in the environment (a disposable database): runs the release's
-// migrate command, starts its api program with only the settings a world's v2 units give it
-// (KS_WORLD, PORT, NODE_ENV=production, KS_MEDIA_ROOT, KS_PUBLIC_ORIGIN, KS_COMMIT,
-// KS_ARTIFACT_SHA256, DATABASE_URL; plus PATH, HOME and any variable named by --pass-env), and
-// requires GET /health to report this world, commit and artifact, and the release's latest migration.
+// With --start and DATABASE_URL in the environment (a disposable database), the programs run the way
+// a world's v2 units run them, with only the settings those units give (KS_WORLD, PORT,
+// NODE_ENV=production, KS_MEDIA_ROOT, KS_PUBLIC_ORIGIN, KS_COMMIT, KS_ARTIFACT_SHA256,
+// DATABASE_URL; plus PATH, HOME and any variable named by --pass-env):
+// - the release's migrate command exits 0;
+// - its api answers GET /health with this world, commit and artifact and the release's latest
+//   migration, answers an unknown route with a 404 application/problem+json, answers every
+//   --unauthenticated path (no credentials) with a 401 application/problem+json, and stops with
+//   exit 0 on SIGTERM;
+// - its worker starts (a `process.started` record) and stops with exit 0 on SIGTERM.
 
 import { spawn, spawnSync } from 'node:child_process';
 import {
@@ -53,6 +58,7 @@ const { values: args, positionals } = parseArgs({
     world: { type: 'string', default: 'dev' },
     port: { type: 'string', default: '4399' },
     'pass-env': { type: 'string', multiple: true, default: [] },
+    unauthenticated: { type: 'string', multiple: true, default: [] },
     keep: { type: 'boolean', default: false },
   },
 });
@@ -72,8 +78,74 @@ function check(name, ok, detail) {
 
 const match = /^release-([0-9a-f]{40})\.tar$/.exec(basename(tarPath));
 let work;
-let api;
+let root;
 let exitCode = 0;
+/** Programs this smoke test started (only these are ever signalled). */
+const running = [];
+
+/** Starts one release program as its unit would; its JSON records are echoed to stderr and kept. */
+function startProgram(name, program, env) {
+  const child = spawn(process.execPath, program.exec.slice(1), {
+    cwd: join(root, program.cwd),
+    env,
+    stdio: ['ignore', 'pipe', 'inherit'],
+  });
+  const events = [];
+  const waiters = [];
+  let pending = '';
+  child.stdout.on('data', (chunk) => {
+    process.stderr.write(chunk);
+    pending += chunk.toString('utf8');
+    for (let nl = pending.indexOf('\n'); nl !== -1; nl = pending.indexOf('\n')) {
+      const line = pending.slice(0, nl);
+      pending = pending.slice(nl + 1);
+      try {
+        const record = JSON.parse(line);
+        if (record && typeof record.event === 'string') {
+          events.push(record.event);
+          for (const waiter of waiters) waiter();
+        }
+      } catch {
+        // not a diagnostic record
+      }
+    }
+  });
+  const exited = new Promise((done) => child.once('exit', (code) => done(code)));
+  const handle = {
+    name,
+    child,
+    events,
+    exited,
+    waitForEvent(event, ms) {
+      if (events.includes(event)) return Promise.resolve(true);
+      return new Promise((done) => {
+        const timer = setTimeout(() => done(false), ms);
+        waiters.push(() => {
+          if (events.includes(event)) {
+            clearTimeout(timer);
+            done(true);
+          }
+        });
+        exited.then(() => done(events.includes(event)));
+      });
+    },
+  };
+  running.push(handle);
+  return handle;
+}
+
+/** SIGTERM to a program this test started; its exit code, or null if it had to be killed. */
+async function stopProgram(handle, ms) {
+  if (handle.child.exitCode !== null || handle.child.signalCode !== null) return handle.child.exitCode;
+  handle.child.kill('SIGTERM');
+  const code = await Promise.race([handle.exited, new Promise((r) => setTimeout(() => r(undefined), ms))]);
+  if (code === undefined) {
+    handle.child.kill('SIGKILL');
+    await handle.exited;
+    return null;
+  }
+  return code;
+}
 try {
   check('tar name is release-<commit>.tar', match, basename(tarPath));
   const commit = match[1];
@@ -93,7 +165,7 @@ try {
   }
 
   work = mkdtempSync(join(tmpdir(), 'ks-release-smoke-'));
-  const root = join(work, 'release');
+  root = join(work, 'release');
   mkdirSync(root);
   const unpack = spawnSync('tar', ['-x', '--no-same-owner', '--no-same-permissions', '-f', tarPath, '-C', root], {
     stdio: ['ignore', 'inherit', 'inherit'],
@@ -173,14 +245,10 @@ try {
     });
     check('migrate exits 0', migrate.status === 0, `exit ${migrate.status}`);
 
-    api = spawn(process.execPath, m.programs.api.exec.slice(1), {
-      cwd: join(root, m.programs.api.cwd),
-      env,
-      stdio: ['ignore', 'inherit', 'inherit'],
-    });
+    const api = startProgram('api', m.programs.api, env);
     let body;
     const deadline = Date.now() + 60_000;
-    while (Date.now() < deadline && api.exitCode === null) {
+    while (Date.now() < deadline && api.child.exitCode === null) {
       try {
         const res = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(3000) });
         if (res.ok) {
@@ -199,19 +267,37 @@ try {
       latest === undefined ? body && 'migration' in body : body.migration === latest,
       `${body?.migration} (release lists ${latest ?? 'none'})`,
     );
+
+    const missing = await fetch(`http://127.0.0.1:${port}/v1/release-smoke-no-such-route`);
+    check(
+      'an unknown route answers 404 application/problem+json',
+      missing.status === 404 && (missing.headers.get('content-type') ?? '').startsWith('application/problem+json'),
+      `${missing.status} ${missing.headers.get('content-type')}`,
+    );
+    for (const path of args.unauthenticated) {
+      const res = await fetch(`http://127.0.0.1:${port}${path}`);
+      const type = res.headers.get('content-type') ?? '';
+      const problem = type.startsWith('application/problem+json') ? await res.json() : null;
+      check(
+        `${path} without credentials answers 401 application/problem+json`,
+        res.status === 401 && problem?.status === 401,
+        `${res.status} ${type} ${JSON.stringify(problem)}`,
+      );
+    }
+    const apiExit = await stopProgram(api, 30_000);
+    check('api stops with exit 0 on SIGTERM', apiExit === 0, `exit ${apiExit}`);
+
+    const worker = startProgram('worker', m.programs.worker, env);
+    const started = await worker.waitForEvent('process.started', 60_000);
+    check('worker starts (process.started)', started, worker.events.join(', '));
+    const workerExit = await stopProgram(worker, 40_000);
+    check('worker stops with exit 0 on SIGTERM', workerExit === 0, `exit ${workerExit}`);
   }
 } catch (error) {
   exitCode = 1;
   if (!checks.some((c) => !c.ok)) checks.push({ check: 'smoke test ran', ok: false, detail: error.message });
 } finally {
-  if (api && api.exitCode === null) {
-    api.kill('SIGTERM');
-    const stopped = await Promise.race([
-      new Promise((r) => api.once('exit', () => r(true))),
-      new Promise((r) => setTimeout(() => r(false), 10_000)),
-    ]);
-    if (!stopped) api.kill('SIGKILL');
-  }
+  for (const program of running) await stopProgram(program, 10_000);
   if (work && !args.keep) rmSync(work, { recursive: true, force: true });
 }
 
