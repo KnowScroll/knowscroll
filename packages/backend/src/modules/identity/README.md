@@ -85,7 +85,8 @@ then the root. Every wait is bounded by the personal-scope lock timeout (a timeo
    `__Host-ks_session` (HTTPS) or `ks_session` (plain-HTTP development) — HttpOnly, SameSite=Lax,
    Path=/, Secure on HTTPS, 30 days — and carries no token; the redemption must come from the
    world's own origin. Native: the response carries the bearer token once, for the platform's
-   secure store.
+   secure store. A device that still presents a session (an account switch) has that session
+   revoked by the API, so no live session is left behind whose token the device discarded.
 4. **Use.** Every request presents `Authorization: Bearer kss_…` (native) or the cookie (web);
    the API's session caller adapter resolves it with `resolveSession`. A web session's token is
    accepted only as the cookie and a native one only as a bearer token. Cookie-authenticated

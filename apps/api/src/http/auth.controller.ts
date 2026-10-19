@@ -120,6 +120,7 @@ export class AuthController {
         reasonCode: result.origin,
         context: input.client,
       });
+      await this.endReplacedSession(request, result.session.id);
       const account = {
         accountId: result.outcome.accountId,
         universeId: result.outcome.universeId,
@@ -146,6 +147,27 @@ export class AuthController {
         session: { kind: 'bearer' as const, token: result.session.token, expiresAt },
       };
     });
+  }
+
+  /**
+   * A redemption on a device that still presents a session (the cookie, or a native bearer token)
+   * replaces it: the old session is revoked and its account's sockets dropped, so an account
+   * switch leaves no live session behind whose token the device just discarded. Best effort: the
+   * new session stands even if this fails (the old one then simply expires).
+   */
+  private async endReplacedSession(request: Request, newSessionId: string): Promise<void> {
+    try {
+      const previous = await sessionFor(this.resolveSession, credentialFrom(request.headers, this.cookieName));
+      if (previous === undefined || previous.sessionId === newSessionId) return;
+      const { revoked } = await this.signOut({
+        sessionId: previous.sessionId,
+        accountId: previous.accountId,
+        everywhere: false,
+      });
+      this.logEvent('identity.signed_out', { ...requestIdField(), count: revoked, reasonCode: 'replaced' });
+    } catch (error) {
+      this.logEvent('http.unexpected_error', { ...requestIdField(), method: 'POST', route: '/auth/redeem', error });
+    }
   }
 
   /** `GET /auth/session`: the presented session's account, universe and epoch, read now. */

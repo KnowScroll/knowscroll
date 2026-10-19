@@ -385,6 +385,27 @@ describe('sign-in through the built API', () => {
     await expect(connected(connect({ cookie: web.cookie, origin: baseUrl }))).rejects.toThrow('UNAUTHENTICATED');
   });
 
+  it('replaces the session a device still presents when it redeems another link (account switch)', async () => {
+    const first = await webSignIn();
+    const second = await post(
+      '/auth/redeem',
+      { token: await requestLink(freshAddress()), commandId: randomUUID(), client: 'web' },
+      { origin: baseUrl, cookie: first.cookie },
+    );
+    expect(second.status).toBe(200);
+    const replacement = /^ks_session=(kss_[A-Za-z0-9_-]{43});/.exec(second.headers.getSetCookie()[0] ?? '')?.[1];
+    if (replacement === undefined) throw new Error('no replacement cookie');
+    secrets.add(replacement);
+    await expectProblem(
+      await fetch(`${baseUrl}/auth/session`, { headers: { cookie: first.cookie } }),
+      401,
+      'UNAUTHENTICATED',
+    );
+    expect((await fetch(`${baseUrl}/auth/session`, { headers: { cookie: `ks_session=${replacement}` } })).status).toBe(
+      200,
+    );
+  });
+
   it('signs out everywhere: every session of the account ends', async () => {
     const address = freshAddress();
     const first = await nativeSignIn(address);
