@@ -3,13 +3,18 @@ import { describe, expect, it } from 'vitest';
 import {
   AUTHORED_BLOCK_TYPES,
   canonicalJson,
+  fallbackTextOf,
+  numericTokens,
   REASON_CODES,
+  simulationNumbers,
   utf8ByteLength,
   validateDocument,
   walkBlocks,
   type ScrollDocument,
 } from '../index.js';
+import { addressedTexts } from '../internal/honesty.js';
 import type { ProvenanceBinding } from '../internal/index.js';
+import { sentenceRanges } from '../text.js';
 import { scrollDocument } from '../test-support/arbitraries.js';
 import { fixture } from '../test-support/fixtures.js';
 import {
@@ -127,7 +132,7 @@ describe('validateDraft: staged checks with stable reason codes', () => {
       ],
       [
         'evidence',
-        'numeric_sentence_unbound',
+        'number_unbound',
         (value) => ({
           ...value,
           bindings: (value['bindings'] as Array<{ blockId: string }>).filter(
@@ -170,11 +175,63 @@ describe('validateDraft: staged checks with stable reason codes', () => {
       ],
       [
         'evidence',
-        'literal_not_declared',
+        'simulation_number_unbound',
         (value) => {
           const sim = value.sections[1]?.blocks[2];
-          const outputs = sim?.data['outputs'] as Array<{ formula: Record<string, unknown> }> | undefined;
-          if (outputs?.[0] !== undefined) outputs[0].formula['base'] = 512;
+          if (sim !== undefined) sim.data['illustrative'] = false;
+          return value;
+        },
+      ],
+      [
+        'evidence',
+        'binding_value_unknown',
+        (value) => ({
+          ...value,
+          bindings: [
+            ...(value['bindings'] as unknown[]),
+            { kind: 'value', claimId: 'clm-attn-quadratic', blockId: 'length-sim', path: 'params.9.max' },
+          ],
+        }),
+      ],
+      [
+        'evidence',
+        'binding_anchor_crosses_sentence',
+        (value) => ({
+          ...value,
+          bindings: [
+            ...(value['bindings'] as unknown[]),
+            {
+              kind: 'passage',
+              claimId: 'clm-attn-quadratic',
+              blockId: 'squared-p1',
+              anchorText: 'comparisons. Twelve',
+            },
+          ],
+        }),
+      ],
+      [
+        'evidence',
+        'binding_field_unknown',
+        (value) => ({
+          ...value,
+          bindings: [
+            ...(value['bindings'] as unknown[]),
+            {
+              kind: 'passage',
+              claimId: 'clm-attn-quadratic',
+              blockId: 'attention-code',
+              field: 'data.code',
+              anchorText: 'scores',
+            },
+          ],
+        }),
+      ],
+      [
+        'schema',
+        'schema_unrecognized_keys',
+        (value) => {
+          const paragraph = value.sections[0]?.blocks[0];
+          if (paragraph !== undefined) paragraph['fallbackText'] = 'Text blocks never carry their own fallback text.';
           return value;
         },
       ],
@@ -262,18 +319,17 @@ describe('compileDraft: code, not the model, sets derived fields', () => {
     expect(ids).toEqual(['weights-p1', 'table-1', 'paragraph-1']);
   });
 
-  it('derives the accessibility label and fallback text of text blocks, overriding the model', () => {
-    const value = draft();
-    const block = value.sections[3]?.blocks[0];
-    if (block !== undefined) {
-      block['a11y'] = { label: 'Whatever the model said' };
-      block['fallbackText'] = 'A different story than the text.';
-    }
-    const outcome = compileDraft(value, attention.provenance);
+  it('derives text blocks\u2019 accessibility label, and stores no fallback text for them', () => {
+    const outcome = compileDraft(attention.draft, attention.provenance);
     if (outcome.kind !== 'compiled') throw new Error(JSON.stringify(outcome));
     const callout = outcome.document.sections[3]?.blocks[0];
     expect(callout?.a11y).toEqual({ label: 'Limits' });
-    expect(callout?.fallbackText).toMatch(/^Attention shows which words/u);
+    expect(callout !== undefined && 'fallbackText' in callout).toBe(false);
+    if (callout !== undefined) expect(fallbackTextOf(callout)).toMatch(/^Attention shows which words/u);
+    const value = draft();
+    const block = value.sections[3]?.blocks[0];
+    if (block !== undefined) block['a11y'] = { label: 'Whatever the model said' };
+    expect(refusal(value)).toMatchObject({ stage: 'schema', codes: ['schema_unrecognized_keys'] });
   });
 
   it('copies framing, template, theme and identity from the provenance, never from the draft', () => {
@@ -331,16 +387,41 @@ describe('compileDraft: code, not the model, sets derived fields', () => {
   });
 });
 
-/** Binds every block that shows numbers or data to one generic claim, and offers every media reference used. */
+/**
+ * Binds every number of a generated document to one generic claim — an anchor on each numeric
+ * token, a value or constant binding for each simulation number, a block binding for each chart —
+ * and offers every media reference used.
+ */
 function evidenceFor(document: ScrollDocument): { provenance: DraftProvenance; bindings: ProvenanceBinding[] } {
+  const claimId = 'clm-generic';
   const bindings: ProvenanceBinding[] = [];
   const media = new Map<string, { mediaId: string; revision: number }>();
+  for (const entry of addressedTexts(document)) {
+    if (entry.code) continue;
+    for (const [start, end] of numericTokens(entry.text)) {
+      const sentence = sentenceRanges(entry.text).find(([from, to]) => from <= start && end <= to) ?? [start, end];
+      const token = entry.text.slice(start, end);
+      const unique = entry.text.indexOf(token) === entry.text.lastIndexOf(token);
+      const [from, to] = unique ? [start, end] : sentence;
+      const [scope, id, ...rest] = entry.address.split(':');
+      if (scope === 'header')
+        bindings.push({ kind: 'header', claimId, field: id as 'title' | 'dek' | 'kicker', start: from, end: to });
+      else if (scope === 'heading')
+        bindings.push({ kind: 'heading', claimId, sectionId: id ?? '', start: from, end: to });
+      else bindings.push({ kind: 'passage', claimId, blockId: id ?? '', field: rest.join(':'), start: from, end: to });
+    }
+  }
   for (const { block } of walkBlocks(document.sections)) {
-    if (['table', 'chart', 'diagram', 'simulation'].includes(block.type))
-      bindings.push({ kind: 'block', claimId: 'clm-generic', blockId: block.id });
+    if (block.type === 'chart') bindings.push({ kind: 'block', claimId, blockId: block.id });
     if (block.type === 'simulation') {
-      for (const constant of block.data.constants)
-        bindings.push({ kind: 'constant', claimId: 'clm-generic', blockId: block.id, constantKey: constant.key });
+      bindings.push({ kind: 'block', claimId, blockId: block.id });
+      for (const number of simulationNumbers(block.data)) {
+        bindings.push(
+          number.constantKey === undefined
+            ? { kind: 'value', claimId, blockId: block.id, path: number.path }
+            : { kind: 'constant', claimId, blockId: block.id, constantKey: number.constantKey },
+        );
+      }
     }
     const refs =
       block.type === 'figure'
@@ -369,7 +450,7 @@ function evidenceFor(document: ScrollDocument): { provenance: DraftProvenance; b
       },
       claims: [
         {
-          claimId: 'clm-generic',
+          claimId,
           statement: 'A generic fixture claim.',
           quote: 'Generic fixture quote.',
           sourceId: 'src-generic',

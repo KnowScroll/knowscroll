@@ -3,10 +3,10 @@ import { FIELD_LIMITS } from '../limits.js';
 import { BlockTypeName, BlockVersionNumber, plainText } from '../primitives.js';
 import { ChartData } from './chart.js';
 import { DiagramData } from './diagram.js';
-import { defineBlock } from './envelope.js';
+import { defineBlock, defineTextBlock } from './envelope.js';
 import { ComparisonData, SequenceData, TimelineData } from './narrative.js';
 import { CodeData, FigureData, MediaData, TableData } from './reference.js';
-import { SimulationData } from './simulation.js';
+import { DraftSimulationData, SimulationData } from './simulation.js';
 import { CalloutData, ListData, ParagraphData, QuoteData, SubheadingData } from './text.js';
 
 /** Emitted only by `negotiate` in place of a block the client cannot render. Never authored. */
@@ -24,11 +24,11 @@ export function disclosureData<B extends z.ZodType>(child: B) {
   });
 }
 
-export const ParagraphBlock = defineBlock('paragraph', ParagraphData);
-export const SubheadingBlock = defineBlock('subheading', SubheadingData);
-export const ListBlock = defineBlock('list', ListData);
-export const QuoteBlock = defineBlock('quote', QuoteData);
-export const CalloutBlock = defineBlock('callout', CalloutData);
+export const ParagraphBlock = defineTextBlock('paragraph', ParagraphData);
+export const SubheadingBlock = defineTextBlock('subheading', SubheadingData);
+export const ListBlock = defineTextBlock('list', ListData);
+export const QuoteBlock = defineTextBlock('quote', QuoteData);
+export const CalloutBlock = defineTextBlock('callout', CalloutData);
 export const CodeBlock = defineBlock('code', CodeData);
 export const TableBlock = defineBlock('table', TableData);
 export const FigureBlock = defineBlock('figure', FigureData);
@@ -119,7 +119,10 @@ export function isBlockType(type: string): type is BlockType {
   return KNOWN_TYPES.has(type);
 }
 
-/** Data schema per authored type (shared with the producer's draft schema). */
+/**
+ * Data schema per authored type as the writer drafts it (the same as stored, except that a draft
+ * simulation's `illustrative` is a boolean and code adds the notice).
+ */
 export const AUTHORED_DATA_SCHEMAS = {
   paragraph: ParagraphData,
   subheading: SubheadingData,
@@ -135,5 +138,5 @@ export const AUTHORED_DATA_SCHEMAS = {
   sequence: SequenceData,
   diagram: DiagramData,
   chart: ChartData,
-  simulation: SimulationData,
+  simulation: DraftSimulationData,
 } as const;

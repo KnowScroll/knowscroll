@@ -2,7 +2,7 @@
   "schemaVersion": "scroll-provenance.v1",
   "assetId": "fixture-spring-neap-tides",
   "revision": 1,
-  "documentSha256": "e047df7f65e3b2e34665805dd179c4ace663525504c22953e7471da800d1303a",
+  "documentSha256": "57988195e4030e9ae2a42bec49b2a75b96cd1e96a3035a39eecc2bb6c9660bf2",
   "claims": [
     {
       "claimId": "clm-tide-bulges",
@@ -33,6 +33,7 @@
       "kind": "passage",
       "claimId": "clm-tide-bulges",
       "blockId": "pulls-p1",
+      "field": "text",
       "start": 0,
       "end": 87
     },
@@ -40,6 +41,7 @@
       "kind": "passage",
       "claimId": "clm-tide-sun-ratio",
       "blockId": "pulls-p2",
+      "field": "text",
       "start": 45,
       "end": 97
     },
@@ -52,6 +54,22 @@
       "kind": "block",
       "claimId": "clm-tide-sun-ratio",
       "blockId": "range-sim"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-tide-sun-ratio",
+      "blockId": "range-sim",
+      "field": "fallbackText",
+      "start": 88,
+      "end": 121
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-tide-sun-ratio",
+      "blockId": "range-sim",
+      "field": "fallbackText",
+      "start": 126,
+      "end": 153
     }
   ],
   "checks": [

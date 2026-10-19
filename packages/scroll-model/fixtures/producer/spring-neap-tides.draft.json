@@ -235,7 +235,6 @@
             ],
             "view": {
               "kind": "cards",
-              "barMax": 2,
               "items": [
                 {
                   "id": "spring-card",
@@ -271,7 +270,7 @@
               ]
             },
             "modelNote": "Idealised: each range is the Moon’s pull plus or minus the Sun’s, relative to the Moon alone. The slider starts near the real share; real coasts differ.",
-            "illustrative": false
+            "illustrative": true
           }
         }
       ]
@@ -348,6 +347,20 @@
       "kind": "block",
       "claimId": "clm-tide-sun-ratio",
       "blockId": "range-sim"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-tide-sun-ratio",
+      "blockId": "range-sim",
+      "field": "fallbackText",
+      "anchorText": "about 1.46 times the Moon’s range"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-tide-sun-ratio",
+      "blockId": "range-sim",
+      "field": "fallbackText",
+      "anchorText": "neap tides about 0.54 times"
     }
   ]
 }

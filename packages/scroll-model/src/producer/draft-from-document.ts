@@ -1,7 +1,7 @@
 import type { AnyBlock } from '../blocks/catalog.js';
 import { findBlock, type ScrollDocument } from '../document.js';
 import type { ProvenanceBinding } from '../internal/provenance.js';
-import { projectText } from '../registry.js';
+import { isTextBlockType, textFields } from '../registry.js';
 import {
   SCROLL_DRAFT_VERSION,
   type DraftBinding,
@@ -19,7 +19,16 @@ import {
 export function draftFromDocument(document: ScrollDocument, bindings: readonly ProvenanceBinding[] = []): ScrollDraft {
   const toDraft = (block: AnyBlock): DraftBlock => {
     if (block.type === 'fallback') throw new TypeError('draftFromDocument: renditions are not drafts');
-    const envelope = { id: block.id, a11y: block.a11y, fallbackText: block.fallbackText, essential: block.essential };
+    if (isTextBlockType(block.type)) {
+      // Same pairing of type and data as the document block; code derives the rest.
+      return { id: block.id, type: block.type, essential: block.essential, data: block.data } as DraftBlock;
+    }
+    const envelope = {
+      id: block.id,
+      a11y: block.a11y,
+      fallbackText: 'fallbackText' in block ? block.fallbackText : undefined,
+      essential: block.essential,
+    };
     if (block.type === 'disclosure') {
       return {
         ...envelope,
@@ -27,19 +36,50 @@ export function draftFromDocument(document: ScrollDocument, bindings: readonly P
         data: { ...block.data, blocks: block.data.blocks.map((child) => toDraft(child) as DraftNestedBlock) },
       };
     }
+    if (block.type === 'simulation') {
+      return {
+        ...envelope,
+        type: 'simulation',
+        data: { ...block.data, illustrative: block.data.illustrative !== false },
+      };
+    }
     // Same pairing of type and data as the document block; only version and gesture are dropped.
     return { ...envelope, type: block.type, data: block.data } as DraftBlock;
   };
+  const headings = new Map(document.sections.map((section) => [section.id, section.heading ?? '']));
   const draftBindings = bindings.map((binding): DraftBinding => {
-    if (binding.kind !== 'passage') return binding;
-    const visit = findBlock(document, binding.blockId);
-    const text = visit === null ? null : projectText(visit.block);
-    return {
-      kind: 'passage',
-      claimId: binding.claimId,
-      blockId: binding.blockId,
-      anchorText: text === null ? '' : text.slice(binding.start, binding.end),
-    };
+    switch (binding.kind) {
+      case 'constant':
+      case 'value':
+      case 'block':
+        return binding;
+      case 'header':
+        return {
+          kind: 'header',
+          claimId: binding.claimId,
+          field: binding.field,
+          anchorText: document[binding.field].slice(binding.start, binding.end),
+        };
+      case 'heading':
+        return {
+          kind: 'heading',
+          claimId: binding.claimId,
+          sectionId: binding.sectionId,
+          anchorText: (headings.get(binding.sectionId) ?? '').slice(binding.start, binding.end),
+        };
+      case 'passage': {
+        const visit = findBlock(document, binding.blockId);
+        const text =
+          visit === null ? '' : (textFields(visit.block).find((field) => field.field === binding.field)?.text ?? '');
+        return {
+          kind: 'passage',
+          claimId: binding.claimId,
+          blockId: binding.blockId,
+          ...(binding.field === 'text' ? {} : { field: binding.field }),
+          anchorText: text.slice(binding.start, binding.end),
+        };
+      }
+    }
   });
   return {
     draftVersion: SCROLL_DRAFT_VERSION,

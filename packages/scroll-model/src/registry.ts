@@ -1,11 +1,15 @@
 import type { AnyBlock, BlockType } from './blocks/catalog.js';
 import type { Gesture } from './blocks/envelope.js';
-import { richTextPlain } from './text.js';
+import { FIELD_LIMITS } from './limits.js';
+import { richTextPlain, truncateText, type RichText } from './text.js';
 
 /**
  * Behaviour the renderer contract derives from a block's data (blueprint §18). These are functions
  * of the content, never fields the model writes.
  */
+
+/** Every client must render these, so a substituted block always has somewhere to land. */
+export const BASELINE_TYPES = ['fallback', 'paragraph', 'subheading'] as const satisfies readonly BlockType[];
 
 /** Reading blocks whose accessibility label and fallback text code derives from their own text. */
 export const TEXT_BLOCK_TYPES = ['paragraph', 'subheading', 'list', 'quote', 'callout'] as const;
@@ -125,97 +129,246 @@ export function projectText(block: AnyBlock): string | null {
   }
 }
 
+/** One reader-facing text of a block, addressed by a stable field name. */
+export interface TextField {
+  /** `text` for a text block's passage projection, otherwise a dotted path (`data.caption`, `a11y.label`). */
+  readonly field: string;
+  readonly text: string;
+  /** Shown in the main rendition (counts toward the visible-text limit); false for text that is only spoken or shown on request. */
+  readonly visible: boolean;
+  /** Source code: shown, never run, and not a factual claim (exempt from the numeric and copy checks). */
+  readonly code: boolean;
+}
+
 /**
- * The text a reader sees for the block in the main rendition (disclosure children are visited
- * separately). Used for the visible-text limit, the numeric honesty check and the copy check.
+ * Every reader-facing text of a block — shown, spoken (accessibility text) or shown on request
+ * (fallback text, alt text, transcripts) — with a stable field name. Disclosure children are
+ * separate blocks. A text block's accessibility label is derived by code from its other fields, so
+ * it is not listed. This one enumeration feeds the visible-text limit, the numeric honesty check,
+ * the copy check and the binding addresses.
  */
-export function visibleTexts(block: AnyBlock): string[] {
-  const present = (...values: Array<string | undefined>) =>
-    values.filter((value): value is string => value !== undefined);
+export function textFields(block: AnyBlock): TextField[] {
+  const fields: TextField[] = [];
+  const add = (field: string, text: string | undefined, visible = true, code = false) => {
+    if (text !== undefined && text !== '') fields.push({ field, text, visible, code });
+  };
+  const rich = (spans: RichText) => richTextPlain(spans);
+  if (!isTextBlockType(block.type) && block.type !== 'fallback') {
+    add('a11y.label', block.a11y.label, false);
+    add('a11y.description', block.a11y.description, false);
+  }
   switch (block.type) {
     case 'paragraph':
     case 'list':
-      return [projectText(block) ?? ''];
+      add('text', projectText(block) ?? '');
+      break;
     case 'subheading':
-      return [block.data.text];
+      add('data.text', block.data.text);
+      break;
     case 'quote':
-      return present(richTextPlain(block.data.spans), block.data.attribution);
+      add('text', rich(block.data.spans));
+      add('data.attribution', block.data.attribution);
+      break;
     case 'callout':
-      return present(block.data.title, richTextPlain(block.data.spans));
+      add('data.title', block.data.title);
+      add('text', rich(block.data.spans));
+      break;
     case 'disclosure':
-      return [block.data.summary];
+      add('data.summary', block.data.summary);
+      break;
     case 'code':
-      return present(block.data.title, block.data.code, block.data.caption);
+      add('data.title', block.data.title);
+      add('data.code', block.data.code, true, true);
+      add('data.caption', block.data.caption);
+      break;
     case 'table':
-      return [
-        block.data.caption,
-        ...block.data.columns.flatMap((column) => present(column.label, column.unit)),
-        ...block.data.rows.flatMap((row) => row.map((cell) => String(cell))),
-      ];
+      add('data.caption', block.data.caption);
+      block.data.columns.forEach((column, index) => {
+        add(`data.columns.${index}.label`, column.label);
+        add(`data.columns.${index}.unit`, column.unit);
+      });
+      block.data.rows.forEach((row, rowIndex) =>
+        row.forEach((cell, cellIndex) => add(`data.rows.${rowIndex}.${cellIndex}`, String(cell))),
+      );
+      break;
     case 'figure':
-      return present(block.data.caption);
+      add('data.caption', block.data.caption);
+      add('data.alt', block.data.alt, false);
+      break;
     case 'media':
-      return [];
+      add('data.alt', block.data.alt, false);
+      add('data.transcript', block.data.transcript, false);
+      break;
     case 'comparison':
-      return [
-        block.data.title,
-        ...block.data.columns.flatMap((column) => [
-          column.label,
-          ...column.points.map((point) => richTextPlain(point)),
-        ]),
-        ...present(block.data.caption),
-      ];
+      add('data.title', block.data.title);
+      block.data.columns.forEach((column, index) => {
+        add(`data.columns.${index}.label`, column.label);
+        column.points.forEach((point, pointIndex) => add(`data.columns.${index}.points.${pointIndex}`, rich(point)));
+      });
+      add('data.caption', block.data.caption);
+      break;
     case 'timeline':
-      return [
-        block.data.title,
-        ...block.data.events.flatMap((event) =>
-          present(event.when, event.title, event.detail === undefined ? undefined : richTextPlain(event.detail)),
-        ),
-      ];
+      add('data.title', block.data.title);
+      block.data.events.forEach((event, index) => {
+        add(`data.events.${index}.when`, event.when);
+        add(`data.events.${index}.title`, event.title);
+        add(`data.events.${index}.detail`, event.detail === undefined ? undefined : rich(event.detail));
+      });
+      break;
     case 'sequence':
-      return [block.data.title, ...block.data.steps.flatMap((step) => [step.title, richTextPlain(step.spans)])];
+      add('data.title', block.data.title);
+      block.data.steps.forEach((step, index) => {
+        add(`data.steps.${index}.title`, step.title);
+        add(`data.steps.${index}.text`, rich(step.spans));
+        add(`data.steps.${index}.figure.alt`, step.figure?.alt, false);
+      });
+      break;
     case 'diagram':
-      return [
-        block.data.title,
-        ...present(block.data.instruction),
-        ...block.data.nodes.map((node) => node.label),
-        ...block.data.edges.flatMap((edge) => present(edge.label)),
-        ...block.data.groups.map((group) => group.label),
-        ...block.data.frames.flatMap((frame) => [frame.label, frame.description]),
-      ];
+      add('data.title', block.data.title);
+      add('data.instruction', block.data.instruction);
+      block.data.nodes.forEach((node, index) => add(`data.nodes.${index}.label`, node.label));
+      block.data.edges.forEach((edge, index) => add(`data.edges.${index}.label`, edge.label));
+      block.data.groups.forEach((group, index) => add(`data.groups.${index}.label`, group.label));
+      block.data.frames.forEach((frame, index) => {
+        add(`data.frames.${index}.label`, frame.label);
+        add(`data.frames.${index}.description`, frame.description);
+      });
+      break;
     case 'chart': {
+      add('data.title', block.data.title);
+      add('data.caption', block.data.caption);
       const spec = block.data.spec;
-      const axes = spec.kind === 'bar' ? [spec.valueAxis] : spec.kind === 'heatmap' ? [] : [spec.x, spec.y];
-      const labels =
-        spec.kind === 'bar'
-          ? [...spec.categories, ...spec.series.map((series) => series.label)]
-          : spec.kind === 'heatmap'
-            ? [...spec.rows, ...spec.columns, spec.scale.label]
-            : spec.series.map((series) => series.label);
-      return [
-        block.data.title,
-        ...present(block.data.caption),
-        ...axes.flatMap((axis) => present(axis.label, axis.unit)),
-        ...labels,
-      ];
+      const axis = (name: string, value: { label: string; unit?: string | undefined }) => {
+        add(`data.spec.${name}.label`, value.label);
+        add(`data.spec.${name}.unit`, value.unit);
+      };
+      if (spec.kind === 'bar') {
+        axis('valueAxis', spec.valueAxis);
+        spec.categories.forEach((category, index) => add(`data.spec.categories.${index}`, category));
+        spec.series.forEach((series, index) => add(`data.spec.series.${index}.label`, series.label));
+      } else if (spec.kind === 'heatmap') {
+        spec.rows.forEach((row, index) => add(`data.spec.rows.${index}`, row));
+        spec.columns.forEach((column, index) => add(`data.spec.columns.${index}`, column));
+        add('data.spec.scale.label', spec.scale.label);
+      } else {
+        axis('x', spec.x);
+        axis('y', spec.y);
+        spec.series.forEach((series, index) => add(`data.spec.series.${index}.label`, series.label));
+      }
+      break;
     }
     case 'simulation': {
       const data = block.data;
+      add('data.title', data.title);
+      add('data.prompt', data.prompt);
+      data.params.forEach((param, index) => {
+        add(`data.params.${index}.label`, param.label);
+        add(`data.params.${index}.unit`, param.unit);
+        add(`data.params.${index}.format.suffix`, param.format.suffix);
+      });
+      data.constants.forEach((constant, index) => {
+        add(`data.constants.${index}.label`, constant.label);
+        add(`data.constants.${index}.unit`, constant.unit);
+      });
+      data.outputs.forEach((output, index) => {
+        add(`data.outputs.${index}.label`, output.label);
+        add(`data.outputs.${index}.unit`, output.unit);
+        add(`data.outputs.${index}.format.suffix`, output.format.suffix);
+      });
       const view = data.view;
-      return [
-        data.title,
-        ...present(data.prompt),
-        ...data.params.flatMap((param) => present(param.label, param.unit)),
-        ...data.constants.flatMap((constant) => present(constant.label, constant.unit)),
-        ...data.outputs.flatMap((output) => present(output.label, output.unit)),
-        ...(view.kind === 'cards' ? view.items.flatMap((item) => present(item.label, item.note)) : []),
-        ...(view.kind === 'plot' ? [view.yLabel] : []),
-        ...(view.kind === 'area' ? [view.lengthLabel, view.areaLabel] : []),
-        ...(data.readout === undefined ? [] : [data.readout.template, ...data.readout.bands.map((band) => band.text)]),
-        data.modelNote,
-      ];
+      if (view.kind === 'cards') {
+        view.items.forEach((item, index) => {
+          add(`data.view.items.${index}.label`, item.label);
+          add(`data.view.items.${index}.note`, item.note);
+        });
+      } else if (view.kind === 'plot') add('data.view.yLabel', view.yLabel);
+      else if (view.kind === 'area') {
+        add('data.view.lengthLabel', view.lengthLabel);
+        add('data.view.areaLabel', view.areaLabel);
+      }
+      if (data.readout !== undefined) {
+        add('data.readout.template', data.readout.template);
+        data.readout.bands.forEach((band, index) => add(`data.readout.bands.${index}.text`, band.text));
+      }
+      add('data.modelNote', data.modelNote);
+      break;
     }
     case 'fallback':
-      return [block.fallbackText];
+      add('fallbackText', block.fallbackText);
+      break;
+  }
+  if ('fallbackText' in block && block.type !== 'fallback') add('fallbackText', block.fallbackText, false);
+  return fields;
+}
+
+/** The text a reader sees for the block in the main rendition (disclosure children are visited separately). */
+export function visibleTexts(block: AnyBlock): string[] {
+  return textFields(block)
+    .filter((field) => field.visible)
+    .map((field) => field.text);
+}
+
+const CALLOUT_LABELS = {
+  note: 'Note',
+  example: 'Example',
+  limit: 'Limits',
+  'key-idea': 'Key idea',
+  'try-it': 'Try it',
+} as const;
+
+type TextBlock = Extract<AnyBlock, { type: TextBlockType }>;
+
+/** The accessibility label code gives a text block (`derive-text-envelope.v1`). */
+export function deriveTextLabel(block: TextBlock): string {
+  switch (block.type) {
+    case 'paragraph':
+      return 'Paragraph';
+    case 'subheading':
+      return block.data.text;
+    case 'list':
+      return block.data.style === 'number' ? 'Numbered list' : 'List';
+    case 'quote':
+      return block.data.kind === 'pull' ? 'Pull quote' : 'Quotation';
+    case 'callout': {
+      const kind = CALLOUT_LABELS[block.data.kind];
+      return block.data.title === undefined
+        ? kind
+        : truncateText(`${kind}: ${block.data.title}`, FIELD_LIMITS.a11yLabelChars);
+    }
+  }
+}
+
+/**
+ * The readable stand-in for a block: stored for every non-text block, derived from the block's
+ * own text for a text block (`derive-text-envelope.v1`; never stored, so prose is not duplicated).
+ */
+export function fallbackTextOf(block: AnyBlock): string {
+  const fit = (text: string) => truncateText(text.replace(/\s+/gu, ' ').trim(), FIELD_LIMITS.fallbackTextChars);
+  switch (block.type) {
+    case 'paragraph':
+      return fit(richTextPlain(block.data.spans));
+    case 'subheading':
+      return block.data.text;
+    case 'list':
+      return fit(block.data.items.map((item) => richTextPlain(item)).join('; '));
+    case 'quote': {
+      const attribution = block.data.attribution === undefined ? '' : ` — ${block.data.attribution}`;
+      return fit(`${richTextPlain(block.data.spans)}${attribution}`);
+    }
+    case 'callout':
+      return fit(`${block.data.title === undefined ? '' : `${block.data.title}. `}${richTextPlain(block.data.spans)}`);
+    case 'disclosure':
+    case 'code':
+    case 'table':
+    case 'figure':
+    case 'media':
+    case 'comparison':
+    case 'timeline':
+    case 'sequence':
+    case 'diagram':
+    case 'chart':
+    case 'simulation':
+    case 'fallback':
+      return block.fallbackText;
   }
 }

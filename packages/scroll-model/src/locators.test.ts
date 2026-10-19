@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
+  buildBlockStateSnapshot,
   createPassageLocator,
   defaultBlockState,
   deriveAnchorMap,
@@ -11,6 +12,7 @@ import {
   ScrollLocator,
   validateLocator,
   walkBlocks,
+  type Block,
   type ScrollDocument,
   type ScrollPassageLocator,
 } from './index.js';
@@ -208,10 +210,15 @@ describe('anchor maps across revisions', () => {
     };
     expect(repointLocator(passage('crowd-p1', 'Read this'), previous, next, outcome.map)).toMatchObject({
       kind: 'same',
+      change: 'same',
       locator: { revision: 2, blockId: 'crowd-p1' },
     });
     const moved = repointLocator(passage('squared-p1', 'Twelve words means 144.'), previous, next, outcome.map);
-    expect(moved).toMatchObject({ kind: 'remapped', locator: { revision: 2, blockId: 'squared-p1' } });
+    expect(moved).toMatchObject({
+      kind: 'remapped',
+      change: 'text-changed',
+      locator: { revision: 2, blockId: 'squared-p1' },
+    });
     if (moved.kind === 'remapped' && moved.locator.kind === 'scroll_passage') {
       expect(validateLocator(next, moved.locator)).toMatchObject({ kind: 'valid', quote: 'Twelve words means 144.' });
     }
@@ -235,13 +242,37 @@ describe('anchor maps across revisions', () => {
     });
   });
 
-  it('never re-points silently: every outcome is explicit and every kept locator is valid in the new revision', () => {
+  it('never re-points silently: removals, rewrites and flipped personal flags are all reported', () => {
+    const edit = fc.record({
+      removals: fc.array(fc.nat(), { maxLength: 4 }),
+      rewrites: fc.array(fc.nat(), { maxLength: 4 }),
+      flips: fc.array(fc.nat(), { maxLength: 4 }),
+    });
     fc.assert(
-      fc.property(scrollDocument(3, 5), fc.array(fc.nat(), { minLength: 1, maxLength: 6 }), (document, removals) => {
+      fc.property(scrollDocument(3, 5), edit, (document, { removals, rewrites, flips }) => {
         const ids = document.sections.flatMap((section) => section.blocks.map((block) => block.id));
-        const drop = new Set(removals.map((n) => ids[n % ids.length]));
+        const pick = (picks: number[]) => new Set(picks.map((n) => ids[n % ids.length]));
+        const drop = pick(removals);
+        const rewrite = pick(rewrites);
+        const flip = pick(flips);
+        const edited = (block: Block): Block => {
+          if (rewrite.has(block.id) && block.type === 'paragraph') {
+            return { ...block, data: { spans: [{ text: 'A rewritten paragraph says something else now.' }] } };
+          }
+          if (flip.has(block.id) && block.type === 'simulation') {
+            const params = block.data.params.map((param, index) =>
+              index === 0
+                ? param.personal === true
+                  ? (({ personal: _off, ...rest }) => rest)(param)
+                  : { ...param, personal: true as const }
+                : param,
+            );
+            return { ...block, data: { ...block.data, params } };
+          }
+          return block;
+        };
         const sections = document.sections
-          .map((section) => ({ ...section, blocks: section.blocks.filter((block) => !drop.has(block.id)) }))
+          .map((section) => ({ ...section, blocks: section.blocks.filter((block) => !drop.has(block.id)).map(edited) }))
           .filter((section) => section.blocks.length > 0)
           .map((section, index) =>
             index === 0
@@ -266,15 +297,90 @@ describe('anchor maps across revisions', () => {
             ...(state === null ? {} : { state: { state, personalIncluded: personalParamKeys(block).length > 0 } }),
           };
           const outcome = repointLocator(locator, document, revised, derived.map);
+          const entry = derived.map.entries.find((candidate) => candidate.from === block.id);
           expect(['same', 'remapped', 'state-reset', 'unavailable']).toContain(outcome.kind);
+          if (outcome.kind === 'same') expect(entry?.change).toBe('same');
           if (outcome.kind === 'same' || outcome.kind === 'remapped' || outcome.kind === 'state-reset') {
             expect(validateLocator(revised, outcome.locator, { personalConsent: true }).kind).toBe('valid');
           }
           if (drop.has(block.id)) expect(outcome.kind).toBe('unavailable');
+          if (rewrite.has(block.id) && block.type === 'paragraph' && !drop.has(block.id))
+            expect(outcome.kind).not.toBe('same');
+          if (flip.has(block.id) && block.type === 'simulation' && !drop.has(block.id))
+            expect(outcome.kind).toBe('state-reset');
         }
       }),
       { numRuns: 50 },
     );
+  });
+
+  it('reports a rewritten paragraph and a flipped personal flag (both directions), never as same', () => {
+    const rev1 = fixture('weight-other-worlds').document;
+    const reseal = (document: ScrollDocument, revision: number) => seal(document.sections, { ...document, revision });
+    const rewritten = structuredClone(rev1);
+    const paragraph = rewritten.sections[0]?.blocks.find((block) => block.id === 'scales-p1');
+    if (paragraph?.type !== 'paragraph') throw new Error('fixture changed');
+    paragraph.data = { spans: [{ text: 'An entirely different claim now lives under this id.' }] };
+    const rev2 = reseal(rewritten, 2);
+    const map2 = deriveAnchorMap(rev1, rev2);
+    if (map2.kind !== 'derived') throw new Error(map2.reason);
+    const paragraphLocator = {
+      kind: 'scroll_block' as const,
+      assetId: rev1.assetId,
+      revision: 1,
+      blockId: 'scales-p1',
+      blockType: 'paragraph',
+      blockVersion: 1,
+    };
+    expect(repointLocator(paragraphLocator, rev1, rev2, map2.map)).toMatchObject({
+      kind: 'remapped',
+      change: 'text-changed',
+      moved: false,
+    });
+
+    const sim = rev1.sections[0]?.blocks[0];
+    if (sim?.type !== 'simulation') throw new Error('fixture changed');
+    const consented = buildBlockStateSnapshot(
+      sim,
+      { type: 'simulation', params: { weightKg: 80 } },
+      { includePersonal: true },
+    );
+    if (consented.kind !== 'snapshot') throw new Error(consented.kind);
+    const simLocator = {
+      kind: 'scroll_block' as const,
+      assetId: rev1.assetId,
+      revision: 1,
+      blockId: sim.id,
+      blockType: 'simulation',
+      blockVersion: 1,
+      state: consented.snapshot,
+    };
+    // weightKg stops being personal.
+    const notPersonal = structuredClone(rev1);
+    const first = notPersonal.sections[0]?.blocks[0];
+    if (first?.type !== 'simulation') throw new Error('fixture changed');
+    first.data.params = first.data.params.map(({ personal: _personal, ...param }) => param);
+    const rev3 = reseal(notPersonal, 3);
+    const map3 = deriveAnchorMap(rev1, rev3);
+    if (map3.kind !== 'derived') throw new Error(map3.reason);
+    expect(map3.map.entries.find((entry) => entry.from === sim.id)?.change).toBe('state-changed');
+    const stopped = repointLocator(simLocator, rev1, rev3, map3.map);
+    expect(stopped).toMatchObject({ kind: 'state-reset', change: 'state-changed' });
+    if (stopped.kind === 'state-reset') expect(stopped.locator.state).toBeUndefined();
+    // weightKg becomes personal again: a snapshot shared without personal values must not now carry one.
+    const plain = buildBlockStateSnapshot(first, { type: 'simulation', params: { weightKg: 80 } });
+    if (plain.kind !== 'snapshot') throw new Error(plain.kind);
+    expect(plain.snapshot).toEqual({
+      state: { type: 'simulation', params: { weightKg: 80 } },
+      personalIncluded: false,
+    });
+    const plainLocator = { ...simLocator, revision: 3, state: plain.snapshot };
+    const map4 = deriveAnchorMap(rev3, reseal(rev1, 4));
+    if (map4.kind !== 'derived') throw new Error(map4.reason);
+    expect(repointLocator(plainLocator, rev3, reseal(rev1, 4), map4.map)).toMatchObject({
+      kind: 'state-reset',
+      change: 'state-changed',
+    });
   });
 
   it('refuses maps that do not belong to the two revisions, and conflicting moves', () => {

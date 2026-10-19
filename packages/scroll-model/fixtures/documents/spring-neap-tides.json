@@ -26,7 +26,6 @@
           "a11y": {
             "label": "Paragraph"
           },
-          "fallbackText": "The Moon raises two bulges of ocean, one on the side facing it and one on the far side. As Earth turns through them, a coast gets two high tides a day.",
           "essential": false,
           "gesture": "none",
           "data": {
@@ -44,7 +43,6 @@
           "a11y": {
             "label": "Paragraph"
           },
-          "fallbackText": "The Sun raises bulges too, but smaller ones: its tidal pull is a little less than half the Moon’s. What matters is where those two sets of bulges point.",
           "essential": false,
           "gesture": "none",
           "data": {
@@ -188,7 +186,6 @@
           "a11y": {
             "label": "Paragraph"
           },
-          "fallbackText": "Slide the Sun’s share of the pull and watch the two kinds of tide move apart. In a line the pulls add; at a right angle the Sun takes some away.",
           "essential": false,
           "gesture": "none",
           "data": {
@@ -291,8 +288,7 @@
                   "label": "Neap tides",
                   "output": "neap"
                 }
-              ],
-              "barMax": 2
+              ]
             },
             "readout": {
               "template": "Spring tides are {ratio} the range of neap tides",
@@ -316,7 +312,9 @@
               ]
             },
             "modelNote": "Idealised: each range is the Moon’s pull plus or minus the Sun’s, relative to the Moon alone. The slider starts near the real share; real coasts differ.",
-            "illustrative": false
+            "illustrative": {
+              "notice": "Illustrative"
+            }
           }
         }
       ]
@@ -378,7 +376,6 @@
           "a11y": {
             "label": "Limits"
           },
-          "fallbackText": "Coastline shape, ocean depth, wind and storms bend the real pattern away from this picture, so a local tide table matters more than the Moon alone.",
           "essential": false,
           "gesture": "none",
           "data": {
@@ -432,6 +429,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "e047df7f65e3b2e34665805dd179c4ace663525504c22953e7471da800d1303a"
+    "sha256": "57988195e4030e9ae2a42bec49b2a75b96cd1e96a3035a39eecc2bb6c9660bf2"
   }
 }

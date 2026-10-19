@@ -43,19 +43,44 @@ export const Source = z.strictObject({
 });
 export type Source = z.infer<typeof Source>;
 
+/** A header field a binding can anchor in (title, dek and kicker are bindable like any text). */
+export const HEADER_FIELDS = ['title', 'dek', 'kicker'] as const;
+
 /**
- * Where a claim is relied on: a passage range of a text block (UTF-16, `text-projection.v1`), a
- * simulation constant, or a whole block (diagram, chart, table, simulation).
+ * Where a claim is relied on.
+ * - `passage`: a range `[start, end)` (UTF-16) of one text field of a block: `text` (a text
+ *   block's passage projection) or a field path from `textFields` (`data.caption`, `a11y.label`,
+ *   `fallbackText`, `data.rows.2.1` …). The range lies inside one sentence of that field.
+ * - `header` / `heading`: the same, in the title, dek or kicker, or in a section heading.
+ * - `constant`: a simulation constant. `value`: any other number of a simulation, by its path in
+ *   the block's data (`params.0.max`, `outputs.1.formula.exponent`, `readout.bands.0.min` …).
+ * - `block`: a whole block (a chart's data, a diagram's structure) rests on the claim.
  */
 export const ProvenanceBinding = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('passage'),
     claimId: OpaqueId,
     blockId: LocalId,
+    field: z.string().min(1).max(80),
+    start: z.number().int().min(0),
+    end: z.number().int().min(1),
+  }),
+  z.strictObject({
+    kind: z.literal('header'),
+    claimId: OpaqueId,
+    field: z.enum(HEADER_FIELDS),
+    start: z.number().int().min(0),
+    end: z.number().int().min(1),
+  }),
+  z.strictObject({
+    kind: z.literal('heading'),
+    claimId: OpaqueId,
+    sectionId: LocalId,
     start: z.number().int().min(0),
     end: z.number().int().min(1),
   }),
   z.strictObject({ kind: z.literal('constant'), claimId: OpaqueId, blockId: LocalId, constantKey: ParamKey }),
+  z.strictObject({ kind: z.literal('value'), claimId: OpaqueId, blockId: LocalId, path: z.string().min(1).max(80) }),
   z.strictObject({ kind: z.literal('block'), claimId: OpaqueId, blockId: LocalId }),
 ]);
 export type ProvenanceBinding = z.infer<typeof ProvenanceBinding>;
@@ -95,7 +120,7 @@ export const ScrollProvenance = z.strictObject({
   documentSha256: Sha256Hex,
   claims: z.array(Claim).max(48),
   sources: z.array(Source).max(24),
-  bindings: z.array(ProvenanceBinding).max(LIMITS.blocks * 3),
+  bindings: z.array(ProvenanceBinding).max(LIMITS.blocks * 6),
   checks: z.array(CheckRecord).max(32),
   production: ProductionRecord,
 });

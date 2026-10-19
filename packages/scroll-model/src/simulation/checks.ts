@@ -1,31 +1,44 @@
-import type { SimulationData, SimulationParam } from '../blocks/simulation.js';
+import type { SimulationData } from '../blocks/simulation.js';
 import { templateKeys } from '../blocks/simulation.js';
 import type { Issue, ReasonCode } from '../issues.js';
-import { FIELD_LIMITS } from '../limits.js';
-import { evaluateSimulation, formulaReferences, gridPositions, isOnGrid, sampleCurve, snapToGrid } from './evaluate.js';
+import { FIELD_LIMITS, LIMITS } from '../limits.js';
+import {
+  compileSimulation,
+  forEachGridPoint,
+  formulaReferences,
+  gridPositions,
+  isOnGrid,
+  simulationGridPoints,
+} from './evaluate.js';
+
+type CheckedSimulation = Pick<SimulationData, 'params' | 'constants' | 'outputs' | 'view' | 'readout'>;
 
 /**
  * Structural and computational checks of one simulation (`scroll-checks.v1`, computation stage).
- * Declarations are checked first; outputs are evaluated on a deterministic grid of parameter
- * values only when the declarations are sound, so evaluation never sees an unknown reference.
+ * Declarations are checked first. Only when they are sound is every output evaluated at **every**
+ * point of the parameter grid (at most `LIMITS.simulationGridPoints`, so this is a proof over the
+ * declared domain, not a sample) and, for a plot, at every curve sample: any non-finite or
+ * out-of-range output, and any negative bar or area, refuses the simulation.
  */
-export function simulationIssues(data: SimulationData, path: string): Issue[] {
+export function simulationIssues(data: CheckedSimulation, path: string): Issue[] {
   const codes = new Set<ReasonCode>();
   const params = new Map(data.params.map((param) => [param.key, param]));
-  const constants = new Set(data.constants.map((constant) => constant.key));
   const outputs = new Set(data.outputs.map((output) => output.key));
   const keys = [...data.params, ...data.constants, ...data.outputs].map((item) => item.key);
   if (new Set(keys).size !== keys.length) codes.add('sim_key_duplicate');
 
   for (const param of data.params) {
     const positions = gridPositions(param);
-    const integral = Math.abs(positions - Math.round(positions)) <= 1e-9 * Math.max(1, positions);
+    const integral =
+      Number.isFinite(positions) && Math.abs(positions - Math.round(positions)) <= 1e-9 * Math.max(1, positions);
     if (!(param.min < param.max) || !(param.step > 0) || !integral || positions > FIELD_LIMITS.sliderPositions) {
       codes.add('sim_param_range');
     } else if (!isOnGrid(param, param.default)) codes.add('sim_param_default');
   }
+  if (!codes.has('sim_param_range') && simulationGridPoints(data) > LIMITS.simulationGridPoints)
+    codes.add('sim_grid_too_large');
 
-  const scope = new Set<string>([...params.keys(), ...constants]);
+  const scope = new Set<string>([...params.keys(), ...data.constants.map((constant) => constant.key)]);
   for (const output of data.outputs) {
     if (formulaReferences(output.formula).some((key) => !scope.has(key))) codes.add('sim_reference_unknown');
     if (output.formula.kind === 'lookup') {
@@ -47,16 +60,13 @@ export function simulationIssues(data: SimulationData, path: string): Issue[] {
     case 'cards':
       if (
         view.items.some((item) => !outputs.has(item.output)) ||
-        new Set(view.items.map((item) => item.id)).size !== view.items.length ||
-        !(view.barMax > 0)
+        new Set(view.items.map((item) => item.id)).size !== view.items.length
       ) {
         codes.add('sim_view_invalid');
       }
       break;
     case 'plot':
-      if (!params.has(view.x) || !outputs.has(view.y) || !(view.yDomain[0] < view.yDomain[1])) {
-        codes.add('sim_view_invalid');
-      }
+      if (!params.has(view.x) || !outputs.has(view.y)) codes.add('sim_view_invalid');
       break;
     case 'area':
       if (!params.has(view.length) || !outputs.has(view.area) || (params.get(view.length)?.min ?? -1) < 0) {
@@ -73,61 +83,40 @@ export function simulationIssues(data: SimulationData, path: string): Issue[] {
     }
   }
 
-  if (codes.size === 0) for (const code of evaluationIssues(data)) codes.add(code);
+  if (codes.size === 0) for (const code of gridIssues(data)) codes.add(code);
   return [...codes].map((code) => ({ code, path }));
 }
 
-/** Values the validator tries for one parameter: min, max, default and up to eight grid points. */
-function probeValues(param: SimulationParam): number[] {
-  const positions = Math.round(gridPositions(param));
-  const values = new Set<number>([param.min, param.max, param.default]);
-  const count = Math.min(8, positions + 1);
-  for (let index = 0; index < count; index += 1) {
-    values.add(snapToGrid(param, param.min + param.step * Math.round((positions * index) / Math.max(1, count - 1))));
-  }
-  return [...values].sort((a, b) => a - b);
-}
-
-/**
- * Up to `FIELD_LIMITS.validationCombinations` parameter combinations, chosen deterministically:
- * the full product of probe values, thinned by a fixed stride when it is larger.
- */
-export function validationCombinations(data: Pick<SimulationData, 'params'>): Array<Record<string, number>> {
-  let combinations: Array<Record<string, number>> = [{}];
-  for (const param of data.params) {
-    const next: Array<Record<string, number>> = [];
-    for (const combination of combinations) {
-      for (const value of probeValues(param)) next.push({ ...combination, [param.key]: value });
-    }
-    combinations = next;
-  }
-  if (combinations.length <= FIELD_LIMITS.validationCombinations) return combinations;
-  const stride = combinations.length / FIELD_LIMITS.validationCombinations;
-  const thinned: Array<Record<string, number>> = [];
-  for (let index = 0; index < FIELD_LIMITS.validationCombinations; index += 1) {
-    const combination = combinations[Math.floor(index * stride)];
-    if (combination !== undefined) thinned.push(combination);
-  }
-  const last = combinations[combinations.length - 1];
-  if (last !== undefined && thinned[thinned.length - 1] !== last) thinned[thinned.length - 1] = last;
-  return thinned;
-}
-
-function evaluationIssues(data: SimulationData): ReasonCode[] {
+/** Evaluates the whole grid (and every plot sample); stops at the first failure. */
+function gridIssues(data: CheckedSimulation): ReasonCode[] {
+  const compiled = compileSimulation(data);
   const view = data.view;
-  for (const combination of validationCombinations(data)) {
-    const values = evaluateSimulation(data, combination);
-    if (Object.values(values.outputs).some((value) => value === null)) return ['sim_output_not_finite'];
-    if (view.kind === 'cards' && view.items.some((item) => (values.outputs[item.output] ?? -1) < 0)) {
-      return ['sim_view_out_of_range'];
-    }
-    if (view.kind === 'area' && (values.outputs[view.area] ?? -1) < 0) return ['sim_view_out_of_range'];
-    if (view.kind === 'plot') {
-      for (const point of sampleCurve(data, combination, view.x, view.y)) {
-        if (point.y === null) return ['sim_output_not_finite'];
-        if (point.y < view.yDomain[0] - 1e-9 || point.y > view.yDomain[1] + 1e-9) return ['sim_plot_out_of_domain'];
+  const outputPosition = (key: string) => data.outputs.findIndex((output) => output.key === key);
+  const nonNegative =
+    view.kind === 'cards'
+      ? view.items.map((item) => compiled.outputSlots[outputPosition(item.output)] ?? -1)
+      : view.kind === 'area'
+        ? [compiled.outputSlots[outputPosition(view.area)] ?? -1]
+        : [];
+  let failure: ReasonCode | null = null;
+  forEachGridPoint(
+    data,
+    (state) => {
+      for (const slot of state.outputSlots) {
+        if (Number.isNaN(state.slots[slot] ?? Number.NaN)) {
+          failure = 'sim_output_not_finite';
+          return false;
+        }
       }
-    }
-  }
-  return [];
+      for (const slot of nonNegative) {
+        if ((state.slots[slot] ?? -1) < 0) {
+          failure = 'sim_view_out_of_range';
+          return false;
+        }
+      }
+      return true;
+    },
+    view.kind === 'plot' ? { plotX: view.x } : {},
+  );
+  return failure === null ? [] : [failure];
 }

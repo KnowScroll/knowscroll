@@ -1,19 +1,7 @@
 {
-  "schemaVersion": "scroll-document.v1",
-  "assetId": "fixture-weight-other-worlds",
-  "revision": 1,
-  "language": "en",
-  "explanationUnitId": "fixture-eu-surface-gravity",
-  "template": "poster",
-  "theme": {
-    "family": "worlds"
-  },
-  "kicker": "Astronomy",
+  "draftVersion": "scroll-draft.v1",
   "title": "How heavy would you be on other worlds?",
   "dek": "Put in your weight and see what a bathroom scale would read.",
-  "framing": {
-    "kind": "factual"
-  },
   "sections": [
     {
       "id": "scales",
@@ -22,14 +10,12 @@
         {
           "id": "weight-sim",
           "type": "simulation",
-          "version": 1,
+          "essential": true,
           "a11y": {
             "label": "Your weight on four worlds",
             "description": "Enter your weight on Earth; four cards show what a scale would read on the Moon, Mars, Earth and Jupiter."
           },
           "fallbackText": "Text version: a scale reads your Earth weight times the world’s gravity. Someone who weighs 60 kg on Earth would read about 10 kg on the Moon, 23 kg on Mars and 152 kg at Jupiter’s cloud tops.",
-          "essential": true,
-          "gesture": "none",
           "data": {
             "title": "Your weight on other worlds",
             "params": [
@@ -149,8 +135,7 @@
                   "output": "jupiterKg",
                   "note": "Jupiter has no ground to stand on; this is at its cloud tops."
                 }
-              ],
-              "barMax": 510
+              ]
             },
             "modelNote": "Scale reading = your Earth weight × the world’s surface gravity compared with Earth, rounded to the nearest kilogram.",
             "illustrative": false
@@ -159,13 +144,6 @@
         {
           "id": "scales-p1",
           "type": "paragraph",
-          "version": 1,
-          "a11y": {
-            "label": "Paragraph"
-          },
-          "fallbackText": "What changes is surface gravity: how hard each world pulls on you. You are made of the same stuff everywhere; the scale just feels a different pull.",
-          "essential": false,
-          "gesture": "none",
           "data": {
             "spans": [
               {
@@ -190,13 +168,10 @@
         {
           "id": "gravity-chart",
           "type": "chart",
-          "version": 1,
           "a11y": {
             "label": "Surface gravity compared with Earth"
           },
-          "fallbackText": "Surface gravity compared with Earth: Moon about 0.17, Mars about 0.38, Earth 1, Jupiter about 2.53 at its cloud tops.",
-          "essential": false,
-          "gesture": "none",
+          "fallbackText": "Surface gravity compared with Earth: the Moon about 0.17, Mars about 0.38 and Jupiter about 2.53 at its cloud tops.",
           "data": {
             "title": "How hard each world pulls",
             "spec": {
@@ -206,7 +181,7 @@
               "series": [
                 {
                   "id": "gravity",
-                  "label": "Gravity (Earth = 1)",
+                  "label": "Gravity compared with Earth",
                   "values": [0.165, 0.38, 1, 2.53]
                 }
               ],
@@ -222,21 +197,10 @@
         {
           "id": "mass-callout",
           "type": "callout",
-          "version": 1,
-          "a11y": {
-            "label": "Key idea: Weight is not mass"
-          },
-          "fallbackText": "Weight is not mass. Your mass, how much stuff you are made of, is the same on every world. A scale measures the pull on that mass, so only the reading changes.",
-          "essential": false,
-          "gesture": "none",
           "data": {
             "kind": "key-idea",
             "title": "Weight is not mass",
-            "spans": [
-              {
-                "text": "Your mass, how much stuff you are made of, is the same on every world. A scale measures the pull on that mass, so only the reading changes."
-              }
-            ]
+            "spans": "Your mass, how much stuff you are made of, is the same on every world. A scale measures the pull on that mass, so only the reading changes."
           }
         }
       ]
@@ -248,56 +212,114 @@
         {
           "id": "limits-callout",
           "type": "callout",
-          "version": 1,
-          "a11y": {
-            "label": "Limits"
-          },
-          "fallbackText": "These readings ignore spin, altitude and the fact that you could not stand on Jupiter at all. They compare pulls, not what a trip would feel like.",
-          "essential": false,
-          "gesture": "none",
           "data": {
             "kind": "limit",
-            "spans": [
-              {
-                "text": "These readings ignore spin, altitude and the fact that you could not stand on Jupiter at all. They compare pulls, not what a trip would feel like."
-              }
-            ]
+            "spans": "These readings ignore spin, altitude and the fact that you could not stand on Jupiter at all. They compare pulls, not what a trip would feel like."
           }
         }
       ]
     }
   ],
-  "corrections": [],
-  "limitsVersion": "scroll-limits.v1",
-  "measures": {
-    "version": "scroll-measures.v1",
-    "readingMinutes": 1,
-    "totalWeight": 206,
-    "blocks": [
-      {
-        "blockId": "weight-sim",
-        "weight": 75
-      },
-      {
-        "blockId": "scales-p1",
-        "weight": 27
-      },
-      {
-        "blockId": "gravity-chart",
-        "weight": 45
-      },
-      {
-        "blockId": "mass-callout",
-        "weight": 32
-      },
-      {
-        "blockId": "limits-callout",
-        "weight": 27
-      }
-    ]
-  },
-  "integrity": {
-    "method": "canonical-json-sha256.v1",
-    "sha256": "d78cc24ee049b9a67f5943f430c3fe139b93a5e091c20f563eb592a1330f96fb"
-  }
+  "bindings": [
+    {
+      "kind": "constant",
+      "claimId": "clm-gravity-moon",
+      "blockId": "weight-sim",
+      "constantKey": "gMoon"
+    },
+    {
+      "kind": "constant",
+      "claimId": "clm-gravity-mars",
+      "blockId": "weight-sim",
+      "constantKey": "gMars"
+    },
+    {
+      "kind": "constant",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "weight-sim",
+      "constantKey": "gJupiter"
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-gravity-moon",
+      "blockId": "gravity-chart"
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-gravity-mars",
+      "blockId": "gravity-chart"
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "gravity-chart"
+    },
+    {
+      "kind": "value",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "path": "params.0.min"
+    },
+    {
+      "kind": "value",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "path": "params.0.max"
+    },
+    {
+      "kind": "value",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "path": "params.0.default"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "anchorText": "weighs 60 kg on Earth"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-moon",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "anchorText": "about 10 kg on the Moon"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-mars",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "anchorText": "23 kg on Mars"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "anchorText": "152 kg at Jupiter’s cloud tops"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-moon",
+      "blockId": "gravity-chart",
+      "field": "fallbackText",
+      "anchorText": "the Moon about 0.17"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-mars",
+      "blockId": "gravity-chart",
+      "field": "fallbackText",
+      "anchorText": "Mars about 0.38"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "gravity-chart",
+      "field": "fallbackText",
+      "anchorText": "Jupiter about 2.53"
+    }
+  ]
 }

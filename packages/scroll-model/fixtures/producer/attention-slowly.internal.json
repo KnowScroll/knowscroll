@@ -2,7 +2,7 @@
   "schemaVersion": "scroll-provenance.v1",
   "assetId": "fixture-attention-slowly",
   "revision": 1,
-  "documentSha256": "884d1f694cf4e8a1de9ed3d4a564529b5602ccdcb92fe9a482007001ca49d34d",
+  "documentSha256": "4afb7c4f4c47fef8be18b98ee7f7e2ee6b9b8abb9be254e873500958b3802214",
   "claims": [
     {
       "claimId": "clm-attn-pairwise",
@@ -47,6 +47,7 @@
       "kind": "passage",
       "claimId": "clm-attn-pairwise",
       "blockId": "crowd-p2",
+      "field": "text",
       "start": 71,
       "end": 107
     },
@@ -59,6 +60,7 @@
       "kind": "passage",
       "claimId": "clm-attn-quadratic",
       "blockId": "squared-p1",
+      "field": "text",
       "start": 39,
       "end": 62
     },
@@ -76,8 +78,17 @@
       "kind": "passage",
       "claimId": "clm-attn-softmax",
       "blockId": "weights-p1",
+      "field": "text",
       "start": 34,
       "end": 60
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-attn-pairwise",
+      "blockId": "grid-chart",
+      "field": "data.caption",
+      "start": 0,
+      "end": 29
     }
   ],
   "checks": [

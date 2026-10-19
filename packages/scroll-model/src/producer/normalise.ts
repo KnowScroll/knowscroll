@@ -13,11 +13,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Copies with NFC strings. Objects are rebuilt with a null prototype, so an own `__proto__` key in
+ * the model's JSON stays an ordinary (unknown, refused) member and never becomes a prototype.
+ */
 function nfc(value: unknown, key: string | null): unknown {
   if (typeof value === 'string') return key === 'code' ? value : value.normalize('NFC');
   if (Array.isArray(value)) return value.map((item: unknown) => nfc(item, null));
   if (isRecord(value)) {
-    const out: Record<string, unknown> = {};
+    const out = Object.create(null) as Record<string, unknown>;
     for (const [member, item] of Object.entries(value)) out[member] = nfc(item, member);
     return out;
   }

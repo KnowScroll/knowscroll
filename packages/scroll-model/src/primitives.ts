@@ -6,10 +6,23 @@ import { FIELD_LIMITS } from './limits.js';
  * accept or refuse, and the producer normalises before parsing (`producer/normalise.ts`).
  */
 
-/** C0/C1 controls and the Unicode line/paragraph separators, except the code units in `allowed`. */
+/**
+ * C0/C1 controls, the Unicode line/paragraph separators (except the code units in `allowed`) and
+ * lone surrogates. A lone surrogate is not text: it encodes as U+FFFD, so two different strings
+ * would hash alike.
+ */
 function containsControl(text: string, allowed: ReadonlySet<number>): boolean {
   for (let index = 0; index < text.length; index += 1) {
     const unit = text.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = text.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        index += 1;
+        continue;
+      }
+      return true;
+    }
+    if (unit >= 0xdc00 && unit <= 0xdfff) return true;
     const control = unit < 0x20 || (unit >= 0x7f && unit <= 0x9f) || unit === 0x2028 || unit === 0x2029;
     if (control && !allowed.has(unit)) return true;
   }
@@ -28,6 +41,7 @@ const WEB_ADDRESS =
 /** In code only schemes and `www.` count: `np.in` style member access must stay legal. */
 const CODE_WEB_ADDRESS = /(?:\b[a-z][a-z0-9+.-]*:\/\/)|(?:\bwww\.)/iu;
 
+/** True for control characters, line/paragraph separators and lone surrogates. */
 export function hasControlCharacters(text: string): boolean {
   return containsControl(text, NOTHING);
 }
@@ -40,7 +54,7 @@ function isNfc(text: string): boolean {
   return text.normalize('NFC') === text;
 }
 
-/** Single-line display text: trimmed, NFC, no control characters, no web address. */
+/** Single-line display text: trimmed, NFC, no control characters or lone surrogates, no web address. */
 export function plainText(min: number, max: number) {
   return z
     .string()
@@ -65,7 +79,7 @@ export function spanText(max: number) {
     .refine((text) => !mentionsWebAddress(text), { message: 'text_mentions_web_address' });
 }
 
-/** Displayed source code: never executed. Tabs and newlines allowed; no carriage returns. */
+/** Displayed source code: never executed. Tabs and newlines allowed; no carriage returns or lone surrogates. */
 export function codeText(max: number) {
   return z
     .string()

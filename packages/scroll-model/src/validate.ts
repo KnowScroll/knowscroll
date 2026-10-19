@@ -1,6 +1,6 @@
 import { Block, BLOCK_VERSIONS, isBlockType, type AnyBlock } from './blocks/catalog.js';
 import { BlockA11y, FallbackText } from './blocks/envelope.js';
-import { canonicalJson, canonicalSha256, canonicalSize } from './canonical.js';
+import { canonicalJson, canonicalSha256, canonicalSize, nestsDeeperThan, utf8ByteLength } from './canonical.js';
 import {
   INTEGRITY_METHOD,
   SCROLL_DOCUMENT_SCHEMA_VERSION,
@@ -8,11 +8,12 @@ import {
   walkBlocks,
   type Section,
 } from './document.js';
+import { fallbackBlockFor } from './fallback.js';
 import { issueFromSchema, uniqueIssues, type Issue, type ReasonCode } from './issues.js';
 import { FIELD_LIMITS, LIMITS } from './limits.js';
 import { computeMeasures } from './measures.js';
 import { LocalId } from './primitives.js';
-import { deriveGesture, isInteractiveBlock, isTextBlockType, visibleTexts } from './registry.js';
+import { BASELINE_TYPES, deriveGesture, fallbackTextOf, isInteractiveBlock, visibleTexts } from './registry.js';
 import { simulationIssues } from './simulation/checks.js';
 
 /**
@@ -29,8 +30,8 @@ export type DocumentOutcome =
 export interface ValidateOptions {
   /**
    * `stored` (default): a published revision; measures and integrity must match, and no
-   * `fallback` block may appear. `rendition`: the output of `negotiate` for one client, which keeps
-   * the stored revision's integrity and may contain fallbacks.
+   * `fallback` block or `rendition` member may appear. `rendition`: the output of `negotiate` for
+   * one client; when it substituted blocks it carries `rendition`, whose hash must match.
    */
   readonly purpose?: 'stored' | 'rendition';
 }
@@ -39,10 +40,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** SHA-256 of the canonical JSON of the document without its `integrity` member. */
-export function computeIntegrity(document: Omit<ScrollDocument, 'integrity'> & { integrity?: unknown }): string {
-  return canonicalSha256({ ...document, integrity: undefined });
+/** SHA-256 of the canonical JSON of the document without its `integrity` and `rendition` members. */
+export function computeIntegrity(
+  document: Omit<ScrollDocument, 'integrity' | 'rendition'> & { integrity?: unknown; rendition?: unknown },
+): string {
+  return canonicalSha256({ ...document, integrity: undefined, rendition: undefined });
 }
+
+/** Bytes a `rendition` member adds to a document (fixed: two SHA-256 digests and the method). */
+export const RENDITION_MEMBER_BYTES = utf8ByteLength(
+  `,"rendition":${canonicalJson({ method: INTEGRITY_METHOD, of: '0'.repeat(64), sha256: '0'.repeat(64) })}`,
+);
 
 /** Unknown block types and versions, found before schema parsing so they get their own codes. */
 function unknownBlockIssues(input: Record<string, unknown>): Issue[] {
@@ -71,12 +79,15 @@ function unknownBlockIssues(input: Record<string, unknown>): Issue[] {
   return issues;
 }
 
-/** Checks of one block that need no document context. */
-export function blockIssues(block: AnyBlock, path: string): Issue[] {
+/**
+ * Checks of one block that need no document context. `evaluate: false` skips the full-grid
+ * evaluation of simulations (used once a document has already failed a limit).
+ */
+export function blockIssues(block: AnyBlock, path: string, options: { evaluate?: boolean } = {}): Issue[] {
   const issues: Issue[] = [];
   const add = (code: ReasonCode, at = path) => issues.push({ code, path: at });
   if (block.gesture !== deriveGesture(block)) add('gesture_mismatch', `${path}.gesture`);
-  if (!isTextBlockType(block.type) && block.type !== 'fallback') {
+  if ('fallbackText' in block && block.type !== 'fallback') {
     if (block.fallbackText.length < FIELD_LIMITS.fallbackTextMinChars)
       add('fallback_text_too_short', `${path}.fallbackText`);
   }
@@ -115,7 +126,7 @@ export function blockIssues(block: AnyBlock, path: string): Issue[] {
       issues.push(...chartIssues(block, data));
       break;
     case 'simulation':
-      issues.push(...simulationIssues(block.data, data));
+      if (options.evaluate !== false) issues.push(...simulationIssues(block.data, data));
       break;
     case 'paragraph':
     case 'subheading':
@@ -194,7 +205,12 @@ function chartIssues(block: Extract<AnyBlock, { type: 'chart' }>, path: string):
       const [low, high] = axis.domain;
       if (!(low < high) || values.some((value) => value < low || value > high)) codes.add('chart_domain');
     }
-    if (axis.scale === 'log' && values.some((value) => value <= 0)) codes.add('chart_log_scale');
+    if (
+      axis.scale === 'log' &&
+      (values.some((value) => value <= 0) || (axis.domain !== undefined && axis.domain[0] <= 0))
+    ) {
+      codes.add('chart_log_scale');
+    }
   };
   switch (spec.kind) {
     case 'bar': {
@@ -251,7 +267,38 @@ interface DocumentLike {
   readonly sections: readonly Section[];
 }
 
-/** Document-wide structure and limits, plus every block's own checks. */
+const BASELINE: ReadonlySet<string> = new Set(BASELINE_TYPES);
+
+/**
+ * Visible characters of a block in the worst rendition: a block a client may lack (anything but
+ * the baseline paragraph, subheading and fallback) can be shown as its fallback text instead, and
+ * a disclosure as its own fallback or with any of its children substituted.
+ */
+export function worstVisibleChars(block: AnyBlock): number {
+  const own = visibleTexts(block).reduce((total, text) => total + text.length, 0);
+  if (BASELINE.has(block.type)) return own;
+  const fallback = fallbackTextOf(block).length;
+  if (block.type === 'disclosure') {
+    const open = own + block.data.blocks.reduce((total, child) => total + worstVisibleChars(child), 0);
+    return Math.max(fallback, open);
+  }
+  return Math.max(fallback, own);
+}
+
+/** Bytes a block can add to a document when a rendition substitutes it (or, for a disclosure, its children). */
+export function worstGrowthBytes(block: AnyBlock): number {
+  if (BASELINE.has(block.type)) return 0;
+  const substituted = canonicalSize(fallbackBlockFor(block)) - canonicalSize(block);
+  if (block.type !== 'disclosure') return Math.max(0, substituted);
+  const children = block.data.blocks.reduce((total, child) => total + worstGrowthBytes(child), 0);
+  return Math.max(0, substituted, children);
+}
+
+/**
+ * Document-wide structure and limits, then every block's own checks. Limits are counted first and
+ * cheaply; when one fails, simulations are not evaluated. The visible-text limit holds for the
+ * worst rendition a client can be given, so `negotiate` never produces an invalid document.
+ */
 export function documentIssues(document: DocumentLike): Issue[] {
   const issues: Issue[] = [];
   const ids = new Set<string>();
@@ -265,40 +312,60 @@ export function documentIssues(document: DocumentLike): Issue[] {
     if (index > 0 && section.heading === null)
       issues.push({ code: 'heading_missing', path: `sections.${index}.heading` });
     visibleChars += section.heading?.length ?? 0;
+    for (const block of section.blocks) visibleChars += worstVisibleChars(block);
   });
   let blocks = 0;
   let interactive = 0;
   let params = 0;
-  for (const visit of walkBlocks(document.sections)) {
-    const { block, path } = visit;
+  let media = 0;
+  for (const { block, path } of walkBlocks(document.sections)) {
     blocks += 1;
     claim(block.id, `${path}.id`);
     if (isInteractiveBlock(block)) interactive += 1;
     if (block.type === 'simulation') params += block.data.params.length;
-    visibleChars += visibleTexts(block).reduce((total, text) => total + text.length, 0);
-    issues.push(...blockIssues(block, path));
+    if (block.type === 'figure' || block.type === 'media') media += 1;
   }
-  if (blocks > LIMITS.blocks) issues.push({ code: 'too_many_blocks', path: '$' });
-  if (interactive > LIMITS.interactiveBlocks) issues.push({ code: 'too_many_interactive', path: '$' });
-  if (params > LIMITS.paramsTotal) issues.push({ code: 'too_many_params', path: '$' });
-  if (visibleChars > LIMITS.visibleChars) issues.push({ code: 'visible_text_too_long', path: '$' });
-  return issues;
+  const limits: Issue[] = [];
+  if (blocks > LIMITS.blocks) limits.push({ code: 'too_many_blocks', path: '$' });
+  if (interactive > LIMITS.interactiveBlocks) limits.push({ code: 'too_many_interactive', path: '$' });
+  if (params > LIMITS.paramsTotal) limits.push({ code: 'too_many_params', path: '$' });
+  if (media > LIMITS.mediaBlocks) limits.push({ code: 'too_many_media', path: '$' });
+  if (visibleChars > LIMITS.visibleChars) limits.push({ code: 'visible_text_too_long', path: '$' });
+  const evaluate = limits.length === 0;
+  for (const { block, path } of walkBlocks(document.sections)) issues.push(...blockIssues(block, path, { evaluate }));
+  return [...limits, ...issues];
 }
 
-/** Validates an untrusted value as a scroll-document.v1 revision (or a client rendition of one). */
+/**
+ * Validates an untrusted value as a scroll-document.v1 revision (or a client rendition of one).
+ * Order, cheapest first: shape of the envelope, nesting depth, canonical byte size, unknown block
+ * types, the schema, counted limits, then per-block checks (simulations last, and only when every
+ * limit holds).
+ */
 export function validateDocument(input: unknown, options: ValidateOptions = {}): DocumentOutcome {
   if (!isRecord(input)) return { kind: 'invalid', issues: [{ code: 'document_not_object', path: '$' }] };
   const version = input['schemaVersion'];
   if (version !== SCROLL_DOCUMENT_SCHEMA_VERSION) {
     return { kind: 'unsupported-version', schemaVersion: typeof version === 'string' ? version : null };
   }
+  if (nestsDeeperThan(input, FIELD_LIMITS.jsonDepth))
+    return { kind: 'invalid', issues: [{ code: 'document_too_deep', path: '$' }] };
+  let size: number;
+  try {
+    size = canonicalSize(input);
+  } catch {
+    return { kind: 'invalid', issues: [{ code: 'document_not_object', path: '$' }] };
+  }
+  if (size > LIMITS.documentBytes) return { kind: 'invalid', issues: [{ code: 'document_too_large', path: '$' }] };
   const unknown = unknownBlockIssues(input);
   if (unknown.length > 0) return { kind: 'invalid', issues: unknown };
   const parsed = ScrollDocument.safeParse(input);
   if (!parsed.success) return { kind: 'invalid', issues: uniqueIssues(parsed.error.issues.map(issueFromSchema)) };
   const document = parsed.data;
   const issues = documentIssues(document);
-  if ((options.purpose ?? 'stored') === 'stored') {
+  const rendition = document.rendition;
+  if ((options.purpose ?? 'stored') === 'stored' || rendition === undefined) {
+    if (rendition !== undefined) issues.push({ code: 'rendition_in_stored_document', path: 'rendition' });
     for (const visit of walkBlocks(document.sections)) {
       if (visit.block.type === 'fallback') issues.push({ code: 'fallback_in_stored_document', path: visit.path });
     }
@@ -310,8 +377,14 @@ export function validateDocument(input: unknown, options: ValidateOptions = {}):
         issues.push({ code: 'integrity_mismatch', path: 'integrity' });
       }
     }
+  } else if (rendition.of !== document.integrity.sha256 || computeIntegrity(document) !== rendition.sha256) {
+    issues.push({ code: 'rendition_integrity_mismatch', path: 'rendition' });
   }
-  if (canonicalSize(document) > LIMITS.documentBytes) issues.push({ code: 'document_too_large', path: '$' });
+  const growth = document.sections.reduce(
+    (total, section) => total + section.blocks.reduce((sum, block) => sum + worstGrowthBytes(block), 0),
+    rendition === undefined ? RENDITION_MEMBER_BYTES : 0,
+  );
+  if (size + growth > LIMITS.documentBytes) issues.push({ code: 'document_too_large', path: '$' });
   return issues.length === 0 ? { kind: 'valid', document } : { kind: 'invalid', issues: uniqueIssues(issues) };
 }
 
@@ -360,6 +433,8 @@ export function readEnvelope(input: unknown): BlockEnvelopeView {
  */
 export function parseBlock(input: unknown): BlockOutcome {
   const envelope = readEnvelope(input);
+  if (nestsDeeperThan(input, FIELD_LIMITS.jsonDepth))
+    return { kind: 'invalid', envelope, issues: [{ code: 'document_too_deep', path: '$' }] };
   if (envelope.type !== null && !isBlockType(envelope.type))
     return { kind: 'unsupported', reason: 'unknown-type', envelope };
   if (envelope.type !== null && isBlockType(envelope.type) && envelope.version !== BLOCK_VERSIONS[envelope.type]) {

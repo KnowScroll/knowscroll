@@ -103,9 +103,11 @@ export const SimulationOutput = z.strictObject({
 export type SimulationOutput = z.infer<typeof SimulationOutput>;
 
 /**
- * The closed set of views.
+ * The closed set of views. Display scales are not written by the model: bars and areas are scaled
+ * to the largest value over the parameter grid and a plot's y range is the curve's range over the
+ * grid (`cardsScale`, `plotRange`), so no unbound number enters through a view.
  * - `readout`: one large output (and an optional secondary), plus the readout sentence.
- * - `cards`: 2–8 outputs side by side, each with a bar scaled to `barMax`.
+ * - `cards`: 2–8 outputs side by side, each with a bar.
  * - `plot`: an output as a curve over one parameter's range, with a marker at its value.
  * - `area`: a parameter as a bar beside an output as a square of proportional area.
  */
@@ -124,15 +126,12 @@ export const SimulationView = z.discriminatedUnion('kind', [
       )
       .min(2)
       .max(FIELD_LIMITS.cards),
-    /** Display scale: the value that fills a bar. */
-    barMax: FiniteNumber,
   }),
   z.strictObject({
     kind: z.literal('plot'),
     x: ParamKey,
     y: ParamKey,
     yLabel: plainText(1, 40),
-    yDomain: z.tuple([FiniteNumber, FiniteNumber]),
   }),
   z.strictObject({
     kind: z.literal('area'),
@@ -172,7 +171,7 @@ export const SimulationReadout = z.strictObject({
 });
 export type SimulationReadout = z.infer<typeof SimulationReadout>;
 
-export const SimulationData = z.strictObject({
+const simulationShape = {
   title: plainText(1, 100),
   prompt: plainText(1, 120).optional(),
   params: z.array(SimulationParam).min(1).max(LIMITS.paramsPerBlock),
@@ -180,9 +179,30 @@ export const SimulationData = z.strictObject({
   outputs: z.array(SimulationOutput).min(1).max(FIELD_LIMITS.outputs),
   view: SimulationView,
   readout: SimulationReadout.optional(),
-  /** Units, assumptions and limits, shown under the view (e.g. "illustrative, not a forecast"). */
+  /** Units, assumptions and limits, shown under the view. */
   modelNote: plainText(10, 240),
-  /** true: the numbers are a teaching choice; false: every constant is bound to a claim. */
-  illustrative: z.boolean(),
+};
+
+/** The notice a renderer must show, always and visibly, on an illustrative simulation. */
+export const ILLUSTRATIVE_NOTICE = 'Illustrative';
+
+/**
+ * A simulation as stored. `illustrative` is either `false` (every number is bound to a claim) or
+ * the notice the renderer must show next to the view and in its text version: an illustrative
+ * simulation's numbers are a teaching choice, not evidence, and readers are told so.
+ */
+export const SimulationData = z.strictObject({
+  ...simulationShape,
+  illustrative: z.union([z.literal(false), z.strictObject({ notice: z.literal(ILLUSTRATIVE_NOTICE) })]),
 });
 export type SimulationData = z.infer<typeof SimulationData>;
+
+/** A simulation as the writer drafts it: `illustrative` is a plain choice; code adds the notice. */
+export const DraftSimulationData = z.strictObject({ ...simulationShape, illustrative: z.boolean() });
+
+/** The data the evaluator needs. */
+export type SimulationCore = Pick<SimulationData, 'params' | 'constants' | 'outputs'>;
+
+export function isIllustrative(data: Pick<SimulationData, 'illustrative'>): boolean {
+  return data.illustrative !== false;
+}

@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   canonicalJson,
   FULL_V1_CAPABILITIES,
   isInteractiveBlock,
+  isTextBlockType,
   LIMITS,
   negotiate,
   validateDocument,
@@ -101,6 +103,31 @@ describe('labelled fixtures (CI fixtures, not product content)', () => {
     });
     const weight = fixture('weight-other-worlds').document;
     expect(weight.sections[0]?.blocks[0]).toMatchObject({ id: 'weight-sim', gesture: 'none' });
+  });
+
+  it('store no fallback text on text blocks (it is derived), and mark illustrative simulations visibly', () => {
+    for (const item of allFixtures()) {
+      for (const { block } of walkBlocks(item.document.sections)) {
+        if (isTextBlockType(block.type)) expect('fallbackText' in block, block.id).toBe(false);
+        if (block.type === 'simulation' && block.data.illustrative !== false) {
+          expect(block.data.illustrative).toEqual({ notice: 'Illustrative' });
+        }
+      }
+    }
+    const illustrative = allFixtures().flatMap((item) =>
+      [...walkBlocks(item.document.sections)].flatMap((visit) =>
+        visit.block.type === 'simulation' ? [[visit.block.id, visit.block.data.illustrative !== false] as const] : [],
+      ),
+    );
+    expect(Object.fromEntries(illustrative)).toEqual({ 'length-sim': true, 'weight-sim': false, 'range-sim': true });
+  });
+
+  it('export only consumer documents to other packages (never drafts or internal provenance)', () => {
+    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+      exports: Record<string, unknown>;
+    };
+    const fixtureExports = Object.entries(manifest.exports).filter(([key]) => key.startsWith('./fixtures'));
+    expect(fixtureExports).toEqual([['./fixtures/*.json', './fixtures/documents/*.json']]);
   });
 
   it('carry a personal parameter only where the reader enters their own data', () => {

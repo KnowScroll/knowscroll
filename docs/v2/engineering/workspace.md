@@ -100,7 +100,8 @@ building and using the product by hand.
 | `cross-module-through-public` | a module imports another module only through its `public.ts` |
 | `infrastructure-below-modules` | infrastructure never imports modules (identity's public types excepted) or apps |
 | `contracts-are-wire-only` | contracts import Zod, `@orpc/contract` and the `scroll-model` (public entry only)/`scene-core` sources they re-export |
-| `clients-never-import-scroll-internals` | the client app and client packages never import scroll-model's `internal/` or `producer/` |
+| `clients-never-import-scroll-internals` | the client app and client packages never import scroll-model's `internal/` or `producer/` (by path or package specifier) |
+| `clients-never-import-scroll-producer-fixtures` | client code never reaches scroll-model's `fixtures/producer/` (drafts, claims, sources) |
 | `scroll-model-public-entry-is-self-contained` | scroll-model's public modules never reach its `internal/` or `producer/` code |
 | `scroll-model-is-portable`, `scroll-model-depends-on-zod-only` | scroll-model uses no Node built-ins and no third party but Zod outside tests |
 | `clients-never-import-backend` | `apps/client` and the client packages (`client-core`, `ui`, `design-tokens`, `scroll-model`, `scene-core`) never import backend code, apps or migrations |

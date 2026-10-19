@@ -2,71 +2,99 @@ import type {
   Formula,
   NumberFormat,
   Operand,
-  SimulationData,
+  SimulationCore,
   SimulationParam,
   SimulationReadout,
+  SimulationView,
 } from '../blocks/simulation.js';
 import { templateKeys } from '../blocks/simulation.js';
 import { FIELD_LIMITS, LIMITS } from '../limits.js';
 
 /**
- * Pure, bounded and deterministic evaluation of a simulation (what the renderer calls). Every
- * formula kind runs in constant time (lookup: at most 12 entries), a simulation has at most six
- * outputs, and a curve has at most 200 samples. A non-finite result, or one beyond ±1e15,
- * becomes `null` and renders as "—"; evaluation never throws.
+ * Pure, bounded and deterministic evaluation of a simulation (what the renderer calls). A
+ * simulation is compiled once into closures over a `Float64Array` of slots (parameters, constants,
+ * outputs), so evaluating a point allocates nothing; every formula kind runs in constant time
+ * (lookup: at most 12 entries), a simulation has at most six outputs, its grid at most 10,000
+ * points and a curve at most 200 samples. A non-finite result, or one beyond ±1e15, becomes `null`
+ * and renders as "—"; evaluation never throws.
  */
 
-type Scope = ReadonlyMap<string, number>;
+type Slots = Float64Array;
+type Run = (slots: Slots) => number;
 
-function operand(value: Operand, scope: Scope): number {
-  return typeof value === 'number' ? value : (scope.get(value) ?? Number.NaN);
+function compileOperand(operand: Operand, slotOf: (key: string) => number): Run {
+  if (typeof operand === 'number') return () => operand;
+  const slot = slotOf(operand);
+  return slot < 0 ? () => Number.NaN : (slots) => slots[slot] ?? Number.NaN;
+}
+
+function compileFormula(formula: Formula, slotOf: (key: string) => number): Run {
+  const operand = (value: Operand) => compileOperand(value, slotOf);
+  switch (formula.kind) {
+    case 'linear': {
+      const [x, a, b] = [operand(formula.x), operand(formula.a), operand(formula.b)];
+      return (slots) => a(slots) * x(slots) + b(slots);
+    }
+    case 'product': {
+      const factors = formula.factors.map(operand);
+      return (slots) => {
+        let product = 1;
+        for (const factor of factors) product *= factor(slots);
+        return product;
+      };
+    }
+    case 'ratio': {
+      const [numerator, denominator] = [operand(formula.numerator), operand(formula.denominator)];
+      return (slots) => numerator(slots) / denominator(slots);
+    }
+    case 'power': {
+      const [x, base, scale] = [operand(formula.x), operand(formula.base), operand(formula.scale)];
+      const exponent = formula.exponent;
+      return (slots) => scale(slots) * (x(slots) / base(slots)) ** exponent;
+    }
+    case 'exponential': {
+      const [x, rate, initial] = [operand(formula.x), operand(formula.rate), operand(formula.initial)];
+      return (slots) => initial(slots) * Math.exp(rate(slots) * x(slots));
+    }
+    case 'inverse-square': {
+      const [r, k] = [operand(formula.r), operand(formula.k)];
+      return (slots) => {
+        const distance = r(slots);
+        return k(slots) / (distance * distance);
+      };
+    }
+    case 'lookup': {
+      const input = compileOperand(formula.input, slotOf);
+      const at = formula.table.map((entry) => entry.at);
+      const values = formula.table.map((entry) => operand(entry.value));
+      const interpolate = formula.mode === 'interpolate';
+      return (slots) => {
+        const x = input(slots);
+        const last = at.length - 1;
+        if (Number.isNaN(x) || last < 1) return Number.NaN;
+        if (x <= (at[0] ?? Number.NaN)) return values[0]?.(slots) ?? Number.NaN;
+        if (x >= (at[last] ?? Number.NaN)) return values[last]?.(slots) ?? Number.NaN;
+        for (let index = 0; index < last; index += 1) {
+          const low = at[index] ?? Number.NaN;
+          const high = at[index + 1] ?? Number.NaN;
+          if (x >= low && x < high) {
+            const lowValue = values[index]?.(slots) ?? Number.NaN;
+            if (!interpolate) return lowValue;
+            const highValue = values[index + 1]?.(slots) ?? Number.NaN;
+            return lowValue + ((highValue - lowValue) * (x - low)) / (high - low);
+          }
+        }
+        return Number.NaN;
+      };
+    }
+  }
 }
 
 /** Evaluates one formula against parameter, constant and earlier output values. */
-export function evaluateFormula(formula: Formula, scope: Scope): number {
-  switch (formula.kind) {
-    case 'linear':
-      return operand(formula.a, scope) * operand(formula.x, scope) + operand(formula.b, scope);
-    case 'product':
-      return formula.factors.reduce<number>((product, factor) => product * operand(factor, scope), 1);
-    case 'ratio':
-      return operand(formula.numerator, scope) / operand(formula.denominator, scope);
-    case 'power':
-      return (
-        operand(formula.scale, scope) * (operand(formula.x, scope) / operand(formula.base, scope)) ** formula.exponent
-      );
-    case 'exponential':
-      return operand(formula.initial, scope) * Math.exp(operand(formula.rate, scope) * operand(formula.x, scope));
-    case 'inverse-square': {
-      const r = operand(formula.r, scope);
-      return operand(formula.k, scope) / (r * r);
-    }
-    case 'lookup':
-      return evaluateLookup(formula, scope);
-  }
-}
-
-function evaluateLookup(formula: Extract<Formula, { kind: 'lookup' }>, scope: Scope): number {
-  const input = scope.get(formula.input) ?? Number.NaN;
-  if (Number.isNaN(input)) return Number.NaN;
-  const table = formula.table;
-  const first = table[0];
-  const last = table[table.length - 1];
-  if (first === undefined || last === undefined) return Number.NaN;
-  if (input <= first.at) return operand(first.value, scope);
-  if (input >= last.at) return operand(last.value, scope);
-  for (let index = 0; index + 1 < table.length; index += 1) {
-    const low = table[index];
-    const high = table[index + 1];
-    if (low === undefined || high === undefined) break;
-    if (input >= low.at && input < high.at) {
-      const lowValue = operand(low.value, scope);
-      if (formula.mode === 'step') return lowValue;
-      const highValue = operand(high.value, scope);
-      return lowValue + ((highValue - lowValue) * (input - low.at)) / (high.at - low.at);
-    }
-  }
-  return Number.NaN;
+export function evaluateFormula(formula: Formula, scope: ReadonlyMap<string, number>): number {
+  const keys = [...scope.keys()];
+  const slots = Float64Array.from(keys.map((key) => scope.get(key) ?? Number.NaN));
+  return compileFormula(formula, (key) => keys.indexOf(key))(slots);
 }
 
 /** Keys a formula reads. */
@@ -90,28 +118,8 @@ export function formulaReferences(formula: Formula): string[] {
   }
 }
 
-/**
- * Literal numbers a formula computes with. Structural fields are excluded: a power's exponent and
- * a lookup's `at` breakpoints describe the shape of the formula, not a quantity.
- */
-export function formulaLiterals(formula: Formula): number[] {
-  const literals = (...values: Operand[]) => values.filter((value): value is number => typeof value === 'number');
-  switch (formula.kind) {
-    case 'linear':
-      return literals(formula.x, formula.a, formula.b);
-    case 'product':
-      return literals(...formula.factors);
-    case 'ratio':
-      return literals(formula.numerator, formula.denominator);
-    case 'power':
-      return literals(formula.x, formula.base, formula.scale);
-    case 'exponential':
-      return literals(formula.x, formula.rate, formula.initial);
-    case 'inverse-square':
-      return literals(formula.r, formula.k);
-    case 'lookup':
-      return literals(...formula.table.map((entry) => entry.value));
-  }
+function bounded(value: number): number | null {
+  return Number.isFinite(value) && Math.abs(value) <= FIELD_LIMITS.numberMagnitude ? value : null;
 }
 
 function decimalPlaces(value: number): number {
@@ -128,33 +136,126 @@ export function gridPositions(param: Pick<SimulationParam, 'min' | 'max' | 'step
   return (param.max - param.min) / param.step;
 }
 
-/** The nearest value on the parameter's grid, clamped to `[min, max]`; NaN becomes the default. */
+function hasUsableGrid(param: SimulationParam): boolean {
+  return (
+    Number.isFinite(param.min) &&
+    Number.isFinite(param.max) &&
+    Number.isFinite(param.step) &&
+    param.step > 0 &&
+    param.min <= param.max
+  );
+}
+
+function finiteOr(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback;
+}
+
+/**
+ * The nearest value on the parameter's grid, clamped to `[min, max]`. Never NaN: a non-finite
+ * value means the default, and a parameter without a usable grid (which validation refuses)
+ * yields its default, its minimum or 0, in that order of preference.
+ */
 export function snapToGrid(param: SimulationParam, value: number): number {
-  if (!Number.isFinite(value)) return param.default;
-  const clamped = Math.min(param.max, Math.max(param.min, value));
+  const fallback = finiteOr(param.default, finiteOr(param.min, 0));
+  if (!hasUsableGrid(param)) return fallback;
+  const target = Number.isFinite(value) ? value : fallback;
+  const clamped = Math.min(param.max, Math.max(param.min, target));
   const steps = Math.round((clamped - param.min) / param.step);
   const precision = Math.min(12, Math.max(decimalPlaces(param.min), decimalPlaces(param.step)));
   const snapped = Number((param.min + steps * param.step).toFixed(precision));
-  return Math.min(param.max, Math.max(param.min, snapped));
+  return Number.isFinite(snapped) ? Math.min(param.max, Math.max(param.min, snapped)) : param.min;
 }
 
 /** True when the value lies on the parameter's grid within `[min, max]`. */
 export function isOnGrid(param: SimulationParam, value: number): boolean {
-  if (!Number.isFinite(value) || value < param.min || value > param.max) return false;
+  if (!hasUsableGrid(param) || !Number.isFinite(value) || value < param.min || value > param.max) return false;
   return Math.abs(snapToGrid(param, value) - value) <= 1e-9 * Math.max(1, Math.abs(value));
+}
+
+/** Number of values on the parameter's grid, or 0 when it has no usable grid. */
+export function gridSize(param: SimulationParam): number {
+  if (!hasUsableGrid(param)) return 0;
+  const positions = gridPositions(param);
+  return Number.isFinite(positions) ? Math.round(positions) + 1 : 0;
+}
+
+/** Every value of the parameter's grid, in order (empty beyond `sliderPositions` positions). */
+export function gridValues(param: SimulationParam): number[] {
+  const size = gridSize(param);
+  if (size === 0 || size > FIELD_LIMITS.sliderPositions + 1) return [];
+  return Array.from({ length: size }, (_, index) => snapToGrid(param, param.min + index * param.step));
+}
+
+/** Points of the full parameter grid (product of the parameters' grid sizes). */
+export function simulationGridPoints(data: Pick<SimulationCore, 'params'>): number {
+  return data.params.reduce((points, param) => points * gridSize(param), 1);
 }
 
 /** Parameter values to evaluate: defaults, overridden by given values snapped onto the grid. */
 export function resolveParams(
-  data: Pick<SimulationData, 'params'>,
+  data: Pick<SimulationCore, 'params'>,
   values: Readonly<Record<string, number>> = {},
 ): Record<string, number> {
   const resolved: Record<string, number> = {};
   for (const param of data.params) {
     const given = Object.hasOwn(values, param.key) ? values[param.key] : undefined;
-    resolved[param.key] = given === undefined ? param.default : snapToGrid(param, given);
+    resolved[param.key] = snapToGrid(param, given ?? param.default);
   }
   return resolved;
+}
+
+/** A simulation compiled for repeated evaluation. */
+export interface CompiledSimulation {
+  readonly slots: Slots;
+  readonly paramSlots: readonly number[];
+  readonly outputSlots: readonly number[];
+  /** Evaluates every output in order, writing each (bounded, NaN for null) into its slot. */
+  run(): void;
+}
+
+const compiledCache = new WeakMap<object, CompiledSimulation>();
+
+/** Compiles (and caches per data object) a simulation's formulas into slot closures. */
+export function compileSimulation(data: SimulationCore): CompiledSimulation {
+  const cached = compiledCache.get(data);
+  if (cached !== undefined) return cached;
+  const index = new Map<string, number>();
+  const claim = (key: string) => {
+    const existing = index.get(key);
+    if (existing !== undefined) return existing;
+    index.set(key, index.size);
+    return index.size - 1;
+  };
+  const paramSlots = data.params.map((param) => claim(param.key));
+  const constantSlots = data.constants.map((constant) => claim(constant.key));
+  const runs: Array<{ slot: number; run: Run }> = [];
+  const defined = new Set<string>([
+    ...data.params.map((param) => param.key),
+    ...data.constants.map((constant) => constant.key),
+  ]);
+  for (const output of data.outputs) {
+    const run = compileFormula(output.formula, (key) => (defined.has(key) ? (index.get(key) ?? -1) : -1));
+    const slot = claim(output.key);
+    defined.add(output.key);
+    runs.push({ slot, run });
+  }
+  const slots = new Float64Array(index.size);
+  data.constants.forEach((constant, position) => {
+    slots[constantSlots[position] ?? 0] = constant.value;
+  });
+  const compiled: CompiledSimulation = {
+    slots,
+    paramSlots,
+    outputSlots: runs.map((entry) => entry.slot),
+    run() {
+      for (const { slot, run } of runs) {
+        const value = run(slots);
+        slots[slot] = bounded(value) ?? Number.NaN;
+      }
+    },
+  };
+  compiledCache.set(data, compiled);
+  return compiled;
 }
 
 export interface SimulationValues {
@@ -162,72 +263,154 @@ export interface SimulationValues {
   readonly outputs: Readonly<Record<string, number | null>>;
 }
 
-function bounded(value: number): number | null {
-  return Number.isFinite(value) && Math.abs(value) <= FIELD_LIMITS.numberMagnitude ? value : null;
-}
-
 /**
  * Evaluates every output in declaration order. Values for unknown keys are ignored; missing
  * parameters take their defaults; given values are snapped onto the grid.
  */
 export function evaluateSimulation(
-  data: Pick<SimulationData, 'params' | 'constants' | 'outputs'>,
+  data: SimulationCore,
   values: Readonly<Record<string, number>> = {},
 ): SimulationValues {
   const params = resolveParams(data, values);
-  const scope = new Map<string, number>();
-  for (const param of data.params) scope.set(param.key, params[param.key] ?? param.default);
-  for (const constant of data.constants) scope.set(constant.key, constant.value);
+  const compiled = compileSimulation(data);
+  data.params.forEach((param, position) => {
+    compiled.slots[compiled.paramSlots[position] ?? 0] = params[param.key] ?? Number.NaN;
+  });
+  compiled.run();
   const outputs: Record<string, number | null> = {};
-  for (const output of data.outputs) {
-    const value = bounded(evaluateFormula(output.formula, scope));
-    outputs[output.key] = value;
-    scope.set(output.key, value ?? Number.NaN);
-  }
+  data.outputs.forEach((output, position) => {
+    const value = compiled.slots[compiled.outputSlots[position] ?? 0] ?? Number.NaN;
+    outputs[output.key] = Number.isNaN(value) ? null : value;
+  });
   return { params, outputs };
 }
 
 /** Number of samples a `plot` view draws over a parameter's range (at most `LIMITS.chartPoints`). */
 export function curveSampleCount(param: SimulationParam): number {
-  const positions = Math.round(gridPositions(param));
-  return Math.max(2, Math.min(LIMITS.chartPoints, positions + 1));
+  return Math.max(2, Math.min(LIMITS.chartPoints, gridSize(param)));
+}
+
+/** The x positions of a curve over a parameter's range. */
+export function curveSamples(param: SimulationParam): number[] {
+  const count = curveSampleCount(param);
+  if (!hasUsableGrid(param)) return [];
+  return Array.from({ length: count }, (_, index) => param.min + ((param.max - param.min) * index) / (count - 1));
 }
 
 /** The curve of output `y` as parameter `x` sweeps its range, other parameters held at `values`. */
 export function sampleCurve(
-  data: Pick<SimulationData, 'params' | 'constants' | 'outputs'>,
+  data: SimulationCore,
   values: Readonly<Record<string, number>>,
   xKey: string,
   yKey: string,
 ): Array<{ readonly x: number; readonly y: number | null }> {
-  const param = data.params.find((candidate) => candidate.key === xKey);
-  if (param === undefined) return [];
-  const count = curveSampleCount(param);
-  const points: Array<{ x: number; y: number | null }> = [];
-  for (let index = 0; index < count; index += 1) {
-    const x = param.min + ((param.max - param.min) * index) / (count - 1);
-    const scope = new Map<string, number>();
-    for (const other of data.params) {
-      const given = Object.hasOwn(values, other.key) ? values[other.key] : undefined;
-      scope.set(other.key, other.key === xKey ? x : given === undefined ? other.default : snapToGrid(other, given));
+  const xIndex = data.params.findIndex((param) => param.key === xKey);
+  const yIndex = data.outputs.findIndex((output) => output.key === yKey);
+  const xParam = data.params[xIndex];
+  if (xParam === undefined || yIndex < 0) return [];
+  const params = resolveParams(data, values);
+  const compiled = compileSimulation(data);
+  data.params.forEach((param, position) => {
+    compiled.slots[compiled.paramSlots[position] ?? 0] = params[param.key] ?? Number.NaN;
+  });
+  const xSlot = compiled.paramSlots[xIndex] ?? 0;
+  const ySlot = compiled.outputSlots[yIndex] ?? 0;
+  return curveSamples(xParam).map((x) => {
+    compiled.slots[xSlot] = x;
+    compiled.run();
+    const y = compiled.slots[ySlot] ?? Number.NaN;
+    return { x, y: Number.isNaN(y) ? null : y };
+  });
+}
+
+/**
+ * Visits every point of the full parameter grid (the caller bounds its size) and, for a plot,
+ * every curve sample for each combination of the other parameters. `visit` returns false to stop.
+ */
+export function forEachGridPoint(
+  data: SimulationCore,
+  visit: (compiled: CompiledSimulation) => boolean,
+  options: { plotX?: string } = {},
+): void {
+  const compiled = compileSimulation(data);
+  const axes = data.params.map((param) => gridValues(param));
+  if (axes.some((axis) => axis.length === 0)) return;
+  const positions = axes.map(() => 0);
+  const plotIndex = options.plotX === undefined ? -1 : data.params.findIndex((param) => param.key === options.plotX);
+  const plotParam = data.params[plotIndex];
+  const samples = plotParam === undefined ? [] : curveSamples(plotParam);
+  for (;;) {
+    axes.forEach((axis, position) => {
+      compiled.slots[compiled.paramSlots[position] ?? 0] = axis[positions[position] ?? 0] ?? Number.NaN;
+    });
+    compiled.run();
+    if (!visit(compiled)) return;
+    if (plotParam !== undefined && (positions[plotIndex] ?? 0) === 0) {
+      const xSlot = compiled.paramSlots[plotIndex] ?? 0;
+      for (const x of samples) {
+        compiled.slots[xSlot] = x;
+        compiled.run();
+        if (!visit(compiled)) return;
+      }
     }
-    for (const constant of data.constants) scope.set(constant.key, constant.value);
-    let y: number | null = null;
-    for (const output of data.outputs) {
-      const value = bounded(evaluateFormula(output.formula, scope));
-      scope.set(output.key, value ?? Number.NaN);
-      if (output.key === yKey) y = value;
+    let carry = 0;
+    while (carry < positions.length) {
+      const next = (positions[carry] ?? 0) + 1;
+      if (next < (axes[carry]?.length ?? 0)) {
+        positions[carry] = next;
+        break;
+      }
+      positions[carry] = 0;
+      carry += 1;
     }
-    points.push({ x, y });
+    if (carry === positions.length) return;
   }
-  return points;
+}
+
+/** Largest card value over the grid: the value that fills a bar (`cards` view). */
+export function cardsScale(data: SimulationCore & { view: SimulationView }): number {
+  const view = data.view;
+  if (view.kind !== 'cards') return 1;
+  const slots = view.items.map((item) => data.outputs.findIndex((output) => output.key === item.output));
+  let largest = 0;
+  forEachGridPoint(data, (compiled) => {
+    for (const position of slots) {
+      const value = compiled.slots[compiled.outputSlots[position] ?? -1] ?? Number.NaN;
+      if (value > largest) largest = value;
+    }
+    return true;
+  });
+  return largest > 0 ? largest : 1;
+}
+
+/** The y range of a plot over its whole grid and every curve sample: `[min(0, lowest), highest]`. */
+export function plotRange(data: SimulationCore & { view: SimulationView }): readonly [number, number] {
+  const view = data.view;
+  if (view.kind !== 'plot') return [0, 1];
+  const position = data.outputs.findIndex((output) => output.key === view.y);
+  let low = 0;
+  let high = Number.NEGATIVE_INFINITY;
+  forEachGridPoint(
+    data,
+    (compiled) => {
+      const value = compiled.slots[compiled.outputSlots[position] ?? -1] ?? Number.NaN;
+      if (!Number.isNaN(value)) {
+        if (value < low) low = value;
+        if (value > high) high = value;
+      }
+      return true;
+    },
+    { plotX: view.x },
+  );
+  return high > low ? [low, high] : [low, low + 1];
 }
 
 const MINUS = '−';
 
 /**
- * Deterministic number formatting (`number-format.v1`): fixed decimals, `,` thousands grouping,
- * `.` decimal point, U+2212 minus, `~` when approximate, then the suffix. `null` renders "—".
+ * Deterministic number formatting (`number-format.v1`, English only in v1): fixed decimals, `,`
+ * thousands grouping, `.` decimal point, U+2212 minus, `~` when approximate, then the suffix.
+ * `null` renders "—".
  */
 export function formatNumber(value: number | null, format: NumberFormat): string {
   if (value === null || !Number.isFinite(value)) return '—';
@@ -253,11 +436,7 @@ export function formatWithUnit(value: number | null, format: NumberFormat, unit:
 }
 
 /** Fills a template's `{key}` placeholders with formatted parameter, constant and output values. */
-export function renderTemplate(
-  template: string,
-  data: Pick<SimulationData, 'params' | 'constants' | 'outputs'>,
-  values: SimulationValues,
-): string {
+export function renderTemplate(template: string, data: SimulationCore, values: SimulationValues): string {
   const formatted = new Map<string, string>();
   for (const param of data.params)
     formatted.set(param.key, formatNumber(values.params[param.key] ?? null, param.format));

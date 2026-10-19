@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { AUTHORED_DATA_SCHEMAS, disclosureData } from '../blocks/catalog.js';
 import { BlockA11y, FallbackText } from '../blocks/envelope.js';
-import { Correction, Framing, TEMPLATES, THEME_FAMILIES } from '../document.js';
-import { Claim, ProductionRecord, Source } from '../internal/provenance.js';
+import { Correction, Framing, SeriesRef, TEMPLATES, THEME_FAMILIES } from '../document.js';
+import { Claim, HEADER_FIELDS, ProductionRecord, Source } from '../internal/provenance.js';
 import { FIELD_LIMITS, LIMITS } from '../limits.js';
 import { LanguageTag, LocalId, MediaRef, OpaqueId, ParamKey, plainText, Revision } from '../primitives.js';
 
@@ -19,20 +19,25 @@ function draftBlock<const T extends string, D extends z.ZodType>(type: T, data: 
     /** Needed when a binding or a later revision refers to the block; assigned when missing. */
     id: LocalId.optional(),
     type: z.literal(type),
-    /** Required for every block except paragraph, subheading, list, quote and callout. */
+    /** Required (the label) for every non-text block. */
     a11y: BlockA11y.optional(),
-    /** Required (≥ 40 characters) for every block except the text blocks above. */
+    /** Required (≥ 40 characters) for every non-text block. */
     fallbackText: FallbackText.optional(),
     essential: z.boolean().optional(),
     data,
   });
 }
 
-const DraftParagraph = draftBlock('paragraph', AUTHORED_DATA_SCHEMAS.paragraph);
-const DraftSubheading = draftBlock('subheading', AUTHORED_DATA_SCHEMAS.subheading);
-const DraftList = draftBlock('list', AUTHORED_DATA_SCHEMAS.list);
-const DraftQuote = draftBlock('quote', AUTHORED_DATA_SCHEMAS.quote);
-const DraftCallout = draftBlock('callout', AUTHORED_DATA_SCHEMAS.callout);
+/** Text blocks: code sets their accessibility label, and their fallback text is derived, never written. */
+function draftTextBlock<const T extends string, D extends z.ZodType>(type: T, data: D) {
+  return z.strictObject({ id: LocalId.optional(), type: z.literal(type), essential: z.boolean().optional(), data });
+}
+
+const DraftParagraph = draftTextBlock('paragraph', AUTHORED_DATA_SCHEMAS.paragraph);
+const DraftSubheading = draftTextBlock('subheading', AUTHORED_DATA_SCHEMAS.subheading);
+const DraftList = draftTextBlock('list', AUTHORED_DATA_SCHEMAS.list);
+const DraftQuote = draftTextBlock('quote', AUTHORED_DATA_SCHEMAS.quote);
+const DraftCallout = draftTextBlock('callout', AUTHORED_DATA_SCHEMAS.callout);
 const DraftCode = draftBlock('code', AUTHORED_DATA_SCHEMAS.code);
 const DraftTable = draftBlock('table', AUTHORED_DATA_SCHEMAS.table);
 const DraftFigure = draftBlock('figure', AUTHORED_DATA_SCHEMAS.figure);
@@ -69,18 +74,38 @@ export type DraftBlock = z.infer<typeof DraftBlock>;
 export type DraftNestedBlock = z.infer<typeof DraftNestedBlock>;
 
 /**
- * Where the draft relies on an offered claim: `passage` with `anchorText` copied exactly from the
- * block's own text (it must occur once), `constant` for a simulation constant, or `block` when a
- * diagram, chart, table or simulation as a whole rests on the claim.
+ * Where the draft relies on an offered claim. Every number a reader sees or hears must lie inside
+ * an anchor: `anchorText` is copied exactly from the named text (it must occur once there) and stays
+ * inside one sentence.
+ * - `passage`: a block's text — its passage text by default (`field` omitted, text blocks), or a
+ *   named field (`data.caption`, `a11y.label`, `fallbackText`, `data.rows.1.2`, …).
+ * - `header`: the title, dek or kicker. `heading`: a section heading.
+ * - `constant`: a simulation constant. `value`: any other number of a simulation by its path in
+ *   `data` (`params.0.max`, `outputs.1.formula.exponent`, `readout.bands.0.min`).
+ * - `block`: a whole block (a chart's data, a diagram) rests on the claim.
  */
 export const DraftBinding = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('passage'),
     claimId: OpaqueId,
     blockId: LocalId,
+    field: z.string().min(1).max(80).optional(),
+    anchorText: z.string().min(1).max(LIMITS.passageChars),
+  }),
+  z.strictObject({
+    kind: z.literal('header'),
+    claimId: OpaqueId,
+    field: z.enum(HEADER_FIELDS),
+    anchorText: z.string().min(1).max(LIMITS.passageChars),
+  }),
+  z.strictObject({
+    kind: z.literal('heading'),
+    claimId: OpaqueId,
+    sectionId: LocalId,
     anchorText: z.string().min(1).max(LIMITS.passageChars),
   }),
   z.strictObject({ kind: z.literal('constant'), claimId: OpaqueId, blockId: LocalId, constantKey: ParamKey }),
+  z.strictObject({ kind: z.literal('value'), claimId: OpaqueId, blockId: LocalId, path: z.string().min(1).max(80) }),
   z.strictObject({ kind: z.literal('block'), claimId: OpaqueId, blockId: LocalId }),
 ]);
 export type DraftBinding = z.infer<typeof DraftBinding>;
@@ -96,7 +121,7 @@ export const ScrollDraft = z.strictObject({
   title: plainText(4, FIELD_LIMITS.titleChars),
   dek: plainText(10, FIELD_LIMITS.dekChars),
   sections: z.array(DraftSection).min(1).max(LIMITS.sections),
-  bindings: z.array(DraftBinding).max(LIMITS.blocks * 3),
+  bindings: z.array(DraftBinding).max(LIMITS.blocks * 6),
 });
 export type ScrollDraft = z.infer<typeof ScrollDraft>;
 
@@ -117,6 +142,7 @@ export const DraftProvenance = z.strictObject({
     revision: Revision,
     language: LanguageTag,
     explanationUnitId: OpaqueId,
+    series: SeriesRef.optional(),
     template: z.enum(TEMPLATES),
     theme: z.strictObject({ family: z.enum(THEME_FAMILIES) }),
     kicker: plainText(1, FIELD_LIMITS.kickerChars),

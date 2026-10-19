@@ -1,13 +1,16 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
+  cardsScale,
   curveSampleCount,
   evaluateFormula,
   evaluateSimulation,
   FIELD_LIMITS,
   formatNumber,
+  gridValues,
   isOnGrid,
   LIMITS,
+  plotRange,
   readoutBand,
   renderTemplate,
   sampleCurve,
@@ -233,10 +236,7 @@ describe('simulation validation (computation stage)', () => {
           }),
       ],
       ['sim_view_invalid', (data) => void (data.view = { kind: 'readout', primary: 'sunShare' })],
-      [
-        'sim_view_invalid',
-        (data) => void (data.view = { kind: 'plot', x: 'spring', y: 'ratio', yLabel: 'y', yDomain: [0, 1] }),
-      ],
+      ['sim_view_invalid', (data) => void (data.view = { kind: 'plot', x: 'spring', y: 'ratio', yLabel: 'y' })],
       ['sim_template_key_unknown', (data) => void (data.readout = { template: 'Look at {nothing}', bands: [] })],
       [
         'sim_band_invalid',
@@ -245,8 +245,21 @@ describe('simulation validation (computation stage)', () => {
       ],
       ['sim_output_not_finite', (data) => void (data.params[0] = { ...data.params[0]!, max: 1, default: 0.46 })],
       [
-        'sim_plot_out_of_domain',
-        (data) => void (data.view = { kind: 'plot', x: 'sunShare', y: 'spring', yLabel: 'Range', yDomain: [0, 1.5] }),
+        'sim_grid_too_large',
+        (data) =>
+          void (data.params = [
+            { ...data.params[0]!, step: 0.001 },
+            {
+              key: 'extra',
+              label: 'Extra',
+              min: 0,
+              max: 100,
+              step: 1,
+              default: 0,
+              control: 'slider',
+              format: data.params[0]!.format,
+            },
+          ]),
       ],
       [
         'sim_view_out_of_range',
@@ -259,5 +272,172 @@ describe('simulation validation (computation stage)', () => {
       change(data);
       expect(issueCodes(data), code).toContain(code);
     }
+  });
+});
+
+const integerGridParam = fc
+  .record({
+    min: fc.integer({ min: -10, max: 10 }),
+    step: fc.constantFrom(1, 0.5, 2),
+    positions: fc.integer({ min: 1, max: 20 }),
+    at: fc.nat(),
+  })
+  .map(({ min, step, positions, at }) => ({
+    min,
+    step,
+    max: min + step * positions,
+    default: min + step * (at % (positions + 1)),
+  }));
+
+/** Simulations with small valid grids and arbitrary formulas: some have poles, overflows or negative bars. */
+const smallGridSimulation = fc
+  .record({
+    params: fc.array(integerGridParam, { minLength: 1, maxLength: 2 }),
+    constants: fc.array(fc.oneof(fc.integer({ min: -10, max: 10 }), fc.double({ min: -1e3, max: 1e3, noNaN: true })), {
+      maxLength: 2,
+    }),
+    outputs: fc.array(formula, { minLength: 1, maxLength: 3 }),
+    view: fc.constantFrom('readout', 'cards'),
+  })
+  .map(({ params, constants, outputs, view }) => {
+    const data: SimulationData = {
+      title: 'Wild',
+      params: params.map((param, index) => ({
+        key: `p${index}`,
+        label: 'Dial',
+        control: 'slider',
+        format: { decimals: 2, grouping: false, approximate: false },
+        ...param,
+      })),
+      constants: constants.map((value, index) => ({ key: `c${index}`, label: 'Constant', value })),
+      outputs: outputs.map((item, index) => ({
+        key: `o${index}`,
+        label: 'Output',
+        formula: item,
+        format: { decimals: 2, grouping: false, approximate: false },
+      })),
+      view:
+        view === 'cards' && outputs.length >= 2
+          ? {
+              kind: 'cards',
+              items: [
+                { id: 'card-a', label: 'A', output: 'o0' },
+                { id: 'card-b', label: 'B', output: 'o1' },
+              ],
+            }
+          : { kind: 'readout', primary: 'o0' },
+      modelNote: 'Generated for a property test.',
+      illustrative: { notice: 'Illustrative' },
+    };
+    return data;
+  });
+
+/** Every point of the grid, enumerated independently of the validator. */
+function everyGridPoint(data: SimulationData): Array<Record<string, number>> {
+  let points: Array<Record<string, number>> = [{}];
+  for (const param of data.params) {
+    const values: number[] = [];
+    for (let value = param.min; value <= param.max + 1e-9; value += param.step) values.push(snapToGrid(param, value));
+    points = points.flatMap((point) => values.map((value) => ({ ...point, [param.key]: value })));
+  }
+  return points;
+}
+
+describe('the full-grid proof (M2)', () => {
+  it('accepts a simulation only if every output is finite, and every bar non-negative, at every grid point', () => {
+    let refused = 0;
+    fc.assert(
+      fc.property(smallGridSimulation, (data) => {
+        const issues = simulationIssues(data, '$').map((issue) => issue.code);
+        if (issues.length > 0) {
+          refused += 1;
+          return;
+        }
+        for (const point of everyGridPoint(data)) {
+          const { outputs } = evaluateSimulation(data, point);
+          for (const value of Object.values(outputs)) expect(value, JSON.stringify(point)).not.toBeNull();
+          if (data.view.kind === 'cards') {
+            for (const item of data.view.items) expect(outputs[item.output] ?? -1).toBeGreaterThanOrEqual(0);
+          }
+        }
+      }),
+      { numRuns: 400 },
+    );
+    // The generator must also produce simulations the validator refuses, or the property proves nothing.
+    expect(refused).toBeGreaterThan(20);
+  });
+
+  it('refuses a simulation with a pole at any single grid point, wherever it is', () => {
+    fc.assert(
+      fc.property(integerGridParam, fc.nat(), (range, pick) => {
+        const param: SimulationParam = {
+          key: 'distance',
+          label: 'Distance',
+          control: 'slider',
+          format: { decimals: 1, grouping: false, approximate: false },
+          ...range,
+        };
+        const values = gridValues(param);
+        const wall = values[pick % values.length] ?? param.min;
+        const data: SimulationData = {
+          title: 'A wall somewhere',
+          params: [param],
+          constants: [{ key: 'wall', label: 'Where the wall stands', value: wall }],
+          outputs: [
+            {
+              key: 'gap',
+              label: 'Gap',
+              formula: { kind: 'linear', x: 'distance', a: -1, b: 'wall' },
+              format: param.format,
+            },
+            {
+              key: 'pull',
+              label: 'Pull',
+              formula: { kind: 'ratio', numerator: 1, denominator: 'gap' },
+              format: param.format,
+            },
+          ],
+          view: { kind: 'readout', primary: 'pull' },
+          modelNote: 'A pole at one grid point.',
+          illustrative: { notice: 'Illustrative' },
+        };
+        expect(simulationIssues(data, '$').map((issue) => issue.code)).toEqual(['sim_output_not_finite']);
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  it('derives display scales from the grid instead of model-written numbers', () => {
+    const weight = fixture('weight-other-worlds').document.sections[0]?.blocks[0];
+    if (weight?.type !== 'simulation') throw new Error('fixture changed');
+    expect(cardsScale(weight.data)).toBeCloseTo(200 * 2.53);
+    const data: SimulationData = {
+      title: 'Square',
+      params: [
+        {
+          key: 'x',
+          label: 'X',
+          min: -2,
+          max: 3,
+          step: 1,
+          default: 0,
+          control: 'slider',
+          format: { decimals: 0, grouping: false, approximate: false },
+        },
+      ],
+      constants: [],
+      outputs: [
+        {
+          key: 'y',
+          label: 'Y',
+          formula: { kind: 'product', factors: ['x', 'x'] },
+          format: { decimals: 0, grouping: false, approximate: false },
+        },
+      ],
+      view: { kind: 'plot', x: 'x', y: 'y', yLabel: 'Y' },
+      modelNote: 'A parabola for a test.',
+      illustrative: { notice: 'Illustrative' },
+    };
+    expect(plotRange(data)).toEqual([0, 9]);
   });
 });

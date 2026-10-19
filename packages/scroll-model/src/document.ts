@@ -63,10 +63,28 @@ export const Measures = z.strictObject({
 });
 export type Measures = z.infer<typeof Measures>;
 
-/** SHA-256 of the canonical JSON of the document without its `integrity` member. */
+/** SHA-256 of the canonical JSON of the document without its `integrity` (and `rendition`) member. */
 export const Integrity = z.strictObject({
   method: z.literal(INTEGRITY_METHOD),
   sha256: Sha256Hex,
+});
+
+/**
+ * Present only on a client rendition that substituted blocks (`negotiate`). `of` names the stored
+ * revision (its `integrity.sha256`); `sha256` covers exactly what the client received: the
+ * canonical JSON of the rendition without `integrity` and `rendition`. A client verifies
+ * `rendition.sha256` when the member is present and `integrity.sha256` otherwise.
+ */
+export const Rendition = z.strictObject({
+  method: z.literal(INTEGRITY_METHOD),
+  of: Sha256Hex,
+  sha256: Sha256Hex,
+});
+
+/** The series this Scroll belongs to, when it is one part of one (set by code from the brief). */
+export const SeriesRef = z.strictObject({
+  seriesId: OpaqueId,
+  part: z.number().int().min(1).max(99),
 });
 
 /**
@@ -81,6 +99,7 @@ export const ScrollDocument = z.strictObject({
   language: LanguageTag,
   /** The explanation this Scroll gives; shared with its Reel variant so they are not double-counted. */
   explanationUnitId: OpaqueId,
+  series: SeriesRef.optional(),
   template: z.enum(TEMPLATES),
   theme: z.strictObject({ family: z.enum(THEME_FAMILIES) }),
   kicker: plainText(1, FIELD_LIMITS.kickerChars),
@@ -92,6 +111,7 @@ export const ScrollDocument = z.strictObject({
   limitsVersion: z.literal(SCROLL_LIMITS_VERSION),
   measures: Measures,
   integrity: Integrity,
+  rendition: Rendition.optional(),
 });
 export type ScrollDocument = z.infer<typeof ScrollDocument>;
 

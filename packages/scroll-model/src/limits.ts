@@ -30,6 +30,10 @@ export const LIMITS = {
   passageChars: 600,
   /** Canonical JSON of a block-state snapshot, UTF-8 bytes (1 KiB). */
   blockStateBytes: 1_024,
+  /** Figure and media blocks together (coordinator ruling on #254). */
+  mediaBlocks: 12,
+  /** Points of one simulation's parameter grid (product of every parameter's positions + 1). */
+  simulationGridPoints: 10_000,
 } as const;
 
 /**
@@ -86,6 +90,8 @@ export const FIELD_LIMITS = {
   /** Absolute magnitude of any number in a document and of any evaluated output. */
   numberMagnitude: 1e15,
   corrections: 10,
-  /** Parameter combinations the validator evaluates to prove outputs stay finite. */
-  validationCombinations: 256,
+  /** Nesting depth of any untrusted JSON value before it is parsed. */
+  jsonDepth: 32,
+  /** Advertised block types in client capabilities. */
+  capabilityTypes: 64,
 } as const;

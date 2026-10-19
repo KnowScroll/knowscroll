@@ -111,6 +111,25 @@ const probes = [
     expect: [['packages/scroll-model/src/internal/index.ts', 'clients-never-import-scroll-internals']],
   },
   {
+    file: 'apps/client/theme/zz-probe-scroll-name.ts',
+    source:
+      "import { compileDraft } from '@knowscroll/scroll-model/producer';\nimport { honestyIssues } from '@knowscroll/scroll-model/internal';\nimport internal from '../../../packages/scroll-model/fixtures/producer/weight-other-worlds.internal.json';\nexport const p = [compileDraft, honestyIssues, internal];\n",
+    expect: [
+      ['@knowscroll/scroll-model/producer', 'clients-never-import-scroll-internals'],
+      ['@knowscroll/scroll-model/internal', 'clients-never-import-scroll-internals'],
+      [
+        'packages/scroll-model/fixtures/producer/weight-other-worlds.internal.json',
+        'clients-never-import-scroll-producer-fixtures',
+      ],
+    ],
+  },
+  {
+    file: 'packages/ui/src/zz-probe.ts',
+    source:
+      "import { ScrollProvenance } from '@knowscroll/scroll-model/internal';\nexport const p = ScrollProvenance;\n",
+    expect: [['@knowscroll/scroll-model/internal', 'clients-never-import-scroll-internals']],
+  },
+  {
     file: 'packages/contracts/src/zz-probe.ts',
     source: "import { honestyIssues } from '@knowscroll/scroll-model/internal';\nexport const p = honestyIssues;\n",
     expect: [['packages/scroll-model/src/internal/index.ts', 'contracts-are-wire-only']],
@@ -191,13 +210,16 @@ try {
   const result = JSON.parse(cruise.stdout);
   const found = result.summary.violations;
   const violations = found.map((violation) => `${violation.from} → ${violation.to} [${violation.rule.name}]`);
-  /** `node:x` matches the core module `x`; a bare package name matches its resolved node_modules path. */
+  /**
+   * `node:x` matches the core module `x`; a bare package name matches its resolved node_modules
+   * path, or itself when it is a workspace specifier the importer cannot resolve.
+   */
   const targetMatches = (actual, expected) =>
     expected.startsWith('node:')
       ? actual === expected.slice(5)
       : /^(?:packages|apps|migrations|tests)\//.test(expected)
         ? actual === expected
-        : actual.includes(`/node_modules/${expected}/`);
+        : actual === expected || actual.includes(`/node_modules/${expected}/`);
   for (const probe of probes) {
     for (const [to, rule] of probe.expect) {
       const wanted = `${probe.file} → ${to} [${rule}]`;
@@ -220,6 +242,7 @@ try {
   for (const directory of createdDirectories) rmSync(directory, { recursive: true, force: true });
   rmSync('apps/client/theme/zz-probe.ts', { force: true });
   rmSync('apps/client/theme/zz-probe-scroll.ts', { force: true });
+  rmSync('apps/client/theme/zz-probe-scroll-name.ts', { force: true });
 }
 if (failed) process.exit(1);
 console.log(

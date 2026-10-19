@@ -24,10 +24,10 @@ export interface Fixture {
 export function fixture(name: FixtureName): Fixture {
   return {
     name,
-    draft: read(`${name}.draft.json`),
-    provenance: read(`${name}.provenance.json`) as DraftProvenance,
-    document: read(`${name}.document.json`) as ScrollDocument,
-    internal: read(`${name}.internal.json`) as ScrollProvenance,
+    draft: read(`producer/${name}.draft.json`),
+    provenance: read(`producer/${name}.provenance.json`) as DraftProvenance,
+    document: read(`documents/${name}.json`) as ScrollDocument,
+    internal: read(`producer/${name}.internal.json`) as ScrollProvenance,
   };
 }
 

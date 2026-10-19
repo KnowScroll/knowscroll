@@ -24,9 +24,9 @@ export type BlockA11y = z.infer<typeof BlockA11y>;
 export const FallbackText = plainText(1, FIELD_LIMITS.fallbackTextChars);
 
 /**
- * The envelope every stored block carries: stable id, type and version, accessibility text,
- * fallback text, whether the block is essential to the argument, its gesture declaration, and
- * its typed data.
+ * The envelope every stored non-text block carries: stable id, type and version, accessibility
+ * text, fallback text, whether the block is essential to the argument, its gesture declaration,
+ * and its typed data.
  */
 export function defineBlock<const T extends string, D extends z.ZodType>(type: T, data: D) {
   return z.strictObject({
@@ -35,6 +35,24 @@ export function defineBlock<const T extends string, D extends z.ZodType>(type: T
     version: z.literal(1),
     a11y: BlockA11y,
     fallbackText: FallbackText,
+    essential: z.boolean(),
+    gesture: Gesture,
+    data,
+  });
+}
+
+/**
+ * The envelope of a text block (paragraph, subheading, list, quote, callout). Its fallback text is
+ * derived from its own text when it is needed (`fallbackTextOf`, at negotiation and render time),
+ * never stored, so the document does not carry its prose twice. Its accessibility label is set by
+ * code at compile time.
+ */
+export function defineTextBlock<const T extends string, D extends z.ZodType>(type: T, data: D) {
+  return z.strictObject({
+    id: LocalId,
+    type: z.literal(type),
+    version: z.literal(1),
+    a11y: BlockA11y,
     essential: z.boolean(),
     gesture: Gesture,
     data,

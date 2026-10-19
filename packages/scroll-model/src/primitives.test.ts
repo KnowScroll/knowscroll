@@ -3,7 +3,14 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { canonicalJson, canonicalSha256, sha256Hex, utf8ByteLength } from './index.js';
 import { mentionsWebAddress, plainText } from './primitives.js';
-import { countWords, sentenceRanges, splitsSurrogatePair, truncateText } from './text.js';
+import {
+  countWords,
+  isGraphemeBoundary,
+  numericTokens,
+  sentenceRanges,
+  splitsSurrogatePair,
+  truncateText,
+} from './text.js';
 
 /** Strings over any UTF-16 code unit, lone surrogates included. */
 const anyUnits = fc.string({
@@ -76,8 +83,19 @@ describe('plain text', () => {
     expect(schema.safeParse('Café \u{1F30D} “it”').success).toBe(true);
   });
 
-  it('refuses untrimmed, non-NFC, multi-line and control-character text', () => {
-    for (const text of [' leading', 'trailing ', 'two\nlines', 'tab\there', 'line separator', 'Café', 'bell\u0007']) {
+  it('refuses untrimmed, non-NFC, multi-line and control-character text, and lone surrogates', () => {
+    for (const text of [
+      ' leading',
+      'trailing ',
+      'two\nlines',
+      'tab\there',
+      'line\u2028separator',
+      'Cafe\u0301',
+      'bell\u0007',
+      'lone \ud800 high',
+      'lone \udc00 low',
+      'reversed \udc00\ud800 pair',
+    ]) {
       expect(schema.safeParse(text).success, text).toBe(false);
     }
   });
@@ -142,5 +160,30 @@ describe('text helpers', () => {
   it('counts whitespace-separated words', () => {
     expect(countWords('')).toBe(0);
     expect(countWords('  one two\nthree  ')).toBe(3);
+  });
+});
+
+describe('numeric tokens', () => {
+  it('finds digits, decimals, grouped numbers and other Unicode number forms', () => {
+    const text = 'About 4,096 words, 1.46 times, ⅜ as hard, distance², year MMXX and Ⅻ.';
+    expect(numericTokens(text).map(([start, end]) => text.slice(start, end))).toEqual(['4,096', '1.46', '⅜', '²', 'Ⅻ']);
+    expect(numericTokens('No numbers here.')).toEqual([]);
+  });
+});
+
+describe('grapheme boundaries', () => {
+  it('never split a base letter from its combining mark, an emoji sequence or a flag', () => {
+    const cases: Array<[string, number]> = [
+      ['q\u0307x', 1],
+      ['\u{1F469}\u200d\u{1F4BB}', 2],
+      ['\u{1F469}\u200d\u{1F4BB}', 3],
+      ['\u{1F1EC}\u{1F1E7}', 2],
+      ['a\u{1F30D}b', 2],
+    ];
+    for (const [text, offset] of cases) expect(isGraphemeBoundary(text, offset), `${text}@${offset}`).toBe(false);
+    expect(isGraphemeBoundary('q\u0307x', 2)).toBe(true);
+    expect(isGraphemeBoundary('abc', 0)).toBe(true);
+    expect(isGraphemeBoundary('abc', 3)).toBe(true);
+    expect(isGraphemeBoundary('abc', 4)).toBe(false);
   });
 });

@@ -66,3 +66,20 @@ export function canonicalSize(value: unknown): number {
 export function canonicalSha256(value: unknown): string {
   return sha256Hex(canonicalJson(value));
 }
+
+/**
+ * True when a JSON-like value nests deeper than `limit` arrays and objects. Iterative, so a
+ * hostile value cannot exhaust the stack; it stops at the first path that is too deep.
+ */
+export function nestsDeeperThan(value: unknown, limit: number): boolean {
+  const stack: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }];
+  while (stack.length > 0) {
+    const item = stack.pop();
+    if (item === undefined || item.value === null || typeof item.value !== 'object') continue;
+    const depth = item.depth + 1;
+    if (depth > limit) return true;
+    const children: unknown[] = Array.isArray(item.value) ? item.value : Object.values(item.value);
+    for (const child of children) if (child !== null && typeof child === 'object') stack.push({ value: child, depth });
+  }
+  return false;
+}

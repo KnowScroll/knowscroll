@@ -6,6 +6,7 @@
 export {
   CheckRecord,
   Claim,
+  HEADER_FIELDS,
   ProductionRecord,
   ProvenanceBinding,
   SCROLL_PROVENANCE_SCHEMA_VERSION,
@@ -13,4 +14,4 @@ export {
   Source,
   TRUTH_STATES,
 } from './provenance.js';
-export { bindingIssues, honestyIssues, STRUCTURAL_LITERALS } from './honesty.js';
+export { bindingIssues, honestyIssues, STRUCTURAL_LITERALS, type HonestyDocument } from './honesty.js';

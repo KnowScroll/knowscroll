@@ -2,7 +2,7 @@
   "schemaVersion": "scroll-provenance.v1",
   "assetId": "fixture-weight-other-worlds",
   "revision": 1,
-  "documentSha256": "d78cc24ee049b9a67f5943f430c3fe139b93a5e091c20f563eb592a1330f96fb",
+  "documentSha256": "42757fd013164d0dc87da6e866947a41943b6233a32d806c7032aee78dbb0d2c",
   "claims": [
     {
       "claimId": "clm-gravity-moon",
@@ -22,6 +22,13 @@
       "claimId": "clm-gravity-jupiter",
       "statement": "Gravity at Jupiter's cloud tops is about 2.53 times Earth's.",
       "quote": "FIXTURE PLACEHOLDER: jovian cloud-top gravity ratio.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-weight-range",
+      "statement": "A bathroom scale for people reads body weights from about 20 to 200 kg; 60 kg is a typical adult example.",
+      "quote": "FIXTURE PLACEHOLDER: typical range of a personal scale.",
       "sourceId": "src-fixture-gravity",
       "truthState": "documented"
     }
@@ -68,6 +75,80 @@
       "kind": "block",
       "claimId": "clm-gravity-jupiter",
       "blockId": "gravity-chart"
+    },
+    {
+      "kind": "value",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "path": "params.0.min"
+    },
+    {
+      "kind": "value",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "path": "params.0.max"
+    },
+    {
+      "kind": "value",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "path": "params.0.default"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "start": 85,
+      "end": 106
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-moon",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "start": 118,
+      "end": 141
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-mars",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "start": 143,
+      "end": 156
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "start": 161,
+      "end": 191
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-moon",
+      "blockId": "gravity-chart",
+      "field": "fallbackText",
+      "start": 37,
+      "end": 56
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-mars",
+      "blockId": "gravity-chart",
+      "field": "fallbackText",
+      "start": 58,
+      "end": 73
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "gravity-chart",
+      "field": "fallbackText",
+      "start": 78,
+      "end": 96
     }
   ],
   "checks": [

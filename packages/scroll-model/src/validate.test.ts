@@ -13,6 +13,13 @@ function documentWith(blocks: Block[]): ScrollDocument {
   return seal(arrange([{ heading: 'only', blocks }]));
 }
 
+/** One section with these blocks as they are (no limit-keeping substitutions). */
+function documentOfExactly(blocks: Block[]): ScrollDocument {
+  return seal([
+    { id: 'only', heading: null, blocks: blocks.map((block, index) => ({ ...block, id: `block-${index}` })) },
+  ]);
+}
+
 describe('validateDocument: typed outcomes', () => {
   it('accepts every generated document within scroll-limits.v1 as a stored revision', () => {
     fc.assert(
@@ -137,6 +144,47 @@ describe('validateDocument: typed outcomes', () => {
     expect(validateDocument(outcome.document, { purpose: 'rendition' }).kind).toBe('valid');
     const stored = seal(outcome.document.sections);
     expect(codes(validateDocument(stored))).toContain('fallback_in_stored_document');
+    // The rendition carries a hash of exactly what the client received.
+    expect(outcome.document.rendition).toMatchObject({ of: document.integrity.sha256 });
+    expect(
+      codes(validateDocument({ ...outcome.document, title: 'Attention, quickly' }, { purpose: 'rendition' })),
+    ).toEqual(['rendition_integrity_mismatch']);
+    expect(codes(validateDocument(outcome.document))).toContain('rendition_in_stored_document');
+  });
+
+  it('checks nesting depth and byte size before anything else, and refuses them cheaply', () => {
+    const document = fixture('weight-other-worlds').document;
+    let deep: unknown = 'leaf';
+    for (let level = 0; level < 5_000; level += 1) deep = [deep];
+    expect(validateDocument({ ...document, sections: deep })).toEqual({
+      kind: 'invalid',
+      issues: [{ code: 'document_too_deep', path: '$' }],
+    });
+    const huge = { ...document, kicker: 'x'.repeat(200_000) };
+    const started = performance.now();
+    expect(validateDocument(huge)).toEqual({ kind: 'invalid', issues: [{ code: 'document_too_large', path: '$' }] });
+    expect(performance.now() - started).toBeLessThan(200);
+  });
+
+  it('caps figure and media blocks at 12', () => {
+    const figure = () =>
+      make('figure', { media: { mediaId: 'med-1', revision: 1 }, motion: 'still', alt: 'A quiet harbour at dawn.' });
+    expect(validateDocument(documentOfExactly(Array.from({ length: 12 }, figure))).kind).toBe('valid');
+    expect(codes(validateDocument(documentOfExactly(Array.from({ length: 13 }, figure))))).toEqual(['too_many_media']);
+  });
+
+  it('refuses a log axis whose domain reaches zero or below', () => {
+    const chart = make('chart', {
+      title: 'Bars',
+      spec: {
+        kind: 'bar',
+        orientation: 'vertical',
+        categories: ['a', 'b'],
+        series: [{ id: 'only', label: 'only', values: [2, 3] }],
+        valueAxis: { label: 'v', scale: 'log', domain: [-5, 10] },
+      },
+    });
+    expect(codes(validateDocument(documentWith([chart])))).toEqual(['chart_log_scale']);
   });
 
   it('requires a heading on every section after the first and unique ids', () => {
@@ -166,6 +214,7 @@ describe('validateDocument: typed outcomes', () => {
 
 describe('parseBlock: defensive per-block parsing for renderers', () => {
   const block = fixture('attention-slowly').document.sections[1]?.blocks[2];
+  const fallbackText = block !== undefined && 'fallbackText' in block ? block.fallbackText : undefined;
 
   it('returns a valid block', () => {
     expect(parseBlock(block)).toEqual({ kind: 'block', block });
@@ -176,7 +225,7 @@ describe('parseBlock: defensive per-block parsing for renderers', () => {
     expect(unknownType).toMatchObject({
       kind: 'unsupported',
       reason: 'unknown-type',
-      envelope: { id: 'length-sim', type: 'hologram', fallbackText: block?.fallbackText, essential: true },
+      envelope: { id: 'length-sim', type: 'hologram', fallbackText, essential: true },
     });
     expect(parseBlock({ ...block, version: 2 })).toMatchObject({ kind: 'unsupported', reason: 'unknown-version' });
   });
@@ -185,7 +234,7 @@ describe('parseBlock: defensive per-block parsing for renderers', () => {
     const outcome = parseBlock({ ...block, data: { title: 'broken' } });
     expect(outcome.kind).toBe('invalid');
     if (outcome.kind === 'invalid') {
-      expect(outcome.envelope.fallbackText).toBe(block?.fallbackText);
+      expect(outcome.envelope.fallbackText).toBe(fallbackText);
       expect(outcome.issues.length).toBeGreaterThan(0);
     }
     expect(parseBlock(42)).toMatchObject({ kind: 'invalid', envelope: { id: null, fallbackText: null } });

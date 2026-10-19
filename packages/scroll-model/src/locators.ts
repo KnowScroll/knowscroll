@@ -7,7 +7,7 @@ import { BlockTypeName, BlockVersionNumber, LocalId, OpaqueId, Revision, Sha256H
 import { projectText } from './registry.js';
 import { sha256Hex } from './sha256.js';
 import { blockStateProblems, BlockStateSnapshot, defaultBlockState, personalParamKeys } from './state.js';
-import { splitsSurrogatePair } from './text.js';
+import { isGraphemeBoundary } from './text.js';
 
 /**
  * Anchored references into a Scroll revision (blueprint §17 "Snippets are anchored references"):
@@ -77,7 +77,9 @@ export type LocatorOutcome =
 function rangeRejection(text: string, start: number, end: number): LocatorRejection | null {
   if (!(start < end) || end > text.length) return 'range-invalid';
   if (end - start > LIMITS.passageChars) return 'range-too-long';
-  if (splitsSurrogatePair(text, start) || splitsSurrogatePair(text, end)) return 'range-splits-character';
+  // A passage starts and ends between user-perceived characters (never inside "q̇", "👩‍💻" or a
+  // surrogate pair): `Intl.Segmenter` where available, `grapheme-fallback.v1` otherwise.
+  if (!isGraphemeBoundary(text, start) || !isGraphemeBoundary(text, end)) return 'range-splits-character';
   return null;
 }
 
@@ -193,7 +195,10 @@ export type AnchorMap = z.infer<typeof AnchorMap>;
 function stateDeclaration(block: AnyBlock): string {
   switch (block.type) {
     case 'simulation':
-      return canonicalJson(block.data.params.map((param) => [param.key, param.min, param.max, param.step]));
+      // The personal flag is part of the declaration: a snapshot's consent label depends on it.
+      return canonicalJson(
+        block.data.params.map((param) => [param.key, param.min, param.max, param.step, param.personal === true]),
+      );
     case 'diagram':
       return canonicalJson([block.data.interaction.kind, block.data.frames.map((frame) => frame.id)]);
     case 'sequence':
@@ -286,12 +291,21 @@ export function deriveAnchorMap(
 }
 
 export type RepointOutcome =
-  /** The anchor holds unchanged in the new revision. */
-  | { readonly kind: 'same'; readonly locator: ScrollLocator }
-  /** The anchor was found again: the passage's exact quote in revised text, or the block under a new id. */
-  | { readonly kind: 'remapped'; readonly locator: ScrollLocator }
-  /** The block is still there but the shared settings no longer fit it; they are dropped. */
-  | { readonly kind: 'state-reset'; readonly locator: ScrollBlockLocator }
+  /** The anchor holds: the block is identical (`change: 'same'`) under the same id. */
+  | { readonly kind: 'same'; readonly change: 'same'; readonly locator: ScrollLocator }
+  /**
+   * The anchor still resolves, but something changed and the reader is told: the block moved to a
+   * new id, its content was updated or its text rewritten (a passage whose exact quote was found
+   * again), or its state declaration changed in a way the saved settings still fit.
+   */
+  | {
+      readonly kind: 'remapped';
+      readonly change: AnchorChange;
+      readonly moved: boolean;
+      readonly locator: ScrollLocator;
+    }
+  /** The block is still there but the shared settings no longer fit it (or their consent label changed); they are dropped. */
+  | { readonly kind: 'state-reset'; readonly change: AnchorChange; readonly locator: ScrollBlockLocator }
   /** The moment is gone; the reader is told so and may open the section instead. */
   | {
       readonly kind: 'unavailable';
@@ -300,9 +314,15 @@ export type RepointOutcome =
     }
   | { readonly kind: 'invalid'; readonly reason: 'map-mismatch' | 'locator-invalid' };
 
+function personalKeys(block: AnyBlock): string {
+  return canonicalJson(personalParamKeys(block).sort());
+}
+
 /**
  * Re-points a locator of the previous revision into the next one using the anchor map. It never
- * moves a reference silently: every outcome says what happened.
+ * moves a reference silently: `same` only when the map says the block is identical under the same
+ * id; every other change is reported. A kept locator is always re-validated against the next
+ * revision before it is returned.
  */
 export function repointLocator(
   locator: ScrollLocator,
@@ -333,19 +353,31 @@ export function repointLocator(
   const after = findBlock(next, entry.to);
   if (after === null) return { kind: 'invalid', reason: 'map-mismatch' };
   const moved = entry.to !== entry.from;
+  const change = entry.change;
+  const kept = (result: ScrollLocator): RepointOutcome =>
+    change === 'same' && !moved
+      ? { kind: 'same', change: 'same', locator: result }
+      : { kind: 'remapped', change, moved, locator: result };
 
   if (locator.kind === 'scroll_passage') {
     const oldText = projectText(before.block) ?? '';
     const newText = projectText(after.block);
     if (newText === null) return { kind: 'unavailable', reason: 'block-type-changed', sectionId: sectionFallback };
     const base = { ...locator, revision: next.revision, blockId: entry.to };
-    if (newText === oldText) return { kind: moved ? 'remapped' : 'same', locator: base };
     const quote = oldText.slice(locator.start, locator.end);
-    const first = newText.indexOf(quote);
-    if (first < 0 || newText.indexOf(quote, first + 1) >= 0) {
+    const candidate =
+      newText === oldText
+        ? base
+        : (() => {
+            const first = newText.indexOf(quote);
+            return first < 0 || newText.indexOf(quote, first + 1) >= 0
+              ? null
+              : { ...base, start: first, end: first + quote.length };
+          })();
+    if (candidate === null || validateLocator(next, candidate).kind !== 'valid') {
       return { kind: 'unavailable', reason: 'passage-changed', sectionId: after.section.id };
     }
-    return { kind: 'remapped', locator: { ...base, start: first, end: first + quote.length } };
+    return kept(candidate);
   }
 
   const base: ScrollBlockLocator = {
@@ -356,9 +388,16 @@ export function repointLocator(
     blockType: after.block.type,
     blockVersion: after.block.version,
   };
-  if (locator.state === undefined) return { kind: moved ? 'remapped' : 'same', locator: base };
-  if (blockStateProblems(after.block, locator.state.state, { partial: true }).length > 0) {
-    return { kind: 'state-reset', locator: base };
+  if (validateLocator(next, base).kind !== 'valid') return { kind: 'invalid', reason: 'map-mismatch' };
+  if (locator.state === undefined) return kept(base);
+  const withState: ScrollBlockLocator = { ...base, state: locator.state };
+  const consentLabelHolds = personalKeys(before.block) === personalKeys(after.block);
+  if (
+    !consentLabelHolds ||
+    blockStateProblems(after.block, locator.state.state, { partial: true }).length > 0 ||
+    validateLocator(next, withState, { personalConsent: true }).kind !== 'valid'
+  ) {
+    return { kind: 'state-reset', change, locator: base };
   }
-  return { kind: moved ? 'remapped' : 'same', locator: { ...base, state: locator.state } };
+  return kept(withState);
 }

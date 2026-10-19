@@ -48,7 +48,7 @@ const simulation = (params: number): Block => {
     ],
     view: { kind: 'readout', primary: 'total' },
     modelNote: 'Counts dials for a limits test.',
-    illustrative: true,
+    illustrative: { notice: 'Illustrative' },
   };
   return make('simulation', data);
 };
@@ -111,6 +111,23 @@ describe('scroll-limits.v1', () => {
       blocks: five.map((block, index) => ({ ...block, id: `block-${index}` })),
     }));
     expect(codes(validateDocument(seal(sections)))).toEqual(['too_many_params']);
+  });
+
+  it('simulation grids: at most 10,000 points over all parameters', () => {
+    const grid = (points: readonly number[]) => {
+      const block = simulation(points.length);
+      if (block.type !== 'simulation') throw new Error('not a simulation');
+      return {
+        ...block,
+        data: {
+          ...block.data,
+          params: block.data.params.map((param, index) => ({ ...param, max: points[index] ?? 1 })),
+        },
+      };
+    };
+    // 100 × 100 = 10,000 points; 101 × 100 = 10,100.
+    expect(validateDocument(documentOf([grid([100, 100])])).kind).toBe('valid');
+    expect(codes(validateDocument(documentOf([grid([101, 100])])))).toEqual(['sim_grid_too_large']);
   });
 
   it('visible text: up to 24,000 characters are accepted, more are refused', () => {

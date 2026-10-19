@@ -9,6 +9,7 @@ import {
   computeIntegrity,
   computeMeasures,
   deriveGesture,
+  ILLUSTRATIVE_NOTICE,
   INTEGRITY_METHOD,
   isInteractiveBlock,
   LIMITS,
@@ -86,20 +87,25 @@ export function spans(parts = 3): fc.Arbitrary<Span[]> {
     );
 }
 
-/** A block of `type` with a generic envelope and the gesture derived from its data. */
+const TEXT_TYPES: ReadonlySet<string> = new Set(['paragraph', 'subheading', 'list', 'quote', 'callout']);
+
+/**
+ * A block of `type` with a generic envelope and the gesture derived from its data. Text blocks get
+ * no stored fallback text (it is derived).
+ */
 export function make<T extends BlockType>(type: T, data: BlockOfType<T>['data'], essential = false): BlockOfType<T> {
-  const block = {
-    id: 'pending',
-    type,
-    version: 1,
-    a11y: { label: type },
-    fallbackText: `Text version of this ${type}, standing on its own for every reader.`,
-    essential,
-    gesture: 'none',
-    data,
-  } as BlockOfType<T>;
+  const envelope = { id: 'pending', type, version: 1, a11y: { label: type }, essential, gesture: 'none', data };
+  const block = (TEXT_TYPES.has(type)
+    ? envelope
+    : {
+        ...envelope,
+        fallbackText: `Text version of this ${type}, standing on its own for every reader.`,
+      }) as unknown as BlockOfType<T>;
   return { ...block, gesture: deriveGesture(block) };
 }
+
+/** Letters for generated labels: generated text never contains numbers unless a test adds them. */
+const letter = (index: number) => 'abcdefghijklmnopqrstuvwxyz'.charAt(index % 26);
 
 const mediaRef = fc.integer({ min: 1, max: 5 }).map((n) => ({ mediaId: `med-${n}`, revision: 1 }));
 const alt = sentence(4, 10);
@@ -413,7 +419,8 @@ export const simulationData: fc.Arbitrary<SimulationData> = fc
       fc.record({
         min: fc.integer({ min: 1, max: 10 }),
         step: fc.constantFrom(1, 2, 5, 0.5),
-        positions: fc.integer({ min: 1, max: 60 }),
+        // At most 10 grid values per parameter keeps every grid within 10,000 points.
+        positions: fc.integer({ min: 1, max: 9 }),
         at: fc.nat(),
         control: fc.constantFrom('slider', 'stepper', 'input'),
         personal: fc.boolean(),
@@ -449,7 +456,11 @@ export const simulationData: fc.Arbitrary<SimulationData> = fc
         ...(param.personal ? { personal: true as const } : {}),
       };
     });
-    const constantList = constants.map((value, index) => ({ key: `c${index}`, label: `constant ${index}`, value }));
+    const constantList = constants.map((value, index) => ({
+      key: `c${index}`,
+      label: `constant ${letter(index)}`,
+      value,
+    }));
     const keys = [...paramList.map((param) => param.key), ...constantList.map((constant) => constant.key)];
     const pick = (n: number): Operand => {
       const choice = n % (keys.length + STRUCTURAL.length);
@@ -496,7 +507,7 @@ export const simulationData: fc.Arbitrary<SimulationData> = fc
     };
     const outputList = outputs.map((output, index) => ({
       key: `o${index}`,
-      label: `output ${index}`,
+      label: `output ${letter(index)}`,
       formula: formulaFor(output),
       format: { decimals: 2, grouping: true, approximate: true },
     }));
@@ -507,14 +518,13 @@ export const simulationData: fc.Arbitrary<SimulationData> = fc
         : view === 'cards'
           ? {
               kind: 'cards',
-              barMax: 100,
               items: [
                 { id: 'card-a', label: 'first', output: first },
                 { id: 'card-b', label: 'last', output: outputList[outputList.length - 1]?.key ?? first },
               ],
             }
           : view === 'plot'
-            ? { kind: 'plot', x: 'p0', y: first, yLabel: 'value', yDomain: [0, 1e15] }
+            ? { kind: 'plot', x: 'p0', y: first, yLabel: 'value' }
             : { kind: 'area', length: 'p0', area: first, lengthLabel: 'length', areaLabel: 'area' };
     return {
       title: 'Try it',
@@ -524,7 +534,7 @@ export const simulationData: fc.Arbitrary<SimulationData> = fc
       view: viewSpec,
       readout: { template: `{${first}} for {p0}`, bands: [{ output: first, min: 1, text: 'At least one.' }] },
       modelNote: 'Generated for a property test.',
-      illustrative,
+      illustrative: illustrative ? { notice: ILLUSTRATIVE_NOTICE } : false,
     };
   });
 
@@ -565,11 +575,15 @@ export const anyBlock: fc.Arbitrary<Block> = fc.oneof(
   { arbitrary: simulationBlock, weight: 2 },
 );
 
-/** Gives every section and block a unique id, keeps interactive blocks and parameters within limits. */
+/** Gives every section and block a unique id, keeps interactive, media blocks and parameters within limits. */
 export function arrange(sections: ReadonlyArray<{ heading: string; blocks: readonly Block[] }>): Section[] {
   let interactive = 0;
   let params = 0;
+  let media = 0;
   let counter = 0;
+  const mediaIn = (block: Block) =>
+    (block.type === 'figure' || block.type === 'media' ? 1 : 0) +
+    (block.type === 'disclosure' ? block.data.blocks.filter((child) => child.type === 'figure').length : 0);
   const filler = (): Block => make('paragraph', { spans: [{ text: 'A quiet paragraph stands in here.' }] });
   const withId = <B extends AnyBlock>(block: B): B => {
     counter += 1;
@@ -588,6 +602,8 @@ export function arrange(sections: ReadonlyArray<{ heading: string; blocks: reado
           params += blockParams;
         }
       }
+      if (media + mediaIn(block) > LIMITS.mediaBlocks) block = filler();
+      media += mediaIn(block);
       const placed = withId(block);
       if (placed.type !== 'disclosure') return placed;
       return { ...placed, data: { ...placed.data, blocks: placed.data.blocks.map((child) => withId(child)) } };

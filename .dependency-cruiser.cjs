@@ -144,10 +144,23 @@ module.exports = {
     {
       name: 'clients-never-import-scroll-internals',
       comment:
-        "Scroll provenance (claims, sources, checks) and the producer contract are backend-only: the client app and client packages never import scroll-model's internal or producer entries.",
+        "Scroll provenance (claims, sources, checks) and the producer contract are backend-only: the client app and client packages never import scroll-model's internal or producer entries, resolved or not.",
       severity: 'error',
       from: { path: '^(?:apps/client|packages/(?:client-core|ui|design-tokens|scene-core))/' },
-      to: { path: '^packages/scroll-model/src/(?:internal|producer)/' },
+      to: {
+        path: [
+          '^packages/scroll-model/src/(?:internal|producer)/',
+          '^@knowscroll/scroll-model/(?:internal|producer)(?:/|$)',
+        ],
+      },
+    },
+    {
+      name: 'clients-never-import-scroll-producer-fixtures',
+      comment:
+        'Only consumer-document fixtures are client-reachable: drafts, compile inputs and internal provenance fixtures (claims, sources) stay with the backend and tests.',
+      severity: 'error',
+      from: { path: '^(?:apps/client|packages/(?:client-core|ui|design-tokens|scene-core))/' },
+      to: { path: '^packages/scroll-model/fixtures/producer/' },
     },
     {
       name: 'scroll-model-public-entry-is-self-contained',
