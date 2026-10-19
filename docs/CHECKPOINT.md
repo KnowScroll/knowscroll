@@ -16,6 +16,10 @@ Coordinator-owned. Hard cap ~120 lines: older detail moves to the tracker and is
 | VPS ops | Ansible applied from `9acf2ab6` (ks v2 manifests, v2 units, Caddy paths, nightly backup 02:23 UTC, weekly restore check Sun) |
 | SSD work area | `/Volumes/Mrigesh SSD/knowscroll-dev/v2/` (discovery, evidence, design renders, agent scratch, coordinator scripts in `agents/coordinator/`) |
 
+## Owner gate
+
+**Phase 2 does not start without the owner's explicit approval (owner, 2026-10-19).** Finish Phase 1 (S1.3 #226, S1.4 #227, S1.6 #229), report, and ask. The pulled-forward Phase 2 items #230 (PR #254, head is a TEMPORARY diagnostic commit) and #231 (uncommitted work in `v2-231-harness`; 5 real MiniMax calls already made) are **paused** — do not resume or merge them before approval.
+
 ## Done
 
 - Phase 0 (#223). S1.1 workspace + CI (#224, PR #252). S1.5 infrastructure (#228, PRs #251 + #256): release built once in `checks`, deployed to dev by `deploy.yml`, rollback v2↔v1 exercised, backups + restore check verified.
@@ -28,7 +32,7 @@ Coordinator-owned. Hard cap ~120 lines: older detail moves to the tracker and is
 | #254 `codex/230-scroll-model` | S2.1 part 1 `scroll-document.v1` | review BLOCK (4 findings) → fixes in progress |
 | #255 `codex/227-client-foundation` | S1.4 client foundation | under independent review |
 
-Queued (briefs ready in `agents/coordinator/`): S1.3 identity (`prompt-s13-identity.md`) and S2.2 harness (`prompt-s22-harness.md`) after #253 merges; S2.1 part 2 renderers after #254 + #255.
+S1.2 merged (#253, `d7346d51`, deployed to dev). Running: S1.3 identity (#226). Paused by the owner gate: #254, #231.
 
 ## Owner decisions open (details on #222)
 
