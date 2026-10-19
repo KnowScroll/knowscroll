@@ -18,6 +18,8 @@ export interface ProcessLifecycleOptions {
  * after a clean stop or 1 when start or stop fails or exceeds the grace period. Unhandled
  * rejections and uncaught exceptions are logged sanitised and end the process with status 1.
  *
+ * Signal handlers are installed before anything starts, so a signal that arrives while the
+ * process is still starting is honoured as soon as start completes (never the default kill).
  * Exit codes are a contract with systemd and CI: 0 means drained and closed cleanly.
  */
 export async function runProcess(options: ProcessLifecycleOptions): Promise<void> {
@@ -32,17 +34,11 @@ export async function runProcess(options: ProcessLifecycleOptions): Promise<void
     process.exit(1);
   });
 
-  let running: RunningProcess;
-  try {
-    running = await options.start();
-  } catch (error) {
-    logEvent('process.start_failed', { reasonCode: 'start_failed', error });
-    process.exit(1);
-  }
-  logEvent('process.started', { pid: process.pid, nodeVersion: process.version });
-
+  let running: RunningProcess | undefined;
+  let requested: NodeJS.Signals | undefined;
   let stopping = false;
-  const stop = (signal: NodeJS.Signals): void => {
+
+  const stop = (signal: NodeJS.Signals, current: RunningProcess): void => {
     if (stopping) return;
     stopping = true;
     logEvent('process.stopping', { signal });
@@ -51,7 +47,7 @@ export async function runProcess(options: ProcessLifecycleOptions): Promise<void
       process.exit(1);
     }, options.shutdownGraceMs);
     deadline.unref();
-    running.stop().then(
+    current.stop().then(
       () => {
         clearTimeout(deadline);
         logEvent('process.stopped', { outcome: 'clean', durationMs: Date.now() - startedAt });
@@ -64,6 +60,19 @@ export async function runProcess(options: ProcessLifecycleOptions): Promise<void
       },
     );
   };
-  process.once('SIGTERM', stop);
-  process.once('SIGINT', stop);
+  const onSignal = (signal: NodeJS.Signals): void => {
+    if (running === undefined) requested ??= signal;
+    else stop(signal, running);
+  };
+  process.on('SIGTERM', onSignal);
+  process.on('SIGINT', onSignal);
+
+  try {
+    running = await options.start();
+  } catch (error) {
+    logEvent('process.start_failed', { reasonCode: 'start_failed', error });
+    process.exit(1);
+  }
+  logEvent('process.started', { pid: process.pid, nodeVersion: process.version });
+  if (requested !== undefined) stop(requested, running);
 }
