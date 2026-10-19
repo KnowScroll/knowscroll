@@ -1,6 +1,8 @@
 /**
- * `ks` — the KnowScroll server tool (#201, docs/operations/environments.md). Installed by
- * ops/vps/ansible as /usr/local/bin/ks and run as root with Node's own type stripping.
+ * `ks` — the KnowScroll server tool (#201; v2 releases #228, docs/v2/operations/environments.md).
+ * Installed by ops/vps/ansible as /usr/local/bin/ks and run as root with Node's own type stripping.
+ * Every command takes v1 releases (release.json without `schema`) exactly as before and
+ * `ks-release.v2` releases as #228 describes; a world switches generation when it is deployed.
  *
  *   ks deploy <world> <commit>    release tarball on stdin
  *   ks promote <world> <commit>   reuse the release already on the server (no rebuild)

@@ -1,8 +1,17 @@
-# Deploys KnowScroll to its worlds on the VPS (#201, docs/operations/environments.md).
+# Deploys KnowScroll to its worlds on the VPS (#201; v2 releases #228, docs/v2/operations/environments.md).
 #
 # A push to `dev` or `stage` deploys that world once `checks` has passed on the same commit.
 # `workflow_dispatch` deploys any ref to dev only (the agent may try a branch there).
 # Live (`main`) joins when the live world is set up; its environment already waits for a reviewer.
+#
+# Two release generations, told apart by the deployed commit itself:
+# - v2 (the commit carries scripts/release/build.mjs): nothing is built here. The release that
+#   `checks` built and smoke-tested for this exact commit (artifact `release-<commit>`: the tar
+#   and its .sha256) is downloaded from the earliest successful `checks` run on the commit, its
+#   sha256 is verified, and those bytes are streamed to the server. Afterwards /health must report
+#   the commit, the world and that artifact hash. A promotion reuses the server's copy and is
+#   compared against the same artifact.
+# - v1 (legacy/v1-final and older): built here from source, exactly as before.
 #
 # Never a self-hosted runner: the repository is public, so pull requests from forks could run
 # code on the server. This workflow runs only on pushes and manual dispatch, never on PRs.
@@ -52,6 +61,24 @@ jobs:
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "Deploying $sha to $WORLD"
 
+      # v2 commits carry scripts/release/build.mjs; no v1 commit ever did (v1 had
+      # scripts/build-release.mjs and also an apps/api, so apps/api cannot tell them apart).
+      - name: Which release generation is this commit?
+        id: generation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          if out=$(gh api "repos/$GITHUB_REPOSITORY/contents/scripts/release/build.mjs?ref=$SHA" --jq .type 2>&1); then
+            generation=v2
+          elif printf '%s' "$out" | grep -q 'HTTP 404'; then
+            generation=v1
+          else
+            echo "could not tell which release generation $SHA is: $out"; exit 1
+          fi
+          echo "generation=$generation" >> "$GITHUB_OUTPUT"
+          echo "$SHA is a $generation release"
+
       # Any successful `checks` run on this exact commit counts: a promotion to stage moves a commit
       # that already passed on dev, so it does not wait for CI a second time.
       - name: Wait for checks to pass on this commit
@@ -89,21 +116,58 @@ jobs:
         run: |
           if ssh knowscroll "has-release $SHA"; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
 
+      # v2: the tested bytes, never a rebuild. The earliest successful checks run on the commit is
+      # the one whose release the first deploy of this commit used, so a later promotion compares
+      # the server's copy against the same artifact.
+      - name: Fetch the release that checks built and tested (v2)
+        id: artifact
+        if: steps.generation.outputs.generation == 'v2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+          PRESENT: ${{ steps.present.outputs.present }}
+        run: |
+          dir="$RUNNER_TEMP/release"
+          mkdir -p "$dir"
+          runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow checks.yml --commit "$SHA" --status success \
+            --limit 50 --json databaseId,createdAt --jq 'sort_by(.createdAt) | .[].databaseId')
+          found=
+          for run in $runs; do
+            if gh run download "$run" --repo "$GITHUB_REPOSITORY" --name "release-$SHA" --dir "$dir"; then
+              found=$run; break
+            fi
+          done
+          if [ -z "$found" ]; then
+            if [ "$PRESENT" = true ]; then
+              echo "::warning::No successful checks run on $SHA still has the release-$SHA artifact (expired?). The server already holds this release and re-verifies it against its files.sha256; the outside check will not compare the artifact hash."
+              echo "artifact=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "no successful checks run on $SHA uploaded release-$SHA: there is no tested release to deploy"; exit 1
+          fi
+          test -f "$dir/release-$SHA.tar" -a -f "$dir/release-$SHA.tar.sha256" ||
+            { echo "the release-$SHA artifact must hold release-$SHA.tar and release-$SHA.tar.sha256 at its root"; ls -la "$dir"; exit 1; }
+          (cd "$dir" && sha256sum --check --strict "release-$SHA.tar.sha256")
+          artifact=$(cut -d' ' -f1 "$dir/release-$SHA.tar.sha256")
+          printf '%s' "$artifact" | grep -Eq '^[0-9a-f]{64}$' || { echo "malformed release-$SHA.tar.sha256"; exit 1; }
+          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+          echo "release-$SHA.tar from checks run $found, sha256 $artifact"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.present.outputs.present == 'false'
+        if: steps.generation.outputs.generation == 'v1' && steps.present.outputs.present == 'false'
         with:
           ref: ${{ steps.commit.outputs.sha }}
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        if: steps.present.outputs.present == 'false'
+        if: steps.generation.outputs.generation == 'v1' && steps.present.outputs.present == 'false'
         with:
           version: 10.30.3
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: steps.present.outputs.present == 'false'
+        if: steps.generation.outputs.generation == 'v1' && steps.present.outputs.present == 'false'
         with:
           node-version: 22.23.0
           cache: pnpm
-      - name: Build the release
-        if: steps.present.outputs.present == 'false'
+      - name: Build the release (v1)
+        if: steps.generation.outputs.generation == 'v1' && steps.present.outputs.present == 'false'
         env:
           SHA: ${{ steps.commit.outputs.sha }}
         run: |
@@ -124,9 +188,25 @@ jobs:
       - name: Check it from outside
         env:
           SHA: ${{ steps.commit.outputs.sha }}
+          GENERATION: ${{ steps.generation.outputs.generation }}
+          ARTIFACT: ${{ steps.artifact.outputs.artifact }}
         run: |
           for host in app backend; do
             body=$(curl -fsS "https://$host.$WORLD.knowscroll.space/health")
             echo "$host: $body"
             echo "$body" | jq -e --arg sha "$SHA" --arg world "$WORLD" '.commit == $sha and .world == $world' >/dev/null
+            if [ "$GENERATION" = v2 ]; then
+              if [ -n "$ARTIFACT" ]; then
+                echo "$body" | jq -e --arg artifact "$ARTIFACT" '.artifact == $artifact' >/dev/null ||
+                  { echo "$host serves artifact $(echo "$body" | jq -r .artifact), not the tested $ARTIFACT"; exit 1; }
+              else
+                echo "$body" | jq -e '(.artifact | type) == "string" and (.artifact | test("^[0-9a-f]{64}$"))' >/dev/null
+              fi
+            fi
           done
+          {
+            echo "### Deployed to $WORLD"
+            echo "- commit: \`$SHA\` ($GENERATION)"
+            [ "$GENERATION" != v2 ] || echo "- artifact sha256: \`$(echo "$body" | jq -r .artifact)\`"
+            [ "$GENERATION" != v2 ] || echo "- latest migration: \`$(echo "$body" | jq -r '.migration // "none"')\`"
+          } >> "$GITHUB_STEP_SUMMARY"

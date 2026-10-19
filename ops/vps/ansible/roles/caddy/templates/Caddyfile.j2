@@ -18,6 +18,16 @@
 	}
 }
 
+# #228: Socket.IO. Caddy proxies the WebSocket upgrade by itself; a Caddy reload keeps open
+# sockets for a while instead of closing them all at once.
+(socket_proxy) {
+	reverse_proxy {args[0]} {
+		lb_try_duration 5s
+		lb_try_interval 250ms
+		stream_close_delay 5m
+	}
+}
+
 {% for host in ks_apex_hosts %}{{ host }}{% if not loop.last %}, {% endif %}{% endfor %} {
 	import security_headers
 	redir https://{{ ks_live_app_host }}{uri} 302
@@ -40,23 +50,32 @@
 # {{ w.name }}
 {{ w.app_host }} {
 	import security_headers
-	encode zstd gzip
+	# Sockets and media byte ranges pass through unencoded.
+	@compressible not path /socket.io/* /media/*
+	encode @compressible zstd gzip
 
-	handle /v1/* {
+	# One origin per world (D-008): the world's API, v1 or v2 on the same port, behind these
+	# paths. v1 answers only /v1 and /health; the v2 paths (#228) reach it as a 404.
+	@api path /v1/* /health /auth/* /media/* /s/*
+	handle @api {
 		import api_proxy 127.0.0.1:{{ w.port }}
 	}
-	handle /health {
-		import api_proxy 127.0.0.1:{{ w.port }}
+	handle /socket.io/* {
+		import socket_proxy 127.0.0.1:{{ w.port }}
 	}
-	handle /assets/* {
+	# Content-hashed bundles: v1's Vite /assets, v2's Expo web export /_expo (#228).
+	@immutable path /assets/* /_expo/*
+	handle @immutable {
 		root * /srv/knowscroll/{{ w.name }}/current/web
 		header Cache-Control "public, max-age=31536000, immutable"
 		file_server
 	}
+	# Everything else is the web app from the current release, whichever generation it is: a file,
+	# a statically exported page (Expo's {path}.html), or the single-page fallback.
 	handle {
 		root * /srv/knowscroll/{{ w.name }}/current/web
 		header Cache-Control "no-cache"
-		try_files {path} /index.html
+		try_files {path} {path}.html /index.html
 		file_server
 	}
 }

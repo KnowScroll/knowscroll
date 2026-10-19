@@ -1,0 +1,16 @@
+# Nightly database backups (#228) — managed by ops/vps/ansible. See docs/v2/operations/backups.md.
+[Unit]
+Description=KnowScroll nightly database backups
+After=postgresql@16-main.service
+Wants=postgresql@16-main.service
+
+[Service]
+Type=oneshot
+Environment=KS_BACKUP_KEEP_DAYS={{ ks_backup_keep_days }}
+ExecStart=/usr/local/lib/knowscroll-ops/ks-backup {{ ks_backup_databases | join(' ') }}
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+NoNewPrivileges=yes

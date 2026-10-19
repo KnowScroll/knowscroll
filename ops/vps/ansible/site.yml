@@ -1,4 +1,5 @@
-# KnowScroll server: one machine, worlds dev/stage/live (#201, docs/plans/environments).
+# KnowScroll server: one machine, worlds dev/stage/live (#201, docs/plans/environments); v2 releases
+# in dev and stage (#228, docs/v2/operations/environments.md).
 - name: KnowScroll server
   hosts: knowscroll-vps
   become: false
@@ -8,5 +9,7 @@
     - node
     - caddy
     - worlds
+    - worlds_v2
     - cutroom
     - ops-tools
+    - backups
