@@ -76,8 +76,10 @@ describe('evidence.apply-action consumer (real database, real pg-boss)', () => {
       worker,
       [
         jobConsumer(applyActionEvidenceQueue, async (payload, delivery) => {
-          deliveries.push(delivery.retryCount);
           await applyActionEvidence(payload);
+          // Other tests in this file leave their own jobs in the queue; observe this person's only.
+          if (payload.universeId !== person.universeId) return;
+          deliveries.push(delivery.retryCount);
           // Simulated crash after the effects committed but before pg-boss recorded completion.
           if (delivery.retryCount === 0) throw new Error('simulated crash after commit');
         }),
