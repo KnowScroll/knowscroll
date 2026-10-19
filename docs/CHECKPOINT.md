@@ -33,9 +33,9 @@ Coordinator-owned. Hard cap ~120 lines: older detail moves to the tracker and is
 
 S1.2 merged (#253, `d7346d51`, deployed to dev). Running: S1.3 identity (#226). Paused by the owner gate: #254, #231.
 
-## Owner decisions open (details on #222)
+## Owner decisions (answered 2026-10-19, D-018…D-021)
 
-1. Cutroom budget for a new commission (pool 83¢ of $7). 2. Mobile builds in CI / physical device. 3. Required `checks` on `dev`. 4. Personal-context model roles beyond test accounts.
+Cutroom up to $2 for new v2 Reels (pool cap → 900¢ in S4.2); Android builds + emulator journeys in GitHub Actions (real phone later by the owner); `checks` required on `dev` (ruleset `25423111`); personal-context roles may use MiniMax for real users. Open: none.
 
 ## Known gaps / cautions
 
