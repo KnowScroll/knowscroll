@@ -1,4 +1,4 @@
-// Run with `node --test .claude/hooks/`. CI runs it on every push (checks.yml).
+// Run with `node --test .claude/hooks/refuse-main-update.test.mjs`. CI runs it on every push (checks.yml).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { refusalFor } from './refuse-main-update.mjs';
