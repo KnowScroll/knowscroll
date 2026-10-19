@@ -99,6 +99,26 @@ export const diagnosticCatalogue = {
   'realtime.access_revoked': { severity: 'info', module: 'realtime', fields: ['count'] },
   'realtime.relay_failed': { severity: 'error', module: 'realtime', fields: ['reasonCode', 'error'] },
   'realtime.sockets_reauthenticated': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'count'] },
+  // Identity (S1.3). Never an address, token, link, cookie or key: outcomes and codes only.
+  'identity.sign_in_requested': { severity: 'info', module: 'identity', fields: ['requestId', 'outcome'] },
+  'identity.sign_in_mail': {
+    severity: 'by-call',
+    module: 'identity',
+    fields: ['outcome', 'reasonCode', 'status', 'durationMs'],
+  },
+  'identity.signed_in': {
+    severity: 'info',
+    module: 'identity',
+    fields: ['requestId', 'outcome', 'reasonCode', 'context'],
+  },
+  'identity.sign_in_refused': { severity: 'info', module: 'identity', fields: ['requestId', 'reasonCode'] },
+  'identity.signed_out': { severity: 'info', module: 'identity', fields: ['requestId', 'count', 'reasonCode'] },
+  'identity.origin_refused': {
+    severity: 'warn',
+    module: 'identity',
+    fields: ['requestId', 'method', 'route', 'reasonCode'],
+  },
+  'identity.operator_sign_in': { severity: 'by-call', module: 'identity', fields: ['outcome', 'reasonCode', 'error'] },
   'reasoning.attempt_settled': {
     severity: 'info',
     module: 'reasoning',

@@ -55,7 +55,7 @@ export class ExperienceController {
   }
 
   private async requireCaller(request: Request): Promise<Caller> {
-    const caller = await this.callers.resolve(request.headers.authorization);
+    const caller = await this.callers.resolve(request.headers);
     if (caller === undefined) throw problem('UNAUTHENTICATED');
     return caller;
   }

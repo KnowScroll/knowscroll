@@ -9,6 +9,7 @@ import { ScopeNoticeRelay, type ScopeNotice, type ScopeNoticeSink } from '@knows
 import { FrameworkLogAdapter, createEventLog } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { AppModule } from './app.module.js';
+import { noStoreForAuth, originGuard, sessionCookieName } from './http/auth-credentials.js';
 import { bodyErrorMiddleware, requireJsonBodies } from './http/problems.js';
 import { requestContextMiddleware } from './http/request-context.js';
 import { ScopeGateway } from './realtime/scope.gateway.js';
@@ -73,6 +74,14 @@ async function main(): Promise<void> {
       app.disable('x-powered-by');
       app.useWebSocketAdapter(new IoAdapter(app));
       app.use(requestContextMiddleware(logEvent));
+      app.use(noStoreForAuth());
+      app.use(
+        originGuard({
+          publicOrigin: config.identity.publicOrigin,
+          cookieName: sessionCookieName(config.identity.secureCookies),
+          logEvent,
+        }),
+      );
       app.use(requireJsonBodies());
       app.useBodyParser('json', { limit: config.bodyLimitBytes });
       app.use(bodyErrorMiddleware(logEvent));

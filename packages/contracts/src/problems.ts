@@ -7,8 +7,10 @@ import { z } from 'zod';
  */
 export const problemCatalogue = {
   INVALID_REQUEST: { status: 400, title: 'The request is not valid.' },
+  SIGN_IN_LINK_INVALID: { status: 400, title: 'This sign-in link has expired or was already used.' },
   UNAUTHENTICATED: { status: 401, title: 'Sign-in is required.' },
   FORBIDDEN: { status: 403, title: 'This action is not allowed.' },
+  ORIGIN_NOT_ALLOWED: { status: 403, title: 'This request did not come from this site.' },
   UNIVERSE_UNAVAILABLE: { status: 403, title: 'This universe is not available.' },
   NOT_FOUND: { status: 404, title: 'Not found.' },
   ASSET_NOT_FOUND: { status: 404, title: 'This content is not available.' },

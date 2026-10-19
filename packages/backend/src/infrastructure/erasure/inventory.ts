@@ -3,6 +3,9 @@ import type { Database } from '../postgres/database.js';
 import type { QueueDefinition } from '../jobs/queues.js';
 import type { ModuleErasure } from './registry.js';
 
+/** The personal roots themselves; their lifecycle is account deletion, not a module's eraser. */
+const identityRoots = ['accounts', 'universes'];
+
 /** Schemas owned by infrastructure libraries rather than modules; never personal by design. */
 const infrastructureSchemas = ['pgboss', 'migrator', 'pg_catalog', 'information_schema'];
 
@@ -14,7 +17,9 @@ const infrastructureSchemas = ['pgboss', 'migrator', 'pg_catalog', 'information_
  * - every declared personal table references the personal root (`identity.universes`) from
  *   `universe_id` with `ON DELETE RESTRICT`, so deletion can only go through the erasers;
  * - every account-linked column (`account_id` or `*_account_id`) outside the identity schema is
- *   declared by a module (account deletion must handle it).
+ *   declared by a module (account deletion must handle it);
+ * - every identity table other than the personal roots (`accounts`, `universes`) is declared as an
+ *   account-keyed table, and every declared account table exists.
  */
 export async function checkErasureInventory(
   db: Kysely<Database>,
@@ -71,6 +76,21 @@ export async function checkErasureInventory(
     if (!declaredAccountColumns.has(column)) problems.push(`${column} links to an account but no module declares it`);
   for (const column of declaredAccountColumns)
     if (!accountLinked.has(column)) problems.push(`${column} is declared as account-linked but does not exist`);
+
+  const identityTables = await sql<{ table_name: string }>`
+    select table_schema || '.' || table_name as table_name
+    from information_schema.tables
+    where table_type = 'BASE TABLE' and table_schema = 'identity' and table_name <> all(${identityRoots}::text[])
+    order by 1`.execute(db);
+  const existingAccountTables = new Set(identityTables.rows.map((row) => row.table_name));
+  const declaredAccountTables = new Set(
+    registry.flatMap((module) => (module.accountTables ?? []).map((table) => `${table.schema}.${table.table}`)),
+  );
+  for (const table of existingAccountTables)
+    if (!declaredAccountTables.has(table))
+      problems.push(`${table} holds account records but no module declares it as an account table`);
+  for (const table of declaredAccountTables)
+    if (!existingAccountTables.has(table)) problems.push(`${table} is declared as an account table but does not exist`);
   return problems;
 }
 

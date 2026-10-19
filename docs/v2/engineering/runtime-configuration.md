@@ -26,8 +26,14 @@ print them.
 | `KS_BODY_LIMIT_BYTES` | 65536 | JSON body limit; larger bodies get a 413 problem |
 | `KS_SHUTDOWN_GRACE_SECONDS` | 20 | longest graceful stop before exit 1 |
 | `KS_SCOPE_LOCK_TIMEOUT_MS` | 5000 | longest wait for a personal-scope lock before a retryable 503; must be below `KS_DB_STATEMENT_TIMEOUT_MS` |
-| `KS_AUTH_ADAPTER` | `none` | how callers are authenticated. `none`: no caller, every personal route answers 401 (until S1.3 sessions). `test-bearer`: CI only, trusts `Authorization: Bearer test.<accountId>` (and the Socket.IO `auth.token` `test.<accountId>`); refused at startup unless `NODE_ENV=test` **and** `KS_WORLD` is `ci` or `local` |
+| `KS_AUTH_ADAPTER` | `session` | how callers are authenticated. `session`: identity's sessions (S1.3, D-018) — the web session cookie or `Authorization: Bearer kss_…` (and the Socket.IO `auth.token`). `test-bearer`: CI fixture that trusts `Authorization: Bearer test.<accountId>` (and the Socket.IO `auth.token` `test.<accountId>`); refused at startup unless `NODE_ENV=test` **and** `KS_WORLD` is `ci` or `local` |
 | `KS_SOCKET_AUTH_CACHE_MS` | 30000 (max 30000) | how long a socket's authorisation (session validity and scope access) may be reused before a relayed hint rechecks it; cleared whenever the relay reconnects |
+| `KS_PUBLIC_ORIGIN` | production: **required**; else `http://127.0.0.1:<PORT>` | the world's own origin (`https://app.<world>.knowscroll.space`, D-008): sign-in links point at `<origin>/redeem`, and cookie-authenticated POST/PUT/PATCH/DELETE and socket handshakes must carry this `Origin`. A bare origin; production requires HTTPS except on a loopback host (the release smoke test). HTTPS also makes the session cookie `__Host-ks_session` and Secure (`ks_session` otherwise) |
+| `KS_MAIL_SENDER` | `agentmail` | how sign-in mail is sent. `agentmail` (production accepts nothing else) needs `AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX_ID`. `fixture`: CI only, records each mail (to `KS_FIXTURE_MAIL_FILE`, JSON lines, when set); refused unless `NODE_ENV=test` and `KS_WORLD` is `ci` or `local` |
+| `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` | required for `agentmail` | credentials (server: `/etc/knowscroll/secrets/shared/agentmail.env`, read by the API unit only). Never logged |
+| `AGENTMAIL_TIMEOUT_MS` | 10000 (max 30000) | one send's whole exchange, response body included |
+| `AGENTMAIL_BASE_URL` | `https://api.agentmail.to` | a different base only outside production (tests with a fake AgentMail); production refuses it |
+| `KS_ALLOW_OPERATOR_SIGN_IN` | unset | exactly `1` lets operator-minted links (`dist/operator.js`) be redeemed (dev and stage); any other value is refused, and so is `1` when `KS_WORLD=live` |
 
 The API also opens one dedicated LISTEN connection (`application_name` `knowscroll-api-<world>-relay`)
 and serves Socket.IO on `/socket.io` on the same port (D-008: Caddy proxies `/socket.io/*` with
@@ -38,6 +44,20 @@ WebSocket upgrade).
 `reconnecting` (live hints paused; clients still catch up by revision). A 200 also proves the
 database answers. Monitoring (S1.5) should alert when `relay` stays `reconnecting`. A retryable
 failure (lock wait, timeout, deadlock, serialisation) answers 503 with `Retry-After: 1`.
+
+## Operator sign-in (`node dist/operator.js issue-sign-in --email <address>` in the `api/` tree)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KS_WORLD` | required | refused when `live` |
+| `KS_ALLOW_OPERATOR_SIGN_IN` | required, exactly `1` | anything else is refused (checked at startup and again just before issuing) |
+| `DATABASE_URL` | required | the world's database (credential) |
+| `KS_PUBLIC_ORIGIN` | required | the origin the printed link points at |
+| `KS_DB_STATEMENT_TIMEOUT_MS`, `KS_SCOPE_LOCK_TIMEOUT_MS` | 15000, 5000 | as for the API |
+
+Prints the one-time link on stdout; diagnostic records go to stderr. Exit 0 issued, 1 refused or
+failed, 2 usage. It creates or reuses a **disposable** account and refuses an address that signed up
+by mail. Running it on a world: `docs/v2/operations/environments.md`.
 
 ## Worker (`node dist/main.js` in the `worker/` tree)
 

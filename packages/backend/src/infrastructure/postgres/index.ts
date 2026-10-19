@@ -16,6 +16,8 @@ export {
   enterSharedRoot,
   makeAuthorityHolds,
   makeWithPersonalScope,
+  makeWithResolvedPersonalScope,
+  resolutionTransactionOf,
   sharedTransactionOf,
   transactionOf,
   withTransaction,

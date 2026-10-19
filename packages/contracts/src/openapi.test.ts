@@ -11,13 +11,19 @@ describe('the API contract', () => {
       commonSchemas: { ProblemDetails: { schema: ProblemDetailsSchema, strategy: 'output' } },
     });
 
-    const routes = [apiContract.health, apiContract.experience.applyAction, apiContract.experience.listSaved].map(
-      (procedure) => procedure['~orpc'].route,
-    );
+    const routes = [
+      apiContract.health,
+      apiContract.identity.requestSignIn,
+      apiContract.identity.redeemSignIn,
+      apiContract.identity.session,
+      apiContract.identity.signOut,
+      apiContract.experience.applyAction,
+      apiContract.experience.listSaved,
+    ].map((procedure) => procedure['~orpc'].route);
     for (const route of routes) {
       const method = (route.method ?? 'POST').toLowerCase() as 'get' | 'post';
       expect(
-        document.paths?.[route.path ?? '']?.[method]?.responses?.['200'],
+        document.paths?.[route.path ?? '']?.[method]?.responses?.[String(route.successStatus ?? 200)],
         `${route.method} ${route.path}`,
       ).toBeDefined();
     }

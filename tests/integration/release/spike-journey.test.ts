@@ -21,6 +21,9 @@ import { freePort, startReleaseProcess, waitForHttp, type ReleaseProcess } from 
  * adds sign-up, Phase 2 adds admitted content); callers are authenticated by the test-only
  * adapter, which the production configuration refuses.
  */
+/** Fixture AgentMail settings (never used to send: these processes are refused or test-bearer only). */
+const fixtureAgentMail = { AGENTMAIL_API_KEY: 'fixture-not-a-key', AGENTMAIL_INBOX_ID: 'fixture@agentmail.invalid' };
+
 const canaries = {
   token: 'canary-query-token-Hx81',
   password: 'canary-query-password-Jy92',
@@ -55,10 +58,14 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     const port = await freePort();
     baseUrl = `http://127.0.0.1:${port}`;
     const shared = { NODE_ENV: 'test', KS_WORLD: 'ci', DATABASE_URL: database.url, KS_SHUTDOWN_GRACE_SECONDS: '10' };
+    // This journey authenticates with the CI-only test-bearer adapter; sign-in itself is proved by
+    // identity-journey.test.ts. The fixture mail sender is never used here.
+    const fixtureMail = { KS_MAIL_SENDER: 'fixture' };
     // KS_SOCKET_AUTH_CACHE_MS=0: every relayed hint re-reads access, so revocation shows at once.
     api = startReleaseProcess('api', 'main', {
       ...shared,
       PORT: String(port),
+      ...fixtureMail,
       KS_AUTH_ADAPTER: 'test-bearer',
       KS_BODY_LIMIT_BYTES: '2048',
       KS_SOCKET_AUTH_CACHE_MS: '0',
@@ -351,6 +358,7 @@ describe('the test-only caller adapter outside CI', () => {
         KS_WORLD: 'dev',
         DATABASE_URL: database.url,
         PORT: String(await freePort()),
+        ...fixtureAgentMail,
         KS_AUTH_ADAPTER: 'test-bearer',
       });
       expect(await api.exited()).toBe(1);
@@ -366,6 +374,7 @@ describe('the test-only caller adapter outside CI', () => {
 describe('the production configuration', () => {
   it('refuses to start with the test-only caller adapter', async () => {
     const database = await createEmptyDatabase('release_refuse');
+    const port = await freePort();
     try {
       const api = startReleaseProcess('api', 'main', {
         NODE_ENV: 'production',
@@ -373,7 +382,9 @@ describe('the production configuration', () => {
         KS_COMMIT: '0'.repeat(40),
         KS_ARTIFACT_SHA256: createHash('sha256').update('ci-fixture').digest('hex'),
         DATABASE_URL: database.url,
-        PORT: String(await freePort()),
+        PORT: String(port),
+        KS_PUBLIC_ORIGIN: `http://127.0.0.1:${port}`,
+        ...fixtureAgentMail,
         KS_AUTH_ADAPTER: 'test-bearer',
       });
       expect(await api.exited()).toBe(1);

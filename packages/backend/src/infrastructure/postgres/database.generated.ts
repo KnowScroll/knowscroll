@@ -66,6 +66,35 @@ export interface IdentityAccounts {
   status: Generated<string>;
 }
 
+export interface IdentityEmailAddresses {
+  account_id: string;
+  address: string;
+  created_at: Generated<Timestamp>;
+  disposable: Generated<boolean>;
+}
+
+export interface IdentitySessions {
+  account_id: string;
+  client: string;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  id: string;
+  revoked_at: Timestamp | null;
+  revoked_reason: string | null;
+  token_hash: string;
+}
+
+export interface IdentitySignInLinks {
+  address: string;
+  consumed_account_id: string | null;
+  consumed_at: Timestamp | null;
+  consumed_command_id: string | null;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  origin: string;
+  token_hash: string;
+}
+
 export interface IdentityUniverses {
   account_id: string;
   created_at: Generated<Timestamp>;
@@ -132,6 +161,9 @@ export interface DB {
   "experience.actions": ExperienceActions;
   "experience.saved_items": ExperienceSavedItems;
   "identity.accounts": IdentityAccounts;
+  "identity.email_addresses": IdentityEmailAddresses;
+  "identity.sessions": IdentitySessions;
+  "identity.sign_in_links": IdentitySignInLinks;
   "identity.universes": IdentityUniverses;
   "reasoning.business_runs": ReasoningBusinessRuns;
   "reasoning.external_attempts": ReasoningExternalAttempts;

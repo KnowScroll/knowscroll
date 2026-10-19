@@ -69,6 +69,42 @@ export type WithPersonalScope = <T>(
   work: (scope: PersonalScopeTx) => Promise<T>,
 ) => Promise<ScopeOutcome<T>>;
 
+declare const rootResolutionBrand: unique symbol;
+
+/**
+ * The capability of a transaction that has not locked a personal root yet: the first phase of
+ * `WithResolvedPersonalScope`. Only identity's adapters use it, to take the locks that come
+ * before the personal root in identity's lock order (address, then sign-in link) and to create
+ * an account with its universe root. Unusable once its transaction ended.
+ */
+export interface RootResolutionTx {
+  readonly [rootResolutionBrand]: true;
+}
+
+/** What the first phase decided: enter the personal scope of `authority`, or stop with `result`. */
+export type RootResolution<C, R> =
+  | { readonly kind: 'enter'; readonly authority: PersonalAuthority; readonly context: C }
+  | { readonly kind: 'stop'; readonly result: R };
+
+export type ResolvedScopeOutcome<T, R> =
+  | { readonly kind: 'entered'; readonly value: T }
+  | { readonly kind: 'stopped'; readonly result: R }
+  | { readonly kind: 'refused'; readonly refusal: ScopeRefusal };
+
+/**
+ * `withPersonalScope` for commands that find or create the personal root themselves (sign-in:
+ * the universe is known only after the sign-in link is read, and created on first sign-in).
+ * Runs in one transaction: `resolve` (with the bounded lock timeout already set) takes identity's
+ * earlier locks, may create the account and its universe, and names the universe to enter; the
+ * root is then locked and rechecked exactly as `withPersonalScope` does, and `work` runs with the
+ * scope. A `stop`, a refusal or an exception rolls back everything `resolve` wrote; nothing
+ * commits unless `work` returns.
+ */
+export type WithResolvedPersonalScope = <C, R, T>(
+  resolve: (tx: RootResolutionTx) => Promise<RootResolution<C, R>>,
+  work: (scope: PersonalScopeTx, context: C) => Promise<T>,
+) => Promise<ResolvedScopeOutcome<T, R>>;
+
 /**
  * Port: does `authority` still hold right now? The same checks as `withPersonalScope`, read
  * without a lock and without writing (implemented by `infrastructure/postgres`). For decisions
@@ -105,3 +141,115 @@ export type ReadUniverseAccess = (accountId: string, universeId: string) => Prom
 /** Injection tokens of identity's read ports (bound by the composition roots). */
 export const READ_ACCOUNT_UNIVERSE = Symbol('identity.readAccountUniverse');
 export const READ_UNIVERSE_ACCESS = Symbol('identity.readUniverseAccess');
+
+// ── Sign-in and sessions (S1.3, D-018) ──────────────────────────────────────────────────────
+// The use cases are implemented in `application/` and built by `adapters/nest-providers.ts`.
+
+export { SESSION_TTL_DAYS, SIGN_IN_LINK_TTL_MINUTES } from './domain/policy.js';
+
+/** Which client a session belongs to: a web cookie or a native bearer token. */
+export type SessionClient = 'web' | 'native';
+
+/** A valid session with the authority it carries now: account, universe and current epoch. */
+export interface ActiveSession {
+  readonly sessionId: string;
+  readonly accountId: string;
+  readonly universeId: string;
+  readonly privacyEpoch: number;
+  readonly client: SessionClient;
+  readonly expiresAt: Date;
+}
+
+/**
+ * What one sign-in mail delivery achieved. `failed` carries a fixed reason and, when a response
+ * was received, its HTTP status; never the address, link, token, key or a provider body.
+ */
+export type MailDelivery =
+  | { readonly kind: 'sent' }
+  | {
+      readonly kind: 'failed';
+      readonly reason: 'http_error' | 'timeout' | 'network_error' | 'malformed_response' | 'refused_in_transaction';
+      readonly status?: number;
+    };
+
+export type RequestSignInResult =
+  | {
+      readonly kind: 'requested';
+      /**
+       * The mail delivery, already started after the link committed. It never rejects, and its
+       * outcome is logged once; callers do not wait for it, so a slow or failing provider never
+       * changes or delays the answer (no address oracle, D-007).
+       */
+      readonly delivery: Promise<MailDelivery>;
+    }
+  | { readonly kind: 'refused'; readonly reason: 'invalid_address' }
+  | { readonly kind: 'rate_limited'; readonly retryAfterSeconds: number };
+
+/** Use case: mail a single-use sign-in link (`application/request-sign-in.ts`). */
+export type RequestSignIn = (input: { readonly email: string }) => Promise<RequestSignInResult>;
+
+export interface RedeemSignInCommand {
+  /** The link token as presented (its shape is checked by the wire contract). */
+  readonly token: string;
+  /** Minted by the client once per redemption and reused on its retries. */
+  readonly commandId: string;
+  readonly client: SessionClient;
+}
+
+export type RedeemRefusal =
+  /** Unknown, expired, or already redeemed by another command: one answer for each (A02). */
+  | 'link_invalid'
+  /** The account or its universe is suspended or missing. */
+  | 'account_unavailable'
+  | 'command_key_reused'
+  | 'outcome_from_newer_release';
+
+export type RedeemSignInResult =
+  | {
+      readonly kind: 'signed_in';
+      readonly outcome: { readonly accountId: string; readonly universeId: string; readonly accountCreated: boolean };
+      readonly privacyEpoch: number;
+      readonly session: { readonly id: string; readonly token: string; readonly expiresAt: Date };
+      readonly replayed: boolean;
+      readonly origin: 'email' | 'operator';
+    }
+  | { readonly kind: 'refused'; readonly reason: RedeemRefusal };
+
+/** Use case: exchange a sign-in link for a session (`application/redeem-sign-in.ts`). */
+export type RedeemSignIn = (command: RedeemSignInCommand) => Promise<RedeemSignInResult>;
+
+export type IssueOperatorSignInResult =
+  | {
+      readonly kind: 'issued';
+      readonly outcome: { readonly accountId: string; readonly universeId: string; readonly accountCreated: boolean };
+      /** The one-time link to print. Never logged or stored (only its hash is). */
+      readonly link: string;
+    }
+  | {
+      readonly kind: 'refused';
+      /** `not_disposable`: the address belongs to an account that signed up by mail. */
+      readonly reason: 'invalid_address' | 'not_disposable' | 'account_unavailable';
+    };
+
+/** Use case: mint an operator sign-in link for a disposable test account (`application/issue-operator-sign-in.ts`). */
+export type IssueOperatorSignIn = (input: { readonly email: string }) => Promise<IssueOperatorSignInResult>;
+
+/** Use case: the authority behind a presented session token, re-read now (`application/sessions.ts`). */
+export type ResolveSession = (token: string) => Promise<ActiveSession | undefined>;
+
+/** Use case: whether a session that authenticated a socket still holds. */
+export type SessionValid = (session: { readonly sessionId: string; readonly accountId: string }) => Promise<boolean>;
+
+/** Use case: end this session, or every session of the account; drops the account's sockets. */
+export type SignOut = (request: {
+  readonly sessionId: string;
+  readonly accountId: string;
+  readonly everywhere: boolean;
+}) => Promise<{ readonly revoked: number }>;
+
+/** Injection tokens of identity's sign-in use cases (bound by the API composition root). */
+export const REQUEST_SIGN_IN = Symbol('identity.requestSignIn');
+export const REDEEM_SIGN_IN = Symbol('identity.redeemSignIn');
+export const RESOLVE_SESSION = Symbol('identity.resolveSession');
+export const SESSION_VALID = Symbol('identity.sessionValid');
+export const SIGN_OUT = Symbol('identity.signOut');

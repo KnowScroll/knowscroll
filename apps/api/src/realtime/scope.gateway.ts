@@ -23,6 +23,7 @@ import type { ScopeNotice, ScopeNoticeSink } from '@knowscroll/backend/infrastru
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { READ_UNIVERSE_ACCESS, type ReadUniverseAccess } from '@knowscroll/backend/modules/identity';
 import { API_CONFIG, CALLERS, LOG_EVENT } from '../tokens.js';
+import { cookieValue, sessionCookieName } from '../http/auth-credentials.js';
 import type { AuthenticatedCallers, Caller } from '../http/callers.js';
 
 function room(scope: ScopeRef): string {
@@ -73,9 +74,23 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
   ) {}
 
   afterInit(server: Server): void {
+    const cookieName = sessionCookieName(this.config.identity.secureCookies);
     server.use((socket, next) => {
+      // Native clients send their bearer token in `auth.token`; browsers send the session cookie,
+      // which every page could make them attach, so a cookie handshake must come from this origin
+      // (cross-site WebSocket hijacking).
       const token: unknown = (socket.handshake.auth as { token?: unknown }).token;
-      this.callers.resolve(typeof token === 'string' ? `Bearer ${token}` : undefined).then(
+      const cookie = socket.handshake.headers.cookie;
+      if (
+        typeof token !== 'string' &&
+        cookieValue(cookie, cookieName) !== undefined &&
+        socket.handshake.headers.origin !== this.config.identity.publicOrigin
+      ) {
+        this.logEvent('realtime.connection_refused', { reasonCode: 'ORIGIN_NOT_ALLOWED' });
+        next(new Error('ORIGIN_NOT_ALLOWED'));
+        return;
+      }
+      this.callers.resolve(typeof token === 'string' ? { authorization: `Bearer ${token}` } : { cookie }).then(
         (caller) => {
           if (caller === undefined) {
             this.logEvent('realtime.connection_refused', { reasonCode: 'UNAUTHENTICATED' });

@@ -251,11 +251,19 @@ jobs:
           printf '%s' "$artifact" | grep -Eqx '[0-9a-f]{64}' || { echo "malformed $sum"; exit 1; }
           echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
           echo "bytes=$(stat -c %s "$out/release-$GITHUB_SHA.tar")" >> "$GITHUB_OUTPUT"
+      # The v2 API unit also reads the shared AgentMail file (production refuses to start without
+      # AgentMail configured, S1.3); here a fixture key and inbox stand in for it. Nothing is sent:
+      # the smoke test never asks for a sign-in link.
       - name: Smoke-test the release as the server runs it (migrate, /health, problems, worker)
+        env:
+          AGENTMAIL_API_KEY: fixture-not-a-key
+          AGENTMAIL_INBOX_ID: fixture@agentmail.invalid
         run: |
           psql "$KS_TEST_DATABASE_URL" --no-psqlrc --quiet --command 'create database knowscroll_release_smoke'
           DATABASE_URL="postgres://postgres:postgres@localhost:5432/knowscroll_release_smoke" \
-            node scripts/release/smoke.mjs "$RUNNER_TEMP/release/release-$GITHUB_SHA.tar" --start --world dev
+            node scripts/release/smoke.mjs "$RUNNER_TEMP/release/release-$GITHUB_SHA.tar" --start --world dev \
+            --pass-env AGENTMAIL_API_KEY --pass-env AGENTMAIL_INBOX_ID \
+            --unauthenticated /auth/session --unauthenticated /v1/saved
       - name: Upload release-${{ github.sha }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

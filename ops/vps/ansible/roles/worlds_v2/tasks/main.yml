@@ -129,6 +129,11 @@
       NODE_ENV=production
       KS_MEDIA_ROOT=/srv/knowscroll/{{ item.name }}/media-v2
       KS_PUBLIC_ORIGIN=https://{{ item.app_host }}
+      # Sign-in (S1.3, D-007): mail through AgentMail (the key is in secrets/shared/agentmail.env,
+      # read by the API unit only), and operator links for disposable test accounts. This role
+      # serves dev and stage only; the API refuses KS_ALLOW_OPERATOR_SIGN_IN in live.
+      KS_MAIL_SENDER=agentmail
+      KS_ALLOW_OPERATOR_SIGN_IN=1
   loop: "{{ ks_v2_world_list }}"
   loop_control:
     label: "{{ item.name }}.v2.env"

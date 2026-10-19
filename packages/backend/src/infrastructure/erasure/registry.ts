@@ -19,6 +19,18 @@ export interface AccountColumn {
 }
 
 /**
+ * A table of personal records keyed by account rather than universe (identity's addresses,
+ * sign-in links and sessions). Clearing or resetting a universe leaves them alone; account
+ * deletion (the privacy work's own lifecycle) removes them. `ownerColumn` names how a row finds
+ * its person: the account column, or the address for a link that may precede any account.
+ */
+export interface AccountTable {
+  readonly schema: string;
+  readonly table: string;
+  readonly ownerColumn: string;
+}
+
+/**
  * A personal store that SQL introspection cannot find (job payloads, media, caches, model
  * artifacts, diagnostic exports). Each is declared by name with the eraser that clears it.
  */
@@ -45,6 +57,8 @@ export interface ModuleErasure {
   readonly nonRowStores: readonly PersonalNonRowStore[];
   /** Account-linked columns this module owns (handled by the account-deletion lifecycle). */
   readonly accountColumns?: readonly AccountColumn[];
+  /** Account-keyed personal tables this module owns (erased by account deletion, not by `erase`). */
+  readonly accountTables?: readonly AccountTable[];
   /** Erasers run in registry order; list dependants (rows referencing others) first. */
   erase(scope: PersonalScopeTx): Promise<ErasureReport>;
 }
@@ -55,6 +69,7 @@ export function erasureRegistry(modules: readonly ModuleErasure[]): readonly Mod
   for (const declaration of modules) {
     for (const name of [
       ...declaration.tables.map((table) => `${table.schema}.${table.table}`),
+      ...(declaration.accountTables ?? []).map((table) => `${table.schema}.${table.table}`),
       ...declaration.nonRowStores.map((store) => `store:${store.name}`),
     ]) {
       if (seen.has(name)) throw new Error(`${name} is declared by two modules`);

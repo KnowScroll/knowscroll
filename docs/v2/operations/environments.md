@@ -77,16 +77,35 @@ What the v2 programs need at runtime, and where each comes from on the server (c
 | `KS_ARTIFACT_SHA256` | api, worker (required in production; `/health` `artifact`) | `.ks/release.env`: the sha256 of the exact tar the server received |
 | `DATABASE_URL` | api, worker, migrate | `/etc/knowscroll/secrets/v2-<world>/database.env` (root only; `ks` adds a 15 min `statement_timeout` session option for migrate) |
 | `PORT` | api | `<world>.v2.env` (4330 dev, 4320 stage) |
-| `KS_MEDIA_ROOT`, `KS_PUBLIC_ORIGIN` | not read yet; provided for media and links | `<world>.v2.env` |
+| `KS_PUBLIC_ORIGIN` | api (sign-in links, `Origin` checks, cookie name) and the operator command | `<world>.v2.env` |
+| `KS_MEDIA_ROOT` | not read yet; provided for media | `<world>.v2.env` |
+| `KS_MAIL_SENDER=agentmail`, `KS_ALLOW_OPERATOR_SIGN_IN=1` | api (S1.3: production refuses to start without AgentMail; operator links on dev/stage) | `<world>.v2.env` |
+| `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` | api only (never the worker) | `/etc/knowscroll/secrets/shared/agentmail.env` (root only; copied once from the owner's Mac, CF-40; dev and stage share the inbox), an extra `EnvironmentFile=` of `ks2-api@` |
 
 Optional with defaults the server does not override: `KS_LISTEN_HOST` (127.0.0.1, which Caddy
 proxies), `KS_DB_POOL_MAX` (api 10, worker 5), `KS_DB_STATEMENT_TIMEOUT_MS` (15 s; migrate 15 min),
 `KS_BODY_LIMIT_BYTES`, `KS_SHUTDOWN_GRACE_SECONDS`; with S1.2 also `KS_SCOPE_LOCK_TIMEOUT_MS`,
-`KS_SOCKET_AUTH_CACHE_MS` and `KS_AUTH_ADAPTER` (default `none`: every personal route answers 401
-until S1.3 sessions; `test-bearer` is refused outside `NODE_ENV=test`). The connection budget fits
+`KS_SOCKET_AUTH_CACHE_MS` and `KS_AUTH_ADAPTER` (default `session`: identity's sessions since S1.3;
+`test-bearer` is refused outside `NODE_ENV=test`). The connection budget fits
 the `ks2_<world>` limit of 30: api 10, worker 5 plus its pg-boss pool 5, and during a migrate 2 + 2.
-Later secrets (auth, mail, model keys) are added the same way, by a later change to
-`roles/worlds_v2`.
+Later secrets (model keys) are added the same way, by a later change to `roles/worlds_v2`; the mail
+key arrived that way with S1.3 (apply the role before deploying an S1.3 revision: without the
+AgentMail file the v2 API refuses to start and `ks` keeps the previous release).
+
+### Operator sign-in on dev or stage (D-007)
+
+A disposable test account is signed in with a one-time link minted on the server (never in live;
+the world's settings carry `KS_ALLOW_OPERATOR_SIGN_IN=1`). As root, with the world's environment
+and the release's own program, as the world's user:
+
+```sh
+sudo sh -c 'set -a; . /etc/knowscroll/dev.v2.env; . /etc/knowscroll/secrets/v2-dev/database.env; set +a;
+  cd /srv/knowscroll/dev/current/api && exec runuser -u ks-dev -- /usr/bin/node dist/operator.js issue-sign-in --email <disposable address>'
+```
+
+It prints the link (`https://app.dev.knowscroll.space/redeem#token=…`) on stdout: open it, confirm,
+and the account is signed in. The link works once, for 15 minutes; treat it as a password until then.
+An address that signed up by mail is refused (`not_disposable`).
 
 The v2 API must answer `GET /health` on `PORT` with
 `{"status", "world", "commit", "artifact", "migration"}`: `world` = `KS_WORLD`, `commit` =

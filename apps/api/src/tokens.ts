@@ -7,3 +7,7 @@ export const ENQUEUE_JOB = Symbol('EnqueueJob');
 export const CALLERS = Symbol('AuthenticatedCallers');
 /** `() => RelayState`: the LISTEN relay's current state, for `/health`. */
 export const RELAY_STATE = Symbol('RelayState');
+/** The identity module's sign-in use cases, built once by the composition root. */
+export const IDENTITY_USE_CASES = Symbol('IdentityUseCases');
+/** The in-process limits of the unauthenticated sign-in routes. */
+export const AUTH_LIMITERS = Symbol('AuthLimiters');

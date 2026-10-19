@@ -8,6 +8,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 |---|---|
 | `src/problems.ts` | `problemCatalogue` (code → HTTP status, fixed title), RFC 9457 `ProblemDetailsSchema`, `problemDetails()` |
 | `src/health.ts` | `GET /health` response and contract |
+| `src/identity.ts` | `/auth/*` sign-in and session routes, the link and session token shapes, the session cookie names (D-018) |
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |
 
 Rules:

@@ -3,10 +3,14 @@ import type {
   AuthorityHolds,
   PersonalAuthority,
   PersonalScopeTx,
+  ResolvedScopeOutcome,
+  RootResolution,
+  RootResolutionTx,
   ScopeOutcome,
   ScopeRefusal,
   SharedScopeTx,
   WithPersonalScope,
+  WithResolvedPersonalScope,
 } from '../../modules/identity/public.js';
 import type { Database } from './database.js';
 import { runMarkedTransaction } from './transaction-marker.js';
@@ -35,7 +39,9 @@ export interface PersonalScopeOptions {
 /**
  * Creates `withPersonalScope` (blueprint §19) over one database.
  *
- * Purpose: the only way to obtain a `PersonalScopeTx`, the capability personal-write ports need.
+ * Purpose: the way to obtain a `PersonalScopeTx`, the capability personal-write ports need (the
+ *   only other one is `makeWithResolvedPersonalScope`, for sign-in, which shares its lock and
+ *   rechecks).
  * Inputs: the claimed `PersonalAuthority` and the work to run.
  * Steps: BEGIN; `SET LOCAL lock_timeout`; `SELECT … FROM identity.universes WHERE id = $1 FOR NO
  *   KEY UPDATE` (waits behind any other holder); then recheck existence, status, privacy epoch and,
@@ -54,46 +60,148 @@ export function makeWithPersonalScope(db: Kysely<Database>, options: PersonalSco
     const authority = freezeAuthority(claimed);
     return runMarkedTransaction('personal-scope', () =>
       db.transaction().execute(async (trx): Promise<ScopeOutcome<T>> => {
-        await sql`select set_config('lock_timeout', ${`${options.lockTimeoutMs}ms`}, true)`.execute(trx);
-        let universe;
-        try {
-          universe = await trx
-            .selectFrom('identity.universes')
-            .select(['account_id', 'privacy_epoch', 'status', 'revision'])
-            .where('id', '=', authority.universeId)
-            .forNoKeyUpdate()
-            .executeTakeFirst();
-        } catch (error) {
-          if ((error as { code?: unknown }).code === '55P03')
-            throw new ScopeBusyError('Personal scope lock not granted in time', { cause: error });
-          throw error;
-        }
-        const universeRefusal = refusalForUniverse(authority, universe);
-        if (universeRefusal !== undefined) return { kind: 'refused', refusal: universeRefusal };
-        if (universe === undefined) return { kind: 'refused', refusal: { kind: 'universe_missing' } };
-        if (authority.actor.kind === 'account') {
-          const account = await trx
-            .selectFrom('identity.accounts')
-            .select('status')
-            .where('id', '=', universe.account_id)
-            .forKeyShare()
-            .executeTakeFirst();
-          if (account?.status !== 'active') return { kind: 'refused', refusal: { kind: 'universe_suspended' } };
-        }
-        const scope = Object.freeze({
-          authority,
-          revisionAtEntry: universe.revision,
-        }) as unknown as PersonalScopeTx;
-        openScopes.set(scope, trx);
-        try {
-          return { kind: 'entered', value: await work(scope) };
-        } finally {
-          openScopes.delete(scope);
-          sharedRoots.delete(scope);
-        }
+        await setLockTimeout(trx, options.lockTimeoutMs);
+        const entry = await lockAndRecheck(trx, authority);
+        if (entry.kind === 'refused') return entry;
+        return { kind: 'entered', value: await runInScope(trx, authority, entry.revision, work) };
       }),
     );
   };
+}
+
+/** Carries a stop or refusal out of a resolved-scope transaction, so that it rolls back. Never escapes. */
+class RollbackWith<O> extends Error {
+  override readonly name = 'RollbackWith';
+  constructor(readonly outcome: O) {
+    super('Resolved scope rolled back with a typed outcome');
+  }
+}
+
+const openResolutions = new WeakMap<RootResolutionTx, Transaction<Database>>();
+
+/**
+ * Creates identity's `WithResolvedPersonalScope` (blueprint §19, S1.3): one marked transaction in
+ * which `resolve` first finds or creates the personal root (with the lock timeout already set),
+ * then the root is locked and rechecked exactly as `withPersonalScope` does, then `work` runs with
+ * the scope.
+ *
+ * Purpose: sign-in, whose universe is known only after the sign-in link is read and is created on
+ *   first sign-in, still writes its receipt and session inside a real `PersonalScopeTx`.
+ * Steps: BEGIN; `SET LOCAL lock_timeout`; `resolve(tx)` (identity's earlier locks, inserts of a new
+ *   account and universe); `SELECT … FOR NO KEY UPDATE` on the named universe and the same
+ *   rechecks; `work(scope, context)`; commit.
+ * Outputs: `entered` (committed), `stopped` (the resolver's result) or `refused` (a recheck
+ *   failed). A stop, a refusal or an exception rolls back everything, including what `resolve`
+ *   wrote, so a refusal never consumes a link or leaves an account behind.
+ * Failure/retry: a root lock wait beyond `lockTimeoutMs` throws `ScopeBusyError`; any other lock
+ *   wait beyond it surfaces as PostgreSQL `55P03` (both retryable).
+ */
+export function makeWithResolvedPersonalScope(
+  db: Kysely<Database>,
+  options: PersonalScopeOptions,
+): WithResolvedPersonalScope {
+  return async <C, R, T>(
+    resolve: (tx: RootResolutionTx) => Promise<RootResolution<C, R>>,
+    work: (scope: PersonalScopeTx, context: C) => Promise<T>,
+  ): Promise<ResolvedScopeOutcome<T, R>> => {
+    try {
+      return await runMarkedTransaction('personal-scope', () =>
+        db.transaction().execute(async (trx): Promise<ResolvedScopeOutcome<T, R>> => {
+          await setLockTimeout(trx, options.lockTimeoutMs);
+          const tx = Object.freeze({}) as unknown as RootResolutionTx;
+          openResolutions.set(tx, trx);
+          let resolution: RootResolution<C, R>;
+          try {
+            resolution = await resolve(tx);
+          } finally {
+            openResolutions.delete(tx);
+          }
+          if (resolution.kind === 'stop') throw new RollbackWith({ kind: 'stopped', result: resolution.result });
+          const authority = freezeAuthority(resolution.authority);
+          const entry = await lockAndRecheck(trx, authority);
+          if (entry.kind === 'refused') throw new RollbackWith(entry);
+          const { context } = resolution;
+          return {
+            kind: 'entered',
+            value: await runInScope(trx, authority, entry.revision, (scope) => work(scope, context)),
+          };
+        }),
+      );
+    } catch (error) {
+      if (error instanceof RollbackWith) return error.outcome as ResolvedScopeOutcome<T, R>;
+      throw error;
+    }
+  };
+}
+
+/**
+ * The transaction behind an open root resolution, for identity's adapters only. Throws
+ * `ScopeClosedError` once the resolution phase ended.
+ */
+export function resolutionTransactionOf(tx: RootResolutionTx): Transaction<Database> {
+  const trx = openResolutions.get(tx);
+  if (trx === undefined) throw new ScopeClosedError('Root resolution used after its phase ended');
+  return trx;
+}
+
+async function setLockTimeout(trx: Transaction<Database>, lockTimeoutMs: number): Promise<void> {
+  await sql`select set_config('lock_timeout', ${`${lockTimeoutMs}ms`}, true)`.execute(trx);
+}
+
+/**
+ * Locks the personal root (`FOR NO KEY UPDATE`, waiting behind any other holder) and rechecks
+ * existence, status, privacy epoch and, for an account actor, ownership and account status, all
+ * after the wait.
+ */
+async function lockAndRecheck(
+  trx: Transaction<Database>,
+  authority: PersonalAuthority,
+): Promise<
+  { readonly kind: 'locked'; readonly revision: number } | { readonly kind: 'refused'; readonly refusal: ScopeRefusal }
+> {
+  let universe;
+  try {
+    universe = await trx
+      .selectFrom('identity.universes')
+      .select(['account_id', 'privacy_epoch', 'status', 'revision'])
+      .where('id', '=', authority.universeId)
+      .forNoKeyUpdate()
+      .executeTakeFirst();
+  } catch (error) {
+    if ((error as { code?: unknown }).code === '55P03')
+      throw new ScopeBusyError('Personal scope lock not granted in time', { cause: error });
+    throw error;
+  }
+  const universeRefusal = refusalForUniverse(authority, universe);
+  if (universeRefusal !== undefined) return { kind: 'refused', refusal: universeRefusal };
+  if (universe === undefined) return { kind: 'refused', refusal: { kind: 'universe_missing' } };
+  if (authority.actor.kind === 'account') {
+    const account = await trx
+      .selectFrom('identity.accounts')
+      .select('status')
+      .where('id', '=', universe.account_id)
+      .forKeyShare()
+      .executeTakeFirst();
+    if (account?.status !== 'active') return { kind: 'refused', refusal: { kind: 'universe_suspended' } };
+  }
+  return { kind: 'locked', revision: universe.revision };
+}
+
+/** Creates the scope capability for the locked root and runs `work`; the capability dies with it. */
+async function runInScope<T>(
+  trx: Transaction<Database>,
+  authority: PersonalAuthority,
+  revisionAtEntry: number,
+  work: (scope: PersonalScopeTx) => Promise<T>,
+): Promise<T> {
+  const scope = Object.freeze({ authority, revisionAtEntry }) as unknown as PersonalScopeTx;
+  openScopes.set(scope, trx);
+  try {
+    return await work(scope);
+  } finally {
+    openScopes.delete(scope);
+    sharedRoots.delete(scope);
+  }
 }
 
 function freezeAuthority(authority: PersonalAuthority): PersonalAuthority {

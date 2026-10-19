@@ -5,7 +5,7 @@
       "project": ["*.{js,cjs}"]
     },
     "apps/api": {
-      "entry": ["src/main.ts", "src/migrate.ts"],
+      "entry": ["src/main.ts", "src/migrate.ts", "src/operator.ts"],
       "project": ["src/**/*.ts"]
     },
     "apps/worker": {
