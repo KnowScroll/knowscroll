@@ -1,4 +1,8 @@
 # squawk lints the reviewed migrations for locking and rollout hazards. PostgreSQL 16 is the
-# production major (dependency-matrix.md).
+# production major (docs/v2/operations/dependency-matrix.md). Kysely's migrator runs pending
+# migrations inside one transaction.
 pg_version = "16.0"
 assume_in_transaction = true
+# Every primary key is a UUID. The remaining integer columns are small bounded counters
+# (revisions, privacy epochs) that stay JavaScript numbers without a custom int8 parser.
+excluded_rules = ["prefer-bigint-over-int"]

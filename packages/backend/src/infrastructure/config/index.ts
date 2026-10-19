@@ -5,6 +5,7 @@ export {
   readMigrateConfig,
   readWorkerConfig,
   type ApiConfig,
+  type AuthAdapter,
   type DatabaseSettings,
   type MigrateConfig,
   type WorkerConfig,

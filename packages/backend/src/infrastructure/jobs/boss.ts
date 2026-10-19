@@ -13,7 +13,8 @@ export type BossRole = 'install' | 'producer' | 'consumer';
 /** Errors and warnings pg-boss emits, forwarded to the caller's diagnostics. */
 export interface BossDiagnostics {
   onError(error: unknown): void;
-  onWarning(warning: { readonly message?: unknown }): void;
+  /** pg-boss warning kinds (`slow_query`, `large_queue`, …); warning text is never forwarded. */
+  onWarning(reasonCode: string): void;
 }
 
 /**
@@ -32,7 +33,10 @@ export function createBoss(settings: DatabaseSettings, role: BossRole, diagnosti
     schedule: false,
   });
   boss.on('error', (error) => diagnostics.onError(error));
-  boss.on('warning', (warning) => diagnostics.onWarning(warning));
+  boss.on('warning', (warning: { readonly data?: { readonly type?: unknown } }) => {
+    const type = warning.data?.type;
+    diagnostics.onWarning(typeof type === 'string' && /^[a-z_]{1,40}$/.test(type) ? type : 'warning');
+  });
   return boss;
 }
 

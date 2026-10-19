@@ -52,6 +52,25 @@ describe('process configuration', () => {
     });
   });
 
+  it('refuses the test-only caller adapter unless NODE_ENV=test', () => {
+    expect(() =>
+      readApiConfig({
+        NODE_ENV: 'production',
+        DATABASE_URL: secretUrl,
+        PORT: '4330',
+        KS_AUTH_ADAPTER: 'test-bearer',
+        ...release,
+      }),
+    ).toThrow(ConfigurationError);
+    expect(() =>
+      readApiConfig({ NODE_ENV: 'development', DATABASE_URL: secretUrl, PORT: '4330', KS_AUTH_ADAPTER: 'test-bearer' }),
+    ).toThrow(ConfigurationError);
+    expect(
+      readApiConfig({ NODE_ENV: 'test', DATABASE_URL: secretUrl, PORT: '4330', KS_AUTH_ADAPTER: 'test-bearer' })
+        .authAdapter,
+    ).toBe('test-bearer');
+  });
+
   it('never echoes a value in its problems', () => {
     const error = configurationError(() =>
       readApiConfig({

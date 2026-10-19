@@ -1,5 +1,5 @@
 import { Catch, HttpException, Inject, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
-import type { ORPCError } from '@orpc/server';
+import { ORPCError } from '@orpc/server';
 import type { NextFunction, Request, Response } from 'express';
 import {
   PROBLEM_MEDIA_TYPE,
@@ -18,6 +18,14 @@ import { currentRequest } from './request-context.js';
  * raise oRPC errors whose code is a catalogue problem code; everything else that fails is an
  * unexpected error, logged once here and answered with a sanitised `INTERNAL` problem.
  */
+export function problem(code: ProblemCode, extras: ProblemData = {}): ORPCError<ProblemCode, ProblemData> {
+  return new ORPCError(code, {
+    status: problemCatalogue[code].status,
+    message: problemCatalogue[code].title,
+    data: extras,
+  });
+}
+
 export interface ProblemData {
   readonly detail?: string;
   readonly issues?: ProblemIssue[];
@@ -45,6 +53,9 @@ export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent
     case 'UNSUPPORTED_MEDIA_TYPE':
       return finish(problemDetails('UNSUPPORTED_MEDIA_TYPE'));
     default:
+      // Personal-scope lock not granted in time: retryable, not a fault.
+      if ((error.cause as { code?: unknown } | undefined)?.code === 'SCOPE_BUSY')
+        return finish(problemDetails('SERVICE_UNAVAILABLE'));
       logUnexpected(logEvent, error.cause ?? error);
       return finish(problemDetails('INTERNAL'));
   }
