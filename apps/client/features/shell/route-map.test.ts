@@ -45,6 +45,7 @@ describe('route map', () => {
         '/explore',
         '/gallery',
         '/recover',
+        '/redeem',
         '/saved',
         '/signin',
         '/signin/link',
