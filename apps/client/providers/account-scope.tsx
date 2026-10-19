@@ -4,14 +4,33 @@ import { Platform } from 'react-native';
 import {
   connectScopeSocket,
   createAccountScopeManager,
+  type AccountScope,
   type AccountScopeManager,
   type AccountScopeState,
 } from '@knowscroll/client-core';
 import { appApiOrigin } from '../platform/api';
 import { scopeStorage } from '../platform/scope-storage';
 import { sessionTokens } from '../platform/session-tokens';
+import { signInBinding } from '../platform/sign-in-binding';
 
 const AccountScopeContext = createContext<AccountScopeManager | null>(null);
+
+/**
+ * One key per scope object, not per scope id: a scope that ended and was mounted again for the
+ * same account and epoch (a switching redemption that failed) is a new subtree too.
+ */
+const scopeKeys = new WeakMap<AccountScope, string>();
+let scopeCount = 0;
+
+function keyOf(scope: AccountScope): string {
+  let key = scopeKeys.get(scope);
+  if (key === undefined) {
+    scopeCount += 1;
+    key = `${scope.id}#${String(scopeCount)}`;
+    scopeKeys.set(scope, key);
+  }
+  return key;
+}
 
 /**
  * The app's scope manager: the world's API origin (D-008), the platform's credential (web: the
@@ -25,6 +44,7 @@ export function createAppAccountScopeManager(): AccountScopeManager {
     baseUrl: origin.ok ? origin.baseUrl : '',
     platform: Platform.OS === 'web' ? 'web' : 'native',
     ...(sessionTokens === undefined ? {} : { tokens: sessionTokens }),
+    ...(signInBinding === undefined ? {} : { signInBinding }),
     store: scopeStorage,
     connect: connectScopeSocket,
   });
@@ -53,7 +73,7 @@ export function AccountScopeProvider({
   }, [manager]);
   const state = useSyncExternalStore(manager.subscribe, manager.getState, manager.getState);
   if (state.status === 'starting') return null;
-  const key = state.status === 'signed_in' ? state.scope.id : 'signed-out';
+  const key = state.status === 'signed_in' ? keyOf(state.scope) : 'signed-out';
   return (
     <AccountScopeContext.Provider value={manager}>
       <QueryClientProvider key={key} client={manager.queryClient()}>

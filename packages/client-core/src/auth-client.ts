@@ -1,5 +1,6 @@
 import {
   PROBLEM_MEDIA_TYPE,
+  PeekSignInResponseSchema,
   ProblemDetailsSchema,
   RedeemSignInResponseSchema,
   SessionResponseSchema,
@@ -15,6 +16,13 @@ export type RequestLinkOutcome =
   | { readonly kind: 'requested' }
   | { readonly kind: 'invalid_address' }
   /** The address or this device asked too often; `retryAfterSeconds` from the answer when given. */
+  | { readonly kind: 'rate_limited'; readonly retryAfterSeconds: number | undefined }
+  | { readonly kind: 'unavailable' };
+
+/** Whose account a link opens, masked, asked before redeeming it (review m8). */
+export type PeekOutcome =
+  | { readonly kind: 'usable'; readonly maskedEmail: string }
+  | { readonly kind: 'link_invalid' }
   | { readonly kind: 'rate_limited'; readonly retryAfterSeconds: number | undefined }
   | { readonly kind: 'unavailable' };
 
@@ -45,11 +53,15 @@ export type SessionOutcome =
  * Never throws for an HTTP or network failure: each becomes a typed outcome.
  */
 export interface AuthClient {
-  requestLink(email: string): Promise<RequestLinkOutcome>;
+  /** `codeChallenge`: native only, the S256 challenge of the app's verifier (review m10). */
+  requestLink(email: string, codeChallenge?: string): Promise<RequestLinkOutcome>;
+  peek(request: { readonly token: string; readonly client: SessionClient }): Promise<PeekOutcome>;
   redeem(request: {
     readonly token: string;
     readonly commandId: string;
     readonly client: SessionClient;
+    /** Native only: the verifier the link's challenge was made from. */
+    readonly codeVerifier?: string;
   }): Promise<RedeemOutcome>;
   session(): Promise<SessionOutcome>;
   signOut(options: { readonly everywhere: boolean }): Promise<'signed_out' | 'unavailable'>;
@@ -104,12 +116,30 @@ export function createAuthClient(options: AuthClientOptions): AuthClient {
   }
 
   return {
-    async requestLink(email) {
-      const response = await send('POST', '/auth/sign-in', { email });
+    async requestLink(email, codeChallenge) {
+      const response = await send('POST', '/auth/sign-in', {
+        email,
+        ...(codeChallenge === undefined ? {} : { codeChallenge }),
+      });
       if (response === undefined) return { kind: 'unavailable' };
       if (response.status === 202) return { kind: 'requested' };
       if (response.status === 429) return { kind: 'rate_limited', retryAfterSeconds: retryAfter(response) };
-      if ((await problemCode(response)) === 'INVALID_REQUEST') return { kind: 'invalid_address' };
+      const code = await problemCode(response);
+      // 422: outside the accepted address grammar; 400: not even a string of the right length.
+      if (code === 'UNPROCESSABLE_REQUEST' || code === 'INVALID_REQUEST') return { kind: 'invalid_address' };
+      return { kind: 'unavailable' };
+    },
+
+    async peek(request) {
+      const response = await send('POST', '/auth/peek', request);
+      if (response === undefined) return { kind: 'unavailable' };
+      if (response.status === 429) return { kind: 'rate_limited', retryAfterSeconds: retryAfter(response) };
+      if (response.ok) {
+        const parsed = PeekSignInResponseSchema.safeParse(await response.json().catch(() => undefined));
+        return parsed.success ? { kind: 'usable', maskedEmail: parsed.data.maskedEmail } : { kind: 'unavailable' };
+      }
+      const code = await problemCode(response);
+      if (code === 'SIGN_IN_LINK_INVALID' || code === 'INVALID_REQUEST') return { kind: 'link_invalid' };
       return { kind: 'unavailable' };
     },
 

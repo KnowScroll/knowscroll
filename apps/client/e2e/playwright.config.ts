@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * The web smoke (#227 review M2): Chromium over the static exports, served like the edge serves
- * them. `production` runs against `dist/` (the export that ships); `gallery` against
+ * them (with its headers, the Content-Security-Policy included: S1.3 review m7). `production` runs against `dist/` (the export that ships); `gallery` against
  * `dist-gallery/` (built with EXPO_PUBLIC_KS_GALLERY=1, never shipped). CI builds both first
  * (`pnpm --filter @knowscroll/client build` and `build:gallery`); browsers are installed in CI
  * only (`playwright install --with-deps chromium`).
@@ -21,7 +21,7 @@ export default defineConfig({
   projects: [
     {
       name: 'production',
-      testMatch: ['web-smoke.spec.ts', 'auth-smoke.spec.ts'],
+      testMatch: ['web-smoke.spec.ts', 'auth-smoke.spec.ts', 'security-smoke.spec.ts'],
       use: { baseURL: `http://127.0.0.1:${production}` },
     },
     { name: 'gallery', testMatch: 'gallery-smoke.spec.ts', use: { baseURL: `http://127.0.0.1:${gallery}` } },

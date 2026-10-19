@@ -1,5 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type { SessionAccount } from '@knowscroll/contracts';
+import {
+  PROBLEM_MEDIA_TYPE,
+  SCOPE_HEADER,
+  scopeClaimOf,
+  type ProblemCode,
+  type SessionAccount,
+} from '@knowscroll/contracts';
 import { createApiClient, type ApiClient } from './api-client';
 import { createQueryClient } from './query-client';
 
@@ -70,8 +76,9 @@ export interface AccountScope {
   end(): void;
 }
 
+/** A scope's id, which is also its claim on the wire (`X-KS-Scope`, review M1). */
 export function scopeIdOf(account: Pick<SessionAccount, 'accountId' | 'privacyEpoch'>): string {
-  return `${account.accountId}:${account.privacyEpoch}`;
+  return scopeClaimOf(account);
 }
 
 /** An AbortSignal that aborts when any of `signals` does (no `AbortSignal.any` on every runtime). */
@@ -88,22 +95,42 @@ function eitherSignal(signals: readonly (AbortSignal | null | undefined)[]): Abo
   return controller.signal;
 }
 
+const scopeMismatch: ProblemCode = 'SCOPE_MISMATCH';
+
+/** Whether an answer is the API's refusal of a request made for another scope. */
+async function isScopeMismatch(response: Response): Promise<boolean> {
+  if (response.status !== 409 || !(response.headers.get('content-type') ?? '').startsWith(PROBLEM_MEDIA_TYPE))
+    return false;
+  const body: unknown = await response
+    .clone()
+    .json()
+    .catch(() => undefined);
+  return typeof body === 'object' && body !== null && (body as { code?: unknown }).code === scopeMismatch;
+}
+
 /**
  * Wraps `fetch` for one scope: refuses to start a request once the scope ended, cancels in-flight
  * requests when it ends, and drops a response that arrives after it ended (`ScopeEndedError`),
- * whatever the platform's fetch does with the abort. `authorization` (native bearer) is added to
- * every request when given; the web sends its same-origin cookie by itself.
+ * whatever the platform's fetch does with the abort. Every request carries the scope's claim
+ * (`X-KS-Scope: <accountId>:<epoch>`), so the API serves it only for the account and epoch it was
+ * made for (review M1: another tab switched account, or the privacy epoch changed); its refusal
+ * (`SCOPE_MISMATCH`) calls `onMismatch`, and the scope manager rereads the session. `authorization`
+ * (native bearer) is the scope's own credential, added to every request; the web sends its
+ * same-origin cookie by itself.
  */
 export function fencedFetch(options: {
   readonly fetch: Fetch;
   readonly ended: AbortSignal;
+  readonly scope: string;
   readonly authorization: () => string | undefined;
+  readonly onMismatch?: () => void;
 }): Fetch {
   return async (request, init) => {
     if (options.ended.aborted) throw new ScopeEndedError();
     const authorization = options.authorization();
     const headers = new Headers(request.headers);
     if (authorization !== undefined) headers.set('authorization', authorization);
+    headers.set(SCOPE_HEADER, options.scope);
     const fenced = new Request(request, { headers, signal: eitherSignal([request.signal, options.ended]) });
     let response: Response;
     try {
@@ -113,6 +140,7 @@ export function fencedFetch(options: {
       throw error;
     }
     if (options.ended.aborted) throw new ScopeEndedError();
+    if (options.onMismatch !== undefined && (await isScopeMismatch(response))) options.onMismatch();
     return response;
   };
 }
@@ -134,8 +162,13 @@ export interface AccountScopeOptions {
   readonly account: SessionAccount;
   readonly baseUrl: string;
   readonly fetch: Fetch;
-  /** The native bearer header (`Bearer kss_…`), read for every request; `undefined` on the web. */
+  /**
+   * This scope's own credential: the native bearer header (`Bearer kss_…`) of the session the
+   * scope was created for, never another's (review M1); `undefined` on the web.
+   */
   readonly authorization: () => string | undefined;
+  /** The API refused a request as made for another scope: reread the session. */
+  readonly onMismatch?: () => void;
   readonly store: KeyValueStore;
   readonly connect?: ConnectScope;
   /** Test seam: the query client to own (defaults to `createQueryClient()`). */
@@ -151,7 +184,13 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
   let connection: ScopeConnection | undefined;
   const api = createApiClient({
     baseUrl: options.baseUrl,
-    fetch: fencedFetch({ fetch: options.fetch, ended: ended.signal, authorization: options.authorization }),
+    fetch: fencedFetch({
+      fetch: options.fetch,
+      ended: ended.signal,
+      scope: id,
+      authorization: options.authorization,
+      ...(options.onMismatch === undefined ? {} : { onMismatch: options.onMismatch }),
+    }),
   });
   const scope: AccountScope = {
     id,

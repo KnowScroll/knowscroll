@@ -5,10 +5,12 @@ import type { AccountScope, ScopeConnection } from './account-scope';
 /** What the socket needs from the scope manager besides the scope. */
 export interface SocketContext {
   readonly baseUrl: string;
-  /** The native bearer token, or `undefined` on the web (the same-origin cookie authenticates). */
+  /** The scope's own native bearer token, or `undefined` on the web (the same-origin cookie authenticates). */
   readonly bearerToken: () => string | undefined;
   /** The server dropped this account's sockets (sign-out or revocation): recheck the session. */
   readonly onRevoked: () => void;
+  /** The server refused the handshake as made for another scope (`SCOPE_MISMATCH`): reread the session. */
+  readonly onMismatch: () => void;
 }
 
 /**
@@ -16,15 +18,17 @@ export interface SocketContext {
  * the scope's own universe. Hints carry no data: a `scope_changed` above what the scope has seen,
  * or a `scope_resync`, marks the scope's queries stale so they refetch through authorised HTTP
  * reads. "io server disconnect" means the server dropped the account's sockets: the manager
- * rechecks the session. Closing it (the scope's first step when it ends) removes every handler
+ * rechecks the session; a handshake refused as `SCOPE_MISMATCH` (another account or epoch is now
+ * this device's) makes it reread the session. Closing it (the scope's first step when it ends) removes every handler
  * first, so no hint of an ended scope reaches anything.
  */
 export function connectScopeSocket(scope: AccountScope, context: SocketContext): ScopeConnection {
   const token = context.bearerToken();
+  // The handshake names the scope it is for (review M1), as every HTTP request does.
   const socket = io(context.baseUrl, {
     path: SOCKET_PATH,
     transports: ['websocket'],
-    ...(token === undefined ? {} : { auth: { token } }),
+    auth: token === undefined ? { scope: scope.id } : { scope: scope.id, token },
   });
   let highest = -1;
   const refresh = () => {
@@ -50,6 +54,9 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
   socket.on(socketEvents.scopeResync, refresh);
   socket.on('disconnect', (reason) => {
     if (reason === 'io server disconnect' && scope.active) context.onRevoked();
+  });
+  socket.on('connect_error', (error: Error) => {
+    if (error.message === 'SCOPE_MISMATCH' && scope.active) context.onMismatch();
   });
   return {
     close() {

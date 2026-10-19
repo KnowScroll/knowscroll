@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { problemDetails } from '@knowscroll/contracts';
 import { ScopeEndedError, createAccountScope, memoryStore, scopeIdOf } from './account-scope';
-import { createAccountScopeManager, type SessionTokenStore } from './account-scope-manager';
+import { createAccountScopeManager, type SessionTokenStore, type SignInBinding } from './account-scope-manager';
 
 /**
  * The AccountScope (blueprint §18) with labelled test doubles for `fetch`: no network, no API.
@@ -61,8 +62,8 @@ describe('an account scope', () => {
     await expect(scope.api.experience.listSaved({})).rejects.toThrow(ScopeEndedError);
   });
 
-  it('sends a command through the fence with its body and the scope bearer header', async () => {
-    const seen: { method: string; authorization: string | null; body: unknown }[] = [];
+  it('sends a command through the fence with its body, the scope bearer header and its scope claim', async () => {
+    const seen: { method: string; authorization: string | null; scope: string | null; body: unknown }[] = [];
     const scope = createAccountScope({
       account: accountA,
       baseUrl: 'https://app.scope.test',
@@ -70,6 +71,7 @@ describe('an account scope', () => {
         seen.push({
           method: request.method,
           authorization: request.headers.get('authorization'),
+          scope: request.headers.get('x-ks-scope'),
           body: await request.json(),
         });
         return json(200, {
@@ -93,7 +95,9 @@ describe('an account scope', () => {
       target: { assetId: '0199c000-0000-7000-8000-000000000011', assetRevision: 1 },
     };
     await expect(scope.api.experience.applyAction(command)).resolves.toMatchObject({ saved: true });
-    expect(seen).toEqual([{ method: 'POST', authorization: 'Bearer kss_fixture', body: command }]);
+    expect(seen).toEqual([
+      { method: 'POST', authorization: 'Bearer kss_fixture', scope: scopeIdOf(accountA), body: command },
+    ]);
   });
 
   it('closes its socket before anything else when it ends, and confines its storage', () => {
@@ -119,8 +123,9 @@ describe('an account scope', () => {
 
 function fakeAuth(sessions: { current: typeof accountA | undefined }) {
   return {
-    requestLink: vi.fn(() => Promise.resolve({ kind: 'requested' as const })),
-    redeem: vi.fn((request: { token: string }) => {
+    requestLink: vi.fn((_email: string, _challenge?: string) => Promise.resolve({ kind: 'requested' as const })),
+    peek: vi.fn(() => Promise.resolve({ kind: 'usable' as const, maskedEmail: 'b•••@scope.test' })),
+    redeem: vi.fn((request: { token: string; codeVerifier?: string }) => {
       const account = request.token.endsWith('B') ? accountB : accountA;
       sessions.current = account;
       return Promise.resolve({
@@ -277,5 +282,205 @@ describe('the account scope manager', () => {
     });
     await web.start();
     expect(web.getState()).toEqual({ status: 'unavailable' });
+  });
+
+  it('fences the old scope before a switching redemption is sent: nothing it starts goes out with the new credential (review M1)', async () => {
+    // The review's proof (switch-race.mjs): signed in as A, redeem B's link while the secure-store
+    // write of B's token is still pending; A's scope makes a request in that window.
+    const seen: { url: string; authorization: string | null; scope: string | null }[] = [];
+    const fetch = vi.fn((request: Request) => {
+      seen.push({
+        url: new URL(request.url).pathname,
+        authorization: request.headers.get('authorization'),
+        scope: request.headers.get('x-ks-scope'),
+      });
+      return Promise.resolve(saved(0));
+    });
+    const sessions = { current: accountA as typeof accountA | undefined };
+    let releaseWrite: (() => void) | undefined;
+    const tokens: SessionTokenStore = {
+      read: () => Promise.resolve('kss_a@scope.test'),
+      write: () =>
+        new Promise<void>((resolve) => {
+          releaseWrite = resolve;
+        }),
+      clear: () => Promise.resolve(),
+    };
+    const manager = createAccountScopeManager({
+      baseUrl: 'https://app.scope.test',
+      platform: 'native',
+      fetch,
+      tokens,
+      store: memoryStore(),
+      auth: fakeAuth(sessions),
+    });
+    await manager.start();
+    const first = manager.getState();
+    if (first.status !== 'signed_in') throw new Error('not signed in');
+    const scopeA = first.scope;
+    await scopeA.api.experience.listSaved({});
+
+    const redeeming = manager.redeem({ token: 'ksl_B', commandId: '0199c000-0000-7000-8000-000000000003' });
+    expect(scopeA.active).toBe(false);
+    await vi.waitFor(() => expect(releaseWrite).toBeDefined());
+    // The redemption answered; B's token is being written. A's refetch, hint or queued command:
+    await expect(scopeA.api.experience.listSaved({})).rejects.toThrow(ScopeEndedError);
+    releaseWrite?.();
+    await redeeming;
+    const second = manager.getState();
+    if (second.status !== 'signed_in') throw new Error('not signed in');
+    await second.scope.api.experience.listSaved({});
+
+    expect(seen).toEqual([
+      { url: '/v1/saved', authorization: 'Bearer kss_a@scope.test', scope: scopeIdOf(accountA) },
+      { url: '/v1/saved', authorization: 'Bearer kss_b@scope.test', scope: scopeIdOf(accountB) },
+    ]);
+  });
+
+  it('keeps a scope on its own credential: an ended scope never borrows the next one', async () => {
+    const seen: (string | null)[] = [];
+    const sessions = { current: accountA as typeof accountA | undefined };
+    const manager = createAccountScopeManager({
+      baseUrl: 'https://app.scope.test',
+      platform: 'native',
+      fetch: (request) => {
+        seen.push(request.headers.get('authorization'));
+        return Promise.resolve(saved(0));
+      },
+      tokens: tokenStore('kss_a@scope.test'),
+      store: memoryStore(),
+      auth: fakeAuth(sessions),
+    });
+    await manager.start();
+    const first = manager.getState();
+    if (first.status !== 'signed_in') throw new Error('not signed in');
+    await manager.redeem({ token: 'ksl_B', commandId: '0199c000-0000-7000-8000-000000000004' });
+    await expect(first.scope.api.experience.listSaved({})).rejects.toThrow(ScopeEndedError);
+    const second = manager.getState();
+    if (second.status !== 'signed_in') throw new Error('not signed in');
+    await second.scope.api.experience.listSaved({});
+    expect(seen).toEqual(['Bearer kss_b@scope.test']);
+  });
+
+  it('rereads the session when the API refuses a request as another scope’s: another tab switched account, or the epoch changed (review M1, m11)', async () => {
+    const sessions = { current: accountA as typeof accountA | undefined };
+    const auth = fakeAuth(sessions);
+    const mismatch = new Response(JSON.stringify(problemDetails('SCOPE_MISMATCH')), {
+      status: 409,
+      headers: { 'content-type': 'application/problem+json' },
+    });
+    const answers: Response[] = [mismatch.clone(), mismatch.clone()];
+    const claims: (string | null)[] = [];
+    const manager = createAccountScopeManager({
+      baseUrl: 'https://app.scope.test',
+      platform: 'web',
+      fetch: (request) => {
+        claims.push(request.headers.get('x-ks-scope'));
+        return Promise.resolve(answers.shift() ?? saved(3));
+      },
+      store: memoryStore(),
+      auth,
+    });
+    await manager.start();
+    const first = manager.getState();
+    if (first.status !== 'signed_in') throw new Error('not signed in');
+
+    // Another tab signed into B: this tab's cookie is B's now, its scope still A's.
+    sessions.current = accountB;
+    await expect(first.scope.api.experience.listSaved({})).rejects.toThrow();
+    await vi.waitFor(() => {
+      const state = manager.getState();
+      expect(state.status === 'signed_in' ? state.scope.id : state.status).toBe(scopeIdOf(accountB));
+    });
+    expect(first.scope.active).toBe(false);
+
+    // A privacy reset whose revocation notice never arrived: B's epoch is 2 on the server.
+    const scopeB = manager.getState();
+    if (scopeB.status !== 'signed_in') throw new Error('not signed in');
+    sessions.current = { ...accountB, privacyEpoch: 2 };
+    await expect(scopeB.scope.api.experience.listSaved({})).rejects.toThrow();
+    await vi.waitFor(() => {
+      const state = manager.getState();
+      expect(state.status === 'signed_in' ? state.scope.id : state.status).toBe(`${accountB.accountId}:2`);
+    });
+    const third = manager.getState();
+    if (third.status !== 'signed_in') throw new Error('not signed in');
+    await expect(third.scope.api.experience.listSaved({})).resolves.toMatchObject({ revision: 3 });
+    expect(claims).toEqual([scopeIdOf(accountA), scopeIdOf(accountB), `${accountB.accountId}:2`]);
+  });
+
+  it('remounts the current account afresh when a switching redemption does not sign in', async () => {
+    const sessions = { current: accountA as typeof accountA | undefined };
+    const auth = {
+      ...fakeAuth(sessions),
+      redeem: vi.fn(() => Promise.resolve({ kind: 'link_invalid' as const })),
+    };
+    const manager = createAccountScopeManager({
+      baseUrl: 'https://app.scope.test',
+      platform: 'web',
+      fetch: () => Promise.resolve(saved(0)),
+      store: memoryStore(),
+      auth,
+    });
+    await manager.start();
+    const first = manager.getState();
+    if (first.status !== 'signed_in') throw new Error('not signed in');
+    expect(await manager.redeem({ token: 'ksl_B', commandId: '0199c000-0000-7000-8000-000000000005' })).toEqual({
+      kind: 'link_invalid',
+    });
+    const second = manager.getState();
+    if (second.status !== 'signed_in') throw new Error('not signed in');
+    expect(first.scope.active).toBe(false);
+    expect(second.scope).not.toBe(first.scope);
+    expect(second.scope.id).toBe(scopeIdOf(accountA));
+    expect(second.scope.active).toBe(true);
+  });
+
+  it('binds a native link to the device: asks with the challenge, redeems with the verifier, then forgets it (review m10)', async () => {
+    const sessions = { current: undefined as typeof accountA | undefined };
+    const auth = fakeAuth(sessions);
+    let verifier: string | undefined;
+    const binding: SignInBinding = {
+      challenge: () => {
+        verifier ??= 'v'.repeat(43);
+        return Promise.resolve('c'.repeat(43));
+      },
+      verifier: () => Promise.resolve(verifier),
+      clear: () => {
+        verifier = undefined;
+        return Promise.resolve();
+      },
+    };
+    const manager = createAccountScopeManager({
+      baseUrl: 'https://app.scope.test',
+      platform: 'native',
+      fetch: () => Promise.resolve(saved(0)),
+      tokens: tokenStore(),
+      signInBinding: binding,
+      store: memoryStore(),
+      auth,
+    });
+    await manager.start();
+    expect(await manager.requestLink(' a@scope.test ')).toEqual({ kind: 'requested' });
+    expect(auth.requestLink).toHaveBeenCalledWith(' a@scope.test ', 'c'.repeat(43));
+    expect(manager.pendingEmail).toBe('a@scope.test');
+    await manager.redeem({ token: 'ksl_A', commandId: '0199c000-0000-7000-8000-000000000006' });
+    expect(auth.redeem).toHaveBeenCalledWith(
+      expect.objectContaining({ client: 'native', codeVerifier: 'v'.repeat(43) }),
+    );
+    expect(verifier).toBeUndefined();
+    expect(manager.getState().status).toBe('signed_in');
+
+    // The web never binds a link.
+    const webAuth = fakeAuth({ current: undefined });
+    const web = createAccountScopeManager({
+      baseUrl: 'https://app.scope.test',
+      platform: 'web',
+      store: memoryStore(),
+      signInBinding: binding,
+      auth: webAuth,
+    });
+    await web.requestLink('a@scope.test');
+    expect(webAuth.requestLink).toHaveBeenCalledWith('a@scope.test', undefined);
   });
 });

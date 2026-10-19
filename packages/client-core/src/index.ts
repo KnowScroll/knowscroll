@@ -30,13 +30,16 @@ export {
   type AccountScopeManagerOptions,
   type AccountScopeState,
   type SessionTokenStore,
+  type SignInBinding,
 } from './account-scope-manager';
 export { connectScopeSocket, type SocketContext } from './account-scope-socket';
 export {
   createAuthClient,
   type AuthClient,
   type AuthClientOptions,
+  type PeekOutcome,
   type RedeemOutcome,
   type RequestLinkOutcome,
   type SessionOutcome,
 } from './auth-client';
+export { base64UrlOfBase64, base64UrlOfBytes } from './sign-in-binding';

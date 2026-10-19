@@ -31,15 +31,17 @@ describe('sign-in screens', () => {
     expect(await screen.findByText('Enter an email address like name@example.com.')).toBeOnTheScreen();
   });
 
-  it('asks for the link when none opened the page, and enables Sign in once one is pasted', async () => {
+  it('asks for the link when none opened the page, and checks a pasted one before offering to continue', async () => {
     await renderApp('/redeem');
     expect(await screen.findByText('Use your sign-in link')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
     await fireEvent.changeText(
       screen.getByLabelText('Sign-in link'),
       `https://app.example.test/redeem#token=ksl_${'A'.repeat(43)}`,
     );
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled();
+    // No API in this test environment: the check fails as offline, and nothing was redeemed.
+    expect(await screen.findByText("Can't reach KnowScroll.")).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
   });
 
   it('explains a failed link and offers a new one', async () => {

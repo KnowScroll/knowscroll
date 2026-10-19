@@ -10,7 +10,13 @@ import {
 } from './account-scope';
 import type { ScopeConnection } from './account-scope';
 import type { SocketContext } from './account-scope-socket';
-import { createAuthClient, type AuthClient, type RedeemOutcome, type RequestLinkOutcome } from './auth-client';
+import {
+  createAuthClient,
+  type AuthClient,
+  type PeekOutcome,
+  type RedeemOutcome,
+  type RequestLinkOutcome,
+} from './auth-client';
 import { createQueryClient } from './query-client';
 
 type Fetch = (input: Request, init?: RequestInit) => Promise<Response>;
@@ -19,6 +25,21 @@ type Fetch = (input: Request, init?: RequestInit) => Promise<Response>;
 export interface SessionTokenStore {
   read(): Promise<string | undefined>;
   write(token: string): Promise<void>;
+  clear(): Promise<void>;
+}
+
+/**
+ * Native only (review m10): the device-held verifier a sign-in link is bound to (PKCE-style S256).
+ * A link asked for with its challenge is redeemed only with the verifier, which never leaves the
+ * platform secure store except in the redemption itself, so a link intercepted on its way to the
+ * app (an unverified app link, another app's custom scheme) opens nothing elsewhere.
+ */
+export interface SignInBinding {
+  /** The challenge to ask for a link with; creates and keeps a verifier when there is none. */
+  challenge(): Promise<string>;
+  /** The kept verifier, if any. */
+  verifier(): Promise<string | undefined>;
+  /** Forgets the verifier (after a redemption signed in). */
   clear(): Promise<void>;
 }
 
@@ -50,6 +71,13 @@ export interface AccountScopeManager {
   readonly requestLink: (email: string) => Promise<RequestLinkOutcome>;
   /** The address the last link was requested for (memory only, for "We sent a link to …"). */
   readonly pendingEmail: string | undefined;
+  /** Whose account a link opens, masked; asked before redeeming it (review m8). */
+  readonly peek: (token: string) => Promise<PeekOutcome>;
+  /**
+   * Redeems a link. The current scope ends before the redemption is sent (review M1), so nothing
+   * it starts afterwards can go out with the next account's credential; if the redemption does
+   * not sign in, the session is read again and its scope mounted afresh.
+   */
   readonly redeem: (request: { readonly token: string; readonly commandId: string }) => Promise<RedeemOutcome>;
   /**
    * Ends the session on the server and the scope here. On the web, where only the server can
@@ -67,6 +95,8 @@ export interface AccountScopeManagerOptions {
   readonly fetch?: Fetch;
   /** Native only: where the bearer token is kept. */
   readonly tokens?: SessionTokenStore;
+  /** Native only: the verifier sign-in links are bound to (review m10). */
+  readonly signInBinding?: SignInBinding;
   /** The scopes' local storage (web: `localStorage`). */
   readonly store: KeyValueStore;
   /** Opens a scope's hint socket (`connectScopeSocket`); none when omitted. */
@@ -83,19 +113,32 @@ export interface AccountScopeManagerOptions {
  * epoch change end the current scope — stop its socket, cancel and fence its in-flight requests,
  * clear its query cache, purge its storage — before the next one is created, so nothing of one
  * account can appear in another's.
+ *
+ * Each scope carries its own credential, captured when it is created (native: the bearer token
+ * of its session; web: none, the cookie travels by itself), and names itself on every request and
+ * socket handshake (`X-KS-Scope`). The API refuses a request whose claim is not the presented
+ * session's account and current epoch (`SCOPE_MISMATCH`), and the manager then rereads the
+ * session: so a tab whose cookie another tab replaced, or a scope whose epoch changed without the
+ * revocation notice arriving, is never served another scope's answers (review M1, m11).
  */
 export function createAccountScopeManager(options: AccountScopeManagerOptions): AccountScopeManager {
   const fetchImplementation: Fetch = options.fetch ?? ((request, init) => globalThis.fetch(request, init));
+  /** Native: this device's current bearer token, for the `/auth/*` routes only. */
   let token: string | undefined;
-  const authorization = () => (token === undefined ? undefined : `Bearer ${token}`);
   const auth =
-    options.auth ?? createAuthClient({ baseUrl: options.baseUrl, fetch: fetchImplementation, authorization });
+    options.auth ??
+    createAuthClient({
+      baseUrl: options.baseUrl,
+      fetch: fetchImplementation,
+      authorization: () => (token === undefined ? undefined : `Bearer ${token}`),
+    });
   const listeners = new Set<() => void>();
   let state: AccountScopeState = { status: 'starting' };
   const newQueryClient = options.newQueryClient ?? createQueryClient;
   let signedOutClient = newQueryClient();
   let pendingEmail: string | undefined;
   let disposed = false;
+  let refreshing: Promise<void> | undefined;
 
   function set(next: AccountScopeState): void {
     if (disposed) return;
@@ -107,16 +150,19 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
     if (state.status === 'signed_in') state.scope.end();
   }
 
-  function mount(account: SessionAccount): void {
-    if (state.status === 'signed_in' && state.scope.id === scopeIdOf(account)) return;
+  /** Mounts the scope of `account` with `credential` (its session's bearer token, native only). */
+  function mount(account: SessionAccount, credential: string | undefined): void {
+    if (state.status === 'signed_in' && state.scope.active && state.scope.id === scopeIdOf(account)) return;
     endCurrentScope();
     signedOutClient.clear();
     const connect = options.connect;
+    const authorization = credential === undefined ? undefined : `Bearer ${credential}`;
     const scope: AccountScope = createAccountScope({
       account,
       baseUrl: options.baseUrl,
       fetch: fetchImplementation,
-      authorization,
+      authorization: () => authorization,
+      onMismatch: () => void refreshOnce(),
       store: options.store,
       queryClient: newQueryClient(),
       ...(connect === undefined
@@ -125,8 +171,9 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
             connect: (created: AccountScope) =>
               connect(created, {
                 baseUrl: options.baseUrl,
-                bearerToken: () => token,
+                bearerToken: () => credential,
                 onRevoked: () => void recheckAfterRevocation(created),
+                onMismatch: () => void refreshOnce(),
               }),
           }),
     });
@@ -150,20 +197,31 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
     const outcome = await auth.session();
     switch (outcome.kind) {
       case 'signed_in':
-        mount(outcome.account);
+        mount(outcome.account, options.platform === 'native' ? token : undefined);
         return;
       case 'signed_out':
         await signedOut(state.status === 'signed_in' ? 'session_ended' : 'none');
         return;
       case 'unavailable':
-        if (state.status === 'starting') set({ status: 'unavailable' });
+        // Nothing to show until the API answers: first start, or a scope already ended (fenced
+        // for a redemption that then failed).
+        if (state.status === 'starting' || (state.status === 'signed_in' && !state.scope.active))
+          set({ status: 'unavailable' });
         return;
     }
   }
 
+  /** One reread at a time: a burst of refused requests (`SCOPE_MISMATCH`) asks once. */
+  function refreshOnce(): Promise<void> {
+    refreshing ??= refresh().finally(() => {
+      refreshing = undefined;
+    });
+    return refreshing;
+  }
+
   /** The server dropped the account's sockets: still signed in → reconnect; else end the scope. */
   async function recheckAfterRevocation(scope: AccountScope): Promise<void> {
-    await refresh();
+    await refreshOnce();
     if (state.status === 'signed_in' && state.scope === scope) scope.reconnect();
   }
 
@@ -189,25 +247,52 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
       }
       await refresh();
     },
-    refresh,
+    refresh: refreshOnce,
     get pendingEmail() {
       return pendingEmail;
     },
     async requestLink(email) {
-      const outcome = await auth.requestLink(email);
+      let codeChallenge: string | undefined;
+      if (options.platform === 'native' && options.signInBinding !== undefined) {
+        try {
+          codeChallenge = await options.signInBinding.challenge();
+        } catch {
+          // No secure store: no binding, so no link this app could redeem.
+          return { kind: 'unavailable' };
+        }
+      }
+      const outcome = await auth.requestLink(email, codeChallenge);
       if (outcome.kind === 'requested') pendingEmail = email.trim();
       return outcome;
     },
+    peek: (linkToken) => auth.peek({ token: linkToken, client: options.platform }),
     async redeem(request) {
-      const outcome = await auth.redeem({ ...request, client: options.platform });
-      if (outcome.kind !== 'signed_in') return outcome;
+      const switching = state.status === 'signed_in';
+      // The fence comes first (review M1): from here on, the current scope's requests are refused
+      // here, before the answer can replace this device's credential (native: the new bearer
+      // token being written to the secure store; web: the cookie the answer sets).
+      endCurrentScope();
+      let codeVerifier: string | undefined;
+      if (options.platform === 'native') codeVerifier = await options.signInBinding?.verifier().catch(() => undefined);
+      const outcome = await auth.redeem({
+        ...request,
+        client: options.platform,
+        ...(codeVerifier === undefined ? {} : { codeVerifier }),
+      });
+      if (outcome.kind !== 'signed_in') {
+        if (switching) await refreshOnce();
+        return outcome;
+      }
       const { session, account } = outcome.response;
+      let credential: string | undefined;
       if (session.kind === 'bearer') {
+        credential = session.token;
         token = session.token;
         await options.tokens?.write(session.token);
+        await options.signInBinding?.clear().catch(() => undefined);
       }
       pendingEmail = undefined;
-      mount(account);
+      mount(account, credential);
       return outcome;
     },
     async signOut(signOutOptions = {}) {
