@@ -8,9 +8,9 @@ Coordinator-owned. Hard cap ~120 lines: older detail moves to the tracker and is
 
 | Item | Value |
 |---|---|
-| Integration branch | `codex/release-knowscroll-v2` @ `3905327c` (worktree `/Volumes/Mrigesh SSD/knowscroll-worktrees/v2-release`) |
+| Integration branch | `codex/release-knowscroll-v2` @ `98d51da4` (worktree `/Volumes/Mrigesh SSD/knowscroll-worktrees/v2-release`) |
 | Legacy marker | tag `legacy/v1-final` → `106c4701` |
-| dev world | **v2** `3905327c`, artifact `74e09279…`, DB `knowscroll_v2_dev` (no product migrations yet). v1 kept: `knowscroll_test_dev`, rollback target `106c4701` |
+| dev world | **v2** `d7346d51` (S1.2), artifact `430c37a6…`, DB `knowscroll_v2_dev` at migration `0006_reasoning_ledger`, relay listening, Socket.IO via Caddy OK. v1 kept: `knowscroll_test_dev`, rollback target `106c4701` |
 | stage world | v1 `8982391f` (v2 promotion planned after Phase 2 journeys pass on dev) |
 | live | not deployed (placeholder); owner-only |
 | VPS ops | Ansible applied from `9acf2ab6` (ks v2 manifests, v2 units, Caddy paths, nightly backup 02:23 UTC, weekly restore check Sun) |
@@ -22,15 +22,14 @@ Coordinator-owned. Hard cap ~120 lines: older detail moves to the tracker and is
 
 ## Done
 
-- Phase 0 (#223). S1.1 workspace + CI (#224, PR #252). S1.5 infrastructure (#228, PRs #251 + #256): release built once in `checks`, deployed to dev by `deploy.yml`, rollback v2↔v1 exercised, backups + restore check verified.
+- Phase 0 (#223). S1.1 workspace + CI (#224, PR #252). S1.2 backend foundation (#225, PR #253). S1.5 infrastructure (#228, PRs #251 + #256): release built once in `checks`, deployed to dev by `deploy.yml`, rollback v2↔v1 exercised, backups + restore check verified.
 
 ## Open PRs / active agents (each in its own SSD worktree)
 
 | PR | Sub-issue | State |
 |---|---|---|
-| #253 `codex/225-backend-foundation` | S1.2 backend foundation + spike | review → fixes → re-review approve-with-fixes; final small fixes in progress |
-| #254 `codex/230-scroll-model` | S2.1 part 1 `scroll-document.v1` | review BLOCK (4 findings) → fixes in progress |
-| #255 `codex/227-client-foundation` | S1.4 client foundation | under independent review |
+| #254 `codex/230-scroll-model` | S2.1 part 1 `scroll-document.v1` (Phase 2) | **paused by owner gate**; head is a temporary diagnostic commit |
+| #255 `codex/227-client-foundation` | S1.4 client foundation | review BLOCK (web Enter on links) → fixes in progress |
 
 S1.2 merged (#253, `d7346d51`, deployed to dev). Running: S1.3 identity (#226). Paused by the owner gate: #254, #231.
 
@@ -46,4 +45,4 @@ S1.2 merged (#253, `d7346d51`, deployed to dev). Running: S1.3 identity (#226). 
 
 ## Next action
 
-Merge #253 after its final fixes (green CI on the exact head), launch S1.3 + S2.2, review/merge #254 and #255, then S1.6 thin journey on dev.
+Finish Phase 1: merge #255 after its fixes, finish S1.3 (#226), build S1.6 thin journey (#229) on dev, report, then ASK the owner before starting Phase 2.
