@@ -9,16 +9,23 @@ import {
   type ClientCapabilities,
 } from '../model';
 import { useScrollRender } from '../context';
+import { ChartView } from './chart/chart-view';
 import { CodeView } from './code-view';
+import { DiagramView } from './diagram/diagram-view';
+import { FigureView, MediaView } from './media-views';
+import { ComparisonView, TimelineView } from './narrative-views';
+import { SequenceView } from './sequence-view';
+import { SimulationView } from './simulation/simulation-view';
+import { TableView } from './table-view';
 import { FallbackView } from './fallback';
 import { CalloutView, DisclosureView, ListView, ParagraphView, QuoteView, SubheadingView } from './text-blocks';
 
 /**
- * The registry: which block types of scroll-document.v1 this build renders. A type that is not
- * here is never advertised to the server (`SCROLL_RENDERER_CAPABILITIES`), so the server's
- * negotiation replaces it with a `fallback` block, and a document that still carries one renders
- * its readable stand-in. Types must be listed explicitly: the compiler refuses a new block type
- * until it is decided here.
+ * The registry: which block types of scroll-document.v1 this build renders (all of them). A type
+ * marked `false` would not be advertised to the server (`SCROLL_RENDERER_CAPABILITIES`), so the
+ * server's negotiation would replace it with a `fallback` block, and a document that still carried
+ * one renders its readable stand-in. Types must be listed explicitly: the compiler refuses a new
+ * block type until it is decided here.
  */
 const IMPLEMENTED = {
   paragraph: true,
@@ -28,15 +35,15 @@ const IMPLEMENTED = {
   callout: true,
   disclosure: true,
   code: true,
-  table: false,
-  figure: false,
-  media: false,
-  comparison: false,
-  timeline: false,
-  sequence: false,
-  diagram: false,
-  chart: false,
-  simulation: false,
+  table: true,
+  figure: true,
+  media: true,
+  comparison: true,
+  timeline: true,
+  sequence: true,
+  diagram: true,
+  chart: true,
+  simulation: true,
   fallback: true,
 } as const satisfies Record<BlockType, boolean>;
 
@@ -52,7 +59,7 @@ export const SCROLL_RENDERER_CAPABILITIES: ClientCapabilities = {
   ),
 };
 
-/** A block the server replaced (or this build cannot draw): its own readable text. */
+/** A block the server replaced with a `fallback` block: its own readable text. */
 function UnsupportedView({ block, originalType }: { block: AnyBlock; originalType: string }) {
   const context = useScrollRender();
   const blockId = block.id;
@@ -88,14 +95,22 @@ export function renderBlock(block: AnyBlock, options: RenderOptions = {}): React
     case 'fallback':
       return <UnsupportedView block={block} originalType={block.data.originalType} />;
     case 'table':
+      return <TableView block={block} />;
     case 'figure':
+      return <FigureView block={block} />;
     case 'media':
+      return <MediaView block={block} />;
     case 'comparison':
+      return <ComparisonView block={block} />;
     case 'timeline':
+      return <TimelineView block={block} />;
     case 'sequence':
+      return <SequenceView block={block} />;
     case 'diagram':
+      return <DiagramView block={block} />;
     case 'chart':
+      return <ChartView block={block} />;
     case 'simulation':
-      return <UnsupportedView block={block} originalType={block.type} />;
+      return <SimulationView block={block} />;
   }
 }

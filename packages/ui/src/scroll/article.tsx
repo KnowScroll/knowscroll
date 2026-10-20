@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
-import type { ScrollDocument } from '@knowscroll/scroll-model';
+import { walkBlocks, type ScrollDocument } from './model';
 import { useDisplay } from '../display/display';
 import { Text } from '../text/text';
 import { resolveAnchor, type AnchorTarget } from './anchors';
 import { BlockHost } from './blocks/host';
 import { renderNestedBlock } from './blocks/host';
 import { ScrollRenderProvider, type ScrollRenderContext } from './context';
+import { GestureRoot } from './gestures/gesture-root';
+import type { ScrollMediaRenderer } from './media';
 import type { ScrollDiagnostics, ScrollInteraction, ScrollReadingObserver } from './observer';
 import { useReadingViewport } from './reading/reading-viewport';
 import { useArticleActivity } from './reading/use-activity';
 import { monotonicNow } from './reading/visibility';
 import { createMemoryBlockStateStore, type ScrollBlockStateStore } from './state';
 import { EndMark } from './templates/end-mark';
+import { TextVersionToggle } from './templates/text-version-toggle';
 import { EditorialHeader, PosterHeader } from './templates/headers';
 import { CorrectionNotices, FramingNotice } from './templates/notices';
 
@@ -36,6 +39,10 @@ export interface ScrollArticleProps {
   readonly contentInset?: { readonly top: number; readonly bottom: number };
   /** Space the chrome covers inside the scroll area, so those pixels do not count as read. */
   readonly readingInset?: { readonly top: number; readonly bottom: number };
+  /** Draws admitted media (S2.4); without it, or when it returns null, figures and clips are placeholders with their alt text. */
+  readonly renderMedia?: ScrollMediaRenderer;
+  /** Start with the text versions of the visual blocks on ("Text version of diagrams"). */
+  readonly initialTextVersion?: boolean;
   /** The encounter actions strip, between the opening and the first section (E02-1). */
   readonly afterHeader?: ReactNode;
   /** App chrome after the end mark: Continue, Next subject and the actions (E02-3). */
@@ -91,6 +98,8 @@ function ScrollArticleBody({
   paused = false,
   contentInset = DEFAULT_INSET,
   readingInset = NO_INSET,
+  renderMedia,
+  initialTextVersion = false,
   afterHeader,
   endSlot,
   testID,
@@ -98,6 +107,7 @@ function ScrollArticleBody({
   const { breakpoint } = useDisplay();
   const [ownStore] = useState(createMemoryBlockStateStore);
   const store = givenStore ?? ownStore;
+  const [textVersion, setTextVersion] = useState(initialTextVersion);
   const observerRef = useRef(observer);
   const diagnosticsRef = useRef(diagnostics);
   useEffect(() => {
@@ -139,15 +149,39 @@ function ScrollArticleBody({
       revision: document.revision,
       store,
       carryOver: carryOverBlockIds ?? new Set<string>(),
-      textVersion: false,
+      textVersion,
+      renderMedia,
       report,
       diagnose,
       retried,
       renderNested: renderNestedBlock,
     }),
-    [document.assetId, document.revision, store, carryOverBlockIds, report, diagnose, retried],
+    [
+      document.assetId,
+      document.revision,
+      store,
+      carryOverBlockIds,
+      textVersion,
+      renderMedia,
+      report,
+      diagnose,
+      retried,
+    ],
   );
 
+  const hasVisualBlocks = useMemo(() => {
+    for (const { block } of walkBlocks(document.sections)) {
+      if (
+        block.type === 'diagram' ||
+        block.type === 'chart' ||
+        block.type === 'simulation' ||
+        block.type === 'sequence'
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }, [document.sections]);
   const editorial = document.template === 'editorial';
   const firstParagraph = useMemo(() => {
     for (const section of document.sections) {
@@ -161,43 +195,50 @@ function ScrollArticleBody({
 
   return (
     <ScrollRenderProvider value={context}>
-      <ScrollView
-        ref={scrollRef}
-        testID={testID}
-        {...viewport.scrollProps}
-        style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: contentInset.top, paddingBottom: contentInset.bottom }]}
-      >
-        <View style={[styles.item, measured]}>
-          {editorial ? <EditorialHeader document={document} /> : <PosterHeader document={document} />}
-        </View>
-        <CorrectionNotices corrections={document.corrections} />
-        <FramingNotice framing={document.framing} />
-        {afterHeader === undefined ? null : <View style={[styles.item, measured]}>{afterHeader}</View>}
-        {document.sections.flatMap((section) => [
-          section.heading === null ? null : (
-            <View key={`heading-${section.id}`} style={[styles.item, measured]}>
-              <Text variant="heading" heading={2} style={styles.sectionHeading}>
-                {section.heading}
-              </Text>
+      <GestureRoot style={styles.scroll}>
+        <ScrollView
+          ref={scrollRef}
+          testID={testID}
+          {...viewport.scrollProps}
+          style={styles.scroll}
+          contentContainerStyle={[styles.content, { paddingTop: contentInset.top, paddingBottom: contentInset.bottom }]}
+        >
+          <View style={[styles.item, measured]}>
+            {editorial ? <EditorialHeader document={document} /> : <PosterHeader document={document} />}
+          </View>
+          <CorrectionNotices corrections={document.corrections} />
+          <FramingNotice framing={document.framing} />
+          {afterHeader === undefined ? null : <View style={[styles.item, measured]}>{afterHeader}</View>}
+          {hasVisualBlocks ? (
+            <View style={[styles.item, measured]}>
+              <TextVersionToggle on={textVersion} onChange={setTextVersion} />
             </View>
-          ),
-          ...section.blocks.map((block) => (
-            <BlockHost
-              key={block.id}
-              block={block}
-              viewport={viewport}
-              options={editorial && block.id === firstParagraph ? { initialCap: true } : undefined}
-              highlighted={flash === block.id}
-              onPlaced={onPlaced}
-            />
-          )),
-        ])}
-        <View style={[styles.item, measured]}>
-          <EndMark />
-        </View>
-        {endSlot === undefined ? null : <View style={[styles.item, measured]}>{endSlot}</View>}
-      </ScrollView>
+          ) : null}
+          {document.sections.flatMap((section) => [
+            section.heading === null ? null : (
+              <View key={`heading-${section.id}`} style={[styles.item, measured]}>
+                <Text variant="heading" heading={2} style={styles.sectionHeading}>
+                  {section.heading}
+                </Text>
+              </View>
+            ),
+            ...section.blocks.map((block) => (
+              <BlockHost
+                key={block.id}
+                block={block}
+                viewport={viewport}
+                options={editorial && block.id === firstParagraph ? { initialCap: true } : undefined}
+                highlighted={flash === block.id}
+                onPlaced={onPlaced}
+              />
+            )),
+          ])}
+          <View style={[styles.item, measured]}>
+            <EndMark />
+          </View>
+          {endSlot === undefined ? null : <View style={[styles.item, measured]}>{endSlot}</View>}
+        </ScrollView>
+      </GestureRoot>
     </ScrollRenderProvider>
   );
 }

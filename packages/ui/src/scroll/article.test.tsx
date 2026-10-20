@@ -259,12 +259,15 @@ describe('a disclosure', () => {
     expect(store.get({ ...key, revision: 2 })).toBeNull();
   });
 
-  it('is a plain button with a 56 px target, reading before the code and after it in document order', async () => {
+  it('is a plain button with a 56 px target, and focus order is reading order through every block', async () => {
     await show(<ScrollArticle document={ready(bridgesPoster())} />);
 
     expect(screen.getByRole('button', { name: 'Why a safety factor?' })).toHaveStyle({ minHeight: 56 });
-    // Focus order is reading order: the code's Copy comes before the disclosure that follows it.
+    // Reading order: the stepped diagram's controls, then the code's Copy, then the disclosure.
     expect(screen.getAllByRole('button').map((button) => button.props.accessibilityLabel as string)).toEqual([
+      'Previous',
+      'Next',
+      'Reset',
       'Copy',
       'Why a safety factor?',
     ]);
@@ -321,10 +324,10 @@ describe('a code block', () => {
   });
 });
 
-describe('a block this build cannot draw', () => {
+describe('a block the server replaced', () => {
   it('shows its own words under a one-line label, with no Retry (retrying cannot help), and records a diagnostic', async () => {
     const watcher = diagnostics();
-    const document = ready(bridgesPoster());
+    const document = ready(bridgesWithServerFallback());
     await show(<ScrollArticle document={document} diagnostics={watcher} />);
 
     expect(screen.getByText('Needs an app update · text version')).toBeOnTheScreen();
@@ -355,6 +358,7 @@ describe('a block this build cannot draw', () => {
   it('records no diagnostic when every block drew', async () => {
     const watcher = diagnostics();
     await show(<ScrollArticle document={ready(lighthouseEditorial())} diagnostics={watcher} />);
+    await show(<ScrollArticle document={ready(bridgesPoster())} diagnostics={watcher} />);
     expect(watcher.onRenderFallback).not.toHaveBeenCalled();
   });
 });

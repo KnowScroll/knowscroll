@@ -7,6 +7,28 @@ import {
   type BlockOfType,
   type ScrollDocument,
 } from '../model';
+import {
+  altitudeSimulation,
+  audioBlock,
+  barChart,
+  comparisonBlock,
+  cycleDiagram,
+  figureBlock,
+  floorSimulation,
+  gridDiagram,
+  heatmapChart,
+  horizontalBarChart,
+  interestSimulation,
+  layersDiagram,
+  lineChart,
+  loadPathDiagram,
+  pendulumSimulation,
+  scatterChart,
+  sequenceBlock,
+  tableBlock,
+  timelineBlock,
+  weightDiagram,
+} from './blocks';
 import { callout, code, em, list, paragraph, quote, scrollFixture, section, spans, strong, subheading } from './build';
 
 /**
@@ -76,55 +98,6 @@ export function disclosureBlock(id: string): BlockOfType<'disclosure'> {
   };
 }
 
-/** A step-through diagram: no renderer in the first build of this package, so it exercises the fallback. */
-export function loadPathDiagram(id: string): BlockOfType<'diagram'> {
-  return {
-    id,
-    type: 'diagram',
-    version: 1,
-    a11y: { label: 'Diagram: where the load goes' },
-    fallbackText:
-      'The deck passes its load to the cables, the cables pass it to the towers, and the towers pass it down to the ground.',
-    essential: true,
-    gesture: 'none',
-    data: {
-      title: 'Where the load goes',
-      layout: 'flow-lr',
-      nodes: [
-        { id: 'deck', label: 'Deck', kind: 'entity' },
-        { id: 'cables', label: 'Cables', kind: 'process' },
-        { id: 'towers', label: 'Towers', kind: 'entity' },
-        { id: 'ground', label: 'Ground', kind: 'store' },
-      ],
-      edges: [
-        { id: 'e-deck-cables', from: 'deck', to: 'cables', directed: true, style: 'solid' },
-        { id: 'e-cables-towers', from: 'cables', to: 'towers', directed: true, style: 'solid' },
-        { id: 'e-towers-ground', from: 'towers', to: 'ground', directed: true, style: 'solid' },
-      ],
-      groups: [],
-      frames: [
-        {
-          id: 'f-deck',
-          label: 'The deck',
-          description: 'Traffic and the deck itself press down, and the deck hands that weight to the cables.',
-          emphasis: ['deck', 'e-deck-cables'],
-          hidden: [],
-          weights: [],
-        },
-        {
-          id: 'f-ground',
-          label: 'The ground',
-          description: 'The towers carry the cables pull as a push into the ground, which is where the load ends.',
-          emphasis: ['towers', 'ground', 'e-towers-ground'],
-          hidden: [],
-          weights: [],
-        },
-      ],
-      interaction: { kind: 'steps' },
-    },
-  };
-}
-
 const bridgeSections = (extra: Block[] = []): ReturnType<typeof section>[] => [
   section('opening', null, [
     paragraph(
@@ -152,11 +125,13 @@ const bridgeSections = (extra: Block[] = []): ReturnType<typeof section>[] => [
         'Stone likes to be squeezed and hates to be stretched, so an old arch puts all of its stone in compression. Steel cable is the other way round: it is happiest pulled tight, which is why a suspension bridge hangs from it.',
       ),
     ),
+    figureBlock('fig-arch'),
     list('l-forces', 'bullet', [
       spans(strong('Compression'), ' pushes the ends of a part toward each other.'),
       spans(strong('Tension'), ' pulls the ends of a part apart.'),
       spans('Most real parts feel a mix, and a good design keeps each part doing the one thing it is best at.'),
     ]),
+    comparisonBlock('cmp-hold'),
     callout(
       'c-key',
       'key-idea',
@@ -196,6 +171,8 @@ const bridgeSections = (extra: Block[] = []): ReturnType<typeof section>[] => [
       ),
     ),
     codeBlock('code-load', 'The numbers here are for illustration.'),
+    tableBlock('t-loads'),
+    barChart('chart-designs'),
     callout(
       'c-limit',
       'limit',
@@ -215,7 +192,7 @@ const bridgeSections = (extra: Block[] = []): ReturnType<typeof section>[] => [
   ]),
 ];
 
-/** The poster template: opening card, every text-family block, code, a disclosure, a diagram (fallback in this build). */
+/** The poster template: opening card, the text-family blocks, code, a disclosure, a figure, a comparison, a table, a chart and a stepped diagram. */
 export function bridgesPoster(revision = 1): ScrollDocument {
   return scrollFixture({
     assetId: 'fixture-bridges',
@@ -290,6 +267,57 @@ export function lighthouseEditorial(): ScrollDocument {
           spans('A light that is almost always lit is a light no one trusts.'),
           'A keeper’s rule, as the story goes',
         ),
+        figureBlock('fig-lamp', 'fixture-lamp'),
+        timelineBlock('tl-century'),
+        audioBlock('audio-bearings'),
+      ]),
+    ],
+  });
+}
+
+/** The poster template with the interactive and visual blocks: four simulations (every view), a stepper, three diagrams and every chart kind. */
+export function experimentsPoster(): ScrollDocument {
+  return scrollFixture({
+    assetId: 'fixture-experiments',
+    template: 'poster',
+    family: 'learning-machines',
+    kicker: 'Try it',
+    title: 'Small experiments you can run',
+    dek: 'Move a slider, drag a weight, step through a plan: each block is a small experiment with its own words.',
+    framing: { kind: 'perspective', lens: 'a workshop bench' },
+    sections: [
+      section('swing', null, [
+        paragraph(
+          'p-swing',
+          spans(
+            'A weight on a string is the oldest clock there is. How long it takes to swing depends on one thing you can change.',
+          ),
+        ),
+        pendulumSimulation('sim-pendulum'),
+        callout(
+          'c-swing',
+          'try-it',
+          spans('Make the string four times longer. Does the swing take four times as long?'),
+        ),
+      ]),
+      section('rooms', 'Rooms and pots', [
+        floorSimulation('sim-floor'),
+        altitudeSimulation('sim-altitude'),
+        interestSimulation('sim-interest'),
+      ]),
+      section('plans', 'Plans', [
+        sequenceBlock('seq-size'),
+        weightDiagram('diagram-weight'),
+        cycleDiagram('diagram-cycle'),
+        layersDiagram('diagram-layers'),
+        gridDiagram('diagram-grid'),
+      ]),
+      section('data', 'Reading the numbers', [
+        lineChart('chart-line'),
+        horizontalBarChart('chart-span'),
+        scatterChart('chart-scatter'),
+        heatmapChart('chart-heat'),
+        comparisonBlock('cmp-three', 3),
       ]),
     ],
   });

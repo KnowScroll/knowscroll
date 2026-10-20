@@ -18,3 +18,4 @@ export {
   type ScrollBlockKey,
   type ScrollBlockStateStore,
 } from './state';
+export { type ScrollMediaRenderer, type ScrollMediaRequest } from './media';

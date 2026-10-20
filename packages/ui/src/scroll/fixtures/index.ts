@@ -1,2 +1,2 @@
-export { bridgesPoster, bridgesWithServerFallback, lighthouseEditorial } from './documents';
+export { bridgesPoster, bridgesWithServerFallback, experimentsPoster, lighthouseEditorial } from './documents';
 export { scrollFixture } from './build';

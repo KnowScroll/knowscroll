@@ -12,7 +12,12 @@ import {
   prepareScrollDocument,
   type ScrollBlockStateStore,
 } from '@knowscroll/ui';
-import { bridgesPoster, bridgesWithServerFallback, lighthouseEditorial } from '@knowscroll/ui/scroll-fixtures';
+import {
+  bridgesPoster,
+  bridgesWithServerFallback,
+  experimentsPoster,
+  lighthouseEditorial,
+} from '@knowscroll/ui/scroll-fixtures';
 import { useDocumentTitle } from '../../platform/document-title';
 import { galleryDiagnostics, galleryEvents, galleryObserver } from './scroll-gallery-events';
 
@@ -22,6 +27,7 @@ export const scrollGalleryMarker = 'ks-scroll-gallery';
 const documents = {
   bridges: { label: 'Poster', build: bridgesPoster },
   lighthouse: { label: 'Editorial', build: lighthouseEditorial },
+  experiments: { label: 'Blocks', build: experimentsPoster },
   fallback: { label: 'Server fallback', build: bridgesWithServerFallback },
 } as const;
 type DocumentName = keyof typeof documents;
@@ -45,14 +51,20 @@ const galleryStore: ScrollBlockStateStore = createScopedBlockStateStore({
 /**
  * Developer gallery of the Scroll renderer (`/gallery-scroll`, only in gallery builds): fixture
  * documents (labelled, original, never product content) through the real client path
- * (`prepareScrollDocument` then `ScrollArticle`). Query: `doc` (bridges · lighthouse · fallback),
- * `block` (a block id: the anchor restore), `motion=reduce`, `scale=2` (200 % text).
+ * (`prepareScrollDocument` then `ScrollArticle`). Query: `doc` (bridges · lighthouse · experiments · fallback),
+ * `block` (a block id: the anchor restore), `motion=reduce`, `scale=2` (200 % text), `text=1` (text version).
  */
 export function ScrollGalleryScreen() {
   useDocumentTitle('Scroll gallery');
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ doc?: string; block?: string; motion?: string; scale?: string }>();
+  const params = useLocalSearchParams<{
+    doc?: string;
+    block?: string;
+    motion?: string;
+    scale?: string;
+    text?: string;
+  }>();
   const name: DocumentName = isDocumentName(params.doc) ? params.doc : 'bridges';
   const prepared = useMemo(() => prepareScrollDocument(documents[name].build()), [name]);
   useEffect(() => {
@@ -86,6 +98,7 @@ export function ScrollGalleryScreen() {
             observer={galleryObserver}
             diagnostics={galleryDiagnostics}
             store={galleryStore}
+            initialTextVersion={params.text === '1'}
             {...(params.block === undefined ? {} : { anchorBlockId: params.block })}
             contentInset={{ top: spacing[4], bottom: spacing[18] + insets.bottom }}
           />

@@ -8,6 +8,7 @@ import {
   type NestedBlock,
 } from './model';
 import type { InteractionBlockType, InteractionKindOf, ScrollRenderDiagnostic } from './observer';
+import type { ScrollMediaRenderer } from './media';
 import type { ScrollBlockKey, ScrollBlockStateStore } from './state';
 
 /**
@@ -23,6 +24,8 @@ export interface ScrollRenderContext {
   readonly carryOver: ReadonlySet<string>;
   /** "Text version of diagrams": visual blocks show their text alternative. */
   readonly textVersion: boolean;
+  /** Draws admitted media, or returns null for its placeholder. */
+  readonly renderMedia: ScrollMediaRenderer | undefined;
   /**
    * A deliberate interaction with a block (never a raw gesture): the block's type and one of the
    * kinds the package declares for that type, so a renderer cannot report another type's kind.

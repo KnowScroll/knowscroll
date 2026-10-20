@@ -92,7 +92,9 @@ jobs:
         run: pnpm install --frozen-lockfile
       # The native bundle reads @knowscroll/contracts from its dist/, like the web export (D-012).
       - name: Build the packages the bundle reads
-        run: pnpm --filter @knowscroll/contracts build
+        run: |
+          pnpm --filter @knowscroll/scroll-model build
+          pnpm --filter @knowscroll/contracts build
       # android/ is generated (continuous native generation) and never committed. The template is
       # the one inside the pinned expo package (expo/template.tgz), so Expo SDK 58 fixes AGP, Gradle,
       # the NDK and the SDK levels.
