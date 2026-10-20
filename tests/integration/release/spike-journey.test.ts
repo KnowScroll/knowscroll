@@ -21,6 +21,9 @@ import { freePort, startReleaseProcess, waitForHttp, type ReleaseProcess } from 
  * adds sign-up, Phase 2 adds admitted content); callers are authenticated by the test-only
  * adapter, which the production configuration refuses.
  */
+/** Fixture AgentMail settings (never used to send: these processes are refused or test-bearer only). */
+const fixtureAgentMail = { AGENTMAIL_API_KEY: 'fixture-not-a-key', AGENTMAIL_INBOX_ID: 'fixture@agentmail.invalid' };
+
 const canaries = {
   token: 'canary-query-token-Hx81',
   password: 'canary-query-password-Jy92',
@@ -28,6 +31,11 @@ const canaries = {
   cookie: 'canary-cookie-Lw14',
   chat: 'CANARY CHAT BODY meet me later',
 } as const;
+
+/** The scope a test-bearer token's account claims: every fixture person starts at epoch 1. */
+function scopeFromTestToken(token: string): string {
+  return `${token.replace(/^test\./, '')}:1`;
+}
 
 describe('the spike journey through the built API, worker and Socket.IO', () => {
   let database: Awaited<ReturnType<typeof createEmptyDatabase>>;
@@ -55,10 +63,14 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     const port = await freePort();
     baseUrl = `http://127.0.0.1:${port}`;
     const shared = { NODE_ENV: 'test', KS_WORLD: 'ci', DATABASE_URL: database.url, KS_SHUTDOWN_GRACE_SECONDS: '10' };
+    // This journey authenticates with the CI-only test-bearer adapter; sign-in itself is proved by
+    // identity-journey.test.ts. The fixture mail sender is never used here.
+    const fixtureMail = { KS_MAIL_SENDER: 'fixture' };
     // KS_SOCKET_AUTH_CACHE_MS=0: every relayed hint re-reads access, so revocation shows at once.
     api = startReleaseProcess('api', 'main', {
       ...shared,
       PORT: String(port),
+      ...fixtureMail,
       KS_AUTH_ADAPTER: 'test-bearer',
       KS_BODY_LIMIT_BYTES: '2048',
       KS_SOCKET_AUTH_CACHE_MS: '0',
@@ -74,8 +86,14 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     await database.drop();
   });
 
-  function connect(token: string): Socket {
-    const socket = io(baseUrl, { path: SOCKET_PATH, transports: ['websocket'], auth: { token }, reconnection: false });
+  /** A socket for `token`, claiming the scope `<accountId>:<epoch>` (S1.3 review M1). */
+  function connect(token: string, scope = scopeFromTestToken(token)): Socket {
+    const socket = io(baseUrl, {
+      path: SOCKET_PATH,
+      transports: ['websocket'],
+      auth: { token, scope },
+      reconnection: false,
+    });
     sockets.push(socket);
     return socket;
   }
@@ -104,7 +122,7 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
       await socket.emitWithAck(socketEvents.subscribeScope, { scope: { kind: 'universe', id: person.universeId } }),
     ).toEqual({ ok: true, revision: 0 });
 
-    const client = apiClient(baseUrl, `Bearer test.${person.accountId}`);
+    const client = apiClient(baseUrl, `Bearer test.${person.accountId}`, `${person.accountId}:1`);
     const commandId = randomUUID();
     const saved = await client.experience.applyAction({
       commandId,
@@ -161,7 +179,10 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
   it('answers refusals as RFC 9457 problems with stable codes', async () => {
     const post = (
       body: unknown,
-      headers: Record<string, string> = { authorization: `Bearer test.${person.accountId}` },
+      headers: Record<string, string> = {
+        authorization: `Bearer test.${person.accountId}`,
+        'x-ks-scope': `${person.accountId}:1`,
+      },
     ) =>
       fetch(`${baseUrl}/v1/actions`, {
         method: 'POST',
@@ -237,7 +258,8 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
       .set({ privacy_epoch: 2 })
       .where('id', '=', owner.universeId)
       .execute();
-    const client = apiClient(baseUrl, `Bearer test.${owner.accountId}`);
+    // The client of the new epoch (its claim names epoch 2).
+    const client = apiClient(baseUrl, `Bearer test.${owner.accountId}`, `${owner.accountId}:2`);
     await client.experience.applyAction({
       commandId: randomUUID(),
       kind: 'save',
@@ -322,7 +344,11 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     });
     await fetch(`${baseUrl}/v1/actions?token=${canaries.token}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer test.${person.accountId}` },
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer test.${person.accountId}`,
+        'x-ks-scope': `${person.accountId}:1`,
+      },
       body: JSON.stringify({
         commandId: randomUUID(),
         kind: 'save',
@@ -351,6 +377,7 @@ describe('the test-only caller adapter outside CI', () => {
         KS_WORLD: 'dev',
         DATABASE_URL: database.url,
         PORT: String(await freePort()),
+        ...fixtureAgentMail,
         KS_AUTH_ADAPTER: 'test-bearer',
       });
       expect(await api.exited()).toBe(1);
@@ -366,6 +393,7 @@ describe('the test-only caller adapter outside CI', () => {
 describe('the production configuration', () => {
   it('refuses to start with the test-only caller adapter', async () => {
     const database = await createEmptyDatabase('release_refuse');
+    const port = await freePort();
     try {
       const api = startReleaseProcess('api', 'main', {
         NODE_ENV: 'production',
@@ -373,7 +401,9 @@ describe('the production configuration', () => {
         KS_COMMIT: '0'.repeat(40),
         KS_ARTIFACT_SHA256: createHash('sha256').update('ci-fixture').digest('hex'),
         DATABASE_URL: database.url,
-        PORT: String(await freePort()),
+        PORT: String(port),
+        KS_PUBLIC_ORIGIN: `http://127.0.0.1:${port}`,
+        ...fixtureAgentMail,
         KS_AUTH_ADAPTER: 'test-bearer',
       });
       expect(await api.exited()).toBe(1);

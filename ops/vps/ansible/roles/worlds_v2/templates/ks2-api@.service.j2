@@ -13,12 +13,17 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-User=ks-%i
-Group=ks-%i
+# Its own user (#226 review m6): not v1's ks-%i, so nothing of v1 is readable to it.
+User=ks2-%i
+Group=ks2-%i
 Slice=ks-%i.slice
 WorkingDirectory=/srv/knowscroll/%i/current
 EnvironmentFile=/etc/knowscroll/%i.v2.env
 EnvironmentFile=/etc/knowscroll/secrets/v2-%i/database.env
+# AGENTMAIL_API_KEY and AGENTMAIL_INBOX_ID for sign-in mail (S1.3, D-007; dev and stage share the
+# inbox). Only the API reads it: the worker never receives this key. Production refuses to start
+# without it.
+EnvironmentFile=/etc/knowscroll/secrets/shared/agentmail.env
 # KS_COMMIT and KS_ARTIFACT_SHA256 (the received tarball's sha256), written by ks for /health.
 EnvironmentFile=/srv/knowscroll/%i/current/.ks/release.env
 Environment=NODE_ENV=production
@@ -43,6 +48,10 @@ RestrictSUIDSGID=yes
 RestrictNamespaces=yes
 LockPersonality=yes
 ReadWritePaths=/srv/knowscroll/%i/media-v2
+# Nothing under /etc/knowscroll and nothing of v1's media is visible to the program: systemd reads
+# the EnvironmentFile= lines above before the sandbox applies (#226 review m6).
+InaccessiblePaths=/etc/knowscroll
+InaccessiblePaths=-/srv/knowscroll/%i/media
 
 [Install]
 WantedBy=ks2-world@%i.target

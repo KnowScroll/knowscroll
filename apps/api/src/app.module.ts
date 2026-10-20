@@ -7,7 +7,16 @@ import type { EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import type { RelayState } from '@knowscroll/backend/infrastructure/notices';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { READ_ACCOUNT_UNIVERSE, type ReadAccountUniverse } from '@knowscroll/backend/modules/identity';
+import {
+  READ_ACCOUNT_UNIVERSE,
+  RESOLVE_SESSION,
+  SESSION_VALID,
+  type ReadAccountUniverse,
+  type ResolveSession,
+  type SessionValid,
+} from '@knowscroll/backend/modules/identity';
+import { sessionCookieName } from './http/auth-credentials.js';
+import { createAuthLimiters } from './http/auth-rate-limit.js';
 import { selectCallers } from './http/callers.js';
 import { orpcModuleConfig } from './http/orpc.js';
 import { ProblemExceptionFilter } from './http/problems.js';
@@ -16,7 +25,16 @@ import { experienceWiring } from './modules/experience.js';
 import { identityWiring } from './modules/identity.js';
 import { ScopeGateway } from './realtime/scope.gateway.js';
 import { apiControllers } from './routes.js';
-import { API_CONFIG, CALLERS, DATABASE, ENQUEUE_JOB, LOG_EVENT, RELAY_STATE, WITH_PERSONAL_SCOPE } from './tokens.js';
+import {
+  API_CONFIG,
+  AUTH_LIMITERS,
+  CALLERS,
+  DATABASE,
+  ENQUEUE_JOB,
+  LOG_EVENT,
+  RELAY_STATE,
+  WITH_PERSONAL_SCOPE,
+} from './tokens.js';
 
 /** Long-lived resources created by `main.ts` before Nest starts and closed after Nest stops. */
 export interface ApiResources {
@@ -49,14 +67,30 @@ export class AppModule {
           provide: WITH_PERSONAL_SCOPE,
           useValue: makeWithPersonalScope(resources.db, { lockTimeoutMs: resources.config.scopeLockTimeoutMs }),
         },
+        // Production: identity's sessions (cookie on the web, bearer on native). The CI-only
+        // test-bearer adapter is refused by configuration and again by selectCallers.
         {
           provide: CALLERS,
-          inject: [READ_ACCOUNT_UNIVERSE],
-          useFactory: (readAccountUniverse: ReadAccountUniverse) =>
-            selectCallers(resources.config.authAdapter, resources.config, readAccountUniverse),
+          inject: [READ_ACCOUNT_UNIVERSE, RESOLVE_SESSION, SESSION_VALID],
+          useFactory: (
+            readAccountUniverse: ReadAccountUniverse,
+            resolveSession: ResolveSession,
+            sessionValid: SessionValid,
+          ) =>
+            selectCallers(resources.config.authAdapter, resources.config, {
+              readAccountUniverse,
+              resolveSession,
+              sessionValid,
+              cookieName: sessionCookieName(resources.config.identity.secureCookies),
+            }),
         },
+        { provide: AUTH_LIMITERS, useFactory: () => createAuthLimiters() },
         { provide: APP_FILTER, useClass: ProblemExceptionFilter },
-        ...identityWiring,
+        ...identityWiring({
+          settings: resources.config.identity,
+          lockTimeoutMs: resources.config.scopeLockTimeoutMs,
+          logEvent: resources.logEvent,
+        }),
         ...contentWiring,
         ...experienceWiring,
         ScopeGateway,

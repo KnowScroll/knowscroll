@@ -9,9 +9,13 @@ import { ScopeNoticeRelay, type ScopeNotice, type ScopeNoticeSink } from '@knows
 import { FrameworkLogAdapter, createEventLog } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { AppModule } from './app.module.js';
+import { apiSecurityHeaders, noStoreForAuth, originGuard, sessionCookieName } from './http/auth-credentials.js';
 import { bodyErrorMiddleware, requireJsonBodies } from './http/problems.js';
+import type { AuthenticatedCallers } from './http/callers.js';
 import { requestContextMiddleware } from './http/request-context.js';
+import { scopeGuard } from './http/scope-guard.js';
 import { ScopeGateway } from './realtime/scope.gateway.js';
+import { CALLERS } from './tokens.js';
 
 /**
  * API process entry point. Start order: validate configuration → database pool → pg-boss
@@ -72,10 +76,21 @@ async function main(): Promise<void> {
       );
       app.disable('x-powered-by');
       app.useWebSocketAdapter(new IoAdapter(app));
+      app.use(apiSecurityHeaders());
       app.use(requestContextMiddleware(logEvent));
+      app.use(noStoreForAuth());
+      app.use(
+        originGuard({
+          publicOrigin: config.identity.publicOrigin,
+          cookieName: sessionCookieName(config.identity.secureCookies),
+          logEvent,
+        }),
+      );
       app.use(requireJsonBodies());
       app.useBodyParser('json', { limit: config.bodyLimitBytes });
       app.use(bodyErrorMiddleware(logEvent));
+      // Every /v1 route: an authenticated caller whose scope claim matches, before any handler.
+      app.use(scopeGuard({ callers: app.get<AuthenticatedCallers>(CALLERS), logEvent }));
       await app.init();
       target.gateway = app.get(ScopeGateway);
       await relay.start();

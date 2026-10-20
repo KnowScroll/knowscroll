@@ -9,6 +9,7 @@ personal-scope lock protocol on `identity.universes` (status, privacy epoch, rev
 | `migrateToLatest(db, registry)` | Applies pending migrations from the static registry (`migrations/`) inside Kysely's migration lock, as **one** transaction: a failure rolls back the whole batch (`failed`, nothing applied), so no migration may use non-transactional statements such as `CREATE INDEX CONCURRENTLY`. Forward-only. Refuses text that does not match its recorded SHA-256, an applied migration whose recorded checksum (`migrator.migration_checksum`) differs from the registry, and an applied migration missing from the registry. |
 | `readLatestMigration(db)` | Newest applied migration name, or `none`. Used by `GET /health`. |
 | `makeWithPersonalScope(db, { lockTimeoutMs })` | The only way to obtain a `PersonalScopeTx` (blueprint §19). BEGIN → `SET LOCAL lock_timeout` → `SELECT … FROM identity.universes WHERE id = $1 FOR NO KEY UPDATE` → recheck existence, status, privacy epoch and (account actor) owner and account status **after** waiting → run the work → commit. Refusals are typed (`universe_missing`, `universe_suspended`, `account_mismatch`, `epoch_changed`) and write nothing; a lock wait beyond the timeout throws `ScopeBusyError` (retryable, 503). |
+| `makeWithResolvedPersonalScope(db, { lockTimeoutMs })` | Identity's `WithResolvedPersonalScope` (sign-in, S1.3): one marked transaction in which `resolve(tx)` first takes identity's earlier locks (address, then sign-in link) and may create the account and its universe root, then the root is locked and rechecked exactly as above, then `work(scope)` runs. A stop, a refusal or an exception rolls back everything `resolve` wrote. `resolutionTransactionOf(tx)` gives identity's adapters the transaction during the first phase only. |
 | `transactionOf(scope)` | The transaction behind an open scope, for adapters only. Throws `ScopeClosedError` once the transaction ended. The scope's `authority` is a frozen copy. |
 | `enterSharedRoot(scope, rootLock)` | Locks at most one shared root after the personal root, in the same transaction, and returns the `SharedScopeTx` shared-scope ports need; a second call throws `LockOrderError`. |
 | `withTransaction(db, purpose, work)` | A short marked transaction without a personal lock, for bookkeeping that must not depend on current authority (the attempt ledger's settlement). ESLint rejects the direct forms of Kysely's `transaction`, `startTransaction` and `connection` elsewhere in apps and backend code (`pnpm lint:probe` proves it in CI); aliasing beyond that is left to the runtime guard and review. |
@@ -21,7 +22,8 @@ personal-scope lock protocol on `identity.universes` (status, privacy epoch, rev
 `build` job with `--verify` and fails if the committed file is stale. Never edit it by hand.
 
 Lock order (blueprint §19): personal root first, then that universe's rows, then at most one
-shared root. Never lock another person's root inside a personal scope.
+shared root. Never lock another person's root inside a personal scope. Identity's sign-in takes
+its own two locks before the root (address, then sign-in link; `modules/identity/README.md`).
 
 Conventions (blueprint §5): one PostgreSQL schema per backend module; explicit names (no
 camel-case plugin); personal rows keyed `(universe_id, id)` and referencing the personal root with

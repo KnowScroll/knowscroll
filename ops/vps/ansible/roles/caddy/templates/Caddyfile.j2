@@ -1,4 +1,5 @@
 # KnowScroll — managed by ops/vps/ansible (#201). Edits here are overwritten; change the template.
+{% set ks_app_content_security_policy = lookup('ansible.builtin.file', 'app-content-security-policy.txt') | trim %}
 # Every name gets HTTPS automatically. APIs listen on 127.0.0.1 only; Caddy is the only door.
 
 (security_headers) {
@@ -50,6 +51,14 @@
 # {{ w.name }}
 {{ w.app_host }} {
 	import security_headers
+	# #226 review m7: the v2 web app (an Expo export, recognised by its /_expo folder) runs under
+	# a Content-Security-Policy (files/app-content-security-policy.txt, also served by the client's
+	# Playwright smoke). v1's web, which still runs on a world until its first v2 deploy, gets only
+	# the framing refusal. API answers carry their own headers (apps/api `apiSecurityHeaders`).
+	@v2_web file {
+		root /srv/knowscroll/{{ w.name }}/current/web
+		try_files /_expo/
+	}
 	# Sockets and media byte ranges pass through unencoded.
 	@compressible not path /socket.io/* /media/*
 	encode @compressible zstd gzip
@@ -66,6 +75,13 @@
 	# Content-hashed bundles: v1's Vite /assets, v2's Expo web export /_expo (#228).
 	@immutable path /assets/* /_expo/*
 	handle @immutable {
+		# Never framed; the v2 app's full policy replaces the framing-only one (review m7). A route
+		# block keeps this order (Caddy would otherwise sort the matched header first).
+		route {
+			header X-Frame-Options DENY
+			header Content-Security-Policy "frame-ancestors 'none'"
+			header @v2_web Content-Security-Policy "{{ ks_app_content_security_policy | replace('{socket_origin}', 'wss://' ~ w.app_host) }}"
+		}
 		root * /srv/knowscroll/{{ w.name }}/current/web
 		header Cache-Control "public, max-age=31536000, immutable"
 		file_server
@@ -73,6 +89,13 @@
 	# Everything else is the web app from the current release, whichever generation it is: a file,
 	# a statically exported page (Expo's {path}.html), or the single-page fallback.
 	handle {
+		# Never framed; the v2 app's full policy replaces the framing-only one (review m7). A route
+		# block keeps this order (Caddy would otherwise sort the matched header first).
+		route {
+			header X-Frame-Options DENY
+			header Content-Security-Policy "frame-ancestors 'none'"
+			header @v2_web Content-Security-Policy "{{ ks_app_content_security_policy | replace('{socket_origin}', 'wss://' ~ w.app_host) }}"
+		}
 		root * /srv/knowscroll/{{ w.name }}/current/web
 		header Cache-Control "no-cache"
 		try_files {path} {path}.html /index.html

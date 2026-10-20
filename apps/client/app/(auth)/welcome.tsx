@@ -1,5 +1,5 @@
-import { AuthPlaceholderScreen } from '../../features/auth/auth-placeholder-screen';
+import { WelcomeScreen } from '../../features/auth/welcome-screen';
 
 export default function Welcome() {
-  return <AuthPlaceholderScreen pageTitle="Welcome" />;
+  return <WelcomeScreen />;
 }

@@ -67,7 +67,7 @@ permissive. Review the licence list again when a dependency is added.
 | vitest | 4.1.12 | 2026-10-15 | MIT | Nest 12's template line (vitest 5 is newer but not needed). Resolves workspace sources through `vitest.workspace-sources.ts` (the `@knowscroll/source` export condition). |
 | @fast-check/vitest | 0.5.0 | 2026-09-11 | MIT | peers vitest ^4.1‖^5; brings fast-check 4.x for property tests. |
 | kysely-codegen | 0.20.0 | 2026-02-16 | MIT | peers kysely >=0.27 <1, pg >=8.8 <9. Weakest maintenance signal in the DB layer (last release Feb 2026); only used to generate and verify types, never at runtime. |
-| socket.io-client | 4.8.4 | 2026-09-25 | MIT | Release tests' Socket.IO client. |
+| socket.io-client | 4.8.4 | 2026-09-25 | MIT | Release tests' Socket.IO client; since S1.3 also the AccountScope's hint socket in `@knowscroll/client-core`. |
 
 ## Client (Expo SDK 58)
 
@@ -82,6 +82,8 @@ published on 2026-10-19 and is not adopted the same day).
 | expo-constants | 58.0.12 | 2026-10-14 | MIT |
 | expo-linking | 58.0.13 | 2026-10-14 | MIT |
 | expo-status-bar | 58.0.3 | 2026-10-01 | MIT |
+| expo-secure-store | 58.0.2 | 2026-10-01 | MIT (S1.3, #226: the native bearer session in the platform keychain/keystore) |
+| expo-crypto | 58.0.7 | 2026-10-16 | MIT (S1.3, #226: `randomUUID` for command IDs on native; the web uses `crypto.randomUUID`) |
 | @expo/metro-runtime | 58.0.14 | 2026-10-09 | MIT |
 | react, react-dom | 19.3.0 | 2026-09-09 | MIT (RN 0.88 bundles React 19.3.0; npm `latest` 19.3.1 is not used) |
 | react-native | 0.88.0 | 2026-10-15 | MIT |

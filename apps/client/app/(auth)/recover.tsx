@@ -1,5 +1,5 @@
-import { AuthPlaceholderScreen } from '../../features/auth/auth-placeholder-screen';
+import { RecoverScreen } from '../../features/auth/recover-screen';
 
 export default function Recover() {
-  return <AuthPlaceholderScreen pageTitle="Recover your account" />;
+  return <RecoverScreen />;
 }

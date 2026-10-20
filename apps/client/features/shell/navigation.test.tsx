@@ -140,15 +140,6 @@ describe('navigation shell', () => {
     expect(screen.queryByText('Components')).toBeNull();
   });
 
-  it('reserves the sign-in routes for S1.3 with a plain notice and a way on to Explore', async () => {
-    const app = await renderApp('/welcome');
-    expect(await screen.findByText("Sign-in isn't available yet. This build has no accounts.")).toBeOnTheScreen();
-    expect(screen.queryAllByRole('button')).toHaveLength(0);
-
-    await fireEvent.press(screen.getByRole('link', { name: 'Go to Explore' }));
-    expect(app.getPathname()).toBe('/explore');
-  });
-
   it('leads from an unknown address back to Explore', async () => {
     const app = await renderApp('/nowhere');
     await fireEvent.press(await screen.findByRole('link', { name: 'Go to Explore' }));

@@ -19,7 +19,7 @@
 // DATABASE_URL; plus PATH, HOME and any variable named by --pass-env):
 // - the release's migrate command exits 0;
 // - its api answers GET /health with this world, commit and artifact and the release's latest
-//   migration, answers an unknown route with a 404 application/problem+json, answers every
+//   migration, answers an unknown route (outside /v1) with a 404 application/problem+json, answers every
 //   --unauthenticated path (no credentials) with a 401 application/problem+json, and stops with
 //   exit 0 on SIGTERM;
 // - its worker starts (a `process.started` record) and stops with exit 0 on SIGTERM.
@@ -268,7 +268,9 @@ try {
       `${body?.migration} (release lists ${latest ?? 'none'})`,
     );
 
-    const missing = await fetch(`http://127.0.0.1:${port}/v1/release-smoke-no-such-route`);
+    // Outside /v1: every /v1 path, known or not, first needs a signed-in caller and its scope
+    // claim (the API's scope guard, #226), so an unknown /v1 path without credentials is a 401.
+    const missing = await fetch(`http://127.0.0.1:${port}/release-smoke-no-such-route`);
     check(
       'an unknown route answers 404 application/problem+json',
       missing.status === 404 && (missing.headers.get('content-type') ?? '').startsWith('application/problem+json'),

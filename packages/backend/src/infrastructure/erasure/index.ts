@@ -3,6 +3,7 @@ export {
   eraseUniverse,
   erasureRegistry,
   type AccountColumn,
+  type AccountTable,
   type ErasureReport,
   type ModuleErasure,
   type PersonalNonRowStore,

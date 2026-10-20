@@ -81,6 +81,8 @@ client  keeps the highest revision seen; GET /v1/saved → {revision, items}
 Automated suites run in CI only. To use the API locally, build (`pnpm --filter
 '!@knowscroll/client' --filter '!@knowscroll/integration-tests' build`), run `node
 apps/api/dist/migrate.js` against a disposable database, insert fixture rows, then start
-`apps/api/dist/main.js` with `NODE_ENV=test KS_WORLD=local KS_AUTH_ADAPTER=test-bearer` and
-`apps/worker/dist/main.js` (variables: `runtime-configuration.md`). Never point it at an owner
-database.
+`apps/api/dist/main.js` with `NODE_ENV=test KS_WORLD=local KS_MAIL_SENDER=fixture
+KS_FIXTURE_MAIL_FILE=<file> KS_ALLOW_OPERATOR_SIGN_IN=1` (sign in with the link the fixture
+sender writes, or one from `node apps/api/dist/operator.js issue-sign-in --email <address>`; or
+`KS_AUTH_ADAPTER=test-bearer` for the fixture caller) and `apps/worker/dist/main.js` (variables:
+`runtime-configuration.md`). Never point it at an owner database.

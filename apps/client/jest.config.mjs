@@ -33,6 +33,7 @@ export default {
       testMatch: [
         '<rootDir>/features/**/*.test.{ts,tsx}',
         '<rootDir>/platform/**/*.test.{ts,tsx}',
+        '<rootDir>/providers/**/*.test.{ts,tsx}',
         '<rootDir>/theme/**/*.test.ts',
       ],
       testPathIgnorePatterns: ['/node_modules/', '\\.web\\.test\\.tsx?$'],

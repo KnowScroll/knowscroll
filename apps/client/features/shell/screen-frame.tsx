@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { content, dimension, layout, space, spacing, type Breakpoint } from '@knowscroll/design-tokens';
 import { AccountButton, TopBar, useDisplay } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
+import { useAccountInitial } from '../../providers/account-scope';
 import { usesRail } from './app-navigation';
 
 export interface ScreenFrameProps {
@@ -60,6 +61,7 @@ export function ScreenFrame({
   const { breakpoint } = useDisplay();
   const railed = usesRail(breakpoint);
   const accountInHeader = showAccount && breakpoint !== 'desktop';
+  const initial = useAccountInitial();
   useDocumentTitle(pageTitle ?? title ?? 'KnowScroll');
 
   useFocusEffect(
@@ -95,6 +97,7 @@ export function ScreenFrame({
                 onPress={() => router.navigate('/account')}
                 href="/account"
                 surface={tone === 'space' ? 'dark' : 'light'}
+                {...(initial === undefined ? {} : { initial })}
               />
             ) : undefined
           }

@@ -47,6 +47,10 @@ describe('the deployed release', () => {
       KS_ARTIFACT_SHA256: fixtureArtifact,
       DATABASE_URL: database.url,
       PORT: String(port),
+      // What a world's units add for sign-in (fixture values: nothing is sent in this test).
+      KS_PUBLIC_ORIGIN: `http://127.0.0.1:${port}`,
+      AGENTMAIL_API_KEY: 'fixture-not-a-key',
+      AGENTMAIL_INBOX_ID: 'fixture@agentmail.invalid',
     });
     await api.waitForEvent('process.started');
     await waitForHttp(`http://127.0.0.1:${port}/health`);

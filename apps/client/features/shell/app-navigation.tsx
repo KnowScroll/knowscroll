@@ -3,6 +3,7 @@ import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { StyleSheet, View } from 'react-native';
 import { content, layout, type Breakpoint } from '@knowscroll/design-tokens';
 import { NavRail, TabBar, useDisplay, type Destination } from '@knowscroll/ui';
+import { useAccountInitial } from '../../providers/account-scope';
 
 const destinationRoutes: readonly Destination[] = ['explore', 'universe', 'conversations', 'saved'];
 
@@ -35,6 +36,7 @@ export function destinationHref(destination: Destination): `/${Destination}` {
 export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProps) {
   const router = useRouter();
   const { breakpoint } = useDisplay();
+  const initial = useAccountInitial();
   const routeName = state.routes[state.index]?.name;
   const active = asDestination(routeName);
   const tone = routeName === 'universe' ? 'space' : 'paper';
@@ -59,7 +61,12 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
           hrefFor={destinationHref}
           size={breakpoint === 'desktop' ? 'desktop' : 'tablet'}
           tone={tone}
-          account={{ onPress: () => router.navigate('/account'), href: '/account', current: routeName === 'account' }}
+          account={{
+            onPress: () => router.navigate('/account'),
+            href: '/account',
+            current: routeName === 'account',
+            ...(initial === undefined ? {} : { initial }),
+          }}
         />
       </View>
     );
