@@ -7,6 +7,13 @@ import { Button } from '../actions/button';
 import { observeMediaVisibility } from './visibility';
 
 // expo-video exposes seeking as an imperative native SDK property.
+function pausePlayback(player: VideoPlayer): void {
+  try {
+    player.pause();
+  } catch {
+    /* expo-video already released the native SharedObject. */
+  }
+}
 function seekPlayback(player: VideoPlayer, time: number): void {
   player.currentTime = time;
 }
@@ -48,6 +55,7 @@ export function ReelPlayer({
   const visible = useRef(false);
   const activeRef = useRef(active);
   const resumePosition = useRef(0);
+  const playbackIntent = useRef(false);
   const [status, setStatus] = useState<'loading' | 'ready' | 'buffering' | 'error'>('loading');
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
@@ -58,7 +66,8 @@ export function ReelPlayer({
       observeMediaVisibility(view.current, (value) => {
         visible.current = value;
         if (!value) {
-          player.pause();
+          playbackIntent.current = false;
+          pausePlayback(player);
           onDiscontinuity();
         }
       }),
@@ -67,7 +76,8 @@ export function ReelPlayer({
   useEffect(() => {
     activeRef.current = active;
     if (!active) {
-      player.pause();
+      playbackIntent.current = false;
+      pausePlayback(player);
       onDiscontinuity();
     }
   }, [active, player, onDiscontinuity]);
@@ -78,12 +88,13 @@ export function ReelPlayer({
     const stop = () => {
       if (disposed) return;
       disposed = true;
+      playbackIntent.current = false;
       if (timer) clearTimeout(timer);
       onDiscontinuity();
       // The hook also releases its native SharedObject on unmount; either cleanup order is safe.
       try {
         resumePosition.current = player.currentTime;
-        player.pause();
+        pausePlayback(player);
         void player.replaceAsync(null).catch(() => undefined);
       } catch {
         /* Already released by expo-video. */
@@ -97,12 +108,12 @@ export function ReelPlayer({
         const grant = await loadSource();
         if (disposed) return;
         const time = Math.max(player.currentTime, resumePosition.current);
-        const resume = player.playing;
-        player.pause();
+        const resume = playbackIntent.current;
+        pausePlayback(player);
         onDiscontinuity();
         await player.replaceAsync(grant.source);
         if (disposed) {
-          player.pause();
+          pausePlayback(player);
           return;
         }
         player.currentTime = time;
@@ -115,7 +126,7 @@ export function ReelPlayer({
         );
       } catch {
         if (!disposed) {
-          player.pause();
+          pausePlayback(player);
           onDiscontinuity();
           setStatus('error');
         }
@@ -157,7 +168,12 @@ export function ReelPlayer({
       setPlaying(event.isPlaying);
       onDiscontinuity();
     });
-    const ended = player.addListener('playToEnd', onDiscontinuity);
+    const ended = player.addListener('playToEnd', () => {
+      playbackIntent.current = false;
+      pausePlayback(player);
+      setPlaying(false);
+      onDiscontinuity();
+    });
     return () => {
       time.remove();
       state.remove();
@@ -193,16 +209,27 @@ export function ReelPlayer({
           {Math.floor(position)} / {Math.round(durationMs / 1000)} s · Captions in video
         </Text>
         <View style={styles.buttons}>
-          <Button label="Back 10s" variant="default" onPress={() => seek(-10)} />
+          <Button label="Back 10s" size="sm" variant="default" onPress={() => seek(-10)} />
           <Button
+            size="sm"
             label={status === 'error' ? 'Retry' : playing ? 'Pause' : 'Play'}
             onPress={() => {
               if (status === 'error') setAttempt((value) => value + 1);
-              else if (playing) player.pause();
-              else if (active) player.play();
+              else if (playing) {
+                playbackIntent.current = false;
+                pausePlayback(player);
+              } else if (active) {
+                if (player.currentTime >= durationMs / 1000 - 0.05) {
+                  onDiscontinuity();
+                  seekPlayback(player, 0);
+                  resumePosition.current = 0;
+                }
+                playbackIntent.current = true;
+                player.play();
+              }
             }}
           />
-          <Button label="Forward 10s" variant="default" onPress={() => seek(10)} />
+          <Button label="Forward 10s" size="sm" variant="default" onPress={() => seek(10)} />
         </View>
       </View>
     </View>
@@ -213,5 +240,5 @@ const styles = StyleSheet.create({
   video: { flex: 1, width: '100%', minHeight: 0, height: '100%' },
   poster: { position: 'absolute', top: '40%', left: spacing[5], right: spacing[5], alignItems: 'center' },
   controls: { padding: spacing[3], gap: spacing[2], backgroundColor: '#151515' },
-  buttons: { flexDirection: 'row', justifyContent: 'center', gap: spacing[2] },
+  buttons: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing[2] },
 });

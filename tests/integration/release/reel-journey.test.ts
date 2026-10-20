@@ -112,7 +112,11 @@ describe('Reel journey in the installed release trees', () => {
     if (root) await rm(root, { recursive: true, force: true });
   });
   it('opens/activates an admitted immutable Reel, grants it, serves bounded ranges and conditional requests', async () => {
-    const client = apiClient(origin, person.accountId);
+    const client = apiClient(
+      origin,
+      `Bearer test.${person.accountId}`,
+      scopeClaimOf({ accountId: person.accountId, privacyEpoch: 1 }),
+    );
     const opened = await client.experience.openExposure({
       commandId: randomUUID(),
       target: { kind: 'reel', assetId },
@@ -154,7 +158,11 @@ describe('Reel journey in the installed release trees', () => {
     await sql`update experience.exposures set activated_at = now() - interval '1 minute' where id = ${exposureId}::uuid`.execute(
       handle.db,
     );
-    const client = apiClient(origin, person.accountId);
+    const client = apiClient(
+      origin,
+      `Bearer test.${person.accountId}`,
+      scopeClaimOf({ accountId: person.accountId, privacyEpoch: 1 }),
+    );
     const sessionId = randomUUID();
     const samples = Array.from({ length: 16 }, (_, index) => ({
       activeMs: [index * 1000, (index + 1) * 1000] as [number, number],

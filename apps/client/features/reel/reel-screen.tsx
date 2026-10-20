@@ -143,10 +143,10 @@ function ReadyReel({
       />
       <View style={styles.caption}>
         <View style={styles.copy}>
-          <Text variant="uiLabel" color={content.paper}>
+          <Text variant="title" color={content.paper}>
             {document.title}
           </Text>
-          <Text variant="uiS" color={content.paper}>
+          <Text variant="bodyS" color={content.paper}>
             {document.summary}
           </Text>
         </View>
