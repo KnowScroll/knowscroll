@@ -17,9 +17,9 @@ import { receiptsErasure } from './infrastructure/receipts/erasure.js';
  * lifecycle) and `content.assets` (shared content).
  */
 export const personalStores = erasureRegistry([
-  composerErasure,
   evidenceErasure,
   experienceErasure,
+  composerErasure,
   reasoningErasure,
   receiptsErasure,
   identityErasure,

@@ -4,7 +4,7 @@
  * format switch, explicit topic) arrive with the Composer and navigation; the database checks only
  * the shape of the value, so adding one needs no migration, only a code change here.
  */
-export const EXPOSURE_ORIGINS = ['direct'] as const;
+export const EXPOSURE_ORIGINS = ['direct', 'composer'] as const;
 
 export type ExposureOrigin = (typeof EXPOSURE_ORIGINS)[number];
 

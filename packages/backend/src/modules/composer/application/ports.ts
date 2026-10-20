@@ -1,12 +1,14 @@
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import type { ComposerDecision, ComposerSnapshot, PreparedEvidenceInput } from '../domain/types.js';
 export type ComposeEncounter = (snapshot: ComposerSnapshot) => ComposerDecision;
-/** Implemented by the later evidence projector. Absence is explicit; never manufactures history. */
+/** Implemented by Evidence activity; a missing preparation remains explicit and never manufactures history. */
 export type ReadPreparedEvidenceInput = (
   scope: PersonalScopeTx,
   query: {
     readonly evaluatedAt: string;
     readonly topicIds: readonly string[];
+    /** Optional exact candidate IDs: complete bounded Hide checks, never a truncated global list. */
+    readonly candidateAssetIds?: readonly string[];
     /** At most100 candidate units with at most16 real admitted facets each. */
     readonly candidates: readonly { readonly explanationUnitId: string; readonly facets: readonly string[] }[];
   },

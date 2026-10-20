@@ -135,3 +135,10 @@ indexes use the transactional migrator with 5-second lock/60-second statement ti
 small admitted inventory; larger rollout requires a separately reviewed concurrent-index plan.
 No previously registered SQL/hash changes. `0015` must be reconciled before deploying 16+ to dev.
 CI fixtures exercise metadata/authority facts, not actual approved media bytes or runtime journeys.
+
+`ReadEncounterAttribution(scope, exactRef)` is a backend-only historical metadata capability for
+an already validated owned activated encounter. It returns exact immutable explanation identity,
+real topic/facet attribution and metadata watermark/version, including retained withdrawn revisions.
+It returns no document, provenance or render authority. Missing metadata remains unknown. New
+offers and activations must separately use current `ReadExactEncounter` capability/admission checks;
+this historical read never authorises opening withdrawn content.

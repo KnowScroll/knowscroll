@@ -2,9 +2,9 @@ import type { Kysely } from 'kysely';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import type { ActionKind, SavedState } from '../domain/actions.js';
+import type { SavedState } from '../domain/actions.js';
 import type { Exposure, ExposureKind } from '../domain/exposures.js';
-import type { ActionRecord, ListSavedPorts, NewExposure, ReadExposureDocumentPorts } from '../application/ports.js';
+import type { ActionRecord, NewExposure, ReadExposureDocumentPorts } from '../application/ports.js';
 import type { ActionForEvidence, ExposureForEvidence } from '../public.js';
 
 /** Saved state of one asset, read inside the locked scope. */
@@ -82,54 +82,10 @@ export async function readActionForEvidence(
   if (row === undefined) return undefined;
   return {
     id: row.id,
-    kind: row.kind as ActionKind,
+    kind: row.kind as ActionForEvidence['kind'],
     assetId: row.asset_id,
     assetRevision: row.asset_revision,
     privacyEpoch: row.privacy_epoch,
-  };
-}
-
-/**
- * The saved-items read: one statement that rechecks the universe's status, epoch and owner and
- * reads a bounded page, newest first. No lock, so reads never wait behind commands.
- */
-export function makeReadSavedItems(db: Kysely<Database>): ListSavedPorts['readSavedItems'] {
-  return async (authority: PersonalAuthority, limit: number) => {
-    const universe = await db
-      .selectFrom('identity.universes as universe')
-      .innerJoin('identity.accounts as account', 'account.id', 'universe.account_id')
-      .select([
-        'universe.privacy_epoch',
-        'universe.status',
-        'universe.revision',
-        'universe.account_id',
-        'account.status as account_status',
-      ])
-      .where('universe.id', '=', authority.universeId)
-      .executeTakeFirst();
-    const ownerMatches = authority.actor.kind !== 'account' || universe?.account_id === authority.actor.accountId;
-    if (
-      universe === undefined ||
-      universe.status !== 'active' ||
-      universe.account_status !== 'active' ||
-      !ownerMatches
-    ) {
-      return { kind: 'refused', reason: 'universe_unavailable' };
-    }
-    if (universe.privacy_epoch !== authority.privacyEpoch) return { kind: 'refused', reason: 'epoch_changed' };
-    const rows = await db
-      .selectFrom('experience.saved_items')
-      .select(['asset_id', 'asset_revision', 'saved_at'])
-      .where('universe_id', '=', authority.universeId)
-      .orderBy('saved_at', 'desc')
-      .orderBy('asset_id')
-      .limit(limit)
-      .execute();
-    return {
-      kind: 'read',
-      revision: universe.revision,
-      items: rows.map((row) => ({ assetId: row.asset_id, assetRevision: row.asset_revision, savedAt: row.saved_at })),
-    };
   };
 }
 

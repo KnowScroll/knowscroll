@@ -4,11 +4,13 @@ import type { WorkerConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { reasoningProviders } from '@knowscroll/backend/reasoning/nest-providers';
+import type { EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { jobWiring } from './jobs.js';
-import { DATABASE, LOG_EVENT, WITH_PERSONAL_SCOPE, WORKER_CONFIG } from './tokens.js';
+import { ENQUEUE_JOB, DATABASE, LOG_EVENT, WITH_PERSONAL_SCOPE, WORKER_CONFIG } from './tokens.js';
 
 /** Long-lived resources created by `main.ts` before Nest starts and closed after Nest stops. */
 export interface WorkerResources {
+  readonly enqueueJob: EnqueueJob;
   readonly config: WorkerConfig;
   readonly db: Kysely<Database>;
   readonly logEvent: LogEvent;
@@ -26,6 +28,7 @@ export class WorkerModule {
       module: WorkerModule,
       providers: [
         { provide: WORKER_CONFIG, useValue: resources.config },
+        { provide: ENQUEUE_JOB, useValue: resources.enqueueJob },
         { provide: DATABASE, useValue: resources.db },
         { provide: LOG_EVENT, useValue: resources.logEvent },
         {

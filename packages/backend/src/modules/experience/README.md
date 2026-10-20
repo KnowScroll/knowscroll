@@ -33,3 +33,48 @@ S2.4 adds `target.kind: reel` to the existing open/activate lineage. Opening and
 consumption evidence; an exposure remains bound to its immutable admitted revision. Scroll document
 rendering stays Scroll-only. The separate media read port checks Reel exposure ownership/current epoch
 and admitted revision on every grant and byte-range request.
+
+## Navigation and actual activation (0018, #234 backend slice)
+
+The API composition now binds discover/return open, all shared semantic navigation modes, offer
+activation, current context, Like/Unlike/Hide, and exact Saved hydration. Direct open/activate and
+unlinked Save/Unsave retain their existing operations and receipt versions. Back restores the parked
+reader without a command. This backend source does not constitute a connected client journey.
+
+Navigation locks the personal root for Tx1 (receipt/epoch/latest intent/source membership + bounded
+content/evidence snapshot), runs pure Composer **outside** the transaction, then locks for Tx2.
+Tx2 rechecks receipt/epoch/latest intent, any activated same-session source, each selected exact
+revision/current admission/render support/Hide and exact continuity version. It atomically commits
+receipt/session/decision/at most three immutable offers. Catalog drift permits one rerank; a second
+drift refuses `OFFER_UNAVAILABLE`. No model, provider, HTTP wait or new supply request occurs.
+An empty inventory is exhausted. Explicit target revision/format wins; no replacement is silently opened.
+
+Offers use the experimental `offer.v0` 15-minute TTL. A fresh activation command requires current
+intent, TTL, exact access/support and displayed link validation. Concurrent/repeated valid commands
+reuse one bound exposure. A **completed identical activation receipt** replays its original result
+after live scope/epoch and current exact access/support checks; later TTL/session progression cannot
+undo it. Withdrawal refuses even completed replay. Buffering itself creates no exposure/evidence.
+Current context reads the latest session revision, current Saved/Like/Hide and admitted continuity
+and format siblings. It exposes no scores, producer provenance or personal raw history.
+
+An optional action exposure must be owned, activated, current epoch and the exact requested revision.
+Without it the action is an asset preference only. Unlike/Unsave correct the original credited
+encounter, using retained original action/exposure pointers. They never guess the newest exposure.
+Owned Saved removal remains possible after correction/withdrawal; hydration preserves the original
+revision and explicitly reports corrected/withdrawn availability.
+
+| Personal table | Purpose / indexed query | Growth / retention / erasure |
+|---|---|---|
+| `sessions` | Own session ID, latest revision and declared capabilities/intent | One per session, bounded JSON; retained until full erasure |
+| `offers` | Immutable exact descriptors + owned decision FK, scoped session/intent index and same-session source FK | <=3 per committed decision; 8KiB descriptor; TTL is activation eligibility, not physical deletion |
+| `offer_activations` | Unique own offer -> one actual exposure | <=1 per activated offer; erase before offers/exposures |
+| `encounter_lineage` | Actual activated immutable revision/explanation/facets; scoped recent and explanation-time indexes plus facet GIN | One per actual exposure; recent read <=20 within24h, established probes <=100 units/16facets; retained history, no learning claim |
+| `encounter_activity_inputs` | Current independent action/navigation flags and revisions, exact exposure key | One per actual exposure; baseline false never invents a measurement |
+| `action_state`, `action_links` | Current asset preferences/original credit pointers and immutable action audit | One state/asset + one link/action; only explicit commands; full erasure deletes before actions/exposures |
+| `navigation_transitions` | Actual activated destination/source and typed mode, source index | One per activated offer; H only deliberate series/related source, R only separated explicit return |
+
+Migration18 backfills only real retained activated metadata. Existing unknown measurements remain
+unknown. Full AccountScope erasure deletes evidence first, offer references before decisions, then
+exposure roots; shared content survives. The existing generic clear-all is **not** selective history
+clearing. Offers and sessions have no maintenance scheduler in this slice. Retained offers can delay
+physical Composer decision pruning after its 30-day logical read expiry.

@@ -56,3 +56,53 @@ admitted revision's facts. `reel-qualification.v0` computes unique visible media
 unique active time, with experimental q≥0.6. Overlap, loops and duplicate delivery add no unique media;
 missing/gapped instrumentation leaves short encounters unknown. Consumer navigation/open/grant renewal
 is not evidence. Diagnostics retain q, unique media, active time, duration and policy version.
+
+## Actual activity and prepared routing context (0019, #234 backend slice)
+
+`activity.v0` keeps q, Like L, bookmark B, confirmed Share S (currently0), deliberate horizontal H
+and separated return R independently. Routing activity is `min(3,q+.5L+1.5B+S+1.5H+2R)`;
+unknown q remains null and never becomes qualification or usable format measurement. H belongs
+once to the activated **source** of an actually activated series/related destination. Variants,
+offers, failures and Back add no H. R belongs to a new explicitly activated return at least30min
+after the most recent actual same-explanation encounter; legacy/direct open and parked restore add
+none. These defaults are experimental routing policy, not formation or learning measurements.
+
+Ordinary IDs-only `evidence.project-encounter-activity` jobs are enqueued in the same root transaction
+as activation, linked action correction or new qualification revision. They recheck live authority,
+epoch and actual activation, then project latest state. The independent input vector contains
+qualification revision, original action revision, navigation linkage revision, actual attribution
+watermark and policy. No fake observation is inserted to advance qualification. Duplicate/out-of-order
+jobs with an already-current vector do nothing. Required job failure rolls its originating commit back.
+
+| Personal table | Purpose / bounded indexed query | Growth / retention / erasure |
+|---|---|---|
+| `activity_revisions` | Immutable separate input vector, original channels, capped routing value; exact exposure/revision/hash keys | One per changed vector; bounded JSON; retained personal audit, full erasure |
+| `activity_current` | Current owned epoch/exposure -> matching revision FK | One/exposure; erase after topic contributions, before revisions |
+| `topic_contributions` | Current weighted capped value + independent original channel contributions and measured/qualified flags | <=16 actual attributed topics/exposure; sum topic weights<=1 enforced by content; replacement rather than additive replay |
+| `topic_context` | Scope/topic decayed activity and independent channel aggregates; per-topic-format Q/O | One/topic; exact requested topics<=100; update affected union<=32topics, no lifetime scan |
+
+Activity uses a14day half-life. Late qualification, original action toggles or metadata corrections
+replace the prior exposure contribution at the **same evaluation time**, including per-channel
+aggregates. Per-topic-format O counts usable qualification measurements and Q qualified encounters;
+unknown measurements enter neither. Format twins retain one explanation identity for established
+novelty and do not fabricate conceptual variety.
+
+`ReadPreparedActivity` implements Composer's bounded prepared-input port: actual latest20 activated
+encounters within24h, indexed candidate-relevant established explanation/facet probes independent
+of the24h window, requested-topic aggregates, candidate-bounded current Hide and scope watermark.
+Hide is read only for supplied actual candidate asset IDs (<=100 unique UUIDs), with a separate
+selected-Hide recheck at navigation commit. Historical attribution is metadata, never opening permission.
+
+Rollout requires an explicit root-controlled `ReconcileEncounterActivity(authority,{after?,limit})`
+call. It visits <=100 actual activated IDs per invocation, rechecks epoch, and enqueues the **same**
+normal job only for missing/stale vectors without pending work. Its page cursor/examined/queued/
+pending/metadataGaps/watermark report page enumeration and outstanding work honestly; page completion
+is not proof jobs finished. Metadata gaps remain unknown. No automatic scheduler or swipe-time history
+scan exists. Parent rollout must reconcile after metadata publication. No runtime invocation was
+performed by this source task. Rollback stops new consumers/jobs; retained factual metadata is not
+fabricated qualification. Migrations18/19 are additive and require the complete ordered deployment
+prefix, including separately owned15 before dev rollout.
+
+The erasure inventory includes all four activity tables and ordinary/retained/dead activity jobs.
+Full erasure removes them before Experience's exposure roots. No formation, Planet, provider,
+assessment, selective history-clearing, or client UI is implemented here.

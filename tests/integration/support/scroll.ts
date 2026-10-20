@@ -8,6 +8,20 @@ import {
   contentRenderProviders,
   importEditorialScrollUseCase,
 } from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  READ_PREPARED_ACTIVITY,
+  type ProjectEncounterActivity,
+  type ReconcileEncounterActivity,
+} from '@knowscroll/backend/modules/evidence';
+import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
+import type { ReadPreparedEvidenceInput } from '@knowscroll/backend/modules/composer';
+import type {
+  NavigateEncounter,
+  ActivateOffer,
+  ReadExposureContext,
+  ApplyEncounterAction,
+  ListSaved,
+} from '@knowscroll/backend/modules/experience';
 import type {
   IngestObservations,
   ProjectScrollReading,
@@ -19,6 +33,8 @@ import {
   READ_EVIDENCE_DIAGNOSTICS,
   evidenceIntakeProviders,
   evidenceProviders,
+  activityProviders,
+  ACTIVITY_PORTS,
 } from '@knowscroll/backend/modules/evidence/nest-providers';
 import type { ActivateExposure, OpenExposure, ReadExposureDocument } from '@knowscroll/backend/modules/experience';
 import {
@@ -27,10 +43,19 @@ import {
   READ_EXPOSURE_DOCUMENT,
   experienceEvidenceReadProviders,
   experienceProviders,
+  navigationProviders,
+  NAVIGATION_PORTS,
+  NAVIGATE_ENCOUNTER,
+  ACTIVATE_OFFER,
+  READ_EXPOSURE_CONTEXT,
+  APPLY_ENCOUNTER_ACTION,
+  LIST_SAVED,
 } from '@knowscroll/backend/modules/experience/nest-providers';
+import type { WithPersonalScope } from '@knowscroll/backend/modules/identity';
 import type { TestDatabase } from './database.js';
 import { buildFromProviders } from './providers.js';
 
+import { PROJECT_ENCOUNTER_ACTIVITY, RECONCILE_ENCOUNTER_ACTIVITY } from '@knowscroll/backend/modules/evidence';
 const DATABASE = Symbol('test.database');
 const SCOPE = Symbol('test.withPersonalScope');
 const ENQUEUE = Symbol('test.enqueueJob');
@@ -65,8 +90,19 @@ export const baselineCapabilities = {
  */
 export async function scrollUseCases(
   database: TestDatabase<Database>,
-  options: { readonly wrapEnqueue?: (enqueue: EnqueueJob) => EnqueueJob } = {},
+  options: {
+    readonly wrapEnqueue?: (enqueue: EnqueueJob) => EnqueueJob;
+    readonly wrapScope?: (scope: WithPersonalScope) => WithPersonalScope;
+  } = {},
 ): Promise<{
+  readonly navigate: NavigateEncounter;
+  readonly activateOffer: ActivateOffer;
+  readonly readContext: ReadExposureContext;
+  readonly applyEncounterAction: ApplyEncounterAction;
+  readonly listSaved: ListSaved;
+  readonly projectActivity: ProjectEncounterActivity;
+  readonly reconcileActivity: ReconcileEncounterActivity;
+  readonly readPrepared: ReadPreparedEvidenceInput;
   readonly importScroll: ImportEditorialScroll;
   readonly openExposure: OpenExposure;
   readonly activateExposure: ActivateExposure;
@@ -81,21 +117,37 @@ export async function scrollUseCases(
   const boss = createBoss(database.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
   await boss.start();
   const enqueue = makeEnqueueJob(boss);
+  const scope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
   const values = new Map<symbol, unknown>([
     [DATABASE, database.db],
-    [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
+    [SCOPE, options.wrapScope ? options.wrapScope(scope) : scope],
     [ENQUEUE, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],
     ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...experienceEvidenceReadProviders().map((provider) => [provider.provide, provider.useValue] as const),
   ]);
   values.set(RENDER_SCROLL, buildFromProviders(contentRenderProviders({ database: DATABASE }), RENDER_SCROLL, values));
+  const composer = composerProviders({ isOperator: () => false });
+  for (const p of composer) values.set(p.provide, p.useValue);
   const providers = [
+    ...activityProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
+    ...navigationProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
     ...experienceProviders({ database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
     ...evidenceIntakeProviders({ database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
-    ...evidenceProviders({ withPersonalScope: SCOPE }),
+    ...evidenceProviders({ enqueueJob: ENQUEUE, withPersonalScope: SCOPE }),
   ];
   const build = (token: symbol): unknown => buildFromProviders(providers, token, values);
+  values.set(ACTIVITY_PORTS, build(ACTIVITY_PORTS));
+  values.set(READ_PREPARED_ACTIVITY, build(READ_PREPARED_ACTIVITY));
+  values.set(NAVIGATION_PORTS, build(NAVIGATION_PORTS));
   return {
+    navigate: build(NAVIGATE_ENCOUNTER) as NavigateEncounter,
+    activateOffer: build(ACTIVATE_OFFER) as ActivateOffer,
+    readContext: build(READ_EXPOSURE_CONTEXT) as ReadExposureContext,
+    applyEncounterAction: build(APPLY_ENCOUNTER_ACTION) as ApplyEncounterAction,
+    listSaved: build(LIST_SAVED) as ListSaved,
+    projectActivity: build(PROJECT_ENCOUNTER_ACTIVITY) as ProjectEncounterActivity,
+    reconcileActivity: build(RECONCILE_ENCOUNTER_ACTIVITY) as ReconcileEncounterActivity,
+    readPrepared: values.get(READ_PREPARED_ACTIVITY) as ReadPreparedEvidenceInput,
     importScroll: importEditorialScrollUseCase(database.db),
     openExposure: build(OPEN_EXPOSURE) as OpenExposure,
     activateExposure: build(ACTIVATE_EXPOSURE) as ActivateExposure,
