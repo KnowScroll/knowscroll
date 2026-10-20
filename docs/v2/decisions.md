@@ -209,3 +209,10 @@ except newly reserved discriminators (`target` for activation, `status` for open
 `sessionId` for activation responses); malformed new branches cannot downgrade into legacy effects.
 Interim consumers refuse unsupported new commands before any effect. Shared contracts land and
 pass independent review/Actions before feature consumers.
+
+
+## D-026 · 2026-10-20 · Coordinator: initial layered2D Universe renderer
+
+Use the existing react-native-svg dependency for the initial layered2D Universe renderer, with ordinary accessible RN/Web controls and lists. The [source/design study](discovery/scene-renderer-study.md) evaluates committed U01–U08/D02, blueprint§13/§18 and current scene-core/Scroll runtime evidence; U07 explicitly permits layered SVG without3D. This is an initial implementation choice, not populated-scene or physical-device performance acceptance. Keep descriptor/formation/identity independent of rendering and revisit from actual scene/device evidence if needed.
+
+The server persists meaning-selected family/template, opaque personal seed, generator version and anchors; rendering never rerolls identity from sibling order or activity. Full/low/reduced-motion keep the same semantic targets and framing. No arbitrary model SVG/scripts/URLs, placeholder growth, evidence-from-map-visits or client-invented region offers. Exact scoped camera return, supported Composer Open and durable per-account shown/skipped transition acknowledgement remain explicit acceptance work; origin IDs or client memory alone do not establish cross-device once-only presentation.
