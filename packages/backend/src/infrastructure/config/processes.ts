@@ -133,6 +133,8 @@ export interface ReasoningCap {
  */
 export interface ReasoningSettings {
   readonly provider: 'none' | 'minimax';
+  /** Worker-only nonpersonal production grant; root enabled/generation are checked separately. */
+  readonly productionEnabled: boolean;
   readonly minimax?: {
     readonly apiKey: string;
     readonly model: (typeof MINIMAX_MODELS)[number];
@@ -418,6 +420,7 @@ export function readOperatorConfig(env: Environment): OperatorConfig {
 }
 
 const reasoningVariables = z.object({
+  KS_REASONING_PRODUCTION_ENABLED: z.enum(['0', '1']).default('0'),
   KS_REASONING_PROVIDER: z.enum(['none', 'minimax']).default('none'),
   MINIMAX_API_KEY: z.string().optional(),
   KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3'),
@@ -456,6 +459,7 @@ function reasoningSettings(parsed: z.infer<typeof reasoningVariables>): Reasonin
   ]);
   return {
     provider: parsed.KS_REASONING_PROVIDER,
+    productionEnabled: parsed.KS_REASONING_PRODUCTION_ENABLED === '1',
     ...(parsed.KS_REASONING_PROVIDER === 'minimax' && key !== undefined
       ? {
           minimax: {

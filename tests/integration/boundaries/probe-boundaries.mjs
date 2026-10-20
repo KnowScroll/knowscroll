@@ -12,6 +12,22 @@ const wire = `${B}/modules/content/adapters/cutroom/wire-v1/errors.ts`;
 
 /** Each probe file and the edges it must produce, with the rule that must reject each edge. */
 const probes = [
+  // Production's root protocol may import framework-free capability types, never runtime grants.
+  {
+    file: `${B}/infrastructure/zz-probe-production.ts`,
+    source:
+      "import { PRODUCTION_REASONING_HARNESS } from '../reasoning/public.js';\nexport const p = PRODUCTION_REASONING_HARNESS;\n",
+    expect: [
+      [`${B}/reasoning/public.ts`, 'production-protocol-public-types-only'],
+      [`${B}/reasoning/public.ts`, 'production-protocol-only'],
+    ],
+  },
+  {
+    file: `${B}/infrastructure/zz-probe-production-type.ts`,
+    source:
+      "import type { ProductionAuthority } from '../reasoning/public.js';\nexport type P = ProductionAuthority;\n",
+    expect: [[`${B}/reasoning/public.ts`, 'production-protocol-only']],
+  },
   // M1: imports into the vendored wire schema are checked (it is a leaf, not excluded).
   {
     file: `${B}/modules/content/application/zz-probe.ts`,

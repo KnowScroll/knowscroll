@@ -29,3 +29,11 @@ Conventions (blueprint §5): one PostgreSQL schema per backend module; explicit 
 camel-case plugin); personal rows keyed `(universe_id, id)` and referencing the personal root with
 `ON DELETE RESTRICT`; bounded JSONB with a version; counters (revisions, epochs) are 32-bit
 integers, IDs are UUIDs (UUIDv7 when minted by the server, `infrastructure/ids`).
+
+The nonpersonal reasoning root protocol is `makeWithProductionScope(db, { enabled, lockTimeoutMs })`:
+`reasoning.production_scopes` root lock → enabled/generation recheck → runtime-expiring
+`ProductionScopeTx`. `productionTransactionOf(scope)` gives adapters its existing transaction;
+`makeProductionAuthorityHolds` checks output eligibility without a lock. These types live on the
+reasoning framework-free public surface. The dependency rule permits only this protocol file to
+import those **types**, and still forbids runtime imports. It never acquires a personal root and
+uses `withTransaction`, so nested entry and network guards remain active. See reasoning/README.

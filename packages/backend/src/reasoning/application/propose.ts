@@ -14,6 +14,7 @@ import { makeExecuteAttempt, type AttemptResult, type Judgement } from './execut
 import {
   MAX_STORED_OUTPUT_BYTES,
   type HarnessPorts,
+  type ExecutionPorts,
   type ModelPort,
   type ModelReply,
   type RunDescriptor,
@@ -48,11 +49,11 @@ export interface ReasoningRole<T> {
 }
 
 /** The business run the module is trying to complete (blueprint §15 "Three execution records"). */
-export interface ReasoningRun {
+export interface ReasoningRun<A = PersonalAuthority> {
   /** Stable across queue deliveries of the same work (a UUID). */
   readonly id: string;
   /** Whose personal scope the run is for; rechecked under the lock at admission and dispatch. */
-  readonly authority: PersonalAuthority;
+  readonly authority: A;
   readonly ownerModule: string;
   readonly purpose: string;
   /** The owning module's policy version for this decision. */
@@ -85,8 +86,8 @@ export interface ProposeLimits {
   readonly allowRepair?: boolean;
 }
 
-export interface ProposeInput<T> {
-  readonly run: ReasoningRun;
+export interface ProposeInput<T, A = PersonalAuthority> {
+  readonly run: ReasoningRun<A>;
   readonly role: ReasoningRole<T>;
   readonly context: ReasoningContext;
   readonly limits?: ProposeLimits;
@@ -106,6 +107,7 @@ export type ProposeRefusal =
   | 'request_mismatch'
   | 'dispatch_lost'
   | 'attempts_exhausted'
+  | 'failure_brake'
   | 'output_ineligible'
   | 'attempt_written_off';
 
@@ -135,7 +137,7 @@ export type ProposeOutcome<T> =
   | { readonly kind: 'quota_unavailable'; readonly attemptId: string };
 
 /** The harness used by module-owned roles. */
-export interface ReasoningHarness {
+export interface ReasoningHarness<A = PersonalAuthority, S = PersonalScopeTx> {
   /**
    * Runs one role proposal for one business run: at most one primary attempt and, after a
    * conclusively invalid answer, at most one repair attempt. No tool loop.
@@ -162,7 +164,7 @@ export interface ReasoningHarness {
    * first attempt is conclusively complete; provider-returned values are redacted before they are
    * stored or returned.
    */
-  propose<T>(input: ProposeInput<T>, signal: AbortSignal): Promise<ProposeOutcome<T>>;
+  propose<T>(input: ProposeInput<T, A>, signal: AbortSignal): Promise<ProposeOutcome<T>>;
   /**
    * Closes an admitted run: the module's applier calls it in the same transaction that applies or
    * rejects a `proposed` result.
@@ -179,7 +181,7 @@ export interface ReasoningHarness {
    * token is this call's own answer (`closed` once, `not_open` after).
    */
   closeRun(
-    scope: PersonalScopeTx,
+    scope: S,
     run: { readonly runId: string; readonly state: 'completed' | 'failed' | 'cancelled' },
   ): Promise<'closed' | 'not_open'>;
 }
@@ -203,7 +205,7 @@ function roleProblem<T>(role: ReasoningRole<T>): boolean {
   );
 }
 
-function runProblem(run: ReasoningRun): boolean {
+function runProblem<A>(run: ReasoningRun<A>): boolean {
   return (
     !uuidPattern.test(run.id) ||
     !codePattern.test(run.ownerModule) ||
@@ -233,6 +235,16 @@ const utf8 = new TextEncoder();
  * redaction, IDs, clock, diagnostics and settings.
  */
 export function makeReasoningHarness(ports: HarnessPorts): ReasoningHarness {
+  return makeScopedReasoningHarness({
+    ...ports,
+    withScope: ports.withPersonalScope,
+    scopeId: (authority) => authority.universeId,
+    generation: (authority) => authority.privacyEpoch,
+  });
+}
+
+/** The same proposal and attempt engine, selected only by the two concrete composition adapters. */
+export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): ReasoningHarness<A, S> {
   const executeAttempt = makeExecuteAttempt(ports);
   let lastPurgeAt = Number.NEGATIVE_INFINITY;
 
@@ -328,7 +340,7 @@ export function makeReasoningHarness(ports: HarnessPorts): ReasoningHarness {
   }
 
   return {
-    async propose<T>(input: ProposeInput<T>, signal: AbortSignal): Promise<ProposeOutcome<T>> {
+    async propose<T>(input: ProposeInput<T, A>, signal: AbortSignal): Promise<ProposeOutcome<T>> {
       const { run, role, context } = input;
       const refuse = (reason: ProposeRefusal): ProposeOutcome<T> => {
         ports.logEvent('reasoning.admission_refused', {

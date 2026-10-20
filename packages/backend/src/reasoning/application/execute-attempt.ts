@@ -1,4 +1,3 @@
-import type { PersonalAuthority } from '../../modules/identity/public.js';
 import { OUTCOME_NOT_RECORDED, decideOnDelivery, type AttemptState } from '../domain/attempts.js';
 import {
   NO_USAGE,
@@ -13,7 +12,7 @@ import {
   ModelOutcomeUnknownError,
   ModelRejectedError,
   type AttemptRow,
-  type HarnessPorts,
+  type ExecutionPorts,
   type ModelPort,
   type ModelReply,
   type QuotaObservation,
@@ -37,8 +36,8 @@ export const outcomeCodes = {
 export const MAX_STEP_SEQUENCE = 4;
 
 /** One planned external attempt: everything the ledger records and the exact bytes to send. */
-export interface AttemptPlan {
-  readonly authority: PersonalAuthority;
+export interface AttemptPlan<A> {
+  readonly authority: A;
   readonly run: RunDescriptor;
   /** Logical step: `primary`, or `repair` (a repair is a new attempt, never a silent retry). */
   readonly step: 'primary' | 'repair';
@@ -85,7 +84,13 @@ export type AttemptResult =
   | {
       readonly kind: 'refused';
       readonly reason:
-        'scope_refused' | 'request_mismatch' | 'dispatch_lost' | 'run_mismatch' | 'run_closed' | 'attempts_exhausted';
+        | 'scope_refused'
+        | 'request_mismatch'
+        | 'dispatch_lost'
+        | 'run_mismatch'
+        | 'run_closed'
+        | 'attempts_exhausted'
+        | 'failure_brake';
     };
 
 /** The step name of the next attempt of a logical step, after `current` (or the first). */
@@ -100,7 +105,7 @@ type Admission =
   | { readonly kind: 'current'; readonly row: AttemptRow }
   | { readonly kind: 'exhausted_sequences'; readonly row: AttemptRow }
   | { readonly kind: 'budget'; readonly dimension: BudgetDimension; readonly limit: 'requests' | 'tokens' }
-  | { readonly kind: 'refused'; readonly reason: 'request_mismatch' | 'run_mismatch' | 'run_closed' };
+  | { readonly kind: 'refused'; readonly reason: 'request_mismatch' | 'run_mismatch' | 'run_closed' | 'failure_brake' };
 
 /** The transition a settled transport invocation records. */
 interface Settlement {
@@ -191,17 +196,17 @@ function settlementForReply(reply: ModelReply, judgement: Judgement): Settlement
  * attempt (the next delivery marks it `unknown`). Invariants: never more than one transport
  * invocation per attempt; never a resend after dispatch intent; no transaction spans the network.
  */
-export function makeExecuteAttempt(ports: HarnessPorts) {
+export function makeExecuteAttempt<A, S>(ports: ExecutionPorts<A, S>) {
   const { ledger, logEvent } = ports;
 
   return async function executeAttempt(
     model: ModelPort,
-    plan: AttemptPlan,
+    plan: AttemptPlan<A>,
     judge: (reply: ModelReply) => Judgement,
     signal: AbortSignal,
   ): Promise<AttemptResult> {
     const { authority, run } = plan;
-    const ref = (attemptId: string) => ({ universeId: authority.universeId, attemptId });
+    const ref = (attemptId: string) => ({ scopeId: ports.scopeId(authority), attemptId });
     const tags = {
       runId: run.id,
       provider: model.provider,
@@ -255,7 +260,7 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
 
     /** Re-reads the step after another delivery changed it, and answers from the ledger. */
     async function fromCurrentLedger(): Promise<AttemptResult> {
-      const current = await ledger.find(authority.universeId, run.id, plan.step);
+      const current = await ledger.find(ports.scopeId(authority), run.id, plan.step);
       return current === undefined ? { kind: 'refused', reason: 'dispatch_lost' } : fromLedger(current);
     }
 
@@ -283,11 +288,11 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
     }
 
     // 1. Ledger inspection.
-    const recorded = await ledger.find(authority.universeId, run.id, plan.step);
+    const recorded = await ledger.find(ports.scopeId(authority), run.id, plan.step);
     if (recorded !== undefined) {
       // A run admitted at epoch N never continues, and never returns output, at another epoch; and
       // a closed run answers `run_closed` even when its kept answer is still in the ledger.
-      if (recorded.runPrivacyEpoch !== authority.privacyEpoch) return { kind: 'refused', reason: 'run_mismatch' };
+      if (recorded.runGeneration !== ports.generation(authority)) return { kind: 'refused', reason: 'run_mismatch' };
       if (recorded.runState !== 'admitted') return { kind: 'refused', reason: 'run_closed' };
       if (recorded.requestHash !== plan.requestHash) return { kind: 'refused', reason: 'request_mismatch' };
       switch (decideOnDelivery(recorded.state)) {
@@ -308,7 +313,7 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
     }
 
     // 2. Admission.
-    const admitted = await ports.withPersonalScope(authority, async (scope): Promise<Admission> => {
+    const admitted = await ports.withScope(authority, async (scope): Promise<Admission> => {
       const runAdmission = await ledger.admitRun(scope, run);
       if (runAdmission.kind !== 'admitted')
         return { kind: 'refused', reason: runAdmission.kind === 'mismatch' ? 'run_mismatch' : 'run_closed' };
@@ -324,10 +329,16 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
         if (locked === undefined) throw new Error('unreachable: a first attempt always has a step name');
         return { kind: 'exhausted_sequences', row: locked };
       }
+      // budgetUsage holds the shared advisory lock through reserve. Existing spend limits keep
+      // their stable refusal code when both a spend cap and the role brake are full.
       const usage = await ledger.budgetUsage(scope, plan.roleId);
       const decision = decideReservation(plan.caps, usage, plan.reservedTokens);
       if (decision.kind === 'exhausted')
         return { kind: 'budget', dimension: decision.dimension, limit: decision.limit };
+      // Reusing reserved/settled work returned above. Every new primary reservation needs a slot,
+      // including a replacement whose earlier quota preflight stopped it before dispatch.
+      if (plan.step === 'primary' && !(await ledger.canStartRun(scope, plan.roleId)))
+        return { kind: 'refused', reason: 'failure_brake' };
       const attemptId = ports.newId();
       await ledger.reserve(scope, {
         id: attemptId,
@@ -413,7 +424,7 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
 
     // 4. Dispatch intent.
     const dispatchId = ports.newId();
-    const dispatched = await ports.withPersonalScope(authority, (scope) =>
+    const dispatched = await ports.withScope(authority, (scope) =>
       ledger.commitDispatch(scope, attemptId, { dispatchId, dispatchedBy: ports.settings.dispatchedBy, quota }),
     );
     if (dispatched.kind === 'refused') {
@@ -440,7 +451,7 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
 
     // 6. Ledger settlement.
     const settledAs = (state: AttemptState): AttemptRow => ({
-      runPrivacyEpoch: authority.privacyEpoch,
+      runGeneration: ports.generation(authority),
       runState: 'admitted',
       id: attemptId,
       step: admission.step,
@@ -469,7 +480,7 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
       return fromLedger(settledAs('reconciled'));
     }
     // Written off meanwhile: the late answer is not applied, but its usage settles the receipt.
-    const current = await ledger.find(authority.universeId, run.id, plan.step);
+    const current = await ledger.find(ports.scopeId(authority), run.id, plan.step);
     if (current?.state === 'written_off' && settlement.details.usage !== undefined)
       await ledger.recordLateUsage(attemptId, settlement.details.usage);
     return current === undefined ? { kind: 'unknown', attemptId } : fromLedger(current);

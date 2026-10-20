@@ -318,6 +318,7 @@ describe('process configuration', () => {
     const config = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' });
     expect(config.reasoning).toEqual({
       provider: 'none',
+      productionEnabled: false,
       caps: {
         global: { requestsPerDay: 300, tokensPerDay: 3_000_000 },
         scope: { requestsPerDay: 60, tokensPerDay: 600_000 },
@@ -326,6 +327,18 @@ describe('process configuration', () => {
       maxRequestBytes: 262_144,
       requestRetentionSeconds: 48 * 3600,
     });
+  });
+
+  it('enables nonpersonal production only with the explicit worker setting', () => {
+    expect(
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_REASONING_PRODUCTION_ENABLED: '1' }).reasoning
+        .productionEnabled,
+    ).toBe(true);
+    expect(
+      configurationError(() =>
+        readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_REASONING_PRODUCTION_ENABLED: 'true' }),
+      ).problems,
+    ).toEqual(['KS_REASONING_PRODUCTION_ENABLED: not_allowed']);
   });
 
   it('requires a token-plan MiniMax key only for the minimax provider, and never echoes it', () => {
