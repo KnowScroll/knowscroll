@@ -51,6 +51,8 @@ export {
   createScrollRecorder,
   createReelRecorder,
   type PlaybackSample,
+  type ReelRecorder,
+  type ReelRecorderOptions,
   deliverBatch,
   outboxRetryDelay,
   scopeOutbox,

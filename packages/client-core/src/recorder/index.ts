@@ -23,4 +23,4 @@ export {
   type ScrollRecorderOptions,
 } from './scroll-recorder';
 
-export { createReelRecorder, type PlaybackSample } from './reel-recorder';
+export { createReelRecorder, type PlaybackSample, type ReelRecorder, type ReelRecorderOptions } from './reel-recorder';

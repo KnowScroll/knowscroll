@@ -61,7 +61,9 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
       newId: newCommandId,
     }),
   );
-  useEffect(() => {
+  // Re-arm before the article's passive mount/activity reports, including StrictMode setup.
+  // Actual native layout and web intersection measurements arrive after the commit.
+  useLayoutEffect(() => {
     recorder.start();
     return () => recorder.end();
   }, [recorder]);

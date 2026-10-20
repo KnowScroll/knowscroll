@@ -51,6 +51,13 @@ export interface ScrollRecorder {
    * observer receives before `start()` are kept and reported by the first flush.
    */
   start(): void;
+  /** Park this same handle: close/flush actual reading, forget renderer state and stop its timer. */
+  suspend(): void;
+  /**
+   * Unpark without changing session/timebase. Fresh visibility AND activity reports are required;
+   * resume itself creates no reading. Re-arms the timer only if start() was previously called.
+   */
+  resume(): void;
   /** Reports what happened since the last flush now (the article transitions, backgrounds, unloads). */
   flush(): void;
   /** The reading is over (the route unmounts): reports the final time and stops the timer. */
@@ -153,6 +160,23 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
   let sequence = 0;
   let sentFirst = false;
   let ended = false;
+  let suspended = false;
+  let started = false;
+  let scopeEnded = false;
+  let acceptAfter = Number.NEGATIVE_INFINITY;
+  let handle: unknown;
+
+  const stopTimer = (): void => {
+    if (handle !== undefined) timers.clearInterval(handle);
+    handle = undefined;
+  };
+  const scopeActive = (): boolean => {
+    if (!options.scope.active) scopeEnded = true;
+    if (scopeEnded) stopTimer();
+    return !scopeEnded;
+  };
+  const accepts = (at?: number): boolean =>
+    scopeActive() && !ended && !suspended && (at === undefined || at >= acceptAfter);
 
   const envelope = (): Omit<InteractionEvent, 'kind' | 'payload'> => {
     sequence += 1;
@@ -168,8 +192,8 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
     };
   };
 
-  const flush = (): void => {
-    if (!options.scope.active) return;
+  const report = (): void => {
+    if (!scopeActive()) return;
     const events: InteractionEvent[] = [];
     let first = !sentFirst;
     let guard = 0;
@@ -215,20 +239,26 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
     }
   };
 
-  let handle: unknown;
+  const flush = (): void => {
+    if (accepts()) report();
+  };
   const tick = (): void => {
-    if (!options.scope.active) {
-      if (handle !== undefined) timers.clearInterval(handle);
-      handle = undefined;
-      return;
-    }
+    if (!accepts()) return;
     if (tracker.hasContent()) flush();
+  };
+  const startTimer = (): void => {
+    if (started && !suspended) handle ??= timers.setInterval(tick, options.flushIntervalMs ?? 15_000);
   };
 
   const observer: ReadingObserver = {
-    onBlockVisibility: (event) => tracker.visibility(event),
-    onBlockInteraction: (event) => tracker.interaction(event),
+    onBlockVisibility: (event) => {
+      if (accepts(event.at)) tracker.visibility(event);
+    },
+    onBlockInteraction: (event) => {
+      if (accepts(event.at)) tracker.interaction(event);
+    },
     onActivity: (event) => {
+      if (!accepts(event.at)) return;
       tracker.activity(event);
       // Best effort when the article stops being in front: what was seen so far is persisted.
       if (!event.active) flush();
@@ -239,16 +269,33 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
     observer,
     sessionId,
     start() {
+      if (!scopeActive()) return;
+      if (ended) acceptAfter = clock.monotonicMs();
       ended = false;
-      handle ??= timers.setInterval(tick, options.flushIntervalMs ?? 15_000);
+      started = true;
+      startTimer();
+    },
+    suspend() {
+      if (!accepts()) return;
+      tracker.suspend(clock.monotonicMs());
+      suspended = true;
+      stopTimer();
+      report();
+    },
+    resume() {
+      if (!scopeActive() || ended || !suspended) return;
+      acceptAfter = clock.monotonicMs();
+      suspended = false;
+      startTimer();
     },
     flush,
     end() {
-      if (ended) return;
+      if (!scopeActive() || ended) return;
+      tracker.suspend(clock.monotonicMs());
       ended = true;
-      if (handle !== undefined) timers.clearInterval(handle);
-      handle = undefined;
-      flush();
+      suspended = false;
+      stopTimer();
+      report();
     },
   };
 }
