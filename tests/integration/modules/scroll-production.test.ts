@@ -905,11 +905,12 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     expect(before.attempts).toHaveLength(21);
     expect(before.requests).toHaveLength(3);
     const v6 = old.find((job) => job.policy === 'scroll-production.v6');
+    const v6RunIds = new Set<string | undefined>([v6?.claims, v6?.writer]);
     const legacyJobs = before.jobs.filter(
       (row) => (JSON.parse(row.bytes) as { policy_version: string }).policy_version !== 'scroll-production.v6',
     );
     const legacyAttempts = before.attempts.filter(
-      (row) => ![v6?.claims, v6?.writer].includes((JSON.parse(row.bytes) as { run_id: string }).run_id),
+      (row) => !v6RunIds.has((JSON.parse(row.bytes) as { run_id: string }).run_id),
     );
     expect(legacyJobs).toHaveLength(6);
     expect(legacyAttempts).toHaveLength(18);
