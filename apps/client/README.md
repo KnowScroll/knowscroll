@@ -39,6 +39,11 @@ the screen in the document, so reading and Tab order is top bar → content → 
 the phone pill floats over the bottom, and on tablets and desktops the rail is drawn over a left
 margin the screens leave free (`sceneStyle`), with the desktop avatar last in the rail.
 
+The encounter controller advertises both `scroll-document.v1` and `reel-document.v1` when
+opening discovery or a Saved revisit. Its Scroll block/version declaration still comes from the
+actual renderer registry. A Scroll-only capability declaration would correctly make the backend
+exclude Reels, even though this controller has a working Reel player.
+
 ## Layout of the code
 
 - `app/`: routes only (Expo Router). Tests never live here (every file would become a route).

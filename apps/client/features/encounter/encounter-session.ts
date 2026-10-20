@@ -14,7 +14,7 @@ import type {
 } from '@knowscroll/contracts';
 import { parseDocument } from '@knowscroll/scroll-model';
 import type { EncounterGestureMove } from './gestures/arbitration';
-import { SCROLL_CAPABILITIES } from '../scroll/capabilities';
+import { ENCOUNTER_CAPABILITIES } from './capabilities';
 import { createEncounterHistory, readResume, type EncounterEntry } from './encounter-history';
 
 export type EncounterPhase =
@@ -266,7 +266,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       ? { sessionId: latestSession.sessionId, expectedIntentRevision: latestSession.intentRevision }
       : undefined;
     begin(async () => {
-      const common = { commandId, ...(session ? { session } : {}), capabilities: SCROLL_CAPABILITIES };
+      const common = { commandId, ...(session ? { session } : {}), capabilities: ENCOUNTER_CAPABILITIES };
       const result =
         target.kind === 'discover'
           ? await scope.api.experience.openExposure({ ...common, target })
