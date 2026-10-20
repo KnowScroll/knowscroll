@@ -766,7 +766,9 @@ describe('Reel noninteractive stage wrapper', () => {
     player.currentTime = 3.25;
     expect(positionRef.current?.capture()?.positionMs).toBe(3250);
     await rendered.rerender(
-      <ReelPlayer {...props} renderStage={(children) => <View testID="fixture-stage-wrapper">{children}</View>} />,
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ReelPlayer {...props} renderStage={(children) => <View testID="fixture-stage-wrapper">{children}</View>} />
+      </DisplayProvider>,
     );
     expect(loadSource).toHaveBeenCalledTimes(1);
     expect(replaceAsync).toHaveBeenCalledTimes(1);
