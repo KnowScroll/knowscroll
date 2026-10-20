@@ -875,7 +875,15 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       .execute();
     finishDispatch({ kind: 'success', text: JSON.stringify(formation(revokedContext)) });
     await pendingRun;
-    expect((await state(revoked)).revision).toBe(0);
+    // Raw fixture inspection must not impersonate the now-suspended account actor.
+    expect(
+      await database.db
+        .selectFrom('geography.state')
+        .select('revision')
+        .where('universe_id', '=', revoked.universeId)
+        .where('privacy_epoch', '=', 1)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ revision: 0 });
     expect(
       await database.db
         .selectFrom('geography.deltas')
