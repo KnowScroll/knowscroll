@@ -590,3 +590,31 @@ export function readMigrateConfig(env: Environment): MigrateConfig {
 function pick(env: Environment, names: readonly string[]): Record<string, string | undefined> {
   return Object.fromEntries(names.map((name) => [name, env[name]]));
 }
+
+/** The bounded, nonpersonal Scroll operator's validated world, database and harness settings. */
+export interface ScrollProductionOperatorConfig extends ContentOperatorConfig {
+  readonly scopeLockTimeoutMs: number;
+  readonly reasoning: ReasoningSettings;
+}
+
+/**
+ * Refuses worlds outside the content operator allowlist before composing a provider or database.
+ * Reads the same reasoning caps/transport settings as the worker; defaults never enable spending.
+ */
+export function readScrollProductionOperatorConfig(env: Environment): ScrollProductionOperatorConfig {
+  const content = readContentOperatorConfig(env);
+  const [scope, reasoning] = combineChecks(
+    checkEnvironment(
+      z.object({ KS_SCOPE_LOCK_TIMEOUT_MS: positiveInteger(5_000, 60_000) }),
+      pick(env, ['KS_SCOPE_LOCK_TIMEOUT_MS']),
+    ),
+    checkEnvironment(reasoningVariables, pick(env, Object.keys(reasoningVariables.shape))),
+  );
+  crossChecks([
+    [
+      scope.KS_SCOPE_LOCK_TIMEOUT_MS >= content.database.statementTimeoutMs,
+      'KS_SCOPE_LOCK_TIMEOUT_MS: must_be_below_statement_timeout',
+    ],
+  ]);
+  return { ...content, scopeLockTimeoutMs: scope.KS_SCOPE_LOCK_TIMEOUT_MS, reasoning: reasoningSettings(reasoning) };
+}

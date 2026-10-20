@@ -54,3 +54,6 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
     ...makeAdmissionStore(db),
   });
 }
+
+/** Composition-only factory for the worker's bounded, nonpersonal Scroll operator. */
+export { makeProduceScroll as produceScrollUseCase } from '../production/produce.js';
