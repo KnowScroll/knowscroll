@@ -49,9 +49,16 @@ import type { FixtureScenario } from '../support/fixture-model-port.js';
 const passage =
   'This deliberately authored fixture passage describes the public research snapshot boundary with sufficiently distinctive wording for exact quote checks while avoiding overlap with the separate fixture explanation.';
 function researchFixture(url: string): ResearchPage {
-  // The two-page tides recipe needs two distinct source identities; fixture claims keep the
-  // first snapshot's exact bytes while the second is a separately labelled authored source.
-  const extra = url === TOPICS.tides.pages[1] ? ' A separately authored second research snapshot.' : '';
+  // Every two-source recipe needs distinct content hashes, not merely different URLs.
+  // Retain the original page/claim bytes and tides marker; new primary snapshots are authored separately.
+  const extra =
+    url === TOPICS.tides.pages[1]
+      ? ' A separately authored second research snapshot.'
+      : url === TOPICS['greenhouse-radiation'].pages[0]
+        ? ' An independently authored radiation-path research fixture.'
+        : url === TOPICS['greenhouse-balance'].pages[0]
+          ? ' An independently authored system-boundary research fixture.'
+          : '';
   return extractResearch(
     `<html><title>CI fixture</title><main>${[0, 1, 2, 3].map((n) => `<p>${passage} Example ${n}.${extra}</p>`).join('')}</main></html>`,
     url,
