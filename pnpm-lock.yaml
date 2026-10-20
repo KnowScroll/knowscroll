@@ -123,6 +123,9 @@ catalogs:
     express:
       specifier: 5.2.1
       version: 5.2.1
+    fast-check:
+      specifier: 4.10.2
+      version: 4.10.2
     globals:
       specifier: 17.13.0
       version: 17.13.0
@@ -526,6 +529,9 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@knowscroll/scroll-model':
+        specifier: workspace:*
+        version: link:../scroll-model
       '@orpc/contract':
         specifier: 'catalog:'
         version: 1.15.7(@opentelemetry/api@1.9.1)
@@ -554,6 +560,25 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.5
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(jsdom@26.1.0)(vite@8.3.4(@types/node@22.20.5)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
+
+  packages/scroll-model:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.20.5
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.2
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -8965,7 +8990,9 @@ snapshots:
       metro-runtime: 0.87.1
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 
