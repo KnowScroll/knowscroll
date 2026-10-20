@@ -12,3 +12,8 @@ under `withPersonalScope`.
 | `src/jobs.ts` | Explicit consumer registry: `evidence.apply-action` → `applyActionEvidence`; `evidence.project-scroll-reading` → `projectScrollReading` (qualifies a reading, commits an evidence revision, hints the account); `identity.sweep-sign-in-records` |
 
 Variables: `docs/v2/engineering/runtime-configuration.md`.
+
+The composition root binds `PRODUCTION_REASONING_HARNESS` and `WITH_PRODUCTION_SCOPE` separately
+from the personal harness. Nonpersonal Scroll supply requires explicit worker configuration and
+the database root enabled/generation gate; both default disabled. Shared sweep/purge/operator
+maintenance still records and resolves production liabilities while production is disabled.

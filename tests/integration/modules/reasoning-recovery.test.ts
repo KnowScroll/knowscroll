@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
@@ -39,11 +39,12 @@ import { seedPerson, type FixturePerson } from '../support/fixtures.js';
  * database.
  */
 describe('reasoning recovery, charging and run rules (real database, fixture model)', () => {
+  // Unresolved liabilities and failure receipts intentionally survive within a case, not across unrelated cases.
   let database: TestDatabase<Database>;
-  beforeAll(async () => {
+  beforeEach(async () => {
     database = await createTestDatabase<Database>('recovery');
   });
-  afterAll(async () => {
+  afterEach(async () => {
     await database.drop();
   });
   const db = () => database.db;

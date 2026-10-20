@@ -16,3 +16,7 @@ Reads process environment variables once at startup into typed, validated config
   Values are never echoed (several variables carry credentials); the processes log
   `config.invalid` and exit with status 1.
 - `DatabaseSettings.url` is a credential: pass it only to the driver, never to a log.
+
+Nonpersonal reasoning production is worker-only and defaults disabled.
+`KS_REASONING_PRODUCTION_ENABLED` accepts only `0`/`1`; `1` is a configuration grant, still subject
+to the separate database root's enabled/generation checks. No provider is enabled by this flag.
