@@ -12,6 +12,7 @@ import { borderWidth, content, overlay, radius, space, spacing } from '@knowscro
 import type { BlockOfType } from '@knowscroll/scroll-model';
 import { Button } from '../../actions/button';
 import { useDisplay } from '../../display/display';
+import { useFocusRing } from '../../display/focus-ring';
 import { Text } from '../../text/text';
 import { codeType } from '../code-style';
 import { useScrollRender } from '../context';
@@ -57,6 +58,7 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
     [],
   );
   const [metrics, setMetrics] = useState({ offset: 0, content: 0, view: 0 });
+  const focus = useFocusRing('onDark');
   const highlighted = new Set(block.data.highlightLines);
   const lines = block.data.code.split('\n');
   const language = LANGUAGE_LABELS[block.data.language];
@@ -107,8 +109,11 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
           horizontal
           accessibilityLabel="Code example, scrolls horizontally"
           showsHorizontalScrollIndicator
-          // Keyboard focus on the web, so the arrow keys can scroll the code.
+          // Keyboard focus on the web, so the arrow keys can scroll the code; the ring is the design's
+          // yellow on dark (D-006 n), not the browser's default blue.
           tabIndex={0}
+          {...focus.props}
+          style={focus.style}
           contentContainerStyle={styles.code}
           scrollEventThrottle={32}
           onScroll={onScroll}
