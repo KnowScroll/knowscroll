@@ -14,6 +14,15 @@ const outcome = await harness.propose({ run, role, context, limits }, signal);
 
 - `run`: `{ id (stable across deliveries), authority (PersonalAuthority), ownerModule, purpose, policyVersion }`.
 - `role`: `{ id '<module>.<role>', version, instructions, outputSchema (zod), maxOutputTokens, minContextItems?, budget? }`.
+- Optional `role.safeCustomIssues` is a static, code-owned semantic code → fixed hint catalogue.
+  Never construct it from user/provider values, retrieved text or context. Admission allows at most
+  128 own entries, lowercase codes of at most 64 characters (`[a-z][a-z0-9_]*`, no prototype names)
+  and nonempty hints of at most 256 characters without controls. A custom Zod issue can opt in with
+  `params: { safeCode: 'declared_code' }`. Only an own allowlisted code and its fixed hint reach the
+  existing bounded issue/repair record; `custom.message` is never read. Undeclared/malformed codes
+  remain `custom` without detail. Paths still use only schema-declared names, numeric positions and
+  placeholders. Roles without a catalogue keep the existing behavior. Feedback changes require a
+  role version change; existing ledger issues and exact historical repair bytes are not rewritten.
 - `context` (D-021, blueprint §26 minimisation): `{ bundleRef, items: [{ ref, kind, text }] }`. The
   module freezes **prepared, bounded context** (topic/unit references and authorised excerpts),
   never a raw observation stream, another person's private data or a secret. The harness enforces

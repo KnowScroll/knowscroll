@@ -86,6 +86,66 @@ describe('the reasoning harness (real database, fixture model)', () => {
     reasonCode: 'QUOTA_BELOW_FLOOR',
   };
 
+  it('sends only allowlisted custom feedback to the one repair, retaining no rejected answer (CI fixture)', async () => {
+    const person = await seedPerson(db());
+    const canary = 'CUSTOM-PRIVATE-REPLY-Zq81';
+    const role: ReasoningRole<{ echo: string }> = {
+      ...echoRole,
+      id: 'fixture.custom-feedback',
+      safeCustomIssues: { binding_missing: 'Bind this passage to an offered claim.' },
+      outputSchema: z.object({ echo: z.string() }).superRefine((value, ctx) => {
+        if (value.echo !== 'valid')
+          ctx.addIssue({
+            code: 'custom',
+            path: [canary],
+            message: `${canary} arbitrary instructions`,
+            params: { safeCode: 'binding_missing' },
+          });
+      }),
+    };
+    const model = fixtureModel((sequence) => ({
+      kind: 'success',
+      text: JSON.stringify({ echo: sequence === 1 ? canary : 'valid' }),
+    }));
+    const { harness } = fixtureHarness(db(), { model });
+    const runId = randomUUID();
+    expect(await propose(harness, person, { role, runId })).toMatchObject({ kind: 'proposed', repaired: true });
+    expect(model.calls).toHaveLength(2);
+    expect(model.calls[1]?.request.system).toContain('- ?: binding_missing (Bind this passage to an offered claim.)');
+    expect(model.calls[1]?.request.system).not.toContain(canary);
+    const rows = await attemptsOf(db(), person.universeId);
+    expect(rows[0]).toMatchObject({
+      state: 'succeeded',
+      outcome_code: 'OUTPUT_SCHEMA_MISMATCH',
+      output: null,
+      output_issues: {
+        v: 1,
+        reason: 'OUTPUT_SCHEMA_MISMATCH',
+        issues: [{ path: '?', code: 'binding_missing', detail: 'Bind this passage to an offered claim.' }],
+      },
+    });
+    expect(JSON.stringify(rows)).not.toContain(canary);
+    expect(await propose(harness, person, { role, runId })).toMatchObject({ kind: 'proposed', repaired: true });
+    expect(model.calls).toHaveLength(2);
+  });
+
+  it('refuses an invalid custom feedback catalogue before reserving or sending (CI fixture)', async () => {
+    const person = await seedPerson(db());
+    const model = fixtureModel();
+    const { harness } = fixtureHarness(db(), { model });
+    for (const safeCustomIssues of [
+      { code: 'x'.repeat(257) },
+      { constructor: 'hint' },
+      Object.fromEntries(Array.from({ length: 129 }, (_, i) => [`code_${i}`, 'hint'])),
+    ])
+      expect(await propose(harness, person, { role: { ...echoRole, safeCustomIssues } })).toEqual({
+        kind: 'refused',
+        reason: 'role_invalid',
+      });
+    expect(model.calls).toHaveLength(0);
+    expect(await attemptsOf(db(), person.universeId)).toEqual([]);
+  });
+
   describe('budgets and caps', () => {
     it('refuses a reservation beyond the per-scope request cap before anything is reserved or sent', async () => {
       const person = await seedPerson(db());
