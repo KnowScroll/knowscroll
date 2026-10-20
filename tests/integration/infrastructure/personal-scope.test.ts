@@ -5,6 +5,7 @@ import {
   ScopeBusyError,
   ScopeClosedError,
   advanceScopeRevision,
+  claimAccountFence,
   createDatabase,
   makeAuthorityHolds,
   makeWithPersonalScope,
@@ -245,3 +246,10 @@ async function waitingOnLock(db: TestDatabase<Database>['db']): Promise<number> 
     where datname = current_database() and wait_event_type = 'Lock'`.execute(db);
   return result.rows[0]?.waiting ?? 0;
 }
+
+// Account gate state must share the personal capability's runtime lifetime.
+describe('account gate capability lifetime', () => {
+  it('refuses a forged or closed personal capability before any database access', () => {
+    expect(() => claimAccountFence({} as PersonalScopeTx, 'own')).toThrow(ScopeClosedError);
+  });
+});

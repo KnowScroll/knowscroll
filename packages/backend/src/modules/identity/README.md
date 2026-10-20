@@ -213,3 +213,33 @@ root-before-account mutation protocol; this port adds no account row lock or rev
 Supply checks it before and after Content authority waits, before resolver effects. It observes
 account suspension only. `withPersonalScope` still handles universe status/epoch; session/device
 sign-out does not revoke an already accepted private demand or impersonate the original actor.
+
+## Account authority fences (#246 prerequisite)
+
+`accountAccessUseCases({ db, lockTimeoutMs })` in `adapters/nest-providers.ts` builds the
+framework-free `FenceAccountPair`, `FenceOwnAccount` and internal `InvalidateOwnAccountAccess`
+ports; `accountAccessProviders` binds their explicit public tokens. No HTTP route is installed.
+
+For a peer operation: enter the actor's personal scope, take exactly two `identity.accounts`
+`FOR SHARE` locks in sorted UUID order, then **separately** read both account/universe states
+and epochs, then lock at most one shared root. Never lock a peer personal root. This uses the
+existing one-universe-per-account constraint; account UUIDs and root ownership must never be
+reused/reparented. The returned snapshots are valid only inside that transaction. Before private
+context, receipt replay and final application, callers check the prepared participant epochs and
+current pair/membership/visibility/source revisions; shared receipt hashes must include these
+explicit authority inputs because shared receipts have no automatic actor epoch column.
+
+Own profile/visibility/publication mutations take `FenceOwnAccount` (`FOR UPDATE`) before domain
+rows. All epoch/status/root removal and access-revoking writers must take that own exclusive
+fence under the personal root. Account deletion additionally takes Identity's address locks before
+the root. Never take an account gate after a shared root or upgrade a pair SHARE gate. The runtime
+scope guard refuses second gates, late acquisition and closed capabilities before SQL.
+
+`invalidateOwnAccountAccess(authority, 'advance_epoch' | 'suspend')` is an internal authority
+barrier: own root → own account UPDATE → increment epoch/revision → optional account suspension
+→ commit-bound `revokeAccountSockets`. Both modes advance epoch; reactivation must retain the
+new epoch. Counter exhaustion refuses without effects. The scope retains its frozen old epoch;
+follow-on work needs a fresh scope. This operation does not erase data, complete a reset/delete,
+create a privacy completion receipt or expose a public endpoint. Session logout keeps its existing
+meaning. Global socket disconnect remains a disposable notice with the existing relay/cache
+limits, not guaranteed instantaneous removal during relay outage.

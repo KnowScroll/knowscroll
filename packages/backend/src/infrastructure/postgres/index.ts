@@ -13,6 +13,7 @@ export {
   ScopeBusyError,
   ScopeClosedError,
   advanceScopeRevision,
+  claimAccountFence,
   enterSharedRoot,
   makeAuthorityHolds,
   makeWithPersonalScope,

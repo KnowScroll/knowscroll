@@ -1,3 +1,7 @@
+import { makeInvalidateOwnAccountAccess } from '../application/account-lifecycle.js';
+import { advanceAccountAccess, fenceAccountPair, fenceOwnAccount } from './account-access.js';
+import { makeWithPersonalScope } from '../../../infrastructure/postgres/personal-scope.js';
+import { FENCE_ACCOUNT_PAIR, FENCE_OWN_ACCOUNT, INVALIDATE_OWN_ACCOUNT_ACCESS } from '../public.js';
 import { CHECK_PERSONAL_OWNER_ACTIVE } from '../public.js';
 import { checkPersonalOwnerActive } from './scope-owner.js';
 import type { Kysely } from 'kysely';
@@ -236,4 +240,32 @@ export function identitySweepProviders(tokens: { readonly database: symbol }) {
 /** Explicit worker/API scope read; adds no actor impersonation or auth-route behaviour. */
 export function identityScopeOwnerProviders() {
   return [{ provide: CHECK_PERSONAL_OWNER_ACTIVE, useValue: checkPersonalOwnerActive }];
+}
+
+/** Internal account barriers; no route, erasure executor or provider call is installed. */
+export function accountAccessUseCases(deps: { readonly db: Kysely<Database>; readonly lockTimeoutMs: number }) {
+  return {
+    fenceAccountPair,
+    fenceOwnAccount,
+    invalidateOwnAccountAccess: makeInvalidateOwnAccountAccess({
+      withScope: makeWithPersonalScope(deps.db, { lockTimeoutMs: deps.lockTimeoutMs }),
+      fenceOwn: fenceOwnAccount,
+      advance: advanceAccountAccess,
+    }),
+  };
+}
+
+/** Composition-root wiring, deliberately separate from public sign-in routes. */
+export function accountAccessProviders(tokens: { readonly useCases: symbol }) {
+  type Cases = ReturnType<typeof accountAccessUseCases>;
+  const pick = <K extends keyof Cases>(provide: symbol, key: K) => ({
+    provide,
+    inject: [tokens.useCases],
+    useFactory: (useCases: Cases): Cases[K] => useCases[key],
+  });
+  return [
+    pick(FENCE_ACCOUNT_PAIR, 'fenceAccountPair'),
+    pick(FENCE_OWN_ACCOUNT, 'fenceOwnAccount'),
+    pick(INVALIDATE_OWN_ACCOUNT_ACCESS, 'invalidateOwnAccountAccess'),
+  ];
 }
