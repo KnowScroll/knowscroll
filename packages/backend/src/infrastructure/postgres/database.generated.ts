@@ -159,6 +159,27 @@ export interface EvidenceActionEvents {
   universe_id: string;
 }
 
+export interface EvidenceActivityCurrent {
+  activity_id: string;
+  exposure_id: string;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
+export interface EvidenceActivityRevisions {
+  activity: number;
+  channels: Json;
+  exposure_id: string;
+  id: string;
+  input_sha256: string;
+  input_vector: Json;
+  policy_version: string;
+  privacy_epoch: number;
+  recorded_at: Generated<Timestamp>;
+  revision: number;
+  universe_id: string;
+}
+
 export interface EvidenceEncounterEvidence {
   active_dwell_ms: number;
   asset_id: string;
@@ -198,12 +219,81 @@ export interface EvidenceObservations {
   universe_id: string;
 }
 
+export interface EvidenceTopicContext {
+  activity: number;
+  channel_values: Json;
+  evaluated_at: Timestamp;
+  privacy_epoch: number;
+  reel_measured: Generated<number>;
+  reel_qualified: Generated<number>;
+  scroll_measured: Generated<number>;
+  scroll_qualified: Generated<number>;
+  topic_id: string;
+  universe_id: string;
+}
+
+export interface EvidenceTopicContributions {
+  channel_values: Json;
+  exposure_id: string;
+  measured: number;
+  privacy_epoch: number;
+  qualified: number;
+  topic_id: string;
+  universe_id: string;
+  value: number;
+}
+
+export interface ExperienceActionLinks {
+  action_id: string;
+  credited_exposure_id: string | null;
+  origin_action_id: string | null;
+  privacy_epoch: number;
+  provided_exposure_id: string | null;
+  universe_id: string;
+}
+
 export interface ExperienceActions {
   asset_id: string;
   asset_revision: number;
   command_id: string;
   created_at: Generated<Timestamp>;
   id: string;
+  kind: string;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
+export interface ExperienceActionState {
+  asset_id: string;
+  hidden: Generated<boolean>;
+  liked: Generated<boolean>;
+  liked_origin_action_id: string | null;
+  liked_origin_exposure_id: string | null;
+  privacy_epoch: number;
+  saved_origin_action_id: string | null;
+  saved_origin_exposure_id: string | null;
+  universe_id: string;
+}
+
+export interface ExperienceEncounterActivityInputs {
+  action_revision: Generated<number>;
+  exposure_id: string;
+  horizontal: Generated<boolean>;
+  liked: Generated<boolean>;
+  navigation_revision: Generated<number>;
+  privacy_epoch: number;
+  returned: Generated<boolean>;
+  saved: Generated<boolean>;
+  universe_id: string;
+}
+
+export interface ExperienceEncounterLineage {
+  activated_at: Timestamp;
+  asset_id: string;
+  asset_revision: number;
+  explanation_unit_id: string;
+  exposure_id: string;
+  facets: string[];
   kind: string;
   privacy_epoch: number;
   universe_id: string;
@@ -223,10 +313,60 @@ export interface ExperienceExposures {
   universe_id: string;
 }
 
+export interface ExperienceNavigationTransitions {
+  horizontal: boolean;
+  mode: string;
+  offer_id: string;
+  policy_version: string;
+  privacy_epoch: number;
+  returned: boolean;
+  session_id: string;
+  source_exposure_id: string | null;
+  target_exposure_id: string;
+  universe_id: string;
+}
+
+export interface ExperienceOfferActivations {
+  exposure_id: string;
+  offer_id: string;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
+export interface ExperienceOffers {
+  asset_id: string;
+  asset_revision: number;
+  continuity_link_id: string | null;
+  continuity_link_revision: number | null;
+  created_at: Generated<Timestamp>;
+  decision_id: string;
+  descriptor: Json;
+  expires_at: Timestamp;
+  id: string;
+  intent_revision: number;
+  mode: string;
+  policy_version: Generated<string>;
+  privacy_epoch: number;
+  session_id: string;
+  source_exposure_id: string | null;
+  source_offer_id: string | null;
+  universe_id: string;
+}
+
 export interface ExperienceSavedItems {
   asset_id: string;
   asset_revision: number;
   saved_at: Timestamp;
+  universe_id: string;
+}
+
+export interface ExperienceSessions {
+  capabilities: Json;
+  created_at: Generated<Timestamp>;
+  id: string;
+  intent: Json;
+  intent_revision: number;
+  privacy_epoch: number;
   universe_id: string;
 }
 
@@ -479,11 +619,23 @@ export interface DB {
   "content.scroll_production_runs": ContentScrollProductionRuns;
   "content.series_units": ContentSeriesUnits;
   "evidence.action_events": EvidenceActionEvents;
+  "evidence.activity_current": EvidenceActivityCurrent;
+  "evidence.activity_revisions": EvidenceActivityRevisions;
   "evidence.encounter_evidence": EvidenceEncounterEvidence;
   "evidence.observations": EvidenceObservations;
+  "evidence.topic_context": EvidenceTopicContext;
+  "evidence.topic_contributions": EvidenceTopicContributions;
+  "experience.action_links": ExperienceActionLinks;
+  "experience.action_state": ExperienceActionState;
   "experience.actions": ExperienceActions;
+  "experience.encounter_activity_inputs": ExperienceEncounterActivityInputs;
+  "experience.encounter_lineage": ExperienceEncounterLineage;
   "experience.exposures": ExperienceExposures;
+  "experience.navigation_transitions": ExperienceNavigationTransitions;
+  "experience.offer_activations": ExperienceOfferActivations;
+  "experience.offers": ExperienceOffers;
   "experience.saved_items": ExperienceSavedItems;
+  "experience.sessions": ExperienceSessions;
   "identity.accounts": IdentityAccounts;
   "identity.email_addresses": IdentityEmailAddresses;
   "identity.sessions": IdentitySessions;

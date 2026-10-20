@@ -1,5 +1,9 @@
 import { queueRegistry } from './infrastructure/jobs/queues.js';
-import { applyActionEvidenceQueue, projectScrollReadingQueue } from './modules/evidence/public.js';
+import {
+  applyActionEvidenceQueue,
+  projectScrollReadingQueue,
+  projectEncounterActivityQueue,
+} from './modules/evidence/public.js';
 import { sweepSignInRecordsQueue } from './modules/identity/public.js';
 import { purgeExpiredRequestsQueue, sweepDispatchedAttemptsQueue } from './reasoning/events.js';
 
@@ -11,6 +15,7 @@ import { purgeExpiredRequestsQueue, sweepDispatchedAttemptsQueue } from './reaso
 export const releaseQueues = queueRegistry([
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
+  projectEncounterActivityQueue,
   sweepSignInRecordsQueue,
   purgeExpiredRequestsQueue,
   sweepDispatchedAttemptsQueue,

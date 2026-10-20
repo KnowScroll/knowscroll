@@ -93,8 +93,12 @@ export function makeApplyAction(ports: ApplyActionPorts) {
           break;
       }
       const asset = await ports.findAsset(scope, command.target.assetId);
-      if (asset === undefined || !asset.admitted) return { kind: 'refused', reason: 'asset_not_found' };
-      if (asset.revision !== command.target.assetRevision) return { kind: 'refused', reason: 'asset_revision_stale' };
+      const saved =
+        command.kind === 'unsave' ? await ports.readSavedReference(scope, command.target.assetId) : undefined;
+      const removal = saved?.assetRevision === command.target.assetRevision;
+      if (!removal && (asset === undefined || !asset.admitted)) return { kind: 'refused', reason: 'asset_not_found' };
+      if (!removal && asset?.revision !== command.target.assetRevision)
+        return { kind: 'refused', reason: 'asset_revision_stale' };
 
       await ports.insertReceipt(scope, key);
       const effect = decideActionEffect(await ports.readSavedState(scope, command.target.assetId), command.kind);

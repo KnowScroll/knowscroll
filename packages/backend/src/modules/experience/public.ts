@@ -1,3 +1,5 @@
+import type { ActivityLineage, RoutingHistory } from './application/navigation-ports.js';
+import type { EncounterAttribution } from '../content/public.js';
 /**
  * Experience's public surface for other modules and the apps: operation types, outcome schema
  * and the read port the evidence job uses. Commands and queries are built by
@@ -39,7 +41,7 @@ export { EXPOSURE_ORIGINS, type ExposureOrigin } from './domain/exposures.js';
 /** An action as the evidence module reads it. */
 export interface ActionForEvidence {
   readonly id: string;
-  readonly kind: ActionKind;
+  readonly kind: ActionKind | 'like' | 'unlike' | 'hide';
   readonly assetId: string;
   readonly assetRevision: number;
   readonly privacyEpoch: number;
@@ -81,3 +83,38 @@ export type ReadExposureForEvidence = (
 ) => Promise<ExposureForEvidence | undefined>;
 
 export const READ_EXPOSURE_FOR_EVIDENCE = Symbol('experience.readExposureForEvidence');
+
+export type {
+  NavigationPorts,
+  NavigationResult,
+  NavigateEncounter,
+  ActivateOffer,
+  ReadExposureContext,
+  ActivityLineage,
+  RoutingHistory,
+} from './application/navigation-ports.js';
+export type ReadActivityLineage = (scope: PersonalScopeTx, exposureId: string) => Promise<ActivityLineage | undefined>;
+export type ReadRoutingHistory = (
+  scope: PersonalScopeTx,
+  query: {
+    readonly evaluatedAt: string;
+    readonly candidates: readonly { readonly explanationUnitId: string; readonly facets: readonly string[] }[];
+    readonly candidateAssetIds: readonly string[];
+  },
+) => Promise<RoutingHistory>;
+export const READ_ACTIVITY_LINEAGE = Symbol('experience.readActivityLineage');
+export const READ_ROUTING_HISTORY = Symbol('experience.readRoutingHistory');
+
+export type EnsureActivityLineage = (
+  scope: PersonalScopeTx,
+  exposureId: string,
+  metadata: EncounterAttribution,
+) => Promise<void>;
+export type ReadActivityReconcilePage = (
+  scope: PersonalScopeTx,
+  query: { readonly after?: string; readonly limit: number },
+) => Promise<readonly string[]>;
+export const ENSURE_ACTIVITY_LINEAGE = Symbol('experience.ensureActivityLineage');
+export const READ_ACTIVITY_RECONCILE_PAGE = Symbol('experience.readActivityReconcilePage');
+
+export type { ApplyEncounterAction } from './application/encounter-action.js';

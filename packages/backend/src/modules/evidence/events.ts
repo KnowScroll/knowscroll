@@ -70,3 +70,20 @@ export const projectScrollReadingQueue = defineQueue({
   },
   consumer: { localConcurrency: 2, pollingIntervalSeconds: 1 },
 });
+
+/** Latest-state activity projection: IDs only; never copied observations or action claims. */
+export const projectEncounterActivityQueue = defineQueue({
+  name: 'evidence.project-encounter-activity',
+  purpose: 'Project actual encounter qualification/action/navigation lineage into bounded routing context.',
+  payload: ProjectScrollReadingPayloadSchema,
+  policy: {
+    expireInSeconds: 60,
+    retryLimit: 8,
+    retryDelaySeconds: 2,
+    retryBackoff: true,
+    retentionSeconds: 7 * 86400,
+    deleteAfterSeconds: 2 * 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 2, pollingIntervalSeconds: 1 },
+});

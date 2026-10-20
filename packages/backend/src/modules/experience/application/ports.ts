@@ -1,3 +1,4 @@
+import type { EncounterSnapshot } from '../../content/public.js';
 import type { ApplyActionEvidencePayload } from '../../evidence/public.js';
 import type { PersonalAuthority, PersonalScopeTx, WithPersonalScope } from '../../identity/public.js';
 import type { FindAssetForAction, FindOpenableAsset, RenderScroll } from '../../content/public.js';
@@ -33,7 +34,7 @@ export interface CommandKey {
 export interface ActionRecord {
   readonly id: string;
   readonly commandId: string;
-  readonly kind: ActionKind;
+  readonly kind: ActionKind | 'like' | 'unlike' | 'hide';
   readonly assetId: string;
   readonly assetRevision: number;
   readonly at: Date;
@@ -43,6 +44,9 @@ export interface SavedItem {
   readonly assetId: string;
   readonly assetRevision: number;
   readonly savedAt: Date;
+  readonly metadata?: EncounterSnapshot['metadata'];
+  readonly availability?: 'available' | 'corrected' | 'withdrawn';
+  readonly currentAssetRevision?: number;
 }
 
 /** Capabilities the `applyAction` use case needs. Adapters implement them; Nest wires them. */
@@ -57,6 +61,10 @@ export interface ApplyActionPorts {
     outcome: { readonly [key: string]: JsonValue },
   ) => Promise<void>;
   readonly findAsset: FindAssetForAction;
+  readonly readSavedReference: (
+    scope: PersonalScopeTx,
+    assetId: string,
+  ) => Promise<{ readonly assetRevision: number } | undefined>;
   readonly readSavedState: (scope: PersonalScopeTx, assetId: string) => Promise<SavedState>;
   readonly writeSavedState: (
     scope: PersonalScopeTx,

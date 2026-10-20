@@ -1,3 +1,4 @@
+import type { ReadEncounterAttribution } from '../public.js';
 import { createHash } from 'node:crypto';
 import { ClientCapabilities, ReelDocumentSchema } from '@knowscroll/contracts';
 import { negotiate, parseDocument } from '@knowscroll/scroll-model';
@@ -210,4 +211,38 @@ export const readSavedMetadata: ReadSavedMetadata = async (scope, refs) => {
         : {}),
     };
   });
+};
+
+/** Backend attribution read after owned encounter lineage is validated; admission is checked separately for opening. */
+export const readEncounterAttribution: ReadEncounterAttribution = async (scope, ref) => {
+  const result = await sql<{
+    explanation_unit_id: string;
+    document_sha256: string;
+    facets: string[];
+    attribution_version: string;
+    topics: EncounterSnapshot['topics'];
+  }>`select r.explanation_unit_id,r.document_sha256,d.facets,d.attribution_version,
+    coalesce((select jsonb_agg(jsonb_build_object('topicId',t.topic_id,'role',t.role,'weight',t.weight) order by t.topic_id) from content.encounter_topics t where t.asset_id=r.asset_id and t.asset_revision=r.revision),'[]') as topics
+    from content.asset_revisions r join content.discovery_revisions d on d.asset_id=r.asset_id and d.asset_revision=r.revision where r.asset_id=${ref.assetId}::uuid and r.revision=${ref.assetRevision}`.execute(
+    transactionOf(scope),
+  );
+  const r = result.rows[0];
+  if (!r) return undefined;
+  validateTopics(r.topics);
+  return {
+    explanationUnitId: r.explanation_unit_id,
+    facets: r.facets,
+    topics: r.topics,
+    attributionVersion: r.attribution_version,
+    catalogWatermark: createHash('sha256')
+      .update(
+        JSON.stringify([
+          r.document_sha256,
+          r.attribution_version,
+          r.facets,
+          r.topics.map((t) => [t.topicId, t.role, t.weight]),
+        ]),
+      )
+      .digest('hex'),
+  };
 };

@@ -16,7 +16,7 @@ import { makeApplyActionEvidence } from '../application/apply-action-evidence.js
 import { makeIngestObservations } from '../application/ingest-observations.js';
 import { makeProjectScrollReading } from '../application/project-scroll-reading.js';
 import { makeReadEvidenceDiagnostics } from '../application/read-evidence-diagnostics.js';
-import { projectScrollReadingQueue } from '../events.js';
+import { projectEncounterActivityQueue, projectScrollReadingQueue } from '../events.js';
 import {
   insertActionEvent,
   insertEvidence,
@@ -38,7 +38,7 @@ export const READ_EVIDENCE_DIAGNOSTICS = Symbol('evidence.readEvidenceDiagnostic
  * ports (`READ_ACTION_FOR_EVIDENCE`, `READ_EXPOSURE_FOR_EVIDENCE`) and content's
  * `READ_SCROLL_READING_FACTS` in the same composition root.
  */
-export function evidenceProviders(tokens: { readonly withPersonalScope: symbol }) {
+export function evidenceProviders(tokens: { readonly withPersonalScope: symbol; readonly enqueueJob?: symbol }) {
   return [
     {
       provide: APPLY_ACTION_EVIDENCE,
@@ -58,11 +58,17 @@ export function evidenceProviders(tokens: { readonly withPersonalScope: symbol }
     },
     {
       provide: PROJECT_SCROLL_READING,
-      inject: [tokens.withPersonalScope, READ_EXPOSURE_FOR_EVIDENCE, READ_SCROLL_READING_FACTS],
+      inject: [
+        tokens.withPersonalScope,
+        READ_EXPOSURE_FOR_EVIDENCE,
+        READ_SCROLL_READING_FACTS,
+        tokens.enqueueJob ?? MISSING_PROJECTION_ENQUEUE,
+      ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
         readExposure: ReadExposureForEvidence,
         readReadingFacts: ReadScrollReadingFacts,
+        enqueueJob: EnqueueJob,
       ) =>
         makeProjectScrollReading({
           withPersonalScope,
@@ -70,7 +76,17 @@ export function evidenceProviders(tokens: { readonly withPersonalScope: symbol }
           readReadingFacts,
           readObservations,
           readLatestEvidence,
-          insertEvidence,
+          insertEvidence: async (scope, x) => {
+            const inserted = await insertEvidence(scope, x);
+            if (inserted)
+              await enqueueJob(scope, projectEncounterActivityQueue, {
+                v: 1,
+                universeId: scope.authority.universeId,
+                privacyEpoch: scope.authority.privacyEpoch,
+                exposureId: x.exposureId,
+              });
+            return inserted;
+          },
           advanceRevision: advanceScopeRevision,
           notifyScopeChanged,
           newId: () => uuidv7(),
@@ -117,3 +133,7 @@ export function evidenceIntakeProviders(tokens: {
     },
   ];
 }
+
+/** Partial test assemblies that only build action audit need no projection producer. */
+const MISSING_PROJECTION_ENQUEUE = Symbol('evidence.projectionProducerRequired');
+export { activityProviders, ACTIVITY_PORTS } from './activity-providers.js';

@@ -282,15 +282,50 @@ describe('the thin journey through the built API, worker and operator command', 
     const stored = await client.observations.submit({ instrumentationVersion: 1, events });
     expect(stored).toMatchObject({ accepted: 3, duplicates: 0, rejected: 0 });
 
-    // The worker projects it: an evidence revision commits and the account is hinted once.
+    // Qualification and separate latest-state activity project independently; both must catch up.
     await expect
       .poll(async () => (await client.diagnostics.evidence({ exposureId: opened.exposureId })).evidence?.revision, {
         timeout: 30_000,
         interval: 250,
       })
       .toBe(1);
-    await expect.poll(() => hints.length, { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
+    const readCurrentActivity = () =>
+      handle.db
+        .selectFrom('evidence.activity_current as current')
+        .innerJoin('evidence.activity_revisions as activity', (join) =>
+          join
+            .onRef('activity.universe_id', '=', 'current.universe_id')
+            .onRef('activity.id', '=', 'current.activity_id')
+            .onRef('activity.exposure_id', '=', 'current.exposure_id')
+            .onRef('activity.privacy_epoch', '=', 'current.privacy_epoch'),
+        )
+        .select([
+          'activity.id',
+          'activity.revision',
+          'activity.input_vector',
+          'activity.input_sha256',
+          'activity.channels',
+        ])
+        .where('current.universe_id', '=', person.universeId)
+        .where('current.privacy_epoch', '=', 1)
+        .where('current.exposure_id', '=', opened.exposureId)
+        .executeTakeFirst();
+    // Do not baseline while qualification's required activity job can still legitimately advance
+    // the scope revision/hint. Await its actual current vector, not a timing guess or job skip.
+    await expect
+      .poll(async () => (await readCurrentActivity())?.input_vector, { timeout: 30_000, interval: 250 })
+      .toMatchObject({ qualificationRevision: 1, actionRevision: 0, navigationRevision: 0, policy: 'activity.v0' });
+    const activityBefore = await readCurrentActivity();
+    expect(activityBefore?.input_vector).toMatchObject({
+      qualificationRevision: 1,
+      actionRevision: 0,
+      navigationRevision: 0,
+      policy: 'activity.v0',
+    });
     const diagnostics = await client.diagnostics.evidence({ exposureId: opened.exposureId });
+    await expect
+      .poll(() => Math.max(...hints.map((hint) => hint.revision)), { timeout: 20_000, interval: 100 })
+      .toBe(diagnostics.revision);
     expect(diagnostics).toMatchObject({
       exposureId: opened.exposureId,
       observations: { count: 3 },
@@ -306,7 +341,7 @@ describe('the thin journey through the built API, worker and operator command', 
     expect(hints.every((hint) => hint.scope.id === person.universeId)).toBe(true);
     expect(Math.max(...hints.map((hint) => hint.revision))).toBe(diagnostics.revision);
 
-    // The same batch again (a retry): nothing counts twice, no second revision, no second hint.
+    // Fully caught up: retrying the same batch creates no qualification/activity/scope revision or hint.
     const hintsBefore = hints.length;
     const retry = await client.observations.submit({ instrumentationVersion: 1, events });
     expect(retry).toMatchObject({ accepted: 0, duplicates: 3, rejected: 0 });
@@ -315,6 +350,8 @@ describe('the thin journey through the built API, worker and operator command', 
     const after = await client.diagnostics.evidence({ exposureId: opened.exposureId });
     expect(after.observations.count).toBe(3);
     expect(after.evidence?.revision).toBe(1);
+    expect(after.revision).toBe(diagnostics.revision);
+    expect(await readCurrentActivity()).toEqual(activityBefore);
     const rows = await handle.db
       .selectFrom('evidence.observations')
       .select((eb) => eb.fn.countAll<string>().as('n'))

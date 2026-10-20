@@ -1,47 +1,38 @@
+import { sql } from 'kysely';
 import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
-import { deleteJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import { applyActionEvidenceQueue, projectScrollReadingQueue } from '../events.js';
-
-/** Evidence's personal tables, its queue payloads, and their eraser (blueprint §5). */
+import { applyActionEvidenceQueue, projectScrollReadingQueue, projectEncounterActivityQueue } from '../events.js';
+import { deleteJobPayloads } from '../../../infrastructure/jobs/erasure.js';
+const queues = [applyActionEvidenceQueue, projectScrollReadingQueue, projectEncounterActivityQueue];
+const tables = [
+  'topic_contributions',
+  'activity_current',
+  'activity_revisions',
+  'topic_context',
+  'encounter_evidence',
+  'observations',
+  'action_events',
+] as const;
 export const evidenceErasure: ModuleErasure = {
   module: 'evidence',
-  // Dependants first: evidence revisions rest on observations, which rest on nothing erased here.
-  tables: [
-    { schema: 'evidence', table: 'encounter_evidence', ownerColumn: 'universe_id' },
-    { schema: 'evidence', table: 'observations', ownerColumn: 'universe_id' },
-    { schema: 'evidence', table: 'action_events', ownerColumn: 'universe_id' },
-  ],
-  nonRowStores: [
-    {
-      name: `pgboss/${applyActionEvidenceQueue.name}`,
-      description: 'Queued, active, retained and dead-lettered job payloads (universe and action IDs).',
-    },
-    {
-      name: `pgboss/${projectScrollReadingQueue.name}`,
-      description: 'Queued, active, retained and dead-lettered job payloads (universe and exposure IDs).',
-    },
-  ],
+  tables: tables.map((table) => ({ schema: 'evidence', table, ownerColumn: 'universe_id' })),
+  nonRowStores: queues.map((queue) => ({
+    name: `pgboss/${queue.name}`,
+    description: 'Queued, active, retained and dead-lettered IDs-only jobs for this scope.',
+  })),
   async erase(scope) {
-    const trx = transactionOf(scope);
-    const universeId = scope.authority.universeId;
-    const evidence = await trx
-      .deleteFrom('evidence.encounter_evidence')
-      .where('universe_id', '=', universeId)
-      .executeTakeFirst();
-    const observations = await trx
-      .deleteFrom('evidence.observations')
-      .where('universe_id', '=', universeId)
-      .executeTakeFirst();
-    const events = await trx
-      .deleteFrom('evidence.action_events')
-      .where('universe_id', '=', universeId)
-      .executeTakeFirst();
-    const jobs = await deleteJobPayloads(scope, [applyActionEvidenceQueue.name, projectScrollReadingQueue.name]);
-    return {
-      module: 'evidence',
-      status: 'completed',
-      removed: Number(evidence.numDeletedRows + observations.numDeletedRows + events.numDeletedRows) + jobs,
-    };
+    let removed = 0;
+    for (const table of tables) {
+      const result =
+        await sql`delete from ${sql.table(`evidence.${table}`)} where universe_id=${scope.authority.universeId}::uuid`.execute(
+          transactionOf(scope),
+        );
+      removed += Number(result.numAffectedRows ?? 0);
+    }
+    removed += await deleteJobPayloads(
+      scope,
+      queues.map((queue) => queue.name),
+    );
+    return { module: 'evidence', status: 'completed', removed };
   },
 };

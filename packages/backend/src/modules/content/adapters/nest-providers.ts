@@ -2,15 +2,28 @@ import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { makeImportEditorialScroll } from '../application/import-editorial-scroll.js';
 import {
+  READ_DISCOVERY_CANDIDATES,
+  READ_EXACT_ENCOUNTER,
+  READ_CONTINUATIONS,
+  RESOLVE_CONTINUITY_LINK,
+  READ_ENCOUNTER_TOPICS,
+  READ_SAVED_METADATA,
+  READ_ENCOUNTER_ATTRIBUTION,
   FIND_ASSET_FOR_ACTION,
   FIND_OPENABLE_ASSET,
   READ_SCROLL_READING_FACTS,
   RENDER_SCROLL,
-  type FindAssetForAction,
-  type FindOpenableAsset,
-  type ReadScrollReadingFacts,
   type RenderScroll,
 } from '../public.js';
+import {
+  readDiscoveryCandidates,
+  readExactEncounter,
+  readContinuations,
+  resolveContinuityLink,
+  readEncounterTopics,
+  readSavedMetadata,
+  readEncounterAttribution,
+} from './discovery-store.js';
 import { makeRenderScroll } from './render-scroll.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
@@ -19,12 +32,15 @@ import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollRe
  * Reusable outer wiring (blueprint §22): content's scope-bound read ports, used inside a personal
  * transaction by experience and evidence. Composition roots only.
  */
-export function contentProviders(): readonly (
-  | { readonly provide: symbol; readonly useValue: FindAssetForAction }
-  | { readonly provide: symbol; readonly useValue: FindOpenableAsset }
-  | { readonly provide: symbol; readonly useValue: ReadScrollReadingFacts }
-)[] {
+export function contentProviders() {
   return [
+    { provide: READ_DISCOVERY_CANDIDATES, useValue: readDiscoveryCandidates },
+    { provide: READ_EXACT_ENCOUNTER, useValue: readExactEncounter },
+    { provide: READ_CONTINUATIONS, useValue: readContinuations },
+    { provide: RESOLVE_CONTINUITY_LINK, useValue: resolveContinuityLink },
+    { provide: READ_ENCOUNTER_TOPICS, useValue: readEncounterTopics },
+    { provide: READ_SAVED_METADATA, useValue: readSavedMetadata },
+    { provide: READ_ENCOUNTER_ATTRIBUTION, useValue: readEncounterAttribution },
     { provide: FIND_ASSET_FOR_ACTION, useValue: findAssetForAction },
     { provide: FIND_OPENABLE_ASSET, useValue: findOpenableAsset },
     { provide: READ_SCROLL_READING_FACTS, useValue: readScrollReadingFacts },
@@ -62,6 +78,7 @@ export { makeMediaAccess } from './media-access.js';
 export { makeProduceScroll as produceScrollUseCase } from '../production/produce.js';
 /** Bounded shared retrieval capabilities; no feature consumers are installed by this slice. */
 export {
+  readEncounterAttribution,
   readDiscoveryCandidates,
   readExactEncounter,
   readContinuations,

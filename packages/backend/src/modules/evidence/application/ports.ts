@@ -6,7 +6,7 @@ import type { ProjectScrollReadingPayload } from '../events.js';
 /** An action as the evidence job needs it (read from experience through its public surface). */
 export interface ActionToRecord {
   readonly id: string;
-  readonly kind: 'save' | 'unsave';
+  readonly kind: 'save' | 'unsave' | 'like' | 'unlike' | 'hide';
   readonly assetId: string;
   readonly assetRevision: number;
 }
