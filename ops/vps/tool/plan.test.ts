@@ -14,9 +14,11 @@
  */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   activationPlan,
+  activateAfterSchemaCheck,
   afterFailedDeploy,
   checkFileList,
   checksumFor,
@@ -33,10 +35,12 @@ import {
   linksAfterDeploy,
   linksAfterRollback,
   lockNeeded,
+  MAX_SCHEMA_MIGRATIONS,
   parseEnvFile,
   parseSha256List,
   predeployDumpName,
   releaseGeneration,
+  recoverFailedActivation,
   releasesInUse,
   releasesToDelete,
   runSteps,
@@ -45,11 +49,142 @@ import {
   validateDeployRequest,
   validateRunRequest,
   validateV2Manifest,
+  v2SchemaCompatibility,
   withSessionOptions,
 } from './plan.ts';
 
 const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
+
+const SCHEMA = [
+  { name: '0001_identity', sha256: '1'.repeat(64) },
+  { name: '0002_receipts', sha256: '2'.repeat(64) },
+];
+const schemaSnapshot = (rows = SCHEMA) => ({
+  migrations: rows.map((row) => row.name),
+  checksums: rows.map((row) => ({ ...row })),
+});
+
+test('#250 activation requires the complete target registry and verified SQL checksums', () => {
+  assert.equal(v2SchemaCompatibility(SCHEMA, schemaSnapshot()).ok, true);
+  const newer = [...SCHEMA, { name: '0003_personal', sha256: '3'.repeat(64) }];
+  for (const observed of [
+    null, undefined, {}, { migrations: SCHEMA.map((r) => r.name) },
+    schemaSnapshot(newer), schemaSnapshot(SCHEMA.slice(0, 1)),
+    schemaSnapshot([...SCHEMA].reverse()), schemaSnapshot([SCHEMA[0]!, SCHEMA[0]!]),
+    { ...schemaSnapshot(), migrations: ['0001_identity', '0002_other'] },
+    { ...schemaSnapshot(), checksums: [SCHEMA[0]] },
+    { ...schemaSnapshot(), checksums: [...SCHEMA, newer[2]] },
+    { ...schemaSnapshot(), checksums: [...SCHEMA].reverse() },
+    { ...schemaSnapshot(), checksums: [SCHEMA[0], { ...SCHEMA[1], sha256: 'f'.repeat(64) }] },
+    { ...schemaSnapshot(), migrations: ['0001_identity', 'bad\nname'] },
+  ]) assert.equal(v2SchemaCompatibility(SCHEMA, observed).ok, false);
+  assert.equal(v2SchemaCompatibility([...SCHEMA].reverse(), schemaSnapshot()).ok, false);
+  assert.equal(v2SchemaCompatibility([SCHEMA[0]!, SCHEMA[0]!], schemaSnapshot()).ok, false);
+  assert.equal(v2SchemaCompatibility(SCHEMA, schemaSnapshot(Array.from(
+    { length: MAX_SCHEMA_MIGRATIONS + 1 }, (_, i) => ({
+      name: `${String(i).padStart(4, '0')}_fixture`, sha256: 'a'.repeat(64),
+    }),
+  ))).ok, false);
+});
+
+test('#250 v2 guard refuses before link/service mutations; equal-schema code can switch', async () => {
+  const before = { current: A, previous: B };
+  let links = before;
+  const calls: string[] = [];
+  await assert.rejects(activateAfterSchemaCheck('v2', {
+    checkV2Schema: () => {
+      const result = v2SchemaCompatibility(SCHEMA.slice(0, 1), schemaSnapshot());
+      assert.equal(result.ok, false);
+      throw new Error('fixture: database ahead');
+    },
+    pointCurrent: () => { links = { current: B, previous: A }; },
+    start: () => { calls.push('services'); return Promise.resolve(true); },
+  }), /database ahead/);
+  assert.equal(links, before, 'manual refusal preserves both original links');
+  assert.deepEqual(calls, [], 'manual refusal does not stop/start any service');
+  const successfulCalls: string[] = [];
+  assert.equal(await activateAfterSchemaCheck('v2', {
+    checkV2Schema: () => { assert.equal(v2SchemaCompatibility(SCHEMA, schemaSnapshot()).ok, true); successfulCalls.push('schema'); },
+    pointCurrent: () => { successfulCalls.push('links'); },
+    start: () => { successfulCalls.push('services'); return Promise.resolve(true); },
+  }), true);
+  assert.deepEqual(successfulCalls, ['schema', 'links', 'services']);
+});
+
+test('#250 failed deploy cannot restart old v2 after new/unknown DDL', async () => {
+  for (const snapshot of [schemaSnapshot(), null]) {
+    const calls: string[] = [];
+    const healthy = await recoverFailedActivation('v2', {
+      activate: () => activateAfterSchemaCheck('v2', {
+        checkV2Schema: () => {
+          const result = v2SchemaCompatibility(SCHEMA.slice(0, 1), snapshot);
+          if (!result.ok) throw new Error(result.reason);
+        },
+        pointCurrent: () => { calls.push('links'); },
+        start: () => { calls.push('old-v2-start'); return Promise.resolve(true); },
+      }),
+      stopV2: () => { calls.push('stop-unsafe-v2'); },
+      restoreLinks: () => { calls.push('original-links'); },
+    });
+    assert.equal(healthy, false);
+    assert.deepEqual(calls, ['stop-unsafe-v2', 'original-links']);
+  }
+  const calls: string[] = [];
+  assert.equal(await recoverFailedActivation('v2', {
+    activate: () => Promise.resolve(false),
+    stopV2: () => { calls.push('stop-unhealthy-v2'); },
+    restoreLinks: () => {},
+  }), false);
+  assert.deepEqual(calls, ['stop-unhealthy-v2']);
+  assert.equal(await recoverFailedActivation('v2', {
+    activate: () => Promise.resolve(true),
+    stopV2: () => { throw new Error('must not stop a healthy compatible recovery'); },
+    restoreLinks: () => {},
+  }), true);
+  const unsafeCalls: string[] = [];
+  await assert.rejects(recoverFailedActivation('v2', {
+    activate: () => Promise.resolve(false),
+    stopV2: () => { throw new Error('fixture: stop failed'); },
+    restoreLinks: () => { unsafeCalls.push('exposed-old-links'); },
+  }), /stop failed/);
+  assert.deepEqual(unsafeCalls, [], 'never expose old code to automatic restart if stop failed');
+});
+
+test('#250 v1 activation/recovery never reads the separate v2 database', async () => {
+  const calls: string[] = [];
+  const result = await recoverFailedActivation('v1', {
+    activate: () => activateAfterSchemaCheck('v1', {
+      checkV2Schema: () => { throw new Error('legacy must not read v2'); },
+      pointCurrent: () => { calls.push('links'); },
+      start: () => { calls.push('v1-start'); return Promise.resolve(true); },
+    }),
+    stopV2: () => { throw new Error('not the v2 failure branch'); },
+    restoreLinks: () => {},
+  });
+  assert.equal(result, true);
+  assert.deepEqual(calls, ['links', 'v1-start']);
+});
+
+test('#250 the actual system branches use the tested gate and conservative recovery seam', () => {
+  const source = readFileSync(new URL('./system.ts', import.meta.url), 'utf8');
+  const activation = source.slice(source.indexOf('async function activate('), source.indexOf('async function restoreRunning('));
+  assert.match(activation, /activateAfterSchemaCheck\(generation,/);
+  assert.match(activation, /checkV2Schema: \(\) => requireMatchingV2Schema/);
+  const recovery = source.slice(source.indexOf('async function restoreRunning('), source.indexOf('function cleanupAfterDeploy('));
+  assert.match(recovery, /recoverFailedActivation\(next.generation,/);
+  assert.match(recovery, /systemctl\('stop', units.target, \.\.\.units.services\)/);
+  const manual = source.slice(source.indexOf('export async function rollback('), source.indexOf('/** #228: every'));
+  assert.ok(manual.indexOf('requireMatchingV2Schema(w, back.commit)') >= 0);
+  assert.ok(manual.indexOf('requireMatchingV2Schema(w, back.commit)') < manual.indexOf('await activate('));
+  assert.match(manual, /await activate\(back.generation, expect,\s*\(\) => applyLinks/);
+  const deployment = source.slice(source.indexOf('export async function deploy('), source.indexOf('export async function rollback('));
+  assert.match(deployment, /migrationFailed = true/);
+  assert.match(deployment, /!migrationFailed && await activate/);
+  assert.match(deployment, /restoreRunning\(w, beforeSlot,\s*\(\) => applyLinks/);
+  assert.match(deployment, /failed-recovery-incomplete/);
+  assert.doesNotMatch(source, /assumed: 'v1'/, 'an unknown manifest cannot bypass the v2 guard');
+});
 
 test('a deploy names a known world and a full commit', () => {
   assert.deepEqual(validateDeployRequest('dev', A, { tip: null }), {

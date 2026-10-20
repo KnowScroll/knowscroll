@@ -11,7 +11,8 @@
  * with the command its release.json names (as the world's user, with the world's v2 settings,
  * never seeded), and run by ks2-world@<world>.target. Switching a world between generations stops
  * the other generation's units first; `previous` changes only once the new release is healthy, and
- * a failed deploy or rollback puts both links and the generation that ran back as they were.
+ * a failed switch restores both links, but only restarts old v2 code when its complete schema
+ * still matches. Otherwise v2 stops and a reviewed forward recovery is required.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -40,6 +41,7 @@ import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import {
   activationPlan,
+  activateAfterSchemaCheck,
   afterFailedDeploy,
   BRANCH_OF,
   checkFileList,
@@ -55,10 +57,13 @@ import {
   type Links,
   linksAfterDeploy,
   linksAfterRollback,
+  MAX_SCHEMA_MIGRATIONS,
+  type MigrationIdentity,
   parseEnvFile,
   predeployDumpName,
   type ReleaseLink,
   releaseGeneration,
+  recoverFailedActivation,
   releasesInUse,
   releasesToDelete,
   runSteps,
@@ -70,6 +75,7 @@ import {
   validateDeployRequest,
   validateRunRequest,
   validateV2Manifest,
+  v2SchemaCompatibility,
   withSessionOptions,
   type World,
   worldUnits,
@@ -251,8 +257,8 @@ function generationOf(dir: string): Generation {
   return generation.value;
 }
 
-/** The commit and generation a `current`/`previous` link names, or null for the placeholder. A
- * release whose release.json cannot be read is taken for v1, the only generation before #228. */
+/** The commit and generation a link names, or null for the placeholder. An unknown manifest must
+ * never bypass v2's activation guard by being assumed to be a legacy release. */
 function slotOf(target: string | null): Slot {
   const commit = commitOf(target);
   if (!commit) return null;
@@ -262,10 +268,8 @@ function slotOf(target: string | null): Slot {
     say({
       event: 'release-generation-unknown',
       commit,
-      assumed: 'v1',
-      reason: (error as Error).message,
     });
-    return { commit, generation: 'v1' };
+    throw new Refusal('the linked release generation is unknown; activation refused');
   }
 }
 
@@ -502,6 +506,53 @@ function poolCount(sql: string, variables: Record<string, string>): number | nul
   return result.status === 0 && Number.isInteger(count) ? count : null;
 }
 
+/** #250: only this world's v2 migration metadata, via local peer auth. No settings/secret file,
+ * URL, legacy/owner/pool database, application row or raw psql output reaches this boundary. */
+function readV2Schema(world: World): unknown {
+  if (process.getuid?.() !== 0 || !isWorld(world)) return null;
+  try {
+    const result = spawnSync('/usr/bin/psql', [
+      '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '--dbname', `knowscroll_v2_${world}`,
+    ], {
+      input: `begin read only isolation level repeatable read;
+        select json_build_object(
+          'migrations', (select coalesce(json_agg(name order by timestamp, name), '[]'::json)
+            from (select name, timestamp from migrator.kysely_migration
+              order by timestamp, name limit ${MAX_SCHEMA_MIGRATIONS + 1}) applied),
+          'checksums', (select coalesce(json_agg(row_to_json(recorded) order by name), '[]'::json)
+            from (select name, sha256 from migrator.migration_checksum
+              order by name limit ${MAX_SCHEMA_MIGRATIONS + 1}) recorded));
+        commit;`,
+      env: { PATH: '/usr/bin:/bin', PGCONNECT_TIMEOUT: '2',
+        PGOPTIONS: '-c statement_timeout=3000 -c lock_timeout=1000' },
+      ...systemUser('postgres'), encoding: 'utf8', timeout: 5000, maxBuffer: 128 * 1024,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    if (result.status !== 0 || result.error || result.stdout.length > 128 * 1024) return null;
+    return JSON.parse(result.stdout);
+  } catch {
+    return null;
+  }
+}
+
+function requireMatchingV2Schema(world: World, commit: string): void {
+  const release = join(RELEASES, commit);
+  const manifest = verifyV2Release(release, commit, 'skip');
+  const target: MigrationIdentity[] = [];
+  try {
+    for (const name of manifest.migrations) {
+      const path = join(release, manifest.programs.api.cwd,
+        'node_modules/@knowscroll/migrations', `${name}.sql`);
+      if (!lstatSync(path).isFile()) throw new Error('missing SQL');
+      target.push({ name, sha256: sha256(path) });
+    }
+  } catch {
+    throw new Refusal('the verified target migration SQL cannot be read; activation refused');
+  }
+  const decision = v2SchemaCompatibility(target, readV2Schema(world));
+  if (!decision.ok) throw new Refusal(decision.reason);
+}
+
 /** Open (claimed, not yet settled) paid orders in the shared pool, or null if it can't be read. */
 function openPoolOrders(): number | null {
   return poolCount(
@@ -662,12 +713,20 @@ function stopUnits(units: { target: string; services: string[] }): void {
 async function activate(
   generation: Generation,
   expect: Expectation,
+  pointCurrent: () => void = () => {},
 ): Promise<boolean> {
   const plan = activationPlan(expect.world, generation);
   try {
-    stopUnits(plan.stop);
-    systemctl('enable', plan.start);
-    systemctl('restart', plan.start);
+    return await activateAfterSchemaCheck(generation, {
+      checkV2Schema: () => requireMatchingV2Schema(expect.world, expect.commit),
+      pointCurrent,
+      start: async () => {
+        stopUnits(plan.stop);
+        systemctl('enable', plan.start);
+        systemctl('restart', plan.start);
+        return healthy(generation, expect);
+      },
+    });
   } catch (error) {
     say({
       event: 'activation-failed',
@@ -677,24 +736,33 @@ async function activate(
     });
     return false;
   }
-  return healthy(generation, expect);
 }
 
-/** After a failed switch: run again whatever ran before (both links are already back), or stop
- * both generations if nothing good ran before. Never throws; says what happened. */
-async function restoreRunning(world: World, before: Slot): Promise<boolean> {
+/** Restore only compatible code. Stop unsafe v2 BEFORE restoring old links: an automatic systemd
+ * restart must not pick old code while its schema check is pending. Never throws. */
+async function restoreRunning(world: World, before: Slot, restoreLinks: () => void): Promise<boolean> {
   const next = afterFailedDeploy(world, before);
   try {
     if (next.action === 'stop') {
       // Before a world's first good release there is nothing to run: stop it, show the placeholder.
       stopUnits(worldUnits(world, 'v1'));
       stopUnits(worldUnits(world, 'v2'));
+      restoreLinks();
       return false;
     }
-    return await activate(
-      next.generation,
-      expectationOf(world, { commit: next.commit, generation: next.generation }),
-    );
+    const restored = await recoverFailedActivation(next.generation, {
+      activate: () => activate(next.generation,
+        expectationOf(world, { commit: next.commit, generation: next.generation }), restoreLinks),
+      stopV2: () => {
+        const units = worldUnits(world, 'v2');
+        systemctl('stop', units.target, ...units.services);
+        if (enabled(units.target)) systemctl('disable', units.target);
+      },
+      restoreLinks,
+    });
+    if (!restored) say({ event: 'restore-incomplete', world,
+      ...(next.generation === 'v2' ? { forwardRecoveryRequired: true } : {}) });
+    return restored;
   } catch (error) {
     say({ event: 'restore-incomplete', world, reason: (error as Error).message });
     return false;
@@ -775,19 +843,26 @@ export async function deploy(
   );
 
   let dump: string | undefined;
+  let migrationFailed = false;
   if (generation === 'v1') {
     migratePool(release);
     runAsWorld(w, release, 'migrate');
     if (w !== 'live') runAsWorld(w, release, 'seed');
   } else {
-    dump = predeployDump(w, commit);
-    migrateV2(w, release, manifest as V2Manifest);
+    try {
+      dump = predeployDump(w, commit);
+      migrateV2(w, release, manifest as V2Manifest);
+    } catch {
+      // Even a failed migrate may have changed metadata/DDL. Only an actual schema read can
+      // authorize restarting the old v2 release; never infer rollback from the command's exit.
+      migrationFailed = true;
+      say({ event: 'v2-migration-failed', world: w, commit });
+    }
   }
 
-  // m1: only `current` moves while the new release starts; `previous` is untouched until it is healthy.
-  relink(join(worldRoot, 'current'), release);
-
-  if (await activate(generation, { world: w, commit, artifact })) {
+  // Schema check precedes even the temporary current-link mutation; previous stays untouched.
+  if (!migrationFailed && await activate(generation, { world: w, commit, artifact },
+    () => relink(join(worldRoot, 'current'), release))) {
     applyLinks(worldRoot, linksAfterDeploy(before, release, commit, true));
     appendFileSync(
       join(worldRoot, 'releases.log'),
@@ -811,22 +886,25 @@ export async function deploy(
   }
 
   say({ event: 'deploy-unhealthy', world: w, commit });
-  // A failed deploy leaves current and previous exactly as they were, and runs what ran before.
-  applyLinks(worldRoot, linksAfterDeploy(before, release, commit, false));
-  const restored = await restoreRunning(w, beforeSlot);
+  // Stop incompatible v2 before restoring old links, including systemd's restart path.
+  const restored = await restoreRunning(w, beforeSlot,
+    () => applyLinks(worldRoot, linksAfterDeploy(before, release, commit, false)));
   say({
-    event: 'rolled-back',
+    event: restored ? 'rolled-back' : 'recovery-incomplete',
     world: w,
     to: commitOf(before.current),
     generation: beforeSlot?.generation ?? null,
     healthy: restored,
+    ...(beforeSlot?.generation === 'v2' && !restored ? { forwardRecoveryRequired: true } : {}),
   });
   appendFileSync(
     join(worldRoot, 'releases.log'),
-    `${JSON.stringify({ at: new Date().toISOString(), commit, result: 'failed-and-rolled-back' })}\n`,
+    `${JSON.stringify({ at: new Date().toISOString(), commit,
+      result: restored ? 'failed-and-rolled-back' : 'failed-recovery-incomplete' })}\n`,
   );
   throw new Refusal(
-    `${commit} did not become healthy on ${w}; the previous release is back`,
+    restored ? `${commit} did not become healthy on ${w}; the previous release is back` :
+      `${commit} failed on ${w}; recovery is incomplete; a reviewed forward recovery is required`,
   );
 }
 
@@ -849,7 +927,7 @@ export async function rollback(world: string): Promise<void> {
     throw new Refusal(`${w} is not set up for v1 releases`);
   // m10: a v2 release is verified again before it runs, as a promotion does.
   if (back.generation === 'v2')
-    verifyV2Release(join(RELEASES, back.commit), back.commit, 'skip');
+    requireMatchingV2Schema(w, back.commit);
   const fromSlot = slotOf(before.current);
   const from = fromSlot?.generation ?? null;
   const decision = generationSwitchDecision(
@@ -859,14 +937,14 @@ export async function rollback(world: string): Promise<void> {
   );
   if (!decision.ok) throw new Refusal(decision.reason);
   const expect = expectationOf(w, back);
-  applyLinks(worldRoot, linksAfterRollback(before, true));
-  if (await activate(back.generation, expect)) {
+  if (await activate(back.generation, expect,
+    () => applyLinks(worldRoot, linksAfterRollback(before, true)))) {
     say({ event: 'rolled-back', world: w, to: back.commit, generation: back.generation });
     return;
   }
   // m8: like a failed deploy, a failed rollback puts both links and what ran before back.
-  applyLinks(worldRoot, linksAfterRollback(before, false));
-  const restored = await restoreRunning(w, fromSlot);
+  const restored = await restoreRunning(w, fromSlot,
+    () => applyLinks(worldRoot, linksAfterRollback(before, false)));
   say({
     event: 'rollback-failed',
     world: w,
@@ -875,7 +953,8 @@ export async function rollback(world: string): Promise<void> {
     healthy: restored,
   });
   throw new Refusal(
-    `${back.commit} is not healthy on ${w}; the release that ran before the rollback is back`,
+    restored ? `${back.commit} is not healthy on ${w}; the release that ran before the rollback is back` :
+      `${back.commit} failed on ${w}; recovery is incomplete; a reviewed forward recovery is required`,
   );
 }
 
