@@ -219,3 +219,8 @@ The server persists meaning-selected family/template, opaque personal seed, gene
 
 
 Initial finite scene convention (coordinator refinement, 2026-10-20): the established Earth system uses the star family; Seasons uses terraced, Tides archipelago, and Greenhouse ridged. Regions inherit their canonical parent's selected family. These are cosmetic rendering conventions, not scientific classifications, formation evidence or new meaning authority. Persist family/template, seed, generator and anchors before variation; unsupported/ambiguous meaning labels fail closed and alias resolution remains Geography-owned. The initial projector does not bootstrap nonempty historical worlds: empty worlds remain empty, and any later bootstrap requires an explicit reviewed maintenance path.
+
+
+## D-027 · 2026-10-20 · Coordinator: public social view revisions do not expose private transitions
+
+Sharing contracts distinguish caller-visible view revisions from internal pair/authority revisions. Silent decline leaves the sender's pending view, expiry and visible revision unchanged until the fixed public expiry; revision staleness/refusals cannot disclose a recipient-private transition. Future consumers still lock/recheck internal authority before replay or effects. Hidden, expired and unknown presence share one constant unknown wire branch with no event-bearing revision, expiry or TTL; authorized visible availability may carry bounded validity. Public visitor IDs are publication-scoped identities, never serialized private Geography/Scene/universe IDs. The initial visitor wire may support an explicit semantic/list fallback; this does not implement the U06 visual renderer or server projection.
