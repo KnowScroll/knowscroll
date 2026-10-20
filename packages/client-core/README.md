@@ -2,8 +2,8 @@
 
 Client-side cores shared by web, Android and iOS: the typed API client, the TanStack Query client
 factory, and the AccountScope (#226: account + privacy epoch ownership of the query client, the
-API client, the hint socket and local stores) with the sign-in client. The interaction recorder
-arrives with its first journey and will belong to the scope too.
+API client, the hint socket and local stores) with the sign-in client, and the interaction recorder
+(#229) whose durable outbox belongs to the scope.
 
 | File | Contents |
 |---|---|
@@ -15,6 +15,7 @@ arrives with its first journey and will belong to the scope too.
 | `src/sign-in-binding.ts` | `base64UrlOfBytes`, `base64UrlOfBase64`: the encodings of the native verifier and its S256 challenge (RFC 7636; the app's `platform/sign-in-binding.ts` keeps the verifier in the secure store) |
 | `src/account-scope-socket.ts` | `connectScopeSocket()`: Socket.IO on the API origin (native: the scope's bearer in `auth.token`; web: the same-origin cookie; both name the scope in `auth.scope`, and a `SCOPE_MISMATCH` refusal makes the manager reread the session), subscribed to the scope's universe; `scope_changed` above the highest revision seen, or `scope_resync`, invalidates the scope's queries; "io server disconnect" makes the manager recheck the session |
 | `src/auth-client.ts` | `createAuthClient()`: the `/auth/*` routes as typed outcomes (`requested · invalid_address · rate_limited(retryAfter) · unavailable`, `signed_in · link_invalid · refused · unavailable`), never throwing; anything that is not the contract's answer counts as `unavailable` |
+| `src/recorder/` | The reading recorder (blueprint §18 "Shared interaction recorder", S1.6). `observer.ts`: `ReadingObserver`, structurally identical to `ScrollReadingObserver` in `packages/ui/src/scroll/observer.ts` (client-core never imports `ui`; the app hands the observer to the article). `reading-tracker.ts`: the pure state machine from observer calls to bounded time summaries: per-block visible intervals (at the threshold fraction, **only while the article is active**) and active dwell (active and something visible); an inactive, hidden or overlaid article adds nothing; interactions once per block and kind, never a value; weights nothing (the server computes coverage and q). `outbox.ts`: the scope's durable outbox: bounded batches (≤ 50 events, ≤ 48 KiB) formed once and persisted in `AccountScope.storage` (`recorder.outbox.v1`), delivered in order, the **same batch with the same event IDs** retried with 1 s → 60 s backoff after network, 5xx, 429 or lock-timeout failures, a malformed or oversized batch dropped, nothing sent or written once the scope has ended; limits (40 batches, 256 KiB) drop the oldest first and count them (a device-sequence gap the server reads as lost events). `scroll-recorder.ts`: `createScrollRecorder` builds `interaction.v1` events (`scroll.block_coverage`, `scroll.active_dwell`, `scroll.block_interaction`) with stable event IDs and device sequence 1, 2, 3 …, flushing every 15 s while there is something to say, on becoming inactive and on `end()`; its first report is always sent so "instrumented, saw nothing" differs from "no instrumentation"; `deliverBatch` classifies the API's answer for the outbox. `scopeOutbox` gives each account scope one shared outbox |
 
 Rules:
 - No provider credentials or secrets ever reach this package; the client calls only the API.

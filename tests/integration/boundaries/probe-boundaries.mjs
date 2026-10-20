@@ -114,9 +114,10 @@ const probes = [
     file: 'apps/client/theme/zz-probe-scroll-name.ts',
     source:
       "import { compileDraft } from '@knowscroll/scroll-model/producer';\nimport { honestyIssues } from '@knowscroll/scroll-model/internal';\nimport internal from '../../../packages/scroll-model/fixtures/producer/weight-other-worlds.internal.json';\nexport const p = [compileDraft, honestyIssues, internal];\n",
+    // `apps/client` declares scroll-model (S1.6), so the specifiers resolve to its sources.
     expect: [
-      ['@knowscroll/scroll-model/producer', 'clients-never-import-scroll-internals'],
-      ['@knowscroll/scroll-model/internal', 'clients-never-import-scroll-internals'],
+      ['packages/scroll-model/src/producer/index.ts', 'clients-never-import-scroll-internals'],
+      ['packages/scroll-model/src/internal/index.ts', 'clients-never-import-scroll-internals'],
       [
         'packages/scroll-model/fixtures/producer/weight-other-worlds.internal.json',
         'clients-never-import-scroll-producer-fixtures',

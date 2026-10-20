@@ -135,6 +135,22 @@ by mail (`not_disposable`). Each issue leaves an audit row: `select world, issue
 operator_source, account_id from ops.operator_sign_ins order by issued_at desc` (as
 `postgres` on `knowscroll_v2_<world>`); `operator_source` is `cli:<SUDO_USER>`.
 
+### Admitting the starter Scroll on dev or stage (D-005, #229)
+
+The thin journey needs one admitted Scroll. The authored starter ships in the release tree and is admitted
+by the same operator program (no sign-in settings are needed; it touches no person's data). As root, with
+the world's environment, as the world's v2 user:
+
+```sh
+sudo sh -c 'set -a; . /etc/knowscroll/dev.v2.env; . /etc/knowscroll/secrets/v2-dev/database.env; set +a;
+  cd /srv/knowscroll/dev/current/api && exec runuser -u ks2-dev -- /usr/bin/node dist/operator.js content import-editorial \
+    --file node_modules/@knowscroll/backend/dist/modules/content/starter/why-the-sky-is-blue.editorial-scroll.json'
+```
+
+It prints one JSON line (`outcome`, `assetId`, `revision`, `documentSha256`, `path`): `created` the first
+time, `unchanged` when run again, `revised` when the shipped file changed. The Scroll is then at
+`https://app.dev.knowscroll.space/scroll/<assetId>`. Refused outside dev, stage, ci and local.
+
 The v2 API must answer `GET /health` on `PORT` with
 `{"status", "world", "commit", "artifact", "migration"}`: `world` = `KS_WORLD`, `commit` =
 `KS_COMMIT`, `artifact` = `KS_ARTIFACT_SHA256`, `migration` = the latest applied migration name.

@@ -72,6 +72,23 @@ failed, 2 usage. It creates or reuses a **disposable** account and refuses an ad
 by mail (`not_disposable`). Each issue writes an audit row in `ops.operator_sign_ins` (world, time,
 `cli:<SUDO_USER or USER>`, account). Running it on a world: `docs/v2/operations/environments.md`.
 
+## Operator content import (`node dist/operator.js content import-editorial --file <path>` in the `api/` tree)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KS_WORLD` | required | only `dev`, `stage`, `ci` or `local`; any other world (live under any name) is refused before the database is touched |
+| `DATABASE_URL` | required | the world's database (credential) |
+| `KS_DB_STATEMENT_TIMEOUT_MS` | 15000 | as for the API |
+
+Admits an authored editorial Scroll (D-005): an `editorial-scroll.v1` JSON file, compiled and admitted
+through scroll-model's admission path, stored as an immutable revision labelled `authored_editorial` with its
+internal provenance in a separate table. The same file is the same revision (`unchanged`); a changed file is
+a new revision. It needs no sign-in settings and touches no person's data (content is shared). One JSON line
+on stdout (`outcome`, `assetId`, `revision`, `documentSha256`, `path`), diagnostics on stderr
+(`content.scroll_admitted`; a refusal adds its stage and issue codes and paths, never source text). Exit 0
+admitted or unchanged, 1 refused or failed, 2 usage. The release tree carries the starter at
+`node_modules/@knowscroll/backend/dist/modules/content/starter/why-the-sky-is-blue.editorial-scroll.json`.
+
 ## Worker (`node dist/main.js` in the `worker/` tree)
 
 | Variable | Default | Meaning |

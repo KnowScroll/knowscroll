@@ -15,6 +15,6 @@ Account-keyed personal tables (identity's addresses, sign-in links and sessions,
 as `accountTables`: clearing or resetting a universe leaves them (sign-in must keep working);
 account deletion erases them. Not in the registry because they hold no personal rows of their own:
 `identity.accounts` and `identity.universes` (the personal root; account deletion is its own
-lifecycle, S1.x privacy work) and `content.assets` (shared content). The privacy operations that call `eraseUniverse` (clear
+lifecycle, S1.x privacy work) and the shared content tables `content.assets`, `content.asset_revisions` and `content.asset_provenance`. The privacy operations that call `eraseUniverse` (clear
 history, reset, delete account) and their epoch handling arrive with the privacy work; this
 folder provides the registry and its checks.
