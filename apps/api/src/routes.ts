@@ -1,4 +1,5 @@
 import { SupplyController } from './http/supply.controller.js';
+import { GeographyController } from './http/geography.controller.js';
 import { MediaController } from './http/media.controller.js';
 import { AuthController } from './http/auth.controller.js';
 import { ExperienceController } from './http/experience.controller.js';
@@ -16,4 +17,5 @@ export const apiControllers = [
   ObservationsController,
   MediaController,
   SupplyController,
+  GeographyController,
 ];

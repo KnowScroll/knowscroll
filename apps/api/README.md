@@ -21,6 +21,7 @@ sign-in link for a disposable test account, D-007; `content import-editorial --f
 | `src/http/request-context.ts` | Server-generated request ID (`x-request-id`) and `http.request_completed` with the route template |
 | `src/realtime/scope.gateway.ts` | Socket.IO on `/socket.io`: authenticated connections (native: the bearer token in `auth.token`; web: the session cookie, only from `KS_PUBLIC_ORIGIN`); `subscribe_scope` joins first, then checks session validity and current access and leaves when refused (error ack on failure); every relayed hint re-authorised per socket (session and access, cache ≤ 30 s): `scope_revoked` for a dropped subscription, a disconnect for an invalid session; `revokeAccountSockets` notices disconnect an account's sockets; after a relay reconnect every socket is closed and must authenticate again; no socket commands |
 | `src/http/supply.controller.ts` | Scoped create/read/cancel adapters: immutable command receipts, current private request status and exhaustive sanitised refusal mapping |
+| `src/http/geography.controller.ts` | Current own-world snapshot/catch-up reads; admitted caller authority only, no Cartographer request or transition acknowledgement |
 | `src/http/observations.controller.ts` | `POST /v1/observations/batch` (stored, not projected) and the dev-only evidence diagnostics read (world allow-list; 404 elsewhere) |
 | `src/modules/*.ts` | Feature wiring: identity (read ports, sign-in use cases and the mail sender chosen by configuration, the operator use case), content (read ports, the document renderer, the import use case), experience and evidence (intake) providers bound to this app's tokens |
 | `src/queues.ts` | The backend's `releaseQueues` (applied by `migrate.js`) |
@@ -65,3 +66,15 @@ return their immutable command receipts; GET returns current status and schedule
 retry. A ready result identifies available content without activating it. Unknown and foreign
 requests both answer `NOT_FOUND`; refusals disclose no private request body or backend detail.
 These routes do not authorize production or wait for a provider.
+
+Geography's read-only `POST /v1/universe/geography/read` and
+`POST /v1/universe/geography/deltas/read` use the existing strict bounded snapshot/cursor and
+contiguous delta contracts. POST preserves their nested JSON bodies and retains the same origin,
+session, scope and JSON guards. The backend derives the current own universe/epoch from the admitted
+caller, validates selection/cursors and returns independent personal/geography/component revisions.
+Foreign and unknown system selections both answer `NOT_FOUND`; mixed or expired cursors disclose
+no foreign world. Empty/loading/lagging/unavailable and `snapshot_required` are explicit backend
+states. Reads schedule no work, create no state row, acknowledge no presentation and grant no
+formation, scene, provider or sharing authority. Scene projection and its consumer remain separate.
+Installed-release HTTP fixtures exercise the real Nest/PG boundary without a worker or provider;
+they are not deployed map or formation evidence.
