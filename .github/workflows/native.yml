@@ -115,8 +115,14 @@ jobs:
             grep '^distributionUrl=' "$props"
             exit 1
           fi
-          echo "distributionSha256Sum=$KS_GRADLE_SHA256" >> "$props"
+          # The generated files may lack a final newline (prebuild's last property is
+          # `expo.inlineModules.watchedDirectories=[]`, which the build parses as JSON), so start a new line.
           {
+            echo
+            echo "distributionSha256Sum=$KS_GRADLE_SHA256"
+          } >> "$props"
+          {
+            echo
             echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
             echo "kotlin.daemon.jvmargs=-Xmx2g"
           } >> apps/client/android/gradle.properties
@@ -125,6 +131,9 @@ jobs:
           # Pull requests are not the default branch, so they would only read caches; let them write.
           cache-read-only: false
           validate-wrappers: true
+          # The default "enhanced" caching is proprietary (Gradle Technologies Terms of Use); the basic
+          # provider is the MIT one, over actions/cache.
+          cache-provider: basic
       # Only x86_64 (the emulator's ABI) is compiled. assembleRelease bundles the JavaScript into the
       # APK (expo export:embed through the React Native Gradle plugin); the release build type is
       # signed with the template's debug keystore, so no signing secret exists.
