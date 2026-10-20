@@ -41,7 +41,13 @@ export function makeCutroomReelImporter(db: Kysely<Database>, settings: CutroomI
     const status = await engine.status(command.runId);
     const result = await engine.result(command.runId);
     const record = await engine.record(command.runId);
-    if (!validateEngineRecord(status, result, record)) return { kind: 'refused', reason: 'record' } as const;
+    if (
+      status.runId !== command.runId ||
+      result.runId !== command.runId ||
+      record.runId !== command.runId ||
+      !validateEngineRecord(status, result, record)
+    )
+      return { kind: 'refused', reason: 'record' } as const;
     const file = await engine.openArtifact(result.video.path, command.runId);
     const staged = await localMediaStore(settings.mediaRoot).stage(file.stream);
     try {

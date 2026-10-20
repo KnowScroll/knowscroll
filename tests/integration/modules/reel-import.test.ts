@@ -48,6 +48,15 @@ describe('read-only Cutroom reuse (real database + generated fixture MP4)', () =
     fixture.status.requestId = 'wrong';
     expect(await importer()(command)).toMatchObject({ kind: 'refused', reason: 'record' });
     fixture.status.requestId = fixture.result.requestId;
+    const wrongRun = randomUUID();
+    fixture.status.runId = wrongRun;
+    fixture.result.runId = wrongRun;
+    fixture.record.runId = wrongRun;
+    // Coherent wrong identities are still not the requested approved run, even with its pinned path.
+    expect(await importer()(command)).toMatchObject({ kind: 'refused', reason: 'record' });
+    fixture.status.runId = fixtureRunId;
+    fixture.result.runId = fixtureRunId;
+    fixture.record.runId = fixtureRunId;
     const original = fixture.result.video.path;
     fixture.result.video.path = join(root, 'outside.mp4');
     await expect(importer()(command)).rejects.toThrow('artifact_unsafe');

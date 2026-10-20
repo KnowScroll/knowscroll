@@ -37,12 +37,23 @@ export function localMediaStore(root: string): MediaStore {
   const base = resolve(root);
   async function directory(path: string): Promise<void> {
     if (path !== base) await directory(dirname(path));
+    let created = true;
     await mkdir(path, { mode: 0o750 }).catch((error: NodeJS.ErrnoException) => {
+      created = false;
       if (error.code !== 'EEXIST') throw error;
     });
     const stat = await lstat(path);
     if (!stat.isDirectory() || stat.isSymbolicLink() || (await realpath(path)) !== path)
       throw new MediaRefusal('unsafe_path');
+    if (created) {
+      // Persist each newly-created directory entry, including ancestors of the final key.
+      const parent = await open(dirname(path), constants.O_RDONLY);
+      try {
+        await parent.sync();
+      } finally {
+        await parent.close();
+      }
+    }
   }
   async function safeOpen(key: string) {
     if (!keyPattern.test(key) || key.slice(7, 9) !== key.slice(10, 12)) throw new MediaRefusal('invalid_key');
