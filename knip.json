@@ -22,7 +22,7 @@
         "theme/**/*.ts",
         "e2e/**/*.{ts,mjs}"
       ],
-      "ignoreDependencies": ["babel-jest"]
+      "ignoreDependencies": ["babel-jest", "expo-clipboard"]
     },
     "packages/backend": {
       "project": ["src/**/*.ts"],
