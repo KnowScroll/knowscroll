@@ -81,6 +81,7 @@ by mail (`not_disposable`). Each issue writes an audit row in `ops.operator_sign
 | `KS_DB_STATEMENT_TIMEOUT_MS` | 15000 | as above |
 | `KS_SHUTDOWN_GRACE_SECONDS` | 20 | how long running handlers may finish after SIGTERM |
 | `KS_SCOPE_LOCK_TIMEOUT_MS` | 5000 | longest wait for a personal-scope lock (the job is retried); must be below `KS_DB_STATEMENT_TIMEOUT_MS` |
+| `KS_REASONING_PRODUCTION_ENABLED` | `0` | Worker-only nonpersonal Scroll supply grant (`0`/`1`). The database `scroll-supply` root must independently be enabled with the claimed generation. No provider activation. |
 | `KS_REASONING_PROVIDER` | `none` | the reasoning harness's model provider (S2.2). `none`: every `propose` is refused (`provider_unavailable`) before anything is reserved. `minimax`: the MiniMax token plan; any other value is refused at startup |
 | `MINIMAX_API_KEY` | required with `minimax`, otherwise unused | the token-plan key; must look like `sk-cp-…` (a pay-as-you-go key is refused: `invalid_format`). A credential: never logged, never in a problem message, never reaches the API (server: `/etc/knowscroll/secrets/shared/minimax.env`, an `EnvironmentFile=` of `ks2-worker@` only) |
 | `KS_MINIMAX_MODEL` | `MiniMax-M3` | one of `MiniMax-M3`, `MiniMax-M2.7`, `MiniMax-M2.7-highspeed` (`MiniMax-M3.1-Flash-Preview` is not on the token plan). Recorded on every attempt |

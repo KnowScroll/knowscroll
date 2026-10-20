@@ -47,3 +47,17 @@ export const SWEEP_DISPATCHED_ATTEMPTS = Symbol('reasoning.sweep-dispatched-atte
 
 /** Moves attempts left `dispatched` past the request deadline to `unknown`; resolves with how many. */
 export type SweepDispatchedAttempts = () => Promise<number>;
+
+export type {
+  ProductionAuthority,
+  ProductionScopeTx,
+  ProductionScopeOutcome,
+  WithProductionScope,
+  ProductionReasoningRun,
+  ProductionProposeInput,
+  ProductionReasoningHarness,
+} from './application/production.js';
+
+/** Worker-only injection tokens. Configuration and the database root default to disabled. */
+export const PRODUCTION_REASONING_HARNESS = Symbol('reasoning.production-harness');
+export const WITH_PRODUCTION_SCOPE = Symbol('reasoning.with-production-scope');

@@ -125,8 +125,26 @@ module.exports = {
       from: { path: '^packages/backend/src/infrastructure/' },
       to: {
         path: ['^packages/backend/src/(?:modules|reasoning)/', '^apps/'],
-        pathNot: '^packages/backend/src/modules/identity/public\\.ts$',
+        pathNot: [
+          '^packages/backend/src/modules/identity/public\\.ts$',
+          '^packages/backend/src/reasoning/public\\.ts$',
+        ],
       },
+    },
+    {
+      name: 'production-protocol-public-types-only',
+      severity: 'error',
+      from: { path: '^packages/backend/src/infrastructure/' },
+      to: { path: '^packages/backend/src/reasoning/public\\.ts$', dependencyTypesNot: ['type-only'] },
+    },
+    {
+      name: 'production-protocol-only',
+      severity: 'error',
+      from: {
+        path: '^packages/backend/src/infrastructure/',
+        pathNot: '^packages/backend/src/infrastructure/postgres/production-scope\\.ts$',
+      },
+      to: { path: '^packages/backend/src/reasoning/public\\.ts$' },
     },
     {
       name: 'contracts-are-wire-only',

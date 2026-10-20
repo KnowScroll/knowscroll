@@ -60,6 +60,71 @@ rules enforce it), so a module cannot build its own harness with its own ledger 
 ESLint rule keeps global `fetch`, Node's HTTP clients and provider SDKs out of everything but
 `infrastructure/` and `reasoning/adapters/` (`pnpm lint:probe:network` proves it bites).
 
+## Nonpersonal Scroll production (#232 foundation)
+
+The worker also injects `PRODUCTION_REASONING_HARNESS` (`ProductionReasoningHarness`) and
+`WITH_PRODUCTION_SCOPE` (`WithProductionScope`). Its additive methods are
+`proposeProduction({ run, role, context, limits }, signal)` and
+`closeProductionRun(scope, { runId, state })`. The existing personal methods are unchanged.
+`ProductionReasoningRun.authority` is `{ scopeId: 'scroll-supply', generation }`, with no account,
+universe, privacy epoch or borrowed user actor. The role/context/validation/repair/transport and
+attempt state machine are the same engine as personal proposals. This boundary admits no personal
+context: a production role must prepare public/sanitised source material and job-local brief refs.
+
+One `reasoning.production_scopes` row per database/world is the fixed Scroll supply root. Both
+`KS_REASONING_PRODUCTION_ENABLED=1` in worker configuration and `enabled=true` on that row are
+required. Both default off. This PR does not activate either. An operator may disable the root or
+advance its positive integer `generation` to fence queued/in-flight work; enabling a later generation
+does not make an old run current. No HTTP/frontend grant or automatic production activation exists.
+
+`withProductionScope` takes `FOR NO KEY UPDATE` on that root, then rechecks enabled/generation
+**after** the lock wait. Its frozen, branded capability expires with the callback. Lock order is
+production root → production run/attempt/domain rows → shared budget advisory lock. A production
+transaction never acquires a personal root; nested transactions and model network operations refuse
+under the same runtime transaction marker as personal scopes. Content adapters can use
+`productionTransactionOf(scope)` to apply accepted content and close the run in one transaction.
+Only a `closed` result authorises first application; rollback leaves the run open and fence unchanged.
+The root generation and run fence are separate: generation revokes old work, closure increments the
+run fence and prevents later proposal delivery. The applier reacquires the current root capability.
+
+Production storage is separate (`0013_reasoning_production_scope`):
+
+| Table | Key / ownership | Retention |
+|---|---|---|
+| `production_scopes` | Fixed `scroll-supply` root; enabled + generation | Retained, operator controlled |
+| `production_runs` | `(scope_id, id)`, root FK, admitted generation and monotonic run fence | Audit retained; no automatic run retention job yet |
+| `production_attempts` | `(scope_id, id)`, composite production run FK; same state/dispatch/write-off checks | Audit retained, including unknown liabilities |
+| `production_requests` | `(scope_id, attempt_id)`, composite production attempt FK, exact hash-checked bytes; `nonpersonal_production` | Same configured request expiry/purge and database backup policy as personal bytes |
+
+These tables have **no identity/universe foreign key and no personal erasure entry**. Personal erasure
+cannot own, retain or delete global supply. The existing minimal `usage_receipts` table is shared:
+production reservations and settlements participate in the same global and per-role caps; the scope
+cap counts the production root's own attempts. Attempt + exact request + receipt reserve atomically;
+settlement + receipt commit atomically even after the root is disabled/replaced. A paid answer after
+revocation is accounted but never returned as applicable output. Sweep, purge, unknown-list and
+write-off include both personal and production tables, independent of production enablement.
+Unknown/write-off never authorises another send, and late usage only updates the kept receipt.
+
+### Failure/concurrency brake policy `role-failure-brake.v1`
+
+Independently of spend caps, **five unresolved or conclusively failing runs per role per reservation
+UTC day** bound new primary runs across all workers, personal universes and production together.
+The shared budget advisory lock protects check + reservation. A held/unknown/written-off receipt
+occupies a slot; success or `not_sent` releases it; conclusive failure keeps a `conclusive_failure`
+boolean even when its spend reservation is fully refunded or the personal attempt is erased.
+The next new primary run returns `refused: failure_brake`, before quota/transport. Changing role
+version/provider/model or raising spend limits does not clear that role/day brake. A new UTC day
+uses its own admission window. Existing outcomes, reconciliation and the one bounded repair remain
+available; the brake is not a retry or a queue and never cancels accounting of work already admitted.
+
+No additional identity metadata is retained: one business run can occupy at most one matching
+receipt. A failed primary cannot repair; a repair follows a conclusively settled invalid primary
+(which holds no slot); a `not_sent` replacement releases its predecessor; unknown/written-off never
+starts a later paid attempt. CI regressions exercise these cases and cross-scope admission races.
+The migration backfills still-present failures; failures erased before this schema cannot be recovered
+from older receipts, which lacked an outcome marker. Rolling old workers may finish work but do not
+enforce the new brake; enforce the policy only after all reasoning workers run this revision.
+
 ## Tables
 
 | Table | Migration | Holds | Erasure |
@@ -138,7 +203,7 @@ ledger, and neither does the rejected answer. Never after `unknown` or `failed`.
 ## Budgets
 
 Three daily caps (UTC day), checked at admission under a transaction advisory lock: **global**,
-**role** (across universes) and **scope** (one universe). A reservation charges one request and
+**role** (across personal and production work) and **scope** (one universe or the production root). A reservation charges one request and
 `request bytes + max output tokens` tokens; reported usage replaces the estimate at settlement.
 What settles:
 
