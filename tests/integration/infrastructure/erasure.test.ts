@@ -172,10 +172,16 @@ describe('the erasure registry (real database)', () => {
     const seedReading = async (person: FixturePerson) => {
       const exposure = await openActive(scroll, person, starter);
       await activatedAgo(database.db, exposure.exposureId, 30);
-      const blocks = ['intro-look-up', 'intro-short-version', 'sunlight-prism'];
+      const facts = await database.db
+        .selectFrom('content.asset_revisions')
+        .select('reading_facts')
+        .where('asset_id', '=', starter.assetId)
+        .where('revision', '=', starter.revision)
+        .executeTakeFirstOrThrow();
+      const blocks = (facts.reading_facts as { blocks: { id: string }[] }).blocks.map((b) => b.id);
       const ingested = await scroll.ingestObservations(person.authority, {
         instrumentationVersion: 1,
-        events: [event(exposure, coverage(blocks, 3_000)), event(exposure, dwell([0, 9_000]))],
+        events: [event(exposure, coverage(blocks, 4_000)), event(exposure, dwell([0, 68_000]))],
       });
       if (ingested.kind !== 'ingested' || ingested.accepted !== 2) throw new Error('fixture observations refused');
       const projected = await scroll.projectScrollReading({
@@ -184,7 +190,17 @@ describe('the erasure registry (real database)', () => {
         privacyEpoch: 1,
         exposureId: exposure.exposureId,
       });
-      if (projected.kind !== 'applied') throw new Error('fixture projection skipped');
+      if (projected.kind !== 'applied' || projected.qualification !== 'qualified')
+        throw new Error('fixture qualified projection skipped');
+      // Seed real qualified structural support, so the unchanged every-store>0 assertion covers PC too.
+      expect(
+        await scroll.projectActivity({
+          v: 1,
+          universeId: person.universeId,
+          privacyEpoch: 1,
+          exposureId: exposure.exposureId,
+        }),
+      ).toMatchObject({ kind: 'applied' });
     };
     const seed = async (person: FixturePerson) => {
       await withPersonalScope(person.authority, (scope) =>

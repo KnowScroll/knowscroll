@@ -13,7 +13,7 @@ import { activatedAgo, coverage, dwell, event, openActive } from '../support/obs
 describe('incremental personal context (real PostgreSQL, authored CI fixtures only)', () => {
   let database: TestDatabase<Database>, c: Awaited<ReturnType<typeof scrollUseCases>>;
   let first: { assetId: string; revision: number }, twin: typeof first, blocks: string[];
-  const unit = `ci.context.unit.${randomUUID()}`,
+  const unit = `ci-context-unit-${randomUUID()}`,
     topicA = `ci.context.a.${randomUUID()}`,
     topicB = `ci.context.b.${randomUUID()}`;
   const evaluation = new Date(Date.now() + 3600000);
@@ -25,7 +25,8 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
       src.assetId = randomUUID();
       src.publication.explanationUnitId = unit;
       const r = await c.importScroll(src);
-      if (r.kind !== 'imported') throw new Error('authored CI fixture refused');
+      if (r.kind !== 'imported')
+        throw new Error(`authored CI fixture refused: ${r.reason}/${r.issues.map((i) => i.path).join(',')}`);
       await database.db.deleteFrom('content.encounter_topics').where('asset_id', '=', r.assetId).execute();
       await database.db
         .insertInto('content.encounter_topics')
