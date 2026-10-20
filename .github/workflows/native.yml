@@ -152,7 +152,7 @@ jobs:
           unzip -l "$apk" > "$RUNNER_TEMP/apk-files.txt"
           grep -E "assets/index.android.bundle|lib/x86_64/" "$RUNNER_TEMP/apk-files.txt" | head -n 20
           grep -q "assets/index.android.bundle" "$RUNNER_TEMP/apk-files.txt"
-          # The Hermes bundle keeps ASCII strings readable; the marker is the web export's check, on a device build.
+          # The Hermes bundle keeps ASCII strings readable; the gallery marker is the web export's check, on a device build.
           marker=$(unzip -p "$apk" assets/index.android.bundle | grep -a -c 'ks-component-gallery' || true)
           origin=$(unzip -p "$apk" assets/index.android.bundle | grep -a -c "$KS_API_ORIGIN" || true)
           {
@@ -163,6 +163,13 @@ jobs:
             echo "- API origin lines in the bundle: $origin"
             echo "- signer: debug key (no signing secret exists)"
           } >> "$GITHUB_STEP_SUMMARY"
+          # The native counterpart of the client job's "production export carries no developer gallery".
+          if [ "$KS_GALLERY" = "true" ]; then
+            test "$marker" -ge 1 || { echo "gallery build, but the bundle has no gallery marker"; exit 1; }
+          else
+            test "$marker" -eq 0 || { echo "EXPO_PUBLIC_KS_GALLERY is unset, but the bundle carries the developer gallery"; exit 1; }
+          fi
+          test "$origin" -ge 1 || { echo "the API origin $KS_API_ORIGIN is not in the bundle"; exit 1; }
       - name: Upload the APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

@@ -89,6 +89,7 @@ if [ "$gallery" = "true" ]; then
 else
   echo "KS-LANE-SKIP gallery.yaml and scroll-blocks.yaml: this APK was built without EXPO_PUBLIC_KS_GALLERY=1"
   results+=("| gallery | skipped (APK built without the gallery) | - |" "| scroll-blocks | skipped (APK built without the gallery) | - |")
+  run_flow no-gallery "$here/no-gallery.yaml"
 fi
 
 # ---------------------------------------------------------------------------------------------

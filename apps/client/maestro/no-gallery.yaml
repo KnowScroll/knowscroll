@@ -1,0 +1,24 @@
+# The counterpart of gallery.yaml, for a build made without EXPO_PUBLIC_KS_GALLERY=1 (a manual run with
+# gallery=false): the deep link reaches no developer gallery, only the not-found screen.
+appId: com.knowscroll.client
+name: No developer gallery in a build without it
+tags:
+  - no-gallery
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      id: destination-explore
+    timeout: 120000
+- openLink: knowscroll://gallery
+- extendedWaitUntil:
+    visible: This page isn.t here
+    timeout: 60000
+- assertNotVisible:
+    id: ks-component-gallery
+- takeScreenshot: no-gallery-01-not-found
+- tapOn: Go to Explore
+- assertVisible: Nothing is ready to play yet.
+- takeScreenshot: no-gallery-02-back-to-explore
