@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { captureBlockPosition, restoreBlockPosition, type PositionBinding } from './local-position';
 import type { ScrollReadingObserver } from '../observer';
 import type { BlockReadingProps, ReadingInsets, ReadingViewport } from './types';
 import { createVisibilityTracker, monotonicNow, visibleFractionOf, type VisibilityTracker } from './visibility';
@@ -15,6 +16,34 @@ class NativeReadingViewport implements ReadingViewport {
   private readonly tracker: VisibilityTracker;
   private scrollTop = 0;
   private height = 0;
+  private contentHeight = 0;
+  private binding: PositionBinding | null = null;
+  private restoring = true;
+
+  bindPosition(binding: PositionBinding): void {
+    this.binding = binding;
+    this.restorePosition();
+  }
+  disposePosition(): void {
+    this.binding = null;
+  }
+  capturePosition() {
+    return captureBlockPosition(this.boxes, this.scrollTop + this.insets.top);
+  }
+  private restorePosition(): void {
+    const initial = this.binding?.initial;
+    if (!this.restoring || initial === null || initial === undefined || this.height <= 0 || this.contentHeight <= 0)
+      return;
+    const box = this.boxes.get(initial.blockId);
+    if (box === undefined) return;
+    this.scrollTop = restoreBlockPosition(
+      box,
+      initial.offsetWithinBlock,
+      this.insets.top,
+      Math.max(0, this.contentHeight - this.height),
+    );
+    this.binding?.scrollTo(this.scrollTop);
+  }
 
   private observer: ScrollReadingObserver | undefined;
   private insets: ReadingInsets = { top: 0, bottom: 0 };
@@ -23,16 +52,29 @@ class NativeReadingViewport implements ReadingViewport {
     this.tracker = createVisibilityTracker(() => this.observer, monotonicNow);
     this.scrollProps = {
       scrollEventThrottle: 16,
+      onScrollBeginDrag: () => {
+        this.restoring = false;
+      },
+      onContentSizeChange: (_width, height) => {
+        this.contentHeight = height;
+        this.restorePosition();
+      },
       onLayout: (event: LayoutChangeEvent) => {
         this.height = event.nativeEvent.layout.height;
+        this.restorePosition();
         this.measureAll();
       },
       onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        this.scrollTop = event.nativeEvent.contentOffset.y;
+        const next = Math.max(0, event.nativeEvent.contentOffset.y);
+        // Accessibility scrolling need not send a drag event. An offset different from the
+        // last commanded restore is reader takeover too; its matching completion is not.
+        if (Math.abs(next - this.scrollTop) > 1) this.restoring = false;
+        this.scrollTop = next;
         // A scroll event that carries the viewport height keeps it fresh (rotation, keyboard).
         const measured = event.nativeEvent.layoutMeasurement.height;
         if (measured > 0) this.height = measured;
         this.measureAll();
+        if (!this.restoring || this.binding?.initial === null) this.binding?.changed();
       },
     };
   }
@@ -42,6 +84,7 @@ class NativeReadingViewport implements ReadingViewport {
     const replaced = this.observer !== observer;
     this.observer = observer;
     this.insets = insets;
+    this.restorePosition();
     if (replaced) this.tracker.replay();
   }
 
@@ -66,6 +109,7 @@ class NativeReadingViewport implements ReadingViewport {
   blockLaidOut(blockId: string, top: number, height: number): void {
     const box = { top, height };
     this.boxes.set(blockId, box);
+    this.restorePosition();
     this.tracker.measured(blockId, this.fractionOf(box));
   }
 }

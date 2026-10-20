@@ -1,3 +1,4 @@
+import type { PositionBinding, ScrollLocalPosition } from './local-position';
 import type { LayoutChangeEvent, ScrollViewProps, ViewInstance } from 'react-native';
 
 /** Space the article's own chrome covers at the top and bottom of the scrolling area. */
@@ -13,7 +14,13 @@ export interface ReadingInsets {
  */
 export interface ReadingViewport {
   /** Props for the article's vertical `ScrollView`. */
-  readonly scrollProps: Pick<ScrollViewProps, 'onScroll' | 'onLayout' | 'scrollEventThrottle'>;
+  readonly scrollProps: Pick<
+    ScrollViewProps,
+    'onScroll' | 'onLayout' | 'scrollEventThrottle' | 'onContentSizeChange' | 'onScrollBeginDrag'
+  >;
+  bindPosition(binding: PositionBinding): void;
+  capturePosition(): Pick<ScrollLocalPosition, 'blockId' | 'offsetWithinBlock'> | null;
+  disposePosition(): void;
   blockMounted(blockId: string): void;
   blockUnmounted(blockId: string): void;
   /** Native: a block's layout inside the scroll content. */

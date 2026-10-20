@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ViewInstance } from 'react-native';
+import { captureBlockPosition, restoreBlockPosition, type PositionBinding, type PositionBox } from './local-position';
 import type { ScrollReadingObserver } from '../observer';
 import type { BlockReadingProps, ReadingInsets, ReadingViewport } from './types';
 import { createVisibilityTracker, monotonicNow, type VisibilityTracker } from './visibility';
@@ -39,6 +40,84 @@ class WebReadingViewport implements ReadingViewport {
   private readonly tracker: VisibilityTracker;
   private readonly watched = new Map<string, Watched>();
   private resizer: ResizeObserver | null = null;
+  private binding: PositionBinding | null = null;
+  private restoring = true;
+  private commandedOffset: number | null = null;
+  private roots = new Map<EventTarget, () => void>();
+
+  bindPosition(binding: PositionBinding): void {
+    this.binding = binding;
+    for (const watched of this.watched.values()) this.listen(scrollerOf(watched.element));
+    this.restorePosition();
+  }
+  disposePosition(): void {
+    this.binding = null;
+    for (const cleanup of this.roots.values()) cleanup();
+    this.roots.clear();
+  }
+  private geometry() {
+    const boxes = new Map<string, PositionBox>();
+    let scrollTop = 0;
+    let maximum = 0;
+    for (const [blockId, watched] of this.watched) {
+      const root = scrollerOf(watched.element);
+      scrollTop = root?.scrollTop ?? window.scrollY;
+      const origin = root === null ? 0 : root.getBoundingClientRect().top + root.clientTop;
+      const rect = watched.element.getBoundingClientRect();
+      boxes.set(blockId, { top: rect.top - origin + scrollTop, height: rect.height });
+      maximum =
+        root === null
+          ? document.documentElement.scrollHeight - window.innerHeight
+          : root.scrollHeight - root.clientHeight;
+    }
+    return { boxes, scrollTop, maximum: Math.max(0, maximum) };
+  }
+  capturePosition() {
+    const geometry = this.geometry();
+    return captureBlockPosition(geometry.boxes, geometry.scrollTop + this.insets.top);
+  }
+  private restorePosition(): void {
+    const initial = this.binding?.initial;
+    if (!this.restoring || initial === null || initial === undefined) return;
+    const geometry = this.geometry();
+    const box = geometry.boxes.get(initial.blockId);
+    if (box === undefined || box.height <= 0) return;
+    const offset = restoreBlockPosition(box, initial.offsetWithinBlock, this.insets.top, geometry.maximum);
+    // Set before calling scrollTo: a platform may deliver its completion synchronously.
+    this.commandedOffset = offset;
+    this.binding?.scrollTo(offset);
+  }
+  private listen(root: Element | null): void {
+    const source = root ?? window;
+    if (this.roots.has(source)) return;
+    const changed = () => {
+      if (this.restoring && this.commandedOffset !== null) {
+        const geometry = this.geometry();
+        const initial = this.binding?.initial;
+        const box = initial === null || initial === undefined ? undefined : geometry.boxes.get(initial.blockId);
+        // Bounds can shrink before ResizeObserver runs; browser scroll anchoring can also
+        // move the block and offset together. Neither is reader takeover.
+        const expected = Math.min(this.commandedOffset, geometry.maximum);
+        const anchored =
+          box === undefined || initial === null || initial === undefined
+            ? expected
+            : restoreBlockPosition(box, initial.offsetWithinBlock, this.insets.top, geometry.maximum);
+        if (Math.abs(geometry.scrollTop - expected) > 1 && Math.abs(geometry.scrollTop - anchored) > 1) {
+          this.restoring = false;
+        }
+      }
+      if (!this.restoring || this.binding?.initial === null) this.binding?.changed();
+    };
+    const interrupt = () => {
+      this.restoring = false;
+    };
+    source.addEventListener('scroll', changed);
+    for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown']) source.addEventListener(type, interrupt);
+    this.roots.set(source, () => {
+      source.removeEventListener('scroll', changed);
+      for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown']) source.removeEventListener(type, interrupt);
+    });
+  }
 
   private observerOf: ScrollReadingObserver | undefined;
   private insets: ReadingInsets = { top: 0, bottom: 0 };
@@ -54,6 +133,7 @@ class WebReadingViewport implements ReadingViewport {
     const replaced = this.observerOf !== observer;
     this.observerOf = observer;
     this.insets = insets;
+    this.restorePosition();
     if (replaced) this.tracker.replay();
     if (insets.top !== this.built.top || insets.bottom !== this.built.bottom) {
       this.built = insets;
@@ -63,7 +143,12 @@ class WebReadingViewport implements ReadingViewport {
 
   private observe(blockId: string): void {
     const watched = this.watched.get(blockId);
-    if (watched === undefined || typeof IntersectionObserver === 'undefined') return;
+    if (watched === undefined) return;
+    watched.root = scrollerOf(watched.element);
+    this.listen(watched.root);
+    this.restorePosition();
+    this.resizeWatch(watched);
+    if (typeof IntersectionObserver === 'undefined') return;
     watched.io?.disconnect();
     const { top, bottom } = this.built;
     const root = scrollerOf(watched.element);
@@ -102,6 +187,7 @@ class WebReadingViewport implements ReadingViewport {
           Math.abs(block.element.getBoundingClientRect().height - block.height) >= 1;
         if (resized) this.observe(blockId);
       }
+      this.restorePosition();
     });
     this.resizer.observe(watched.element);
     if (watched.root !== null) this.resizer.observe(watched.root);
@@ -129,6 +215,8 @@ class WebReadingViewport implements ReadingViewport {
       if (this.watched.size === 0) {
         this.resizer?.disconnect();
         this.resizer = null;
+        for (const cleanup of this.roots.values()) cleanup();
+        this.roots.clear();
       }
     };
   }
