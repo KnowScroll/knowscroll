@@ -214,14 +214,16 @@ The HTTP declarations are `POST /v1/universe/geography/read` and
 `POST /v1/universe/geography/deltas/read`, with the existing strict read schemas and response unions.
 These are read-only operations: POST preserves the bounded nested selection/cursor JSON without
 inventing string codecs or a second query schema. Neither route is a cartography command or shown/
-skipped transition acknowledgement. The future adapter retains the existing origin/session/scope
+skipped transition acknowledgement. The API adapters retain the existing origin/session/scope
 guards and current own-scope backend reads; a cursor or revision grants no authority.
 
-The HTTP declarations are **not served by an API controller yet**. The separate Geography backend
-owns proposals, current trusted authority, policy, atomic application, durable deltas and erasure.
-Neither these declarations nor a read establishes real maps/coverage, a Cartographer run, scene
-projection, UI/native/browser behaviour or deployment acceptance. Scene descriptors/manifests and
-projection have separate versions and consumers.
+These HTTP declarations alone grant no authority. The separate Geography API read adapters are
+implemented on integration, using the current own-scope backend reads and existing guards. This is
+source implementation, not dev/live formation or deployment acceptance. The Geography backend owns
+proposals, current trusted authority, policy, atomic application, durable deltas and erasure.
+Neither a declaration nor a read establishes real maps/coverage, a Cartographer run, scene projection
+or UI/native/browser behaviour. Scene routes declared below are still not served or projected;
+scene descriptors/manifests and projection have separate versions and consumers.
 `geography.test.ts` contains synthetic wire-validation fixtures only; automated suites run in Actions.
 
 Rules:
