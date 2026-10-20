@@ -216,9 +216,9 @@ No new recipe inherits a Reel identity, series relationship or semantic coverage
 
 | Key / explanation identity | Intended teaching question | Required interaction | Bounded source list |
 |---|---|---|---|
-| `greenhouse-radiation` / `earth-greenhouse-radiation-paths.v1` | Follow reflection, absorption and emission along incoming/outgoing radiation paths | Selectable physical-process diagram frames with accessible text; no time simulation | NASA radiation budget + greenhouse FAQ |
-| `greenhouse-balance` / `earth-greenhouse-system-balance.v1` | Distinguish internal redistribution from energy crossing the whole-system boundary; compare equilibrium and imbalance | Qualitative balance/imbalance diagram states with accessible text; no prediction | NASA energy budget + greenhouse FAQ |
-| `greenhouse-limits` / `earth-greenhouse-analogy-audit.v1` | Audit useful versus misleading blanket inferences and natural versus strengthened context | Comparison or disclosure; no interactive requirement | NASA radiation budget + greenhouse FAQ |
+| `greenhouse-radiation` / `earth-greenhouse-radiation-paths-v1` | Follow reflection, absorption and emission along incoming/outgoing radiation paths | Selectable physical-process diagram frames with accessible text; no time simulation | NASA radiation budget + greenhouse FAQ |
+| `greenhouse-balance` / `earth-greenhouse-system-balance-v1` | Distinguish internal redistribution from energy crossing the whole-system boundary; compare equilibrium and imbalance | Qualitative balance/imbalance diagram states with accessible text; no prediction | NASA energy budget + greenhouse FAQ |
+| `greenhouse-limits` / `earth-greenhouse-analogy-audit-v1` | Audit useful versus misleading blanket inferences and natural versus strengthened context | Comparison or disclosure; no interactive requirement | NASA radiation budget + greenhouse FAQ |
 
 The analogy audit deliberately excludes another complete radiation-path/balance tutorial. It
 still overlaps background ideas in the unchanged broad greenhouse overview: new keys, titles,

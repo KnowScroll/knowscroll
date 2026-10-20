@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  type DraftProvenance,
+  DraftProvenance,
   ScrollDraft,
   blockCatalogueText,
   normaliseDraftInput,
@@ -330,6 +330,17 @@ describe('code-owned explanation recipes (source declarations, not generated sem
     expect(TOPICS['greenhouse-limits'].brief).toContain('useful comparison versus misleading inference');
     expect(TOPICS['greenhouse-radiation'].pages).toEqual(TOPICS['greenhouse-limits'].pages);
     expect(TOPICS['greenhouse-balance'].pages).not.toEqual(TOPICS['greenhouse-radiation'].pages);
+    for (const topic of Object.keys(TOPICS) as (keyof typeof TOPICS)[]) {
+      const declared = generatedProvenance({
+        topic,
+        runId: 'fixture-writer-run',
+        attemptIds: ['fixture-attempt'],
+        model: 'CI-fixture-only',
+        claims,
+        pages: [page],
+      });
+      expect(DraftProvenance.safeParse(declared).success, topic).toBe(true);
+    }
     for (const raw of [
       undefined,
       '',

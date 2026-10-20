@@ -36,7 +36,7 @@ export const TOPICS = {
     pages: ['https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/'],
   },
   'greenhouse-radiation': {
-    explanationUnitId: 'earth-greenhouse-radiation-paths.v1',
+    explanationUnitId: 'earth-greenhouse-radiation-paths-v1',
     interactive: true,
     topicId: 'earth.greenhouse-effect',
     assetId: '76b65d2e-991a-4be8-9d70-aab9f275396c',
@@ -48,7 +48,7 @@ export const TOPICS = {
     ],
   },
   'greenhouse-balance': {
-    explanationUnitId: 'earth-greenhouse-system-balance.v1',
+    explanationUnitId: 'earth-greenhouse-system-balance-v1',
     interactive: true,
     topicId: 'earth.greenhouse-effect',
     assetId: '02a7bdec-4628-4360-8f59-de7b459b183d',
@@ -60,7 +60,7 @@ export const TOPICS = {
     ],
   },
   'greenhouse-limits': {
-    explanationUnitId: 'earth-greenhouse-analogy-audit.v1',
+    explanationUnitId: 'earth-greenhouse-analogy-audit-v1',
     interactive: false,
     topicId: 'earth.greenhouse-effect',
     assetId: 'ff51d698-4d91-4ce9-b54a-4c88f0e9ef9d',
