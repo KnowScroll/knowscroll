@@ -113,7 +113,7 @@ describe('Experience navigation and actual routing activity (real PostgreSQL CI 
     );
     await database.db
       .updateTable('experience.offers')
-      .set({ expires_at: new Date(Date.now() - 1000), created_at: new Date(Date.now() - 16 * 60000) })
+      .set({ expires_at: new Date(Date.now() - 2 * 60000), created_at: new Date(Date.now() - 16 * 60000) })
       .where('universe_id', '=', p.universeId)
       .where('id', '=', a.offer.offerId)
       .execute();
@@ -174,7 +174,7 @@ describe('Experience navigation and actual routing activity (real PostgreSQL CI 
     );
     await database.db
       .updateTable('experience.offers')
-      .set({ expires_at: new Date(Date.now() - 1000), created_at: new Date(Date.now() - 16 * 60000) })
+      .set({ expires_at: new Date(Date.now() - 2 * 60000), created_at: new Date(Date.now() - 16 * 60000) })
       .where('universe_id', '=', p.universeId)
       .where('id', '=', open.offer.offerId)
       .execute();
@@ -754,9 +754,10 @@ describe('Experience navigation and actual routing activity (real PostgreSQL CI 
       .execute();
     expect(rows).toHaveLength(3);
     expect(rows.every((x) => x.policy_version === 'offer.v0')).toBe(true);
-    expect(rows.map((x) => x.descriptor).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))).toEqual(
-      [...all].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
-    );
+    // JSONB object-key order differs from JS insertion order; bind exact descriptor comparison
+    // by its immutable ID. The replay assertion below separately preserves chosen/buffer order.
+    for (const descriptor of all)
+      expect(rows.find((row) => row.id === descriptor.offerId)?.descriptor).toEqual(descriptor);
     // Replay must use the committed immutable descriptor even after metadata and TTL change.
     await database.db
       .updateTable('content.discovery_revisions')
@@ -765,7 +766,7 @@ describe('Experience navigation and actual routing activity (real PostgreSQL CI 
       .execute();
     await database.db
       .updateTable('experience.offers')
-      .set({ expires_at: new Date(Date.now() - 1000), created_at: new Date(Date.now() - 16 * 60000) })
+      .set({ expires_at: new Date(Date.now() - 2 * 60000), created_at: new Date(Date.now() - 16 * 60000) })
       .where('universe_id', '=', p.universeId)
       .execute();
     expect(ready(await c.navigate(p.authority, cmd))).toEqual({ ...o, replayed: true });
