@@ -121,3 +121,29 @@ block, trash, pin, branch map, captions) are added with the surfaces that use th
 Content, message, snippet and branch cards, the share sheet's options, episode browser, mini
 player, thread rail, continue tab, inputs, switches, settings rows and the spatial kit are built
 with the journeys that use them, from these tokens and primitives.
+
+
+### Private local Scroll positions
+
+`ScrollArticle` accepts `initialPosition: ScrollLocalPosition` and exposes
+`positionRef: Ref<ScrollPositionHandle>`. Call `positionRef.current?.capture()` synchronously
+**before** parking or unmounting the article; geometry and the ref disappear during cleanup.
+`onPositionChange` also reports scrolling while the article is unpaused. These are local session
+callbacks, separate from `ScrollReadingObserver`; never put offsets in telemetry, URLs or API
+payloads. The AccountScope consumer owns storage, identity fencing and purge.
+
+Positions bind `assetId`, immutable `revision`, measured top-level `blockId` and
+`offsetWithinBlock` (pixels from the block top to the unobscured reading edge). Web uses actual
+DOM rectangles relative to the article scroller; native uses layout and scroll geometry. Restore
+waits for usable geometry, subtracts the current reading top inset, clamps to the current block
+height and scrollable content bounds, and adjusts after layout/font/viewport changes until the
+reader takes over. Restoring invokes no block interaction; subsequent actual visible reading
+continues through the normal observer/activity path.
+
+Unknown blocks, different assets/revisions and non-finite offsets do not restore local offsets.
+`anchorBlockId` retains its existing opening/highlight behaviour and is the fallback when given.
+Captures inside an expanded disclosure use its top-level block ID and offset; preserve the
+revision-keyed block store alongside the local position. Resume opens that disclosure before
+layout. An explicitly supplied nested child ID has no independent measured box: it falls back
+to the existing open-disclosure anchor behaviour, without converting its offset to parent pixels.
+`initialPosition` is mount-only; remount for a different restore intent.

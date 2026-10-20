@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'test-renderer';
 import type { ScrollReadingObserver } from '../observer';
 import { useBlockReading, useReadingViewport } from './reading-viewport';
-import type { BlockReadingProps } from './types';
+import type { ReadingViewport, BlockReadingProps } from './types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -50,12 +50,15 @@ function Probe({
   observer,
   onProps,
   bottom = 20,
+  onViewport,
 }: {
   observer?: ScrollReadingObserver;
   onProps: (props: BlockReadingProps) => void;
   bottom?: number;
+  onViewport?: (viewport: ReadingViewport) => void;
 }) {
   const viewport = useReadingViewport(observer, { top: 0, bottom });
+  onViewport?.(viewport);
   onProps(useBlockReading(viewport, 'chart-1'));
   return null;
 }
@@ -141,5 +144,61 @@ describe('the web reading viewport', () => {
     const watcher = observerDouble();
     expect(() => mount(watcher)).not.toThrow();
     expect(watcher.onBlockVisibility).toHaveBeenCalledWith(expect.objectContaining({ visibleFraction: 0 }));
+  });
+});
+
+describe('private web resume geometry', () => {
+  it('captures a tall block at the reading edge, restores after font resize and clamps to the content end', () => {
+    let viewport!: ReadingViewport;
+    let props: BlockReadingProps = {};
+    let blockTop = 300;
+    height = 2400;
+    Object.defineProperty(scroller, 'scrollHeight', { value: 4000, configurable: true });
+    scroller.getBoundingClientRect = () => ({ top: 80 }) as DOMRect;
+    element.getBoundingClientRect = () => ({ top: 80 + blockTop - scroller.scrollTop, height }) as DOMRect;
+    act(() =>
+      root.render(
+        <Probe
+          onProps={(next) => {
+            props = next;
+          }}
+          onViewport={(next) => {
+            viewport = next;
+          }}
+        />,
+      ),
+    );
+    props.ref?.(element as never);
+    scroller.scrollTop = 1400;
+    expect(viewport.capturePosition()).toEqual({ blockId: 'chart-1', offsetWithinBlock: 1100 });
+    const changed = jest.fn();
+    const scrollTo = jest.fn((y: number) => {
+      scroller.scrollTop = y;
+    });
+    viewport.bindPosition({ initial: { blockId: 'chart-1', offsetWithinBlock: 1100 }, changed, scrollTo });
+    expect(scrollTo).toHaveBeenLastCalledWith(1400);
+    scroller.dispatchEvent(new Event('scroll'));
+    expect(changed).not.toHaveBeenCalled();
+    // Text above the block grows, then this block shrinks below the stored offset.
+    blockTop = 500;
+    height = 700;
+    FakeResizeObserver.instance.emit(element);
+    expect(scrollTo).toHaveBeenLastCalledWith(1200);
+    Object.defineProperty(scroller, 'scrollHeight', { value: 1700, configurable: true });
+    FakeResizeObserver.instance.emit(scroller);
+    expect(scrollTo).toHaveBeenLastCalledWith(880);
+    scroller.dispatchEvent(new Event('wheel'));
+    scroller.scrollTop = 600;
+    scroller.dispatchEvent(new Event('scroll'));
+    expect(changed).toHaveBeenCalledTimes(1);
+    const calls = scrollTo.mock.calls.length;
+    FakeResizeObserver.instance.emit(element);
+    expect(scrollTo).toHaveBeenCalledTimes(calls);
+    viewport.disposePosition();
+    scroller.dispatchEvent(new Event('scroll'));
+    expect(changed).toHaveBeenCalledTimes(1);
+    props.ref?.(null);
+    FakeResizeObserver.instance.emit(element);
+    expect(scrollTo).toHaveBeenCalledTimes(calls);
   });
 });
