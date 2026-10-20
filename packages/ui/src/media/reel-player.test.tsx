@@ -81,8 +81,10 @@ describe('SDK58 web replacement autoplay', () => {
     const listeners = new Map<string, (payload: unknown) => void>();
     const pause = jest.fn();
     const sample = jest.fn();
+    const autoplayMuted: boolean[] = [];
     const player = {
       currentTime: 0,
+      muted: false,
       playing: true,
       status: 'readyToPlay',
       playbackRate: 1,
@@ -90,6 +92,7 @@ describe('SDK58 web replacement autoplay', () => {
       pause,
       replaceAsync: () => {
         // Installed SDK58's web implementation attempts play during replace, even while paused.
+        autoplayMuted.push(player.muted);
         listeners.get('playingChange')?.({ isPlaying: true });
         return Promise.resolve();
       },
@@ -119,9 +122,40 @@ describe('SDK58 web replacement autoplay', () => {
       await Promise.resolve();
     });
     expect(pause).toHaveBeenCalled();
+    expect(autoplayMuted).toEqual([true]);
     expect(sample).toHaveBeenCalledWith(expect.objectContaining({ playing: false }));
     expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
     await rendered.unmount();
+  });
+});
+
+// This SDK stand-in intentionally exercises renewal scheduling, not real video decoding.
+describe('paused grant renewal', () => {
+  it('defers replacement until explicit Play and retains the playback position', async () => {
+    jest.useFakeTimers();
+    const replace = jest.fn(() => Promise.resolve());
+    const play = jest.fn();
+    const player = {
+      currentTime: 7, muted: false, playing: false, status: 'readyToPlay', playbackRate: 1,
+      pause: jest.fn(), play, replaceAsync: replace, addListener: () => ({ remove: () => undefined }),
+    } as unknown as VideoPlayer;
+    jest.mocked(useVideoPlayer).mockReturnValue(player);
+    const load = jest.fn(() => Promise.resolve({
+      source: { uri: 'https://fixture.invalid/media/fixture' },
+      expiresAt: new Date(Date.now() + 60000).toISOString(),
+    }));
+    const rendered = await renderOn(<ReelPlayer title="Fixture" durationMs={30000} active loadSource={load}
+      onSample={() => undefined} onDiscontinuity={() => undefined} registerEnd={() => () => undefined} />);
+    await act(async () => { jest.advanceTimersByTime(45000); await Promise.resolve(); });
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(play).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    expect(replace).toHaveBeenCalledTimes(2);
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(player.currentTime).toBe(7);
+    await rendered.unmount();
+    jest.useRealTimers();
   });
 });

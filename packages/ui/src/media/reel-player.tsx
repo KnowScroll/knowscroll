@@ -57,6 +57,9 @@ export function ReelPlayer({
   const resumePosition = useRef(0);
   const playbackIntent = useRef(false);
   const replacing = useRef(false);
+  const needsRefresh = useRef(true);
+  const loaded = useRef(false);
+  const refreshSource = useRef<() => Promise<void>>(() => Promise.resolve());
   const [status, setStatus] = useState<'loading' | 'ready' | 'buffering' | 'error'>('loading');
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
@@ -102,18 +105,39 @@ export function ReelPlayer({
       }
     };
     const unregister = registerEnd(stop);
-    const refresh = async () => {
+    const refresh = async (allowPaused = false) => {
       if (disposed || refreshing) return;
+      // Buffered media can remain paused past grant expiry. Obtain a fresh grant only on
+      // explicit Play; SDK58 source replacement itself tries autoplay on web.
+      if (loaded.current && !allowPaused && (!playbackIntent.current || !activeRef.current || !visible.current)) {
+        needsRefresh.current = true;
+        return;
+      }
       refreshing = true;
       try {
         const grant = await loadSource();
         if (disposed) return;
+        if (loaded.current && !allowPaused && (!playbackIntent.current || !activeRef.current || !visible.current)) {
+          needsRefresh.current = true;
+          return;
+        }
         const time = Math.max(player.currentTime, resumePosition.current);
         const resume = playbackIntent.current;
         replacing.current = true;
         pausePlayback(player);
         onDiscontinuity();
-        await player.replaceAsync(grant.source);
+        const wasMuted = player.muted;
+        player.muted = true;
+        try {
+          const pending = player.replaceAsync(grant.source);
+          // Web replaceAsync calls HTMLVideoElement.play synchronously. Cancel it in this
+          // same JS turn, before its asynchronous playback task, with audio already muted.
+          pausePlayback(player);
+          await pending;
+          pausePlayback(player);
+        } finally {
+          player.muted = wasMuted;
+        }
         if (disposed) {
           pausePlayback(player);
           return;
@@ -124,10 +148,13 @@ export function ReelPlayer({
         setPlaying(false);
         seekPlayback(player, time);
         replacing.current = false;
+        loaded.current = true;
+        needsRefresh.current = false;
         if (resume && playbackIntent.current && activeRef.current && visible.current) player.play();
         timer = setTimeout(
           () => {
-            void refresh();
+            refreshSource.current = () => refresh();
+    void refresh(true);
           },
           Math.max(1000, Math.min(40000, Date.parse(grant.expiresAt) - Date.now() - 15000)),
         );
@@ -235,7 +262,8 @@ export function ReelPlayer({
                   resumePosition.current = 0;
                 }
                 playbackIntent.current = true;
-                player.play();
+                if (needsRefresh.current) void refreshSource.current();
+                else player.play();
               }
             }}
           />
