@@ -46,12 +46,15 @@ export type TrustedCoverageRead<Certificate = unknown> = {
   | {
       readonly availability: 'unavailable';
       readonly reason: 'limit' | 'authority_changed' | 'not_observed';
+      readonly supports: readonly [];
       readonly witnesses: readonly [];
       readonly certificates: readonly [];
     }
   | {
       readonly availability: 'available';
       readonly reason: 'current';
+      /** Deduplicated semantic keys; witnesses are source provenance, never variety counts. */
+      readonly supports: readonly (CoverageSupport & { readonly witnessExposureIds: readonly string[] })[];
       readonly witnesses: readonly (CoverageSupport & {
         readonly exposureId: string;
         readonly certificateSha256: string;

@@ -140,7 +140,11 @@ stored hashes/epoch, batch-checks exact latest Evidence, rechecks current Conten
 survive caller commit. Corrected/retracted/withdrawn authority excludes old certificates even before
 another reading or reconciliation job. Output<=128KiB; overflow returns typed unavailable/limit and
 `completeness:not_asserted`, never a truncated completeness claim. No current observed witness returns unavailable/not_observed; this is not proof that all
-historical reading was projected. Returned exact certificate IDs/digests and witnesses
+historical reading was projected. Each canonical topic/facet/meaning/unit/truth `supports` key appears once in deterministic order and
+references at least one current revalidated witness exposure. Separate exposure-level witnesses
+remain audit provenance; their row count never measures variety, and future formation must still
+distinct canonical units across multiple facet keys. Last current reference removes the support.
+Returned exact certificate IDs/digests and witnesses
 make unit/facet support inspectable without raw observations or provenance text.
 
 Migration0023 adds `coverage_contributions` (current certificate<=16KiB plus real activity FK),

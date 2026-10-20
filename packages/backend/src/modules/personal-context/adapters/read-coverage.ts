@@ -22,6 +22,7 @@ const unavailable = (
   ...base,
   availability: 'unavailable',
   reason,
+  supports: [],
   witnesses: [],
   certificates: [],
 });
@@ -107,14 +108,39 @@ export function makeReadTrustedCoverage(p: CoverageDependencies): ReadTrustedCov
         certificateSha256: certificates.get(r.exposure_id)!.digest,
       }));
     if (!witnesses.length) return unavailable('not_observed');
+    // One canonical semantic support key, regardless of repeated/variant source witnesses.
+    const groups = new Map<string, { support: ReturnType<typeof coverageSupports>[number]; exposures: Set<string> }>();
+    for (const w of witnesses) {
+      const support = {
+        topicId: w.topicId,
+        facetId: w.facetId,
+        meaningSha256: w.meaningSha256,
+        explanationUnitId: w.explanationUnitId,
+        truthSha256: w.truthSha256,
+      };
+      const key = coverageSupportKey(support),
+        group = groups.get(key) ?? { support, exposures: new Set<string>() };
+      group.exposures.add(w.exposureId);
+      groups.set(key, group);
+    }
+    const supports = [...groups]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([, g]) => ({ ...g.support, witnessExposureIds: [...g.exposures].sort() }));
+    witnesses.sort((a, b) => {
+      const x = coverageSupportKey(a),
+        y = coverageSupportKey(b);
+      return x < y ? -1 : x > y ? 1 : a.exposureId < b.exposureId ? -1 : a.exposureId > b.exposureId ? 1 : 0;
+    });
     const used = new Set(witnesses.map((w) => w.exposureId));
     const result: TrustedCoverageRead<ObservedCoverage> = {
       ...base,
       availability: 'available',
       reason: 'current',
+      supports,
       witnesses,
       certificates: valid
         .filter((c) => used.has(c.exposureId))
+        .sort((a, b) => (a.exposureId < b.exposureId ? -1 : a.exposureId > b.exposureId ? 1 : 0))
         .map((c) => ({ certificateSha256: certificates.get(c.exposureId)!.digest, certificate: c })),
     };
     return utf8ByteLength(canonicalJson(result)) > 131072 ? unavailable('limit') : result;

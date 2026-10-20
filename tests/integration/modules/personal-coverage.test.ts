@@ -171,6 +171,9 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
       supportedFormats: ['scroll'],
     });
     expect(result.witnesses).toHaveLength(1);
+    expect(result.supports).toMatchObject([
+      { topicId: topic, facetId: facet, explanationUnitId: f.unit, witnessExposureIds: [e.exposureId] },
+    ]);
     expect(result.witnesses[0]).toMatchObject({
       topicId: topic,
       facetId: facet,
@@ -220,6 +223,18 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
         .where('universe_id', '=', p.universeId)
         .execute();
     expect(await counts()).toMatchObject([{ reference_count: 2, explanation_unit_id: a.unit, facet_id: facet }]);
+    const initial = await proof(p, a.unit);
+    expect(initial.witnesses).toHaveLength(2);
+    expect(initial.supports).toEqual([
+      {
+        topicId: topic,
+        facetId: facet,
+        meaningSha256: a.map.bindings[0]!.meaningSha256,
+        explanationUnitId: a.unit,
+        truthSha256: a.map.framingSha256,
+        witnessExposureIds: [ea.exposureId, eb.exposureId].sort(),
+      },
+    ]);
     const mapB = {
       ...a.map,
       bindings: [
@@ -243,12 +258,15 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     expect(await counts()).toHaveLength(2);
     const mapped = await proof(p, a.unit);
     expect(mapped.witnesses.map((w) => w.facetId).sort()).toEqual([facet, otherFacet].sort());
+    expect(mapped.supports.map((s) => s.facetId)).toEqual([facet, otherFacet].sort());
+    expect(new Set(mapped.supports.map((s) => s.explanationUnitId))).toEqual(new Set([a.unit]));
     await admit()(approved({ ...a.command, expectedHeadRevision: 2 }));
     expect(await c.projectActivity(job(p, ea.exposureId))).toMatchObject({
       kind: 'applied',
       activityId: current.activity_id,
     });
     expect(await counts()).toMatchObject([{ reference_count: 2, facet_id: facet }]);
+    expect((await proof(p, a.unit)).supports).toHaveLength(1);
     expect(await activityRows(p)).toEqual(before);
     const state = await database.db
       .selectFrom('identity.universes')
@@ -263,6 +281,13 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
         .where('id', '=', p.universeId)
         .executeTakeFirstOrThrow(),
     ).toEqual(state);
+    await admit()(approved({ ...a.command, expectedHeadRevision: 3, change: { kind: 'retract' } }));
+    expect((await proof(p, a.unit)).supports).toMatchObject([{ witnessExposureIds: [eb.exposureId] }]);
+    await admit()(approved({ ...b.command, expectedHeadRevision: 1, change: { kind: 'retract' } }));
+    expect((await proof(p, a.unit)).supports).toEqual([]);
+    await c.projectActivity(job(p, ea.exposureId));
+    await c.projectActivity(job(p, eb.exposureId));
+    expect(await counts()).toEqual([]);
   });
   it('immediately excludes retracted/withdrawn authority before projection, then removes the last incremental support', async () => {
     const p = await seedPerson(database.db),
@@ -270,6 +295,7 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
       e = await read(p, f);
     await admit()(approved({ ...f.command, expectedHeadRevision: 1, change: { kind: 'retract' } }));
     expect((await proof(p, f.unit)).witnesses).toEqual([]);
+    expect((await proof(p, f.unit)).supports).toEqual([]);
     expect(
       await database.db
         .selectFrom('personal_context.coverage_supports')
@@ -381,6 +407,7 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
       reason: 'limit',
       completeness: 'not_asserted',
       supportedFormats: ['scroll'],
+      supports: [],
       witnesses: [],
       certificates: [],
     });
