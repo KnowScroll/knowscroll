@@ -434,8 +434,20 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       { role_id: 'content.scroll-writer', step: 'repair', outcome_code: 'REPLY_TOOL_SHAPE_INVALID', output: null },
     ]);
     expect(await database.db.selectFrom('content.asset_revisions').select('asset_id').execute()).toHaveLength(0);
-    expect(await p.produce('greenhouse', false, signal(), true)).toEqual(result);
+    // Top-level rejection codes describe this delivery; the persisted summary retains receipts instead.
+    const { codes, ...persistedSummary } = result;
+    expect(codes).toEqual(['invalid_output']);
+    expect(await p.produce('greenhouse', false, signal(), true)).toEqual(persistedSummary);
     expect(p.calls).toHaveLength(3);
+    expect(p.quotaChecks()).toBe(3);
+    expect(
+      await database.db
+        .selectFrom('reasoning.production_attempts')
+        .select(['role_id', 'step', 'outcome_code', 'output'])
+        .orderBy('reserved_at')
+        .orderBy('id')
+        .execute(),
+    ).toEqual(attempts);
   });
 
   it.each(['claims', 'writer'] as const)(
