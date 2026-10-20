@@ -2,7 +2,7 @@ import type { ScrollInteractionKind } from '@knowscroll/contracts';
 
 /**
  * What a Scroll renderer reports while a person reads (blueprint §18 "Shared interaction recorder").
- * It is **structurally identical** to `ScrollReadingObserver` in `packages/ui/src/scroll/observer.ts`
+ * It is **structurally compatible** to `ScrollReadingObserver` in `packages/ui/src/scroll/observer.ts`
  * (owned by the renderer work): client-core never imports `ui`, the client app hands the recorder's
  * observer to the article, and TypeScript checks the shapes agree where it does.
  *

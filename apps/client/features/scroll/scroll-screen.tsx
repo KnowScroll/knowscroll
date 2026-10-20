@@ -2,16 +2,15 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createScrollRecorder, type AccountScope } from '@knowscroll/client-core';
+import { createScopedBlockStateStore, createScrollRecorder, type AccountScope } from '@knowscroll/client-core';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
-import { Banner, ErrorState, IconButton, OfflineState, Skeleton, StateBlock } from '@knowscroll/ui';
+import { Banner, ErrorState, IconButton, OfflineState, ScrollArticle, Skeleton, StateBlock } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { combineObservers, createAnchorKeeper } from './anchor-keeper';
 import type { OpenedScroll } from './scroll-session';
-import { TemporaryArticle } from './temporary-article';
 import { useScrollSession } from './use-scroll-session';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -81,16 +80,20 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
     // Parent cleanup runs before the article cleanup: closing recorder intervals must not move resume.
     return () => keeper.stop();
   }, [keeper]);
+  const blockState = useMemo(() => createScopedBlockStateStore(scope.storage), [scope]);
   const observer = useMemo(() => combineObservers(recorder.observer, keeper.observer), [recorder, keeper]);
   // A deep link names the block (`?anchor=<blockId>`); otherwise the person's own last position.
   const [anchorBlockId] = useState(() => firstOf(params.anchor) ?? keeper.restore());
   return (
     <View style={styles.article}>
-      <TemporaryArticle
+      <ScrollArticle
+        key={`${scroll.assetId}:${String(scroll.assetRevision)}:${anchorBlockId ?? ''}`}
+        store={blockState}
         document={scroll.document}
         observer={observer}
         {...(anchorBlockId === undefined ? {} : { anchorBlockId })}
         contentInset={{ top: insets.top + 72, bottom: spacing[24] + insets.bottom }}
+        readingInset={{ top: insets.top + 72, bottom: insets.bottom }}
         afterHeader={
           scroll.degradedEssential.length > 0 ? (
             <Banner kind="info" lead="Part of this Scroll needs an app update." message="It is shown here as text." />
