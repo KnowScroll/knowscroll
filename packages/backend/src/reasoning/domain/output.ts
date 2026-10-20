@@ -92,14 +92,29 @@ function primitiveList(values: unknown): string | undefined {
   return shown.length === 0 ? undefined : shown.join(', ');
 }
 
+/**
+ * A bound with its unit, which the schema knows and the model does not: "at most 4 characters",
+ * "at least 1 item", "at most 10" (a number). A bare number would be ambiguous to the model.
+ */
+function bound(limit: number, origin: unknown, phrase: string): string {
+  const plural = limit === 1 ? '' : 's';
+  const unit =
+    origin === 'string' ? ` character${plural}` : origin === 'array' || origin === 'set' ? ` item${plural}` : '';
+  return `${phrase} ${limit}${unit}`;
+}
+
 function detailOf(issue: Readonly<Record<string, unknown>>): string | undefined {
   switch (issue['code']) {
     case 'invalid_type':
       return typeof issue['expected'] === 'string' ? `expected ${issue['expected']}` : undefined;
     case 'too_big':
-      return typeof issue['maximum'] === 'number' ? `maximum ${issue['maximum']}` : undefined;
+      return typeof issue['maximum'] === 'number'
+        ? bound(issue['maximum'], issue['origin'], issue['inclusive'] === false ? 'fewer than' : 'at most')
+        : undefined;
     case 'too_small':
-      return typeof issue['minimum'] === 'number' ? `minimum ${issue['minimum']}` : undefined;
+      return typeof issue['minimum'] === 'number'
+        ? bound(issue['minimum'], issue['origin'], issue['inclusive'] === false ? 'more than' : 'at least')
+        : undefined;
     // The received key names are never echoed: they come from the rejected answer.
     case 'unrecognized_keys':
       return 'unexpected keys';

@@ -53,11 +53,34 @@ describe('the validator summary', () => {
     expect(verdict.issues).toEqual(
       expect.arrayContaining([
         { path: 'ok', code: 'invalid_value', detail: 'allowed: true' },
-        { path: 'echo', code: 'too_big', detail: 'maximum 5' },
+        { path: 'echo', code: 'too_big', detail: 'at most 5 characters' },
         { path: 'letters', code: 'missing', detail: 'required; expected number' },
         { path: '(root)', code: 'unrecognized_keys', detail: 'unexpected keys' },
       ]),
     );
+  });
+
+  it('states every bound with its unit, which the model does not know', () => {
+    const bounded = z.object({
+      word: z.string().min(2).max(4),
+      list: z.array(z.string()).min(1).max(3),
+      count: z.number().gt(0).lte(9),
+    });
+    const verdict = validateOutput(bounded, { word: 'x'.repeat(9), list: [], count: 0 });
+    expect(verdict.valid).toBe(false);
+    if (verdict.valid) return;
+    expect(verdict.issues).toEqual([
+      { path: 'word', code: 'too_big', detail: 'at most 4 characters' },
+      { path: 'list', code: 'too_small', detail: 'at least 1 item' },
+      { path: 'count', code: 'too_small', detail: 'more than 0' },
+    ]);
+    const tooMany = validateOutput(bounded, { word: 'ab', list: ['a', 'b', 'c', 'd'], count: 10 });
+    expect(tooMany.valid).toBe(false);
+    if (tooMany.valid) return;
+    expect(tooMany.issues).toEqual([
+      { path: 'list', code: 'too_big', detail: 'at most 3 items' },
+      { path: 'count', code: 'too_big', detail: 'at most 9' },
+    ]);
   });
 
   it('never repeats received values or issue messages', () => {
