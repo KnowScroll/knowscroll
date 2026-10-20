@@ -176,3 +176,8 @@ Consequences: `KS_AUTH_ADAPTER` defaults to `session` (`none` is gone; `test-bea
 The owner's Codex continuation request authorises continuing the existing v2 programme through all remaining implementation phases, connected real-service journeys and verified dev/stage delivery. The earlier inferred pause before Phase 3 is superseded; report after each phase and continue the next unblocked phase. Main/production, total paid budgets, individual Reel-script approval, destructive actions and unavailable credentials retain their explicit owner controls. No PIO or Software Factory workflow is reinstated.
 
 Use the existing tracker #222, branches and implementation work. The Codex coordinator integrates, reviews, merges and deploys; bounded Sol agents own named issues/worktrees. Historical Claude agent IDs and attribution settings are not current assignments or controls.
+
+
+## D-024 · 2026-10-20 · Owner: bounded additional MiniMax allowance for Scroll production
+
+For #232 the owner explicitly approved up to 24 additional MiniMax model requests total: 12 development and 12 dev generation. Every admitted attempt/repair must be recorded, uncertainty consumes the allocation until reconciliation, and a new agent/session does not reset it. The historical harness six-call grant is exhausted and separate. Coordinator shared ledger: SSD `knowscroll-dev/v2/agents/coordinator/provider-allowance-232.json`; harness database attempts remain the execution authority. This does not change D-018's separate Cutroom budget or per-script approvals.
