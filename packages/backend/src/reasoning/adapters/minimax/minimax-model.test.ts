@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ModelNotSentError, ModelOutcomeUnknownError, ModelRejectedError } from '../../application/ports.js';
-import { MINIMAX_MESSAGES_URL, MINIMAX_QUOTA_URL, makeMiniMaxModelPort, type MiniMaxSettings } from './minimax-model.js';
+import {
+  MINIMAX_MESSAGES_URL,
+  MINIMAX_QUOTA_URL,
+  makeMiniMaxModelPort,
+  type MiniMaxSettings,
+} from './minimax-model.js';
 
 /**
  * Conformance of the MiniMax transport against a fake `fetch` (CI fixture; no network). Every key
@@ -32,7 +37,8 @@ interface Call {
 function fakeFetch(respond: (call: Call) => Promise<Response> | Response) {
   const calls: Call[] = [];
   const impl = ((input: string | URL | Request, init?: RequestInit) => {
-    const call = { url: String(input), init: init ?? {} };
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const call = { url, init: init ?? {} };
     calls.push(call);
     return Promise.resolve(respond(call));
   }) as typeof fetch;
@@ -56,7 +62,9 @@ const hanging = (call: Call) =>
   });
 
 function networkError(code: string): TypeError {
-  return new TypeError('fetch failed', { cause: Object.assign(new Error(`connect ${code} ${canaries.prompt}`), { code }) });
+  return new TypeError('fetch failed', {
+    cause: Object.assign(new Error(`connect ${code} ${canaries.prompt}`), { code }),
+  });
 }
 
 async function thrown(promise: Promise<unknown>): Promise<unknown> {
@@ -104,8 +112,18 @@ describe('the MiniMax transport (fake fetch)', () => {
   });
 
   it.each([
-    [400, ModelRejectedError, 'HTTP_400_INVALID_REQUEST_ERROR', { type: 'error', error: { type: 'invalid_request_error' } }],
-    [401, ModelRejectedError, 'HTTP_401_AUTHENTICATION_ERROR', { type: 'error', error: { type: 'authentication_error' } }],
+    [
+      400,
+      ModelRejectedError,
+      'HTTP_400_INVALID_REQUEST_ERROR',
+      { type: 'error', error: { type: 'invalid_request_error' } },
+    ],
+    [
+      401,
+      ModelRejectedError,
+      'HTTP_401_AUTHENTICATION_ERROR',
+      { type: 'error', error: { type: 'authentication_error' } },
+    ],
     [429, ModelRejectedError, 'HTTP_429_RATE_LIMIT_ERROR', { type: 'error', error: { type: 'rate_limit_error' } }],
     [500, ModelRejectedError, 'HTTP_500', 'internal error'],
     [503, ModelRejectedError, 'HTTP_503', ''],
@@ -114,21 +132,26 @@ describe('the MiniMax transport (fake fetch)', () => {
     [504, ModelOutcomeUnknownError, 'HTTP_504', ''],
     [301, ModelRejectedError, 'HTTP_301', ''],
   ])('maps HTTP %i to %o (%s), reading no message', async (status, kind, code, body) => {
-    const text = typeof body === 'string' ? body : JSON.stringify({ ...body, message: `${canaries.key} ${canaries.presigned}` });
-    const fetch = fakeFetch(() => new Response(status === 301 ? null : text, { status, headers: status === 301 ? { location: canaries.presigned } : {} }));
+    const text =
+      typeof body === 'string' ? body : JSON.stringify({ ...body, message: `${canaries.key} ${canaries.presigned}` });
+    const fetch = fakeFetch(
+      () =>
+        new Response(status === 301 ? null : text, {
+          status,
+          headers: status === 301 ? { location: canaries.presigned } : {},
+        }),
+    );
     const error = await thrown(makeMiniMaxModelPort(settings, fetch.impl).send(new Uint8Array([123, 125]), signal()));
     expect(error).toBeInstanceOf(kind);
     expect((error as { code: string }).code).toBe(code);
     expect(fetch.calls).toHaveLength(1);
-    for (const canary of Object.values(canaries)) expect(`${String(error)} ${JSON.stringify(error)}`).not.toContain(canary);
+    for (const canary of Object.values(canaries))
+      expect(`${String(error)} ${JSON.stringify(error)}`).not.toContain(canary);
   });
 
   it('reports connection refusal, DNS and TLS failures as not sent', async () => {
     for (const code of ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'CERT_HAS_EXPIRED']) {
-      const port = makeMiniMaxModelPort(
-        settings,
-        fakeFetch(() => Promise.reject(networkError(code))).impl,
-      );
+      const port = makeMiniMaxModelPort(settings, fakeFetch(() => Promise.reject(networkError(code))).impl);
       const error = await thrown(port.send(new Uint8Array([123, 125]), signal()));
       expect(error).toBeInstanceOf(ModelNotSentError);
       expect((error as ModelNotSentError).code).toBe(`NOT_CONNECTED_${code}`);
@@ -145,7 +168,9 @@ describe('the MiniMax transport (fake fetch)', () => {
     expect(reset).toBeInstanceOf(ModelOutcomeUnknownError);
     expect((reset as ModelOutcomeUnknownError).code).toBe('CONNECTION_RESET');
 
-    const timedOut = await thrown(makeMiniMaxModelPort(settings, fakeFetch(hanging).impl).send(new Uint8Array([123, 125]), signal()));
+    const timedOut = await thrown(
+      makeMiniMaxModelPort(settings, fakeFetch(hanging).impl).send(new Uint8Array([123, 125]), signal()),
+    );
     expect(timedOut).toBeInstanceOf(ModelOutcomeUnknownError);
     expect((timedOut as ModelOutcomeUnknownError).code).toBe('TIMEOUT_AFTER_DISPATCH');
 
@@ -183,7 +208,10 @@ describe('the MiniMax transport (fake fetch)', () => {
       },
     });
     const interrupted = await thrown(
-      makeMiniMaxModelPort(settings, fakeFetch(() => new Response(broken)).impl).send(new Uint8Array([123, 125]), signal()),
+      makeMiniMaxModelPort(settings, fakeFetch(() => new Response(broken)).impl).send(
+        new Uint8Array([123, 125]),
+        signal(),
+      ),
     );
     expect(interrupted).toBeInstanceOf(ModelOutcomeUnknownError);
     expect((interrupted as ModelOutcomeUnknownError).code).toBe('BODY_READ_INTERRUPTED');
@@ -192,11 +220,17 @@ describe('the MiniMax transport (fake fetch)', () => {
   it('observes the quota with one bounded GET and fails closed on anything unexpected', async () => {
     const good = JSON.stringify({
       base_resp: { status_code: 0 },
-      model_remains: [{ model_name: 'general', current_interval_remaining_percent: 80, current_weekly_remaining_percent: 60 }],
+      model_remains: [
+        { model_name: 'general', current_interval_remaining_percent: 80, current_weekly_remaining_percent: 60 },
+      ],
     });
     const fetch = fakeFetch(() => new Response(good));
     const port = makeMiniMaxModelPort(settings, fetch.impl);
-    expect(await port.observeQuota(signal())).toEqual({ verdict: 'available', intervalRemainingPercent: 80, weeklyRemainingPercent: 60 });
+    expect(await port.observeQuota(signal())).toEqual({
+      verdict: 'available',
+      intervalRemainingPercent: 80,
+      weeklyRemainingPercent: 60,
+    });
     expect(fetch.calls[0]?.url).toBe(MINIMAX_QUOTA_URL);
     expect(fetch.calls[0]?.init.method).toBe('GET');
     expect((fetch.calls[0]?.init.headers as Record<string, string>)['authorization']).toBe(`Bearer ${fixtureKey}`);

@@ -73,7 +73,11 @@ describe('the reasoning harness (real database, fixture model)', () => {
     );
   const steps = async (universeId: string) =>
     (await attemptsOf(db(), universeId)).map((row) => `${row.step}:${row.state}:${row.outcome_code ?? '-'}`);
-  const available: QuotaObservation = { verdict: 'available', intervalRemainingPercent: 90, weeklyRemainingPercent: 80 };
+  const available: QuotaObservation = {
+    verdict: 'available',
+    intervalRemainingPercent: 90,
+    weeklyRemainingPercent: 80,
+  };
   const insufficient: QuotaObservation = {
     verdict: 'insufficient',
     intervalRemainingPercent: 10,
@@ -91,7 +95,11 @@ describe('the reasoning harness (real database, fixture model)', () => {
       });
       expect((await propose(harness, person)).kind).toBe('proposed');
       expect((await propose(harness, person)).kind).toBe('proposed');
-      expect(await propose(harness, person)).toEqual({ kind: 'budget_exhausted', dimension: 'scope', limit: 'requests' });
+      expect(await propose(harness, person)).toEqual({
+        kind: 'budget_exhausted',
+        dimension: 'scope',
+        limit: 'requests',
+      });
       expect(model.calls).toHaveLength(2);
       expect(await steps(person.universeId)).toHaveLength(2);
       // Another universe has its own scope budget.
@@ -143,7 +151,11 @@ describe('the reasoning harness (real database, fixture model)', () => {
       const knownHarness = fixtureHarness(db(), { model: fixtureModel(), settings }).harness;
       expect((await propose(knownHarness, known)).kind).toBe('proposed');
       expect((await propose(knownHarness, known)).kind).toBe('proposed');
-      expect(await propose(knownHarness, known)).toEqual({ kind: 'budget_exhausted', dimension: 'scope', limit: 'tokens' });
+      expect(await propose(knownHarness, known)).toEqual({
+        kind: 'budget_exhausted',
+        dimension: 'scope',
+        limit: 'tokens',
+      });
 
       // An unknown outcome stays charged at its full reservation.
       const uncertain = await seedPerson(db());
@@ -199,7 +211,10 @@ describe('the reasoning harness (real database, fixture model)', () => {
       quota = available;
       expect((await propose(harness, person, { runId })).kind).toBe('proposed');
       expect(model.calls).toHaveLength(1);
-      expect(await steps(person.universeId)).toEqual(['primary:not_sent:QUOTA_UNAVAILABLE', 'primary.2:succeeded:SUCCEEDED']);
+      expect(await steps(person.universeId)).toEqual([
+        'primary:not_sent:QUOTA_UNAVAILABLE',
+        'primary.2:succeeded:SUCCEEDED',
+      ]);
       expect((await attemptsOf(db(), person.universeId))[1]?.quota_observation).toMatchObject({ verdict: 'available' });
     });
 
@@ -231,7 +246,10 @@ describe('the reasoning harness (real database, fixture model)', () => {
         seenAtSend.push({
           state: attempt?.state,
           rows: rows.length,
-          hashMatches: createHash('sha256').update(rows[0]?.body ?? '').digest('hex') === attempt?.request_hash,
+          hashMatches:
+            createHash('sha256')
+              .update(rows[0]?.body ?? '')
+              .digest('hex') === attempt?.request_hash,
           insideTransaction: insideTransaction(),
         });
         return { kind: 'success', text: '{"ok": true, "echo": "lantern"}' };
@@ -254,7 +272,10 @@ describe('the reasoning harness (real database, fixture model)', () => {
 
     it('purges expired bytes (operator command and periodically), keeping the attempt and its hash', async () => {
       const person = await seedPerson(db());
-      const { harness } = fixtureHarness(db(), { model: fixtureModel(), settings: withCaps({}, { purgeIntervalMs: 0 }) });
+      const { harness } = fixtureHarness(db(), {
+        model: fixtureModel(),
+        settings: withCaps({}, { purgeIntervalMs: 0 }),
+      });
       expect((await propose(harness, person)).kind).toBe('proposed');
       const expire = () =>
         sql`update reasoning.protected_requests
@@ -278,24 +299,35 @@ describe('the reasoning harness (real database, fixture model)', () => {
     it('is erased with the universe even for an open attempt, which stays as liability with its receipt', async () => {
       const person = await seedPerson(db());
       await propose(fixtureHarness(db(), { model: fixtureModel() }).harness, person);
-      await propose(fixtureHarness(db(), { model: fixtureModel(() => ({ kind: 'timeout_after_dispatch' })) }).harness, person);
+      await propose(
+        fixtureHarness(db(), { model: fixtureModel(() => ({ kind: 'timeout_after_dispatch' })) }).harness,
+        person,
+      );
       const before = await attemptsOf(db(), person.universeId);
       expect(before.map((row) => row.state)).toEqual(['succeeded', 'unknown']);
       expect(await protectedRequestsOf(db(), person.universeId)).toHaveLength(2);
       const reports = await makeWithPersonalScope(db(), { lockTimeoutMs: 5_000 })(person.authority, (scope) =>
         eraseUniverse(scope, personalStores),
       );
-      expect(reports.kind === 'entered' ? reports.value.find((report) => report.module === 'reasoning') : undefined).toMatchObject({
+      expect(
+        reports.kind === 'entered' ? reports.value.find((report) => report.module === 'reasoning') : undefined,
+      ).toMatchObject({
         status: 'pending',
       });
       expect(await protectedRequestsOf(db(), person.universeId)).toEqual([]);
       expect((await attemptsOf(db(), person.universeId)).map((row) => row.state)).toEqual(['unknown']);
-      expect(await receiptsOf(db(), before.map((row) => row.id))).toHaveLength(2);
+      expect(
+        await receiptsOf(
+          db(),
+          before.map((row) => row.id),
+        ),
+      ).toHaveLength(2);
     });
   });
 
   describe('the repair rule', () => {
-    const repairing = (...scenarios: FixtureScenario[]) => fixtureModel((sequence) => scenarios[sequence - 1] ?? { kind: 'malformed' });
+    const repairing = (...scenarios: FixtureScenario[]) =>
+      fixtureModel((sequence) => scenarios[sequence - 1] ?? { kind: 'malformed' });
 
     it('repairs an invalid answer once: a new attempt with its own reservation and causation, sending the validator’s findings', async () => {
       const person = await seedPerson(db());
@@ -309,9 +341,18 @@ describe('the reasoning harness (real database, fixture model)', () => {
         state: 'succeeded',
         outcome_code: 'OUTPUT_NOT_ONE_JSON_OBJECT',
         output: null,
-        output_issues: { v: 1, reason: 'OUTPUT_NOT_ONE_JSON_OBJECT', issues: [expect.objectContaining({ code: 'not_one_json_object' })] },
+        output_issues: {
+          v: 1,
+          reason: 'OUTPUT_NOT_ONE_JSON_OBJECT',
+          issues: [expect.objectContaining({ code: 'not_one_json_object' })],
+        },
       });
-      expect(repair).toMatchObject({ step: 'repair', state: 'succeeded', outcome_code: 'SUCCEEDED', causation_attempt_id: primary?.id });
+      expect(repair).toMatchObject({
+        step: 'repair',
+        state: 'succeeded',
+        outcome_code: 'SUCCEEDED',
+        causation_attempt_id: primary?.id,
+      });
       expect(await receiptsOf(db(), [primary?.id ?? '', repair?.id ?? ''])).toHaveLength(2);
       expect(model.calls[0]?.request.system).not.toContain('Validation:');
       expect(model.calls[1]?.request.system).toContain('- (root): not_one_json_object');
@@ -325,7 +366,11 @@ describe('the reasoning harness (real database, fixture model)', () => {
       const { harness } = fixtureHarness(db(), { model });
       const runId = randomUUID();
       const outcome = await propose(harness, person, { runId });
-      expect(outcome).toEqual({ kind: 'invalid_output', attemptId: expect.any(String) as unknown, reason: 'OUTPUT_SCHEMA_MISMATCH' });
+      expect(outcome).toEqual({
+        kind: 'invalid_output',
+        attemptId: expect.any(String) as unknown,
+        reason: 'OUTPUT_SCHEMA_MISMATCH',
+      });
       expect(await propose(harness, person, { runId })).toEqual(outcome);
       expect(model.calls).toHaveLength(2);
       expect(model.calls[1]?.request.system).toContain('- echo: missing (required; expected string)');
@@ -341,8 +386,14 @@ describe('the reasoning harness (real database, fixture model)', () => {
         { kind: 'success', text: '{"ok": true, "echo": "lantern"}', stop: 'max_tokens' },
         { kind: 'success', text: '{"ok": true, "echo": "lantern"}' },
       );
-      expect(await propose(fixtureHarness(db(), { model }).harness, person)).toMatchObject({ kind: 'proposed', repaired: true });
-      expect(await steps(person.universeId)).toEqual(['primary:succeeded:OUTPUT_TRUNCATED', 'repair:succeeded:SUCCEEDED']);
+      expect(await propose(fixtureHarness(db(), { model }).harness, person)).toMatchObject({
+        kind: 'proposed',
+        repaired: true,
+      });
+      expect(await steps(person.universeId)).toEqual([
+        'primary:succeeded:OUTPUT_TRUNCATED',
+        'repair:succeeded:SUCCEEDED',
+      ]);
     });
 
     it('never repairs when the role disallows it, nor after an unknown or failed attempt', async () => {
@@ -369,15 +420,23 @@ describe('the reasoning harness (real database, fixture model)', () => {
         observeQuota: (abort) => {
           checks += 1;
           // The repair's first preflight: the process dies after the repair was reserved.
-          return checks === 2 ? Promise.reject(new Error('fixture: died before dispatching the repair')) : model.observeQuota(abort);
+          return checks === 2
+            ? Promise.reject(new Error('fixture: died before dispatching the repair'))
+            : model.observeQuota(abort);
         },
       };
       const { harness } = fixtureHarness(db(), { model: dying });
       const runId = randomUUID();
       await expect(propose(harness, person, { runId })).rejects.toThrow('died before dispatching the repair');
-      expect(await steps(person.universeId)).toEqual(['primary:succeeded:OUTPUT_NOT_ONE_JSON_OBJECT', 'repair:reserved:-']);
+      expect(await steps(person.universeId)).toEqual([
+        'primary:succeeded:OUTPUT_NOT_ONE_JSON_OBJECT',
+        'repair:reserved:-',
+      ]);
       expect(await propose(harness, person, { runId })).toMatchObject({ kind: 'proposed', repaired: true });
-      expect(await steps(person.universeId)).toEqual(['primary:succeeded:OUTPUT_NOT_ONE_JSON_OBJECT', 'repair:succeeded:SUCCEEDED']);
+      expect(await steps(person.universeId)).toEqual([
+        'primary:succeeded:OUTPUT_NOT_ONE_JSON_OBJECT',
+        'repair:succeeded:SUCCEEDED',
+      ]);
       expect(model.calls).toHaveLength(2);
     });
   });
@@ -440,7 +499,11 @@ describe('the reasoning harness (real database, fixture model)', () => {
       // The same run with another policy version is not the same run.
       expect(
         await harness.propose(
-          { run: { ...fixtureRun(systemAuthority(person.universeId), runId), policyVersion: 'fixture.v2' }, role: echoRole, context: fixtureContext },
+          {
+            run: { ...fixtureRun(systemAuthority(person.universeId), runId), policyVersion: 'fixture.v2' },
+            role: echoRole,
+            context: fixtureContext,
+          },
           signal(),
         ),
       ).toEqual({ kind: 'refused', reason: 'run_mismatch' });
@@ -494,13 +557,17 @@ describe('the reasoning harness (real database, fixture model)', () => {
       const presigned = `https://oss.example/subtitles.json?Expires=1700000000&Signature=${canary.signature}`;
       let messages = 0;
       const fakeFetch = ((input: string | URL | Request) => {
-        if (String(input).includes('token_plan'))
+        if ((typeof input === 'string' ? input : input instanceof URL ? input.href : input.url).includes('token_plan'))
           return Promise.resolve(
             new Response(
               JSON.stringify({
                 base_resp: { status_code: 0 },
                 model_remains: [
-                  { model_name: 'general', current_interval_remaining_percent: 90, current_weekly_remaining_percent: 90 },
+                  {
+                    model_name: 'general',
+                    current_interval_remaining_percent: 90,
+                    current_weekly_remaining_percent: 90,
+                  },
                 ],
               }),
             ),

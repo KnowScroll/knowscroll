@@ -431,9 +431,15 @@ const reasoningVariables = z.object({
 function reasoningSettings(parsed: z.infer<typeof reasoningVariables>): ReasoningSettings {
   const key = parsed.MINIMAX_API_KEY;
   crossChecks([
-    [parsed.KS_REASONING_PROVIDER === 'minimax' && (key === undefined || key === ''), 'MINIMAX_API_KEY: missing_or_wrong_type'],
     [
-      parsed.KS_REASONING_PROVIDER === 'minimax' && key !== undefined && key !== '' && !/^sk-cp-[A-Za-z0-9_-]{16,}$/.test(key),
+      parsed.KS_REASONING_PROVIDER === 'minimax' && (key === undefined || key === ''),
+      'MINIMAX_API_KEY: missing_or_wrong_type',
+    ],
+    [
+      parsed.KS_REASONING_PROVIDER === 'minimax' &&
+        key !== undefined &&
+        key !== '' &&
+        !/^sk-cp-[A-Za-z0-9_-]{16,}$/.test(key),
       'MINIMAX_API_KEY: invalid_format',
     ],
   ]);

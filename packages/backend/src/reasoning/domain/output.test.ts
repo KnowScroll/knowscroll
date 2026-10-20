@@ -43,9 +43,7 @@ describe('strict JSON extraction', () => {
 });
 
 describe('the validator summary', () => {
-  const schema = z
-    .object({ ok: z.literal(true), echo: z.string().max(5), letters: z.number().int() })
-    .strict();
+  const schema = z.object({ ok: z.literal(true), echo: z.string().max(5), letters: z.number().int() }).strict();
 
   it('reports missing fields, bounds, literals and unexpected keys structurally', () => {
     const verdict = validateOutput(schema, { ok: false, echo: 'lantern', 'run rm -rf': 1 });

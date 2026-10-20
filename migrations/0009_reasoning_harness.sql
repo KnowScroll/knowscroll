@@ -69,7 +69,9 @@ alter table reasoning.external_attempts
   add column quota_observation jsonb,
   -- {"v": 1, "reason": …, "issues": [...]}: the validator's result for an answer that was not usable.
   add column output_issues jsonb,
+  -- Operator write-off of an `unknown` attempt: the reason text and who ran the command (`cli:<name>`).
   add column written_off_reason text,
+  add column written_off_by text,
   add column written_off_at timestamptz;
 
 create table reasoning.protected_requests (

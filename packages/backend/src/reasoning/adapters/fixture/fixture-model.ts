@@ -141,7 +141,12 @@ export function fixtureModelPort(options: FixtureModelOptions): FixtureModelPort
       };
       const call: FixtureCall = {
         sequence: calls.length + 1,
-        request: { fixture: decoded.fixture, system: decoded.system, user: decoded.user, maxOutputTokens: decoded.max_tokens },
+        request: {
+          fixture: decoded.fixture,
+          system: decoded.system,
+          user: decoded.user,
+          maxOutputTokens: decoded.max_tokens,
+        },
         bytes,
       };
       calls.push(call);

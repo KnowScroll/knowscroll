@@ -159,7 +159,7 @@ function spendOf(row: { requests: string; tokens: string } | undefined) {
 }
 
 /**
- * The PostgreSQL attempt ledger (migrations 0006 + 0007). Admission, reservation and dispatch
+ * The PostgreSQL attempt ledger (migrations 0006 + 0009). Admission, reservation and dispatch
  * intent use the personal scope's transaction; reads and settlement are ledger-owned and use their
  * own short marked transaction keyed by `(universe_id, id)`, independent of current authority.
  * Every transition is conditional on the expected state, so concurrent deliveries cannot both win.
@@ -403,7 +403,7 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
       return result.numUpdatedRows === 1n ? 'closed' : 'not_open';
     },
 
-    writeOff(attemptId, reason) {
+    writeOff(attemptId, reason, source) {
       return withTransaction(db, 'attempt-ledger', async (trx) => {
         const row = await trx
           .selectFrom('reasoning.external_attempts')
@@ -412,7 +412,8 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
           .forUpdate()
           .executeTakeFirst();
         if (row === undefined) return { kind: 'missing' } as const;
-        if (row.state !== 'unknown') return { kind: 'not_unknown', attemptId, state: row.state as AttemptState } as const;
+        if (row.state !== 'unknown')
+          return { kind: 'not_unknown', attemptId, state: row.state as AttemptState } as const;
         await trx
           .updateTable('reasoning.external_attempts')
           .set({
@@ -420,6 +421,7 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
             settled_at: sql<Date>`now()`,
             written_off_at: sql<Date>`now()`,
             written_off_reason: reason,
+            written_off_by: source,
           })
           .where('universe_id', '=', row.universe_id)
           .where('id', '=', attemptId)

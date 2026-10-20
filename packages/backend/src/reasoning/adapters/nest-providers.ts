@@ -18,7 +18,12 @@ import { redactRecorded, sha256Hex } from './recording.js';
  * integration tests only: the PostgreSQL attempt ledger, the transaction guard every transport is
  * wrapped in, the MiniMax and fixture transports, and the harness and operator factories.
  */
-export { fixtureModelPort, type FixtureCall, type FixtureModelPort, type FixtureScenario } from './fixture/fixture-model.js';
+export {
+  fixtureModelPort,
+  type FixtureCall,
+  type FixtureModelPort,
+  type FixtureScenario,
+} from './fixture/fixture-model.js';
 export { guardedModelPort } from './guarded-model.js';
 export { makeMiniMaxModelPort, type MiniMaxSettings } from './minimax/minimax-model.js';
 export { makeAttemptLedger } from './postgres-ledger.js';

@@ -107,8 +107,28 @@ export function fixtureRun(authority: PersonalAuthority, id: string = randomUUID
 
 export const signal = () => new AbortController().signal;
 
+/** The ledger columns tests assert on. JSON columns are `unknown`: tests narrow what they read. */
+export interface AttemptRecord {
+  readonly id: string;
+  readonly step: string;
+  readonly state: string;
+  readonly outcome_code: string | null;
+  readonly remote_id: string | null;
+  readonly causation_attempt_id: string | null;
+  readonly request_hash: string;
+  readonly output: unknown;
+  readonly output_issues: unknown;
+  readonly quota_observation: unknown;
+  readonly settled_at: Date | null;
+  readonly input_tokens: number | null;
+  readonly output_tokens: number | null;
+  readonly reserved_tokens: number;
+  readonly written_off_reason: string | null;
+  readonly written_off_by: string | null;
+}
+
 /** The universe's attempts, oldest first (columns tests assert on). */
-export function attemptsOf(db: Kysely<Database>, universeId: string) {
+export function attemptsOf(db: Kysely<Database>, universeId: string): Promise<AttemptRecord[]> {
   return db
     .selectFrom('reasoning.external_attempts')
     .select([
@@ -127,6 +147,7 @@ export function attemptsOf(db: Kysely<Database>, universeId: string) {
       'output_tokens',
       'reserved_tokens',
       'written_off_reason',
+      'written_off_by',
     ])
     .where('universe_id', '=', universeId)
     .orderBy('reserved_at')

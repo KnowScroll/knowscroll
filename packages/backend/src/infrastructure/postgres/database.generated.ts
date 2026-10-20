@@ -168,6 +168,7 @@ export interface ReasoningExternalAttempts {
   step: string;
   universe_id: string;
   written_off_at: Timestamp | null;
+  written_off_by: string | null;
   written_off_reason: string | null;
 }
 

@@ -1,6 +1,12 @@
 import type { PersonalAuthority } from '../../modules/identity/public.js';
 import { decideOnDelivery, type AttemptState } from '../domain/attempts.js';
-import { NO_USAGE, decideReservation, type BudgetCaps, type BudgetDimension, type ReportedUsage } from '../domain/budgets.js';
+import {
+  NO_USAGE,
+  decideReservation,
+  type BudgetCaps,
+  type BudgetDimension,
+  type ReportedUsage,
+} from '../domain/budgets.js';
 import type { OutputIssue } from '../domain/output.js';
 import {
   ModelNotSentError,
@@ -251,10 +257,15 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
       return current === undefined ? { kind: 'refused', reason: 'dispatch_lost' } : fromLedger(current);
     }
 
-    function logSettled(attemptId: string, state: AttemptState, outcomeCode: string | undefined, extra: {
-      readonly usage?: ReportedUsage;
-      readonly durationMs?: number;
-    } = {}): void {
+    function logSettled(
+      attemptId: string,
+      state: AttemptState,
+      outcomeCode: string | undefined,
+      extra: {
+        readonly usage?: ReportedUsage;
+        readonly durationMs?: number;
+      } = {},
+    ): void {
       const usage = extra.usage ?? NO_USAGE;
       logEvent('reasoning.attempt_settled', {
         ...tags,
@@ -298,7 +309,8 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
       const locked = await ledger.findLocked(scope, run.id, plan.step);
       if (locked !== undefined) {
         if (locked.requestHash !== plan.requestHash) return { kind: 'refused', reason: 'request_mismatch' };
-        if (locked.state === 'reserved') return { kind: 'dispatch', attemptId: locked.id, step: locked.step, reused: true };
+        if (locked.state === 'reserved')
+          return { kind: 'dispatch', attemptId: locked.id, step: locked.step, reused: true };
         if (locked.state !== 'not_sent') return { kind: 'current', row: locked };
       }
       const step = nextStepName(plan.step, locked?.step);
@@ -308,7 +320,8 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
       }
       const usage = await ledger.budgetUsage(scope, plan.roleId);
       const decision = decideReservation(plan.caps, usage, plan.reservedTokens);
-      if (decision.kind === 'exhausted') return { kind: 'budget', dimension: decision.dimension, limit: decision.limit };
+      if (decision.kind === 'exhausted')
+        return { kind: 'budget', dimension: decision.dimension, limit: decision.limit };
       const attemptId = ports.newId();
       await ledger.reserve(scope, {
         id: attemptId,
@@ -363,8 +376,7 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
         break;
     }
     const { attemptId } = admission;
-    if (!admission.reused)
-      logEvent('reasoning.attempt_reserved', { ...tags, attemptId, count: plan.reservedTokens });
+    if (!admission.reused) logEvent('reasoning.attempt_reserved', { ...tags, attemptId, count: plan.reservedTokens });
 
     // The bytes this attempt sends: the protected copy written at reservation (identical by hash).
     let body = plan.body;
@@ -455,5 +467,3 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
     return current === undefined ? { kind: 'unknown', attemptId } : fromLedger(current);
   };
 }
-
-export type ExecuteAttempt = ReturnType<typeof makeExecuteAttempt>;

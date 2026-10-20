@@ -40,7 +40,8 @@ export function extractJsonObject(text: string): Extraction {
     candidate = (fenced[1] ?? '').trim();
     if (candidate.includes('```')) return { ok: false, reason: 'OUTPUT_NOT_ONE_JSON_OBJECT' };
   }
-  if (!candidate.startsWith('{') || !candidate.endsWith('}')) return { ok: false, reason: 'OUTPUT_NOT_ONE_JSON_OBJECT' };
+  if (!candidate.startsWith('{') || !candidate.endsWith('}'))
+    return { ok: false, reason: 'OUTPUT_NOT_ONE_JSON_OBJECT' };
   let parsed: unknown;
   try {
     parsed = JSON.parse(candidate);
@@ -72,7 +73,11 @@ function pathOf(path: readonly PropertyKey[]): string {
   return path
     .slice(0, 6)
     .map((segment) =>
-      typeof segment === 'number' ? `[${segment}]` : typeof segment === 'string' && safeSegment.test(segment) ? segment : '?',
+      typeof segment === 'number'
+        ? `[${segment}]`
+        : typeof segment === 'string' && safeSegment.test(segment)
+          ? segment
+          : '?',
     )
     .join('.')
     .replaceAll('.[', '[');
@@ -133,12 +138,22 @@ export function summariseIssues(issues: readonly z.core.$ZodIssue[], value?: unk
   const summary: OutputIssue[] = issues.slice(0, MAX_ISSUES).map((issue) => {
     const record = issue as unknown as Readonly<Record<string, unknown>>;
     const detail = detailOf(record);
-    if (record['code'] === 'invalid_type' && issue.path.length > 0 && value !== undefined && isAbsent(value, issue.path))
-      return { path: pathOf(issue.path), code: 'missing', detail: `required${detail === undefined ? '' : `; ${detail}`}` };
+    if (
+      record['code'] === 'invalid_type' &&
+      issue.path.length > 0 &&
+      value !== undefined &&
+      isAbsent(value, issue.path)
+    )
+      return {
+        path: pathOf(issue.path),
+        code: 'missing',
+        detail: `required${detail === undefined ? '' : `; ${detail}`}`,
+      };
     const code = typeof record['code'] === 'string' && safeSegment.test(record['code']) ? record['code'] : 'invalid';
     return { path: pathOf(issue.path), code, ...(detail === undefined ? {} : { detail }) };
   });
-  if (issues.length > MAX_ISSUES) summary.push({ path: '(root)', code: 'more', detail: `${issues.length - MAX_ISSUES} more` });
+  if (issues.length > MAX_ISSUES)
+    summary.push({ path: '(root)', code: 'more', detail: `${issues.length - MAX_ISSUES} more` });
   return summary;
 }
 
@@ -163,7 +178,11 @@ export function issueFor(reason: InvalidOutputReason): OutputIssue {
     case 'OUTPUT_EMPTY':
       return { path: '(root)', code: 'empty', detail: 'the answer contained no JSON object' };
     case 'OUTPUT_NOT_ONE_JSON_OBJECT':
-      return { path: '(root)', code: 'not_one_json_object', detail: 'answer with exactly one JSON object and nothing else' };
+      return {
+        path: '(root)',
+        code: 'not_one_json_object',
+        detail: 'answer with exactly one JSON object and nothing else',
+      };
     case 'OUTPUT_TRUNCATED':
       return { path: '(root)', code: 'truncated', detail: 'the answer was cut off; answer more briefly' };
     case 'OUTPUT_TOO_LARGE':

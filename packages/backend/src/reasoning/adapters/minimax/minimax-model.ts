@@ -130,7 +130,8 @@ function deadline(signal: AbortSignal, timeoutMs: number) {
  */
 export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeof fetch = fetch): ModelPort {
   if (!settings.apiKey.startsWith('sk-cp-')) throw new Error('MiniMax: only a token-plan (sk-cp-) key is accepted');
-  if (!(MINIMAX_TEXT_MODELS as readonly string[]).includes(settings.model)) throw new Error('MiniMax: unsupported model');
+  if (!(MINIMAX_TEXT_MODELS as readonly string[]).includes(settings.model))
+    throw new Error('MiniMax: unsupported model');
 
   return {
     provider: 'minimax',
@@ -217,7 +218,9 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
           const code = errorCode(error);
           if (!limit.timedOut() && !limit.callerAborted() && code !== undefined && notSentCodes.has(code))
             throw new ModelNotSentError(`NOT_CONNECTED_${code}`);
-          throw uncertain(code === 'ECONNRESET' || code === 'UND_ERR_SOCKET' ? 'CONNECTION_RESET' : 'TRANSPORT_OUTCOME_UNKNOWN');
+          throw uncertain(
+            code === 'ECONNRESET' || code === 'UND_ERR_SOCKET' ? 'CONNECTION_RESET' : 'TRANSPORT_OUTCOME_UNKNOWN',
+          );
         }
 
         const status = response.status;

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { judgeQuota, parseMessagesReply, parseUsage, providerErrorCode, safeRemoteId, stripThinkingFraming } from './reply.js';
+import {
+  judgeQuota,
+  parseMessagesReply,
+  parseUsage,
+  providerErrorCode,
+  safeRemoteId,
+  stripThinkingFraming,
+} from './reply.js';
 
 /** Response bodies below are fixtures shaped like the route's documented fields, not provider output. */
 const answer = (content: unknown[], extra: Record<string, unknown> = {}) =>
@@ -34,11 +41,22 @@ describe('MiniMax reply parsing (fixtures)', () => {
   });
 
   it('strips one leading <think> block from the answer text, and only a leading one', () => {
-    expect(stripThinkingFraming('\n<think>planning…</think>\n{"ok": true}')).toEqual({ ok: true, text: '\n{"ok": true}' });
-    expect(stripThinkingFraming('{"note": "<think>kept</think>"}')).toEqual({ ok: true, text: '{"note": "<think>kept</think>"}' });
+    expect(stripThinkingFraming('\n<think>planning…</think>\n{"ok": true}')).toEqual({
+      ok: true,
+      text: '\n{"ok": true}',
+    });
+    expect(stripThinkingFraming('{"note": "<think>kept</think>"}')).toEqual({
+      ok: true,
+      text: '{"note": "<think>kept</think>"}',
+    });
     expect(stripThinkingFraming('<think>never closed')).toEqual({ ok: false });
-    const parsed = parseMessagesReply(answer([{ type: 'text', text: '<think>budget gone' }], { stop_reason: 'max_tokens' }));
-    expect(parsed).toMatchObject({ kind: 'reply', reply: { answer: { kind: 'unreadable', code: 'THINKING_UNTERMINATED' } } });
+    const parsed = parseMessagesReply(
+      answer([{ type: 'text', text: '<think>budget gone' }], { stop_reason: 'max_tokens' }),
+    );
+    expect(parsed).toMatchObject({
+      kind: 'reply',
+      reply: { answer: { kind: 'unreadable', code: 'THINKING_UNTERMINATED' } },
+    });
   });
 
   it('maps stop reasons and marks a cut-off answer', () => {
@@ -51,8 +69,12 @@ describe('MiniMax reply parsing (fixtures)', () => {
   });
 
   it('treats a body that is not a JSON object, or has no text, as an unreadable answer', () => {
-    expect(parseMessagesReply('<html>gateway</html>')).toMatchObject({ reply: { answer: { kind: 'unreadable', code: 'REPLY_NOT_JSON' } } });
-    expect(parseMessagesReply('[]')).toMatchObject({ reply: { answer: { kind: 'unreadable', code: 'REPLY_NOT_JSON' } } });
+    expect(parseMessagesReply('<html>gateway</html>')).toMatchObject({
+      reply: { answer: { kind: 'unreadable', code: 'REPLY_NOT_JSON' } },
+    });
+    expect(parseMessagesReply('[]')).toMatchObject({
+      reply: { answer: { kind: 'unreadable', code: 'REPLY_NOT_JSON' } },
+    });
     expect(parseMessagesReply(answer([{ type: 'thinking', thinking: 'only this' }]))).toMatchObject({
       reply: { answer: { kind: 'unreadable', code: 'REPLY_NO_TEXT' } },
     });
@@ -60,23 +82,39 @@ describe('MiniMax reply parsing (fixtures)', () => {
 
   it('treats an error object in a 200 body as a conclusive rejection with a sanitised code', () => {
     expect(
-      parseMessagesReply(JSON.stringify({ type: 'error', error: { type: 'overloaded_error', message: 'sk-cp-canary' } })),
+      parseMessagesReply(
+        JSON.stringify({ type: 'error', error: { type: 'overloaded_error', message: 'sk-cp-canary' } }),
+      ),
     ).toEqual({ kind: 'rejected', code: 'PROVIDER_ERROR_OVERLOADED_ERROR' });
-    expect(parseMessagesReply(JSON.stringify({ base_resp: { status_code: 1008, status_msg: 'insufficient balance' } }))).toEqual({
+    expect(
+      parseMessagesReply(JSON.stringify({ base_resp: { status_code: 1008, status_msg: 'insufficient balance' } })),
+    ).toEqual({
       kind: 'rejected',
       code: 'PROVIDER_ERROR_MINIMAX_1008',
     });
   });
 
   it('parses usage defensively and never estimates', () => {
-    expect(parseUsage(undefined)).toEqual({ inputTokens: null, outputTokens: null, reasoningTokens: null, cachedTokens: null });
+    expect(parseUsage(undefined)).toEqual({
+      inputTokens: null,
+      outputTokens: null,
+      reasoningTokens: null,
+      cachedTokens: null,
+    });
     expect(parseUsage({ input_tokens: -1, output_tokens: 1.5, cache_read_input_tokens: 'x' })).toEqual({
       inputTokens: null,
       outputTokens: null,
       reasoningTokens: null,
       cachedTokens: null,
     });
-    expect(parseUsage({ input_tokens: 10, cache_creation_input_tokens: 5, output_tokens: 3, output_tokens_details: { reasoning_tokens: 2 } })).toEqual({
+    expect(
+      parseUsage({
+        input_tokens: 10,
+        cache_creation_input_tokens: 5,
+        output_tokens: 3,
+        output_tokens_details: { reasoning_tokens: 2 },
+      }),
+    ).toEqual({
       inputTokens: 15,
       outputTokens: 3,
       reasoningTokens: 2,

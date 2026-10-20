@@ -28,6 +28,9 @@ import {
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { fixtureModelQueue } from '../support/queues.js';
 
+/** Who ran the write-offs in these tests (the operator command records `cli:<name>`). */
+const ci = 'cli:ci-fixture';
+
 /**
  * Every attempt-ledger transition through the harness (blueprint §15 state machine), against a real
  * database and a real pg-boss consumer, with the labelled fixture model. Evidence label: CI fixture
@@ -131,7 +134,11 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
       { step: 'primary', state: 'succeeded', outcome: 'SUCCEEDED', remote: 'fixture-remote-1', settled: true },
     ]);
     const [attempt] = await attemptsOf(database.db, person.universeId);
-    expect(attempt).toMatchObject({ output: { v: 1, text: '{"ok":true,"echo":"lantern"}' }, input_tokens: 40, output_tokens: 12 });
+    expect(attempt).toMatchObject({
+      output: { v: 1, text: '{"ok":true,"echo":"lantern"}' },
+      input_tokens: 40,
+      output_tokens: 12,
+    });
     expect(await receiptsOf(database.db, [attempt?.id ?? ''])).toEqual([
       expect.objectContaining({ state: 'settled', input_tokens: 40, output_tokens: 12, late_usage: false }),
     ]);
@@ -188,7 +195,11 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     await inFlight.promise;
     await advanceEpoch(database.db, person.universeId);
     release.open({ kind: 'success', text: '{"ok": true, "echo": "stale"}', remoteId: 'fixture-late' });
-    expect(await running).toEqual({ kind: 'refused', reason: 'output_ineligible', attemptId: expect.any(String) as unknown });
+    expect(await running).toEqual({
+      kind: 'refused',
+      reason: 'output_ineligible',
+      attemptId: expect.any(String) as unknown,
+    });
     expect(await states(person.universeId)).toEqual([
       { step: 'primary', state: 'succeeded', outcome: 'SUCCEEDED', remote: 'fixture-late', settled: true },
     ]);
@@ -223,7 +234,11 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
 
   it('keeps a paid answer when the eligibility check fails, and the redelivery applies it without a second call', async () => {
     const person = await seedPerson(database.db);
-    const model = fixtureModel(() => ({ kind: 'success', text: '{"ok": true, "echo": "kept"}', remoteId: 'fixture-kept' }));
+    const model = fixtureModel(() => ({
+      kind: 'success',
+      text: '{"ok": true, "echo": "kept"}',
+      remoteId: 'fixture-kept',
+    }));
     const holds = makeAuthorityHolds(database.db);
     let failures = 1;
     const flaky: AuthorityHolds = (authority) => {
@@ -296,7 +311,10 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     const h = harness(model);
     const runId = randomUUID();
     await propose(h, person, runId);
-    const changed = { ...fixtureContext, items: [{ ref: 'fixture:item-1', kind: 'evidence', text: 'The word is: candle' }] };
+    const changed = {
+      ...fixtureContext,
+      items: [{ ref: 'fixture:item-1', kind: 'evidence', text: 'The word is: candle' }],
+    };
     expect(await propose(h, person, runId, changed)).toEqual({ kind: 'refused', reason: 'request_mismatch' });
     expect(model.calls).toHaveLength(1);
   });
@@ -343,7 +361,11 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
       { step: 'primary', state: 'reconciled', outcome: 'SUCCEEDED', remote: 'fixture-late', settled: true },
     ]);
     // A later delivery answers from the ledger with the stored output, without calling again.
-    expect(await propose(h, person, runId)).toMatchObject({ kind: 'proposed', output: { ok: true, echo: 'late' }, reconciled: true });
+    expect(await propose(h, person, runId)).toMatchObject({
+      kind: 'proposed',
+      output: { ok: true, echo: 'late' },
+      reconciled: true,
+    });
     expect(model.calls).toHaveLength(1);
   });
 
@@ -367,7 +389,9 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     expect(await operator.listUnknown(500)).toEqual(
       expect.arrayContaining([expect.objectContaining({ attemptId: unknown.attemptId, roleId: 'fixture.echo' })]),
     );
-    expect(await operator.writeOff(unknown.attemptId, 'CI fixture: no provider lookup; accepted as unresolved')).toEqual({
+    expect(
+      await operator.writeOff(unknown.attemptId, 'CI fixture: no provider lookup; accepted as unresolved', ci),
+    ).toEqual({
       kind: 'written_off',
       attemptId: unknown.attemptId,
     });
@@ -376,8 +400,11 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
       state: 'written_off',
       outcome_code: 'TIMEOUT_AFTER_DISPATCH',
       written_off_reason: 'CI fixture: no provider lookup; accepted as unresolved',
+      written_off_by: ci,
     });
-    expect(await receiptsOf(database.db, [unknown.attemptId])).toEqual([expect.objectContaining({ state: 'written_off' })]);
+    expect(await receiptsOf(database.db, [unknown.attemptId])).toEqual([
+      expect.objectContaining({ state: 'written_off' }),
+    ]);
     expect(await propose(h, person, runId)).toEqual({
       kind: 'refused',
       reason: 'attempt_written_off',
@@ -385,21 +412,25 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     });
     expect(model.calls).toHaveLength(1);
     // Repeating the write-off changes nothing; bad requests are refused before the ledger.
-    expect(await operator.writeOff(unknown.attemptId, 'again')).toEqual({
+    expect(await operator.writeOff(unknown.attemptId, 'again', ci)).toEqual({
       kind: 'not_unknown',
       attemptId: unknown.attemptId,
       state: 'written_off',
     });
-    expect(await operator.writeOff(randomUUID(), 'no such attempt')).toEqual({ kind: 'missing' });
-    expect(await operator.writeOff('not-a-uuid', 'x')).toMatchObject({ kind: 'invalid_request' });
-    expect(await operator.writeOff(unknown.attemptId, '   ')).toMatchObject({ kind: 'invalid_request' });
+    expect(await operator.writeOff(randomUUID(), 'no such attempt', ci)).toEqual({ kind: 'missing' });
+    expect(await operator.writeOff('not-a-uuid', 'x', ci)).toMatchObject({ kind: 'invalid_request' });
+    expect(await operator.writeOff(unknown.attemptId, 'x', 'someone')).toMatchObject({
+      kind: 'invalid_request',
+      problem: 'source_not_a_cli_name',
+    });
+    expect(await operator.writeOff(unknown.attemptId, '   ', ci)).toMatchObject({ kind: 'invalid_request' });
   });
 
   it('refuses to write off an attempt that is not unknown', async () => {
     const person = await seedPerson(database.db);
     const result = await propose(harness(fixtureModel()), person, randomUUID());
     if (result.kind !== 'proposed') throw new Error(`expected proposed, got ${result.kind}`);
-    expect(await reasoningOperatorFor(database.db, silent).writeOff(result.attemptId, 'should not apply')).toEqual({
+    expect(await reasoningOperatorFor(database.db, silent).writeOff(result.attemptId, 'should not apply', ci)).toEqual({
       kind: 'not_unknown',
       attemptId: result.attemptId,
       state: 'succeeded',
@@ -420,7 +451,11 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     await inFlight.promise;
     const marked = await propose(h, person, runId);
     if (marked.kind !== 'unknown') throw new Error(`expected unknown, got ${marked.kind}`);
-    await reasoningOperatorFor(database.db, silent).writeOff(marked.attemptId, 'CI fixture: written off while in flight');
+    await reasoningOperatorFor(database.db, silent).writeOff(
+      marked.attemptId,
+      'CI fixture: written off while in flight',
+      ci,
+    );
     release.open({
       kind: 'success',
       text: '{"ok": true, "echo": "too late"}',

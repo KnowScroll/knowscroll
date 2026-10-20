@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { redactProviderText, redactRecorded, sha256Hex } from './recording.js';
 
 /** Every credential below is a fixture. */
-const presigned = 'https://bucket.oss-cn.aliyuncs.com/sub/word.json?OSSAccessKeyId=LTAI&Expires=1700000000&Signature=canary-sig-Qw3';
+const presigned =
+  'https://bucket.oss-cn.aliyuncs.com/sub/word.json?OSSAccessKeyId=LTAI&Expires=1700000000&Signature=canary-sig-Qw3';
 
 describe('the recording boundary for provider-returned values', () => {
   it('drops a presigned URL’s query string and keeps its host and path', () => {
@@ -17,7 +18,8 @@ describe('the recording boundary for provider-returned values', () => {
   });
 
   it('masks key- and token-shaped values', () => {
-    const text = 'key sk-cp-canaryKEY0123456789abcdef jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjYW5hcnkifQ.c2ln Bearer canary.token.value';
+    const text =
+      'key sk-cp-canaryKEY0123456789abcdef jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjYW5hcnkifQ.c2ln Bearer canary.token.value';
     const redacted = redactProviderText(text);
     expect(redacted).not.toContain('canaryKEY');
     expect(redacted).not.toContain('eyJzdWIi');

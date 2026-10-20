@@ -15,7 +15,9 @@ describe('the harness framing', () => {
     expect(prompt.system).toContain('Return {"ok": true}.');
     expect(prompt.system).toContain(`framing ${HARNESS_PROMPT_VERSION}`);
     expect(prompt.system).not.toContain('lantern');
-    expect(prompt.user).toContain('<context-item ref="fixture:item-1" kind="evidence">\nThe word is: lantern\n</context-item>');
+    expect(prompt.user).toContain(
+      '<context-item ref="fixture:item-1" kind="evidence">\nThe word is: lantern\n</context-item>',
+    );
   });
 
   it('is deterministic: the same inputs give the same text', () => {
@@ -33,7 +35,10 @@ describe('the harness framing', () => {
   });
 
   it('puts a repair’s validator feedback in the system text, after the role instructions', () => {
-    const prompt = buildPrompt({ ...base, feedback: [{ path: 'letters', code: 'missing', detail: 'required; expected number' }] });
+    const prompt = buildPrompt({
+      ...base,
+      feedback: [{ path: 'letters', code: 'missing', detail: 'required; expected number' }],
+    });
     expect(prompt.system.indexOf('- letters: missing (required; expected number)')).toBeGreaterThan(
       prompt.system.indexOf('Return {"ok": true}.'),
     );

@@ -4,7 +4,13 @@ import { reservedTokensFor, type BudgetCap, type BudgetDimension, type ReportedU
 import { extractJsonObject, issueFor, validateOutput, type OutputIssue } from '../domain/output.js';
 import { HARNESS_PROMPT_VERSION, buildPrompt } from '../domain/prompt.js';
 import { makeExecuteAttempt, type AttemptResult, type Judgement } from './execute-attempt.js';
-import { MAX_STORED_OUTPUT_BYTES, type HarnessPorts, type ModelPort, type ModelReply, type RunDescriptor } from './ports.js';
+import {
+  MAX_STORED_OUTPUT_BYTES,
+  type HarnessPorts,
+  type ModelPort,
+  type ModelReply,
+  type RunDescriptor,
+} from './ports.js';
 
 /** The most a role may ask a provider to produce in one answer. */
 export const MAX_ROLE_OUTPUT_TOKENS = 16_384;
@@ -240,7 +246,14 @@ export function makeReasoningHarness(ports: HarnessPorts): ReasoningHarness {
     schema: z.ZodType<T>,
     result: AttemptResult,
     repaired: boolean,
-  ): ProposeOutcome<T> | { readonly kind: 'repairable'; readonly attemptId: string; readonly reason: string; readonly issues: readonly OutputIssue[] } {
+  ):
+    | ProposeOutcome<T>
+    | {
+        readonly kind: 'repairable';
+        readonly attemptId: string;
+        readonly reason: string;
+        readonly issues: readonly OutputIssue[];
+      } {
     switch (result.kind) {
       case 'answered': {
         let value: unknown;
@@ -353,7 +366,11 @@ export function makeReasoningHarness(ports: HarnessPorts): ReasoningHarness {
         false,
       );
       if (primary.kind !== 'repairable') return primary;
-      const invalid: ProposeOutcome<T> = { kind: 'invalid_output', attemptId: primary.attemptId, reason: primary.reason };
+      const invalid: ProposeOutcome<T> = {
+        kind: 'invalid_output',
+        attemptId: primary.attemptId,
+        reason: primary.reason,
+      };
       if (input.limits?.allowRepair === false) return invalid;
 
       // At most one repair: a new attempt, caused by the conclusively complete primary, sending

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigurationError, readApiConfig, readMigrateConfig, readOperatorConfig, readWorkerConfig, readWorkerOperatorConfig } from './index.js';
+import {
+  ConfigurationError,
+  readApiConfig,
+  readMigrateConfig,
+  readOperatorConfig,
+  readWorkerConfig,
+  readWorkerOperatorConfig,
+} from './index.js';
 
 const secretUrl = 'postgres://ks_api:hunter2-very-secret@127.0.0.1:5432/knowscroll_v2_dev';
 const release = {

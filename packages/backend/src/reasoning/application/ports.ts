@@ -249,8 +249,11 @@ export interface AttemptLedger {
     scope: PersonalScopeTx,
     run: { readonly runId: string; readonly state: 'completed' | 'failed' | 'cancelled' },
   ) => Promise<'closed' | 'not_open'>;
-  /** Operator write-off: `unknown → written_off` with the reason, across universes by attempt ID. */
-  readonly writeOff: (attemptId: string, reason: string) => Promise<WriteOffResult>;
+  /**
+   * Operator write-off: `unknown → written_off` with the reason and who ran the command
+   * (`cli:<name>`), across universes by attempt ID.
+   */
+  readonly writeOff: (attemptId: string, reason: string, source: string) => Promise<WriteOffResult>;
   /** Attempts awaiting reconciliation or write-off, oldest first. */
   readonly listUnknown: (limit: number) => Promise<readonly UnknownAttempt[]>;
   /** Deletes up to `limit` expired protected requests; returns how many were deleted. */
@@ -292,4 +295,3 @@ export interface HarnessPorts {
   readonly logEvent: LogEvent;
   readonly settings: HarnessSettings;
 }
-

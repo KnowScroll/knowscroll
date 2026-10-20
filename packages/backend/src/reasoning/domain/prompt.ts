@@ -76,6 +76,11 @@ export function buildPrompt(input: PromptInput): PromptText {
       '</context-item>',
     ].join('\n'),
   );
-  const user = [`<context bundle="${escapeData(input.bundleRef)}">`, ...items, '</context>', 'Reply now with the JSON object only.'];
+  const user = [
+    `<context bundle="${escapeData(input.bundleRef)}">`,
+    ...items,
+    '</context>',
+    'Reply now with the JSON object only.',
+  ];
   return { system: systemParts.join('\n'), user: user.join('\n') };
 }

@@ -1,3 +1,4 @@
+import { userInfo } from 'node:os';
 import { parseArgs } from 'node:util';
 import {
   ConfigurationError,
@@ -14,7 +15,7 @@ import { reasoningOperatorFor } from '@knowscroll/backend/reasoning/nest-provide
  * run from a server shell with the world's environment (`KS_WORLD`, `DATABASE_URL`). Results are
  * one JSON line on stdout; diagnostics (typed `logEvent` records) go to stderr.
  *
- *   reasoning write-off --attempt <uuid> --reason <text>   unknown → written_off, reason recorded
+ *   reasoning write-off --attempt <uuid> --reason <text>   unknown → written_off, reason and `cli:<name>` recorded
  *   reasoning unknown [--limit <n>]                        attempts awaiting reconciliation
  *   reasoning purge-expired                                delete expired protected requests
  *
@@ -24,6 +25,24 @@ import { reasoningOperatorFor } from '@knowscroll/backend/reasoning/nest-provide
  */
 const usage =
   'usage: operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning purge-expired';
+
+const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
+
+/**
+ * Who ran the command, for the write-off record: the user behind `sudo` (`SUDO_USER`), else the
+ * login user, as `cli:<name>`; `cli:unknown` when neither is a plain user name (the same rule as
+ * the API tree's operator command).
+ */
+function operatorSource(env: NodeJS.ProcessEnv): string {
+  const candidates = [env['SUDO_USER'], env['USER'], env['LOGNAME']];
+  try {
+    candidates.push(userInfo().username);
+  } catch {
+    // No passwd entry for this uid: the environment's names are all there is.
+  }
+  const name = candidates.find((candidate) => candidate !== undefined && operatorName.test(candidate));
+  return `cli:${name ?? 'unknown'}`;
+}
 
 function print(result: Record<string, unknown>): void {
   process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -74,7 +93,7 @@ async function main(): Promise<number> {
           print({ result: 'usage', usage });
           return 2;
         }
-        const result = await operator.writeOff(args.values.attempt, args.values.reason);
+        const result = await operator.writeOff(args.values.attempt, args.values.reason, operatorSource(process.env));
         print({ command: 'reasoning write-off', result: result.kind, ...result });
         return result.kind === 'written_off' ? 0 : 2;
       }

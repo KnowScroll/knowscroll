@@ -81,12 +81,14 @@ export function providerErrorCode(value: unknown): string | undefined {
   const type = record(body['error'])?.['type'];
   if (typeof type === 'string' && /^[a-z_]{1,40}$/.test(type)) return type.toUpperCase();
   const status = record(body['base_resp'])?.['status_code'];
-  if (typeof status === 'number' && Number.isInteger(status) && status > 0 && status < 1_000_000) return `MINIMAX_${status}`;
+  if (typeof status === 'number' && Number.isInteger(status) && status > 0 && status < 1_000_000)
+    return `MINIMAX_${status}`;
   return undefined;
 }
 
 /** Outcome of reading a 200 response body. `rejected` carries a provider error code. */
-export type ParsedReply = { readonly kind: 'reply'; readonly reply: ModelReply } | { readonly kind: 'rejected'; readonly code: string };
+export type ParsedReply =
+  { readonly kind: 'reply'; readonly reply: ModelReply } | { readonly kind: 'rejected'; readonly code: string };
 
 /**
  * Interprets a 200 response body (already bounded) from the messages route: the joined text
@@ -115,10 +117,14 @@ export function parseMessagesReply(text: string): ParsedReply {
     .map((block) => record(block))
     .filter((block) => block?.['type'] === 'text' && typeof block['text'] === 'string')
     .map((block) => block?.['text'] as string);
-  if (texts.length === 0) return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'unreadable', code: 'REPLY_NO_TEXT' } } };
+  if (texts.length === 0)
+    return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'unreadable', code: 'REPLY_NO_TEXT' } } };
   const stripped = stripThinkingFraming(texts.join(''));
   if (!stripped.ok)
-    return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'unreadable', code: 'THINKING_UNTERMINATED' } } };
+    return {
+      kind: 'reply',
+      reply: { ...withId, usage, answer: { kind: 'unreadable', code: 'THINKING_UNTERMINATED' } },
+    };
   return {
     kind: 'reply',
     reply: { ...withId, usage, answer: { kind: 'text', text: stripped.text, stop: stopReason(body['stop_reason']) } },
@@ -151,12 +157,16 @@ export function judgeQuota(value: unknown, floorPercent: number): QuotaObservati
   const body = record(value);
   if (body === undefined || record(body['base_resp'])?.['status_code'] !== 0 || !Array.isArray(body['model_remains']))
     return invalid;
-  const general = (body['model_remains'] as unknown[]).map((entry) => record(entry)).filter((entry) => entry?.['model_name'] === 'general');
+  const general = (body['model_remains'] as unknown[])
+    .map((entry) => record(entry))
+    .filter((entry) => entry?.['model_name'] === 'general');
   if (general.length !== 1) return { ...invalid, reasonCode: 'QUOTA_WINDOW_AMBIGUOUS' };
   const interval = general[0]?.['current_interval_remaining_percent'];
   const weekly = general[0]?.['current_weekly_remaining_percent'];
   const percent = (candidate: unknown) =>
-    typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 0 && candidate <= 100 ? candidate : null;
+    typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 0 && candidate <= 100
+      ? candidate
+      : null;
   const intervalPercent = percent(interval);
   const weeklyPercent = percent(weekly);
   if (intervalPercent === null || weeklyPercent === null) return invalid;

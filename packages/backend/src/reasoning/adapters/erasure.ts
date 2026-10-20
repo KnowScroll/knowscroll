@@ -13,6 +13,8 @@ import { transactionOf } from '../../infrastructure/postgres/personal-scope.js';
  *   report says `pending` so the eraser is retried after reconciliation or write-off.
  * - Runs without remaining attempts are deleted.
  *
+ * Outside our database: a request sent to MiniMax leaves a copy there (see `nonRowStores`).
+ *
  * Usage receipts (`reasoning.usage_receipts`) are not personal: keyed by attempt ID only, with no
  * universe, purpose, context or output, they survive so global and per-role budgets stay honest
  * and late usage can still settle (blueprint §15 "minimal accounting identity").
@@ -24,7 +26,13 @@ export const reasoningErasure: ModuleErasure = {
     { schema: 'reasoning', table: 'external_attempts', ownerColumn: 'universe_id' },
     { schema: 'reasoning', table: 'business_runs', ownerColumn: 'universe_id' },
   ],
-  nonRowStores: [],
+  nonRowStores: [
+    {
+      name: 'minimax/request-copies',
+      description:
+        "Copies of requests sent to MiniMax (bounded context items) and its answers, under MiniMax's own retention and terms (D-021); we keep no handle to find or delete them, so no eraser of ours reaches them and the privacy copy must say so",
+    },
+  ],
   async erase(scope) {
     const trx = transactionOf(scope);
     const universeId = scope.authority.universeId;
