@@ -102,7 +102,8 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     );
     const produce = (
       selected: ProductionReasoningHarness = harness,
-      research: (url: string) => Promise<ResearchPage> = (url) => Promise.resolve(researchFixture(url)),
+      research: (url: string) => Promise<ResearchPage> = (url) =>
+        Promise.resolve(url === TOPICS.tides.pages[1] ? researchFixture(url) : page),
     ) =>
       makeProduceScroll({
         db: database.db,
