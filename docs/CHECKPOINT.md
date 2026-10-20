@@ -2,7 +2,7 @@
 
 Coordinator-owned. Hard cap ~120 lines. Verify Git, CI and deployed revisions before acting.
 
-**Updated:** 2026-10-20 14:10 UTC · **Phase:** 2 recovery / fix-and-review round · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-20 14:21 UTC · **Phase:** 2 recovery / fix-and-review round · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -15,7 +15,7 @@ Coordinator-owned. Hard cap ~120 lines. Verify Git, CI and deployed revisions be
 
 | Item | Value / evidence limit |
 |---|---|
-| Integration | `codex/release-knowscroll-v2` at `47f826ebe41c4c46fa5f675612df880b1f6aaf69` after #258/#254/#260 merges; takeover was clean `d852d440` |
+| Integration | `codex/release-knowscroll-v2` at `deb0cb26ade62536ce15109fee94ccd1eca3ff24` after #258/#254/#260/#267 merges; takeover was clean `d852d440` |
 | Worktree | `/Volumes/Mrigesh SSD/knowscroll-worktrees/v2-release` |
 | dev health, 2026-10-20 | v2 `d852d440325d42d0e691e3116d40cf090f919bbc`, artifact `dccc91bdf11113578e783ec6c3ff88880c3b54ee1a99e664308cd77f148c88d0`, migration `0009_reasoning_harness`, relay listening |
 | stage health, 2026-10-20 | v1 `8982391fe6a0dae385fc6e3013bf46b093d2d9d9`; no v2 promotion yet |
@@ -36,12 +36,12 @@ It preserves Git refs, index, dirty files, patches and rebase metadata. Historic
 
 | Sol/high agent | Existing PR / worktree | Assignment state |
 |---|---|---|
-| `scroll_model_230` | #254 · `v2-230-scroll-model` | Merged #254 as `a640a57e` after independent review + exact-head green; timing scheduling follow-up in `v2-230-ci-timing` |
-| `renderers_230` | #260 + #263 · `v2-230-renderers` / B branch | A merged as `47f826eb`; B `48cecd38` source/tree accepted, current native and CI pending; preserves reviewed B tree after squash |
+| `scroll_model_230` | #254 · `v2-230-scroll-model` | Merged #254 as `a640a57e` after independent review + exact-head green; timing scheduling #267 merged `deb0cb26`; every test/threshold preserved, exact-head push + PR all six checks passed |
+| `renderers_230` | #260 + #263 · `v2-230-renderers` / B branch | A merged as `47f826eb`; B `48cecd38` source/tree accepted, all six checks pass after unchanged-head backend retry; APK passed, mandatory emulator executing; preserves reviewed B tree after squash |
 | `thin_journey_229` | #262 · `v2-229-thin-journey` | `954fe64c`, independent source/probe review accepted, exact-head checks green. Root browser/realDB at `5b0f0330` (later change is probe-only): qualified evidence and block return |
-| `production_scope_232` | #232 foundation · `v2-232-production-scope` | PR #266 `155c299f`; independent review accepted brake fix, current CI pending; no provider calls |
+| `production_scope_232` | #232 foundation · `v2-232-production-scope` | PR #266 `1a650f64`; brake + bounded accounting source accepted after late-usage correction, current CI pending; no provider calls |
 | `scroll_production_232` | #232 · `v2-232-scroll-production` | Research/claims/writer/publication + explicit same-run resume; no provider allocation executed |
-| `media_reels_233` | #233 · `v2-233-media-reels` | MediaStore, scoped range grants, genuine Cutroom read import, paired Reel evidence; no paid calls |
+| `media_reels_233` | #233 · `v2-233-media-reels` | PR #268 `51d718bb`; local fixture browser/realDB playback + qualified evidence, independent source review/current CI fixes ongoing; no paid calls |
 | coordinator | #258 · `v2-249-android-lane` | Merged #258 as `957b7655` after independent source/log/artifact review; Scroll-block flow explicitly skipped; #249 stays open |
 
 Workers do not edit checkpoint. Reports live in `agents/codex-230-model/`, `codex-230-renderers/`, `codex-229-journey/`, `codex-249-review/` under the SSD evidence area.
