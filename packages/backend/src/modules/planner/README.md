@@ -63,8 +63,15 @@ run for the same desired revision.
 The `planner.run` queue contains only version/universe/epoch/run IDs. It uses local concurrency1,
 1200s expiry, three retries with30s exponential backoff, seven-day queued retention, two-day result
 retention and the common14-day dead-letter retention. A1150s claim token fences concurrent deliveries;
-a live claim returns `already_running`. A crashed delivery resumes its frozen business run after
-claim expiry. Prepared JSON sorts object keys so JSONB storage cannot change request bytes on replay. The expiry exceeds two attempts at maximum300s transport +10s quota + two maximum60s
+a live claim returns `already_running`. An early retry that finds a live prepared claim commits one delayed pg-boss wake-up for that
+exact claim ID at claim expiry+1s before the retry completes. The delayed job requires the same
+claim ID and prepared status; an owner that finished accepted/blocked/unknown/disabled makes it a
+no-op. This preserves recovery after a failed handler without automatic policy retries. Normal
+wake-ups also refuse settled blocked/unknown runs. Typed explicit resume atomically changes that
+status back to prepared (queued if no context) and enqueues ordinary work; it may also recover an
+expired prepared claim. Pending ordinary and claim-fenced jobs deduplicate independently, so an
+obsolete delayed wake cannot swallow an explicit resume. A crashed delivery resumes frozen work
+after claim expiry. Prepared JSON sorts object keys so JSONB storage cannot change request bytes on replay. The expiry exceeds two attempts at maximum300s transport +10s quota + two maximum60s
 scope locks per attempt, two application-scope waits and margin. Claim tokens cannot override the harness's external-attempt
 ledger. A duplicate unknown delivery never sends/repairs another attempt.
 

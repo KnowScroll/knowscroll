@@ -12,6 +12,7 @@ export type EnqueueJob = <Payload>(
   scope: PersonalScopeTx,
   queue: QueueDefinition<Payload>,
   payload: Payload,
+  options?: { readonly startAfter: Date },
 ) => Promise<void>;
 
 /**
@@ -20,9 +21,16 @@ export type EnqueueJob = <Payload>(
  * the scope's own transaction, never a fresh connection.
  */
 export function makeEnqueueJob(boss: PgBoss): EnqueueJob {
-  return async (scope, queue, payload) => {
+  return async (scope, queue, payload, options) => {
+    if (options && !(options.startAfter instanceof Date)) throw new Error('JOB_START_AFTER_INVALID');
+    const startAfter = options ? new Date(options.startAfter.getTime()) : undefined;
+    if (startAfter && (!Number.isFinite(startAfter.getTime()) || startAfter.getTime() > Date.now() + 86400000))
+      throw new Error('JOB_START_AFTER_INVALID');
     const data = queue.payload.parse(payload) as object;
-    const id = await boss.send(queue.name, data, { db: fromKysely(transactionOf(scope)) });
+    const id = await boss.send(queue.name, data, {
+      db: fromKysely(transactionOf(scope)),
+      ...(startAfter ? { startAfter } : {}),
+    });
     if (id === null) throw new Error(`pg-boss did not create a job on ${queue.name}`);
   };
 }

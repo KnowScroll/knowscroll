@@ -29,7 +29,7 @@ export function makeMaterialChange(p: Pick<PlannerPorts, 'store' | 'newId' | 'en
   };
 }
 export function makeRequestPlanner(
-  p: Pick<PlannerPorts, 'withPersonalScope' | 'store' | 'newId' | 'enqueue' | 'receipts' | 'hash'>,
+  p: Pick<PlannerPorts, 'withPersonalScope' | 'store' | 'newId' | 'enqueue' | 'receipts' | 'hash' | 'now'>,
 ): RequestPlanner {
   return async (authority, command) => {
     const c = z
@@ -45,11 +45,20 @@ export function makeRequestPlanner(
       const state = await p.store.state(scope);
       if (c.resumeRunId) {
         const run = await p.store.run(scope, c.resumeRunId);
-        if (state.activeRunId !== c.resumeRunId || !run || !['blocked', 'unknown'].includes(run.status)) {
+        const preparedExpired =
+          run?.status === 'prepared' && (!run.claimUntil || Date.parse(run.claimUntil) <= p.now().getTime());
+        if (
+          state.activeRunId !== c.resumeRunId ||
+          !run ||
+          (!['blocked', 'unknown'].includes(run.status) && !preparedExpired)
+        ) {
           const outcome = { kind: 'refused', reason: 'run_not_resumable' } as const;
           await p.receipts.complete(scope, c.commandId, outcome);
           return outcome;
         }
+        const { claimId: _claim, claimUntil: _until, ...released } = run;
+        // A durable explicit request is the only transition out of a settled blocked/unknown decision.
+        await p.store.writeRun(scope, { ...released, status: run.context ? 'prepared' : 'queued' });
         await p.enqueue(scope, c.resumeRunId);
         const outcome = { kind: 'accepted', revision: state.desiredRevision, runId: c.resumeRunId } as const;
         await p.receipts.complete(scope, c.commandId, outcome);

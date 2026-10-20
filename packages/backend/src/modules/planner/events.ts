@@ -5,6 +5,7 @@ export const PlannerJobSchema = z.strictObject({
   universeId: z.uuid(),
   privacyEpoch: z.number().int().positive(),
   runId: z.uuid(),
+  expectedClaimId: z.uuid().optional(),
 });
 export const plannerQueue = defineQueue({
   name: 'planner.run',

@@ -81,7 +81,11 @@ export interface PlannerPorts {
   readonly harness: ReasoningHarness;
   /** Deployment config gate; does not replace provider allowance, harness budgets or quota. */
   readonly enabled: () => boolean;
-  readonly enqueue: (scope: PersonalScopeTx, runId: string) => Promise<void>;
+  readonly enqueue: (
+    scope: PersonalScopeTx,
+    runId: string,
+    delayed?: { readonly startAfter: Date; readonly expectedClaimId: string },
+  ) => Promise<void>;
   readonly hash: (value: unknown) => string;
   readonly newId: () => string;
   readonly now: () => Date;
@@ -123,6 +127,12 @@ export type ReadPlannerOpportunities = (
   readonly availability: 'available' | 'absent' | 'stale';
 }>;
 export type RunPlanner = (
-  payload: { readonly v: 1; readonly universeId: string; readonly privacyEpoch: number; readonly runId: string },
+  payload: {
+    readonly v: 1;
+    readonly universeId: string;
+    readonly privacyEpoch: number;
+    readonly runId: string;
+    readonly expectedClaimId?: string;
+  },
   signal: AbortSignal,
 ) => Promise<ScopeOutcome<{ readonly kind: string }>>;

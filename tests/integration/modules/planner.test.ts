@@ -8,11 +8,13 @@ import { makeWithPersonalScope, insideTransaction, type Database } from '@knowsc
 import { requestHash } from '@knowscroll/backend/infrastructure/receipts';
 import { readDiscoveryCandidates, readExactEncounter } from '@knowscroll/backend/modules/content/nest-providers';
 import {
+  plannerQueue,
   REQUEST_PLANNER,
   PLANNER_MATERIAL_CHANGE,
   type PlannerMaterialChange,
   type PlannerProposal,
   type RequestPlanner,
+  type RunPlanner,
 } from '@knowscroll/backend/modules/planner';
 import {
   plannerRequestProviders,
@@ -133,6 +135,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     );
     const { harness } = fixtureHarness(database.db, { model });
     let enabled = true;
+    let clock: Date | undefined;
     const ports: PlannerPorts = {
       ...base,
       store: plannerStore,
@@ -143,7 +146,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       capabilities: { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] },
       harness,
       enabled: () => enabled,
-      now: () => new Date(),
+      now: () => clock ?? new Date(),
       hash: (x) => requestHash('personal-planner.v0', x as Parameters<typeof requestHash>[1]),
       newId: randomUUID,
     };
@@ -152,6 +155,9 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       run: makeRunPlanner(ports),
       read: makeReadPlannerOpportunities(ports),
       model,
+      setNow: (v: Date) => {
+        clock = v;
+      },
       setEnabled: (v: boolean) => {
         enabled = v;
       },
@@ -519,6 +525,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     expect(r.model.calls).toHaveLength(1);
     expect((await attemptsOf(database.db, p.universeId)).map((a) => a.state)).toEqual(['unknown']);
     // A code-version mismatch is an administrative refusal, never permission to abandon unknown work.
+    await request(p.authority, { commandId: randomUUID(), resumeRunId: s.active_run_id! });
     const changedRole = makeRunPlanner({
       ...r.ports,
       harness: {
@@ -540,6 +547,191 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
         .executeTakeFirstOrThrow(),
     ).toMatchObject({ status: 'unknown' });
     expect(r.model.calls).toHaveLength(1);
+  });
+  it('keeps durable recovery after a real pg-boss failed delivery and early retry, then applies the kept answer once', async () => {
+    // This file owns this disposable database. Remove prior completed-test wake-ups before claiming.
+    await database.pool.query("delete from pgboss.job where name='planner.run'");
+    const p = await seedPerson(database.db);
+    await qualify(p);
+    const r = runner(p),
+      s = await state(p);
+    const [first] = await c.boss.fetch<Parameters<RunPlanner>[0]>('planner.run');
+    expect(first?.data.runId).toBe(s.active_run_id);
+    const failing = makeRunPlanner({
+      ...r.ports,
+      store: {
+        ...plannerStore,
+        accept: async (...args) => {
+          await plannerStore.accept(...args);
+          throw new Error('CI_QUEUE_APPLY_FAILURE');
+        },
+      },
+    });
+    await expect(failing(first!.data, signal())).rejects.toThrow('CI_QUEUE_APPLY_FAILURE');
+    expect(await c.boss.fail('planner.run', first!, { failure: 'authored_apply_failure' })).toMatchObject({
+      affected: 1,
+    });
+    const retry = (
+      await database.pool.query<{ state: string; retry_delay: number; start_after: Date }>(
+        'select state,retry_delay,start_after from pgboss.job where id=$1',
+        [first!.id],
+      )
+    ).rows[0]!;
+    expect(retry).toMatchObject({ state: 'retry', retry_delay: 30 });
+    expect(retry.start_after.getTime()).toBeGreaterThan(Date.now());
+    // pg-boss's documented test/admin time override advances queue eligibility without a19-minute wait.
+    const [second] = await c.boss.fetch<Parameters<RunPlanner>[0]>('planner.run', { ignoreStartAfter: true });
+    expect(second!.retryCount).toBe(1);
+    expect(await r.run(second!.data, signal())).toMatchObject({ kind: 'entered', value: { kind: 'already_running' } });
+    expect(await c.boss.complete('planner.run', second!)).toMatchObject({ affected: 1 });
+    const rows = (
+      await database.pool.query<{ data: Parameters<RunPlanner>[0]; start_after: Date }>(
+        'select data,start_after from pgboss.job where name=$1 and state=$2',
+        ['planner.run', 'created'],
+      )
+    ).rows;
+    expect(rows).toHaveLength(1);
+    const run = await database.db
+      .selectFrom('planner.runs')
+      .select(['claim_id', 'claim_until'])
+      .where('id', '=', s.active_run_id!)
+      .executeTakeFirstOrThrow();
+    expect(rows[0]!.data).toMatchObject({ runId: s.active_run_id, expectedClaimId: run.claim_id });
+    expect(rows[0]!.start_after.getTime()).toBe(run.claim_until!.getTime() + 1000);
+    expect(await c.boss.fetch('planner.run')).toHaveLength(0);
+    // Another early delivery deduplicates the same expected-claim wake-up.
+    await r.run(second!.data, signal());
+    expect(
+      (await database.pool.query("select id from pgboss.job where name='planner.run' and state='created'")).rows,
+    ).toHaveLength(1);
+    r.setNow(new Date(run.claim_until!.getTime() + 2000));
+    const [delayed] = await c.boss.fetch<Parameters<RunPlanner>[0]>('planner.run', { ignoreStartAfter: true });
+    expect(await r.run(delayed!.data, signal())).toMatchObject({ kind: 'entered', value: { kind: 'accepted' } });
+    await c.boss.complete('planner.run', delayed!);
+    expect(r.model.calls).toHaveLength(1);
+    expect(await r.run(delayed!.data, signal())).toMatchObject({ kind: 'entered', value: { kind: 'not_active' } });
+    expect(
+      await database.db
+        .selectFrom('planner.revisions')
+        .select('revision')
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(1);
+  });
+  it('makes delayed claim wakes no-op after accepted/quota/unknown/disabled decisions and requires explicit blocked resume', async () => {
+    for (const decision of ['accepted', 'quota', 'unknown', 'disabled'] as const) {
+      await database.pool.query("delete from pgboss.job where name='planner.run'");
+      const p = await seedPerson(database.db);
+      await qualify(p);
+      let release!: () => void, entered!: () => void;
+      const hold = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const enteredPromise = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const r = runner(p, async (context) => {
+        entered();
+        await hold;
+        return decision === 'unknown'
+          ? { kind: 'timeout_after_dispatch' }
+          : { kind: 'success', text: JSON.stringify(answer(context)) };
+      });
+      const s = await state(p);
+      // Authored harness admission outcome for quota: no model invocation or invented provider output.
+      const pausedQuota: PlannerPorts['harness'] = {
+        ...r.ports.harness,
+        propose: async () => {
+          entered();
+          await hold;
+          return { kind: 'quota_unavailable', attemptId: randomUUID() };
+        },
+      };
+      const owner = decision === 'quota' ? makeRunPlanner({ ...r.ports, harness: pausedQuota }) : r.run;
+      const [first] = await c.boss.fetch<Parameters<RunPlanner>[0]>('planner.run');
+      const running = owner(first!.data, signal());
+      await enteredPromise;
+      expect(await r.run(first!.data, signal())).toMatchObject({ kind: 'entered', value: { kind: 'already_running' } });
+      if (decision === 'disabled') r.setEnabled(false);
+      release();
+      expect(await running).toMatchObject({
+        kind: 'entered',
+        value: {
+          kind:
+            decision === 'accepted'
+              ? 'accepted'
+              : decision === 'unknown'
+                ? 'unknown'
+                : decision === 'disabled'
+                  ? 'blocked_disabled'
+                  : 'quota_unavailable',
+        },
+      });
+      await c.boss.complete('planner.run', first!);
+      const [late] = await c.boss.fetch<Parameters<RunPlanner>[0]>('planner.run', { ignoreStartAfter: true });
+      expect(late?.data.expectedClaimId).toBeTruthy();
+      expect(await r.run(late!.data, signal())).toMatchObject({
+        kind: 'entered',
+        value: { kind: decision === 'accepted' ? 'not_active' : 'obsolete_claim_wake' },
+      });
+      await c.boss.complete('planner.run', late!);
+      r.setEnabled(true);
+      expect(await r.run(job(p, s.active_run_id!), signal())).toMatchObject({
+        kind: 'entered',
+        value: { kind: decision === 'accepted' ? 'not_active' : 'awaiting_explicit_resume' },
+      });
+      expect(r.model.calls).toHaveLength(decision === 'quota' ? 0 : 1);
+    }
+  });
+  it('rolls back delayed jobs with their scope transaction and fences a scheduled wake across privacy reset', async () => {
+    const p = await seedPerson(database.db);
+    await qualify(p);
+    const r = runner(p),
+      s = await state(p);
+    const delayed = { expectedClaimId: randomUUID(), startAfter: new Date(Date.now() + 10000) };
+    await expect(
+      scope()(p.authority, async (scoped) => {
+        await base.enqueue(scoped, s.active_run_id!, delayed);
+        throw new Error('CI_DELAY_ROLLBACK');
+      }),
+    ).rejects.toThrow('CI_DELAY_ROLLBACK');
+    expect(
+      (
+        await database.pool.query(
+          "select id from pgboss.job where name='planner.run' and data->>'expectedClaimId'=$1",
+          [delayed.expectedClaimId],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    await expect(
+      scope()(p.authority, (scoped) =>
+        makeEnqueueJob(c.boss)(
+          scoped,
+          plannerQueue,
+          { ...job(p, s.active_run_id!) },
+          { startAfter: new Date(Number.NaN) },
+        ),
+      ),
+    ).rejects.toThrow('JOB_START_AFTER_INVALID');
+    await expect(
+      scope()(p.authority, (scoped) =>
+        makeEnqueueJob(c.boss)(
+          scoped,
+          plannerQueue,
+          { ...job(p, s.active_run_id!) },
+          { startAfter: new Date(Date.now() + 2 * 86400000) },
+        ),
+      ),
+    ).rejects.toThrow('JOB_START_AFTER_INVALID');
+    await database.db
+      .updateTable('identity.universes')
+      .set({ privacy_epoch: 2 })
+      .where('id', '=', p.universeId)
+      .execute();
+    expect(
+      await r.run({ ...job(p, s.active_run_id!), expectedClaimId: delayed.expectedClaimId }, signal()),
+    ).toMatchObject({ kind: 'refused' });
+    expect(r.model.calls).toHaveLength(0);
   });
   it('uses one admitted semantic repair and erases all Planner/memory/protected inputs/jobs across epochs', async () => {
     const p = await seedPerson(database.db);

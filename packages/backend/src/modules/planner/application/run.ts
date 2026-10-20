@@ -75,10 +75,19 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
       const state = await p.store.state(scope),
         run = await p.store.run(scope, payload.runId);
       if (!run || state.activeRunId !== run.id) return { kind: 'not_active' } as const;
-      if (run.claimUntil && Date.parse(run.claimUntil) > p.now().getTime()) return { kind: 'already_running' } as const;
+      if (payload.expectedClaimId && (run.claimId !== payload.expectedClaimId || run.status !== 'prepared'))
+        return { kind: 'obsolete_claim_wake' } as const;
+      if (run.claimUntil && Date.parse(run.claimUntil) > p.now().getTime()) {
+        if (run.status === 'prepared' && run.claimId)
+          await p.enqueue(scope, run.id, {
+            expectedClaimId: run.claimId,
+            startAfter: new Date(Date.parse(run.claimUntil) + 1000),
+          });
+        return { kind: 'already_running' } as const;
+      }
+      if (run.status === 'blocked' || run.status === 'unknown') return { kind: 'awaiting_explicit_resume' } as const;
       if (!p.enabled()) {
-        if (run.status !== 'unknown')
-          await p.store.writeRun(scope, { ...run, status: 'blocked', outcome: 'blocked_disabled' });
+        await p.store.writeRun(scope, { ...run, status: 'blocked', outcome: 'blocked_disabled' });
         return { kind: 'blocked_disabled' } as const;
       }
       // A redelivery always resumes the frozen context and stable run ID, including unknowns.
@@ -162,7 +171,7 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
       if (outcome?.kind === 'budget_exhausted' || outcome?.kind === 'refused') {
         await p.store.writeRun(scope, {
           ...released,
-          status: current.status === 'unknown' ? 'unknown' : 'blocked',
+          status: current.status === 'unknown' || current.outcome === 'unknown' ? 'unknown' : 'blocked',
           outcome: outcome.kind === 'refused' ? outcome.reason : outcome.kind,
         });
         return { kind: 'blocked' };

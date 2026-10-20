@@ -53,18 +53,25 @@ export function plannerRequestProviders(t: { readonly withPersonalScope: symbol;
         store: plannerStore,
         hash,
         newId: () => uuidv7(),
-        enqueue: async (scope, runId) => {
+        now,
+        enqueue: async (scope, runId, delayed) => {
           const pending =
-            await sql`select 1 from pgboss.job where name='planner.run' and state in ('created','retry') and data->>'universeId'=${scope.authority.universeId} and data->>'runId'=${runId} limit 1`.execute(
+            await sql`select 1 from pgboss.job where name='planner.run' and state in ('created','retry') and data->>'universeId'=${scope.authority.universeId} and data->>'runId'=${runId} and coalesce(data->>'expectedClaimId','')=${delayed?.expectedClaimId ?? ''} limit 1`.execute(
               transactionOf(scope),
             );
           if (pending.rows.length) return;
-          await enqueue(scope, plannerQueue, {
-            v: 1,
-            universeId: scope.authority.universeId,
-            privacyEpoch: scope.authority.privacyEpoch,
-            runId,
-          });
+          await enqueue(
+            scope,
+            plannerQueue,
+            {
+              v: 1,
+              universeId: scope.authority.universeId,
+              privacyEpoch: scope.authority.privacyEpoch,
+              runId,
+              ...(delayed ? { expectedClaimId: delayed.expectedClaimId } : {}),
+            },
+            delayed ? { startAfter: delayed.startAfter } : undefined,
+          );
         },
         receipts: {
           find: async (scope, commandId, hash) => {
