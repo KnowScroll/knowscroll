@@ -61,11 +61,19 @@ tags:
 - assertVisible: Left pier.*With the weight over the left pier.*
 - takeScreenshot: scroll-05-diagram-choice
 
-- scrollUntilVisible:
-    element: Text version of diagrams
-    direction: UP
-    centerElement: true
-    timeout: 90000
+# The diagram owns two-axis gestures. Maestro's centre-screen scroll starts on that
+# canvas here and correctly drags it instead of moving the article. Scroll from the
+# article gutter, with a bounded search and the same mandatory target assertion.
+- repeat:
+    times: 20
+    while:
+      notVisible: Text version of diagrams
+    commands:
+      - swipe:
+          start: 4%, 35%
+          end: 4%, 85%
+          duration: 650
+- assertVisible: Text version of diagrams
 - tapOn: Text version of diagrams
 - scrollUntilVisible:
     element: More String length
