@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentRef, type Ref } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentRef,
+  type ReactNode,
+  type Ref,
+} from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { VideoView, useVideoPlayer, type VideoSource, type VideoPlayer } from 'expo-video';
 import { spacing, content } from '@knowscroll/design-tokens';
@@ -49,6 +58,10 @@ export interface ReelPlayerProps {
   /** Mount-only restore intent in milliseconds. Non-finite values become zero. */
   readonly initialPositionMs?: number;
   readonly positionRef?: Ref<ReelPositionHandle>;
+  /** Wrap only the noninteractive video/poster stage. Playback controls remain outside.
+   * Return a flex-filling element and preserve the supplied stage; own gesture policy in the app.
+   */
+  readonly renderStage?: (stage: ReactNode) => ReactNode;
   readonly loadSource: () => Promise<{ readonly source: VideoSource; readonly expiresAt: string }>;
   readonly onSample: (sample: {
     positionMs: number;
@@ -68,6 +81,7 @@ export function ReelPlayer({
   active,
   initialPositionMs,
   positionRef,
+  renderStage,
   loadSource,
   onSample,
   onDiscontinuity,
@@ -373,8 +387,8 @@ export function ReelPlayer({
     resumePosition.current = player.currentTime;
     setPosition(player.currentTime);
   };
-  return (
-    <View ref={view} style={[styles.frame, { height: Math.max(300, window.height - 300) }]}>
+  const stage = (
+    <>
       <VideoView
         player={player}
         style={styles.video}
@@ -391,6 +405,11 @@ export function ReelPlayer({
           </Text>
         </View>
       ) : null}
+    </>
+  );
+  return (
+    <View ref={view} style={[styles.frame, { height: Math.max(300, window.height - 300) }]}>
+      {renderStage ? <View style={styles.stage}>{renderStage(stage)}</View> : stage}
       <View style={styles.controls}>
         <Text variant="uiS" color={content.paper}>
           {Math.floor(position)} / {Math.round(durationMs / 1000)} s · Captions in video
@@ -426,6 +445,7 @@ export function ReelPlayer({
 }
 const styles = StyleSheet.create({
   frame: { width: '100%', maxWidth: 480, alignSelf: 'center', backgroundColor: '#151515' },
+  stage: { flex: 1, minHeight: 0, width: '100%' },
   video: { flex: 1, width: '100%', minHeight: 0, height: '100%' },
   poster: { position: 'absolute', top: '40%', left: spacing[5], right: spacing[5], alignItems: 'center' },
   controls: { padding: spacing[3], gap: spacing[2], backgroundColor: '#151515' },

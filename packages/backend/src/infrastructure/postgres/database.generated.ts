@@ -120,6 +120,25 @@ export interface ContentReelImports {
   script_name: string;
 }
 
+export interface ContentScrollProductionRuns {
+  asset_id: string | null;
+  asset_revision: number | null;
+  claims: Json | null;
+  claims_run_id: string;
+  completed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  id: string;
+  outcomes: Generated<Json>;
+  policy_version: string;
+  research: Generated<Json>;
+  scope_generation: number;
+  state: string;
+  target_revision: number;
+  topic: string;
+  writer_output: Json | null;
+  writer_run_id: string;
+}
+
 export interface ContentSeriesUnits {
   asset_id: string;
   asset_revision: number;
@@ -457,6 +476,7 @@ export interface DB {
   "content.encounter_topics": ContentEncounterTopics;
   "content.media_objects": ContentMediaObjects;
   "content.reel_imports": ContentReelImports;
+  "content.scroll_production_runs": ContentScrollProductionRuns;
   "content.series_units": ContentSeriesUnits;
   "evidence.action_events": EvidenceActionEvents;
   "evidence.encounter_evidence": EvidenceEncounterEvidence;
