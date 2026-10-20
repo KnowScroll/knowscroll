@@ -38,7 +38,7 @@ concurrency:
 env:
   KS_API_ORIGIN: ${{ inputs.api_origin || 'https://app.dev.knowscroll.space' }}
   # Pull requests always build the gallery; a manual run decides with its input.
-  KS_GALLERY: ${{ github.event_name != 'workflow_dispatch' || inputs.gallery }}
+  KS_GALLERY: 'false'
   # Pinned tools (recorded in docs/v2/operations/dependency-matrix.md).
   KS_GRADLE_VERSION: 9.4.1
   KS_GRADLE_SHA256: 2ab2958f2a1e51120c326cad6f385153bb11ee93b3c216c5fccebfdfbb7ec6cb
