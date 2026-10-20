@@ -2,7 +2,7 @@
 
 Coordinator-owned. Hard cap ~120 lines. Verify Git, CI and deployed revisions before acting.
 
-**Updated:** 2026-10-20 18:04 UTC · **Phase:** 2 real dev journeys / Phase 3 source work · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-20 17:58 UTC · **Phase:** 2 real dev journeys / Phase 3 source work · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
