@@ -21,6 +21,9 @@ describe('the API contract', () => {
     const routes = [
       apiContract.health,
       apiContract.media.grant,
+      apiContract.supply.create,
+      apiContract.supply.read,
+      apiContract.supply.cancel,
       apiContract.identity.requestSignIn,
       apiContract.identity.peekSignIn,
       apiContract.identity.redeemSignIn,
@@ -95,6 +98,43 @@ describe('the API contract', () => {
       expect(context).not.toContain(`"${privateField}"`);
     }
     expect(context).not.toContain('totalParts');
+  });
+
+  it('declares private request commands separately from current status without granting encounter authority', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [new ZodToJsonSchemaConverter()] });
+    const document = await generator.generate(apiContract, { info: { title: 'KnowScroll API', version: '1' } });
+    const create = document.paths?.['/v1/content/requests']?.post;
+    const read = document.paths?.['/v1/content/requests/{requestId}']?.get;
+    const cancel = document.paths?.['/v1/content/requests/cancel']?.post;
+    expect(create?.responses?.['200']).toBeDefined();
+    expect(read?.responses?.['200']).toBeDefined();
+    expect(cancel?.responses?.['200']).toBeDefined();
+    expect(read?.parameters).toContainEqual(expect.objectContaining({ name: 'requestId', in: 'path', required: true }));
+    expect(read?.requestBody).toBeUndefined();
+    const command = JSON.stringify(create?.requestBody);
+    const acceptance = JSON.stringify(create?.responses?.['200']);
+    const status = JSON.stringify(read?.responses?.['200']);
+    const cancellation = JSON.stringify(cancel?.responses?.['200']);
+    for (const field of ['commandId', 'topic', 'variant', 'assetRevision', 'capabilities'])
+      expect(command).toContain(field);
+    for (const field of ['accepted', 'recordedAt', 'privacyEpoch', 'replayed', 'requestId'])
+      expect(acceptance).toContain(field);
+    expect(acceptance).not.toContain('requestRevision');
+    for (const field of ['preparing', 'ready', 'unavailable', 'cancelled', 'requestRevision'])
+      expect(status).toContain(field);
+    for (const field of ['cancelled', 'already_cancelled', 'already_closed']) expect(cancellation).toContain(field);
+    for (const wire of [command, acceptance, status, cancellation])
+      for (const field of [
+        'ownerId',
+        'provider',
+        'prompt',
+        'draftVersion',
+        'sharingKey',
+        'grantId',
+        'exposureGrant',
+        'score',
+      ])
+        expect(wire).not.toContain(`"${field}"`);
   });
 
   it('names a scope by account and privacy epoch, refused with a 409 problem', () => {

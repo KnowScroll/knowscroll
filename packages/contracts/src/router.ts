@@ -1,4 +1,5 @@
 import { mediaGrantContract } from './media.js';
+import { cancelContentRequestContract, createContentRequestContract, readContentRequestContract } from './supply.js';
 import { exposureContextContract, navigateExperienceContract } from './navigation.js';
 import {
   activateExposureContract,
@@ -21,6 +22,11 @@ import { evidenceDiagnosticsContract, submitObservationsContract } from './inter
 export const apiContract = {
   health: healthContract,
   media: { grant: mediaGrantContract },
+  supply: {
+    create: createContentRequestContract,
+    read: readContentRequestContract,
+    cancel: cancelContentRequestContract,
+  },
   identity: {
     requestSignIn: requestSignInContract,
     peekSignIn: peekSignInContract,

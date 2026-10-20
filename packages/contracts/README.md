@@ -13,7 +13,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) and `ClientCapabilities` from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
 | `src/experience.ts` | `POST /v1/actions`, `GET /v1/saved`, and the exposure routes: `POST /v1/experience/open`, `POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document` |
 | `src/navigation.ts` | Composer session discovery, `POST /v1/experience/navigate`, semantic intents, prepared public offers, ready/pending/exhausted receipt outcomes and offer activation |
-| `src/supply.ts` | Declaration-only topic/format-variant requests, immutable acceptance/cancel receipts and current private request status; not routed by `apiContract` (#239 prerequisite) |
+| `src/supply.ts` | Declaration-only topic/format-variant requests, immutable acceptance/cancel receipts and current private request status; topic/variant HTTP declarations in `apiContract.supply` (#239 prerequisite; adapters pending) |
 | `src/geography.ts` | Declaration-only established geography pages, retained routes/aliases and typed applied universe deltas; not routed by `apiContract` (#237/#238 prerequisite) |
 | `src/interactions.ts` | `interaction.v1`: the observation envelope, three `scroll.*` payloads and bounded paired `reel.playback` intervals; `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
 | `src/media.ts` | `reel-document.v1` and `POST /v1/media/grants`: a session-scoped short-lived playback grant for an existing exposure |
@@ -142,7 +142,17 @@ No private thread/scenario inputs are declared here. Strictness applies to these
 canonical capabilities, session and metadata schemas are reused with their existing semantics,
 without changing legacy navigation/experience parsing or reserved discriminators.
 
-These schemas are **not routed or implemented** and do not complete #239. Series-next/related
+The shared `apiContract.supply` now declares `POST /v1/content/requests` (immutable acceptance),
+`GET /v1/content/requests/{requestId}` (current private status), and
+`POST /v1/content/requests/cancel` (immutable cancellation outcome). Both commands use HTTP200,
+including exact replays; acceptance is distinct from ready and never promises paid work. Cancel
+uses only its body request ID, avoiding competing path/body identities. Status GET has no request
+body and never creates demand, retries production or activates an encounter. The future adapter
+must apply the existing first-party origin/session/AccountScope guards and map typed refusals to
+fixed RFC9457 problems; it must not disclose another person's request existence. These are HTTP
+**declarations**, with no controller/client binding in this prerequisite. The already merged Supply
+backend public capabilities must be connected in the subsequent adapter PR. No new endpoint is
+claimed served or runtime-verified here; these declarations do not complete #239. Series-next/related
 commissioning needs a separate Content-owned admitted future-slot/move declaration and usable
 consumer-facing revision; current links point to admitted assets, so no future Part or pending
 target is invented here. E07's bounded private request list and explicit retry on the same request
