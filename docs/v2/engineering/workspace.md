@@ -27,8 +27,9 @@ the app's root layout can take the query client without the API client): their o
 the Expo app, whose
 bundler (Metro) and test runner (jest-expo) compile workspace sources anyway, so a `dist/` would
 never be read. Packages shared with the server keep the three-condition map below; the Expo
-bundle reads `@knowscroll/contracts` from its `dist/` (build it first), while the client's Jest
-config maps it to its sources.
+bundle reads `@knowscroll/contracts` and the `@knowscroll/scroll-model` it re-exports from their
+`dist/` (build both first: `pnpm --filter '@knowscroll/contracts...' build`), while the client's
+Jest config maps both to their sources.
 
 ## Sources inside the workspace, `dist/` outside it
 

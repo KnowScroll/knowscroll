@@ -198,9 +198,11 @@ jobs:
         run: pnpm --filter @knowscroll/ui test
       - name: Component tests (jest-expo)
         run: pnpm --filter @knowscroll/client test
-      # The export bundles @knowscroll/contracts from its dist/, like every other build (D-012).
+      # The export bundles @knowscroll/contracts and the @knowscroll/scroll-model it re-exports from
+      # their dist/, like every other build (D-012); the trailing `...` builds contracts' own
+      # workspace dependencies first.
       - name: Build the packages the web export bundles
-        run: pnpm --filter @knowscroll/contracts build
+        run: pnpm --filter '@knowscroll/contracts...' build
       - name: Web export (expo export --platform web)
         run: |
           pnpm --filter @knowscroll/client build

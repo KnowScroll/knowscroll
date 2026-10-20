@@ -2,8 +2,9 @@ import expoPreset from 'jest-expo/jest-preset.js';
 
 /*
  * jest-expo with two additions for workspace code:
- * - `@knowscroll/contracts` resolves to its TypeScript sources (tests never need a build; its
- *   `.js` import specifiers name `.ts` files), like Vitest and tsc do through `@knowscroll/source`;
+ * - `@knowscroll/contracts` and `@knowscroll/scroll-model` (which contracts re-exports) resolve to
+ *   their TypeScript sources (tests never need a build; their `.js` import specifiers name `.ts`
+ *   files), like Vitest and tsc do through `@knowscroll/source`;
  * - oRPC ships ES modules only (`.mjs`), so they go through jest-expo's own Babel transform.
  */
 const babelTransform = expoPreset.transform['\\.[jt]sx?$'];
@@ -13,6 +14,7 @@ const shared = {
   rootDir: '.',
   moduleNameMapper: {
     '^@knowscroll/contracts$': '<rootDir>/../../packages/contracts/src/index.ts',
+    '^@knowscroll/scroll-model$': '<rootDir>/../../packages/scroll-model/src/index.ts',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transform: { '\\.mjs$': babelTransform },
