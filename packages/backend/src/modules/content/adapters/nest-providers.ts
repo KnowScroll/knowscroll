@@ -12,6 +12,8 @@ import {
   FIND_ASSET_FOR_ACTION,
   FIND_OPENABLE_ASSET,
   READ_SCROLL_READING_FACTS,
+  READ_ADMITTED_COVERAGE_MAPPING,
+  LOCK_CURRENT_COVERAGE_AUTHORITIES,
   RENDER_SCROLL,
   type RenderScroll,
 } from '../public.js';
@@ -27,6 +29,7 @@ import {
 import { makeRenderScroll } from './render-scroll.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
+import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
 
 /**
  * Reusable outer wiring (blueprint §22): content's scope-bound read ports, used inside a personal
@@ -44,6 +47,8 @@ export function contentProviders() {
     { provide: FIND_ASSET_FOR_ACTION, useValue: findAssetForAction },
     { provide: FIND_OPENABLE_ASSET, useValue: findOpenableAsset },
     { provide: READ_SCROLL_READING_FACTS, useValue: readScrollReadingFacts },
+    { provide: READ_ADMITTED_COVERAGE_MAPPING, useValue: readAdmittedCoverageMapping },
+    { provide: LOCK_CURRENT_COVERAGE_AUTHORITIES, useValue: lockCurrentCoverageAuthorities },
   ];
 }
 
@@ -88,3 +93,12 @@ export {
 } from './discovery-store.js';
 export { admitContinuity } from './continuity-admission.js';
 export { makeAdmissionStore } from './postgres-store.js';
+/** Trusted composition/CI fixture seam only. Never bind its approval callback to request input. */
+export {
+  coverageAdmissionUseCase,
+  makeCoverageAdmissionPorts,
+  coverageCatalogue,
+  readAdmittedCoverageMapping,
+  lockCurrentCoverageAuthorities,
+} from './coverage-store.js';
+export { makeAdmitCoverage } from '../application/admit-coverage.js';
