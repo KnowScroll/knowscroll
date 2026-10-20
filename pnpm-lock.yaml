@@ -455,6 +455,12 @@ importers:
 
   packages/backend:
     dependencies:
+      '@knowscroll/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@knowscroll/scroll-model':
+        specifier: workspace:*
+        version: link:../scroll-model
       kysely:
         specifier: 'catalog:'
         version: 0.29.7

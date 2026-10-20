@@ -98,6 +98,16 @@ export interface OperatorConfig {
   readonly pattern: string;
 }
 
+/**
+ * The content operator command's configuration (`dist/operator.js content import-editorial`): the
+ * world (an allow-listed one) and its database. Nothing about sign-in: admitting shared content
+ * touches no person's data.
+ */
+export interface ContentOperatorConfig {
+  readonly world: string;
+  readonly database: DatabaseSettings;
+}
+
 export interface WorkerConfig extends ReleaseIdentity {
   readonly database: DatabaseSettings;
   readonly shutdownGraceMs: number;
@@ -472,6 +482,26 @@ function reasoningSettings(parsed: z.infer<typeof reasoningVariables>): Reasonin
     },
     maxRequestBytes: parsed.KS_REASONING_MAX_REQUEST_BYTES,
     requestRetentionSeconds: parsed.KS_REASONING_REQUEST_RETENTION_HOURS * 3600,
+  };
+}
+
+/**
+ * The content operator command's configuration (`dist/operator.js content import-editorial`, D-005):
+ * `KS_WORLD`, `DATABASE_URL` and `KS_DB_STATEMENT_TIMEOUT_MS`. Refused in every world outside
+ * `OPERATOR_WORLDS` (dev, stage, ci, local: live included, whatever it is called), like the
+ * operator sign-in command. Throws one `ConfigurationError` listing every problem.
+ */
+export function readContentOperatorConfig(env: Environment): ContentOperatorConfig {
+  const [parsed] = combineChecks(
+    checkEnvironment(
+      z.object({ KS_WORLD: WorldSchema, ...databaseVariables }),
+      pick(env, ['KS_WORLD', 'DATABASE_URL', 'KS_DB_STATEMENT_TIMEOUT_MS']),
+    ),
+  );
+  crossChecks([[!OPERATOR_WORLDS.includes(parsed.KS_WORLD), 'KS_WORLD: operator_command_refused_in_this_world']]);
+  return {
+    world: parsed.KS_WORLD,
+    database: databaseSettings(parsed, `knowscroll-operator-content-${parsed.KS_WORLD}`, 2),
   };
 }
 
