@@ -1,34 +1,172 @@
-import type { ModelPort, ModelRequest, ModelResponse } from '@knowscroll/backend/reasoning';
-import { guardedModelPort } from '@knowscroll/backend/reasoning/nest-providers';
+import { randomUUID } from 'node:crypto';
+import { sql, type Kysely } from 'kysely';
+import { z } from 'zod';
+import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
+import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import type { PersonalAuthority } from '@knowscroll/backend/modules/identity';
+import {
+  makeReasoningHarness,
+  type HarnessPorts,
+  type HarnessSettings,
+  type ModelPort,
+  type ReasoningContext,
+  type ReasoningRole,
+  type ReasoningRun,
+} from '@knowscroll/backend/reasoning';
+import {
+  fixtureModelPort,
+  guardedModelPort,
+  postgresHarnessPorts,
+  type FixtureModelPort,
+  type FixtureScenario,
+} from '@knowscroll/backend/reasoning/nest-providers';
 
 /**
- * CI fixture model: a labelled stand-in for a hosted model (real providers arrive in S2.2). It
- * counts the calls that actually reach it (after the transaction guard), so tests can prove the
- * attempt ledger never re-sends, and it is wrapped by the same guard as a real transport.
+ * CI fixtures for the reasoning harness: a labelled fixture model (the backend's
+ * `fixtureModelPort`, wrapped by the same transaction guard as a real transport), generous default
+ * settings, a tiny synthetic role and context, and helpers to read the ledger. Nothing here is
+ * provider output.
  */
-export interface FixtureModel extends ModelPort {
-  readonly calls: readonly ModelRequest[];
+export const silent: LogEvent = () => undefined;
+
+export const fixtureSettings: HarnessSettings = {
+  caps: {
+    global: { requestsPerDay: 10_000, tokensPerDay: 100_000_000 },
+    scope: { requestsPerDay: 10_000, tokensPerDay: 100_000_000 },
+    roleDefault: { requestsPerDay: 10_000, tokensPerDay: 100_000_000 },
+  },
+  maxRequestBytes: 262_144,
+  requestRetentionSeconds: 3_600,
+  purgeIntervalMs: 60_000,
+  dispatchedBy: 'ci-fixture',
+};
+
+/** A labelled fixture model whose every call plays `script` (default: one valid echo answer). */
+export function fixtureModel(
+  script: (sequence: number) => FixtureScenario | Promise<FixtureScenario> = () => ({
+    kind: 'success',
+    text: '{"ok": true, "echo": "lantern"}',
+    remoteId: 'fixture-remote-1',
+  }),
+  options: { readonly quota?: Parameters<typeof fixtureModelPort>[0]['quota']; readonly label?: string } = {},
+): FixtureModelPort {
+  return guardedModelPort(
+    fixtureModelPort({
+      label: options.label ?? 'ci-fixture',
+      script: (call) => script(call.sequence),
+      ...(options.quota === undefined ? {} : { quota: options.quota }),
+    }),
+  );
 }
 
-export function fixtureModel(
-  respond: (request: ModelRequest) => Promise<ModelResponse> = (request) =>
-    Promise.resolve({ remoteId: 'fixture-remote-1', output: `fixture:${request.purpose}` }),
-): FixtureModel {
-  const calls: ModelRequest[] = [];
-  const port = guardedModelPort({
-    provider: 'fixture',
-    model: 'fixture-model-v0',
-    async invoke(request) {
-      calls.push(request);
-      return respond(request);
-    },
+/** A harness over the test database with the given (fixture) model and optional port overrides. */
+export function fixtureHarness(
+  db: Kysely<Database>,
+  options: {
+    readonly model: ModelPort | undefined;
+    readonly settings?: HarnessSettings;
+    readonly logEvent?: LogEvent;
+    readonly overrides?: Partial<HarnessPorts>;
+  },
+) {
+  const ports = postgresHarnessPorts({
+    db,
+    withPersonalScope: makeWithPersonalScope(db, { lockTimeoutMs: 5_000 }),
+    model: options.model,
+    logEvent: options.logEvent ?? silent,
+    settings: options.settings ?? fixtureSettings,
+    ...(options.overrides === undefined ? {} : { overrides: options.overrides }),
   });
-  return {
-    provider: port.provider,
-    model: port.model,
-    invoke: (request, signal) => port.invoke(request, signal),
-    calls,
-  };
+  return { harness: makeReasoningHarness(ports), ports };
+}
+
+export const echoSchema = z.object({ ok: z.literal(true), echo: z.string().min(1).max(32) }).strict();
+
+/** CI fixture role: echo the word named by the single context item. */
+export const echoRole: ReasoningRole<z.infer<typeof echoSchema>> = {
+  id: 'fixture.echo',
+  version: 'v1',
+  instructions: 'Return a JSON object of the form {"ok": true, "echo": "<the word named in the context item>"}.',
+  outputSchema: echoSchema,
+  maxOutputTokens: 256,
+};
+
+export const fixtureContext: ReasoningContext = {
+  bundleRef: 'fixture.bundle:1',
+  items: [{ ref: 'fixture:item-1', kind: 'evidence', text: 'The word is: lantern' }],
+};
+
+/** A worker-style system authority for a fixture universe. */
+export function systemAuthority(universeId: string, privacyEpoch = 1): PersonalAuthority {
+  return { universeId, privacyEpoch, actor: { kind: 'system', purpose: 'fixture.reasoning' } };
+}
+
+export function fixtureRun(authority: PersonalAuthority, id: string = randomUUID()): ReasoningRun {
+  return { id, authority, ownerModule: 'fixture', purpose: 'fixture-echo', policyVersion: 'fixture.v1' };
+}
+
+export const signal = () => new AbortController().signal;
+
+/** The universe's attempts, oldest first (columns tests assert on). */
+export function attemptsOf(db: Kysely<Database>, universeId: string) {
+  return db
+    .selectFrom('reasoning.external_attempts')
+    .select([
+      'id',
+      'step',
+      'state',
+      'outcome_code',
+      'remote_id',
+      'causation_attempt_id',
+      'request_hash',
+      'output',
+      'output_issues',
+      'quota_observation',
+      'settled_at',
+      'input_tokens',
+      'output_tokens',
+      'reserved_tokens',
+      'written_off_reason',
+    ])
+    .where('universe_id', '=', universeId)
+    .orderBy('reserved_at')
+    .orderBy('id')
+    .execute();
+}
+
+/** Usage receipts of the given attempts. */
+export function receiptsOf(db: Kysely<Database>, attemptIds: readonly string[]) {
+  if (attemptIds.length === 0) return Promise.resolve([]);
+  return db
+    .selectFrom('reasoning.usage_receipts')
+    .select(['attempt_id', 'state', 'reserved_tokens', 'input_tokens', 'output_tokens', 'late_usage'])
+    .where('attempt_id', 'in', attemptIds)
+    .execute();
+}
+
+/** Protected request rows of a universe (sizes and hashes; bytes only when asked). */
+export function protectedRequestsOf(db: Kysely<Database>, universeId: string) {
+  return db
+    .selectFrom('reasoning.protected_requests')
+    .select(['attempt_id', 'body', 'body_sha256', 'erasure_class'])
+    .where('universe_id', '=', universeId)
+    .execute();
+}
+
+/** Moves a universe's privacy epoch (what a privacy reset does to authority). */
+export async function advanceEpoch(db: Kysely<Database>, universeId: string, to = 2): Promise<void> {
+  await db.updateTable('identity.universes').set({ privacy_epoch: to }).where('id', '=', universeId).execute();
+}
+
+/** Every text value stored in the reasoning schema, for canary scans. */
+export async function reasoningText(db: Kysely<Database>): Promise<string> {
+  const rows = await sql<{ dump: string | null }>`
+    select coalesce(string_agg(t::text, E'\\n'), '') as dump from (
+      select to_jsonb(a) - 'request_hash' as t from reasoning.external_attempts a
+      union all select to_jsonb(r) from reasoning.business_runs r
+      union all select to_jsonb(u) from reasoning.usage_receipts u
+    ) rows`.execute(db);
+  return rows.rows[0]?.dump ?? '';
 }
 
 /** A promise the test resolves by hand, to hold a fixture call in flight. */

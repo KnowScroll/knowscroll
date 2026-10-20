@@ -17,18 +17,23 @@ describe('the transaction network guard (real database)', () => {
     await database.drop();
   });
 
-  it('refuses a model call inside a personal transaction and allows it outside', async () => {
+  const request = { system: 'guard', user: 'x', maxOutputTokens: 16 };
+
+  it('refuses a model call or quota preflight inside a personal transaction and allows them outside', async () => {
     const person = await seedPerson(database.db);
     const model = fixtureModel();
+    const body = model.encode(request);
     const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
     await expect(
-      withPersonalScope(person.authority, () =>
-        model.invoke({ purpose: 'guard', input: 'x' }, new AbortController().signal),
-      ),
+      withPersonalScope(person.authority, () => model.send(body, new AbortController().signal)),
+    ).rejects.toBeInstanceOf(NetworkInTransactionError);
+    await expect(
+      withPersonalScope(person.authority, () => model.observeQuota(new AbortController().signal)),
     ).rejects.toBeInstanceOf(NetworkInTransactionError);
     expect(model.calls).toEqual([]);
-    await expect(model.invoke({ purpose: 'guard', input: 'x' }, new AbortController().signal)).resolves.toMatchObject({
-      output: 'fixture:guard',
+    expect(model.quotaChecks()).toBe(0);
+    await expect(model.send(body, new AbortController().signal)).resolves.toMatchObject({
+      answer: { kind: 'text', text: '{"ok": true, "echo": "lantern"}' },
     });
     expect(model.calls).toHaveLength(1);
   });
@@ -41,7 +46,7 @@ describe('the transaction network guard (real database)', () => {
       withPersonalScope(person.authority, async () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
         await Promise.resolve();
-        return model.invoke({ purpose: 'guard', input: 'x' }, new AbortController().signal);
+        return model.send(model.encode(request), new AbortController().signal);
       }),
     ).rejects.toBeInstanceOf(NetworkInTransactionError);
   });

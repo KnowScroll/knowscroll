@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigurationError, readApiConfig, readMigrateConfig, readOperatorConfig, readWorkerConfig } from './index.js';
+import { ConfigurationError, readApiConfig, readMigrateConfig, readOperatorConfig, readWorkerConfig, readWorkerOperatorConfig } from './index.js';
 
 const secretUrl = 'postgres://ks_api:hunter2-very-secret@127.0.0.1:5432/knowscroll_v2_dev';
 const release = {
@@ -305,5 +305,71 @@ describe('process configuration', () => {
         database: { applicationName: 'knowscroll-operator-dev' },
       });
     });
+  });
+
+  it('defaults the worker to no reasoning provider, with bounded caps and protected-request limits', () => {
+    const config = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' });
+    expect(config.reasoning).toEqual({
+      provider: 'none',
+      caps: {
+        global: { requestsPerDay: 300, tokensPerDay: 3_000_000 },
+        scope: { requestsPerDay: 60, tokensPerDay: 600_000 },
+        roleDefault: { requestsPerDay: 200, tokensPerDay: 2_000_000 },
+      },
+      maxRequestBytes: 262_144,
+      requestRetentionSeconds: 48 * 3600,
+    });
+  });
+
+  it('requires a token-plan MiniMax key only for the minimax provider, and never echoes it', () => {
+    // Fixture keys only.
+    const fixtureKey = 'sk-cp-FIXTUREfixtureFIXTUREfixture0000';
+    const problemsOf = (env: Record<string, string>) =>
+      configurationError(() =>
+        readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_REASONING_PROVIDER: 'minimax', ...env }),
+      );
+    expect(problemsOf({}).problems).toEqual(['MINIMAX_API_KEY: missing_or_wrong_type']);
+    const wrongShape = problemsOf({ MINIMAX_API_KEY: 'sk-payg-hunter2-very-secret-key' });
+    expect(wrongShape.problems).toEqual(['MINIMAX_API_KEY: invalid_format']);
+    expect(wrongShape.message).not.toContain('hunter2');
+    expect(
+      configurationError(() =>
+        readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_REASONING_PROVIDER: 'openai' }),
+      ).problems,
+    ).toEqual(['KS_REASONING_PROVIDER: not_allowed']);
+    expect(
+      configurationError(() =>
+        readWorkerConfig({
+          DATABASE_URL: secretUrl,
+          KS_WORLD: 'local',
+          KS_REASONING_PROVIDER: 'minimax',
+          MINIMAX_API_KEY: fixtureKey,
+          KS_MINIMAX_MODEL: 'MiniMax-M3.1-Flash-Preview',
+        }),
+      ).problems,
+    ).toEqual(['KS_MINIMAX_MODEL: not_allowed']);
+    const config = readWorkerConfig({
+      DATABASE_URL: secretUrl,
+      KS_WORLD: 'local',
+      KS_REASONING_PROVIDER: 'minimax',
+      MINIMAX_API_KEY: fixtureKey,
+      KS_REASONING_SCOPE_REQUESTS_PER_DAY: '5',
+    });
+    expect(config.reasoning.minimax).toEqual({
+      apiKey: fixtureKey,
+      model: 'MiniMax-M3',
+      requestTimeoutMs: 60_000,
+      quotaFloorPercent: 25,
+    });
+    expect(config.reasoning.caps.scope.requestsPerDay).toBe(5);
+  });
+
+  it('reads the worker operator command configuration (world and database only)', () => {
+    expect(configurationError(() => readWorkerOperatorConfig({ DATABASE_URL: secretUrl })).problems).toEqual([
+      'KS_WORLD: missing_or_wrong_type',
+    ]);
+    const config = readWorkerOperatorConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev' });
+    expect(config.world).toBe('dev');
+    expect(config.database.applicationName).toBe('knowscroll-operator-dev');
   });
 });

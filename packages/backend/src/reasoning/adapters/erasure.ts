@@ -3,14 +3,24 @@ import type { ModuleErasure } from '../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../infrastructure/postgres/personal-scope.js';
 
 /**
- * The reasoning ledger's personal rows. Settled attempts and their runs are erased; attempts whose
- * outcome is still open (`dispatched`, `unknown`) are kept, with their runs, as unresolved
- * liability (blueprint §15: minimal accounting identity survives until reconciled or written off)
- * and the report says `pending`, so the eraser is retried after reconciliation.
+ * The reasoning engine's personal rows (blueprint §5 erasure registry, §15 accounting identity).
+ *
+ * - Protected request bytes: all of the universe's are deleted, including those of attempts whose
+ *   outcome is still open — the bytes are private context, and the attempt's hash is enough to
+ *   account for it.
+ * - Attempts: settled ones are deleted (with their stored outputs and validator issues); attempts
+ *   still `dispatched` or `unknown` are kept, with their runs, as unresolved liability, and the
+ *   report says `pending` so the eraser is retried after reconciliation or write-off.
+ * - Runs without remaining attempts are deleted.
+ *
+ * Usage receipts (`reasoning.usage_receipts`) are not personal: keyed by attempt ID only, with no
+ * universe, purpose, context or output, they survive so global and per-role budgets stay honest
+ * and late usage can still settle (blueprint §15 "minimal accounting identity").
  */
 export const reasoningErasure: ModuleErasure = {
   module: 'reasoning',
   tables: [
+    { schema: 'reasoning', table: 'protected_requests', ownerColumn: 'universe_id' },
     { schema: 'reasoning', table: 'external_attempts', ownerColumn: 'universe_id' },
     { schema: 'reasoning', table: 'business_runs', ownerColumn: 'universe_id' },
   ],
@@ -18,6 +28,10 @@ export const reasoningErasure: ModuleErasure = {
   async erase(scope) {
     const trx = transactionOf(scope);
     const universeId = scope.authority.universeId;
+    const requests = await trx
+      .deleteFrom('reasoning.protected_requests')
+      .where('universe_id', '=', universeId)
+      .executeTakeFirst();
     const attempts = await trx
       .deleteFrom('reasoning.external_attempts')
       .where('universe_id', '=', universeId)
@@ -26,7 +40,6 @@ export const reasoningErasure: ModuleErasure = {
     const runs = await trx
       .deleteFrom('reasoning.business_runs as run')
       .where('run.universe_id', '=', universeId)
-
       .where((eb) =>
         eb.not(
           eb.exists(
@@ -47,7 +60,7 @@ export const reasoningErasure: ModuleErasure = {
     return {
       module: 'reasoning',
       status: Number(open.n) > 0 ? 'pending' : 'completed',
-      removed: Number(attempts.numDeletedRows + runs.numDeletedRows),
+      removed: Number(requests.numDeletedRows + attempts.numDeletedRows + runs.numDeletedRows),
     };
   },
 };

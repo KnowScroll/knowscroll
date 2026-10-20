@@ -9,10 +9,12 @@ export {
 export {
   AGENTMAIL_BASE_URL,
   LIVE_WORLD,
+  MINIMAX_MODELS,
   readApiConfig,
   readMigrateConfig,
   readOperatorConfig,
   readWorkerConfig,
+  readWorkerOperatorConfig,
   type ApiConfig,
   type AuthAdapter,
   type DatabaseSettings,
@@ -20,5 +22,8 @@ export {
   type MailSettings,
   type MigrateConfig,
   type OperatorConfig,
+  type ReasoningCap,
+  type ReasoningSettings,
   type WorkerConfig,
+  type WorkerOperatorConfig,
 } from './processes.js';

@@ -3,6 +3,7 @@ import type { Kysely } from 'kysely';
 import type { WorkerConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { reasoningProviders } from '@knowscroll/backend/reasoning/nest-providers';
 import { jobWiring } from './jobs.js';
 import { DATABASE, LOG_EVENT, WITH_PERSONAL_SCOPE, WORKER_CONFIG } from './tokens.js';
 
@@ -31,6 +32,11 @@ export class WorkerModule {
           provide: WITH_PERSONAL_SCOPE,
           useValue: makeWithPersonalScope(resources.db, { lockTimeoutMs: resources.config.scopeLockTimeoutMs }),
         },
+        // The reasoning harness roles inject as REASONING_HARNESS (provider from configuration).
+        ...reasoningProviders(
+          { database: DATABASE, withPersonalScope: WITH_PERSONAL_SCOPE, logEvent: LOG_EVENT },
+          resources.config.reasoning,
+        ),
         ...jobWiring,
       ],
     };

@@ -117,31 +117,86 @@ export interface OpsOperatorSignIns {
 }
 
 export interface ReasoningBusinessRuns {
+  closed_at: Timestamp | null;
+  context_bundle_ref: string | null;
+  context_refs: Json | null;
   created_at: Generated<Timestamp>;
+  fence: Generated<number>;
   id: string;
+  model: string | null;
   owner_module: string;
+  policy_version: string | null;
   privacy_epoch: number;
+  provider: string | null;
   purpose: string;
+  role_id: string | null;
+  role_version: string | null;
   state: Generated<string>;
   universe_id: string;
   updated_at: Generated<Timestamp>;
 }
 
 export interface ReasoningExternalAttempts {
+  budget_window: Timestamp | null;
+  cached_tokens: number | null;
+  causation_attempt_id: string | null;
+  dispatch_id: string | null;
   dispatched_at: Timestamp | null;
+  dispatched_by: string | null;
   id: string;
+  input_tokens: number | null;
+  max_output_tokens: number | null;
   model: string;
   outcome_code: string | null;
   output: Json | null;
+  output_issues: Json | null;
+  output_tokens: number | null;
+  prompt_version: string | null;
   provider: string;
+  quota_observation: Json | null;
+  reasoning_tokens: number | null;
   remote_id: string | null;
+  request_bytes: number | null;
   request_hash: string;
   reserved_at: Generated<Timestamp>;
+  reserved_tokens: Generated<number>;
+  role_id: string | null;
+  role_version: string | null;
   run_id: string;
   settled_at: Timestamp | null;
   state: Generated<string>;
   step: string;
   universe_id: string;
+  written_off_at: Timestamp | null;
+  written_off_reason: string | null;
+}
+
+export interface ReasoningProtectedRequests {
+  attempt_id: string;
+  body: Buffer;
+  body_sha256: string;
+  created_at: Generated<Timestamp>;
+  erasure_class: Generated<string>;
+  expires_at: Timestamp;
+  universe_id: string;
+}
+
+export interface ReasoningUsageReceipts {
+  attempt_id: string;
+  budget_window: Timestamp;
+  cached_tokens: number | null;
+  created_at: Generated<Timestamp>;
+  input_tokens: number | null;
+  late_usage: Generated<boolean>;
+  model: string;
+  output_tokens: number | null;
+  provider: string;
+  reasoning_tokens: number | null;
+  reserved_tokens: number;
+  role_id: string;
+  role_version: string;
+  settled_at: Timestamp | null;
+  state: Generated<string>;
 }
 
 export interface ReceiptsPersonalCommands {
@@ -180,6 +235,8 @@ export interface DB {
   "ops.operator_sign_ins": OpsOperatorSignIns;
   "reasoning.business_runs": ReasoningBusinessRuns;
   "reasoning.external_attempts": ReasoningExternalAttempts;
+  "reasoning.protected_requests": ReasoningProtectedRequests;
+  "reasoning.usage_receipts": ReasoningUsageReceipts;
   "receipts.personal_commands": ReceiptsPersonalCommands;
   "receipts.shared_commands": ReceiptsSharedCommands;
 }
