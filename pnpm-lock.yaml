@@ -324,6 +324,9 @@ importers:
       '@knowscroll/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@knowscroll/scroll-model':
+        specifier: workspace:*
+        version: link:../../packages/scroll-model
       '@knowscroll/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -649,6 +652,9 @@ importers:
       '@knowscroll/migrations':
         specifier: workspace:*
         version: link:../../migrations
+      '@knowscroll/scroll-model':
+        specifier: workspace:*
+        version: link:../../packages/scroll-model
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.15.7(@opentelemetry/api@1.9.1)
