@@ -29,3 +29,8 @@ this parser does not mint a production grant.
 `KS_PLANNER_ENABLED` accepts0/1 and defaults0 in worker configuration (#236). It gates the
 personal Planner before any model reservation and does not confer paid allowance. Disabled
 work remains durable and resumes only through an explicit same-business-run request.
+
+`KS_CARTOGRAPHER_ENABLED` (#237) accepts0/1 and defaults0. It is a feature gate only. Geography's
+worker additionally requires an independently reviewed economic-permit callback, default false;
+credentials, flag1 or a deployment never grant paid Cartographer calls. No actual host/env setting
+or role allowance is changed by this source declaration.

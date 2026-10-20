@@ -38,3 +38,8 @@ Supply (`modules/supply`, #239) owns private requests, immutable receipts, curre
 waiter cancellation plus an actual bounded IDs-only resolver. Canonical matching work contains
 only admitted public catalogue/lineage facts. No HTTP route or paid production bridge is installed;
 see its README for current Content fencing, erasure and remaining runtime acceptance.
+
+Geography (`modules/geography`, #237) consumes current trusted PC coverage to validate bounded
+Cartographer proposals and commit stable meaning/deltas. Its independent feature flag defaults off
+and economic permit defaults false. Public own-universe/delta reads have no HTTP/scene consumer;
+CI formation fixtures are distinct from actual reading/provider/dev acceptance.

@@ -389,6 +389,64 @@ export interface ExperienceSessions {
   universe_id: string;
 }
 
+export interface GeographyDeltas {
+  input_sha256: string;
+  payload: Json;
+  policy_version: string;
+  privacy_epoch: number;
+  revision: number;
+  run_id: string;
+  transition_id: string;
+  universe_id: string;
+}
+
+export interface GeographyObjects {
+  id: string;
+  payload: Json;
+  privacy_epoch: number;
+  semantic_key: string;
+  support_refs: Json;
+  universe_id: string;
+}
+
+export interface GeographyRelations {
+  id: string;
+  kind: string;
+  payload: Json;
+  privacy_epoch: number;
+  semantic_key: string;
+  support_refs: Json;
+  universe_id: string;
+}
+
+export interface GeographyRuns {
+  attempt_id: string | null;
+  claim_id: string | null;
+  claim_until: Timestamp | null;
+  context: Json | null;
+  created_at: Generated<Timestamp>;
+  desired_revision: number;
+  id: string;
+  outcome: string | null;
+  privacy_epoch: number;
+  proposal: Json | null;
+  status: string;
+  universe_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface GeographyState {
+  active_run_id: string | null;
+  activity_revision: Generated<number>;
+  desired_revision: Generated<number>;
+  material_revision: Generated<number>;
+  privacy_epoch: number;
+  published_revision: Generated<number>;
+  revision: Generated<number>;
+  structure_revision: Generated<number>;
+  universe_id: string;
+}
+
 export interface IdentityAccounts {
   created_at: Generated<Timestamp>;
   id: string;
@@ -790,6 +848,11 @@ export interface DB {
   "experience.offers": ExperienceOffers;
   "experience.saved_items": ExperienceSavedItems;
   "experience.sessions": ExperienceSessions;
+  "geography.deltas": GeographyDeltas;
+  "geography.objects": GeographyObjects;
+  "geography.relations": GeographyRelations;
+  "geography.runs": GeographyRuns;
+  "geography.state": GeographyState;
   "identity.accounts": IdentityAccounts;
   "identity.email_addresses": IdentityEmailAddresses;
   "identity.sessions": IdentitySessions;

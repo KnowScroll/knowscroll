@@ -1,3 +1,5 @@
+import { READ_COVERAGE_INPUTS } from '../public.js';
+import { readCoverageInputs } from './coverage-inputs.js';
 import { CHECK_COVERAGE_EVIDENCE, type CheckCoverageEvidence } from '../../evidence/public.js';
 import {
   READ_ADMITTED_COVERAGE_MAPPING,
@@ -31,6 +33,7 @@ import {
 import { applyProjectedEncounter, readContextRevision, readStructure } from './postgres-store.js';
 export function personalContextProviders() {
   return [
+    { provide: READ_COVERAGE_INPUTS, inject: [], useFactory: () => readCoverageInputs },
     {
       provide: READ_COMPOSER_CONTEXT,
       inject: [READ_EXPLORATION_SNAPSHOT],
