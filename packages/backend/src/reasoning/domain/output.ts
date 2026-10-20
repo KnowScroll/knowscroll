@@ -3,7 +3,7 @@ import type { z } from 'zod';
 /**
  * Strict output handling for model answers (blueprint §15 "strictly validate the structured
  * proposal"): exactly one JSON object, bare or in one fenced block, then the role's schema. A
- * malformed answer is recorded and rejected; nothing here guesses a valid proposal from it.
+ * malformed answer is refused with structural issues only; nothing guesses a valid proposal from it.
  */
 
 /** Largest answer text considered for extraction (UTF-16 code units, a cheap pre-parse bound). */
@@ -77,9 +77,97 @@ export function extractJsonObject(text: string): Extraction {
   return { ok: true, value: parsed as Record<string, unknown> };
 }
 
+type SyntaxCategory =
+  | 'expected_property'
+  | 'expected_comma_or_separator'
+  | 'unterminated_string'
+  | 'unexpected_end'
+  | 'unexpected_token'
+  | 'other';
+
+/**
+ * Only fixed engine prefixes are recognised; none of the message (which can contain a secret
+ * key, token, URL or source snippet) is copied. Unknown engines fall back to `other`.
+ * Node22's V8 templates: nodejs/node v22.23.0, deps/v8/src/common/message-template.h.
+ */
+function syntaxCategory(error: unknown): SyntaxCategory {
+  if (!(error instanceof SyntaxError)) return 'other';
+  const message = error.message;
+  if (
+    message.startsWith("Expected property name or '}' in JSON at position ") ||
+    message.startsWith('Expected double-quoted property name in JSON at position ')
+  )
+    return 'expected_property';
+  if (
+    message.startsWith("Expected ',' or '}' after property value in JSON at position ") ||
+    message.startsWith("Expected ',' or ']' after array element in JSON at position ") ||
+    message.startsWith("Expected ':' after property name in JSON at position ")
+  )
+    return 'expected_comma_or_separator';
+  if (message.startsWith('Unterminated string in JSON at position ')) return 'unterminated_string';
+  if (message === 'Unexpected end of JSON input') return 'unexpected_end';
+  if (
+    message.startsWith('Unexpected token ') ||
+    message.startsWith('Unexpected number in JSON at position ') ||
+    message.startsWith('Unexpected string in JSON at position ') ||
+    message.startsWith('Unexpected non-whitespace character after JSON at position ')
+  )
+    return 'unexpected_token';
+  return 'other';
+}
+
+/**
+ * Diagnose only an already-refused extraction. This does not recover JSON or change acceptance.
+ * OutputIssue is the existing persisted/trusted feedback shape; only static enums and a bounded
+ * UTF-16 character count are added. No reply/hash, error text, unexpected character, key, value or offset.
+ * Legacy issueFor and already-stored issues stay unchanged, preserving old repair request bytes.
+ */
+export function issueForExtraction(reason: InvalidOutputReason, text: string): OutputIssue {
+  const base = issueFor(reason);
+  if (reason !== 'OUTPUT_NOT_ONE_JSON_OBJECT' || text.length > MAX_ANSWER_CHARS) return base;
+  let candidate = text.trim();
+  let framing: 'bare' | 'fenced' | 'invalid_fence' | 'embedded_fence' = 'bare';
+  if (candidate.startsWith('```')) {
+    const fenced = fencePattern.exec(candidate);
+    if (fenced === null) framing = 'invalid_fence';
+    else {
+      framing = 'fenced';
+      candidate = (fenced[1] ?? '').trim();
+      if (candidate.includes('```')) framing = 'embedded_fence';
+    }
+  }
+  const prefix = candidate.startsWith('{')
+    ? 'object'
+    : candidate.startsWith('[')
+      ? 'array'
+      : /^(?:"|-?\d|true(?:\s|$)|false(?:\s|$)|null(?:\s|$))/u.test(candidate)
+        ? 'scalar'
+        : 'other';
+  let phase: 'framing' | 'syntax' = 'framing';
+  let category: SyntaxCategory = 'other';
+  if ((framing === 'bare' || framing === 'fenced') && prefix === 'object') {
+    // A second built-in parse only classifies a refusal; its result is never returned or applied.
+    // Incomplete object-shaped replies can fail the extractor's closing-brace guard before parse.
+    try {
+      JSON.parse(candidate);
+    } catch (error) {
+      phase =
+        error instanceof SyntaxError &&
+        error.message.startsWith('Unexpected non-whitespace character after JSON at position ')
+          ? 'framing'
+          : 'syntax';
+      category = syntaxCategory(error);
+    }
+  }
+  return {
+    ...base,
+    detail: `${base.detail}; json-refusal.v1 phase=${phase} framing=${framing} prefix=${prefix} category=${category} chars=${candidate.length}`,
+  };
+}
+
 /**
  * One validator finding, as sent back to the model in a repair request and kept on the attempt.
- * Built from the schema issue's structure (path, code, expectation), never from its message.
+ * Built from schema structure or fixed extraction categories, never reply text or error messages.
  */
 export interface OutputIssue {
   readonly path: string;
