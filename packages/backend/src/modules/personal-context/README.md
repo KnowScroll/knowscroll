@@ -159,3 +159,11 @@ Rollout requires ordered0001–0023, reviewed API/worker composition, separately
 semantic maps and explicit bounded existing reconciliation. Empty Content approvals remain empty.
 CI fixtures use synthetic semantic approvals only; no live map, observed dev coverage, provider,
 geography, planet, native/browser journey or deployment acceptance is established by source/CI.
+
+`READ_COVERAGE_INPUTS` (#237/0025 consumer) supplies a separate bounded candidate-discovery port:
+current PC revision plus deterministic DISTINCT topic/facet/explanation-unit triples from the
+existing indexed `coverage_references`, at most100 /64KiB with101-row overflow sentinel. Overflow
+returns unavailable and no probes; completeness is always not_asserted. These retained index keys
+are NOT trusted supports, unit counts or formation authority. Geography must call current
+`ReadTrustedCoverage` under the SAME live root through apply, preserving Evidence/Content SHARE
+checks. No legacy coveredFacets, support arithmetic or semantic approval changes are made.

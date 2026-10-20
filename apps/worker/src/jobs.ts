@@ -1,3 +1,15 @@
+import { geographyProviders, cartographerWorkerProviders } from '@knowscroll/backend/modules/geography/nest-providers';
+import {
+  GEOGRAPHY_MATERIAL_CHANGE,
+  RUN_CARTOGRAPHER,
+  PUBLISH_GEOGRAPHY_DELTA,
+  cartographyQueue,
+  publishDeltaQueue,
+  type MaterialGeographyChange,
+  type RunCartographer,
+  type PublishGeographyDelta,
+} from '@knowscroll/backend/modules/geography';
+import type { PlannerMaterialChange } from '@knowscroll/backend/modules/planner';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { resolveSupplyQueue, RESOLVE_CONTENT_REQUEST, type ResolveRequest } from '@knowscroll/backend/modules/supply';
@@ -51,7 +63,20 @@ import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-co
  * The worker's explicit consumer registry: every queue this process claims work from and the use
  * case that handles it. Nothing is discovered by decorators or scanning.
  */
+const PERSONAL_MATERIAL_CHANGE = Symbol('personal.materialChange');
 export const jobWiring: Provider[] = [
+  ...geographyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
+  ...cartographerWorkerProviders({ workerConfig: WORKER_CONFIG }),
+  {
+    provide: PERSONAL_MATERIAL_CHANGE,
+    inject: [PLANNER_MATERIAL_CHANGE, GEOGRAPHY_MATERIAL_CHANGE],
+    useFactory:
+      (planner: PlannerMaterialChange, geography: MaterialGeographyChange): MaterialGeographyChange =>
+      async (scope, input) => {
+        await planner(scope, input);
+        await geography(scope, input);
+      },
+  },
   ...identityScopeOwnerProviders(),
   ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...plannerRequestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
@@ -65,7 +90,7 @@ export const jobWiring: Provider[] = [
     withPersonalScope: WITH_PERSONAL_SCOPE,
     enqueueJob: ENQUEUE_JOB,
     derivedProjection: ACTIVITY_CONTEXT_EFFECT,
-    materialChange: PLANNER_MATERIAL_CHANGE,
+    materialChange: PERSONAL_MATERIAL_CHANGE,
   }),
   ...identitySweepProviders({ database: DATABASE }),
   ...reasoningPurgeProviders({ database: DATABASE, logEvent: LOG_EVENT }),
@@ -73,6 +98,8 @@ export const jobWiring: Provider[] = [
   {
     provide: JOB_CONSUMERS,
     inject: [
+      RUN_CARTOGRAPHER,
+      PUBLISH_GEOGRAPHY_DELTA,
       RESOLVE_CONTENT_REQUEST,
       RUN_PLANNER,
       APPLY_ACTION_EVIDENCE,
@@ -84,6 +111,8 @@ export const jobWiring: Provider[] = [
       LOG_EVENT,
     ],
     useFactory: (
+      runCartographer: RunCartographer,
+      publishDelta: PublishGeographyDelta,
       resolveRequest: ResolveRequest,
       runPlanner: RunPlanner,
       applyActionEvidence: ApplyActionEvidence,
@@ -94,6 +123,12 @@ export const jobWiring: Provider[] = [
       sweepDispatchedAttempts: SweepDispatchedAttempts,
       logEvent: LogEvent,
     ): readonly JobConsumer<unknown>[] => [
+      jobConsumer(cartographyQueue, async (payload, delivery) => {
+        await runCartographer(payload, delivery.signal);
+      }),
+      jobConsumer(publishDeltaQueue, async (payload) => {
+        await publishDelta(payload);
+      }),
       jobConsumer(resolveSupplyQueue, async (payload) => {
         await resolveRequest(payload);
       }),

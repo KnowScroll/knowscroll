@@ -1,3 +1,4 @@
+import type { PersonalScopeTx } from '../identity/public.js';
 /** Backend-only prepared context. No consumer scores, source metadata or peer positions. */
 export { CONTEXT_POLICY, ContributionSchema, ContextQuerySchema } from './domain/context.js';
 export type { Contribution, ContextQuery } from './domain/context.js';
@@ -19,5 +20,15 @@ export const READ_COMPOSER_CONTEXT = Symbol('personal-context.readComposerContex
 /** Exact current observed witnesses; raw retained support counts are not geography authority. */
 export { TrustedCoverageQuerySchema } from './domain/coverage.js';
 export type { TrustedCoverageQuery, TrustedCoverageRead } from './domain/coverage.js';
+import type { TrustedCoverageQuery } from './domain/coverage.js';
 export type { ReadTrustedCoverage } from './application/coverage-ports.js';
 export const READ_TRUSTED_COVERAGE = Symbol('personal-context.readTrustedCoverage');
+
+/** Bounded indexed candidate keys and PC revision only; not counts or current formation authority. */
+export type ReadCoverageInputs = (scope: PersonalScopeTx) => Promise<{
+  readonly revision: number;
+  readonly completeness: 'not_asserted';
+  readonly availability: 'available' | 'unavailable';
+  readonly probes: TrustedCoverageQuery['probes'];
+}>;
+export const READ_COVERAGE_INPUTS = Symbol('personal-context.readCoverageInputs');

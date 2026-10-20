@@ -72,6 +72,16 @@ describe('process configuration', () => {
     ).toThrow();
   });
 
+  it('keeps Cartographer disabled and validates its separate feature flag', () => {
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).cartographerEnabled).toBe(false);
+    expect(
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_CARTOGRAPHER_ENABLED: '1' })
+        .cartographerEnabled,
+    ).toBe(true);
+    expect(() =>
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_CARTOGRAPHER_ENABLED: 'true' }),
+    ).toThrow();
+  });
   it('defaults the commit and artifact outside production, but never the world', () => {
     const config = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' });
     expect(config).toMatchObject({

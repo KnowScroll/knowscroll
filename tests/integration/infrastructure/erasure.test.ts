@@ -335,6 +335,66 @@ describe('the erasure registry (real database)', () => {
             updated_at: new Date(),
           })
           .execute();
+        // Authored Geography erasure-only rows. No fixture object is installed in runtime.
+        const geographyRunId = randomUUID(),
+          geographyObjectId = randomUUID(),
+          geographyTransitionId = randomUUID();
+        await tx
+          .insertInto('geography.runs')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            id: geographyRunId,
+            desired_revision: 1,
+            status: 'accepted',
+          })
+          .execute();
+        await tx
+          .insertInto('geography.state')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            revision: 1,
+            structure_revision: 1,
+            desired_revision: 1,
+          })
+          .execute();
+        await tx
+          .insertInto('geography.objects')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            id: geographyObjectId,
+            semantic_key: 'system:ci-erasure:factual',
+            payload: { fixture: 'Authored erasure-only geography object' },
+            support_refs: JSON.stringify([]),
+          })
+          .execute();
+        await tx
+          .insertInto('geography.relations')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            id: randomUUID(),
+            semantic_key: 'ci-erasure-route',
+            kind: 'route',
+            payload: { fixture: 'Authored erasure-only relation' },
+            support_refs: JSON.stringify([]),
+          })
+          .execute();
+        await tx
+          .insertInto('geography.deltas')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            revision: 1,
+            transition_id: geographyTransitionId,
+            run_id: geographyRunId,
+            policy_version: 'geography-passive.v1',
+            input_sha256: 'a'.repeat(64),
+            payload: { fixture: 'Authored erasure-only delta' },
+          })
+          .execute();
         await tx
           .insertInto('planner.runs')
           .values({
