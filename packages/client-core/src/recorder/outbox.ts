@@ -200,9 +200,11 @@ export function createObservationOutbox(options: ObservationOutboxOptions): Obse
           scheduleRetry();
           return;
         }
-        // Delivered, or refused for good: the batch leaves the queue.
+        // Delivered, or refused for good: that very batch leaves the queue (the limits may have
+        // dropped older batches while it was in flight, so it is not necessarily the head any more).
         if (outcome.kind === 'drop') dropped += 1;
-        queue.shift();
+        const index = queue.indexOf(batch);
+        if (index >= 0) queue.splice(index, 1);
         attempt = 0;
         persist();
       }

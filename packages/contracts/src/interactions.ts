@@ -49,10 +49,10 @@ export const OBSERVATION_LIMITS = {
   maxEventsPerBatch: 50,
   /** Canonical JSON of one batch request, below the API's 64 KiB body limit. */
   maxBatchBytes: 49_152,
-  /** Blocks one coverage event may report. */
-  maxBlocksPerCoverage: 40,
+  /** Blocks one coverage event may report (with the next limit, a stored payload stays under 8 KiB). */
+  maxBlocksPerCoverage: 24,
   /** Visible intervals one block reports per event. */
-  maxIntervalsPerBlock: 16,
+  maxIntervalsPerBlock: 8,
   /** Active intervals one dwell event reports. */
   maxActiveIntervals: 64,
   /** Observations stored for one exposure; the intake refuses the rest. */
