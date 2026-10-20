@@ -32,3 +32,4 @@ export { TabBar, type TabBarProps } from './navigation/tab-bar';
 export { NavRail, type NavRailProps } from './navigation/nav-rail';
 export { TopBar, type TopBarProps } from './navigation/top-bar';
 export { AccountButton, type AccountButtonProps } from './navigation/account-button';
+export * from './scroll';

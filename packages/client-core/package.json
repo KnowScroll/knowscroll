@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@knowscroll/contracts": "workspace:*",
+    "@knowscroll/scroll-model": "workspace:*",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/openapi-client": "catalog:",

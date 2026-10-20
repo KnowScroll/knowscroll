@@ -87,6 +87,8 @@ export const iconShapes = {
   ],
   list: [path('M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01')],
   person: [circle(12, 8, 3.5), path('M5 20c.9-3.5 3.6-5.5 7-5.5s6.1 2 7 5.5')],
+  // Scroll blocks (E03 Copy): from the export's copy icon.
+  copy: [{ kind: 'rect', x: 8, y: 8, width: 12, height: 12, rx: 2 }, path('M16 8V4H4v12h4')],
 } as const satisfies Record<string, readonly IconShape[]>;
 
 export type IconName = keyof typeof iconShapes;
