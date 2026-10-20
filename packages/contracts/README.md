@@ -14,6 +14,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/experience.ts` | `POST /v1/actions`, `GET /v1/saved`, and the exposure routes: `POST /v1/experience/open`, `POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document` |
 | `src/navigation.ts` | Composer session discovery, `POST /v1/experience/navigate`, semantic intents, prepared public offers, ready/pending/exhausted receipt outcomes and offer activation |
 | `src/supply.ts` | Declaration-only topic/format-variant requests, immutable acceptance/cancel receipts and current private request status; not routed by `apiContract` (#239 prerequisite) |
+| `src/geography.ts` | Declaration-only established geography pages, retained routes/aliases and typed applied universe deltas; not routed by `apiContract` (#237/#238 prerequisite) |
 | `src/interactions.ts` | `interaction.v1`: the observation envelope, three `scroll.*` payloads and bounded paired `reel.playback` intervals; `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
 | `src/media.ts` | `reel-document.v1` and `POST /v1/media/grants`: a session-scoped short-lived playback grant for an existing exposure |
 
@@ -150,6 +151,60 @@ authority, budget, fences and attempt ledger; replay/poll never implicitly retri
 There is no Supply/Planner/Cartographer paid allowance in this prerequisite; D-024's #232 allowance
 and owner-only Reel script approvals are unchanged. No backend, UI, queue or runtime acceptance is
 claimed by these declarations.
+
+## Geography wire prerequisite (#237/#238)
+
+`ReadGeographySchema` and `GeographySnapshotSchema` declare authorised **own-universe** reads of
+established systems, organising stars, subtopic planets and finer regions. Systems parent to the
+universe; stars and planets parent to a system; regions parent to a planet. UUID identities and
+immutable `originTransitionId` belong to geography, independently of scene descriptors, visual
+families, generators, layouts, seeds and detail levels. Labels do not encode mastery or beliefs.
+`factual`/`hypothetical` status is explicit; an alias cannot silently turn hypothetical meaning into
+a fact. Activity is a coarse server-supplied `active`/`quiet` display state or explicitly unavailable,
+never a score. Quiet activity does not remove established structure.
+
+Each snapshot carries the authorised universe/epoch, current personal-root watermark and geography
+revision. Structure/activity revisions are the latest geography commit that changed each component,
+not counts or Personal Context revisions. Consumers fence by AccountScope, universe and epoch,
+then reject regressions in either personal watermark or geography revision. These stamps do not
+claim complete historical evidence, qualification or learning. Backend formation must use the
+current separate trusted PC coverage capability under the same live personal scope; the legacy
+global covered-facets snapshot remains unavailable and no numeric formation policy is frozen here.
+
+`empty` means no established objects in the selected universe/system. `loading` requires actual
+initial projection work; `lagging` retains a valid established page while real pending work catches
+up. `unavailable` distinguishes temporary failure, expired snapshot and result-limit refusal.
+None of these states invents dust, planets, social activity, evidence counts or future rewards.
+Pages allow at most100 objects,100 routes and100 retained aliases. A continuation binds universe,
+epoch, selection, geography revision and last object ID; the server validates it, pages in stable
+ID order, and refuses an expired revision. Endpoints may name objects on other pages. A relationship
+overflow must fail with `limit`, never silently truncate relationships or assert completeness.
+No cursor or public ID grants permission. Friend/visitor projections require later sharing contracts.
+
+`UniverseDeltaSchema` declares one atomic **already applied public effect**, with base/current
+revisions, immutable transition ID and at most32 typed operations: `create_system`, `establish_star`,
+`form_planet`, `add_region`, `connect_route`, `revise_label`, `set_activity`, `withdraw_relation`.
+Effect revisions equal the commit revision; new identities retain that transition as their origin.
+Label/activity updates cannot replace origin identity. Relation withdrawal retains its ID/endpoints
+in subsequent snapshots; aliases retain old identities after a reviewed correction. Merge/split
+proposal and alias-creation mechanics remain backend-local and need a future typed delta extension
+before incremental alias updates; clients refetch snapshots rather than inventing such operations.
+There is no arbitrary JSON patch, client formation command, eligibility override, model proposal,
+private evidence, source, score, prompt, provider or validation-receipt payload on this wire.
+
+`ReadUniverseDeltasSchema` and `UniverseDeltasSchema` declare read-only catch-up, at most10 deltas
+per page. Available results are contiguous, unique and scope fenced; unavailable retained history
+requires a full snapshot. Consumers apply a whole delta against the exact base or refetch. Repeated
+delivery and scene rebuilds preserve the same transition ID. U05's once-per-transition presentation
+can key on that ID per account/epoch; durable cross-device shown/skipped acknowledgement still needs
+its own consumer implementation. Reads must never enqueue work or dispatch a provider attempt.
+
+These declarations are **not routed or implemented**. They do not establish formation authority,
+real maps/coverage, a Cartographer run, scene generation, UI/native/browser behaviour or deployment
+acceptance. The geography backend still owns bounded proposals, evidence references, formation
+policy, current-authority checks, atomic apply, correction/erasure and required pg-boss work. Scenes
+still need canonical `scene-core` descriptors, chunk manifests and independent projection revisions.
+`geography.test.ts` contains synthetic wire-validation fixtures only; automated suites run in Actions.
 
 Rules:
 
