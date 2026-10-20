@@ -1,11 +1,13 @@
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Text, type ReelPositionHandle, type ScrollPositionHandle } from '@knowscroll/ui';
 import { ActivatedScrollView } from '../scroll/activated-scroll-view';
 import { ActivatedReelView } from '../reel/activated-reel-view';
+import { EncounterEdges } from './encounter-edges';
 import { EncounterActions } from './encounter-chrome';
+import { ReelGestureStage } from './gestures/reel-gesture-stage';
 import { ContinuationControls } from './continuation-controls';
 import type { EncounterEntry } from './encounter-history';
 import type { EncounterSession, EncounterState } from './encounter-session';
@@ -26,6 +28,11 @@ export function EncounterView({
   const scrollPosition = useRef<ScrollPositionHandle>(null);
   const reelPosition = useRef<ReelPositionHandle>(null);
   const retainedGrant = useMemo(() => session.mediaGrant(entry), [entry, session]);
+  const onMove = useCallback((move: 'next' | 'previous' | 'subject') => session.gesture(move), [session]);
+  const renderStage = useCallback(
+    (stage: React.ReactNode) => <ReelGestureStage onMove={onMove}>{stage}</ReelGestureStage>,
+    [onMove],
+  );
   const playable = foreground && !state.overlay && state.phase === 'active';
   useLayoutEffect(() => {
     if (!playable) return;
@@ -68,6 +75,7 @@ export function EncounterView({
         recorder={entry.recorder}
         active={playable}
         retainedGrant={retainedGrant}
+        renderStage={renderStage}
         positionRef={reelPosition}
         initialPositionMs={entry.position?.kind === 'reel' ? entry.position.positionMs : entry.restored ? 0 : undefined}
       />
@@ -80,6 +88,7 @@ export function EncounterView({
         </Text>
       </View>
       <EncounterActions state={state} session={session} />
+      <EncounterEdges entry={entry} session={session} disabled={state.phase !== 'active'} />
     </View>
   );
 }

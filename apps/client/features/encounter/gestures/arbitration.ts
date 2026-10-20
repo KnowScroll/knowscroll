@@ -5,10 +5,11 @@ export function createGestureArbitrator(input: {
   scroll: boolean;
   childOwns: boolean;
   native: boolean;
+  width?: number;
 }) {
   let owner: GestureOwner = input.childOwns
     ? 'child'
-    : input.native && input.startX < 24
+    : input.native && (input.startX < 24 || (input.width !== undefined && input.startX > input.width - 24))
       ? 'platform_back'
       : 'undecided';
   let dx = 0;

@@ -355,6 +355,37 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     },
     open,
     navigate,
+    gesture(move: 'next' | 'previous' | 'subject') {
+      const entry = history.current();
+      if (!entry || state.phase !== 'active' || !foreground || state.overlay) return;
+      if (move === 'subject') {
+        navigate({ mode: 'vertical', direction: 'next' });
+        return;
+      }
+      const target =
+        move === 'next' ? entry.context.continuations.seriesNext : entry.context.continuations.seriesPrevious;
+      if (target.status === 'ready')
+        navigate({
+          mode: 'series',
+          direction: move,
+          expectedContinuation: {
+            linkId: target.linkId,
+            assetId: target.target.assetId,
+            assetRevision: target.target.assetRevision,
+          },
+        });
+      else if (move === 'next' && entry.context.continuations.related.status === 'ready') {
+        const related = entry.context.continuations.related;
+        navigate({
+          mode: 'related',
+          expectedContinuation: {
+            linkId: related.linkId,
+            assetId: related.target.assetId,
+            assetRevision: related.target.assetRevision,
+          },
+        });
+      }
+    },
     retry() {
       if (state.phase === 'stale') return;
       if (work) {

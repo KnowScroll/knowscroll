@@ -138,8 +138,9 @@ work stays distinct from exhaustion; neither fabricates a future Part or changes
 itself. Share, Ask, snippets and missing-variant requests remain unavailable until their own
 issues; the complete J1 storyboard therefore remains incomplete.
 
-Navigation gestures have a dedicated surface, so article/slider/chart/code pointers stay with
-the child. Axis ownership locks until release; native starts inside the 24 px system-Back edge
+Reel navigation wraps only the actual noninteractive video stage. Player seek/Play controls
+remain outside that responder; article/slider/chart/code pointers stay with the child. Scrolls
+also offer an explicit navigation surface below the article. Axis ownership locks until release; native starts inside the 24 px system-Back edge
 stay with the platform. Vertical Scroll gestures never navigate, including end momentum. Every
 move has a named button; normal keyboard activation works without claiming article reading keys.
 Android Back, browser Back and the toolbar use the same local path, overlay first. Browser state

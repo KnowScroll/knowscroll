@@ -1,4 +1,4 @@
-import { useCallback, type Ref } from 'react';
+import { useCallback, type ReactNode, type Ref } from 'react';
 import type { AccountScope, ReelRecorder } from '@knowscroll/client-core';
 import type { ReelDocument } from '@knowscroll/contracts';
 import { Banner, ReelPlayer, type ReelPositionHandle } from '@knowscroll/ui';
@@ -13,12 +13,14 @@ export function ActivatedReelView({
   initialPositionMs,
   positionRef,
   retainedGrant,
+  renderStage,
 }: {
   readonly scope: AccountScope;
   readonly exposureId: string;
   readonly document: ReelDocument;
   readonly recorder: ReelRecorder;
   readonly active: boolean;
+  readonly renderStage?: (stage: ReactNode) => ReactNode;
   readonly initialPositionMs?: number;
   readonly positionRef?: Ref<ReelPositionHandle>;
   readonly retainedGrant?: {
@@ -44,6 +46,7 @@ export function ActivatedReelView({
     <>
       {document.fixture ? <Banner kind="info" lead="Fixture video" message="Local or CI demonstration media." /> : null}
       <ReelPlayer
+        renderStage={renderStage}
         title={document.title}
         durationMs={document.durationMs}
         active={active && scope.active}

@@ -11,6 +11,9 @@ describe('navigation gesture ownership', () => {
     const gesture = create({ startX: 12 });
     expect(gesture.move(120, 0)).toBe('platform_back');
     expect(gesture.release()).toBeUndefined();
+    const right = create({ startX: 380, width: 390 });
+    expect(right.move(-120, 0)).toBe('platform_back');
+    expect(right.release()).toBeUndefined();
   });
   it('locks a Scroll vertical read through momentum and boundary; a fresh horizontal gesture can continue', () => {
     const reading = create({ scroll: true });

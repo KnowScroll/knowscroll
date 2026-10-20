@@ -47,6 +47,8 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
     if (!back() && router.canGoBack()) router.back();
   };
   const entry = state.entry;
+  const hasReadyDirection =
+    entry && Object.values(entry.context.continuations).some((direction) => direction.status === 'ready');
   const showEntry = entry && state.phase !== 'revoked';
   return (
     <View style={[styles.ground, { paddingTop: insets.top }]} testID="encounter-explore">
@@ -61,38 +63,7 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
             session={session}
             foreground={foreground}
           />
-          <EncounterGestures
-            scroll={entry.kind === 'scroll'}
-            onMove={(move) => {
-              if (state.phase !== 'active') return;
-              if (move === 'subject') session.navigate({ mode: 'vertical', direction: 'next' });
-              else {
-                const target =
-                  move === 'next' ? entry.context.continuations.seriesNext : entry.context.continuations.seriesPrevious;
-                if (target.status === 'ready')
-                  session.navigate({
-                    mode: 'series',
-                    direction: move,
-                    expectedContinuation: {
-                      linkId: target.linkId,
-                      assetId: target.target.assetId,
-                      assetRevision: target.target.assetRevision,
-                    },
-                  });
-                else if (move === 'next' && entry.context.continuations.related.status === 'ready') {
-                  const related = entry.context.continuations.related;
-                  session.navigate({
-                    mode: 'related',
-                    expectedContinuation: {
-                      linkId: related.linkId,
-                      assetId: related.target.assetId,
-                      assetRevision: related.target.assetRevision,
-                    },
-                  });
-                }
-              }
-            }}
-          />
+          {entry.kind === 'scroll' ? <EncounterGestures scroll onMove={(move) => session.gesture(move)} /> : null}
           <View style={styles.buttons}>
             <Button
               label="Next subject"
@@ -101,7 +72,12 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
               disabled={state.phase !== 'active' || state.actionFailed}
               onPress={() => session.navigate({ mode: 'vertical', direction: 'next' })}
             />
-            <Button label="Continue this idea" size="sm" variant="continue" onPress={() => session.setOverlay(true)} />
+            <Button
+              label={hasReadyDirection ? 'Continue this idea' : 'Your path'}
+              size="sm"
+              variant={hasReadyDirection ? 'continue' : 'ghost'}
+              onPress={() => session.setOverlay(true)}
+            />
           </View>
         </>
       ) : null}
@@ -111,7 +87,8 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
             Use Next subject for something new. Continue this idea follows ready Parts or Related directions.
           </Text>
           <Text variant="meta">
-            Scrolls read vertically. Swipe only in the navigation strip; every gesture has a button.
+            Swipe up on a Reel for something new, or sideways to continue. Scrolls read vertically. Every move also has
+            a button.
           </Text>
           <Button
             label="Got it"

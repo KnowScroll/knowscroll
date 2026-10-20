@@ -1,12 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import type { EncounterOffer, ExposureContextResponse } from '@knowscroll/contracts';
 
 /** Actual production-export UI with explicitly labelled HTTP fixtures, not backend/provider acceptance. */
 const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
-test('Explore activates once per offer; browser Back restores the retained Scroll without another lineage command; Keep removes withdrawn references', async ({
-  page,
-}) => {
+async function encounterFixture(page: Page, kind: 'scroll' | 'reel') {
   await page.setViewportSize({ width: 390, height: 844 });
   let current = 0;
   let intentRevision = 1;
@@ -19,13 +17,13 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
     assetRevision: document.revision,
     explanationUnitId: `ci-fixture-${String(n)}`,
     metadata: {
-      kind: 'scroll',
+      kind,
       title: `CI encounter fixture ${String(n + 1)}`,
       summary: 'HTTP fixture only',
       language: 'en',
     },
     relation: { kind: 'discovery' },
-    variants: [{ kind: 'reel', status: 'unavailable' }],
+    variants: [{ kind: kind === 'scroll' ? 'reel' : 'scroll', status: 'unavailable' }],
   });
   await page.route('**/auth/session', (route) =>
     route.fulfill({
@@ -72,7 +70,7 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
           exposureId: id(400 + current),
           assetId: offer(current).assetId,
           assetRevision: document.revision,
-          kind: 'scroll',
+          kind,
           activatedAt: '2026-10-20T10:00:00.000Z',
           revision: intentRevision,
           replayed: false,
@@ -89,14 +87,52 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
         revision: intentRevision,
         session: { sessionId: id(3), intentRevision },
         actions: { saved: false, liked: false, hidden: false },
-        variants: [{ kind: 'reel', status: 'unavailable' }],
+        variants: [{ kind: kind === 'scroll' ? 'reel' : 'scroll', status: 'unavailable' }],
         continuations: {
           seriesPrevious: { status: 'unavailable', reason: 'series_boundary' },
           seriesNext: { status: 'unavailable', reason: 'series_boundary' },
-          related: { status: 'unavailable', reason: 'no_related_ready' },
+          related:
+            kind === 'reel'
+              ? {
+                  status: 'ready',
+                  linkId: id(800 + n),
+                  target: { assetId: id(301 + n), assetRevision: document.revision },
+                  metadata: {
+                    kind: 'reel',
+                    title: `CI encounter fixture ${String(n + 2)}`,
+                    summary: 'CI related link',
+                    language: 'en',
+                  },
+                  relation: { kind: 'related_move', label: 'CI related angle' },
+                }
+              : { status: 'unavailable', reason: 'no_related_ready' },
         },
       };
       await route.fulfill({ json: context });
+      return;
+    }
+    if (path === '/v1/media/grants') {
+      await route.fulfill({
+        json: {
+          document: {
+            schemaVersion: 'reel-document.v1',
+            assetId: offer(current).assetId,
+            revision: document.revision,
+            title: offer(current).metadata.title,
+            summary: 'CI gesture fixture; no decoded playback claimed',
+            language: 'en',
+            truthLabel: 'generated',
+            fixture: true,
+            captions: 'burned_in',
+            mediaKey: `sha256/aa/${'a'.repeat(64)}.mp4`,
+            durationMs: 20000,
+            width: 1080,
+            height: 1920,
+          },
+          path: '/media/gesture-fixture',
+          expiresAt: '2099-10-20T18:00:00.000Z',
+        },
+      });
       return;
     }
     if (path.endsWith('/document')) {
@@ -169,6 +205,13 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
     }
     await route.fulfill({ status: 404, json: {} });
   });
+  return { commands };
+}
+
+test('Explore activates once per offer; browser Back restores the retained Scroll without another lineage command; Keep removes withdrawn references', async ({
+  page,
+}) => {
+  const { commands } = await encounterFixture(page, 'scroll');
   await page.goto('/explore');
   await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
@@ -185,9 +228,9 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
   await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
   expect(commands).toHaveLength(count);
   await page.getByRole('button', { name: 'More options' }).click();
-  await expect(page.getByText('Your path', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your path', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByText('Your path', { exact: true })).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your path', exact: true })).not.toBeVisible();
   expect(commands).toHaveLength(count);
   await page.getByRole('tab', { name: 'Keep' }).click();
   await expect(page.getByRole('heading', { name: 'Withdrawn CI fixture' })).toBeVisible();
@@ -195,4 +238,50 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
   await page.getByRole('button', { name: 'Remove from Keep' }).click();
   await expect(page.getByText('Nothing kept yet', { exact: true })).toBeVisible();
   expect(commands.at(-1)?.body).toMatchObject({ kind: 'unsave', target: { assetId: id(990), assetRevision: 2 } });
+});
+
+// The actual ReelPlayer stage and sibling controls are used. This fixture intentionally makes no decoded-playback claim.
+test('the full Reel stage commits vertical and related swipes; dragging a player button never navigates', async ({
+  page,
+}) => {
+  const { commands } = await encounterFixture(page, 'reel');
+  await page.route('**/media/gesture-fixture', (route) =>
+    route.fulfill({ status: 404, body: 'CI gesture fixture only' }),
+  );
+  await page.goto('/explore');
+  const stage = page.getByTestId('reel-navigation-stage');
+  await expect(stage).toBeVisible();
+  await page.getByRole('button', { name: 'Got it' }).click();
+  const before = commands.length;
+  const button = await page.getByRole('button', { name: 'Back 10s' }).boundingBox();
+  if (!button) throw new Error('Actual player control is visible');
+  await page.mouse.move(button.x + button.width / 2, button.y + button.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(button.x + button.width / 2, button.y - 90, { steps: 6 });
+  await page.mouse.up();
+  expect(commands).toHaveLength(before);
+  const first = await stage.boundingBox();
+  if (!first) throw new Error('Actual Reel video stage is visible');
+  await page.mouse.move(first.x + first.width / 2, first.y + first.height * 0.75);
+  await page.mouse.down();
+  await page.mouse.move(first.x + first.width / 2, first.y + first.height * 0.75 - 100, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(() => commands.filter((call) => call.path.endsWith('/navigate')).length).toBe(1);
+  expect(commands.filter((call) => call.path.endsWith('/navigate'))[0]?.body.intent).toEqual({
+    mode: 'vertical',
+    direction: 'next',
+  });
+  await expect.poll(() => commands.filter((call) => call.path.endsWith('/activate')).length).toBe(2);
+  await expect(stage).toBeVisible();
+  const second = await stage.boundingBox();
+  if (!second) throw new Error('Next actual Reel stage is visible');
+  await page.mouse.move(second.x + second.width * 0.7, second.y + second.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(second.x + second.width * 0.7 - 100, second.y + second.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(() => commands.filter((call) => call.path.endsWith('/navigate')).length).toBe(2);
+  expect(commands.filter((call) => call.path.endsWith('/navigate'))[1]?.body.intent).toEqual({
+    mode: 'related',
+    expectedContinuation: { linkId: id(801), assetId: id(302), assetRevision: document.revision },
+  });
 });
