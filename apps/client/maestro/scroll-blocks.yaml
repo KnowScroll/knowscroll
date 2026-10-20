@@ -14,15 +14,27 @@ tags:
     timeout: 60000
 - assertVisible: Why bridges stay up
 - takeScreenshot: scroll-01-poster
+# Stop when the control is fully visible. Extra centering can scroll the frame caption
+# above the viewport (native run 39497349337); keep the caption assertion below mandatory.
 - scrollUntilVisible:
     element: Describe this diagram
-    centerElement: true
     timeout: 90000
 - tapOn:
     text: Next
     enabled: true
 - assertVisible: The towers.*The cables pull on the towers.*
 - tapOn: Describe this diagram
+# Expanding the description can move its Hide control below the viewport. Search from
+# the article gutter with the same bounded gesture used below; visibility stays mandatory.
+- repeat:
+    times: 20
+    while:
+      notVisible: Hide description
+    commands:
+      - swipe:
+          start: 4%, 85%
+          end: 4%, 35%
+          duration: 650
 - assertVisible: Hide description
 - takeScreenshot: scroll-02-diagram-description
 
