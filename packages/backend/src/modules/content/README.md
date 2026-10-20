@@ -47,3 +47,30 @@ Jobs: none. Lock order: an advisory lock on the asset ID, then the asset row; ad
 root and never takes one. Erasure: none (shared content; stated above).
 
 `reading_facts.v2` is a refreshable derived view, separate from immutable document/provenance bytes. Re-importing an unchanged source repairs it under the asset admission lock without creating a revision.
+
+## Approved Cutroom reuse and Reel media (S2.4, #233)
+
+The worker operator `content import-cutroom-reel --run <uuid> --script <name>` imports only the
+three D-005 approved runs (greenhouse, seasons-v5, tides-v4). Their original script/approval snapshots
+and coordinator-read media digest/size pins are kept under `approved/`; frozen root `content/` is never
+read or edited. `legacy-cutroom-<script>` is the shared explanation identity of Reel and future Scroll
+siblings. GET-only loopback reads use the actual pinned upstream parsers, compiled to JS at build;
+no commissioning, resume, cancel, model, quota, money or provider adapter exists here.
+
+Import validates terminal/run/request identities, every chosen/used engine check and shot/degradation
+coverage, then opens a contained regular engine artifact, stream-stages, hashes, ffprobes H264/AAC
+portrait 24fps 48kHz stereo/20–60s/faststart, installs bytes, and commits an immutable revision with
+internal provenance in one short admission transaction. No network, media copy or probe is inside that
+transaction. Nonfixture imports must match the frozen approved SHA-256 and size; a repeated run is
+unchanged. Engine witness evidence is labelled **engine-attested, not independent**. Absolute paths
+are neither documents nor diagnostics; captions are burned into the real approved MP4s.
+
+Migration `0014_media_reels` adds shared `media_objects` (logical key/backend/checksum/size/MIME/revision/
+probe) and `reel_imports` (run → immutable revision/media). Shared data is retained across personal reset.
+`--fixture` is accepted only in `ci`/`local`, and a DB trigger additionally confines fixture rows to
+`ks_it_*`/`knowscroll_fixture_*` disposable databases. Fixture titles/documents are explicitly labelled.
+
+The API reads media only through a caller-owned exposure at its live privacy epoch and an admitted
+asset. The consumer `reel-document.v1` contains logical media keys, title/summary/duration/dimensions and
+truth/fixture/caption labels; internal production/checks/approvals never appear in it. Media grants are
+separate ephemeral access credentials, never content provenance or consumption evidence.

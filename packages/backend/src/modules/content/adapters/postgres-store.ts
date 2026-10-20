@@ -62,7 +62,6 @@ export async function readScrollReadingFacts(
     .select(['revision.reading_facts', 'revision.document'])
     .where('revision.asset_id', '=', assetId)
     .where('revision.revision', '=', revision)
-    .where('asset.kind', '=', 'scroll')
     .executeTakeFirst();
   if (row === undefined) return undefined;
   const parsed = ReadingFactsSchema.safeParse(row.reading_facts);

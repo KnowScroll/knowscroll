@@ -15,7 +15,6 @@ export interface IngestObservationsCommand {
 export type IngestObservationsRefusal = 'batch_too_large' | 'epoch_changed' | 'universe_unavailable';
 
 type EventResult = ObservationBatchResponse['results'][number];
-type ScrollInteractionEvent = Exclude<InteractionEvent, { readonly kind: 'reel.playback' }>;
 
 export type IngestObservationsResult =
   | {
@@ -91,13 +90,6 @@ export function makeIngestObservations(ports: IngestObservationsPorts) {
       let duplicates = 0;
       let rejected = 0;
       for (const event of command.events) {
-        // The Reel wire contract lands before its recorder/lineage adapter. Refuse that kind
-        // until the media implementation supplies its own facts and paired-interval bounds.
-        if (event.kind === 'reel.playback') {
-          results.push({ eventId: event.eventId, status: 'rejected', reason: 'lineage_mismatch' });
-          rejected += 1;
-          continue;
-        }
         const state = await stateOf(event.exposureId);
         const refusal = refusalOf(event, state, receivedAt);
         if (refusal !== undefined || state === undefined || state.exposure.activatedAt === undefined) {
@@ -169,7 +161,7 @@ export type IngestObservations = ReturnType<typeof makeIngestObservations>;
  * block ID the event names exists in that immutable revision.
  */
 function refusalOf(
-  event: ScrollInteractionEvent,
+  event: InteractionEvent,
   state: ExposureState | undefined,
   receivedAt: Date,
 ): Extract<EventResult, { status: 'rejected' }>['reason'] | undefined {
@@ -179,8 +171,14 @@ function refusalOf(
   if (event.assetId !== exposure.assetId || event.assetRevision !== exposure.assetRevision) return 'lineage_mismatch';
   if (exposure.activatedAt === undefined) return 'exposure_not_active';
   if (facts === undefined) return 'lineage_mismatch';
+  if (event.kind !== 'reel.playback' && facts.reelDurationMs !== undefined) return 'lineage_mismatch';
   const known = new Set<string>([...facts.blocks.map((block) => block.id), ...facts.nested.map((block) => block.id)]);
   switch (event.kind) {
+    case 'reel.playback':
+      return facts.reelDurationMs !== undefined &&
+        event.payload.samples.every((sample) => sample.mediaMs[1] <= facts.reelDurationMs!)
+        ? undefined
+        : 'lineage_mismatch';
     case 'scroll.block_coverage':
       return event.payload.blocks.every((block) => known.has(block.blockId)) ? undefined : 'block_unknown';
     case 'scroll.block_interaction': {
@@ -198,10 +196,23 @@ function refusalOf(
  * offsets beyond it are clipped, never trusted. The stored payload is the bounded one.
  */
 function boundPayload(
-  event: ScrollInteractionEvent,
+  event: InteractionEvent,
   capMs: number,
 ): { readonly payload: { readonly [key: string]: unknown }; readonly bounded: boolean } {
   switch (event.kind) {
+    case 'reel.playback': {
+      let bounded = false;
+      const samples = event.payload.samples.flatMap((sample) => {
+        const [from, to] = sample.activeMs;
+        const end = Math.min(to, Math.floor(capMs));
+        if (end !== to) bounded = true;
+        if (end <= from) return [];
+        const mediaEnd = Math.min(sample.mediaMs[1], sample.mediaMs[0] + end - from);
+        if (mediaEnd <= sample.mediaMs[0]) return [];
+        return [{ activeMs: [from, end], mediaMs: [sample.mediaMs[0], mediaEnd] }];
+      });
+      return { payload: { samples }, bounded };
+    }
     case 'scroll.block_coverage': {
       let bounded = false;
       const blocks = event.payload.blocks.map((block) => {

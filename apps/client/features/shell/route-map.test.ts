@@ -47,6 +47,7 @@ describe('route map', () => {
         '/gallery-scroll',
         '/recover',
         '/redeem',
+        '/reel/[assetId]',
         '/saved',
         '/scroll/[assetId]',
         '/signin',

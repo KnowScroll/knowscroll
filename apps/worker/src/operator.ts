@@ -1,9 +1,11 @@
+import { makeCutroomReelImporter } from '@knowscroll/backend/modules/content/nest-providers';
 import { userInfo } from 'node:os';
 import { parseArgs } from 'node:util';
 import {
   ConfigurationError,
   commitForDiagnostics,
   readWorkerOperatorConfig,
+  readMediaImportConfig,
   worldForDiagnostics,
 } from '@knowscroll/backend/infrastructure/config';
 import { createEventLog } from '@knowscroll/backend/infrastructure/observability';
@@ -61,6 +63,9 @@ async function main(): Promise<number> {
     args = parseArgs({
       args: process.argv.slice(2),
       options: {
+        run: { type: 'string' },
+        script: { type: 'string' },
+        fixture: { type: 'boolean' },
         attempt: { type: 'string' },
         reason: { type: 'string' },
         limit: { type: 'string' },
@@ -74,6 +79,35 @@ async function main(): Promise<number> {
     return 2;
   }
   const [area, command] = args.positionals;
+  if (area === 'content' && command === 'import-cutroom-reel' && args.positionals.length === 2) {
+    if (!args.values.run || !args.values.script) {
+      print({
+        result: 'usage',
+        usage: 'content import-cutroom-reel --run <uuid> --script <name> [--fixture (ci/local only)]',
+      });
+      return 2;
+    }
+    try {
+      const settings = readMediaImportConfig(process.env);
+      const database = createDatabase<Database>(settings.database, {
+        onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+      });
+      try {
+        const result = await makeCutroomReelImporter(
+          database.db,
+          settings,
+        )({ runId: args.values.run, script: args.values.script, fixture: args.values.fixture });
+        print({ command: 'content import-cutroom-reel', ...result });
+        return result.kind === 'refused' ? 2 : 0;
+      } finally {
+        await database.close();
+      }
+    } catch (error) {
+      if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
+      else logEvent('process.crashed', { reasonCode: 'media_import_failed' });
+      return 1;
+    }
+  }
   const known =
     area === 'reasoning' &&
     (command === 'write-off' || command === 'unknown' || command === 'sweep-dispatched' || command === 'purge-expired');

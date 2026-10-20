@@ -16,10 +16,9 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/interactions.ts` | `interaction.v1`: the observation envelope, three `scroll.*` payloads and bounded paired `reel.playback` intervals; `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
 | `src/media.ts` | `reel-document.v1` and `POST /v1/media/grants`: a session-scoped short-lived playback grant for an existing exposure |
 
-Reel contracts precede their implementation (#233). Declaring a Reel target or playback payload
-does not admit media, mint a grant or create evidence. Existing Scroll-only adapters refuse Reel
-requests until the media consumer change lands. A playback grant is kept in memory only; its URL
-must never enter logs, persistent storage, caches or diagnostics.
+Reel targets and playback payloads use the media adapters (#233); declaring either creates no
+consumption evidence. A playback grant is kept in memory only; its URL must never enter logs,
+persistent storage, caches or diagnostics.
 
 Explore contracts precede their consumers (#234). The existing `/v1/experience/open` accepts the
 original direct `{target: {kind: scroll|reel, assetId}, origin: {kind: direct}}` command or a new
@@ -77,7 +76,8 @@ context reads, exposure-linked actions (including Save/Unsave) and Like/Unlike/H
 with `EXPERIENCE_COMMAND_UNSUPPORTED` before legacy use-case effects. The direct client rejects a
 Composer outcome as a controlled session error. These declarations do not implement Composer,
 new action/evidence state, Saved metadata hydration or any Explore UI. No #234 runtime acceptance
-is claimed. Existing Scroll-only behavior and Reel refusal remain until their consumer PRs land.
+is claimed. Direct Scroll and Reel encounters use their implemented adapters; the prerequisite
+refusals above apply to the future Composer and action consumers.
 
 Vertical discovery, declared series next/previous, admitted related moves, existing format variants
 and explicit new revisits are distinct intents. A missing variant is unavailable unless a real
