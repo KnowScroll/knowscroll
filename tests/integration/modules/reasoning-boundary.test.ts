@@ -1,10 +1,12 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Writable } from 'node:stream';
+import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createEventLog } from '@knowscroll/backend/infrastructure/observability';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { ReasoningRole } from '@knowscroll/backend/reasoning';
+import { buildPrompt, HARNESS_PROMPT_VERSION } from '../../../packages/backend/src/reasoning/domain/prompt.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import {
   attemptsOf,
@@ -177,6 +179,133 @@ describe('the recording boundary and the validator feedback (real database, fixt
       };
       const { model } = await propose(planRole, { plan: { steps: [{ title: 'ok' }, { title: 5 }] } });
       expect(model.calls[1]?.request.system).toContain('- plan.steps[1].title: invalid_type (expected string)');
+    });
+  });
+
+  describe('safe extraction refusal diagnostics (CI fixture, no raw answer retention)', () => {
+    const canary = 'JSON-DIAGNOSTIC-PRIVATE-Zq81';
+    const fakeUrl = `https://private.example/${canary}?X-Amz-Signature=${canary}`;
+    const fakeToken = `sk-cp-${canary}-01234567890123456789`;
+    const invalid = `{"${fakeUrl}":nope,"private":"${fakeToken}"}`;
+
+    it.each([
+      ['syntax', invalid, 'phase=syntax framing=bare prefix=object category=unexpected_token'],
+      [
+        'prose',
+        `Private reply ${fakeUrl} ${fakeToken} ${invalid}`,
+        'phase=framing framing=bare prefix=other category=other',
+      ],
+      ['fence', `\`\`\`json\n${invalid}`, 'phase=framing framing=invalid_fence prefix=other category=other'],
+    ])(
+      'persists only fixed %s metadata and uses those exact issues in the one repair',
+      async (label, text, expected) => {
+        const person = await seedPerson(db());
+        const model = fixtureModel(() => ({ kind: 'success', text }));
+        const role = { ...echoRole, id: `fixture.json-${label}` };
+        const input = {
+          run: fixtureRun(systemAuthority(person.universeId), randomUUID()),
+          role,
+          context: fixtureContext,
+        };
+        const { harness } = fixtureHarness(db(), { model, logEvent });
+        const outcome = await harness.propose(input, signal());
+        expect(outcome).toMatchObject({ kind: 'invalid_output', reason: 'OUTPUT_NOT_ONE_JSON_OBJECT' });
+        expect(model.calls).toHaveLength(2);
+        const before = await attemptsOf(db(), person.universeId);
+        expect(before.map(({ step, state, outcome_code }) => [step, state, outcome_code])).toEqual([
+          ['primary', 'succeeded', 'OUTPUT_NOT_ONE_JSON_OBJECT'],
+          ['repair', 'succeeded', 'OUTPUT_NOT_ONE_JSON_OBJECT'],
+        ]);
+        for (const row of before) {
+          expect(row.output).toBeNull();
+          expect(row.output_issues).toEqual({
+            v: 1,
+            reason: 'OUTPUT_NOT_ONE_JSON_OBJECT',
+            issues: [
+              {
+                path: '(root)',
+                code: 'not_one_json_object',
+                detail: `answer with exactly one JSON object and nothing else; json-refusal.v1 ${expected} chars=${text.length}`,
+              },
+            ],
+          });
+        }
+        const stored = before[0]?.output_issues as { issues: { detail: string }[] };
+        expect(model.calls[1]?.request.system).toContain(`- (root): not_one_json_object (${stored.issues[0]?.detail})`);
+        const surfaces = JSON.stringify({
+          outcome,
+          before,
+          repair: model.calls[1]?.request.system,
+          logs,
+          ledger: await reasoningText(db()),
+        });
+        for (const secret of [canary, fakeUrl, fakeToken, 'private.example', 'X-Amz-Signature'])
+          expect(surfaces).not.toContain(secret);
+        expect(await harness.propose(input, signal())).toEqual(outcome);
+        expect(model.calls).toHaveLength(2);
+        expect(await attemptsOf(db(), person.universeId)).toEqual(before);
+      },
+    );
+
+    it('replays legacy invalid issues unchanged and keeps the old hp2 repair hash on every redelivery', async () => {
+      const person = await seedPerson(db());
+      const model = fixtureModel((sequence) =>
+        sequence === 1 ? { kind: 'success', text: invalid } : { kind: 'success', text: '{"ok":true,"echo":"lantern"}' },
+      );
+      const role = { ...echoRole, id: 'fixture.json-legacy' };
+      const input = {
+        run: fixtureRun(systemAuthority(person.universeId), randomUUID()),
+        role,
+        context: fixtureContext,
+      };
+      const { harness } = fixtureHarness(db(), { model, logEvent });
+      expect(await harness.propose({ ...input, limits: { allowRepair: false } }, signal())).toMatchObject({
+        kind: 'invalid_output',
+        reason: 'OUTPUT_NOT_ONE_JSON_OBJECT',
+      });
+      // Historical fixture: replace only this fixture attempt's issues with the pre-diagnostics
+      // shape, then deliver through the real ledger reader. Never modify a live attempt.
+      const legacy = {
+        v: 1,
+        reason: 'OUTPUT_NOT_ONE_JSON_OBJECT',
+        issues: [
+          {
+            path: '(root)',
+            code: 'not_one_json_object',
+            detail: 'answer with exactly one JSON object and nothing else',
+          },
+        ],
+      };
+      await sql`update reasoning.external_attempts set output_issues=${JSON.stringify(legacy)}::jsonb where universe_id=${person.universeId} and run_id=${input.run.id} and step='primary'`.execute(
+        db(),
+      );
+      const resumed = await harness.propose(input, signal());
+      expect(resumed.kind).toBe('proposed');
+      expect(model.calls).toHaveLength(2);
+      expect(HARNESS_PROMPT_VERSION).toBe('hp2');
+      const oldPrompt = buildPrompt({
+        roleId: role.id,
+        roleVersion: role.version,
+        instructions: role.instructions,
+        bundleRef: fixtureContext.bundleRef,
+        items: fixtureContext.items,
+        feedback: legacy.issues,
+      });
+      expect(model.calls[1]?.request.system).toBe(oldPrompt.system);
+      expect(model.calls[1]?.request.user).toBe(oldPrompt.user);
+      expect(model.calls[1]?.request.system).not.toContain('json-refusal.v1');
+      const expectedHash = createHash('sha256')
+        .update(model.encode({ ...oldPrompt, maxOutputTokens: role.maxOutputTokens }))
+        .digest('hex');
+      const before = await attemptsOf(db(), person.universeId);
+      expect(before[0]?.output_issues).toEqual(legacy);
+      expect(before[0]?.output).toBeNull();
+      expect(before[1]?.request_hash).toBe(expectedHash);
+      expect(await harness.propose(input, signal())).toEqual(resumed);
+      expect(model.calls).toHaveLength(2);
+      expect(await attemptsOf(db(), person.universeId)).toEqual(before);
+      const surfaces = `${JSON.stringify(before)}\n${model.calls[1]?.request.system}\n${logs}\n${await reasoningText(db())}`;
+      expect(surfaces).not.toContain(canary);
     });
   });
 });
