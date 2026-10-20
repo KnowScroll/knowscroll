@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
@@ -17,6 +17,42 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { evidenceUseCase } from '../support/evidence.js';
 import { experienceUseCases } from '../support/experience.js';
 import { seedAsset, seedPerson, type FixturePerson } from '../support/fixtures.js';
+
+/** CI fixture: a run descriptor and a reservation written straight through the ledger port. */
+function fixtureRunDescriptor(id: string) {
+  return {
+    id,
+    ownerModule: 'fixture',
+    purpose: 'fixture',
+    roleId: 'fixture.erasure',
+    roleVersion: 'v1',
+    policyVersion: 'fixture.v1',
+    provider: 'fixture',
+    model: 'fixture',
+    contextBundleRef: 'fixture.bundle:erasure',
+    contextRefs: ['fixture:item'],
+  };
+}
+
+function fixtureReservation(id: string, runId: string, label: string) {
+  // The database recomputes the hash of the stored bytes (a CHECK): the hash is the real one.
+  const requestBody = new TextEncoder().encode(`{"fixture":"erasure-${label}"}`);
+  return {
+    id,
+    runId,
+    step: 'primary',
+    provider: 'fixture',
+    model: 'fixture',
+    roleId: 'fixture.erasure',
+    roleVersion: 'v1',
+    promptVersion: 'hp-fixture',
+    requestHash: createHash('sha256').update(requestBody).digest('hex'),
+    requestBody,
+    maxOutputTokens: 16,
+    reservedTokens: 37,
+    requestRetentionSeconds: 3_600,
+  };
+}
 
 /** Rows per registered personal table for one universe. */
 async function personalRowCountsIn(
@@ -124,15 +160,8 @@ describe('the erasure registry (real database)', () => {
       await applyEvidence({ v: 1, universeId: person.universeId, privacyEpoch: 1, actionId: saved.outcome.actionId });
       await withPersonalScope(person.authority, async (scope) => {
         const runId = randomUUID();
-        await ledger.admitRun(scope, { id: runId, ownerModule: 'fixture', purpose: 'fixture' });
-        await ledger.reserve(scope, {
-          id: randomUUID(),
-          runId,
-          step: 'step',
-          provider: 'fixture',
-          model: 'fixture',
-          requestHash: 'a'.repeat(64),
-        });
+        await ledger.admitRun(scope, fixtureRunDescriptor(runId));
+        await ledger.reserve(scope, fixtureReservation(randomUUID(), runId, 'a'));
       });
     };
     try {
@@ -171,25 +200,28 @@ describe('the erasure registry (real database)', () => {
     const attemptId = randomUUID();
     await withPersonalScope(person.authority, async (scope) => {
       const runId = randomUUID();
-      await ledger.admitRun(scope, { id: runId, ownerModule: 'fixture', purpose: 'fixture' });
-      await ledger.reserve(scope, {
-        id: attemptId,
-        runId,
-        step: 'step',
-        provider: 'fixture',
-        model: 'fixture',
-        requestHash: 'b'.repeat(64),
+      await ledger.admitRun(scope, fixtureRunDescriptor(runId));
+      await ledger.reserve(scope, fixtureReservation(attemptId, runId, 'b'));
+      await ledger.commitDispatch(scope, attemptId, {
+        dispatchId: randomUUID(),
+        dispatchedBy: 'ci-fixture',
+        quota: { verdict: 'not_applicable', intervalRemainingPercent: null, weeklyRemainingPercent: null },
       });
-      await ledger.commitDispatch(scope, attemptId);
     });
     const reports = await withPersonalScope(person.authority, (scope) => eraseUniverse(scope, personalStores));
     expect(
       reports.kind === 'entered' ? reports.value.find((report) => report.module === 'reasoning') : undefined,
     ).toMatchObject({ status: 'pending' });
     const left = await personalRowCounts(person.universeId);
-    expect({ attempts: left['reasoning.external_attempts'], runs: left['reasoning.business_runs'] }).toEqual({
+    expect({
+      attempts: left['reasoning.external_attempts'],
+      runs: left['reasoning.business_runs'],
+      requests: left['reasoning.protected_requests'],
+    }).toEqual({
       attempts: 1,
       runs: 1,
+      // The open attempt's request bytes are private context: erased even while it is unresolved.
+      requests: 0,
     });
   });
 });

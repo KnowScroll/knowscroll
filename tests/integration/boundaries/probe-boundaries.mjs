@@ -171,6 +171,28 @@ const probes = [
       ['packages/scroll-model/src/admission/index.ts', 'scroll-model-public-entry-is-self-contained'],
     ],
   },
+  // A module reaches the reasoning engine only through reasoning/public.ts: not its application
+  // code, its ledger adapter or its composition wiring (it could build its own harness around the
+  // harness's admission, budgets and ledger).
+  {
+    file: `${B}/modules/zz-probe-planning/application/zz-reasoning.ts`,
+    source:
+      "import { makeAttemptLedger } from '../../../reasoning/adapters/postgres-ledger.js';\nimport { makeReasoningHarness } from '../../../reasoning/application/propose.js';\nimport { reasoningProviders } from '../../../reasoning/adapters/nest-providers.js';\nexport const p = [makeAttemptLedger, makeReasoningHarness, reasoningProviders];\n",
+    expect: [
+      [`${B}/reasoning/adapters/postgres-ledger.ts`, 'cross-module-through-public'],
+      [`${B}/reasoning/application/propose.ts`, 'cross-module-through-public'],
+      [`${B}/reasoning/adapters/nest-providers.ts`, 'cross-module-through-public'],
+      [`${B}/reasoning/adapters/nest-providers.ts`, 'nest-providers-only-in-composition-roots'],
+    ],
+  },
+  // An app reaches the reasoning engine only through its public.ts or, from a composition root,
+  // its nest-providers.
+  {
+    file: 'apps/api/src/http/zz-probe-reasoning.controller.ts',
+    source:
+      "import { makeAttemptLedger } from '../../../../packages/backend/src/reasoning/adapters/postgres-ledger.js';\nexport const p = makeAttemptLedger;\n",
+    expect: [[`${B}/reasoning/adapters/postgres-ledger.ts`, 'apps-reach-modules-through-public-or-wiring']],
+  },
   // Apps never import each other; no cycles.
   {
     file: 'apps/api/src/zz-probe-cross-app.ts',

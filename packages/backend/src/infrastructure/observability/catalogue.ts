@@ -47,6 +47,20 @@ export interface FieldTypes {
   context: string;
   /** Configuration problems as `VARIABLE: kind_code`, never values. */
   problems: readonly string[];
+  // Model execution (blueprint §26 "Record policy/model/prompt … versions"): codes and counts only.
+  provider: string;
+  model: string;
+  /** The role (`<module>.<role>`) whose prompt was sent. */
+  role: string;
+  /** The harness framing version (`hp2` today); the role version is on the attempt record. */
+  promptVersion: string;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  cachedTokens: number;
+  /** Quota preflight observation: remaining percentage of the current interval / week. */
+  quotaIntervalPercent: number;
+  quotaWeeklyPercent: number;
   /** Any thrown value; `logEvent` sanitises it to class, code and frames. */
   error: unknown;
 }
@@ -123,11 +137,67 @@ export const diagnosticCatalogue = {
     fields: ['requestId', 'method', 'route', 'reasonCode'],
   },
   'identity.operator_sign_in': { severity: 'by-call', module: 'identity', fields: ['outcome', 'reasonCode', 'error'] },
+  'reasoning.admission_refused': {
+    severity: 'info',
+    module: 'reasoning',
+    fields: ['runId', 'provider', 'model', 'role', 'promptVersion', 'reasonCode'],
+  },
+  'reasoning.attempt_reserved': {
+    severity: 'info',
+    module: 'reasoning',
+    fields: ['attemptId', 'runId', 'provider', 'model', 'role', 'promptVersion', 'count'],
+  },
+  'reasoning.quota_observed': {
+    severity: 'info',
+    module: 'reasoning',
+    fields: [
+      'attemptId',
+      'runId',
+      'provider',
+      'model',
+      'role',
+      'promptVersion',
+      'outcome',
+      'reasonCode',
+      'quotaIntervalPercent',
+      'quotaWeeklyPercent',
+    ],
+  },
+  'reasoning.attempt_dispatched': {
+    severity: 'info',
+    module: 'reasoning',
+    fields: ['attemptId', 'runId', 'provider', 'model', 'role', 'promptVersion'],
+  },
   'reasoning.attempt_settled': {
     severity: 'info',
     module: 'reasoning',
-    fields: ['attemptId', 'runId', 'outcome', 'reasonCode', 'durationMs'],
+    fields: [
+      'attemptId',
+      'runId',
+      'provider',
+      'model',
+      'role',
+      'promptVersion',
+      'outcome',
+      'reasonCode',
+      'durationMs',
+      'inputTokens',
+      'outputTokens',
+      'reasoningTokens',
+      'cachedTokens',
+    ],
   },
+  'reasoning.attempt_written_off': {
+    severity: 'warn',
+    module: 'reasoning',
+    fields: ['attemptId', 'outcome', 'reasonCode'],
+  },
+  // Once at worker start: which provider the harness will use (`none` when unconfigured). Never a key.
+  'reasoning.provider_configured': { severity: 'info', module: 'reasoning', fields: ['provider', 'model'] },
+  // A crash left attempts `dispatched`; the sweep moved them to `unknown` for an operator.
+  'reasoning.dispatched_swept': { severity: 'warn', module: 'reasoning', fields: ['count'] },
+  'reasoning.requests_purged': { severity: 'info', module: 'reasoning', fields: ['count'] },
+  'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },
   'migrate.started': { severity: 'info', module: 'migrate', fields: ['count'] },
   'migrate.completed': { severity: 'info', module: 'migrate', fields: ['count', 'migration', 'durationMs'] },
   'migrate.failed': { severity: 'fatal', module: 'migrate', fields: ['migration', 'reasonCode', 'error'] },

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '../zod.js';
 import { FIELD_LIMITS, LIMITS } from '../limits.js';
 import { codeText, FiniteNumber, MediaRef, plainText } from '../primitives.js';
 

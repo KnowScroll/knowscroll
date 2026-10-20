@@ -9,7 +9,7 @@
       "project": ["src/**/*.ts"]
     },
     "apps/worker": {
-      "entry": ["src/main.ts"],
+      "entry": ["src/main.ts", "src/operator.ts"],
       "project": ["src/**/*.ts"]
     },
     "apps/client": {

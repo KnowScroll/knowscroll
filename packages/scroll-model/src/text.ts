@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from './zod.js';
 import { FIELD_LIMITS } from './limits.js';
 import { spanText } from './primitives.js';
 

@@ -1,20 +1,49 @@
 /**
- * The shared reasoning engine's public surface (blueprint §15, §22): execution machinery and
- * attempt accounting only. Roles (instructions, context, output schema, validator, applier) live
- * in their owning modules and call this. Adapters are bound through `adapters/nest-providers.ts`.
+ * The shared reasoning engine's public surface (blueprint §15, §22): the harness that module-owned
+ * roles call and its typed inputs and outcomes. Roles (instructions, context builder, output
+ * schema, semantic validator, applier) live in their owning modules. Deliberately NOT exported
+ * here: the harness factory, its ports, the attempt ledger and the model transport port. A module
+ * receives a ready `ReasoningHarness` (injected by `REASONING_HARNESS`) and cannot build its own
+ * with its own ledger or transport; composition roots and tests reach the factories through
+ * `adapters/nest-providers.ts` only.
  */
 export {
-  MAX_STORED_OUTPUT_BYTES,
-  ModelRejectedError,
-  type AttemptLedger,
-  type ExecuteModelStepPorts,
-  type ModelPort,
-  type ModelRequest,
-  type ModelResponse,
-} from './application/ports.js';
+  MAX_CONTEXT_ITEMS,
+  MAX_CONTEXT_ITEM_CHARS,
+  MAX_INSTRUCTION_CHARS,
+  MAX_ROLE_OUTPUT_TOKENS,
+  type ContextItem,
+  type ProposeInput,
+  type ProposeLimits,
+  type ProposeOutcome,
+  type ProposeRefusal,
+  type ReasoningContext,
+  type ReasoningHarness,
+  type ReasoningRole,
+  type ReasoningRun,
+} from './application/propose.js';
 export {
-  makeExecuteModelStep,
-  type ExecuteModelStep,
-  type ModelStep,
-  type ModelStepResult,
-} from './application/execute-model-step.js';
+  PurgeExpiredRequestsPayloadSchema,
+  SweepDispatchedAttemptsPayloadSchema,
+  purgeExpiredRequestsQueue,
+  sweepDispatchedAttemptsQueue,
+  type PurgeExpiredRequestsPayload,
+  type SweepDispatchedAttemptsPayload,
+} from './events.js';
+export type { BudgetCap, ReportedUsage } from './domain/budgets.js';
+export { HARNESS_PROMPT_VERSION } from './domain/prompt.js';
+
+/** Injection token of the worker's `ReasoningHarness` (bound by `reasoningProviders`). */
+export const REASONING_HARNESS = Symbol('reasoning.harness');
+
+/** Injection token of the scheduled protected-request purge (bound by `reasoningPurgeProviders`). */
+export const PURGE_EXPIRED_REQUESTS = Symbol('reasoning.purge-expired-requests');
+
+/** Deletes expired protected request bytes now; resolves with how many were deleted. */
+export type PurgeExpiredRequests = () => Promise<number>;
+
+/** Injection token of the scheduled crash-recovery sweep (bound by `reasoningSweepProviders`). */
+export const SWEEP_DISPATCHED_ATTEMPTS = Symbol('reasoning.sweep-dispatched-attempts');
+
+/** Moves attempts left `dispatched` past the request deadline to `unknown`; resolves with how many. */
+export type SweepDispatchedAttempts = () => Promise<number>;

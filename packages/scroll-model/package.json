@@ -5,7 +5,10 @@
   "description": "The canonical declarative Scroll document (scroll-document.v1): schemas, limits, validation, negotiation, locators, block state and simulation evaluation, plus the backend-only producer contract and internal provenance.",
   "license": "UNLICENSED",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/zod.ts",
+    "./dist/zod.js"
+  ],
   "exports": {
     ".": {
       "@knowscroll/source": "./src/index.ts",

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from './zod.js';
 import { Block, type AnyBlock } from './blocks/catalog.js';
 import { FIELD_LIMITS, LIMITS, SCROLL_LIMITS_VERSION } from './limits.js';
 import { IsoDate, LanguageTag, LocalId, OpaqueId, plainText, Revision, Sha256Hex } from './primitives.js';

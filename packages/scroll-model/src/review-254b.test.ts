@@ -495,15 +495,15 @@ describe('re-review minor 4: admission has its own entry, which clients cannot i
     const { readFileSync } = await import('node:fs');
     const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
       exports: Record<string, Record<string, string>>;
-      sideEffects: boolean;
+      sideEffects: boolean | string[];
     };
     expect(manifest.exports['./admission']).toEqual({
       '@knowscroll/source': './src/admission/index.ts',
       types: './dist/admission/index.d.ts',
       default: './dist/admission/index.js',
     });
-    // No module has an import-time effect a bundle must keep, so a client bundle may drop admission code.
-    expect(manifest.sideEffects).toBe(false);
+    // Preserve only the jitless initialization; admission remains eligible for tree-shaking.
+    expect(manifest.sideEffects).toEqual(['./src/zod.ts', './dist/zod.js']);
   });
 });
 

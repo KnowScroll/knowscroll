@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '../zod.js';
 import { LIMITS } from '../limits.js';
 import { LocalId, OpaqueId, ParamKey, Revision, Sha256Hex } from '../primitives.js';
 
