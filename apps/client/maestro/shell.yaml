@@ -4,14 +4,7 @@ name: Cold start shows the four-tab shell
 tags:
   - shell
 ---
-- launchApp:
-    clearState: true
-    stopApp: true
-# Fonts load and the session is read (no stored token: signed out, no network wait) before anything renders.
-- extendedWaitUntil:
-    visible:
-      id: destination-explore
-    timeout: 120000
+- runFlow: start-app.yaml
 - assertVisible:
     id: destination-universe
 - assertVisible:

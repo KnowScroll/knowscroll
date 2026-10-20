@@ -5,13 +5,7 @@ name: Tab switching and Android Back
 tags:
   - shell
 ---
-- launchApp:
-    clearState: true
-    stopApp: true
-- extendedWaitUntil:
-    visible:
-      id: destination-explore
-    timeout: 120000
+- runFlow: start-app.yaml
 - tapOn:
     id: destination-universe
 - assertVisible: Your universe starts quiet.
