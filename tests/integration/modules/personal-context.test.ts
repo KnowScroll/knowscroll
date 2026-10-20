@@ -8,7 +8,7 @@ import type { PersonalAuthority } from '@knowscroll/backend/modules/identity';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
-import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
+import { coverage, dwell, event, openActive } from '../support/observations.js';
 
 describe('incremental personal context (real PostgreSQL, authored CI fixtures only)', () => {
   let database: TestDatabase<Database>, c: Awaited<ReturnType<typeof scrollUseCases>>;
@@ -17,6 +17,7 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     topicA = `ci.context.a.${randomUUID()}`,
     topicB = `ci.context.b.${randomUUID()}`;
   const evaluation = new Date(Date.now() + 3600000);
+  const encounterTime = new Date(evaluation.getTime() - 90 * 60000);
   beforeAll(async () => {
     database = await createTestDatabase<Database>('personal_context');
     c = await scrollUseCases(database, { activityNow: () => evaluation });
@@ -66,7 +67,13 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
   }
   async function read(p: FixturePerson, asset = first) {
     const exposure = await openActive(c, p, asset);
-    await activatedAgo(database.db, exposure.exposureId, 30);
+    // Exact same activation time makes this correction fixture's twins carry identical decay
+    // weights. Keep exact reversible assertions without changing Evidence's floating arithmetic.
+    await database.db
+      .updateTable('experience.exposures')
+      .set({ opened_at: new Date(encounterTime.getTime() - 60000), activated_at: encounterTime })
+      .where('id', '=', exposure.exposureId)
+      .execute();
     await c.projectActivity(job(p, exposure.exposureId));
     const events = [event(exposure, coverage(blocks, 4000)), event(exposure, dwell([0, 68000]))];
     await c.ingestObservations(p.authority, { instrumentationVersion: 1, events });
@@ -236,16 +243,24 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
       .selectFrom('evidence.activity_revisions')
       .select('id')
       .where('universe_id', '=', p.universeId)
+      .orderBy('revision')
       .execute();
+    const current = await database.db
+      .selectFrom('evidence.activity_current')
+      .select('activity_id')
+      .where('universe_id', '=', p.universeId)
+      .where('exposure_id', '=', r.exposure.exposureId)
+      .executeTakeFirstOrThrow();
     expect(await c.projectActivity(job(p, r.exposure.exposureId))).toMatchObject({
       kind: 'applied',
-      activityId: activityRows[0]?.id,
+      activityId: current.activity_id,
     });
     expect(
       await database.db
         .selectFrom('evidence.activity_revisions')
         .select('id')
         .where('universe_id', '=', p.universeId)
+        .orderBy('revision')
         .execute(),
     ).toEqual(activityRows);
     expect((await snapshot(p)).topics[0]?.qualifiedExplanationUnits).toBe(1);
