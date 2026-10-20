@@ -97,7 +97,12 @@ export class ExperienceController {
   openExposureRoute(@Req() request: Request) {
     return implement(apiContract.experience.openExposure).handler(async ({ input }) => {
       const caller = admittedCaller(request);
-      const result = await this.openExposure(authorityOf(caller), input);
+      // The additive Reel contract precedes the media adapter. Keep this release Scroll-only.
+      if (input.target.kind !== 'scroll') throw problem('ASSET_NOT_FOUND');
+      const result = await this.openExposure(authorityOf(caller), {
+        ...input,
+        target: { kind: input.target.kind, assetId: input.target.assetId },
+      });
       if (result.kind === 'refused') throw problem(openRefusalProblems[result.reason]);
       return { commandId: input.commandId, replayed: result.replayed, ...result.outcome };
     });

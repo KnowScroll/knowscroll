@@ -1,3 +1,4 @@
+import { mediaGrantContract } from './media.js';
 import {
   activateExposureContract,
   applyActionContract,
@@ -18,6 +19,7 @@ import { evidenceDiagnosticsContract, submitObservationsContract } from './inter
 /** The complete HTTP contract of the KnowScroll API. Every route the API serves is listed here. */
 export const apiContract = {
   health: healthContract,
+  media: { grant: mediaGrantContract },
   identity: {
     requestSignIn: requestSignInContract,
     peekSignIn: peekSignInContract,
