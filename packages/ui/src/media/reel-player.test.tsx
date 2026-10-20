@@ -137,17 +137,38 @@ describe('paused grant renewal', () => {
     const replace = jest.fn(() => Promise.resolve());
     const play = jest.fn();
     const player = {
-      currentTime: 7, muted: false, playing: false, status: 'readyToPlay', playbackRate: 1,
-      pause: jest.fn(), play, replaceAsync: replace, addListener: () => ({ remove: () => undefined }),
+      currentTime: 7,
+      muted: false,
+      playing: false,
+      status: 'readyToPlay',
+      playbackRate: 1,
+      pause: jest.fn(),
+      play,
+      replaceAsync: replace,
+      addListener: () => ({ remove: () => undefined }),
     } as unknown as VideoPlayer;
     jest.mocked(useVideoPlayer).mockReturnValue(player);
-    const load = jest.fn(() => Promise.resolve({
-      source: { uri: 'https://fixture.invalid/media/fixture' },
-      expiresAt: new Date(Date.now() + 60000).toISOString(),
-    }));
-    const rendered = await renderOn(<ReelPlayer title="Fixture" durationMs={30000} active loadSource={load}
-      onSample={() => undefined} onDiscontinuity={() => undefined} registerEnd={() => () => undefined} />);
-    await act(async () => { jest.advanceTimersByTime(45000); await Promise.resolve(); });
+    const load = jest.fn(() =>
+      Promise.resolve({
+        source: { uri: 'https://fixture.invalid/media/fixture' },
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+      }),
+    );
+    const rendered = await renderOn(
+      <ReelPlayer
+        title="Fixture"
+        durationMs={30000}
+        active
+        loadSource={load}
+        onSample={() => undefined}
+        onDiscontinuity={() => undefined}
+        registerEnd={() => () => undefined}
+      />,
+    );
+    await act(async () => {
+      jest.advanceTimersByTime(45000);
+      await Promise.resolve();
+    });
     expect(replace).toHaveBeenCalledTimes(1);
     expect(load).toHaveBeenCalledTimes(1);
     expect(play).not.toHaveBeenCalled();
@@ -157,5 +178,59 @@ describe('paused grant renewal', () => {
     expect(player.currentTime).toBe(7);
     await rendered.unmount();
     jest.useRealTimers();
+  });
+});
+
+describe('paused loaded-source Retry', () => {
+  it('fetches a replacement after an error even though cleanup cleared playback intent', async () => {
+    const listeners = new Map<string, (payload: unknown) => void>();
+    const replace = jest.fn(() => Promise.resolve());
+    const play = jest.fn();
+    const player = {
+      currentTime: 5,
+      muted: false,
+      playing: false,
+      status: 'readyToPlay',
+      playbackRate: 1,
+      pause: jest.fn(),
+      play,
+      replaceAsync: replace,
+      addListener: (kind: string, listener: (payload: unknown) => void) => {
+        listeners.set(kind, listener);
+        return {
+          remove: () => {
+            listeners.delete(kind);
+          },
+        };
+      },
+    } as unknown as VideoPlayer;
+    jest.mocked(useVideoPlayer).mockReturnValue(player);
+    const load = jest.fn(() =>
+      Promise.resolve({
+        source: { uri: 'https://fixture.invalid/media/fixture' },
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+      }),
+    );
+    const rendered = await renderOn(
+      <ReelPlayer
+        title="Fixture"
+        durationMs={30000}
+        active
+        loadSource={load}
+        onSample={() => undefined}
+        onDiscontinuity={() => undefined}
+        registerEnd={() => () => undefined}
+      />,
+    );
+    await act(async () => {
+      listeners.get('statusChange')?.({ status: 'error' });
+      await Promise.resolve();
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+    expect(load).toHaveBeenCalledTimes(2);
+    // Scope/effect cleanup clears the old source before the retry installs the fresh one.
+    expect(replace).toHaveBeenCalledTimes(3);
+    expect(play).not.toHaveBeenCalled();
+    await rendered.unmount();
   });
 });
