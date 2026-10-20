@@ -5,6 +5,7 @@
 export {
   ApplyActionEvidencePayloadSchema,
   ProjectScrollReadingPayloadSchema,
+  projectEncounterActivityQueue,
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
   type ApplyActionEvidencePayload,
@@ -23,3 +24,14 @@ export type {
   ReadEvidenceDiagnosticsResult,
 } from './application/read-evidence-diagnostics.js';
 export type { EvidenceDiagnostics } from './application/ports.js';
+
+export { ACTIVITY_POLICY, type ActivityChannels } from './domain/activity.js';
+export type {
+  ProjectEncounterActivity,
+  ReconcileEncounterActivity,
+  ReadPreparedActivity,
+  ActivityProjectionResult,
+} from './application/activity-contracts.js';
+export const PROJECT_ENCOUNTER_ACTIVITY = Symbol('evidence.projectEncounterActivity');
+export const RECONCILE_ENCOUNTER_ACTIVITY = Symbol('evidence.reconcileEncounterActivity');
+export const READ_PREPARED_ACTIVITY = Symbol('evidence.readPreparedActivity');

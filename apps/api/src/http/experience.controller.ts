@@ -3,6 +3,10 @@ import { Implement, implement } from '@orpc/nest';
 import type { Request } from 'express';
 import { apiContract, type ProblemCode } from '@knowscroll/contracts';
 import type {
+  NavigateEncounter,
+  ActivateOffer,
+  ReadExposureContext,
+  ApplyEncounterAction,
   ActivateExposure,
   ActivateExposureResult,
   ApplyAction,
@@ -13,6 +17,10 @@ import type {
   ReadExposureDocument,
 } from '@knowscroll/backend/modules/experience';
 import {
+  NAVIGATE_ENCOUNTER,
+  ACTIVATE_OFFER,
+  READ_EXPOSURE_CONTEXT,
+  APPLY_ENCOUNTER_ACTION,
   ACTIVATE_EXPOSURE,
   APPLY_ACTION,
   LIST_SAVED,
@@ -63,15 +71,21 @@ export class ExperienceController {
     @Inject(OPEN_EXPOSURE) private readonly openExposure: OpenExposure,
     @Inject(ACTIVATE_EXPOSURE) private readonly activateExposure: ActivateExposure,
     @Inject(READ_EXPOSURE_DOCUMENT) private readonly readExposureDocument: ReadExposureDocument,
+    @Inject(NAVIGATE_ENCOUNTER) private readonly navigate: NavigateEncounter,
+    @Inject(ACTIVATE_OFFER) private readonly activateOffer: ActivateOffer,
+    @Inject(READ_EXPOSURE_CONTEXT) private readonly readContext: ReadExposureContext,
+    @Inject(APPLY_ENCOUNTER_ACTION) private readonly applyEncounterAction: ApplyEncounterAction,
   ) {}
 
   @Implement(apiContract.experience.applyAction)
   applyActionRoute(@Req() request: Request) {
     return implement(apiContract.experience.applyAction).handler(async ({ input }) => {
       const caller = admittedCaller(request);
-      // Shared contracts precede their consumers. Never route a new action into Save/Unsave.
-      if ((input.kind !== 'save' && input.kind !== 'unsave') || input.exposureId !== undefined)
-        throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
+      if ((input.kind !== 'save' && input.kind !== 'unsave') || input.exposureId !== undefined) {
+        const result = await this.applyEncounterAction(authorityOf(caller), input);
+        if (result.kind === 'refused') throw problem(result.code);
+        return result.outcome;
+      }
       const result = await this.applyAction(authorityOf(caller), { ...input, kind: input.kind });
       if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
       return { commandId: input.commandId, replayed: result.replayed, ...result.outcome };
@@ -91,6 +105,9 @@ export class ExperienceController {
           assetId: item.assetId,
           assetRevision: item.assetRevision,
           savedAt: item.savedAt.toISOString(),
+          ...(item.metadata ? { metadata: item.metadata } : {}),
+          ...(item.availability ? { availability: item.availability } : {}),
+          ...(item.currentAssetRevision ? { currentAssetRevision: item.currentAssetRevision } : {}),
         })),
       };
     });
@@ -100,8 +117,14 @@ export class ExperienceController {
   openExposureRoute(@Req() request: Request) {
     return implement(apiContract.experience.openExposure).handler(async ({ input }) => {
       const caller = admittedCaller(request);
-      if (input.target.kind === 'discover' || input.target.kind === 'return')
-        throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
+      if (input.target.kind === 'discover' || input.target.kind === 'return') {
+        const result = await this.navigate(
+          authorityOf(caller),
+          input.target.kind === 'discover' ? { ...input, target: input.target } : { ...input, target: input.target },
+        );
+        if (result.kind === 'refused') throw problem(result.code);
+        return result.outcome;
+      }
       const result = await this.openExposure(authorityOf(caller), {
         ...input,
         target: { kind: input.target.kind, assetId: input.target.assetId },
@@ -112,21 +135,23 @@ export class ExperienceController {
     });
   }
 
-  /** Explicit prerequisite refusal; the Composer consumer lands in a later PR. */
+  /** Navigation composes outside the scoped transactions. */
   @Implement(apiContract.experience.navigate)
   navigateExperienceRoute(@Req() request: Request) {
-    return implement(apiContract.experience.navigate).handler(() => {
-      admittedCaller(request);
-      throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
+    return implement(apiContract.experience.navigate).handler(async ({ input }) => {
+      const result = await this.navigate(authorityOf(admittedCaller(request)), input);
+      if (result.kind === 'refused') throw problem(result.code);
+      return result.outcome;
     });
   }
 
-  /** The current-context consumer is not implemented by this prerequisite release. */
+  /** Context reflects the latest session intent and current preferences. */
   @Implement(apiContract.experience.exposureContext)
   exposureContextRoute(@Req() request: Request) {
-    return implement(apiContract.experience.exposureContext).handler(() => {
-      admittedCaller(request);
-      throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
+    return implement(apiContract.experience.exposureContext).handler(async ({ input }) => {
+      const result = await this.readContext(authorityOf(admittedCaller(request)), input.exposureId);
+      if (result.kind === 'refused') throw problem(result.code);
+      return result.context;
     });
   }
 
@@ -134,7 +159,11 @@ export class ExperienceController {
   activateExposureRoute(@Req() request: Request) {
     return implement(apiContract.experience.activateExposure).handler(async ({ input }) => {
       const caller = admittedCaller(request);
-      if (input.target !== undefined) throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
+      if (input.target !== undefined) {
+        const result = await this.activateOffer(authorityOf(caller), input);
+        if (result.kind === 'refused') throw problem(result.code);
+        return result.outcome;
+      }
       const result = await this.activateExposure(authorityOf(caller), input);
       if (result.kind === 'refused') throw problem(activateRefusalProblems[result.reason]);
       return { commandId: input.commandId, replayed: result.replayed, ...result.outcome };

@@ -67,7 +67,7 @@ These are randomized-policy propensities, not response/confidence probabilities.
 
 | Table | Purpose / query | Growth / bound | Retention / erasure |
 |---|---|---|---|
-| `composer.decisions` (`0017`) | Immutable command/session binding, seed, complete bounded input snapshot, scope/epoch, feature/exclusion/score evaluation, selected MMR order/penalties, exploration branch/pool/propensity, versions/fallback/outcome and canonical SHA256 replay hash. Lookup by ID or unique own epoch+command. Own scope/time index supports operator retrieval and expiry index supports pruning. | One per committed decision, JSON<=256KiB; <=100 candidates, <=3 selections. No raw observations, prompts, model output or credentials. | Operator reads refuse logical expiry after 30 days. `pruneComposerDecisions(scope,1..1000)` physically deletes expired rows under the caller's existing root lock; **maintenance wiring is pending**, so physical 30-day deletion is not claimed. Full erasure deletes every decision for the universe across epochs. Shared content survives. |
+| `composer.decisions` (`0017`) | Immutable command/session binding, seed, complete bounded input snapshot, scope/epoch, feature/exclusion/score evaluation, selected MMR order/penalties, exploration branch/pool/propensity, versions/fallback/outcome and canonical SHA256 replay hash. Lookup by ID or unique own epoch+command. Own scope/time index supports operator retrieval and expiry index supports pruning. | One per committed decision, JSON<=256KiB; <=100 candidates, <=3 selections. No raw observations, prompts, model output or credentials. | Operator reads refuse logical expiry after 30 days. `pruneComposerDecisions(scope,1..1000)` physically deletes expired unreferenced rows under the caller's existing root lock; **maintenance wiring is pending**, so physical 30-day deletion is not claimed. Full erasure deletes every decision for the universe across epochs. Shared content survives. |
 
 `persistComposerDecision` requires the existing `PersonalScopeTx`, validates scope/epoch and binding,
 recomputes the pure output, and hashes canonical binding+decision bytes. Identical replay is a no-op;
@@ -82,3 +82,9 @@ non-row cache, exported decision file or new scheduler is introduced by this sli
 
 Verification: labelled pure/property and real-PostgreSQL CI tests; suites run in GitHub Actions
 only. Source/type generation/static checks do not prove a connected runtime journey.
+
+Navigation18 adds an owned decision foreign key from retained offers. Bounded pruning skips decisions
+referenced by retained offers in that exact scope/epoch. Their private operator read still refuses
+logical expiry after30days; physical deletion waits for those references to be removed. No physical
+30-day guarantee or maintenance scheduler is claimed. Full AccountScope erasure removes offers before
+decisions and remains complete.

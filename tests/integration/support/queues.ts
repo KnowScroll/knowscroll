@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { defineQueue, queueRegistry } from '@knowscroll/backend/infrastructure/jobs';
-import { applyActionEvidenceQueue, projectScrollReadingQueue } from '@knowscroll/backend/modules/evidence';
+import {
+  applyActionEvidenceQueue,
+  projectScrollReadingQueue,
+  projectEncounterActivityQueue,
+} from '@knowscroll/backend/modules/evidence';
 
 /** CI fixture queue: exercises consumer registration and graceful drain. */
 export const fixtureQueue = defineQueue({
@@ -40,6 +44,7 @@ export const fixtureModelQueue = defineQueue({
 export const testQueues = queueRegistry([
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
+  projectEncounterActivityQueue,
   fixtureQueue,
   fixtureModelQueue,
 ]);

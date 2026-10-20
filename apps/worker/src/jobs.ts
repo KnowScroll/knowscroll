@@ -1,7 +1,11 @@
+import type { Provider } from '@nestjs/common';
 import { jobConsumer, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import {
+  projectEncounterActivityQueue,
+  PROJECT_ENCOUNTER_ACTIVITY,
+  type ProjectEncounterActivity,
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
   type ApplyActionEvidence,
@@ -11,6 +15,7 @@ import {
   APPLY_ACTION_EVIDENCE,
   PROJECT_SCROLL_READING,
   evidenceProviders,
+  activityProviders,
 } from '@knowscroll/backend/modules/evidence/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import {
@@ -28,16 +33,17 @@ import {
   type SweepDispatchedAttempts,
 } from '@knowscroll/backend/reasoning';
 import { reasoningPurgeProviders, reasoningSweepProviders } from '@knowscroll/backend/reasoning/nest-providers';
-import { DATABASE, JOB_CONSUMERS, LOG_EVENT, WITH_PERSONAL_SCOPE, WORKER_CONFIG } from './tokens.js';
+import { ENQUEUE_JOB, DATABASE, JOB_CONSUMERS, LOG_EVENT, WITH_PERSONAL_SCOPE, WORKER_CONFIG } from './tokens.js';
 
 /**
  * The worker's explicit consumer registry: every queue this process claims work from and the use
  * case that handles it. Nothing is discovered by decorators or scanning.
  */
-export const jobWiring = [
+export const jobWiring: Provider[] = [
   ...experienceEvidenceReadProviders(),
   ...contentProviders(),
-  ...evidenceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
+  ...evidenceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
+  ...activityProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...identitySweepProviders({ database: DATABASE }),
   ...reasoningPurgeProviders({ database: DATABASE, logEvent: LOG_EVENT }),
   ...reasoningSweepProviders({ database: DATABASE, logEvent: LOG_EVENT, workerConfig: WORKER_CONFIG }),
@@ -46,6 +52,7 @@ export const jobWiring = [
     inject: [
       APPLY_ACTION_EVIDENCE,
       PROJECT_SCROLL_READING,
+      PROJECT_ENCOUNTER_ACTIVITY,
       SWEEP_SIGN_IN_RECORDS,
       PURGE_EXPIRED_REQUESTS,
       SWEEP_DISPATCHED_ATTEMPTS,
@@ -54,6 +61,7 @@ export const jobWiring = [
     useFactory: (
       applyActionEvidence: ApplyActionEvidence,
       projectScrollReading: ProjectScrollReading,
+      projectActivity: ProjectEncounterActivity,
       sweepSignInRecords: SweepSignInRecords,
       purgeExpiredRequests: PurgeExpiredRequests,
       sweepDispatchedAttempts: SweepDispatchedAttempts,
@@ -75,6 +83,9 @@ export const jobWiring = [
           durationMs: Math.round(performance.now() - startedAt),
           ...(result.kind === 'skipped' ? { reasonCode: result.reason } : {}),
         });
+      }),
+      jobConsumer(projectEncounterActivityQueue, async (payload) => {
+        await projectActivity(payload);
       }),
       // Every 15 minutes (pg-boss cron, review m12): expired links and long-ended sessions.
       jobConsumer(sweepSignInRecordsQueue, async () => {

@@ -1,7 +1,13 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ConfigurationError, readWorkerConfig, worldForDiagnostics } from '@knowscroll/backend/infrastructure/config';
-import { createBoss, drainConsumers, startConsumers, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
+import {
+  makeEnqueueJob,
+  createBoss,
+  drainConsumers,
+  startConsumers,
+  type JobConsumer,
+} from '@knowscroll/backend/infrastructure/jobs';
 import { runProcess } from '@knowscroll/backend/infrastructure/lifecycle';
 import { FrameworkLogAdapter, createEventLog } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -36,19 +42,19 @@ async function main(): Promise<void> {
       const database = createDatabase<Database>(config.database, {
         onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
       });
+      const boss = createBoss(config.database, 'consumer', {
+        onError: (error) => logEvent('jobs.error', { error }),
+        onWarning: (reasonCode) => logEvent('jobs.warning', { reasonCode }),
+      });
+      await boss.start();
       const app = await NestFactory.createApplicationContext(
-        WorkerModule.forRoot({ config, db: database.db, logEvent }),
+        WorkerModule.forRoot({ config, db: database.db, logEvent, enqueueJob: makeEnqueueJob(boss) }),
         {
           logger: new FrameworkLogAdapter(logEvent),
           abortOnError: false,
         },
       );
       const consumers = app.get<readonly JobConsumer<unknown>[]>(JOB_CONSUMERS);
-      const boss = createBoss(config.database, 'consumer', {
-        onError: (error) => logEvent('jobs.error', { error }),
-        onWarning: (reasonCode) => logEvent('jobs.warning', { reasonCode }),
-      });
-      await boss.start();
       await startConsumers(boss, consumers, logEvent);
       return {
         async stop() {

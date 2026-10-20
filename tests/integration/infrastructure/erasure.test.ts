@@ -154,6 +154,17 @@ describe('the erasure registry (real database)', () => {
     const useCases = await experienceUseCases(database);
     const scroll = await scrollUseCases(database);
     const starter = await admitStarter(scroll.importScroll);
+    // Explicit CI attribution fixture for exercising personal topic-row erasure; no runtime taxonomy inference.
+    await database.db
+      .insertInto('content.encounter_topics')
+      .values({
+        asset_id: starter.assetId,
+        asset_revision: starter.revision,
+        topic_id: 'ci.erasure.topic',
+        role: 'primary',
+        weight: 1,
+      })
+      .execute();
     const applyEvidence = evidenceUseCase(database);
     const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
     const ledger = makeAttemptLedger(database.db);
@@ -184,6 +195,42 @@ describe('the erasure registry (real database)', () => {
         ),
       );
       await seedReading(person);
+      const opened = await scroll.navigate(person.authority, {
+        commandId: randomUUID(),
+        target: { kind: 'return', assetId: starter.assetId, assetRevision: starter.revision },
+        capabilities: {
+          documentSchemas: ['scroll-document.v1'],
+          blocks: { fallback: [1], paragraph: [1], subheading: [1] },
+        },
+      });
+      if (opened.kind !== 'accepted' || opened.outcome.status !== 'ready')
+        throw new Error('fixture navigation refused');
+      const o = opened.outcome;
+      const activated = await scroll.activateOffer(person.authority, {
+        commandId: randomUUID(),
+        target: {
+          kind: 'offer',
+          sessionId: o.sessionId,
+          offerId: o.offer.offerId,
+          expectedIntentRevision: o.intentRevision,
+        },
+      });
+      if (activated.kind !== 'accepted') throw new Error('fixture offer activation refused');
+      await scroll.applyEncounterAction(person.authority, {
+        commandId: randomUUID(),
+        kind: 'like',
+        target: { assetId: starter.assetId, assetRevision: starter.revision },
+        exposureId: activated.outcome.exposureId,
+      });
+      expect(
+        await scroll.projectActivity({
+          v: 1,
+          universeId: person.universeId,
+          privacyEpoch: 1,
+          exposureId: activated.outcome.exposureId,
+        }),
+      ).toMatchObject({ kind: 'applied' });
+
       const saved = await useCases.applyAction(person.authority, {
         commandId: randomUUID(),
         kind: 'save',

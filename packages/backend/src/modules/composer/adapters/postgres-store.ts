@@ -91,7 +91,7 @@ export function makeComposerStore(access: ComposerOperatorAccess): {
     async pruneComposerDecisions(scope, limit) {
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new Error('COMPOSER_PRUNE_LIMIT');
       const result =
-        await sql`delete from composer.decisions where id in (select id from composer.decisions where universe_id=${scope.authority.universeId}::uuid and expires_at<=now() order by expires_at,id limit ${limit}) returning id`.execute(
+        await sql`delete from composer.decisions where id in (select d.id from composer.decisions d where d.universe_id=${scope.authority.universeId}::uuid and d.privacy_epoch=${scope.authority.privacyEpoch} and d.expires_at<=now() and not exists(select 1 from experience.offers o where o.universe_id=d.universe_id and o.privacy_epoch=d.privacy_epoch and o.decision_id=d.id) order by d.expires_at,d.id limit ${limit}) returning id`.execute(
           transactionOf(scope),
         );
       return result.rows.length;

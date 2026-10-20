@@ -160,3 +160,14 @@ export const READ_CONTINUATIONS = Symbol('content.readContinuations');
 export const RESOLVE_CONTINUITY_LINK = Symbol('content.resolveContinuityLink');
 export const READ_ENCOUNTER_TOPICS = Symbol('content.readEncounterTopics');
 export const READ_SAVED_METADATA = Symbol('content.readSavedMetadata');
+
+/** Historical attribution only: no document/provenance or permission to open withdrawn content. */
+export type EncounterAttribution = Pick<
+  EncounterSnapshot,
+  'explanationUnitId' | 'topics' | 'facets' | 'catalogWatermark' | 'attributionVersion'
+>;
+export type ReadEncounterAttribution = (
+  scope: PersonalScopeTx,
+  ref: EncounterRef,
+) => Promise<EncounterAttribution | undefined>;
+export const READ_ENCOUNTER_ATTRIBUTION = Symbol('content.readEncounterAttribution');

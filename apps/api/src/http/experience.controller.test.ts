@@ -20,30 +20,49 @@ async function admittedRequest(): Promise<Request> {
   return request;
 }
 
-function prerequisiteController() {
+function wiredController() {
   const effects = vi.fn(() => Promise.reject(new Error('No legacy effect may run for a new command')));
-  return { controller: new ExperienceController(effects, effects, effects, effects, effects), effects };
+  const navigation = vi.fn(() => Promise.resolve({ kind: 'refused' as const, code: 'OFFER_UNAVAILABLE' as const }));
+  const context = vi.fn(() => Promise.resolve({ kind: 'refused' as const, code: 'NOT_FOUND' as const }));
+  const actions = vi.fn(() => Promise.resolve({ kind: 'refused' as const, code: 'ASSET_NOT_FOUND' as const }));
+  return {
+    controller: new ExperienceController(
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      navigation,
+      navigation,
+      context,
+      actions,
+    ),
+    effects,
+    navigation,
+    context,
+    actions,
+  };
 }
 
-describe('Explore contract prerequisite compatibility refusals', () => {
-  it('refuses discovery and navigation before any legacy use case can mutate or read', async () => {
-    const { controller, effects } = prerequisiteController();
+describe('Explore wire dispatch and legacy compatibility', () => {
+  it('routes discovery, exact return and navigation to the navigation consumer without legacy effects', async () => {
+    const { controller, effects, navigation } = wiredController();
     const request = await admittedRequest();
-    const unsupported = { code: 'EXPERIENCE_COMMAND_UNSUPPORTED', status: 422 };
+    const unavailable = { code: 'OFFER_UNAVAILABLE' };
     await expect(
       call(controller.openExposureRoute(request), {
         commandId: id,
         target: { kind: 'discover' },
         capabilities: { documentSchemas: ['scroll-document.v1'], blocks: { fallback: [1] } },
       }),
-    ).rejects.toMatchObject(unsupported);
+    ).rejects.toMatchObject(unavailable);
     await expect(
       call(controller.openExposureRoute(request), {
         commandId: id,
         target: { kind: 'return', assetId: id, assetRevision: 2 },
         capabilities: { documentSchemas: ['scroll-document.v1'], blocks: { fallback: [1] } },
       }),
-    ).rejects.toMatchObject(unsupported);
+    ).rejects.toMatchObject(unavailable);
     await expect(
       call(controller.navigateExperienceRoute(request), {
         commandId: id,
@@ -52,19 +71,20 @@ describe('Explore contract prerequisite compatibility refusals', () => {
         from: { offerId: id, exposureId: id },
         intent: { mode: 'variant', to: 'scroll' },
       }),
-    ).rejects.toMatchObject(unsupported);
+    ).rejects.toMatchObject(unavailable);
+    expect(navigation).toHaveBeenCalledTimes(3);
     expect(effects).not.toHaveBeenCalled();
   });
 
-  it('refuses offer activation and each new action before direct activation or saved-state effects', async () => {
-    const { controller, effects } = prerequisiteController();
+  it('routes offer activation and explicit actions to their actual consumers', async () => {
+    const { controller, effects } = wiredController();
     const request = await admittedRequest();
     await expect(
       call(controller.activateExposureRoute(request), {
         commandId: id,
         target: { kind: 'offer', sessionId: id, offerId: id, expectedIntentRevision: 0 },
       }),
-    ).rejects.toMatchObject({ code: 'EXPERIENCE_COMMAND_UNSUPPORTED', status: 422 });
+    ).rejects.toMatchObject({ code: 'OFFER_UNAVAILABLE' });
     for (const kind of ['like', 'unlike', 'hide'] as const)
       await expect(
         call(controller.applyActionRoute(request), {
@@ -72,12 +92,12 @@ describe('Explore contract prerequisite compatibility refusals', () => {
           kind,
           target: { assetId: id, assetRevision: 1 },
         }),
-      ).rejects.toMatchObject({ code: 'EXPERIENCE_COMMAND_UNSUPPORTED', status: 422 });
+      ).rejects.toMatchObject({ code: 'ASSET_NOT_FOUND' });
     expect(effects).not.toHaveBeenCalled();
   });
 
   it('rejects a mixed activation target at validation instead of downgrading into direct effects', async () => {
-    const { controller, effects } = prerequisiteController();
+    const { controller, effects } = wiredController();
     const mixed = {
       commandId: id,
       exposureId: id,
@@ -89,12 +109,11 @@ describe('Explore contract prerequisite compatibility refusals', () => {
     expect(effects).not.toHaveBeenCalled();
   });
 
-  it('refuses context reads and exposure-linked actions, including Save/Unsave, before legacy effects', async () => {
-    const { controller, effects } = prerequisiteController();
+  it('routes current context and exposure-linked actions, including Save/Unsave, while rejecting malformed IDs', async () => {
+    const { controller, effects } = wiredController();
     const request = await admittedRequest();
     await expect(call(controller.exposureContextRoute(request), { exposureId: id })).rejects.toMatchObject({
-      code: 'EXPERIENCE_COMMAND_UNSUPPORTED',
-      status: 422,
+      code: 'NOT_FOUND',
     });
     for (const kind of ['save', 'unsave', 'like', 'unlike', 'hide'] as const)
       await expect(
@@ -104,7 +123,7 @@ describe('Explore contract prerequisite compatibility refusals', () => {
           target: { assetId: id, assetRevision: 1 },
           exposureId: id,
         }),
-      ).rejects.toMatchObject({ code: 'EXPERIENCE_COMMAND_UNSUPPORTED', status: 422 });
+      ).rejects.toMatchObject({ code: 'ASSET_NOT_FOUND' });
     await expect(
       call(controller.applyActionRoute(request), {
         commandId: id,

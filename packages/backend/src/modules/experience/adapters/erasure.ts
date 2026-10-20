@@ -1,31 +1,32 @@
+import { sql } from 'kysely';
 import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-
-/** Experience's personal tables and their eraser (blueprint §5). */
+const tables = [
+  'action_links',
+  'action_state',
+  'navigation_transitions',
+  'offer_activations',
+  'offers',
+  'sessions',
+  'encounter_activity_inputs',
+  'encounter_lineage',
+  'saved_items',
+  'actions',
+  'exposures',
+] as const;
 export const experienceErasure: ModuleErasure = {
   module: 'experience',
-  tables: [
-    { schema: 'experience', table: 'saved_items', ownerColumn: 'universe_id' },
-    { schema: 'experience', table: 'actions', ownerColumn: 'universe_id' },
-    { schema: 'experience', table: 'exposures', ownerColumn: 'universe_id' },
-  ],
+  tables: tables.map((table) => ({ schema: 'experience', table, ownerColumn: 'universe_id' })),
   nonRowStores: [],
   async erase(scope) {
-    const trx = transactionOf(scope);
-    const universeId = scope.authority.universeId;
-    const saved = await trx
-      .deleteFrom('experience.saved_items')
-      .where('universe_id', '=', universeId)
-      .executeTakeFirst();
-    const actions = await trx.deleteFrom('experience.actions').where('universe_id', '=', universeId).executeTakeFirst();
-    const exposures = await trx
-      .deleteFrom('experience.exposures')
-      .where('universe_id', '=', universeId)
-      .executeTakeFirst();
-    return {
-      module: 'experience',
-      status: 'completed',
-      removed: Number(saved.numDeletedRows + actions.numDeletedRows + exposures.numDeletedRows),
-    };
+    let removed = 0;
+    for (const table of tables) {
+      const result =
+        await sql`delete from ${sql.table(`experience.${table}`)} where universe_id=${scope.authority.universeId}::uuid`.execute(
+          transactionOf(scope),
+        );
+      removed += Number(result.numAffectedRows ?? 0);
+    }
+    return { module: 'experience', status: 'completed', removed };
   },
 };
