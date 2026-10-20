@@ -8,9 +8,8 @@ import {
   validateLocator,
   type Block,
   type ScrollDocument,
-  type SimulationData,
 } from './index.js';
-import { arrange, make, seal } from './test-support/arbitraries.js';
+import { arrange, make, seal, type SimulationInput } from './test-support/arbitraries.js';
 
 const codes = (outcome: ReturnType<typeof validateDocument>) =>
   outcome.kind === 'invalid' ? outcome.issues.map((issue) => issue.code) : [];
@@ -25,7 +24,7 @@ const sequence = () =>
     ],
   });
 const simulation = (params: number): Block => {
-  const data: SimulationData = {
+  const data: SimulationInput = {
     title: 'Many dials',
     params: Array.from({ length: params }, (_, index) => ({
       key: `p${index}`,

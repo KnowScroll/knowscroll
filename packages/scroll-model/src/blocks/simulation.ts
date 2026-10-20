@@ -105,7 +105,9 @@ export type SimulationOutput = z.infer<typeof SimulationOutput>;
 /**
  * The closed set of views. Display scales are not written by the model: bars and areas are scaled
  * to the largest value over the parameter grid and a plot's y range is the curve's range over the
- * grid (`cardsScale`, `plotRange`), so no unbound number enters through a view.
+ * grid. Code computes them once, at admission, in the same pass that proves the outputs finite,
+ * and stores them in `SimulationData.display`, so no unbound number enters through a view and no
+ * client ever walks the grid.
  * - `readout`: one large output (and an optional secondary), plus the readout sentence.
  * - `cards`: 2–8 outputs side by side, each with a bar.
  * - `plot`: an output as a curve over one parameter's range, with a marker at its value.
@@ -187,6 +189,25 @@ const simulationShape = {
 export const ILLUSTRATIVE_NOTICE = 'Illustrative';
 
 /**
+ * The display scale of a view, set by code and never written by the model (the draft schema
+ * refuses it), like reading time and coverage weights. Admission computes it from the same
+ * full-grid pass that proves the outputs finite and stores it in the consumer document, so it is
+ * covered by the integrity hash and recomputed and compared at admission. A client reads it and
+ * never walks the grid.
+ * - `cards`: `scale` is the largest value any card shows over the grid (what fills a bar).
+ * - `area`: `scale` is the largest value of the area output over the grid (what fills the square).
+ * - `plot`: `range` is `[min(0, lowest), highest]` of the plotted output over the grid.
+ * - `none`: the `readout` view has nothing to scale.
+ */
+export const SimulationDisplay = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('none') }),
+  z.strictObject({ kind: z.literal('cards'), scale: FiniteNumber }),
+  z.strictObject({ kind: z.literal('area'), scale: FiniteNumber }),
+  z.strictObject({ kind: z.literal('plot'), range: z.tuple([FiniteNumber, FiniteNumber]) }),
+]);
+export type SimulationDisplay = z.infer<typeof SimulationDisplay>;
+
+/**
  * A simulation as stored. `illustrative` is either `false` (every number is bound to a claim) or
  * the notice the renderer must show next to the view and in its text version: an illustrative
  * simulation's numbers are a teaching choice, not evidence, and readers are told so.
@@ -194,6 +215,8 @@ export const ILLUSTRATIVE_NOTICE = 'Illustrative';
 export const SimulationData = z.strictObject({
   ...simulationShape,
   illustrative: z.union([z.literal(false), z.strictObject({ notice: z.literal(ILLUSTRATIVE_NOTICE) })]),
+  /** Set by code at admission; see `SimulationDisplay`. The draft has no such member. */
+  display: SimulationDisplay,
 });
 export type SimulationData = z.infer<typeof SimulationData>;
 

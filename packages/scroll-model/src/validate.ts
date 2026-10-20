@@ -14,7 +14,9 @@ import { FIELD_LIMITS, LIMITS } from './limits.js';
 import { computeMeasures } from './measures.js';
 import { LocalId } from './primitives.js';
 import { BASELINE_TYPES, deriveGesture, fallbackTextOf, isInteractiveBlock, visibleTexts } from './registry.js';
-import { simulationDeclarationIssues, simulationIssues } from './simulation/checks.js';
+import type { SimulationDisplay } from './blocks/simulation.js';
+import { displayIssues, sameDisplay } from './simulation/display.js';
+import { simulationDeclarationIssues, simulationProof } from './simulation/checks.js';
 
 /**
  * Validation of stored documents and client renditions (`scroll-checks.v1`). Every outcome is
@@ -46,16 +48,11 @@ export interface ValidateOptions {
    * `rendition` is the CLIENT path: the output of `negotiate` (or a stored revision) as a device
    * receives it. When `negotiate` substituted blocks it carries `rendition`, whose hash must
    * match. Every check except the full-grid proof runs.
+   *
+   * `validateDocument` ALWAYS verifies the reading measures and the integrity (or rendition) hash,
+   * for both purposes. Only `parseDocument` may skip that, and only a client calls it.
    */
   readonly purpose?: 'stored' | 'rendition';
-  /**
-   * Recompute and compare the reading measures and the integrity (or rendition) hash. Default
-   * `true`; the admission path always verifies. The hash is linear in the size of the document
-   * (SHA-256 over up to 128 KiB), which is cheap on a JIT and not on Hermes, so `parseDocument`
-   * turns it off unless the caller asks. The `rendition.of` link to the stored revision is always
-   * checked.
-   */
-  readonly verify?: boolean;
 }
 
 /** What the per-block and per-document checks run. */
@@ -65,6 +62,11 @@ export interface CheckOptions {
    * the grid is neither walked nor evaluated, only counted.
    */
   readonly proof: boolean;
+  /**
+   * The producer only: collects the display each simulation's proof computed (by block id) instead
+   * of comparing it with the stored one, because the producer has not stored it yet.
+   */
+  readonly displays?: Map<string, SimulationDisplay>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -156,11 +158,24 @@ export function blockIssues(block: AnyBlock, path: string, options: CheckOptions
     case 'chart':
       issues.push(...chartIssues(block, data));
       break;
-    case 'simulation':
-      issues.push(
-        ...(options.proof ? simulationIssues(block.data, data) : simulationDeclarationIssues(block.data, data)),
-      );
+    case 'simulation': {
+      // The stored display must be well formed on both paths (a client reads it, never computes it).
+      const stored = displayIssues(block.data, data);
+      issues.push(...stored);
+      if (!options.proof) {
+        issues.push(...simulationDeclarationIssues(block.data, data));
+        break;
+      }
+      // Admission: one pass proves the outputs and computes the display it must equal.
+      const proof = simulationProof(block.data, data);
+      issues.push(...proof.issues);
+      if (proof.display !== null && stored.length === 0) {
+        if (options.displays !== undefined) options.displays.set(block.id, proof.display);
+        else if (!sameDisplay(proof.display, block.data.display))
+          issues.push({ code: 'sim_display_mismatch', path: `${data}.display` });
+      }
       break;
+    }
     case 'paragraph':
     case 'subheading':
     case 'list':
@@ -365,8 +380,11 @@ export function documentIssues(document: DocumentLike, options: CheckOptions): I
   if (params > LIMITS.paramsTotal) limits.push({ code: 'too_many_params', path: '$' });
   if (media > LIMITS.mediaBlocks) limits.push({ code: 'too_many_media', path: '$' });
   if (visibleChars > LIMITS.visibleChars) limits.push({ code: 'visible_text_too_long', path: '$' });
-  const proof = options.proof && limits.length === 0;
-  for (const { block, path } of walkBlocks(document.sections)) issues.push(...blockIssues(block, path, { proof }));
+  const checks: CheckOptions =
+    options.displays === undefined
+      ? { proof: options.proof && limits.length === 0 }
+      : { proof: options.proof && limits.length === 0, displays: options.displays };
+  for (const { block, path } of walkBlocks(document.sections)) issues.push(...blockIssues(block, path, checks));
   return [...limits, ...issues];
 }
 
@@ -380,6 +398,15 @@ export function documentIssues(document: DocumentLike, options: CheckOptions): I
  * path; see `ValidateOptions`. Prefer `admitDocument` and `parseDocument`, which name the two.
  */
 export function validateDocument(input: unknown, options: ValidateOptions = {}): DocumentOutcome {
+  return checkDocument(input, options.purpose ?? 'stored', true);
+}
+
+/**
+ * The shared implementation. `verify` recomputes and compares the reading measures and the
+ * integrity (or rendition) hash. Only `parseDocument` ever passes false; `validateDocument` and
+ * `admitDocument` always pass true.
+ */
+function checkDocument(input: unknown, purpose: 'stored' | 'rendition', verify: boolean): DocumentOutcome {
   if (!isRecord(input)) return { kind: 'invalid', issues: [{ code: 'document_not_object', path: '$' }] };
   const version = input['schemaVersion'];
   if (version !== SCROLL_DOCUMENT_SCHEMA_VERSION) {
@@ -399,8 +426,7 @@ export function validateDocument(input: unknown, options: ValidateOptions = {}):
   const parsed = ScrollDocument.safeParse(input);
   if (!parsed.success) return { kind: 'invalid', issues: uniqueIssues(parsed.error.issues.map(issueFromSchema)) };
   const document = parsed.data;
-  const admission = (options.purpose ?? 'stored') === 'stored';
-  const verify = admission || options.verify !== false;
+  const admission = purpose === 'stored';
   const issues = documentIssues(document, { proof: admission });
   const rendition = document.rendition;
   if (admission || rendition === undefined) {
@@ -440,16 +466,18 @@ export function admitDocument(input: unknown): DocumentOutcome {
 
 /**
  * CLIENT: parses a document as a device receives it, a stored revision or a `negotiate` rendition.
- * Structure, bounds, limits, text rules and the cheap per-block checks are checked; a simulation's
- * grid is never walked (the revision was proven at admission). Safe to call on the device.
+ * Structure, bounds, limits, text rules, the stored display of each simulation and the cheap
+ * per-block checks are checked; a simulation's grid is never walked (the revision was proven at
+ * admission). Safe to call on the device.
  *
- * The reading measures and the integrity (or rendition) hash are recomputed only with
- * `{verify: true}`: the SHA-256 is linear in the document and costs tens of milliseconds on a
- * device without a JIT, so a client that wants the proof of what it received asks for it
- * deliberately, off the render path.
+ * A client MAY skip the reading measures and the integrity (or rendition) hash, and by default
+ * does: the SHA-256 is linear in the document and costs tens of milliseconds on a device without a
+ * JIT. It recomputes and compares them only with `{verify: true}`, deliberately and off the render
+ * path. Nothing else skips them: `admitDocument` and `validateDocument`, for either purpose, always
+ * verify. The rendition's `of` link to the stored revision is checked either way.
  */
 export function parseDocument(input: unknown, options: { readonly verify?: boolean } = {}): DocumentOutcome {
-  return validateDocument(input, { purpose: 'rendition', verify: options.verify === true });
+  return checkDocument(input, 'rendition', options.verify === true);
 }
 
 /** What a renderer can still use from a block it cannot render. */

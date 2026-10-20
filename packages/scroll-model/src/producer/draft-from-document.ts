@@ -37,11 +37,9 @@ export function draftFromDocument(document: ScrollDocument, bindings: readonly P
       };
     }
     if (block.type === 'simulation') {
-      return {
-        ...envelope,
-        type: 'simulation',
-        data: { ...block.data, illustrative: block.data.illustrative !== false },
-      };
+      // The display scale is set by code: the draft has no such member.
+      const { display: _display, ...data } = block.data;
+      return { ...envelope, type: 'simulation', data: { ...data, illustrative: block.data.illustrative !== false } };
     }
     // Same pairing of type and data as the document block; only version and gesture are dropped.
     return { ...envelope, type: block.type, data: block.data } as DraftBlock;

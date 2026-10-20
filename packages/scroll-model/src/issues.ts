@@ -75,6 +75,8 @@ export const REASON_CODES = [
   'sim_band_invalid',
   'sim_output_not_finite',
   'sim_grid_too_large',
+  'sim_display_invalid',
+  'sim_display_mismatch',
   // Stored-revision checks
   'measures_mismatch',
   'integrity_mismatch',

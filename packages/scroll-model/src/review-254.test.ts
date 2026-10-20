@@ -481,6 +481,8 @@ describe('review-254 p7: validation cost is bounded and front-loads the cheap ch
       view: { kind: 'plot', x: 'a', y: 'oa', yLabel: 'y' },
       modelNote: 'Illustrative only here.',
       illustrative: { notice: 'Illustrative' },
+      // What the proof would compute (a·b at most 1,000 · 8); given, so 960 blocks need no sweep.
+      display: { kind: 'plot', range: [0, 8_000] },
     }),
     id,
   });
@@ -507,10 +509,9 @@ describe('review-254 p7: validation cost is bounded and front-loads the cheap ch
         `sim-${'abcdefghijklmnopqrstuvwxyz'.charAt(index % 26)}${'abcdefghijklmnopqrstuvwxyz'.charAt(Math.floor(index / 26))}`,
       );
       const { version: _version, gesture: _gesture, ...rest } = sim;
-      return {
-        ...rest,
-        data: { ...(rest.data as Record<string, unknown>), illustrative: true },
-      } as unknown as DraftBlockValue;
+      // A draft never carries the display scale: code sets it.
+      const { display: _display, ...data } = rest.data as Record<string, unknown>;
+      return { ...rest, data: { ...data, illustrative: true } } as unknown as DraftBlockValue;
     };
     draft.sections = [{ heading: null, blocks: Array.from({ length: 60 }, (_, index) => block(index)) }];
     draft.bindings = [];

@@ -5,7 +5,6 @@ import type {
   SimulationCore,
   SimulationParam,
   SimulationReadout,
-  SimulationView,
 } from '../blocks/simulation.js';
 import { templateKeys } from '../blocks/simulation.js';
 import { FIELD_LIMITS, LIMITS } from '../limits.js';
@@ -472,7 +471,8 @@ export interface GridRow {
 }
 
 /**
- * Visits the full parameter grid (the caller bounds its size) one row at a time; `visit` returns
+ * ADMISSION ONLY: no client path calls this (the public entry does not export it). Visits the full
+ * parameter grid (the caller bounds its size) one row at a time; `visit` returns
  * false to stop. The rows lay out the largest grids (up to 1,024 values per row); an odometer
  * runs over the other parameters, and only the outputs depending on a parameter that changed are
  * re-evaluated. Curve samples are grid values, so a plot's curve is among the points visited.
@@ -550,45 +550,6 @@ export function sweepGrid(data: SimulationCore, visit: (row: GridRow) => boolean
     if (carry === outer.length) return;
     compiled.run(changed);
   }
-}
-
-/**
- * Largest card value over the grid: the value that fills a bar (`cards` view). Walks the whole
- * grid, so call it once per block and keep the result (it depends on the block only).
- */
-export function cardsScale(data: SimulationCore & { view: SimulationView }): number {
-  const view = data.view;
-  if (view.kind !== 'cards') return 1;
-  const positions = view.items.map((item) => data.outputs.findIndex((output) => output.key === item.output));
-  let largest = 0;
-  sweepGrid(data, (row) => {
-    for (const position of positions) {
-      const value = row.highest(position);
-      if (value > largest) largest = value;
-    }
-    return true;
-  });
-  return largest > 0 ? largest : 1;
-}
-
-/**
- * The y range of a plot over its whole grid (curve samples included): `[min(0, lowest), highest]`.
- * Walks the whole grid, so call it once per block and keep the result (it depends on the block only).
- */
-export function plotRange(data: SimulationCore & { view: SimulationView }): readonly [number, number] {
-  const view = data.view;
-  if (view.kind !== 'plot') return [0, 1];
-  const position = data.outputs.findIndex((output) => output.key === view.y);
-  let low = 0;
-  let high = Number.NEGATIVE_INFINITY;
-  sweepGrid(data, (row) => {
-    const lowest = row.lowest(position);
-    const highest = row.highest(position);
-    if (lowest < low) low = lowest;
-    if (highest > high) high = highest;
-    return true;
-  });
-  return high > low ? [low, high] : [low, low + 1];
 }
 
 const MINUS = '−';

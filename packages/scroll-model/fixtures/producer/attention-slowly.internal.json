@@ -2,7 +2,7 @@
   "schemaVersion": "scroll-provenance.v1",
   "assetId": "fixture-attention-slowly",
   "revision": 1,
-  "documentSha256": "4afb7c4f4c47fef8be18b98ee7f7e2ee6b9b8abb9be254e873500958b3802214",
+  "documentSha256": "e6450771696ecfa412c3b1a47ca98a0324b4e83c2d3a1e46c1897c6811b5f3f1",
   "claims": [
     {
       "claimId": "clm-attn-pairwise",

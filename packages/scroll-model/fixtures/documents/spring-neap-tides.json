@@ -314,6 +314,10 @@
             "modelNote": "Idealised: each range is the Moon’s pull plus or minus the Sun’s, relative to the Moon alone. The slider starts near the real share; real coasts differ.",
             "illustrative": {
               "notice": "Illustrative"
+            },
+            "display": {
+              "kind": "cards",
+              "scale": 1.9
             }
           }
         }
@@ -429,6 +433,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "57988195e4030e9ae2a42bec49b2a75b96cd1e96a3035a39eecc2bb6c9660bf2"
+    "sha256": "978f497b9c4ad0019f648f60954af152e65cc534c98d9a6dd7c753cbec36a329"
   }
 }

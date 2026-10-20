@@ -22,9 +22,8 @@ import {
   validateDocument,
   type Block,
   type ScrollDocument,
-  type SimulationData,
 } from './index.js';
-import { make, seal } from './test-support/arbitraries.js';
+import { make, seal, type SimulationInput } from './test-support/arbitraries.js';
 import { fixture } from './test-support/fixtures.js';
 import { wildSimulation } from './test-support/wild-simulation.js';
 import { worstDocument, worstSimulation } from './test-support/worst-case.js';
@@ -32,7 +31,7 @@ import { worstDocument, worstSimulation } from './test-support/worst-case.js';
 const format = { decimals: 2, grouping: false, approximate: false };
 
 /** `1 / (five − distance)` over distance 0…10: a pole at distance 5 that the declarations do not show. */
-function poleData(): SimulationData {
+function poleData(): SimulationInput {
   return {
     title: 'A pole in the middle of the range',
     params: [
@@ -89,7 +88,7 @@ describe('the client path never walks a simulation grid', () => {
   });
 
   it('still refuses what the declarations show, on both paths', () => {
-    const cases: Array<[string, (data: SimulationData) => void]> = [
+    const cases: Array<[string, (data: SimulationInput) => void]> = [
       [
         'sim_reference_unknown',
         (data) =>

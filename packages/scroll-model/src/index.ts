@@ -5,11 +5,14 @@
  * entries (`./internal`, `./producer`).
  *
  * Validation has two entry points (coordinator ruling on M1). ADMISSION, for the server, worker
- * and producer: `admitDocument`, `admitBlock`, `validateDocument(…, {purpose: 'stored'})`, and the producer's
- * `validateDraft` and `compileDraft`; they prove every simulation over its whole grid. CLIENT, for
- * the device: `parseDocument`, `validateDocument(…, {purpose: 'rendition'})`, `parseBlock` and
- * `negotiate`; they never walk a grid, and a single evaluated point is guarded by
- * `outputsUsable`. A client must not call an admission function.
+ * and producer: `admitDocument`, `admitBlock`, `validateDocument` (either purpose always verifies
+ * the measures and the hash; `'stored'` also proves every simulation over its whole grid), and the
+ * producer's `validateDraft` and `compileDraft`. CLIENT, for the device: `parseDocument` (may skip
+ * the measures and hash), `parseBlock` and `negotiate`; they never walk a grid. Admission computes
+ * each simulation's display scale once, in the grid proof, and stores it (`SimulationData.display`);
+ * a client reads it with `displayScale` / `displayRange` and guards a single evaluated point with
+ * `outputsUsable`. No grid-walking function is exported from this entry except through the
+ * admission functions above; a client must not call an admission function.
  */
 export { FIELD_LIMITS, LIMITS, SCROLL_LIMITS_VERSION } from './limits.js';
 export {
@@ -45,6 +48,7 @@ export {
   SIMULATION_VIEWS,
   SimulationConstant,
   SimulationData,
+  SimulationDisplay,
   SimulationOutput,
   SimulationParam,
   SimulationReadout,
@@ -176,7 +180,6 @@ export {
   type RepointOutcome,
 } from './locators.js';
 export {
-  cardsScale,
   curveSampleCount,
   curveSamples,
   curveUsable,
@@ -188,7 +191,6 @@ export {
   gridValues,
   isOnGrid,
   outputsUsable,
-  plotRange,
   readoutBand,
   renderTemplate,
   resolveParams,
@@ -197,6 +199,7 @@ export {
   snapToGrid,
   type SimulationValues,
 } from './simulation/evaluate.js';
+export { displayRange, displayScale } from './simulation/display.js';
 export { simulationNumbers, type SimulationNumber } from './simulation/numbers.js';
 export { canonicalJson, canonicalSha256, utf8ByteLength } from './canonical.js';
 export { sha256Hex } from './sha256.js';

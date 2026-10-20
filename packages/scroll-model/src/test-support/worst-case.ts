@@ -6,8 +6,8 @@
  * at every point). The worst document holds four of them (the 16-parameter limit), the other
  * interactive blocks, twelve figures and paragraphs up to the 80-block limit.
  */
-import { LIMITS, type Block, type ScrollDocument, type SimulationData } from '../index.js';
-import { make, seal } from './arbitraries.js';
+import { LIMITS, type Block, type ScrollDocument } from '../index.js';
+import { make, seal, type SimulationInput } from './arbitraries.js';
 
 const format = { decimals: 0, grouping: false, approximate: false };
 const letters = 'abcdefghijklmnopqrstuvwxyz';
@@ -38,7 +38,7 @@ export function worstSimulation(id: string): Block {
     power('pd', 2.5),
     power('pe', 3.21),
   ];
-  const data: SimulationData = {
+  const data: SimulationInput = {
     title: 'The heaviest simulation',
     params: [param('a', 625), param('b', 2), param('c', 2), param('d', 4)],
     constants: Array.from({ length: 12 }, (_, index) => ({

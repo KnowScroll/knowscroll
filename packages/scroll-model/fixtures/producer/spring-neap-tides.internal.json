@@ -2,7 +2,7 @@
   "schemaVersion": "scroll-provenance.v1",
   "assetId": "fixture-spring-neap-tides",
   "revision": 1,
-  "documentSha256": "57988195e4030e9ae2a42bec49b2a75b96cd1e96a3035a39eecc2bb6c9660bf2",
+  "documentSha256": "978f497b9c4ad0019f648f60954af152e65cc534c98d9a6dd7c753cbec36a329",
   "claims": [
     {
       "claimId": "clm-tide-bulges",

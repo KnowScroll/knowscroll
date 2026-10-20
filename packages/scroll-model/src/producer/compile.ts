@@ -1,6 +1,6 @@
 import { BLOCK_VERSIONS, isBlockType, type AnyBlock } from '../blocks/catalog.js';
 import type { BlockA11y } from '../blocks/envelope.js';
-import { ILLUSTRATIVE_NOTICE } from '../blocks/simulation.js';
+import { ILLUSTRATIVE_NOTICE, type SimulationDisplay } from '../blocks/simulation.js';
 import { canonicalSize, nestsDeeperThan } from '../canonical.js';
 import {
   INTEGRITY_METHOD,
@@ -22,6 +22,7 @@ import {
   textFields,
   type TextBlockType,
 } from '../registry.js';
+import { placeholderDisplay } from '../simulation/display.js';
 import { simulationNumbers } from '../simulation/numbers.js';
 import { wordShingles } from '../text.js';
 import { computeIntegrity, documentIssues, validateDocument } from '../validate.js';
@@ -144,7 +145,12 @@ function assemble(draft: ScrollDraft): Assembly {
             blocks: draftBlock.data.blocks.map((child, index) => build(child, `${path}.data.blocks.${index}`)),
           }
         : draftBlock.type === 'simulation'
-          ? { ...draftBlock.data, illustrative: draftBlock.data.illustrative ? { notice: ILLUSTRATIVE_NOTICE } : false }
+          ? {
+              ...draftBlock.data,
+              illustrative: draftBlock.data.illustrative ? { notice: ILLUSTRATIVE_NOTICE } : false,
+              // Not known yet: the grid proof computes it, and `analyse` replaces this placeholder.
+              display: placeholderDisplay(draftBlock.data.view),
+            }
           : draftBlock.data;
     const id = draftBlock.id ?? freshId(draftBlock.type);
     const common = {
@@ -347,6 +353,19 @@ function evidenceIssues(document: HonestyDocument, provenance: DraftProvenance):
   return issues;
 }
 
+/** The sections with each simulation's proven display in place of the producer's placeholder. */
+function withDisplays(sections: readonly Section[], displays: ReadonlyMap<string, SimulationDisplay>): Section[] {
+  return sections.map((section) => ({
+    ...section,
+    blocks: section.blocks.map((block) => {
+      const display = block.type === 'simulation' ? displays.get(block.id) : undefined;
+      return block.type === 'simulation' && display !== undefined
+        ? { ...block, data: { ...block.data, display } }
+        : block;
+    }),
+  }));
+}
+
 interface Analysis {
   readonly draft: ScrollDraft;
   readonly provenance: DraftProvenance;
@@ -385,27 +404,31 @@ function analyse(
     dek: draft.dek,
     sections: assembly.sections,
   };
-  const structural = [...assembly.issues, ...documentIssues(document, { proof: true })];
+  // The grid proof also computes each simulation's display scale, in the same pass.
+  const displays = new Map<string, SimulationDisplay>();
+  const structural = [...assembly.issues, ...documentIssues(document, { proof: true, displays })];
   const structure = structural.filter((issue) => stageOf(issue.code) !== 'computation');
   if (structure.length > 0) return refused('structure', structure);
   const computation = structural.filter((issue) => stageOf(issue.code) === 'computation');
   if (computation.length > 0) return refused('computation', computation);
+  const sections = withDisplays(assembly.sections, displays);
+  const proven: HonestyDocument = { ...document, sections };
 
-  const resolved = resolveBindings(draft, document, provenance);
+  const resolved = resolveBindings(draft, proven, provenance);
   const evidence = [
     ...resolved.issues,
-    ...honestyIssues(document, { claims: provenance.claims, bindings: resolved.bindings }),
-    ...evidenceIssues(document, provenance),
+    ...honestyIssues(proven, { claims: provenance.claims, bindings: resolved.bindings }),
+    ...evidenceIssues(proven, provenance),
   ];
   if (evidence.length > 0) return refused('evidence', evidence);
 
   const target = provenance.publication.targetMinutes;
   if (target !== undefined) {
-    const minutes = computeMeasures(assembly.sections).readingMinutes;
+    const minutes = computeMeasures(sections).readingMinutes;
     if (minutes < target[0] || minutes > target[1])
       return refused('brief', [{ code: 'reading_length_out_of_brief', path: '$' }]);
   }
-  return { draft, provenance, sections: assembly.sections, bindings: resolved.bindings };
+  return { draft, provenance, sections, bindings: resolved.bindings };
 }
 
 /**

@@ -1,7 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
-  cardsScale,
   curveSampleCount,
   evaluateFormula,
   evaluateSimulation,
@@ -10,7 +9,6 @@ import {
   gridValues,
   isOnGrid,
   LIMITS,
-  plotRange,
   readoutBand,
   renderTemplate,
   sampleCurve,
@@ -18,8 +16,9 @@ import {
   snapToGrid,
   type SimulationParam,
 } from './index.js';
-import { simulationIssues } from './simulation/checks.js';
-import { simulationData } from './test-support/arbitraries.js';
+import { simulationIssues, simulationProof } from './simulation/checks.js';
+import { displayScale } from './simulation/display.js';
+import { simulationData, type SimulationInput } from './test-support/arbitraries.js';
 import { formula, wildNumber, wildSimulation } from './test-support/wild-simulation.js';
 import { fixture } from './test-support/fixtures.js';
 
@@ -248,7 +247,7 @@ const smallGridSimulation = fc
     view: fc.constantFrom('readout', 'cards'),
   })
   .map(({ params, constants, outputs, view }) => {
-    const data: SimulationData = {
+    const data: SimulationInput = {
       title: 'Wild',
       params: params.map((param, index) => ({
         key: `p${index}`,
@@ -281,7 +280,7 @@ const smallGridSimulation = fc
   });
 
 /** Every point of the grid, enumerated independently of the validator. */
-function everyGridPoint(data: SimulationData): Array<Record<string, number>> {
+function everyGridPoint(data: Pick<SimulationData, 'params'>): Array<Record<string, number>> {
   let points: Array<Record<string, number>> = [{}];
   for (const param of data.params) {
     const values: number[] = [];
@@ -327,7 +326,7 @@ describe('the full-grid proof (M2)', () => {
         };
         const values = gridValues(param);
         const wall = values[pick % values.length] ?? param.min;
-        const data: SimulationData = {
+        const data: SimulationInput = {
           title: 'A wall somewhere',
           params: [param],
           constants: [{ key: 'wall', label: 'Where the wall stands', value: wall }],
@@ -355,11 +354,12 @@ describe('the full-grid proof (M2)', () => {
     );
   });
 
-  it('derives display scales from the grid instead of model-written numbers', () => {
+  it('computes the display scale from the grid in the proof pass instead of taking a model-written number', () => {
     const weight = fixture('weight-other-worlds').document.sections[0]?.blocks[0];
     if (weight?.type !== 'simulation') throw new Error('fixture changed');
-    expect(cardsScale(weight.data)).toBeCloseTo(200 * 2.53);
-    const data: SimulationData = {
+    expect(simulationProof(weight.data, '$').display).toEqual(weight.data.display);
+    expect(displayScale(weight.data)).toBeCloseTo(200 * 2.53);
+    const square = (view: SimulationInput['view']): SimulationInput => ({
       title: 'Square',
       params: [
         {
@@ -382,10 +382,23 @@ describe('the full-grid proof (M2)', () => {
           format: { decimals: 0, grouping: false, approximate: false },
         },
       ],
-      view: { kind: 'plot', x: 'x', y: 'y', yLabel: 'Y' },
+      view,
       modelNote: 'A parabola for a test.',
       illustrative: { notice: 'Illustrative' },
-    };
-    expect(plotRange(data)).toEqual([0, 9]);
+    });
+    const proof = (view: SimulationInput['view']) => simulationProof(square(view), '$');
+    expect(proof({ kind: 'plot', x: 'x', y: 'y', yLabel: 'Y' })).toEqual({
+      issues: [],
+      display: { kind: 'plot', range: [0, 9] },
+    });
+    expect(proof({ kind: 'area', length: 'x', area: 'y', lengthLabel: 'X', areaLabel: 'Y' }).display).toEqual({
+      kind: 'area',
+      scale: 9,
+    });
+    expect(proof({ kind: 'readout', primary: 'y' }).display).toEqual({ kind: 'none' });
+    // A bar view whose output is never positive scales to 1, and a flat plot still has a range.
+    const zero = { ...square({ kind: 'plot', x: 'x', y: 'y', yLabel: 'Y' }) };
+    zero.outputs = [{ ...zero.outputs[0]!, formula: { kind: 'product', factors: ['x', 0] } }];
+    expect(simulationProof(zero, '$').display).toEqual({ kind: 'plot', range: [0, 1] });
   });
 });

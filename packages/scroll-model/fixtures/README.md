@@ -12,7 +12,8 @@ provenance file says so (`production.kind: "fixture"`).
 
 Files per fixture:
 
-- `documents/<name>.json` — the committed consumer document. The only fixtures exported to other
+- `documents/<name>.json` — the committed consumer document (each simulation carries the `display`
+  scale that admission computed from its grid). The only fixtures exported to other
   packages (`@knowscroll/scroll-model/fixtures/<name>.json`), for renderer tests.
 - `producer/<name>.draft.json` — what a writer model would return (`scroll-draft.v1`, untrusted
   input);

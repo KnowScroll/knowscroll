@@ -136,6 +136,8 @@ export const REPAIR_HINTS: Readonly<Record<ReasonCode, string>> = {
   sim_output_not_finite: 'Every output must stay finite at every value the parameters can take.',
   sim_grid_too_large:
     'Keep the parameter grid (product of every parameter\u2019s positions + 1) at 10,000 points or fewer.',
+  sim_display_invalid: 'The display scale of a simulation is set by code; do not write a display member.',
+  sim_display_mismatch: 'The display scale of a simulation is computed by code from the grid.',
   measures_mismatch: 'Reading measures are computed by code.',
   integrity_mismatch: 'The integrity hash is computed by code.',
   rendition_in_stored_document: 'Only client renditions carry a rendition member.',

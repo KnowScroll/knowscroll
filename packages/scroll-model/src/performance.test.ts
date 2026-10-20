@@ -19,15 +19,7 @@
  * validates a fresh copy of the input that was made before the clock started.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  admitBlock,
-  admitDocument,
-  cardsScale,
-  LIMITS,
-  parseBlock,
-  parseDocument,
-  simulationGridPoints,
-} from './index.js';
+import { admitBlock, admitDocument, LIMITS, parseBlock, parseDocument, simulationGridPoints } from './index.js';
 import { worstDocument, worstSimulation } from './test-support/worst-case.js';
 
 interface Cost {
@@ -110,13 +102,5 @@ describe('cost that the budgets do not cover (informational, no budget)', () => 
       'client worst-case document with verify (informational)',
       measure(document, (copy) => parseDocument(copy, { verify: true }), 21),
     );
-  });
-
-  it('records what one cards scale costs on the worst grid', () => {
-    const block = worstSimulation('heaviest');
-    if (block.type !== 'simulation') throw new Error('not a simulation');
-    const cost = measure(block.data, (data) => cardsScale(data), 9);
-    record('render-time cardsScale on the worst grid (informational)', cost);
-    expect(cardsScale(block.data)).toBeGreaterThan(0);
   });
 });

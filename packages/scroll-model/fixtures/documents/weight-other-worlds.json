@@ -152,7 +152,11 @@
               ]
             },
             "modelNote": "Scale reading = your Earth weight × the world’s surface gravity compared with Earth, rounded to the nearest kilogram.",
-            "illustrative": false
+            "illustrative": false,
+            "display": {
+              "kind": "cards",
+              "scale": 505.99999999999994
+            }
           }
         },
         {
@@ -294,6 +298,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "42757fd013164d0dc87da6e866947a41943b6233a32d806c7032aee78dbb0d2c"
+    "sha256": "bfee7eecd3448b94025be9c67ea8a98e30936967cfb796a00dfbe3675e801751"
   }
 }

@@ -27,6 +27,8 @@ import {
   type SimulationData,
   type Span,
 } from '../index.js';
+import { simulationProof } from '../simulation/checks.js';
+import { placeholderDisplay } from '../simulation/display.js';
 
 const WORDS = [
   'the',
@@ -89,12 +91,26 @@ export function spans(parts = 3): fc.Arbitrary<Span[]> {
 
 const TEXT_TYPES: ReadonlySet<string> = new Set(['paragraph', 'subheading', 'list', 'quote', 'callout']);
 
+/** A simulation as authored: its display scale is set by admission, so tests may leave it out. */
+export type SimulationInput = Omit<SimulationData, 'display'> & { readonly display?: SimulationData['display'] };
+
+/**
+ * The simulation with its display scale in place: the one admission proves, or (for a simulation
+ * that fails admission, which several tests build on purpose) a well-formed placeholder.
+ */
+export function withDisplay(data: SimulationInput): SimulationData {
+  return { ...data, display: data.display ?? simulationProof(data, '$').display ?? placeholderDisplay(data.view) };
+}
+
+type MakeData<T extends BlockType> = T extends 'simulation' ? SimulationInput : BlockOfType<T>['data'];
+
 /**
  * A block of `type` with a generic envelope and the gesture derived from its data. Text blocks get
- * no stored fallback text (it is derived).
+ * no stored fallback text (it is derived). A simulation gets its display scale (`withDisplay`).
  */
-export function make<T extends BlockType>(type: T, data: BlockOfType<T>['data'], essential = false): BlockOfType<T> {
-  const envelope = { id: 'pending', type, version: 1, a11y: { label: type }, essential, gesture: 'none', data };
+export function make<T extends BlockType>(type: T, data: MakeData<T>, essential = false): BlockOfType<T> {
+  const stored = type === 'simulation' ? withDisplay(data as SimulationInput) : data;
+  const envelope = { id: 'pending', type, version: 1, a11y: { label: type }, essential, gesture: 'none', data: stored };
   const block = (TEXT_TYPES.has(type)
     ? envelope
     : {
@@ -526,7 +542,7 @@ export const simulationData: fc.Arbitrary<SimulationData> = fc
           : view === 'plot'
             ? { kind: 'plot', x: 'p0', y: first, yLabel: 'value' }
             : { kind: 'area', length: 'p0', area: first, lengthLabel: 'length', areaLabel: 'area' };
-    return {
+    return withDisplay({
       title: 'Try it',
       params: paramList,
       constants: constantList,
@@ -535,7 +551,7 @@ export const simulationData: fc.Arbitrary<SimulationData> = fc
       readout: { template: `{${first}} for {p0}`, bands: [{ output: first, min: 1, text: 'At least one.' }] },
       modelNote: 'Generated for a property test.',
       illustrative: illustrative ? { notice: ILLUSTRATIVE_NOTICE } : false,
-    };
+    });
   });
 
 export const simulationBlock = fc
