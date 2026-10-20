@@ -1,0 +1,54 @@
+# The developer gallery, only in a build made with EXPO_PUBLIC_KS_GALLERY=1: opened by deep link, scrolled,
+# then left with the system Back. The API health panel asks the world origin baked into the build; the
+# flow does not depend on the answer.
+appId: com.knowscroll.client
+name: Developer gallery by deep link
+tags:
+  - gallery
+---
+- runFlow: start-app.yaml
+- openLink: knowscroll://gallery
+- extendedWaitUntil:
+    visible:
+      id: ks-component-gallery
+    timeout: 60000
+- assertVisible: Components
+- assertVisible: API health
+- takeScreenshot: gallery-01-top
+- scrollUntilVisible:
+    element: Pressed toggles
+    centerElement: true
+    timeout: 90000
+- takeScreenshot: gallery-02-toggles
+- scrollUntilVisible:
+    element: Banner
+    centerElement: true
+    timeout: 90000
+- takeScreenshot: gallery-03-banner
+- scrollUntilVisible:
+    element: Bottom sheet and scrim
+    centerElement: true
+    timeout: 90000
+- takeScreenshot: gallery-04-sheet
+# The sheet is an overlay, not a history entry: the system Back closes only the sheet, not the gallery.
+- tapOn: Open a sheet
+- assertVisible: An overlay, not a history entry.*
+- takeScreenshot: gallery-04b-sheet-open
+- back
+- assertNotVisible: An overlay, not a history entry.*
+- assertVisible:
+    id: ks-component-gallery
+- takeScreenshot: gallery-04c-sheet-closed-by-back
+- scrollUntilVisible:
+    element: Type scale
+    centerElement: true
+    timeout: 90000
+- takeScreenshot: gallery-05-type-scale
+# The gallery is a screen pushed over the tabs: Back returns to the shell.
+- back
+- extendedWaitUntil:
+    visible:
+      id: destination-explore
+    timeout: 30000
+- assertVisible: Nothing is ready to play yet.
+- takeScreenshot: gallery-06-back-to-shell
