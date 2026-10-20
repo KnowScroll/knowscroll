@@ -1,3 +1,4 @@
+import { oc } from '@orpc/contract';
 import { z } from 'zod';
 import { ClientCapabilities } from './content.js';
 import { AssetIdSchema, CommandIdSchema, UuidSchema } from './ids.js';
@@ -171,3 +172,21 @@ export type ReadContentRequest = z.infer<typeof ReadContentRequestSchema>;
 export type ContentRequestStatus = z.infer<typeof ContentRequestStatusSchema>;
 export type CancelContentRequest = z.infer<typeof CancelContentRequestSchema>;
 export type CancelContentRequestReceipt = z.infer<typeof CancelContentRequestReceiptSchema>;
+
+/** Declared HTTP boundary; the API adapter authenticates and fences the current AccountScope. */
+export const createContentRequestContract = oc
+  .route({ method: 'POST', path: '/v1/content/requests', successStatus: 200, tags: ['supply'] })
+  .input(CreateContentRequestSchema)
+  .output(ContentRequestReceiptSchema);
+
+/** Current private status only. A GET cannot create work, retry production or activate content. */
+export const readContentRequestContract = oc
+  .route({ method: 'GET', path: '/v1/content/requests/{requestId}', successStatus: 200, tags: ['supply'] })
+  .input(ReadContentRequestSchema)
+  .output(ContentRequestStatusSchema);
+
+/** Body-only identity avoids competing path/body request IDs; transport retry retains the command. */
+export const cancelContentRequestContract = oc
+  .route({ method: 'POST', path: '/v1/content/requests/cancel', successStatus: 200, tags: ['supply'] })
+  .input(CancelContentRequestSchema)
+  .output(CancelContentRequestReceiptSchema);
