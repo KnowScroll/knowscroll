@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { AppState, ScrollView, Text } from 'react-native';
-import { configure, fireEvent, render, screen } from '@testing-library/react-native';
+import { configure, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
 import { content, spacing, space } from '@knowscroll/design-tokens';
 import { deriveGesture, walkBlocks, type ScrollDocument } from '@knowscroll/scroll-model';
@@ -287,7 +287,7 @@ describe('a code block', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
 
-    expect(copyText).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(copyText).toHaveBeenCalledTimes(1));
     expect((copyText.mock.calls[0] as [string] | undefined)?.[0]).toContain('def deck_load(span_m, traffic_kn):');
     expect(await screen.findByRole('button', { name: 'Copied' })).toBeOnTheScreen();
     expect(watcher.onBlockInteraction).toHaveBeenCalledWith({

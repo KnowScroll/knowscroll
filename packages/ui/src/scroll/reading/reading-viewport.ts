@@ -73,7 +73,13 @@ export function useReadingViewport(
   observer: ScrollReadingObserver | undefined,
   insets: ReadingInsets,
 ): ReadingViewport {
-  const [viewport] = useState(() => new NativeReadingViewport());
+  const [viewport] = useState(() => {
+    // Configured at creation, so blocks that mount before this component's effect runs (children's
+    // effects run first) already report to the observer; later changes arrive through the effect.
+    const created = new NativeReadingViewport();
+    created.configure(observer, insets);
+    return created;
+  });
   useEffect(() => {
     viewport.configure(observer, insets);
   });
