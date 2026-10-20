@@ -64,6 +64,43 @@ retrieved text cannot close its block or pose as instructions. Answers must be e
 object (bare or in one fenced block, nested at most 32 levels) that passes the role's schema
 (`domain/output.ts`).
 
+### Opt-in native output object
+
+`ReasoningRole.outputFormat: 'single-tool-object'` selects a fixed `submit_output` data carrier.
+It grants no action, executor, extra request or model-driven tool loop. This foundation does not
+activate it for any product role. The owning module must change its role version and actual job
+policy when changing instructions/format; old jobs, attempts and protected bytes stay unchanged.
+Omitting the property preserves the exact existing hp2 prompt and wire bytes, including repair.
+
+The opt-in uses separate framing `hp3-tool-object` for primary and repair. Only transports with
+`supportsSingleToolObject: true` admit it; otherwise `output_format_unsupported` refuses before a
+run, attempt, quota observation or spend reservation. The MiniMax implementation enables it only
+for documented `MiniMax-M3`; other text model choices are unchanged. It sends one fixed tool with
+`input_schema: { type: 'object' }` and `tool_choice: { type: 'auto' }`. There is no per-role JSON Schema
+conversion, `response_format`, forced choice, tool execution or second interaction.
+
+MiniMax's [exact Messages reference](https://platform.minimax.io/docs/api-reference/text-chat-anthropic)
+and [OpenAPI ToolChoice schema](https://platform.minimax.io/docs/api-reference/text/api/openapi-chat-anthropic.json)
+support only `auto`. The [compatibility overview](https://platform.minimax.io/docs/api-reference/text-anthropic-api)
+labels tool choice supported generally; it does not establish forced-name support. The model may
+choose text or another invalid shape. This is no promise of schema-constrained decoding or content
+quality. Such an answer is conclusively invalid and can consume only the existing single repair.
+
+The adapter snapshots each exact bounded send body, checks its fixed tool configuration, and derives
+that call's parser mode from those bytes. Unknown tool configurations or unsupported models fail
+before fetch; no ambient mode or response-selected fallback exists. Tool mode accepts exactly one
+`tool_use` with the fixed name, native object input and `tool_use` stop, with no text (including
+empty text), additional tool or unknown block. Thinking blocks are discarded without retention.
+`max_tokens` remains truncated even if the received object is complete. Safe message ID and reported
+usage survive conclusive shape refusals; no tool name, input or raw rejected reply enters issues.
+
+Native input is depth-bounded before canonical JSON serialization (non-finite numeric overflow is
+refused), then character-bounded and passed through the unchanged strict JSON extraction,
+redaction, role Zod/semantic validation and stored-output bound. It is never unescaped, repaired or
+salvaged. The personal and production harness share this path and its same admission, ledger,
+authority, usage, byte-hash/replay and unknown-never-resend rules. Tests are fake-provider fixtures;
+they cannot establish real model selection, a successful generated Scroll or teaching quality.
+
 A module reaches this engine only through `public.ts`: the types above, the injected
 `REASONING_HARNESS` and the queue declarations. The harness factory, its ports, the attempt ledger
 and the model transport are deliberately not exported there (a boundary probe and the dependency

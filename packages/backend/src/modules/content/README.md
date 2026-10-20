@@ -1,5 +1,64 @@
 # modules/content
 
+## Trusted Scroll coverage foundation (#237)
+
+`content-concepts.v1` declares a small source-reviewed canonical topic/facet vocabulary with explicit
+parents and meanings. It admits no content, personal support or planet. Prefixes, titles, discovery
+facet tags and personal/model labels never establish membership. The frozen catalogue and each
+topic/facet meaning have deterministic SHA-256 identities.
+
+`0022_content_coverage` adds shared `coverage_revisions` (one immutable, <=32KiB mapping per
+correction/retraction) and `coverage_heads` (one monotonic head per exact asset revision). Both use
+the immutable asset-revision FK and exact indexed keys; neither contains a person, observation or
+consumption result. History is retained; personal erasure leaves this independently reviewed shared
+content metadata. No migration seed/backfill or live semantic approval is included.
+
+The composition-only `coverageAdmissionUseCase(db)` is a trusted write capability bound to
+**source-reviewed full command digests and semantic review references**. The shipped approval list
+is empty: a consumer-supplied string, matching title or explanation ID cannot authorize admission.
+The lower-level admission-port/factory seam is for trusted composition and explicitly labelled CI
+fixtures only; never supply its approval callback from a request, environment or model output.
+There is no HTTP/admin/operator command or provider dispatch for coverage in this foundation.
+
+An approved command binds exact asset/revision, document/provenance SHA, explanation unit, factual framing
+digest, derived reading-facts v2 digest, catalogue and meaning digests. It can map <=16 topic/facet
+bindings, each an ALL-OF set of 1–8 existing top-level paragraph/quote/callout IDs. Nested children,
+disclosure parents, headings, interactive states, Reel, hypothetical/perspective framing and fixture
+production provenance are refused. Admitted immutable Scroll/document/provenance identities are
+rechecked from storage; reading facts are derived through the existing Content compiler.
+Mapped claim bindings must have documented/synthesis truth states; interpretation, disputed,
+modelled, counterfactual, fictional or missing claims are unsupported in this initial policy.
+An unbound authored leaf still requires the explicit exact-map semantic review; it gains no
+automatic factual authority from this absence of claim bindings. Structural
+checks cannot attest semantic correctness: a source-reviewed exact mapping remains mandatory.
+Documents, provenance, discovery tags and access/withdrawal rules are not modified.
+
+Admission takes its own short Content transaction: per-asset/revision advisory lock -> asset SHARE
+-> head UPDATE. Expected head revision fences concurrent corrections; identical current command
+replays without appending, A→B→A uses new revisions, and retraction appends a new retained head.
+Database triggers reject revision update/delete and nonmonotonic/removed heads. Failure rolls the
+whole transaction back. Admission never takes a personal root or performs network/model waits.
+
+`READ_ADMITTED_COVERAGE_MAPPING` reads one exact revision in an existing personal transaction and
+returns mapped/unmapped/retracted/unavailable. An older revision is still exact historical content;
+a withdrawn asset is unavailable. This read confers no opening permission and proves no reading.
+`LOCK_CURRENT_COVERAGE_AUTHORITIES` accepts 1–100 unique exact expected heads (<=128KiB), normalizes
+UUIDs and orders locks by canonical asset UUID/revision. Lock order is caller personal root -> all
+asset SHARE locks -> head SHARE locks. It revalidates active heads, hashes and current admission;
+false means the consumer must reject its proposal. SHARE locks remain until the caller transaction
+ends, blocking head correction and asset withdrawal. No personal revision/effect is written.
+
+Evidence/PC/Cartographer consumers are deliberately separate work. In particular, no qualified
+facet is emitted, no q/activity policy changes, no Reel time mapping, provider budget or formation
+is enabled here. Existing `coveredFacets: []` / unavailable coverage remain truthful. Future
+consumers must verify actual observed static block coverage, preserve truth context/epochs,
+reference-count variants and recheck these current authorities before applying a proposal.
+
+Verification is labelled CI fixture: source/unit/property and real PostgreSQL append-only,
+concurrency/SHARE-lock, correction/retraction, stale/forged/wrong-revision and rollback cases.
+Automated suites run in GitHub Actions only; codegen on an owned empty schema is not runtime
+admission or generation evidence.
+
 Shared, immutable content: assets, their admitted revisions, and the internal provenance each
 revision rests on. **Content is not personal data**: no table here has a `universe_id` or an account
 column, none is in the erasure registry (clearing a universe, a privacy reset or deleting an account

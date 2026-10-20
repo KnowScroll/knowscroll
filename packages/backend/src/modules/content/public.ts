@@ -66,6 +66,20 @@ export type ReadScrollReadingFacts = (
 
 export const READ_SCROLL_READING_FACTS = Symbol('content.readScrollReadingFacts');
 
+/** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
+export { CONCEPT_CATALOGUE_VERSION, CONCEPTS } from './domain/concepts.js';
+export { COVERAGE_POLICY, CoverageCommandSchema, CoverageMappingSchema } from './domain/coverage.js';
+export type { CoverageAuthority, CoverageCommand, CoverageMapping, CoverageRef } from './domain/coverage.js';
+export type {
+  AdmitCoverage,
+  CoverageHead,
+  CoverageRead,
+  ReadAdmittedCoverageMapping,
+  LockCurrentCoverageAuthorities,
+} from './application/coverage-ports.js';
+export const READ_ADMITTED_COVERAGE_MAPPING = Symbol('content.readAdmittedCoverageMapping');
+export const LOCK_CURRENT_COVERAGE_AUTHORITIES = Symbol('content.lockCurrentCoverageAuthorities');
+
 /** Why a stored revision cannot be rendered for a client. */
 export type CannotRenderReason = 'capabilities_invalid' | 'unsupported_document' | 'missing_baseline';
 

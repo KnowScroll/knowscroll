@@ -81,6 +81,23 @@ export interface ContentContinuityLinks {
   target_asset_revision: number;
 }
 
+export interface ContentCoverageHeads {
+  asset_id: string;
+  asset_revision: number;
+  revision: number;
+}
+
+export interface ContentCoverageRevisions {
+  asset_id: string;
+  asset_revision: number;
+  command_sha256: string;
+  mapping: Json;
+  mapping_sha256: string;
+  revision: number;
+  semantic_review_reference: string;
+  status: string;
+}
+
 export interface ContentDiscoveryRevisions {
   asset_id: string;
   asset_revision: number;
@@ -686,6 +703,8 @@ export interface DB {
   "content.asset_revisions": ContentAssetRevisions;
   "content.assets": ContentAssets;
   "content.continuity_links": ContentContinuityLinks;
+  "content.coverage_heads": ContentCoverageHeads;
+  "content.coverage_revisions": ContentCoverageRevisions;
   "content.discovery_revisions": ContentDiscoveryRevisions;
   "content.encounter_topics": ContentEncounterTopics;
   "content.media_objects": ContentMediaObjects;
