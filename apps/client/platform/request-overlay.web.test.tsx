@@ -6,6 +6,18 @@ const { createRoot } = jest.requireActual<{
 import { EncounterOverlay } from '../features/encounter/encounter-overlay.web';
 import { RequestChoices } from '../features/requests/request-choices';
 
+// The UI barrel loads the SVG adapter, whose numeric asset lookup is absent in web Jest.
+// This fixture renders no image assets. Fail if that unrelated path is ever exercised.
+jest.mock(
+  '@react-native/assets-registry/registry',
+  () => ({
+    getAssetByID: () => {
+      throw new Error('This DOM keyboard fixture must not load numeric image assets');
+    },
+  }),
+  { virtual: true },
+);
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 /** DOM fixture only: jsdom has no layout, so visible controls receive nonempty test geometry. */
