@@ -29,3 +29,7 @@ dependency-cruiser, and its hashes are verified by the `integrity` CI job. Do no
 
 Tests: unit tests sit next to the code (`*.test.ts`, Vitest); real-PostgreSQL tests live in
 `tests/integration/`.
+
+Personal Planner (`modules/planner`, #236) owns backend-only coalesced role work and accepted future
+opportunities. Its execution gate defaults off; see its README for bounded prepared context,
+transactional triggers, explicit same-run resume, erasure and the separate paid-allowance requirement.

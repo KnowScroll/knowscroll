@@ -22,3 +22,13 @@ that calls the reasoning harness declares `expireInSeconds` above what one deliv
 handler opens its own short transactions, records its applied identity with its effects so a
 redelivery is harmless, and never holds a transaction across a network call. Queue delivery is not
 permission to repeat a paid call: paid work consults the attempt ledger (`reasoning/`).
+
+`planner.run` (#236) is an IDs-only personal role wake-up:1200s expiry, three30s-backoff retries,
+local concurrency1. Both shipped request compositions enqueue transactionally after material
+Evidence/PC change. Worker execution defaults disabled; see `modules/planner/README.md` for
+coalescing, claim/attempt fences, explicit resume and erasure.
+
+The optional fourth `EnqueueJob` argument `{startAfter: Date}` schedules within the same transaction.
+Dates must be finite and no more than24h ahead; pg-boss accepts Date and converts it to ISO itself.
+Planner uses this only for a same-business-run wake at claim expiry, carrying an expected claim ID.
+It is durable pg-boss work, not a timer or a second outbox. Existing three-argument calls are unchanged.
