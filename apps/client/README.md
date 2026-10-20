@@ -98,3 +98,7 @@ builds are not part of CI (CF-31). Automated suites run in GitHub Actions only (
 
 
 Native module host declarations: `expo-clipboard` is declared directly by this app so Expo autolinking includes the module used lazily by `packages/ui`'s code-copy control. Knip's app-only `ignoreDependencies` entry records that native linking dependency; TypeScript, the UI import, frozen lockfile and Android build remain checked.
+
+The interim direct Scroll session accepts only direct-open exposure lineage. A Composer
+ready/pending/exhausted response produces the existing controlled error state; the new Explore
+consumer will own those outcomes (#234). This compatibility guard adds no navigation UI.
