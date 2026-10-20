@@ -28,6 +28,8 @@ import {
 import { cartographyQueue, publishDeltaQueue } from '../events.js';
 import {
   GEOGRAPHY_MATERIAL_CHANGE,
+  GEOGRAPHY_APPLIED,
+  READ_GEOGRAPHY_SCENE_INPUT,
   REQUEST_CARTOGRAPHY,
   RUN_CARTOGRAPHER,
   READ_OWN_GEOGRAPHY,
@@ -38,6 +40,8 @@ import { makeRequestCartography, makeGeographyMaterialChange } from '../applicat
 import { makeReadGeography, makeReadDeltas } from '../application/read.js';
 import { makeRunCartographer, makePublishDelta } from '../application/run.js';
 import type { GeographyPorts, RequestCartographyResult } from '../application/ports.js';
+import { makeReadGeographySceneInput } from '../application/scene-input.js';
+import type { GeographyApplied } from '../public.js';
 import { geographyStore } from './postgres-store.js';
 export const GEOGRAPHY_PORTS = Symbol('geography.ports');
 const key = (commandId: string, input: unknown) => ({
@@ -57,6 +61,7 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         READ_COVERAGE_INPUTS,
         READ_TRUSTED_COVERAGE,
         CHECK_PERSONAL_OWNER_ACTIVE,
+        GEOGRAPHY_APPLIED,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -64,8 +69,18 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         readInputs: ReadCoverageInputs,
         readTrusted: ReadTrustedCoverage,
         ownerActive: CheckPersonalOwnerActive,
+        applied: GeographyApplied,
       ): GeographyPorts => ({
         withScope,
+        applied,
+        rootRevision: async (scope) => {
+          const row = await transactionOf(scope)
+            .selectFrom('identity.universes')
+            .select('revision')
+            .where('id', '=', scope.authority.universeId)
+            .executeTakeFirstOrThrow();
+          return row.revision;
+        },
         readInputs,
         readTrusted,
         ownerActive,
@@ -115,6 +130,11 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
           complete: (s, id, result) => completePersonalReceipt(s, id, result),
         },
       }),
+    },
+    {
+      provide: READ_GEOGRAPHY_SCENE_INPUT,
+      inject: [GEOGRAPHY_PORTS],
+      useFactory: (p: GeographyPorts) => makeReadGeographySceneInput(p),
     },
     {
       provide: GEOGRAPHY_MATERIAL_CHANGE,

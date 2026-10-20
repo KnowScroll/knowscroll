@@ -1,3 +1,4 @@
+import { projectSceneQueue } from '@knowscroll/backend/modules/scenes';
 import { cartographyQueue, publishDeltaQueue } from '@knowscroll/backend/modules/geography';
 import { resolveSupplyQueue } from '@knowscroll/backend/modules/supply';
 import { plannerQueue } from '@knowscroll/backend/modules/planner';
@@ -45,6 +46,7 @@ export const fixtureModelQueue = defineQueue({
 
 /** Every queue the template database declares: the release's own plus the fixtures above. */
 export const testQueues = queueRegistry([
+  projectSceneQueue,
   cartographyQueue,
   publishDeltaQueue,
   resolveSupplyQueue,

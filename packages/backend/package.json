@@ -170,6 +170,16 @@
       "@knowscroll/source": "./src/modules/geography/adapters/nest-providers.ts",
       "types": "./dist/modules/geography/adapters/nest-providers.d.ts",
       "default": "./dist/modules/geography/adapters/nest-providers.js"
+    },
+    "./modules/scenes": {
+      "@knowscroll/source": "./src/modules/scenes/public.ts",
+      "types": "./dist/modules/scenes/public.d.ts",
+      "default": "./dist/modules/scenes/public.js"
+    },
+    "./modules/scenes/nest-providers": {
+      "@knowscroll/source": "./src/modules/scenes/adapters/nest-providers.ts",
+      "types": "./dist/modules/scenes/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/scenes/adapters/nest-providers.js"
     }
   },
   "files": [

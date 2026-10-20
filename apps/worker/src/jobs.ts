@@ -1,3 +1,5 @@
+import { sceneAppliedProviders, sceneProviders } from '@knowscroll/backend/modules/scenes/nest-providers';
+import { PROJECT_SCENE, projectSceneQueue, type ProjectScene } from '@knowscroll/backend/modules/scenes';
 import { geographyProviders, cartographerWorkerProviders } from '@knowscroll/backend/modules/geography/nest-providers';
 import {
   GEOGRAPHY_MATERIAL_CHANGE,
@@ -65,6 +67,8 @@ import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-co
  */
 const PERSONAL_MATERIAL_CHANGE = Symbol('personal.materialChange');
 export const jobWiring: Provider[] = [
+  ...sceneAppliedProviders({ enqueueJob: ENQUEUE_JOB }),
+  ...sceneProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...geographyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...cartographerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   {
@@ -98,6 +102,7 @@ export const jobWiring: Provider[] = [
   {
     provide: JOB_CONSUMERS,
     inject: [
+      PROJECT_SCENE,
       RUN_CARTOGRAPHER,
       PUBLISH_GEOGRAPHY_DELTA,
       RESOLVE_CONTENT_REQUEST,
@@ -111,6 +116,7 @@ export const jobWiring: Provider[] = [
       LOG_EVENT,
     ],
     useFactory: (
+      projectScene: ProjectScene,
       runCartographer: RunCartographer,
       publishDelta: PublishGeographyDelta,
       resolveRequest: ResolveRequest,
@@ -123,6 +129,9 @@ export const jobWiring: Provider[] = [
       sweepDispatchedAttempts: SweepDispatchedAttempts,
       logEvent: LogEvent,
     ): readonly JobConsumer<unknown>[] => [
+      jobConsumer(projectSceneQueue, async (payload) => {
+        await projectScene(payload);
+      }),
       jobConsumer(cartographyQueue, async (payload, delivery) => {
         await runCartographer(payload, delivery.signal);
       }),

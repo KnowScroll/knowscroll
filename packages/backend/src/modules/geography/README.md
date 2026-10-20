@@ -146,3 +146,14 @@ and erasure. Sources/maps/model proposals are clearly authored CI fixtures; none
 Local build/lint/type/schema generation are static checks only. Remaining acceptance: approved real
 semantic maps, explicitly granted role execution, actual reading→planet on dev, shared route/HTTP/UI
 consumer, scene projection/rendering, own map navigation and separately authorised sharing/visits.
+
+## Scene projection boundary (#238)
+
+`ReadGeographySceneInput` accepts an existing `PersonalScopeTx`, rechecks owner authority,
+validates the whole bounded retained hierarchy and returns canonical meaning IDs, public
+objects/routes/aliases and the **current personal root** watermark in that transaction.
+It omits private supports, evidence, role context and scores. Scene code uses this port only.
+Actual new application invokes required `GeographyApplied` after effects/state/root/delta and
+publication enqueue, in the same transaction. Hook failure rolls everything back; transition
+replay returns before it. API/worker supply an enqueue-only Scene binding with no projector
+or Geography read dependency. No historical bootstrap or read-triggered Scene job is added.

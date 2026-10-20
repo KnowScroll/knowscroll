@@ -788,6 +788,40 @@ export interface ReceiptsSharedCommands {
   scope_kind: string;
 }
 
+export interface ScenesChunks {
+  chunk_id: string;
+  payload: Json;
+  privacy_epoch: number;
+  scene_revision: number;
+  system_id: string;
+  universe_id: string;
+}
+
+export interface ScenesManifests {
+  payload: Json;
+  privacy_epoch: number;
+  scene_revision: number;
+  universe_id: string;
+}
+
+export interface ScenesObjects {
+  chunk_id: string;
+  object_id: string;
+  payload: Json;
+  privacy_epoch: number;
+  slot: number;
+  system_id: string;
+  universe_id: string;
+}
+
+export interface ScenesState {
+  payload: Json;
+  privacy_epoch: number;
+  scene_revision: number;
+  universe_id: string;
+  world_seed: string;
+}
+
 export interface SupplyRequests {
   brief: Json | null;
   command: Json;
@@ -879,6 +913,10 @@ export interface DB {
   "reasoning.usage_receipts": ReasoningUsageReceipts;
   "receipts.personal_commands": ReceiptsPersonalCommands;
   "receipts.shared_commands": ReceiptsSharedCommands;
+  "scenes.chunks": ScenesChunks;
+  "scenes.manifests": ScenesManifests;
+  "scenes.objects": ScenesObjects;
+  "scenes.state": ScenesState;
   "supply.requests": SupplyRequests;
   "supply.work": SupplyWork;
 }

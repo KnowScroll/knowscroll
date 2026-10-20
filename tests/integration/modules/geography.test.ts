@@ -1,3 +1,5 @@
+import { projectSceneQueue } from '@knowscroll/backend/modules/scenes';
+import { sceneAppliedProviders } from '@knowscroll/backend/modules/scenes/nest-providers';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
@@ -27,6 +29,7 @@ import { READ_COVERAGE_INPUTS, READ_TRUSTED_COVERAGE } from '@knowscroll/backend
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import {
   GEOGRAPHY_MATERIAL_CHANGE,
+  GEOGRAPHY_APPLIED,
   REQUEST_CARTOGRAPHY,
   READ_OWN_GEOGRAPHY,
   READ_OWN_DELTAS,
@@ -72,7 +75,10 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     c = await scrollUseCases(database, { activityMaterialChange: (s, x) => material(s, x) });
     const SCOPE = Symbol('scope'),
       ENQUEUE = Symbol('enqueue'),
-      providers = geographyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE });
+      providers = [
+        ...sceneAppliedProviders({ enqueueJob: ENQUEUE }),
+        ...geographyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
+      ];
     const values = new Map<symbol, unknown>([
       [SCOPE, scope()],
       [ENQUEUE, makeEnqueueJob(c.boss)],
@@ -80,6 +86,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       [READ_COVERAGE_INPUTS, buildFromProviders(personalContextProviders(), READ_COVERAGE_INPUTS, new Map())],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
     ]);
+    values.set(GEOGRAPHY_APPLIED, buildFromProviders(providers, GEOGRAPHY_APPLIED, values));
     const get = <T>(token: symbol): T => {
       const value = buildFromProviders(providers, token, values);
       values.set(token, value);
@@ -435,11 +442,31 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       kind: 'read',
       deltas: { status: 'available', hasMore: false, deltas: [{ transitionId: transition }] },
     });
+    const sceneJobs = await database.pool.query<{ data: unknown }>(
+      "select data from pgboss.job where name=$1 and data->>'universeId'=$2",
+      [projectSceneQueue.name, p.universeId],
+    );
+    expect(sceneJobs.rows).toHaveLength(1);
+    expect(sceneJobs.rows[0]!.data).toMatchObject({
+      v: 1,
+      universeId: p.universeId,
+      privacyEpoch: 1,
+      transitionId: transition,
+      geography: first.geography,
+    });
     const frozen = await context(p, s.activeRunId!);
     expect(await scopeApply(p, s.activeRunId!, frozen, formation(frozen))).toMatchObject({
       kind: 'entered',
       value: { kind: 'replayed', delta: { transitionId: transition } },
     });
+    expect(
+      (
+        await database.pool.query("select id from pgboss.job where name=$1 and data->>'universeId'=$2", [
+          projectSceneQueue.name,
+          p.universeId,
+        ])
+      ).rows,
+    ).toHaveLength(1);
     expect(await scopeApply(p, s.activeRunId!, frozen, { ...formation(frozen), operations: [] })).toMatchObject({
       kind: 'entered',
       value: { kind: 'refused', reason: 'transition_key_reused' },
@@ -665,6 +692,55 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     await run(job(p, s.activeRunId!), signal());
     expect(r.model.calls).toHaveLength(1);
     expect(await snapshot(p)).toMatchObject({ status: 'ready', geography: { revision: 1 } });
+  });
+  it('required Scene hook failure rolls back the actual Geography apply, root, delta and both required jobs', async () => {
+    const p = await seedPerson(database.db);
+    await coherent(p);
+    const s = await state(p);
+    const before = await database.db
+      .selectFrom('identity.universes')
+      .select('revision')
+      .where('id', '=', p.universeId)
+      .executeTakeFirstOrThrow();
+    await expect(
+      scope()(p.authority, async (sc) => {
+        const ctx = await prepareGeography(base, sc, await geographyStore.view(sc));
+        if (!ctx) throw new Error('CI trusted context absent');
+        return applyProposal(
+          {
+            ...base,
+            applied: async (scope, input) => {
+              await base.applied(scope, input);
+              throw new Error('CI required Scene enqueue failure');
+            },
+          },
+          sc,
+          s.activeRunId!,
+          ctx,
+          formation(ctx),
+        );
+      }),
+    ).rejects.toThrow('CI required Scene enqueue failure');
+    expect((await state(p)).revision).toBe(0);
+    for (const table of ['geography.objects', 'geography.deltas'] as const)
+      expect(
+        await database.db.selectFrom(table).select('universe_id').where('universe_id', '=', p.universeId).execute(),
+      ).toHaveLength(0);
+    expect(
+      await database.db
+        .selectFrom('identity.universes')
+        .select('revision')
+        .where('id', '=', p.universeId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual(before);
+    expect(
+      (
+        await database.pool.query("select name from pgboss.job where name=any($1) and data->>'universeId'=$2", [
+          [projectSceneQueue.name, publishDeltaQueue.name],
+          p.universeId,
+        ])
+      ).rows,
+    ).toHaveLength(0);
   });
   it('Content withdrawal without a new observation invalidates an in-flight proposal; no stale delta applies', async () => {
     const p = await seedPerson(database.db),
