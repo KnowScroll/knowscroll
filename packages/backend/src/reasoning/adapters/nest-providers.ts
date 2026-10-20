@@ -25,7 +25,9 @@ import { guardedModelPort } from './guarded-model.js';
 import { makeMiniMaxModelPort } from './minimax/minimax-model.js';
 import { makeAttemptLedger } from './postgres-ledger.js';
 import { makeProductionAttemptLedger } from './postgres-production-ledger.js';
+import { readProductionRunAccounting } from './production-accounting.js';
 import type {
+  ReadProductionRunAccounting,
   ProductionAuthority,
   ProductionReasoningHarness,
   ProductionScopeTx,
@@ -130,6 +132,11 @@ export function postgresHarnessPorts(options: {
   };
 }
 
+/** Production execution ports plus one deliberately payload-free accounting read. */
+type ProductionHarnessPorts = ExecutionPorts<ProductionAuthority, ProductionScopeTx> & {
+  readonly readProductionRunAccounting: ReadProductionRunAccounting;
+};
+
 /** Concrete production wiring; no provider or storage selection is available to role modules. */
 export function postgresProductionHarnessPorts(options: {
   readonly db: Kysely<Database>;
@@ -139,8 +146,9 @@ export function postgresProductionHarnessPorts(options: {
   readonly logEvent: LogEvent;
   readonly settings: HarnessSettings;
   readonly overrides?: Partial<ExecutionPorts<ProductionAuthority, ProductionScopeTx>>;
-}): ExecutionPorts<ProductionAuthority, ProductionScopeTx> {
+}): ProductionHarnessPorts {
   return {
+    readProductionRunAccounting,
     withScope: options.withProductionScope,
     authorityHolds: makeProductionAuthorityHolds(options.db, options.enabled),
     scopeId: (authority) => authority.scopeId,
@@ -157,11 +165,10 @@ export function postgresProductionHarnessPorts(options: {
   };
 }
 
-export function makeProductionReasoningHarness(
-  ports: ExecutionPorts<ProductionAuthority, ProductionScopeTx>,
-): ProductionReasoningHarness {
+export function makeProductionReasoningHarness(ports: ProductionHarnessPorts): ProductionReasoningHarness {
   const engine = makeScopedReasoningHarness(ports);
   return {
+    readProductionRunAccounting: ports.readProductionRunAccounting,
     proposeProduction: (input, signal) => engine.propose(input, signal),
     closeProductionRun: (scope, run) => engine.closeRun(scope, run),
   };

@@ -56,6 +56,8 @@ export type {
   ProductionReasoningRun,
   ProductionProposeInput,
   ProductionReasoningHarness,
+  ProductionAttemptAccounting,
+  ProductionRunAccounting,
 } from './application/production.js';
 
 /** Worker-only injection tokens. Configuration and the database root default to disabled. */

@@ -316,3 +316,13 @@ harness behaviour, not content quality. CI never calls a provider.
 Primary attempts stopped before dispatch (for example unavailable quota) must recheck the role brake before a new primary reservation. Reusing reserved work or replaying a settled answer remains possible; the single admitted repair remains bounded by its run. This prevents staging unlimited quota-stopped runs and bypassing the brake after quota recovers.
 
 Spend caps retain precedence when both a cap and the failure brake are full. Both checks and the new reservation remain under the same shared budget advisory lock; the ordering does not release a brake slot or allow an extra dispatch. Recovery integration cases use separate template-derived databases, so one case's deliberate unresolved liabilities cannot prevent another case from exercising its intended state transition.
+
+### Production accounting without private payloads
+
+`ProductionReasoningHarness.readProductionRunAccounting(scope, runId)` reads at most 32 attempt
+IDs, steps/states, provider/model and nullable reported token usage under a live production root
+capability. It checks the root and run generation again in that transaction; expired/forged
+capabilities throw, foreign/missing runs return `not_found`, and an oversized ledger returns
+`accounting_limit` instead of incomplete totals. No request, output, context, quota or write-off
+reason is selected. Content can retain both primary and repair identities and print honest usage
+without reaching reasoning SQL or its private payload stores.

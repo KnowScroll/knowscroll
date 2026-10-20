@@ -490,4 +490,82 @@ describe('nonpersonal production execution and shared failure brake', () => {
     expect(await slots(quotaRole.id)).toBe(0);
     expect((await productionRows(qr.id)).map((row) => row.state)).toEqual(['not_sent', 'succeeded']);
   });
+
+  it('returns primary plus repair accounting without payloads and fences expired/foreign generations', async () => {
+    await root();
+    const p = production(fixtureModel((n) => (n === 1 ? { kind: 'malformed' } : success)));
+    const r = run();
+    expect(await propose(p, r, role('accounting'))).toMatchObject({ kind: 'proposed', repaired: true });
+    let kept: ProductionScopeTx | undefined;
+    const result = await scope()(authority, async (tx) => {
+      kept = tx;
+      return p.harness.readProductionRunAccounting(tx, r.id);
+    });
+    expect(result.kind).toBe('entered');
+    if (result.kind !== 'entered' || result.value.kind !== 'accounted') throw new Error('accounting fixture missing');
+    expect(result.value.attempts.map((attempt) => attempt.step)).toEqual(['primary', 'repair']);
+    expect(result.value.attempts.map((attempt) => attempt.state)).toEqual(['succeeded', 'succeeded']);
+    expect(result.value.attempts.reduce((total, attempt) => total + (attempt.usage.inputTokens ?? 0), 0)).toBe(80);
+    for (const attempt of result.value.attempts) {
+      expect(Object.keys(attempt).sort()).toEqual(['attemptId', 'model', 'provider', 'state', 'step', 'usage']);
+      expect(Object.keys(attempt.usage).sort()).toEqual([
+        'cachedTokens',
+        'inputTokens',
+        'outputTokens',
+        'reasoningTokens',
+      ]);
+    }
+    for (const privateText of ['lantern', 'context', 'output', 'request', 'quota', 'reason'])
+      expect(JSON.stringify(result.value)).not.toContain(
+        privateText === 'reason' ? 'written_off_reason' : `"${privateText}"`,
+      );
+    if (kept === undefined) throw new Error('scope fixture missing');
+    await expect(p.harness.readProductionRunAccounting(kept, r.id)).rejects.toThrow(
+      'Production scope used after its transaction ended',
+    );
+    await expect(p.harness.readProductionRunAccounting({} as ProductionScopeTx, r.id)).rejects.toThrow(
+      'Production scope used after its transaction ended',
+    );
+    const fenced = await scope()(authority, async (tx) => {
+      await productionTransactionOf(tx)
+        .updateTable('reasoning.production_scopes')
+        .set({ generation: 2 })
+        .where('id', '=', authority.scopeId)
+        .execute();
+      return p.harness.readProductionRunAccounting(tx, r.id);
+    });
+    expect(fenced).toEqual({ kind: 'entered', value: { kind: 'refused', reason: 'generation_changed' } });
+    expect(
+      await scope()({ scopeId: 'scroll-supply', generation: 2 }, (tx) =>
+        p.harness.readProductionRunAccounting(tx, r.id),
+      ),
+    ).toEqual({ kind: 'entered', value: { kind: 'not_found' } });
+    await root();
+  });
+
+  it('refuses an accounting overflow rather than returning incomplete totals', async () => {
+    await root();
+    const p = production();
+    const r = run();
+    expect(await propose(p, r, role('accounting-bound'))).toMatchObject({ kind: 'proposed' });
+    await db()
+      .insertInto('reasoning.production_attempts')
+      .values(
+        Array.from({ length: 32 }, (_, n) => ({
+          scope_id: authority.scopeId,
+          id: randomUUID(),
+          run_id: r.id,
+          step: `fixture-extra-${n}`,
+          provider: 'fixture',
+          model: 'fixture-model-v1',
+          request_hash: '0'.repeat(64),
+          state: 'not_sent',
+        })),
+      )
+      .execute();
+    expect(await scope()(authority, (tx) => p.harness.readProductionRunAccounting(tx, r.id))).toEqual({
+      kind: 'entered',
+      value: { kind: 'refused', reason: 'accounting_limit' },
+    });
+  });
 });
