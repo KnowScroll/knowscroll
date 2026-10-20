@@ -259,12 +259,28 @@ export function makeCancelRequest(p: SupplyPorts): CancelRequest {
       await p.receipts.insert(scope, 'supply.cancel', c.commandId, c);
       const revision = await p.advance(scope);
       const outcome =
-        d.status === 'cancelled' ? 'already_cancelled' : d.status === 'requested' ? 'cancelled' : 'already_closed';
+        current.status === 'cancelled'
+          ? 'already_cancelled'
+          : current.status === 'preparing'
+            ? 'cancelled'
+            : 'already_closed';
       if (outcome === 'cancelled')
         await p.store.finish(scope, {
           ...d,
           status: 'cancelled',
           reason: undefined,
+          revision,
+          requestRevision: checkedRevision(current.requestRevision + 1),
+          updatedAt: now,
+        });
+      // A pending row can already project unavailable after a shared Content withdrawal.
+      // Respect that public outcome and freeze its own terminal state, rather than rename it
+      // cancelled or allow a later resolver to revive it after this already_closed receipt.
+      if (d.status === 'requested' && current.status === 'unavailable')
+        await p.store.finish(scope, {
+          ...d,
+          status: 'unavailable',
+          reason: current.reason,
           revision,
           requestRevision: checkedRevision(current.requestRevision + 1),
           updatedAt: now,

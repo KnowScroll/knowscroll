@@ -56,7 +56,10 @@ content or closes `unavailable/budget_unavailable`: no Supply commissioning allo
 This reason records the actual admission barrier; it is not an assertion that a provider failed.
 No percentages, ETA, model call, attempt ledger entry or claimed paid work is manufactured.
 
-Cancellation changes only an open owned waiter. Ready/unavailable are `already_closed`; repeated
+Cancellation changes only an open owned waiter. A pending row that already projects unavailable
+freezes that own terminal outcome at a newer revision and returns `already_closed`, so later
+re-admission/resolution cannot revive it after that receipt. Shared work and other waiters remain
+unchanged. Ready/unavailable are `already_closed`; repeated
 cancellation is `already_cancelled`. A cancel receipt replays its original result. Cancellation
 never deletes admitted content, mutates another waiter, recalls a dispatched attempt or promises
 a refund. Closed requests never rebind or restart. A new deliberate request is a new command.

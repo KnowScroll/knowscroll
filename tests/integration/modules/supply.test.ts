@@ -184,6 +184,10 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     expect(await cancel(a.authority, cancellation)).toEqual(
       first.kind === 'ok' ? { kind: 'ok', value: { ...first.value, replayed: true } } : first,
     );
+    expect(await cancel(a.authority, { ...cancellation, commandId: randomUUID() })).toMatchObject({
+      kind: 'ok',
+      value: { outcome: 'already_cancelled' },
+    });
     await resolve(job(a, ar.requestId));
     expect((await status(a, ar.requestId)).status).toBe('cancelled');
     expect((await status(b, br.requestId)).status).toBe('preparing');
@@ -348,6 +352,29 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     ).toEqual({ kind: 'refused', reason: 'stale_source' });
     const r = await ask(p, c);
     expect(await status(p, r.requestId)).toMatchObject({ status: 'preparing', phase: 'requested' });
+    const otherSource = await source(other, asset);
+    const otherReceipt = await ask(other, {
+      ...c,
+      commandId: randomUUID(),
+      intent: { kind: 'variant', source: otherSource, to: 'reel' },
+    });
+    const sharedWork = (
+      await database.db
+        .selectFrom('supply.requests')
+        .select('work_id')
+        .where('id', '=', r.requestId)
+        .executeTakeFirstOrThrow()
+    ).work_id!;
+    expect(
+      (
+        await database.db
+          .selectFrom('supply.requests')
+          .select('work_id')
+          .where('id', '=', otherReceipt.requestId)
+          .executeTakeFirstOrThrow()
+      ).work_id,
+    ).toBe(sharedWork);
+
     await database.db
       .updateTable('content.assets')
       .set({ status: 'withdrawn' })
@@ -360,18 +387,54 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
       commandId: randomUUID(),
       requestId: r.requestId,
     };
-    expect(await cancel(p.authority, cancelCommand)).toMatchObject({ kind: 'ok', value: { outcome: 'cancelled' } });
-    expect(await status(p, r.requestId)).toMatchObject({ status: 'cancelled', requestRevision: 3 });
+    const closed = await cancel(p.authority, cancelCommand);
+    expect(closed).toMatchObject({ kind: 'ok', value: { outcome: 'already_closed' } });
+    expect(await status(p, r.requestId)).toMatchObject({
+      status: 'unavailable',
+      reason: 'source_unavailable',
+      requestRevision: 3,
+    });
+    expect(await ask(p, c)).toEqual({ ...r, replayed: true });
+    expect(
+      await database.db
+        .selectFrom('supply.requests')
+        .select(['state', 'request_revision'])
+        .where('id', '=', otherReceipt.requestId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ state: 'requested', request_revision: 1 });
+    expect(
+      (
+        await database.db
+          .selectFrom('supply.work')
+          .select('active')
+          .where('id', '=', sharedWork)
+          .executeTakeFirstOrThrow()
+      ).active,
+    ).toBe(true);
+    expect(await cancel(p.authority, cancelCommand)).toEqual(
+      closed.kind === 'ok' ? { kind: 'ok', value: { ...closed.value, replayed: true } } : closed,
+    );
     await database.db
       .updateTable('content.assets')
       .set({ status: 'admitted' })
       .where('id', '=', asset.assetId)
       .execute();
     await resolve(job(p, r.requestId));
-    expect(await status(p, r.requestId)).toMatchObject({ status: 'cancelled', requestRevision: 3 });
+    expect(await status(p, r.requestId)).toMatchObject({
+      status: 'unavailable',
+      reason: 'source_unavailable',
+      requestRevision: 3,
+    });
+    expect(await status(other, otherReceipt.requestId)).toMatchObject({ status: 'preparing', requestRevision: 3 });
+    await resolve(job(other, otherReceipt.requestId));
+    expect(await status(other, otherReceipt.requestId)).toMatchObject({
+      status: 'unavailable',
+      reason: 'budget_unavailable',
+      requestRevision: 4,
+    });
     expect(await cancel(p.authority, { ...cancelCommand, commandId: randomUUID() })).toMatchObject({
       kind: 'ok',
-      value: { outcome: 'already_cancelled' },
+      value: { outcome: 'already_closed' },
     });
   });
   it('session authority accepts actual activated membership, refuses stale intent, and keeps an accepted ask independent of later navigation', async () => {
