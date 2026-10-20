@@ -5,6 +5,8 @@ import {
   ApplyActionRequestSchema,
   ApplyActionResponseSchema,
   EncounterOfferSchema,
+  ExposureContextRequestSchema,
+  ExposureContextResponseSchema,
   ListSavedResponseSchema,
   NavigateExperienceRequestSchema,
   NavigationOutcomeSchema,
@@ -108,7 +110,7 @@ describe('Explore prerequisite wire contracts', () => {
       expect(OpenExposureRequestSchema.safeParse(invalid).success).toBe(false);
   });
 
-  it('requires a current session, offer, activated exposure and expected revision for each semantic move', () => {
+  it('requires a session, activated member offer/exposure and latest expected intent for each semantic move', () => {
     for (const intent of [
       { mode: 'vertical', direction: 'next' },
       { mode: 'vertical', direction: 'previous' },
@@ -135,6 +137,89 @@ describe('Explore prerequisite wire contracts', () => {
       { ...navigate, peerPlayback: { accountId: otherId, position: 12 } },
     ])
       expect(NavigateExperienceRequestSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  it('binds a displayed continuation only on series/related intents, preserving generic moves and parked member lineage', () => {
+    const expectedContinuation = { linkId: otherId, assetId: otherId, assetRevision: 2 };
+    // The wire allows a parked member; the consumer checks same-session activation/epoch and latest intent.
+    const parked = { ...navigate, expectedIntentRevision: 7, from: { offerId: otherId, exposureId: otherId } };
+    for (const intent of [
+      { mode: 'series', direction: 'next', expectedContinuation },
+      { mode: 'series', direction: 'previous', expectedContinuation },
+      { mode: 'related', expectedContinuation },
+    ])
+      expect(NavigateExperienceRequestSchema.parse({ ...parked, intent })).toEqual({ ...parked, intent });
+    for (const intent of [
+      { mode: 'vertical', direction: 'next', expectedContinuation },
+      { mode: 'variant', to: 'scroll', expectedContinuation },
+      { mode: 'return', target: { assetId: id, assetRevision: 1 }, expectedContinuation },
+      { mode: 'related', expectedContinuation: { linkId: otherId, assetId: otherId } },
+      { mode: 'related', expectedContinuation: { ...expectedContinuation, assetRevision: 0 } },
+      { mode: 'related', expectedContinuation: { ...expectedContinuation, ownerId: id } },
+    ])
+      expect(NavigateExperienceRequestSchema.safeParse({ ...navigate, intent }).success).toBe(false);
+  });
+
+  it('reads mutable action/continuation context with optional latest Composer intent, never offering phantom targets', () => {
+    const unavailable = { status: 'unavailable', reason: 'series_boundary' };
+    const context = {
+      exposureId: id,
+      assetId: id,
+      assetRevision: 1,
+      revision: 3,
+      actions: { saved: true, liked: false, hidden: false },
+      variants: offer.variants,
+      continuations: {
+        seriesPrevious: unavailable,
+        seriesNext: { status: 'pending', requestId: otherId },
+        related: {
+          status: 'ready',
+          linkId: otherId,
+          target: { assetId: otherId, assetRevision: 2 },
+          metadata,
+          relation: { kind: 'related_move', label: 'Another angle' },
+        },
+      },
+    };
+    expect(ExposureContextRequestSchema.parse({ exposureId: id })).toEqual({ exposureId: id });
+    expect(ExposureContextResponseSchema.parse(context)).toEqual(context);
+    const composer = { ...context, session: { sessionId: id, intentRevision: 7 } };
+    expect(ExposureContextResponseSchema.parse(composer)).toEqual(composer);
+    const series = { seriesId: 'fixture-series', seriesRevision: 1, part: 2 };
+    const readySeries = {
+      ...context.continuations.related,
+      relation: { kind: 'series_step', ...series, part: 3 },
+    };
+    const inSeries = { ...composer, series, continuations: { ...context.continuations, seriesNext: readySeries } };
+    expect(ExposureContextResponseSchema.parse(inSeries)).toEqual(inSeries);
+    for (const invalid of [
+      { ...context, session: { sessionId: id } },
+      { ...context, session: { sessionId: id, intentRevision: -1 } },
+      { ...context, session: { sessionId: id, intentRevision: 7, playheadMs: 12 } },
+      { ...context, actions: { ...context.actions, score: 0.8 } },
+      { ...context, actions: { saved: true, liked: false } },
+      { ...context, series: { ...series, totalParts: 9 } },
+      { ...context, variants: [offer.variants[0], offer.variants[0]] },
+      { ...context, continuations: { ...context.continuations, seriesNext: { status: 'pending' } } },
+      {
+        ...context,
+        continuations: {
+          ...context.continuations,
+          seriesNext: { status: 'pending', requestId: id, target: { assetId: id } },
+        },
+      },
+      { ...context, continuations: { ...context.continuations, seriesPrevious: { ...unavailable, offerId: id } } },
+      { ...context, continuations: { ...context.continuations, seriesNext: context.continuations.related } },
+      { ...context, continuations: { ...context.continuations, related: readySeries } },
+      {
+        ...context,
+        continuations: { ...context.continuations, related: { ...context.continuations.related, exposureId: id } },
+      },
+      { ...context, provenance: {} },
+      { ...context, blockOffset: 12 },
+    ])
+      expect(ExposureContextResponseSchema.safeParse(invalid).success).toBe(false);
+    expect(ExposureContextRequestSchema.safeParse({ exposureId: id, ownerId: id }).success).toBe(false);
   });
 
   it('keeps ready, durable pending and natural exhaustion distinct without phantom exposure or offer fields', () => {
@@ -247,12 +332,42 @@ describe('Explore prerequisite wire contracts', () => {
     }
   });
 
+  it('accepts explicit action exposure linkage without guessing an encounter for legacy asset preferences', () => {
+    for (const kind of ['save', 'unsave', 'like', 'unlike', 'hide']) {
+      const action = { commandId: id, kind, target: { assetId: id, assetRevision: 1 } };
+      expect(ApplyActionRequestSchema.parse(action)).toEqual(action);
+      expect(ApplyActionRequestSchema.parse({ ...action, exposureId: otherId, futureLegacyField: true })).toEqual({
+        ...action,
+        exposureId: otherId,
+      });
+      for (const exposureId of [null, '', 'not-an-exposure', {}])
+        expect(ApplyActionRequestSchema.safeParse({ ...action, exposureId }).success).toBe(false);
+    }
+  });
+
   it('allows only consumer Saved metadata while the interim ID-only list remains compatible', () => {
     const item = { assetId: id, assetRevision: 1, savedAt: '2026-10-20T10:00:00.000Z' };
     const legacy = { revision: 0, items: [item] };
     expect(ListSavedResponseSchema.parse(legacy)).toEqual(legacy);
     const current = { revision: 0, items: [{ ...item, metadata, availability: 'corrected', currentAssetRevision: 2 }] };
     expect(ListSavedResponseSchema.parse(current)).toEqual(current);
+    // Replacement revision is different, not necessarily greater: the saved reference never changes.
+    const replacement = {
+      revision: 0,
+      items: [{ ...item, assetRevision: 3, availability: 'corrected', currentAssetRevision: 2 }],
+    };
+    expect(ListSavedResponseSchema.parse(replacement)).toEqual(replacement);
+    for (const availability of [undefined, 'available', 'withdrawn'])
+      expect(
+        ListSavedResponseSchema.safeParse({ revision: 0, items: [{ ...item, availability, currentAssetRevision: 2 }] })
+          .success,
+      ).toBe(false);
+    expect(
+      ListSavedResponseSchema.safeParse({
+        revision: 0,
+        items: [{ ...item, availability: 'corrected', currentAssetRevision: 1 }],
+      }).success,
+    ).toBe(false);
     for (const extra of [{ sources: [] }, { provenance: {} }, { peerPlayheadMs: 10 }, { modelReasoning: 'private' }])
       expect(
         ListSavedResponseSchema.safeParse({ revision: 0, items: [{ ...item, metadata: { ...metadata, ...extra } }] })

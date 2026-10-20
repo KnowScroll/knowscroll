@@ -35,7 +35,8 @@ request context → `Cache-Control: no-store` under `/auth` → origin guard (40
 → problem encoder.
 
 Explore's #234 shared contracts are prerequisites: discovery/revisit open, navigate, offer activation and
-Like/Unlike/Hide currently answer `EXPERIENCE_COMMAND_UNSUPPORTED` (422) before legacy use cases.
+Like/Unlike/Hide, current exposure-context reads and all exposure-linked actions (including
+Save/Unsave) currently answer `EXPERIENCE_COMMAND_UNSUPPORTED` (422) before legacy use cases.
 The direct open/activate and Save/Unsave paths keep their existing behavior. These refusal guards
 are replaced by the later Composer/action consumer, not by silently treating new commands as old
 ones. Contract declaration is not runtime acceptance of Explore navigation.

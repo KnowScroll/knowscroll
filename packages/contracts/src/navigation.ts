@@ -21,15 +21,21 @@ export const EncounterMetadataSchema = z.strictObject({
  * labels. A format sibling shares explanation identity; a related move is another explanation.
  * Series identity is opaque (the existing Scroll DSL uses opaque content IDs, not UUIDs).
  */
+const SeriesPositionSchema = z.strictObject({
+  seriesId: OpaqueContentId,
+  seriesRevision: Revision,
+  part: z.number().int().min(1).max(99),
+});
+const SeriesStepRelationSchema = SeriesPositionSchema.extend({ kind: z.literal('series_step') });
+const RelatedMoveRelationSchema = z.strictObject({
+  kind: z.literal('related_move'),
+  label: z.string().min(1).max(160),
+});
+
 export const EncounterRelationSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('discovery') }),
-  z.strictObject({
-    kind: z.literal('series_step'),
-    seriesId: OpaqueContentId,
-    seriesRevision: Revision,
-    part: z.number().int().min(1).max(99),
-  }),
-  z.strictObject({ kind: z.literal('related_move'), label: z.string().min(1).max(160) }),
+  SeriesStepRelationSchema,
+  RelatedMoveRelationSchema,
   z.strictObject({ kind: z.literal('format_variant') }),
   z.strictObject({ kind: z.literal('return') }),
 ]);
@@ -73,6 +79,13 @@ export const ExperienceSessionRefSchema = z.strictObject({
   expectedIntentRevision: IntentRevision,
 });
 
+/** A displayed, admitted link and immutable target; a stale card must not silently change destination. */
+export const ExpectedContinuationSchema = z.strictObject({
+  linkId: UuidSchema,
+  assetId: AssetIdSchema,
+  assetRevision: Revision,
+});
+
 /** Initial discovery omits `session`; resuming discovery names a session and its expected intent. */
 export const OpenDiscoveryRequestSchema = z.strictObject({
   commandId: CommandIdSchema,
@@ -104,8 +117,12 @@ export const OpenRevisitRequestSchema = z.strictObject({
  */
 export const NavigationIntentSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('vertical'), direction: z.enum(['next', 'previous']) }),
-  z.strictObject({ mode: z.literal('series'), direction: z.enum(['next', 'previous']) }),
-  z.strictObject({ mode: z.literal('related') }),
+  z.strictObject({
+    mode: z.literal('series'),
+    direction: z.enum(['next', 'previous']),
+    expectedContinuation: ExpectedContinuationSchema.optional(),
+  }),
+  z.strictObject({ mode: z.literal('related'), expectedContinuation: ExpectedContinuationSchema.optional() }),
   z.strictObject({ mode: z.literal('variant'), to: Format }),
   z.strictObject({
     mode: z.literal('return'),
@@ -115,7 +132,10 @@ export const NavigationIntentSchema = z.discriminatedUnion('mode', [
 
 /**
  * One ID per deliberate move, reused unchanged on retry. Expected intent fences an old offline
- * command; `from` must match the session's authoritative current offer and activated exposure.
+ * command. `from` names a previously activated, still-authorised/eligible offer and exposure of
+ * this session and epoch, including a locally parked member restored by Back. Expected intent is
+ * always the latest server session revision, never a parked entry's captured revision. A new
+ * deliberate move from that member commits a new intent; Back itself sends no command.
  * The server derives owner/epoch from the authenticated AccountScope, never from body fields.
  */
 export const NavigateExperienceRequestSchema = z.strictObject({
@@ -213,6 +233,56 @@ export const ActivateOfferResponseSchema = z.strictObject({
   replayed: z.boolean(),
 });
 
+/** Public availability, not a prepared offer or rendering authority. No phantom target while pending. */
+export const ContinuationStateSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    status: z.literal('ready'),
+    linkId: UuidSchema,
+    target: z.strictObject({ assetId: AssetIdSchema, assetRevision: Revision }),
+    metadata: EncounterMetadataSchema,
+    relation: z.discriminatedUnion('kind', [SeriesStepRelationSchema, RelatedMoveRelationSchema]),
+  }),
+  /** Only an existing, caller-authorised durable supply request may make a continuation pending. */
+  z.strictObject({ status: z.literal('pending'), requestId: UuidSchema }),
+  z.strictObject({
+    status: z.literal('unavailable'),
+    reason: z.enum(['series_boundary', 'no_related_ready', 'withdrawn']),
+  }),
+]);
+
+export const ExposureContextRequestSchema = z.strictObject({ exposureId: UuidSchema });
+
+/**
+ * A current authorised read, never an immutable receipt/offer snapshot. The consumer validates
+ * own activated exposure, epoch, exact asset revision and current eligibility without creating an
+ * exposure. `session` exists only for Composer members and returns the latest session intent for
+ * catch-up after Back or a stale-intent conflict. Positions stay in AccountScope, never this read.
+ */
+export const ExposureContextResponseSchema = z.strictObject({
+  exposureId: UuidSchema,
+  assetId: AssetIdSchema,
+  assetRevision: Revision,
+  revision: z.number().int().min(0),
+  session: z.strictObject({ sessionId: UuidSchema, intentRevision: IntentRevision }).optional(),
+  actions: z.strictObject({ saved: z.boolean(), liked: z.boolean(), hidden: z.boolean() }),
+  series: SeriesPositionSchema.optional(),
+  variants: EncounterOfferSchema.shape.variants,
+  continuations: z.strictObject({
+    seriesPrevious: ContinuationStateSchema.refine(
+      (state) => state.status !== 'ready' || state.relation.kind === 'series_step',
+      'A series continuation must describe a declared series step.',
+    ),
+    seriesNext: ContinuationStateSchema.refine(
+      (state) => state.status !== 'ready' || state.relation.kind === 'series_step',
+      'A series continuation must describe a declared series step.',
+    ),
+    related: ContinuationStateSchema.refine(
+      (state) => state.status !== 'ready' || state.relation.kind === 'related_move',
+      'A related continuation cannot be labelled as a series part.',
+    ),
+  }),
+});
+
 export type EncounterMetadata = z.infer<typeof EncounterMetadataSchema>;
 export type EncounterOffer = z.infer<typeof EncounterOfferSchema>;
 export type OpenDiscoveryRequest = z.infer<typeof OpenDiscoveryRequestSchema>;
@@ -220,8 +290,20 @@ export type OpenRevisitRequest = z.infer<typeof OpenRevisitRequestSchema>;
 export type NavigateExperienceRequest = z.infer<typeof NavigateExperienceRequestSchema>;
 export type NavigationOutcome = z.infer<typeof NavigationOutcomeSchema>;
 export type ActivateOfferRequest = z.infer<typeof ActivateOfferRequestSchema>;
+export type ContinuationState = z.infer<typeof ContinuationStateSchema>;
+export type ExposureContextResponse = z.infer<typeof ExposureContextResponseSchema>;
 
 export const navigateExperienceContract = oc
   .route({ method: 'POST', path: '/v1/experience/navigate', successStatus: 200, tags: ['experience'] })
   .input(NavigateExperienceRequestSchema)
   .output(NavigationOutcomeSchema);
+
+export const exposureContextContract = oc
+  .route({
+    method: 'GET',
+    path: '/v1/experience/exposures/{exposureId}/context',
+    successStatus: 200,
+    tags: ['experience'],
+  })
+  .input(ExposureContextRequestSchema)
+  .output(ExposureContextResponseSchema);

@@ -70,7 +70,8 @@ export class ExperienceController {
     return implement(apiContract.experience.applyAction).handler(async ({ input }) => {
       const caller = admittedCaller(request);
       // Shared contracts precede their consumers. Never route a new action into Save/Unsave.
-      if (input.kind !== 'save' && input.kind !== 'unsave') throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
+      if ((input.kind !== 'save' && input.kind !== 'unsave') || input.exposureId !== undefined)
+        throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
       const result = await this.applyAction(authorityOf(caller), { ...input, kind: input.kind });
       if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
       return { commandId: input.commandId, replayed: result.replayed, ...result.outcome };
@@ -117,6 +118,15 @@ export class ExperienceController {
   @Implement(apiContract.experience.navigate)
   navigateExperienceRoute(@Req() request: Request) {
     return implement(apiContract.experience.navigate).handler(() => {
+      admittedCaller(request);
+      throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
+    });
+  }
+
+  /** The current-context consumer is not implemented by this prerequisite release. */
+  @Implement(apiContract.experience.exposureContext)
+  exposureContextRoute(@Req() request: Request) {
+    return implement(apiContract.experience.exposureContext).handler(() => {
       admittedCaller(request);
       throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
     });

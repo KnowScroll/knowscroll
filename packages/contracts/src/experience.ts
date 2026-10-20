@@ -20,6 +20,11 @@ export const ApplyActionRequestSchema = z.object({
   commandId: CommandIdSchema,
   kind: z.enum(['save', 'unsave', 'like', 'unlike', 'hide']),
   target: z.object({ assetId: AssetIdSchema, assetRevision: z.number().int().min(1) }),
+  /**
+   * Optional explicit encounter linkage: own activated exposure, same epoch and exact revision.
+   * Without it this is asset preference only; never infer a latest encounter or qualification.
+   */
+  exposureId: UuidSchema.optional(),
 });
 
 export const SavedActionResponseSchema = z.object({
@@ -81,16 +86,23 @@ export const ListSavedResponseSchema = z.object({
   /** Universe revision the list was read at; compare with `scope_changed` hints. */
   revision: z.number().int().min(0),
   items: z.array(
-    z.object({
-      assetId: AssetIdSchema,
-      assetRevision: z.number().int().min(1),
-      savedAt: z.iso.datetime(),
-      /** Absent on the interim ID-only adapter; consumer metadata is allowlisted, never provenance. */
-      metadata: EncounterMetadataSchema.optional(),
-      availability: z.enum(['available', 'corrected', 'withdrawn']).optional(),
-      /** Only when corrected; never silently replaces the immutable revision originally saved. */
-      currentAssetRevision: z.number().int().min(1).optional(),
-    }),
+    z
+      .object({
+        assetId: AssetIdSchema,
+        assetRevision: z.number().int().min(1),
+        savedAt: z.iso.datetime(),
+        /** Absent on the interim ID-only adapter; consumer metadata is allowlisted, never provenance. */
+        metadata: EncounterMetadataSchema.optional(),
+        availability: z.enum(['available', 'corrected', 'withdrawn']).optional(),
+        /** Only when corrected and different; never replaces the immutable revision originally saved. */
+        currentAssetRevision: z.number().int().min(1).optional(),
+      })
+      .refine(
+        (item) =>
+          item.currentAssetRevision === undefined ||
+          (item.availability === 'corrected' && item.currentAssetRevision !== item.assetRevision),
+        'A current revision is only supplied for a correction to a different saved revision.',
+      ),
   ),
 });
 

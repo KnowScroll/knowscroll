@@ -45,7 +45,35 @@ interim ID-only adapter and allowlists only kind/title/summary/language and avai
 No internal source, provenance, model or ranking data is a consumer field. Decision IDs are opaque
 ops correlation only.
 
-The prerequisite API explicitly refuses discovery/revisit open, navigate, offer activation and Like/Unlike/Hide
+`GET /v1/experience/exposures/{exposureId}/context` declares a current, authorised read for an
+owned activated exposure at its exact asset revision and epoch, with current content eligibility
+rechecked. It creates no exposure. Its strict public response contains current `actions`
+(`saved`, `liked`, `hidden`), existing format availability, an optional admitted series position,
+and bounded `seriesPrevious`, `seriesNext`, `related` continuation states. A ready continuation
+has a real admitted link ID, immutable target, public metadata and a series-step or related-move
+relation; it grants no rendering authority. Pending has only a real authorised durable request
+ID; unavailable has only its reason. No future Part total, offer/exposure, scores or positions are
+invented. A Composer member's optional `session` supplies both session ID and the **latest**
+server intent revision for catch-up; direct exposures omit it. Mutable action state belongs to
+this read, not an immutable offer or receipt snapshot.
+
+Only series/related navigation can include optional `expectedContinuation`
+`{linkId, assetId, assetRevision}`. A displayed ready card binds that exact admitted link and
+revision for revalidation; a stale card must not silently change destination. Omission retains
+generic ranking/resolution. `from` may be any previously activated, still-authorised/eligible
+offer and exposure in the same session and epoch, including a locally restored parked entry.
+`expectedIntentRevision` always fences the latest server session intent, not that entry's old
+capture. Back sends no command; only a subsequent deliberate move starts a new intent.
+
+Actions may include optional `exposureId`, checked against an owned activated exposure at the
+same epoch and exact asset revision. With no linkage the action is asset preference only: never
+guess the newest exposure, create qualification, or award an encounter bonus. Other unknown
+legacy action fields still strip; malformed explicit linkage is refused, not stripped. Saved
+`currentAssetRevision` is allowed only with `availability: corrected` and a revision **different
+from** the immutable saved revision; replacement ordering is not assumed.
+
+The prerequisite API explicitly refuses discovery/revisit open, navigate, offer activation,
+context reads, exposure-linked actions (including Save/Unsave) and Like/Unlike/Hide
 with `EXPERIENCE_COMMAND_UNSUPPORTED` before legacy use-case effects. The direct client rejects a
 Composer outcome as a controlled session error. These declarations do not implement Composer,
 new action/evidence state, Saved metadata hydration or any Explore UI. No #234 runtime acceptance

@@ -88,4 +88,34 @@ describe('Explore contract prerequisite compatibility refusals', () => {
     });
     expect(effects).not.toHaveBeenCalled();
   });
+
+  it('refuses context reads and exposure-linked actions, including Save/Unsave, before legacy effects', async () => {
+    const { controller, effects } = prerequisiteController();
+    const request = await admittedRequest();
+    await expect(call(controller.exposureContextRoute(request), { exposureId: id })).rejects.toMatchObject({
+      code: 'EXPERIENCE_COMMAND_UNSUPPORTED',
+      status: 422,
+    });
+    for (const kind of ['save', 'unsave', 'like', 'unlike', 'hide'] as const)
+      await expect(
+        call(controller.applyActionRoute(request), {
+          commandId: id,
+          kind,
+          target: { assetId: id, assetRevision: 1 },
+          exposureId: id,
+        }),
+      ).rejects.toMatchObject({ code: 'EXPERIENCE_COMMAND_UNSUPPORTED', status: 422 });
+    await expect(
+      call(controller.applyActionRoute(request), {
+        commandId: id,
+        kind: 'save',
+        target: { assetId: id, assetRevision: 1 },
+        exposureId: 'malformed',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(call(controller.exposureContextRoute(request), { exposureId: 'malformed' })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+    expect(effects).not.toHaveBeenCalled();
+  });
 });
