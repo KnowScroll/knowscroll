@@ -87,7 +87,8 @@ aggregates. Per-topic-format O counts usable qualification measurements and Q qu
 unknown measurements enter neither. Format twins retain one explanation identity for established
 novelty and do not fabricate conceptual variety.
 
-`ReadPreparedActivity` implements Composer's bounded prepared-input port: actual latest20 activated
+`ReadPreparedActivity` is retained for direct legacy compatibility fixtures only (explicit
+`legacyPreparedRead: true`; absent from shipped providers). Its bounded read contains: actual latest20 activated
 encounters within24h, indexed candidate-relevant established explanation/facet probes independent
 of the24h window, requested-topic aggregates, candidate-bounded current Hide and scope watermark.
 Hide is read only for supplied actual candidate asset IDs (<=100 unique UUIDs), with a separate
@@ -139,3 +140,9 @@ rewrite of0019 is used.
 exposure/sequence references, plus `hasMore`. Indexed observation sequences already covered by an
 evidence input watermark are excluded. This is a private, routing-only pending tail, never formation,
 qualification or another contribution. Source bodies and peer playback/navigation are absent.
+
+
+Production navigation now requires Personal Context's READ_COMPOSER_CONTEXT capability. Evidence
+continues to supply its owned statistics and routing-input ports to PC, but the former prepared
+activity reader cannot be selected as a runtime fallback. This wiring change alters no evidence
+qualification, activity arithmetic, projection policy, queue, table or erasure behavior.

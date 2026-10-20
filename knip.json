@@ -14,7 +14,13 @@
       "project": ["src/**/*.ts"]
     },
     "apps/client": {
-      "entry": ["app/**/*.tsx", "platform/**/*.web.ts", "e2e/*.spec.ts"],
+      "entry": [
+        "app/**/*.tsx",
+        "platform/**/*.web.ts",
+        "e2e/*.spec.ts",
+        "features/encounter/encounter-overlay.web.tsx",
+        "features/encounter/gestures/reel-gesture-stage.web.tsx"
+      ],
       "project": [
         "app/**/*.tsx",
         "features/**/*.{ts,tsx}",

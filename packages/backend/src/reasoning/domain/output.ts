@@ -167,7 +167,8 @@ export function issueForExtraction(reason: InvalidOutputReason, text: string): O
 
 /**
  * One validator finding, as sent back to the model in a repair request and kept on the attempt.
- * Built from schema structure or fixed extraction categories, never reply text or error messages.
+ * Built from schema structure, role-declared static semantic codes/hints or fixed extraction
+ * categories, never reply text or error messages.
  */
 export interface OutputIssue {
   readonly path: string;
@@ -179,6 +180,45 @@ export interface OutputIssue {
 export const MAX_ISSUES = 8;
 
 const safeSegment = /^[A-Za-z0-9_-]{1,32}$/;
+
+/** Static, code-owned semantic feedback, never built from context or provider/user values. */
+export type SafeCustomIssues = Readonly<Record<string, string>>;
+const customCode = /^[a-z][a-z0-9_]{0,63}$/u;
+
+/** Admission bound for the optional role catalogue; no custom feedback is enabled by default. */
+export function validSafeCustomIssues(catalogue: SafeCustomIssues): boolean {
+  if (typeof catalogue !== 'object' || catalogue === null || Array.isArray(catalogue)) return false;
+  const keys = Reflect.ownKeys(catalogue);
+  if (keys.length > 128) return false;
+  return keys.every((code) => {
+    if (typeof code !== 'string' || !customCode.test(code) || code === 'constructor' || code === 'prototype')
+      return false;
+    // Lookup consumes own properties: admission must inspect all of them without invoking getters.
+    const descriptor = Object.getOwnPropertyDescriptor(catalogue, code);
+    if (descriptor?.enumerable !== true || !Object.hasOwn(descriptor, 'value')) return false;
+    const hint: unknown = descriptor.value;
+    return typeof hint === 'string' && hint.length > 0 && hint.length <= 256 && !/[\p{Cc}\p{Cf}]/u.test(hint);
+  });
+}
+
+function customFeedback(
+  issue: Readonly<Record<string, unknown>>,
+  catalogue: SafeCustomIssues | undefined,
+): { readonly code: string; readonly detail: string } | undefined {
+  if (issue['code'] !== 'custom' || catalogue === undefined) return undefined;
+  const params = issue['params'];
+  if (typeof params !== 'object' || params === null || !Object.hasOwn(params, 'safeCode')) return undefined;
+  const code = (params as Readonly<Record<string, unknown>>)['safeCode'];
+  if (
+    typeof code !== 'string' ||
+    !customCode.test(code) ||
+    code === 'constructor' ||
+    code === 'prototype' ||
+    !Object.hasOwn(catalogue, code)
+  )
+    return undefined;
+  return { code, detail: catalogue[code] as string };
+}
 
 /** The parts of a Zod 4 schema definition the path walk reads (`schema._zod.def`). */
 interface SchemaDef {
@@ -337,19 +377,23 @@ function isAbsent(value: unknown, path: readonly PropertyKey[]): boolean {
 }
 
 /**
- * Summarises schema issues for the model and the ledger. Bounded (`MAX_ISSUES`), structural only:
+ * Summarises schema issues for the model and the ledger. Bounded (`MAX_ISSUES`):
  * paths contain only names the role's schema declares, numeric indexes and the placeholder `[key]`
  * (`pathOf`), details come from the schema's expectations (types, bounds, allowed literals),
- * never from the issue message, received values or received key names.
+ * never from the issue message, received values or received key names. An opted-in custom issue
+ * contributes only its role-declared static code/hint; its path uses the same masking.
  * A type issue at a path the answer does not have is reported as `missing` (a required field).
  */
 export function summariseIssues(
   issues: readonly z.core.$ZodIssue[],
   value?: unknown,
   schema?: unknown,
+  safeCustomIssues?: SafeCustomIssues,
 ): readonly OutputIssue[] {
   const summary: OutputIssue[] = issues.slice(0, MAX_ISSUES).map((issue) => {
     const record = issue as unknown as Readonly<Record<string, unknown>>;
+    const custom = customFeedback(record, safeCustomIssues);
+    if (custom !== undefined) return { path: pathOf(issue.path, schema), ...custom };
     const detail = detailOf(record);
     if (
       record['code'] === 'invalid_type' &&
@@ -379,13 +423,17 @@ export type OutputVerdict<T> =
  * Validates an extracted, already-redacted value against the role's schema. `value` is what is
  * stored (and re-validated on a later delivery); `output` is the schema's parsed result.
  */
-export function validateOutput<T>(schema: z.ZodType<T>, value: Readonly<Record<string, unknown>>): OutputVerdict<T> {
+export function validateOutput<T>(
+  schema: z.ZodType<T>,
+  value: Readonly<Record<string, unknown>>,
+  safeCustomIssues?: SafeCustomIssues,
+): OutputVerdict<T> {
   const parsed = schema.safeParse(value);
   if (parsed.success) return { valid: true, output: parsed.data, value };
   return {
     valid: false,
     reason: 'OUTPUT_SCHEMA_MISMATCH',
-    issues: summariseIssues(parsed.error.issues, value, schema),
+    issues: summariseIssues(parsed.error.issues, value, schema, safeCustomIssues),
   };
 }
 

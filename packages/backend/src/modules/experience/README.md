@@ -42,7 +42,7 @@ unlinked Save/Unsave retain their existing operations and receipt versions. Back
 reader without a command. This backend source does not constitute a connected client journey.
 
 Navigation locks the personal root for Tx1 (receipt/epoch/latest intent/source membership + bounded
-content/evidence snapshot), runs pure Composer **outside** the transaction, then locks for Tx2.
+content/Personal Context snapshot), runs pure Composer **outside** the transaction, then locks for Tx2.
 Tx2 rechecks receipt/epoch/latest intent, any activated same-session source, each selected exact
 revision/current admission/render support/Hide and exact continuity version. It atomically commits
 receipt/session/decision/at most three immutable offers. Catalog drift permits one rerank; a second
@@ -91,3 +91,15 @@ metadata and conservative JSON escaping, without truncation or dropping Composer
 Descriptor/binding/policy rewrites are refused by a database trigger; full AccountScope erasure
 removes the private receipt and offer references together. A missing/inconsistent replay reference
 is an internal availability refusal, never a silently rebuilt current result.
+
+
+## Personal Context preparation (#235)
+
+Navigation's existing prepared-input capability now requires READ_COMPOSER_CONTEXT from the PC owner.
+The API and worker install that adapter through personalContextProviders. It reads the revisioned
+exploration snapshot within Tx1's existing personal lock, maps available A/Q/O and actual bounded
+routing history, and preserves neutral absent-topic history. The exact versioned PC/scope watermark
+is copied into the private Composer decision's context binding. The read changes no scope or PC
+revision. Tx2's authority/epoch/intent/admission/Hide/continuity rechecks remain unchanged. A missing
+PC provider fails DI; no Evidence preparation fallback exists in shipped navigation. No raw context,
+scores, structural support or provisional observations are added to the public navigation wire.

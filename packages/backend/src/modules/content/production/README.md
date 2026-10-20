@@ -44,13 +44,13 @@ JSON; v2 makes that distinction explicit and adds one `JSON.stringify`-generated
 example. This is a bounded prompt correction, not evidence that the earlier model copied grammar
 or that the revised prompt will succeed. Parsing, schemas, admission and repair limits are unchanged.
 
-| Identity | v1 | v2 | v3 | Current v4 |
-|---|---|---|---|---|
-| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` |
-| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged |
-| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) | `scroll-writer.v3` |
-| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged | Unchanged |
-| Evidence candidate recipe | None | None | `quote-candidates.v1` | Unchanged |
+| Identity | v1 | v2 | v3 | v4 | Current v5 |
+|---|---|---|---|---|---|
+| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` | `scroll-production.v5` |
+| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged | Unchanged |
+| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) | `scroll-writer.v3` | `scroll-writer.v4` (semantic repair feedback) |
+| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged | Unchanged | Unchanged |
+| Evidence candidate recipe | None | None | `quote-candidates.v1` | Unchanged | Unchanged |
 
 All four rejected v1/v2/v3 jobs, their stable run IDs and eleven attempts stay untouched. A reviewed v4 invocation
 creates a different job and role runs; it is not a resend or resume of an earlier version. It still
@@ -110,6 +110,35 @@ and strict JSON extraction remain unchanged. Copy-nine, binding, numeric, honest
 interactive and admission checks still use the same one repair. Role identity and failure brake are
 unchanged; writer provenance records `scroll-writer.v3`. CI preserves synthetic historical terminal
 job/attempt bytes and tests both valid modes, malformed arrays and unchanged refusals.
+
+## Fixed semantic repair feedback in v5
+
+The real dev v4 greenhouse job completed its claims request, then writer primary and repair failed
+`OUTPUT_SCHEMA_MISMATCH`. Only `custom` codes and masked paths were retained. Failed drafts are
+unavailable, so the exact rejected rule is unknown; no copy, numeric or other cause is inferred.
+
+Policy `scroll-production.v5` and writer/provenance version `scroll-writer.v4` change the repair
+feedback behavior: the writer declares the existing static producer `REPAIR_HINTS` plus three fixed
+content checks (`reader_block_unbound`, `reader_source_or_url`, `interactive_required`). Its custom
+Zod issues attach `params.safeCode` only for those own allowlisted codes. The shared harness uses
+the corresponding fixed code/hint with its unchanged schema path masking and eight-issue bound;
+it never reads custom messages, draft values, source excerpts or unknown path names. The internal
+`admission_refused` invariant remains undeclared and masked as `custom`, without a repair hint.
+Claims remain `scroll-claims.v2` and do not opt into semantic feedback. Role IDs are unchanged.
+
+The primary writer request recipe and all schema, compilation, copy-nine, numeric, binding, length,
+DSL, interactive and stored-admission assertions are unchanged. The same primary plus one repair
+per role still costs at most four calls per topic. No failed raw draft is retained. The version
+change records an actual feedback contract change, never resets the daily ledger, role failure
+brake, production generation or external allowance, and does not authorize a call. New invocation
+requires a separately reviewed coordinator allocation; terminal v1–v4 jobs/runs/attempts stay
+immutable. CI preserves five historical job shapes/fourteen attempts byte-for-byte and exercises
+actual writer semantic refusal → safe stored issue → fixed repair context → replay without resend.
+This is fixture evidence; no real generation success is established by this change.
+
+The publication hook imports these exact policy/writer constants, so new topic projection requires
+v5 job lineage and v4 writer provenance in addition to all existing scope, closure, receipt and
+admission checks. No historical reconciliation or backfill is added.
 
 ## New-publication topic authority
 

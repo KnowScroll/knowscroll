@@ -17,7 +17,8 @@ import {
   type PersistComposerDecision,
   type ReadPreparedEvidenceInput,
 } from '../../composer/public.js';
-import { READ_PREPARED_ACTIVITY, projectEncounterActivityQueue } from '../../evidence/public.js';
+import { projectEncounterActivityQueue } from '../../evidence/public.js';
+import { READ_COMPOSER_CONTEXT } from '../../personal-context/public.js';
 import type { WithPersonalScope } from '../../identity/public.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
@@ -55,7 +56,7 @@ export function navigationProviders(t: { readonly withPersonalScope: symbol; rea
       inject: [
         t.withPersonalScope,
         t.enqueueJob,
-        READ_PREPARED_ACTIVITY,
+        READ_COMPOSER_CONTEXT,
         COMPOSE_ENCOUNTER,
         PERSIST_COMPOSER_DECISION,
         READ_DISCOVERY_CANDIDATES,

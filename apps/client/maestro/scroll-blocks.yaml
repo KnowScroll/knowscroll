@@ -53,10 +53,20 @@ tags:
 - assertVisible: 99.2 °C
 - takeScreenshot: scroll-04-personal-number-control
 
-- scrollUntilVisible:
-    element: Toward Left pier
-    centerElement: true
-    timeout: 90000
+# The centred altitude control is a native EditText. A centre-screen search starts
+# inside that field and leaves the article stationary (run 39466107619 hierarchy:
+# [242,1163][839,1291] includes the 540,1200 start). Read from the article gutter,
+# keeping the target and frame assertions mandatory.
+- repeat:
+    times: 20
+    while:
+      notVisible: Toward Left pier
+    commands:
+      - swipe:
+          start: 4%, 85%
+          end: 4%, 35%
+          duration: 650
+- assertVisible: Toward Left pier
 - tapOn: Toward Left pier
 - assertVisible: Left pier.*With the weight over the left pier.*
 - takeScreenshot: scroll-05-diagram-choice

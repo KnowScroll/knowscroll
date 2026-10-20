@@ -9,16 +9,24 @@ import {
 import { READ_ROUTING_HISTORY, type ReadRoutingHistory } from '../../experience/public.js';
 import { formatFit, interest } from '../domain/context.js';
 import { makeReadExplorationSnapshot } from '../application/read-snapshot.js';
+import { makeReadComposerContext } from '../application/read-composer-context.js';
+import type { ReadExplorationSnapshot } from '../application/ports.js';
 import {
   APPLY_PROJECTED_ENCOUNTER,
   READ_EXPLORATION_SNAPSHOT,
   ACTIVITY_CONTEXT_EFFECT,
   READ_RECENT_CONTEXT_TOPICS,
+  READ_COMPOSER_CONTEXT,
 } from '../public.js';
 import { applyProjectedEncounter, readContextRevision, readStructure } from './postgres-store.js';
 import { activityContextEffect } from './activity-effect.js';
 export function personalContextProviders() {
   return [
+    {
+      provide: READ_COMPOSER_CONTEXT,
+      inject: [READ_EXPLORATION_SNAPSHOT],
+      useFactory: (read: ReadExplorationSnapshot) => makeReadComposerContext(read),
+    },
     {
       provide: READ_RECENT_CONTEXT_TOPICS,
       inject: [READ_RECENT_TOPIC_IDS],

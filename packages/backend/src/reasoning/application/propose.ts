@@ -8,7 +8,9 @@ import {
   issueFor,
   issueForExtraction,
   validateOutput,
+  validSafeCustomIssues,
   type OutputIssue,
+  type SafeCustomIssues,
 } from '../domain/output.js';
 import { HARNESS_PROMPT_VERSION, buildPrompt } from '../domain/prompt.js';
 import { makeExecuteAttempt, type AttemptResult, type Judgement } from './execute-attempt.js';
@@ -41,6 +43,15 @@ export interface ReasoningRole<T> {
   readonly instructions: string;
   /** The structural contract of an answer. Schema acceptance is not a quality judgement. */
   readonly outputSchema: z.ZodType<T>;
+  /**
+   * Optional static code → hint catalogue for custom issues with `params.safeCode`. Owned by
+   * role code, never context/provider/user data. At most 128 codes (lowercase, digits, `_`, 64
+   * chars), each hint 1–256 characters without Unicode Cc/Cf controls. Only enumerable string
+   * data properties are accepted; hidden, accessor and symbol entries refuse admission.
+   * Unknown codes/messages stay suppressed.
+   * Changes to this feedback contract require a role version change.
+   */
+  readonly safeCustomIssues?: SafeCustomIssues;
   /** Output ceiling per attempt (reasoning + answer), 1 … `MAX_ROLE_OUTPUT_TOKENS`. */
   readonly maxOutputTokens: number;
   /** Fewer context items than this is refused before anything is reserved (default 0). */
@@ -202,7 +213,8 @@ function roleProblem<T>(role: ReasoningRole<T>): boolean {
     !Number.isInteger(role.maxOutputTokens) ||
     role.maxOutputTokens < 1 ||
     role.maxOutputTokens > MAX_ROLE_OUTPUT_TOKENS ||
-    (role.minContextItems !== undefined && (!Number.isInteger(role.minContextItems) || role.minContextItems < 0))
+    (role.minContextItems !== undefined && (!Number.isInteger(role.minContextItems) || role.minContextItems < 0)) ||
+    (role.safeCustomIssues !== undefined && !validSafeCustomIssues(role.safeCustomIssues))
   );
 }
 
@@ -262,7 +274,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
     }
   }
 
-  function judgeWith<T>(schema: z.ZodType<T>) {
+  function judgeWith<T>(schema: z.ZodType<T>, safeCustomIssues?: SafeCustomIssues) {
     /** `reason` is an `InvalidOutputReason` or the adapter's unreadable-reply code. */
     const invalid = (reason: string, issues: readonly OutputIssue[]): Judgement => ({
       valid: false,
@@ -279,7 +291,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
       if (exceedsDepth(extracted.value, MAX_ANSWER_DEPTH))
         return invalid('OUTPUT_TOO_DEEP', [issueFor('OUTPUT_TOO_DEEP')]);
       const redacted = ports.redactRecorded(extracted.value);
-      const verdict = validateOutput(schema, redacted);
+      const verdict = validateOutput(schema, redacted, safeCustomIssues);
       if (!verdict.valid) return invalid(verdict.reason, verdict.issues);
       const stored = { v: 1 as const, text: JSON.stringify(redacted) };
       if (utf8.encode(JSON.stringify(stored)).length > MAX_STORED_OUTPUT_BYTES)
@@ -402,7 +414,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
         caps,
         ...(causationAttemptId === undefined ? {} : { causationAttemptId }),
       });
-      const judge = judgeWith(role.outputSchema);
+      const judge = judgeWith(role.outputSchema, role.safeCustomIssues);
 
       const primaryBody = encode();
       if (primaryBody === undefined) return refuse('request_too_large');

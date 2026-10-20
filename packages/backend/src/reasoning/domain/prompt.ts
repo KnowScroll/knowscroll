@@ -25,7 +25,7 @@ export interface PromptInput {
   readonly instructions: string;
   readonly bundleRef: string;
   readonly items: readonly PromptItem[];
-  /** Present only for a repair: the validator's findings on the previous answer (trusted, structural). */
+  /** Present only for a repair: schema findings or role-declared static semantic feedback. */
   readonly feedback?: readonly OutputIssue[];
 }
 
@@ -49,7 +49,7 @@ const preamble = [
 
 /**
  * Builds the system and user text for one attempt (primary or repair). The validator's feedback
- * for a repair is harness-generated from the schema's structure (never from the rejected answer),
+ * for a repair comes from schema structure or the role's static semantic catalogue (never reply text),
  * so it is trusted and goes in the system text, after the role's instructions; context items stay
  * escaped data in the user text.
  */
