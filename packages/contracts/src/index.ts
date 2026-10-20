@@ -18,3 +18,5 @@ export * from './navigation.js';
 export * from './supply.js';
 
 export * from './geography.js';
+
+export * from './scenes.js';
