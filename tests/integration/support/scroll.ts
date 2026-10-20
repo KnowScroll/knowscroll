@@ -25,6 +25,7 @@ import {
   type ReadExplorationSnapshot,
   type ReadRecentContextTopics,
   READ_RECENT_CONTEXT_TOPICS,
+  READ_COMPOSER_CONTEXT,
 } from '@knowscroll/backend/modules/personal-context';
 import {
   READ_ACTIVITY_STATISTICS,
@@ -122,6 +123,7 @@ export async function scrollUseCases(
   readonly projectActivity: ProjectEncounterActivity;
   readonly reconcileActivity: ReconcileEncounterActivity;
   readonly readPrepared: ReadPreparedEvidenceInput;
+  readonly readComposerContext: ReadPreparedEvidenceInput;
   readonly readExploration: ReadExplorationSnapshot;
   readonly readRecentTopics: ReadRecentContextTopics;
   readonly importScroll: ImportEditorialScroll;
@@ -152,7 +154,12 @@ export async function scrollUseCases(
   for (const p of composer) values.set(p.provide, p.useValue);
   const providers = [
     ...personalContextProviders(),
-    ...activityProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE, derivedProjection: ACTIVITY_CONTEXT_EFFECT }),
+    ...activityProviders({
+      withPersonalScope: SCOPE,
+      enqueueJob: ENQUEUE,
+      derivedProjection: ACTIVITY_CONTEXT_EFFECT,
+      legacyPreparedRead: true,
+    }),
     ...navigationProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
     ...experienceProviders({ database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
     ...evidenceIntakeProviders({ database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
@@ -168,6 +175,8 @@ export async function scrollUseCases(
   values.set(READ_ACTIVITY_STATISTICS, build(READ_ACTIVITY_STATISTICS));
   values.set(READ_OBSERVATION_TAIL, build(READ_OBSERVATION_TAIL));
   values.set(READ_RECENT_TOPIC_IDS, build(READ_RECENT_TOPIC_IDS));
+  values.set(READ_EXPLORATION_SNAPSHOT, build(READ_EXPLORATION_SNAPSHOT));
+  values.set(READ_COMPOSER_CONTEXT, build(READ_COMPOSER_CONTEXT));
   values.set(NAVIGATION_PORTS, build(NAVIGATION_PORTS));
   return {
     navigate: build(NAVIGATE_ENCOUNTER) as NavigateEncounter,
@@ -178,6 +187,7 @@ export async function scrollUseCases(
     projectActivity: build(PROJECT_ENCOUNTER_ACTIVITY) as ProjectEncounterActivity,
     reconcileActivity: build(RECONCILE_ENCOUNTER_ACTIVITY) as ReconcileEncounterActivity,
     readPrepared: values.get(READ_PREPARED_ACTIVITY) as ReadPreparedEvidenceInput,
+    readComposerContext: values.get(READ_COMPOSER_CONTEXT) as ReadPreparedEvidenceInput,
     readExploration: build(READ_EXPLORATION_SNAPSHOT) as ReadExplorationSnapshot,
     readRecentTopics: build(READ_RECENT_CONTEXT_TOPICS) as ReadRecentContextTopics,
     importScroll: importEditorialScrollUseCase(database.db),

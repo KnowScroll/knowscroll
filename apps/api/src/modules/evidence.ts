@@ -11,6 +11,7 @@ import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-co
 
 /** Evidence wiring for the API composition root: the observation intake and the dev diagnostics read. */
 export const evidenceWiring: Provider[] = [
+  // Installs the required PC-owned Composer adapter; legacy Evidence preparation stays disabled.
   ...personalContextProviders(),
   ...activityProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,

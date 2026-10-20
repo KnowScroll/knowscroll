@@ -39,6 +39,8 @@ export function activityProviders(t: {
   readonly withPersonalScope: symbol;
   readonly enqueueJob: symbol;
   readonly derivedProjection?: symbol;
+  /** Direct compatibility fixtures only; shipped navigation must read the context owner. */
+  readonly legacyPreparedRead?: true;
 }) {
   return [
     { provide: READ_RECENT_TOPIC_IDS, inject: [], useFactory: () => readRecentTopicIds },
@@ -105,10 +107,14 @@ export function activityProviders(t: {
       inject: [ACTIVITY_PORTS],
       useFactory: (p: ActivityPorts) => makeReconcileEncounterActivity(p),
     },
-    {
-      provide: READ_PREPARED_ACTIVITY,
-      inject: [ACTIVITY_PORTS],
-      useFactory: (p: ActivityPorts) => makeReadPreparedActivity(p),
-    },
+    ...(t.legacyPreparedRead
+      ? [
+          {
+            provide: READ_PREPARED_ACTIVITY,
+            inject: [ACTIVITY_PORTS],
+            useFactory: (p: ActivityPorts) => makeReadPreparedActivity(p),
+          },
+        ]
+      : []),
   ];
 }

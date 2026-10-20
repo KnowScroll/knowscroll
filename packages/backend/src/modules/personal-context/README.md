@@ -1,7 +1,8 @@
 # modules/personal-context
 
-Backend-only prepared exploration context (#235, blueprint §§5,8,19). This source slice does not
-establish a dev Composer consumer, a planet, personal learning, or a completed historical rollout.
+Backend-only prepared exploration context (#235, blueprint §§5,8,19). Shipped navigation source
+uses the PC-owned Composer adapter. Actual dev consumer inspection, planet formation, personal
+learning and completed historical rollout are not established by source/CI evidence.
 
 Personal context owns revisioned qualified structural support and its bounded snapshot. Evidence
 continues to own qualification, original activity channels, the capped activity function, 14-day
@@ -92,5 +93,23 @@ only. The exact A→B→A fixture pins both exposure and routing-lineage activat
 contributions have identical decay weights. Arbitrary distinct-time IEEE754 arithmetic may retain
 approximately1e-16 residue; this is not a claim of exact cancellation for every timestamp, and the
 Evidence arithmetic/policy remains unchanged. Local schema generation/typecheck are not runtime acceptance. #235 remains open until the
-coordinator integrates the deliberately reviewed Composer adapter, deploys and inspects the context
-after actual reading on a disposable dev account.
+coordinator deploys the reviewed consumer and inspects the context after actual reading on a
+disposable dev account.
+
+
+## Composer compatibility read
+
+`READ_COMPOSER_CONTEXT` implements the existing backend-only Composer preparation capability by
+calling `READ_EXPLORATION_SNAPSHOT` under the same personal scope. It validates scope, epoch, exact
+evaluation time, policy, independent query bounds and source watermarks. It keeps available rows,
+including observed zero; not_observed default rows remain absent so missing-history interest stays
+neutral. It copies A/Q/O and actual routing recent/established/Hide without new score arithmetic.
+The existing Composer type is a compatibility boundary, not another personal projection.
+
+The persisted input policy is personal-context.v0 and the versioned watermark binds PC revision,
+locked scope revision, latest projection and not_asserted completeness. Navigation uses the same
+watermark for its Composer snapshot. ProvisionalLimit0 avoids reading observation tails for this
+consumer; neither provisional references nor qualified structural/facet support enter its arithmetic.
+The adapter performs no writes, advances no revision and adds no stores/erasure entries. Both shipped
+API and worker instantiate it. Navigation requires its explicit token; legacy Evidence readers are
+available only through an opt-in compatibility-fixture provider, with no production fallback.
