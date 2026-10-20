@@ -1,7 +1,198 @@
+import type { Kysely } from 'kysely';
+import type { ReasoningSettings } from '../../infrastructure/config/index.js';
+import { uuidv7 } from '../../infrastructure/ids/index.js';
+import type { LogEvent } from '../../infrastructure/observability/index.js';
+import { makeAuthorityHolds, type Database } from '../../infrastructure/postgres/index.js';
+import type { WithPersonalScope } from '../../modules/identity/public.js';
+import { makeReasoningOperator } from '../application/operator.js';
+import type { HarnessPorts, HarnessSettings, ModelPort } from '../application/ports.js';
+import { makeReasoningHarness } from '../application/propose.js';
+import {
+  PURGE_EXPIRED_REQUESTS,
+  REASONING_HARNESS,
+  SWEEP_DISPATCHED_ATTEMPTS,
+  type PurgeExpiredRequests,
+  type SweepDispatchedAttempts,
+} from '../public.js';
+import { guardedModelPort } from './guarded-model.js';
+import { makeMiniMaxModelPort } from './minimax/minimax-model.js';
+import { makeAttemptLedger } from './postgres-ledger.js';
+import { redactRecorded, sha256Hex } from './recording.js';
+
 /**
- * Reusable outer wiring of the reasoning engine (blueprint §22): the PostgreSQL attempt ledger and
- * the transaction guard every model transport must be wrapped in. Composition roots (and
- * integration tests) only. No role uses the engine in S1.2; S2.2 adds the first real transport.
+ * Reusable outer wiring of the reasoning engine (blueprint §22), for composition roots and
+ * integration tests only (a module cannot import this file: the dependency rules allow it from the
+ * apps' composition roots and tests): the PostgreSQL attempt ledger, the transaction guard every
+ * transport is wrapped in, the MiniMax transport, and the harness and operator factories with the
+ * types they need. The CI fixture model is test support (`tests/integration/support`), not here.
  */
+export { makeReasoningHarness } from '../application/propose.js';
+export { makeReasoningOperator, type ReasoningOperator } from '../application/operator.js';
+export {
+  MAX_STORED_OUTPUT_BYTES,
+  ModelNotSentError,
+  ModelOutcomeUnknownError,
+  ModelRejectedError,
+  type AttemptLedger,
+  type GuardedModelPort,
+  type HarnessPorts,
+  type HarnessSettings,
+  type ModelPort,
+  type ModelReply,
+  type ModelRequest,
+  type QuotaObservation,
+  type StopReason,
+} from '../application/ports.js';
 export { guardedModelPort } from './guarded-model.js';
+export { makeMiniMaxModelPort, type MiniMaxSettings } from './minimax/minimax-model.js';
 export { makeAttemptLedger } from './postgres-ledger.js';
+
+/** Fifteen minutes between opportunistic purges of expired protected requests. */
+const PURGE_INTERVAL_MS = 15 * 60 * 1000;
+
+/** Harness settings from the worker's reasoning configuration. */
+export function harnessSettings(settings: ReasoningSettings, dispatchedBy: string): HarnessSettings {
+  return {
+    caps: settings.caps,
+    maxRequestBytes: settings.maxRequestBytes,
+    requestRetentionSeconds: settings.requestRetentionSeconds,
+    purgeIntervalMs: PURGE_INTERVAL_MS,
+    dispatchedBy,
+  };
+}
+
+/**
+ * How long an attempt may stay `dispatched` before the sweep treats it as orphaned: the provider
+ * request deadline plus two minutes for settlement (for `provider: none`, nothing is ever
+ * dispatched; the largest allowed deadline is assumed).
+ */
+export function dispatchStaleAfterSeconds(settings: ReasoningSettings): number {
+  return Math.ceil((settings.minimax?.requestTimeoutMs ?? 300_000) / 1000) + 120;
+}
+
+/**
+ * The configured provider transport, or `undefined` for `provider: none`. `postgresHarnessPorts`
+ * wraps it with the transaction guard.
+ */
+export function configuredModelPort(settings: ReasoningSettings): ModelPort | undefined {
+  if (settings.provider === 'none' || settings.minimax === undefined) return undefined;
+  return makeMiniMaxModelPort({
+    apiKey: settings.minimax.apiKey,
+    model: settings.minimax.model,
+    requestTimeoutMs: settings.minimax.requestTimeoutMs,
+    quotaTimeoutMs: 10_000,
+    quotaFloorPercent: settings.minimax.quotaFloorPercent,
+    maxReplyBytes: 524_288,
+    maxRequestBytes: settings.maxRequestBytes,
+  });
+}
+
+/**
+ * The harness's ports over one database, with the real ledger, authority check, hashing,
+ * redaction, UUIDv7 IDs and the wall clock. `overrides` replaces any port (tests inject a
+ * crashing ledger or a flaky authority check this way).
+ */
+export function postgresHarnessPorts(options: {
+  readonly db: Kysely<Database>;
+  readonly withPersonalScope: WithPersonalScope;
+  readonly model: ModelPort | undefined;
+  readonly logEvent: LogEvent;
+  readonly settings: HarnessSettings;
+  readonly overrides?: Partial<HarnessPorts>;
+}): HarnessPorts {
+  return {
+    withPersonalScope: options.withPersonalScope,
+    authorityHolds: makeAuthorityHolds(options.db),
+    model: options.model === undefined ? undefined : guardedModelPort(options.model),
+    ledger: makeAttemptLedger(options.db),
+    hashBytes: sha256Hex,
+    redactRecorded,
+    newId: () => uuidv7(),
+    now: () => Date.now(),
+    logEvent: options.logEvent,
+    settings: options.settings,
+    ...options.overrides,
+  };
+}
+
+/**
+ * Nest wiring of the scheduled crash-recovery sweep (`reasoning.sweep-dispatched-attempts`, every
+ * 5 minutes) for the worker composition root.
+ */
+export function reasoningSweepProviders(tokens: {
+  readonly database: symbol;
+  readonly logEvent: symbol;
+  /** Injects an object with the worker's `reasoning` settings. */
+  readonly workerConfig: symbol;
+}) {
+  return [
+    {
+      provide: SWEEP_DISPATCHED_ATTEMPTS,
+      inject: [tokens.database, tokens.logEvent, tokens.workerConfig],
+      useFactory: (
+        db: Kysely<Database>,
+        logEvent: LogEvent,
+        config: { readonly reasoning: ReasoningSettings },
+      ): SweepDispatchedAttempts => {
+        const operator = reasoningOperatorFor(db, logEvent);
+        const staleAfterSeconds = dispatchStaleAfterSeconds(config.reasoning);
+        return () => operator.sweepStaleDispatched(staleAfterSeconds);
+      },
+    },
+  ];
+}
+
+/** The operator actions (write-off, unknown list, sweep, purge) over one database. */
+export function reasoningOperatorFor(db: Kysely<Database>, logEvent: LogEvent) {
+  return makeReasoningOperator({ ledger: makeAttemptLedger(db), logEvent });
+}
+
+/**
+ * Nest wiring of the scheduled protected-request purge (`reasoning.purge-expired-requests`, every
+ * 15 minutes) for the worker composition root.
+ */
+export function reasoningPurgeProviders(tokens: { readonly database: symbol; readonly logEvent: symbol }) {
+  return [
+    {
+      provide: PURGE_EXPIRED_REQUESTS,
+      inject: [tokens.database, tokens.logEvent],
+      useFactory: (db: Kysely<Database>, logEvent: LogEvent): PurgeExpiredRequests => {
+        const operator = reasoningOperatorFor(db, logEvent);
+        return () => operator.purgeExpired();
+      },
+    },
+  ];
+}
+
+/**
+ * Nest providers for the worker composition root: binds `REASONING_HARNESS` to a harness over the
+ * worker's database, personal scope and diagnostics, with the configured provider (none, or the
+ * MiniMax token plan). Roles inject `REASONING_HARNESS` from their module's wiring.
+ */
+export function reasoningProviders(
+  tokens: { readonly database: symbol; readonly withPersonalScope: symbol; readonly logEvent: symbol },
+  settings: ReasoningSettings,
+) {
+  return [
+    {
+      provide: REASONING_HARNESS,
+      inject: [tokens.database, tokens.withPersonalScope, tokens.logEvent],
+      useFactory: (db: Kysely<Database>, withPersonalScope: WithPersonalScope, logEvent: LogEvent) => {
+        const model = configuredModelPort(settings);
+        logEvent('reasoning.provider_configured', {
+          provider: model?.provider ?? 'none',
+          ...(model === undefined ? {} : { model: model.model }),
+        });
+        return makeReasoningHarness(
+          postgresHarnessPorts({
+            db,
+            withPersonalScope,
+            model,
+            logEvent,
+            settings: harnessSettings(settings, `worker:${process.pid}`),
+          }),
+        );
+      },
+    },
+  ];
+}

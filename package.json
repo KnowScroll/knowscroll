@@ -18,7 +18,8 @@
     "test": "pnpm -r test",
     "boundaries:probe": "node tests/integration/boundaries/probe-boundaries.mjs",
     "boundaries:manifests": "node tests/integration/boundaries/check-workspace-dependencies.mjs",
-    "lint:probe": "node tests/integration/boundaries/probe-transaction-lint.mjs"
+    "lint:probe": "node tests/integration/boundaries/probe-transaction-lint.mjs",
+    "lint:probe:network": "node tests/integration/boundaries/probe-network-lint.mjs"
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "catalog:",

@@ -18,9 +18,16 @@ Slice=ks-%i.slice
 WorkingDirectory=/srv/knowscroll/%i/current
 EnvironmentFile=/etc/knowscroll/%i.v2.env
 EnvironmentFile=/etc/knowscroll/secrets/v2-%i/database.env
+# MINIMAX_API_KEY, the owner's token-plan key, for the reasoning harness (S2.2, D-021): the shared
+# file v1 also reads, copied once from the owner's Mac. Only the worker receives this key; the API
+# unit never does (it makes no model calls).
+EnvironmentFile=/etc/knowscroll/secrets/shared/minimax.env
 EnvironmentFile=/srv/knowscroll/%i/current/.ks/release.env
 Environment=NODE_ENV=production
 Environment=KS_WORLD=%i
+# Turns the harness on with MiniMax. Without it the worker's provider is `none` and every model
+# call is refused before anything is reserved.
+Environment=KS_REASONING_PROVIDER=minimax
 ExecStart=/usr/local/lib/knowscroll-ops/ks2-run %i worker
 Restart=on-failure
 RestartSec=5
