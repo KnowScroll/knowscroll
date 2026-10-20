@@ -6,6 +6,7 @@ import {
   exceedsDepth,
   extractJsonObject,
   issueFor,
+  issueForExtraction,
   validateOutput,
   type OutputIssue,
 } from '../domain/output.js';
@@ -273,7 +274,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
       // A cut-off answer is refused even when what arrived happens to parse.
       if (reply.answer.stop === 'max_tokens') return invalid('OUTPUT_TRUNCATED', [issueFor('OUTPUT_TRUNCATED')]);
       const extracted = extractJsonObject(reply.answer.text);
-      if (!extracted.ok) return invalid(extracted.reason, [issueFor(extracted.reason)]);
+      if (!extracted.ok) return invalid(extracted.reason, [issueForExtraction(extracted.reason, reply.answer.text)]);
       // Deep nesting is refused before anything is redacted, validated or stored.
       if (exceedsDepth(extracted.value, MAX_ANSWER_DEPTH))
         return invalid('OUTPUT_TOO_DEEP', [issueFor('OUTPUT_TOO_DEEP')]);
