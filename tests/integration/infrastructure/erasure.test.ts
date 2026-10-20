@@ -17,6 +17,8 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { evidenceUseCase } from '../support/evidence.js';
 import { experienceUseCases } from '../support/experience.js';
 import { seedAsset, seedPerson, type FixturePerson } from '../support/fixtures.js';
+import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
+import { admitStarter, scrollUseCases } from '../support/scroll.js';
 
 /** CI fixture: a run descriptor and a reservation written straight through the ledger port. */
 function fixtureRunDescriptor(id: string) {
@@ -147,10 +149,31 @@ describe('the erasure registry (real database)', () => {
     const kept = await seedPerson(database.db);
     const asset = await seedAsset(database.db);
     const useCases = await experienceUseCases(database);
+    const scroll = await scrollUseCases(database);
+    const starter = await admitStarter(scroll.importScroll);
     const applyEvidence = evidenceUseCase(database);
     const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
     const ledger = makeAttemptLedger(database.db);
+    /** A person's reading of the starter Scroll: exposure, observations and a projected evidence revision. */
+    const seedReading = async (person: FixturePerson) => {
+      const exposure = await openActive(scroll, person, starter);
+      await activatedAgo(database.db, exposure.exposureId, 30);
+      const blocks = ['intro-look-up', 'intro-short-version', 'sunlight-prism'];
+      const ingested = await scroll.ingestObservations(person.authority, {
+        instrumentationVersion: 1,
+        events: [event(exposure, coverage(blocks, 3_000)), event(exposure, dwell([0, 9_000]))],
+      });
+      if (ingested.kind !== 'ingested' || ingested.accepted !== 2) throw new Error('fixture observations refused');
+      const projected = await scroll.projectScrollReading({
+        v: 1,
+        universeId: person.universeId,
+        privacyEpoch: 1,
+        exposureId: exposure.exposureId,
+      });
+      if (projected.kind !== 'applied') throw new Error('fixture projection skipped');
+    };
     const seed = async (person: FixturePerson) => {
+      await seedReading(person);
       const saved = await useCases.applyAction(person.authority, {
         commandId: randomUUID(),
         kind: 'save',
@@ -182,6 +205,7 @@ describe('the erasure registry (real database)', () => {
       expect(after.kept).toEqual(before.kept);
     } finally {
       await useCases.close();
+      await scroll.close();
     }
     const jobs = async (universeId: string) =>
       (
