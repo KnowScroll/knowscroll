@@ -1,0 +1,246 @@
+# The native lane (#249, S6.4 part 1; D-019): builds the Expo Android app on a GitHub-hosted runner and
+# drives it on an Android emulator with Maestro. Evidence from this lane is labelled "emulator".
+#
+# What it is not: one of the six required `checks` jobs (D-020). It never gates a merge, never
+# deploys, uses no secret and no signing key (the APK is debug-signed), and never runs on a
+# self-hosted runner (CF-04). Android builds and the emulator run here, never on a developer's Mac.
+#
+# Triggers
+# - `workflow_dispatch` (once this file is on `dev`, the default branch):
+#     gh workflow run native.yml --ref <branch> -f api_origin=https://app.dev.knowscroll.space -f gallery=true
+# - `pull_request` (opened, reopened, synchronize, labeled) only while the PR carries the label
+#   `run-native`. Pull requests use the dev origin and build the developer gallery.
+#
+# Jobs: `apk` (expo prebuild, Gradle release build with the JS bundle embedded, debug-signed) then
+# `emulator` (API 35 google_apis x86_64, Maestro flows from apps/client/maestro, screenshots, JUnit
+# report and logcat uploaded as artifacts). Full description: docs/v2/engineering/native-lane.md.
+name: native
+on:
+  workflow_dispatch:
+    inputs:
+      api_origin:
+        description: World origin the app talks to (HTTPS only), baked into the build
+        type: string
+        default: https://app.dev.knowscroll.space
+      gallery:
+        description: Build with the developer component gallery (EXPO_PUBLIC_KS_GALLERY=1) and run the gallery flows
+        type: boolean
+        default: true
+  pull_request:
+    types: [labeled, synchronize, opened, reopened]
+permissions:
+  contents: read
+# One native run per ref; a newer push cancels the older run. A pull_request event that will not
+# run the lane (no `run-native` label) gets its own group so it cannot cancel a run in progress.
+concurrency:
+  group: native-${{ github.ref }}-${{ (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-native')) && 'lane' || github.run_id }}
+  cancel-in-progress: true
+env:
+  KS_API_ORIGIN: ${{ inputs.api_origin || 'https://app.dev.knowscroll.space' }}
+  # Pull requests always build the gallery; a manual run decides with its input.
+  KS_GALLERY: ${{ github.event_name != 'workflow_dispatch' || inputs.gallery }}
+  # Pinned tools (recorded in docs/v2/operations/dependency-matrix.md).
+  KS_GRADLE_VERSION: 9.4.1
+  KS_GRADLE_SHA256: 2ab2958f2a1e51120c326cad6f385153bb11ee93b3c216c5fccebfdfbb7ec6cb
+  KS_MAESTRO_VERSION: 2.11.0
+  KS_MAESTRO_SHA256: 5384593cb4e7a106489e75a821d157dd43f4e438df6bc308b72e82c685e1283a
+  KS_APP_ID: com.knowscroll.client
+jobs:
+  apk:
+    # Runs for a manual dispatch, and for a pull request that carries `run-native` (adding some
+    # other label to a labelled pull request does not start another run).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'run-native') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'run-native'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The build inputs are what the lane promises
+        run: |
+          case "$KS_API_ORIGIN" in
+            https://*) ;;
+            *) echo "api_origin must be an https:// origin (production native builds refuse plain HTTP): $KS_API_ORIGIN"; exit 1 ;;
+          esac
+          case "$KS_API_ORIGIN" in
+            *[[:space:]]*) echo "api_origin must not contain whitespace"; exit 1 ;;
+          esac
+          {
+            echo "### native: build inputs"
+            echo "- event: \`$GITHUB_EVENT_NAME\`"
+            echo "- API origin baked into the build: \`$KS_API_ORIGIN\`"
+            echo "- developer gallery (EXPO_PUBLIC_KS_GALLERY): \`$KS_GALLERY\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "EXPO_PUBLIC_KS_API_ORIGIN=$KS_API_ORIGIN" >> "$GITHUB_ENV"
+          if [ "$KS_GALLERY" = "true" ]; then echo "EXPO_PUBLIC_KS_GALLERY=1" >> "$GITHUB_ENV"; fi
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.0
+          cache: pnpm
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      # The native bundle reads @knowscroll/contracts from its dist/, like the web export (D-012).
+      - name: Build the packages the bundle reads
+        run: pnpm --filter @knowscroll/contracts build
+      # android/ is generated (continuous native generation) and never committed. The template is
+      # the one inside the pinned expo package (expo/template.tgz), so Expo SDK 58 fixes AGP, Gradle,
+      # the NDK and the SDK levels.
+      - name: Expo prebuild (android)
+        env:
+          CI: '1'
+          EXPO_NO_TELEMETRY: '1'
+          EXPO_NO_GIT_STATUS: '1'
+        run: |
+          pnpm --filter @knowscroll/client exec expo prebuild --platform android --clean --no-install
+          test -f apps/client/android/gradlew
+          echo "tracked files changed by prebuild (expected: none):"
+          git status --short --untracked-files=no
+      - name: Pin the Gradle distribution and size the daemons
+        run: |
+          props=apps/client/android/gradle/wrapper/gradle-wrapper.properties
+          expected="distributionUrl=https\\://services.gradle.org/distributions/gradle-$KS_GRADLE_VERSION-bin.zip"
+          if ! grep -qxF "$expected" "$props"; then
+            echo "the generated wrapper no longer uses Gradle $KS_GRADLE_VERSION; update KS_GRADLE_VERSION and KS_GRADLE_SHA256 in native.yml and dependency-matrix.md"
+            grep '^distributionUrl=' "$props"
+            exit 1
+          fi
+          # The generated files may lack a final newline (prebuild's last property is
+          # `expo.inlineModules.watchedDirectories=[]`, which the build parses as JSON), so start a new line.
+          {
+            echo
+            echo "distributionSha256Sum=$KS_GRADLE_SHA256"
+          } >> "$props"
+          {
+            echo
+            echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+            echo "kotlin.daemon.jvmargs=-Xmx2g"
+          } >> apps/client/android/gradle.properties
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          # Pull requests are not the default branch, so they would only read caches; let them write.
+          cache-read-only: false
+          validate-wrappers: true
+          # The default "enhanced" caching is proprietary (Gradle Technologies Terms of Use); the basic
+          # provider is the MIT one, over actions/cache.
+          cache-provider: basic
+      # Only x86_64 (the emulator's ABI) is compiled. assembleRelease bundles the JavaScript into the
+      # APK (expo export:embed through the React Native Gradle plugin); the release build type is
+      # signed with the template's debug keystore, so no signing secret exists.
+      - name: Gradle release build (JS bundle embedded, debug-signed)
+        working-directory: apps/client/android
+        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=x86_64 --console=plain --stacktrace
+      - name: Inspect the APK
+        run: |
+          apk=apps/client/android/app/build/outputs/apk/release/app-release.apk
+          test -f "$apk"
+          build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          badging=$("$build_tools/aapt2" dump badging "$apk")
+          printf '%s\n' "$badging" | grep -E "^package:|^sdkVersion|^targetSdkVersion|^launchable-activity" | tee "$RUNNER_TEMP/badging.txt"
+          grep -q "^package: name='$KS_APP_ID'" "$RUNNER_TEMP/badging.txt"
+          "$build_tools/apksigner" verify --print-certs "$apk" | tee "$RUNNER_TEMP/certs.txt"
+          unzip -l "$apk" > "$RUNNER_TEMP/apk-files.txt"
+          grep -E "assets/index.android.bundle|lib/x86_64/" "$RUNNER_TEMP/apk-files.txt" | head -n 20
+          grep -q "assets/index.android.bundle" "$RUNNER_TEMP/apk-files.txt"
+          # The Hermes bundle keeps ASCII strings readable; the gallery marker is the web export's check, on a device build.
+          marker=$(unzip -p "$apk" assets/index.android.bundle | grep -a -c 'ks-component-gallery' || true)
+          origin=$(unzip -p "$apk" assets/index.android.bundle | grep -a -c "$KS_API_ORIGIN" || true)
+          {
+            echo "### native: APK"
+            echo "- package: \`$KS_APP_ID\`, size: $(stat -c %s "$apk") bytes, sha256: \`$(sha256sum "$apk" | cut -d' ' -f1)\`"
+            echo "- embedded bundle: \`assets/index.android.bundle\` ($(unzip -l "$apk" | grep 'assets/index.android.bundle' | awk '{print $1}') bytes)"
+            echo "- gallery marker lines in the bundle: $marker (gallery build: $KS_GALLERY)"
+            echo "- API origin lines in the bundle: $origin"
+            echo "- signer: debug key (no signing secret exists)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # The native counterpart of the client job's "production export carries no developer gallery".
+          if [ "$KS_GALLERY" = "true" ]; then
+            test "$marker" -ge 1 || { echo "gallery build, but the bundle has no gallery marker"; exit 1; }
+          else
+            test "$marker" -eq 0 || { echo "EXPO_PUBLIC_KS_GALLERY is unset, but the bundle carries the developer gallery"; exit 1; }
+          fi
+          test "$origin" -ge 1 || { echo "the API origin $KS_API_ORIGIN is not in the bundle"; exit 1; }
+      - name: Upload the APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-release-apk
+          path: apps/client/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  emulator:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download the APK
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: android-release-apk
+          path: ${{ runner.temp }}/apk
+      # Maestro needs Java 17+.
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install Maestro ${{ env.KS_MAESTRO_VERSION }} (checksum verified)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$KS_MAESTRO_VERSION/maestro.zip"
+          echo "$KS_MAESTRO_SHA256  $RUNNER_TEMP/maestro.zip" | sha256sum --check -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-cli"
+          echo "$RUNNER_TEMP/maestro-cli/maestro/bin" >> "$GITHUB_PATH"
+      - name: Prepare the output folder
+        run: mkdir -p "$RUNNER_TEMP/native-out"
+      - name: Emulator (API 35, google_apis, x86_64) and Maestro flows
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          KS_APK: ${{ runner.temp }}/apk/app-release.apk
+          KS_OUT: ${{ runner.temp }}/native-out
+          MAESTRO_CLI_NO_ANALYTICS: 'true'
+          MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: 'true'
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 3
+          ram-size: 4096M
+          disk-size: 6000M
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash apps/client/maestro/run-ci.sh
+      - name: Upload screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: emulator-screenshots
+          path: ${{ runner.temp }}/native-out/screenshots
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload the Maestro report and logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: emulator-report
+          path: |
+            ${{ runner.temp }}/native-out
+            !${{ runner.temp }}/native-out/screenshots
+          if-no-files-found: warn
+          retention-days: 14
