@@ -117,7 +117,7 @@ export function ReelPlayer({
           return;
         }
         player.currentTime = time;
-        if (resume && activeRef.current && visible.current) player.play();
+        if (resume && playbackIntent.current && activeRef.current && visible.current) player.play();
         timer = setTimeout(
           () => {
             void refresh();
