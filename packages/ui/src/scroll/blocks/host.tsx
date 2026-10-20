@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { content, layout } from '@knowscroll/design-tokens';
-import { fallbackTextOf, isInteractiveBlock, parseBlock, type AnyBlock } from '@knowscroll/scroll-model';
+import { fallbackTextOf, isInteractiveBlock, parseBlock, type AnyBlock } from '../model';
 import { useDisplay } from '../../display/display';
 import { useScrollRender } from '../context';
 import { isParsedBlock } from '../prepare';

@@ -1,4 +1,4 @@
-import { isGraphemeBoundary, type Span } from '@knowscroll/scroll-model';
+import { isGraphemeBoundary, type Span } from './model';
 
 /** A run of inline text; `cap` marks the opening letter of an editorial paragraph. */
 export type RenderSpan = Span & { readonly cap?: true };

@@ -6,7 +6,7 @@ import {
   type Block,
   type BlockOfType,
   type ScrollDocument,
-} from '@knowscroll/scroll-model';
+} from '../model';
 import { callout, code, em, list, paragraph, quote, scrollFixture, section, spans, strong, subheading } from './build';
 
 /**

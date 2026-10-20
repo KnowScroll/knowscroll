@@ -1,10 +1,4 @@
-import {
-  parseDocument,
-  type DocumentOutcome,
-  type Issue,
-  type ScrollDocument,
-  walkBlocks,
-} from '@knowscroll/scroll-model';
+import { parseDocument, type DocumentOutcome, type Issue, type ScrollDocument, walkBlocks } from './model';
 
 export type PreparedScroll =
   | { readonly kind: 'ready'; readonly document: ScrollDocument }

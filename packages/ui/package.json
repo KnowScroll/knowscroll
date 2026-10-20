@@ -19,7 +19,8 @@
     "react": "catalog:",
     "react-native": "catalog:",
     "react-native-safe-area-context": "catalog:",
-    "react-native-svg": "catalog:"
+    "react-native-svg": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@react-native/jest-preset": "catalog:",

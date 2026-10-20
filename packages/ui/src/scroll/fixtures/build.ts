@@ -9,7 +9,7 @@ import {
   type ScrollDocument,
   type Section,
   type Span,
-} from '@knowscroll/scroll-model';
+} from '../model';
 
 /**
  * Fixture documents for tests and the developer gallery: labelled, original, never product

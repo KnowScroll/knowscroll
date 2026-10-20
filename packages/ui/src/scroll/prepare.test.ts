@@ -48,11 +48,12 @@ describe('prepareScrollDocument (the client parse)', () => {
   });
 });
 
-function sourcesOf(directory: string): string[] {
+function sourcesOf(directory: string, withFixtures = false): string[] {
   return readdirSync(directory).flatMap((entry) => {
     const path = join(directory, entry);
-    if (statSync(path).isDirectory()) return sourcesOf(path);
-    return /\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry) && !path.includes('/fixtures/') ? [path] : [];
+    if (statSync(path).isDirectory()) return sourcesOf(path, withFixtures);
+    const fixture = path.includes('/fixtures/') && !withFixtures;
+    return /\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry) && !fixture ? [path] : [];
   });
 }
 
@@ -66,6 +67,14 @@ describe('the renderer on the device', () => {
   it('imports only the public entry of the scroll model, never its producer or internal entries', () => {
     const offenders = sourcesOf(__dirname).filter((path) =>
       /@knowscroll\/scroll-model\/(producer|internal)/.test(readFileSync(path, 'utf8')),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('loads the model at run time through ./model only, so Zod is configured first (no eval under the CSP)', () => {
+    const runtimeImport = /^import\s+(?!type\b)[^;]*?from\s+'@knowscroll\/scroll-model'/ms;
+    const offenders = sourcesOf(__dirname, true).filter(
+      (path) => !path.endsWith('/scroll/model.ts') && runtimeImport.test(readFileSync(path, 'utf8')),
     );
     expect(offenders).toEqual([]);
   });

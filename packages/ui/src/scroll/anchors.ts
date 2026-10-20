@@ -1,4 +1,4 @@
-import { findBlock, type ScrollDocument } from '@knowscroll/scroll-model';
+import { findBlock, type ScrollDocument } from './model';
 
 const BLOCK_ID = /^[a-z][a-z0-9-]{1,39}$/;
 

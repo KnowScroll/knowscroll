@@ -6,7 +6,7 @@ import {
   type AnyBlock,
   type BlockState,
   type NestedBlock,
-} from '@knowscroll/scroll-model';
+} from './model';
 import type { ScrollInteractionKind, ScrollRenderDiagnostic } from './observer';
 import type { ScrollBlockKey, ScrollBlockStateStore } from './state';
 

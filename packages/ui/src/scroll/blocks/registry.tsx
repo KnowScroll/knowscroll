@@ -7,7 +7,7 @@ import {
   type AnyBlock,
   type BlockType,
   type ClientCapabilities,
-} from '@knowscroll/scroll-model';
+} from '../model';
 import { useScrollRender } from '../context';
 import { CodeView } from './code-view';
 import { FallbackView } from './fallback';
