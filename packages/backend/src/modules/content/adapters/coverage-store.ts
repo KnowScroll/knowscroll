@@ -112,7 +112,12 @@ async function readHead(db: Transaction<Database>, ref: CoverageRef): Promise<Co
   const mapping = CoverageMappingSchema.parse(row.mapping);
   if (canonicalSha256(mapping) !== row.mapping_sha256) throw new Error('CONTENT_COVERAGE_STORED_HASH_INVALID');
   return {
-    authority: { ...ref, headRevision: row.revision, mappingSha256: row.mapping_sha256 },
+    authority: {
+      assetId: ref.assetId,
+      assetRevision: ref.assetRevision,
+      headRevision: row.revision,
+      mappingSha256: row.mapping_sha256,
+    },
     status: row.status,
     mapping,
     commandSha256: row.command_sha256,

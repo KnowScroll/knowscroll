@@ -113,6 +113,7 @@ describe('Content coverage sidecars (real PostgreSQL, CI fixtures only)', () => 
       'CONTENT_COVERAGE_REVIEW_REQUIRED',
     );
     const first = await admission()(f.command);
+    expect(Object.keys(first.authority).sort()).toEqual(['assetId', 'assetRevision', 'headRevision', 'mappingSha256']);
     expect(await admission()(f.command)).toEqual(first);
     expect(await read(f.command)).toMatchObject({ kind: 'entered', value: { kind: 'mapped', head: first } });
     const revisions = await sql<{
