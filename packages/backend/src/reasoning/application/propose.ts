@@ -12,7 +12,7 @@ import {
   type OutputIssue,
   type SafeCustomIssues,
 } from '../domain/output.js';
-import { HARNESS_PROMPT_VERSION, buildPrompt } from '../domain/prompt.js';
+import { HARNESS_PROMPT_VERSION, SINGLE_TOOL_PROMPT_VERSION, buildPrompt } from '../domain/prompt.js';
 import { makeExecuteAttempt, type AttemptResult, type Judgement } from './execute-attempt.js';
 import {
   MAX_STORED_OUTPUT_BYTES,
@@ -43,6 +43,11 @@ export interface ReasoningRole<T> {
   readonly instructions: string;
   /** The structural contract of an answer. Schema acceptance is not a quality judgement. */
   readonly outputSchema: z.ZodType<T>;
+  /**
+   * Opt-in single native object through a fixed output-data tool. No actions or tool loop.
+   * A format change requires a role version change. Omitted preserves historical text bytes.
+   */
+  readonly outputFormat?: 'single-tool-object';
   /**
    * Optional static code → hint catalogue for custom issues with `params.safeCode`. Owned by
    * role code, never context/provider/user data. At most 128 codes (lowercase, digits, `_`, 64
@@ -108,6 +113,7 @@ export interface ProposeInput<T, A = PersonalAuthority> {
 /** Why the harness refused to run (or to hand back) an attempt. */
 export type ProposeRefusal =
   | 'provider_unavailable'
+  | 'output_format_unsupported'
   | 'role_invalid'
   | 'run_invalid'
   | 'context_invalid'
@@ -210,6 +216,7 @@ function roleProblem<T>(role: ReasoningRole<T>): boolean {
     !versionPattern.test(role.version) ||
     role.instructions.trim() === '' ||
     role.instructions.length > MAX_INSTRUCTION_CHARS ||
+    (role.outputFormat !== undefined && role.outputFormat !== 'single-tool-object') ||
     !Number.isInteger(role.maxOutputTokens) ||
     role.maxOutputTokens < 1 ||
     role.maxOutputTokens > MAX_ROLE_OUTPUT_TOKENS ||
@@ -365,12 +372,14 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
       const model: ModelPort | undefined = ports.model;
       if (model === undefined) return refuse('provider_unavailable');
       if (roleProblem(role)) return refuse('role_invalid');
+      if (role.outputFormat === 'single-tool-object' && model.supportsSingleToolObject !== true)
+        return refuse('output_format_unsupported');
       if (runProblem(run)) return refuse('run_invalid');
       if (contextProblem(context)) return refuse('context_invalid');
       if (context.items.length < (role.minContextItems ?? 0)) return refuse('context_insufficient');
       await maybePurge();
 
-      const promptVersion = HARNESS_PROMPT_VERSION;
+      const promptVersion = role.outputFormat === undefined ? HARNESS_PROMPT_VERSION : SINGLE_TOOL_PROMPT_VERSION;
       const descriptor: RunDescriptor = {
         id: run.id,
         ownerModule: run.ownerModule,
@@ -395,9 +404,15 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
           instructions: role.instructions,
           bundleRef: context.bundleRef,
           items: context.items,
+          ...(role.outputFormat === undefined ? {} : { outputFormat: role.outputFormat }),
           ...(feedback === undefined ? {} : { feedback }),
         });
-        const body = model.encode({ system: text.system, user: text.user, maxOutputTokens: role.maxOutputTokens });
+        const body = model.encode({
+          system: text.system,
+          user: text.user,
+          maxOutputTokens: role.maxOutputTokens,
+          ...(role.outputFormat === undefined ? {} : { outputFormat: role.outputFormat }),
+        });
         return body.length > ports.settings.maxRequestBytes ? undefined : body;
       };
       const plan = (body: Uint8Array, step: 'primary' | 'repair', causationAttemptId?: string) => ({

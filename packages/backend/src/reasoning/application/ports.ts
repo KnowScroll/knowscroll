@@ -13,6 +13,8 @@ export interface ModelRequest {
   readonly system: string;
   readonly user: string;
   readonly maxOutputTokens: number;
+  /** Opt-in output-data carrier, never a tool executor or an autonomous interaction. */
+  readonly outputFormat?: 'single-tool-object';
 }
 
 /** How a provider ended its answer. `max_tokens` means it was cut off. */
@@ -20,8 +22,9 @@ export type StopReason = 'end' | 'max_tokens' | 'other';
 
 /**
  * A conclusive provider answer. `answer` is the answer text with provider framing (thinking blocks,
- * a leading `<think>…</think>`) already removed by the adapter, or an `unreadable` marker when the
- * provider answered but the reply could not be read (too large, not JSON, no text). Usage counts
+ * a leading `<think>…</think>`) already removed by the adapter, or the bounded canonical JSON of
+ * one native output-data object for an explicitly opted-in request. An `unreadable` marker means the
+ * provider answered but the reply could not be read (too large, not JSON, wrong output shape). Usage counts
  * are what the provider reported; `null` means not reported.
  */
 export interface ModelReply {
@@ -88,6 +91,8 @@ export class ModelOutcomeUnknownError extends Error {
 export interface ModelPort {
   readonly provider: string;
   readonly model: string;
+  /** Explicit transport capability; absent means existing text output only. */
+  readonly supportsSingleToolObject?: boolean;
   encode(request: ModelRequest): Uint8Array;
   observeQuota(signal: AbortSignal): Promise<QuotaObservation>;
   send(body: Uint8Array, signal: AbortSignal): Promise<ModelReply>;

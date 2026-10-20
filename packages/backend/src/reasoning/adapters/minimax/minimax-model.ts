@@ -8,6 +8,7 @@ import {
   type QuotaObservation,
 } from '../../application/ports.js';
 import { judgeQuota, parseMessagesReply, providerErrorCode } from './reply.js';
+import { OUTPUT_TOOL, requestReplyFormat } from './output-format.js';
 
 /** The fixed Anthropic-compatible messages route of the token plan (no endpoint override). */
 export const MINIMAX_MESSAGES_URL = 'https://api.minimax.io/anthropic/v1/messages';
@@ -117,6 +118,8 @@ function deadline(signal: AbortSignal, timeoutMs: number) {
  * - `encode`: canonical JSON (sorted keys) of `{model, max_tokens, system, messages, thinking:
  *   {type: "disabled"}}` — thinking is disabled on this route; any `<think>` framing that still
  *   arrives is stripped from the answer here, and only here.
+ *   Opt-in M3 requests add one fixed output-data tool and documented `auto` choice; they grant
+ *   no action and make no extra call. Only those exact request bytes select native-object parsing.
  * - `send`: exactly one `fetch` (no SDK, no retries, `redirect: "manual"`), one deadline over the
  *   whole exchange, a bounded body read. Mapping: 200 → answer (or `unreadable`); 3xx/4xx/429/500/
  *   503/529 → `ModelRejectedError` (conclusive); 502/504 → `ModelOutcomeUnknownError` (a gateway
@@ -136,8 +139,14 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
   return {
     provider: 'minimax',
     model: settings.model,
+    supportsSingleToolObject: settings.model === 'MiniMax-M3',
 
     encode(request) {
+      if (
+        request.outputFormat !== undefined &&
+        (request.outputFormat !== 'single-tool-object' || settings.model !== 'MiniMax-M3')
+      )
+        throw new ModelNotSentError('OUTPUT_FORMAT_UNSUPPORTED');
       return encoder.encode(
         canonicalJson({
           model: settings.model,
@@ -145,6 +154,7 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
           system: request.system,
           messages: [{ role: 'user', content: [{ type: 'text', text: request.user }] }],
           thinking: { type: 'disabled' },
+          ...(request.outputFormat === undefined ? {} : { tools: [OUTPUT_TOOL], tool_choice: { type: 'auto' } }),
         }),
       );
     },
@@ -195,6 +205,11 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
     async send(body, signal): Promise<ModelReply> {
       if (body.byteLength > settings.maxRequestBytes) throw new ModelNotSentError('REQUEST_TOO_LARGE');
       if (signal.aborted) throw new ModelNotSentError('ABORTED_BEFORE_DISPATCH');
+      // Snapshot once: mode selection and fetch see the same bytes even if the caller mutates its array.
+      const frozenBody = new Uint8Array(body);
+      const replyFormat = requestReplyFormat(decoder.decode(frozenBody));
+      if (replyFormat === undefined || (replyFormat === 'single-tool-object' && settings.model !== 'MiniMax-M3'))
+        throw new ModelNotSentError('OUTPUT_FORMAT_UNSUPPORTED');
       const limit = deadline(signal, settings.requestTimeoutMs);
       const uncertain = (fallback: string) =>
         new ModelOutcomeUnknownError(
@@ -210,7 +225,7 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
               'anthropic-version': '2023-06-01',
               'x-api-key': settings.apiKey,
             },
-            body: new Uint8Array(body),
+            body: frozenBody,
             redirect: 'manual',
             signal: limit.signal,
           });
@@ -250,7 +265,7 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
             };
           throw uncertain('BODY_READ_INTERRUPTED');
         }
-        const parsed = parseMessagesReply(decoder.decode(bytes));
+        const parsed = parseMessagesReply(decoder.decode(bytes), replyFormat);
         if (parsed.kind === 'rejected') throw new ModelRejectedError(parsed.code);
         return parsed.reply;
       } finally {

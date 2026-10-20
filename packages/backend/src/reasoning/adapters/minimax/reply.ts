@@ -1,5 +1,8 @@
 import type { ReportedUsage } from '../../domain/budgets.js';
 import type { ModelReply, QuotaObservation, StopReason } from '../../application/ports.js';
+import { canonicalJson, type CanonicalJson } from '../../../infrastructure/receipts/canonical.js';
+import { MAX_ANSWER_CHARS, MAX_ANSWER_DEPTH, exceedsDepth } from '../../domain/output.js';
+import { OUTPUT_TOOL_NAME, type ReplyFormat } from './output-format.js';
 
 /**
  * Pure parsing of MiniMax responses on the Anthropic-compatible route (providers-and-secrets.md).
@@ -110,13 +113,15 @@ export type ParsedReply =
   { readonly kind: 'reply'; readonly reply: ModelReply } | { readonly kind: 'rejected'; readonly code: string };
 
 /**
- * Interprets a 200 response body (already bounded) from the messages route: the joined text
+ * Interprets a 200 response body (already bounded), using this call's request-selected format.
+ * The opt-in requires one fixed data tool with native object input, then bounds and serializes it
+ * for the unchanged harness validator. The default preserves historical joined text
  * blocks with thinking blocks dropped and a leading `<think>` block stripped, the stop reason,
  * usage and a safe remote ID. A body that is not a JSON object, or has no text, is an
  * `unreadable` answer (the provider did answer; nothing usable arrived). An error object in a
  * 200 body is a conclusive rejection.
  */
-export function parseMessagesReply(text: string): ParsedReply {
+export function parseMessagesReply(text: string, format: ReplyFormat = 'text'): ParsedReply {
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -132,6 +137,36 @@ export function parseMessagesReply(text: string): ParsedReply {
   if (body['type'] === 'error' || (typeof baseStatus === 'number' && baseStatus !== 0))
     return { kind: 'rejected', code: `PROVIDER_ERROR_${providerErrorCode(body) ?? 'UNSPECIFIED'}` };
   const content = Array.isArray(body['content']) ? (body['content'] as unknown[]) : [];
+  if (format === 'single-tool-object') {
+    const failed = (code: string): ParsedReply => ({
+      kind: 'reply',
+      reply: { ...withId, usage, answer: { kind: 'unreadable', code } },
+    });
+    // Preserve the harness's truncation classification even if the cut-off tool input looks valid.
+    if (body['stop_reason'] === 'max_tokens')
+      return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'text', text: '', stop: 'max_tokens' } } };
+    if (body['stop_reason'] !== 'tool_use') return failed('REPLY_TOOL_STOP_INVALID');
+    let input: Readonly<Record<string, unknown>> | undefined;
+    for (const value of content) {
+      const block = record(value);
+      if (block?.['type'] === 'thinking') continue;
+      if (block?.['type'] !== 'tool_use' || block['name'] !== OUTPUT_TOOL_NAME || input !== undefined)
+        return failed('REPLY_TOOL_SHAPE_INVALID');
+      input = record(block['input']);
+      if (input === undefined) return failed('REPLY_TOOL_INPUT_INVALID');
+    }
+    if (input === undefined) return failed('REPLY_TOOL_MISSING');
+    if (exceedsDepth(input, MAX_ANSWER_DEPTH)) return failed('OUTPUT_TOO_DEEP');
+    let answer: string;
+    try {
+      // Native parsed JSON only; canonicalJson additionally refuses non-finite numeric overflow.
+      answer = canonicalJson(input as CanonicalJson);
+    } catch {
+      return failed('REPLY_TOOL_INPUT_INVALID');
+    }
+    if (answer.length > MAX_ANSWER_CHARS) return failed('OUTPUT_TOO_LARGE');
+    return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'text', text: answer, stop: 'end' } } };
+  }
   const texts = content
     .map((block) => record(block))
     .filter((block) => block?.['type'] === 'text' && typeof block['text'] === 'string')
