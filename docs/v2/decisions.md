@@ -150,7 +150,7 @@ Planner, Cartographer, Scenario Planner and room AI roles may send bounded perso
 
 ## D-022 · 2026-10-19 · Identity: first-party magic links and sessions, not better-auth (S1.3 #226)
 
-Status: **proposed** (S1.3 worker, 2026-10-19; revised 2026-10-20 after the independent review and re-review of PR #257), for coordinator review. Applies D-007's fallback clause.
+Status: accepted (coordinator, 2026-10-20; proposed by the S1.3 worker 2026-10-19, revised after the independent review and re-review of PR #257, merged as `d467f664`, applied and verified on dev 2026-10-20). Applies D-007's fallback clause.
 
 D-007 asked S1.3 to prove better-auth first. The spike ran better-auth **1.7.10** (MIT; magic-link and bearer plugins, Kysely adapter with `schemaName: 'identity'` and snake_case field maps, `generateId` → UUIDs) on Nest 12.1.3 / Express 5.2.1 against a throwaway PostgreSQL 16 (hands-on, real database; script and output in `/Volumes/Mrigesh SSD/knowscroll-dev/v2/evidence/s13/spike-better-auth/`, and in branch history at `13f738f6`). What worked: mounting under `/auth/*` before Nest's JSON parser (other routes kept their body parsing), storage in the `identity` schema, hashed single-use tokens (`storeToken: 'hashed'`), cookie and bearer session lookup, an origin check on its own routes. What it cannot satisfy without being taken apart:
 
