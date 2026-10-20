@@ -325,4 +325,5 @@ capability. It checks the root and run generation again in that transaction; exp
 capabilities throw, foreign/missing runs return `not_found`, and an oversized ledger returns
 `accounting_limit` instead of incomplete totals. No request, output, context, quota or write-off
 reason is selected. Content can retain both primary and repair identities and print honest usage
-without reaching reasoning SQL or its private payload stores.
+without reaching reasoning SQL or its private payload stores. Usage comes from the retained receipt,
+including late usage reported after write-off; the attempt's state and identity remain unchanged.
