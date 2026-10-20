@@ -463,6 +463,43 @@ export interface PersonalContextTopics {
   universe_id: string;
 }
 
+export interface PlannerRevisions {
+  attempt_id: string;
+  context_revision: number;
+  created_at: Generated<Timestamp>;
+  opportunities: Json;
+  policy_version: string;
+  privacy_epoch: number;
+  revision: number;
+  run_id: string;
+  universe_id: string;
+}
+
+export interface PlannerRuns {
+  claim_id: string | null;
+  claim_until: Timestamp | null;
+  context: Json | null;
+  context_version: string | null;
+  created_at: Generated<Timestamp>;
+  id: string;
+  outcome: string | null;
+  privacy_epoch: number;
+  revision: number;
+  status: string;
+  universe_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface PlannerState {
+  accepted_revision: Generated<number>;
+  active_run_id: string | null;
+  desired_revision: Generated<number>;
+  intent: Json | null;
+  material_revision: Generated<number>;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
 export interface ReasoningBusinessRuns {
   closed_at: Timestamp | null;
   context_bundle_ref: string | null;
@@ -683,6 +720,9 @@ export interface DB {
   "personal_context.state": PersonalContextState;
   "personal_context.supports": PersonalContextSupports;
   "personal_context.topics": PersonalContextTopics;
+  "planner.revisions": PlannerRevisions;
+  "planner.runs": PlannerRuns;
+  "planner.state": PlannerState;
   "reasoning.business_runs": ReasoningBusinessRuns;
   "reasoning.external_attempts": ReasoningExternalAttempts;
   "reasoning.production_attempts": ReasoningProductionAttempts;

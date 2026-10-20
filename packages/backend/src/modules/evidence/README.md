@@ -146,3 +146,8 @@ Production navigation now requires Personal Context's READ_COMPOSER_CONTEXT capa
 continues to supply its owned statistics and routing-input ports to PC, but the former prepared
 activity reader cannot be selected as a runtime fallback. This wiring change alters no evidence
 qualification, activity arithmetic, projection policy, queue, table or erasure behavior.
+
+Planner material-change callback (#236): after an actual activity/PC change and scope revision
+advance, shipped API and worker composition invoke the Planner request facility in that same
+transaction. Deduplicated unchanged projection invokes nothing. A callback/job failure rolls
+Evidence, PC and revision back; the callback supplies no harness and writes no evidence.

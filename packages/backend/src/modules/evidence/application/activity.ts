@@ -37,6 +37,7 @@ export interface ActivityProjection {
 export interface ActivityPorts {
   /** Required by shipped composition once personal context is installed; isolated fixtures may omit it. */
   readonly derived?: ActivityDerivedEffect;
+  readonly materialChange?: (scope: PersonalScopeTx, input: { readonly sourceRevision: number }) => Promise<void>;
   readonly withPersonalScope: WithPersonalScope;
   readonly readExposure: ReadExposureForEvidence;
   readonly readLineage: ReadActivityLineage;
@@ -127,6 +128,7 @@ export function makeProjectEncounterActivity(p: ActivityPorts) {
         const derivedChanged = (await p.derived?.apply(scope, x)) ?? false;
         if (!activityChanged && !derivedChanged) return { kind: 'skipped', reason: 'already_applied' };
         const revision = await p.advance(scope);
+        await p.materialChange?.(scope, { sourceRevision: revision });
         const activityId = activityChanged ? x.id : current.activityId;
         await p.notify(scope, { revision, eventId: activityId });
         return { kind: 'applied', activityId, revision };
