@@ -319,7 +319,9 @@ function personalKeys(block: AnyBlock): string {
 }
 
 /**
- * Re-points a locator of the previous revision into the next one using the anchor map. It never
+ * Re-points a locator of the previous revision into the next one using the anchor map. The map
+ * is trusted for one thing only, the pairing of ids (moves): its `change` for the pair is
+ * recomputed from the two blocks and a map that disagrees is refused as `map-mismatch`. It never
  * moves a reference silently: `same` only when the map says the block is identical under the same
  * id; every other change is reported. A kept locator is always re-validated against the next
  * revision before it is returned.
@@ -344,6 +346,15 @@ export function repointLocator(
   const entry = map.entries.find((candidate) => candidate.from === locator.blockId);
   const before = findBlock(previous, locator.blockId);
   if (entry === undefined || before === null) return { kind: 'invalid', reason: 'map-mismatch' };
+  // The map is stored data and could be stale or forged. Its change is checked against the two
+  // blocks themselves, so a map that calls a rewritten paragraph `same` is refused. What the map
+  // is still trusted for is the pairing of ids: which block of the next revision a block of the
+  // previous one became (a move declared by the correction workflow, `deriveAnchorMap`'s `moves`).
+  const target = entry.to === null ? null : findBlock(next, entry.to);
+  if (entry.to !== null && target === null) return { kind: 'invalid', reason: 'map-mismatch' };
+  // Removed means the next revision has no block under that id (a declared move would have paired it).
+  if (entry.to === null && findBlock(next, entry.from) !== null) return { kind: 'invalid', reason: 'map-mismatch' };
+  if (classify(before.block, target?.block) !== entry.change) return { kind: 'invalid', reason: 'map-mismatch' };
   const sectionFallback = next.sections.some((section) => section.id === before.section.id) ? before.section.id : null;
   if (entry.change === 'removed' || entry.to === null) {
     return { kind: 'unavailable', reason: 'block-removed', sectionId: sectionFallback };

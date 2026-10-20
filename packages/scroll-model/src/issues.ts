@@ -42,6 +42,8 @@ export const REASON_CODES = [
   'too_many_media',
   'visible_text_too_long',
   'gesture_mismatch',
+  'a11y_label_mismatch',
+  'a11y_description_unexpected',
   'fallback_text_too_short',
   'fallback_in_stored_document',
   'quote_attribution_unexpected',

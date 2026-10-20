@@ -138,6 +138,8 @@ export interface TextField {
   readonly visible: boolean;
   /** Source code: shown, never run, and not a factual claim (exempt from the numeric and copy checks). */
   readonly code: boolean;
+  /** A unit symbol (`m/s²`, `km²`): a superscript exponent attached to it is notation, not a number. */
+  readonly unit: boolean;
 }
 
 /**
@@ -150,7 +152,7 @@ export interface TextField {
 export function textFields(block: AnyBlock): TextField[] {
   const fields: TextField[] = [];
   const add = (field: string, text: string | undefined, visible = true, code = false) => {
-    if (text !== undefined && text !== '') fields.push({ field, text, visible, code });
+    if (text !== undefined && text !== '') fields.push({ field, text, visible, code, unit: field.endsWith('.unit') });
   };
   const rich = (spans: RichText) => richTextPlain(spans);
   if (!isTextBlockType(block.type) && block.type !== 'fallback') {

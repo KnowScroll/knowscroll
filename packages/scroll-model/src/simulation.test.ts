@@ -2,7 +2,6 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   curveSampleCount,
-  evaluateFormula,
   evaluateSimulation,
   FIELD_LIMITS,
   formatNumber,
@@ -17,6 +16,7 @@ import {
   type SimulationParam,
 } from './index.js';
 import { simulationIssues, simulationProof } from './simulation/checks.js';
+import { evaluateFormula } from './simulation/evaluate.js';
 import { displayScale } from './simulation/display.js';
 import { simulationData, type SimulationInput } from './test-support/arbitraries.js';
 import { formula, wildNumber, wildSimulation } from './test-support/wild-simulation.js';

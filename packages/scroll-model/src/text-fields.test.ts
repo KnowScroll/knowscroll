@@ -114,6 +114,7 @@ describe('the illustrative notice is reader-facing text', () => {
       text: 'Illustrative',
       visible: true,
       code: false,
+      unit: false,
     });
     expect(textFields(weight).some((field) => field.field === 'data.illustrative.notice')).toBe(false);
   });

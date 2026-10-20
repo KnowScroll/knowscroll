@@ -4,7 +4,7 @@ import { walkBlocks, type Section } from '../document.js';
 import type { Issue } from '../issues.js';
 import { textFields } from '../registry.js';
 import { simulationNumbers } from '../simulation/numbers.js';
-import { numericTokens, sentenceRanges } from '../text.js';
+import { isUnitExponent, numericTokens, sentenceRanges } from '../text.js';
 import type { Claim, ProvenanceBinding } from './provenance.js';
 
 /**
@@ -70,14 +70,16 @@ interface AddressedText {
   /** Issue path of the text, e.g. `sections.1.blocks.0.data.caption`. */
   readonly path: string;
   readonly code: boolean;
+  /** A unit symbol: a superscript exponent attached to it (`m/s²`) is notation. */
+  readonly unit: boolean;
 }
 
 /** Every reader-facing text of the document with its binding address. */
 export function addressedTexts(document: HonestyDocument): AddressedText[] {
   const texts: AddressedText[] = [
-    { address: 'header:title', text: document.title, path: 'title', code: false },
-    { address: 'header:dek', text: document.dek, path: 'dek', code: false },
-    { address: 'header:kicker', text: document.kicker, path: 'kicker', code: false },
+    { address: 'header:title', text: document.title, path: 'title', code: false, unit: false },
+    { address: 'header:dek', text: document.dek, path: 'dek', code: false, unit: false },
+    { address: 'header:kicker', text: document.kicker, path: 'kicker', code: false, unit: false },
   ];
   document.sections.forEach((section, index) => {
     if (section.heading !== null) {
@@ -86,6 +88,7 @@ export function addressedTexts(document: HonestyDocument): AddressedText[] {
         text: section.heading,
         path: `sections.${index}.heading`,
         code: false,
+        unit: false,
       });
     }
   });
@@ -96,19 +99,35 @@ export function addressedTexts(document: HonestyDocument): AddressedText[] {
         text: field.text,
         path: `${path}.${field.field}`,
         code: field.code,
+        unit: field.unit,
       });
     }
   }
   return texts;
 }
 
-function withinOneSentence(text: string, [start, end]: Anchor): boolean {
-  return sentenceRanges(text).some(([from, to]) => from <= start && end <= to);
+/** `sentenceRanges`, computed once per distinct text. */
+function sentenceCache(): (text: string) => ReadonlyArray<readonly [number, number]> {
+  const cache = new Map<string, ReadonlyArray<readonly [number, number]>>();
+  return (text) => {
+    let ranges = cache.get(text);
+    if (ranges === undefined) {
+      ranges = sentenceRanges(text);
+      cache.set(text, ranges);
+    }
+    return ranges;
+  };
+}
+
+/** True when the anchor lies inside one of the text's sentences (`sentences` = `sentenceRanges(text)`). */
+function withinOneSentence(sentences: ReadonlyArray<readonly [number, number]>, [start, end]: Anchor): boolean {
+  return sentences.some(([from, to]) => from <= start && end <= to);
 }
 
 /** Binding integrity: claims, blocks, fields, ranges, sentences, constants and value paths must exist. */
 export function bindingIssues(document: HonestyDocument, provenance: HonestyInput): Issue[] {
   const issues: Issue[] = [];
+  const sentencesOf = sentenceCache();
   const claims = new Set(provenance.claims.map((claim) => claim.claimId));
   const blocks = new Map<string, AnyBlock>();
   for (const visit of walkBlocks(document.sections)) blocks.set(visit.block.id, visit.block);
@@ -157,13 +176,15 @@ export function bindingIssues(document: HonestyDocument, provenance: HonestyInpu
     const anchor: Anchor = [binding.start, binding.end];
     if (!(binding.start < binding.end) || binding.end > target.text.length)
       issues.push({ code: 'binding_range_invalid', path });
-    else if (!withinOneSentence(target.text, anchor)) issues.push({ code: 'binding_anchor_crosses_sentence', path });
+    else if (!withinOneSentence(sentencesOf(target.text), anchor))
+      issues.push({ code: 'binding_anchor_crosses_sentence', path });
   });
   return issues;
 }
 
 /** The honesty rules above, after binding integrity. */
 export function honestyIssues(document: HonestyDocument, provenance: HonestyInput): Issue[] {
+  const sentencesOf = sentenceCache();
   const issues = bindingIssues(document, provenance);
   const anchors = new Map<string, Anchor[]>();
   const byBlock = new Map<string, ProvenanceBinding[]>();
@@ -179,7 +200,8 @@ export function honestyIssues(document: HonestyDocument, provenance: HonestyInpu
 
   for (const entry of addressedTexts(document)) {
     if (entry.code) continue;
-    const covering = (anchors.get(entry.address) ?? []).filter((anchor) => withinOneSentence(entry.text, anchor));
+    const sentences = sentencesOf(entry.text);
+    const covering = (anchors.get(entry.address) ?? []).filter((anchor) => withinOneSentence(sentences, anchor));
     // A readout template's `{key}` placeholders are keys, not numbers: the values they show are the
     // simulation's own numbers (rule 3).
     const placeholders = entry.address.endsWith(':data.readout.template')
@@ -189,6 +211,7 @@ export function honestyIssues(document: HonestyDocument, provenance: HonestyInpu
       : [];
     for (const [start, end] of numericTokens(entry.text)) {
       if (placeholders.some(([from, to]) => from <= start && end <= to)) continue;
+      if (entry.unit && isUnitExponent(entry.text, [start, end])) continue;
       if (!covering.some(([from, to]) => from <= start && end <= to)) {
         issues.push({ code: 'number_unbound', path: `${entry.path}@${start}` });
       }

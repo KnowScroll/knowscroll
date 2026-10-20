@@ -135,7 +135,7 @@ module.exports = {
       to: {
         pathNot: [
           '^packages/contracts/src/',
-          '^packages/scroll-model/src/(?!internal/|producer/)',
+          '^packages/scroll-model/src/(?!internal/|producer/|admission/)',
           '^packages/scene-core/src/',
           'node_modules/(?:zod|@orpc/contract)/',
         ],
@@ -155,6 +155,16 @@ module.exports = {
       },
     },
     {
+      name: 'clients-never-import-scroll-admission',
+      comment:
+        "Admission proves every simulation over its whole grid (milliseconds on a JIT, tens to hundreds on Hermes): the client app and client packages never import scroll-model's admission entry, resolved or not. Their entry point is `parseDocument` / `parseBlock` on the public entry.",
+      severity: 'error',
+      from: { path: '^(?:apps/client|packages/(?:client-core|ui|design-tokens|scene-core))/' },
+      to: {
+        path: ['^packages/scroll-model/src/admission/', '^@knowscroll/scroll-model/admission(?:/|$)'],
+      },
+    },
+    {
       name: 'clients-never-import-scroll-producer-fixtures',
       comment:
         'Only consumer-document fixtures are client-reachable: drafts, compile inputs and internal provenance fixtures (claims, sources) stay with the backend and tests.',
@@ -165,13 +175,13 @@ module.exports = {
     {
       name: 'scroll-model-public-entry-is-self-contained',
       comment:
-        "scroll-model's public modules never reach its internal or producer code, so a client cannot get them transitively.",
+        "scroll-model's public modules never reach its internal, producer or admission entries, so a client cannot get them transitively.",
       severity: 'error',
       from: {
         path: '^packages/scroll-model/src/',
-        pathNot: ['^packages/scroll-model/src/(?:internal|producer)/', testFile, '/test-support/'],
+        pathNot: ['^packages/scroll-model/src/(?:internal|producer|admission)/', testFile, '/test-support/'],
       },
-      to: { path: '^packages/scroll-model/src/(?:internal|producer)/' },
+      to: { path: '^packages/scroll-model/src/(?:internal|producer|admission)/' },
     },
     {
       name: 'scroll-model-is-portable',

@@ -12,7 +12,10 @@
  * each simulation's display scale once, in the grid proof, and stores it (`SimulationData.display`);
  * a client reads it with `displayScale` / `displayRange` and guards a single evaluated point with
  * `outputsUsable`. No grid-walking function is exported from this entry except through the
- * admission functions above; a client must not call an admission function.
+ * admission functions above; a client must not call an admission function. Server code imports
+ * them from `@knowscroll/scroll-model/admission` (which dependency-cruiser keeps out of client
+ * code); they are still exported here for code written before that entry existed, and ESLint
+ * refuses their import by name in the client packages.
  */
 export { FIELD_LIMITS, LIMITS, SCROLL_LIMITS_VERSION } from './limits.js';
 export {
@@ -183,7 +186,6 @@ export {
   curveSampleCount,
   curveSamples,
   curveUsable,
-  evaluateFormula,
   evaluateSimulation,
   formatNumber,
   formatWithUnit,
@@ -199,7 +201,7 @@ export {
   snapToGrid,
   type SimulationValues,
 } from './simulation/evaluate.js';
-export { displayRange, displayScale } from './simulation/display.js';
+export { displayFraction, displayRange, displayScale } from './simulation/display.js';
 export { simulationNumbers, type SimulationNumber } from './simulation/numbers.js';
 export { canonicalJson, canonicalSha256, utf8ByteLength } from './canonical.js';
 export { sha256Hex } from './sha256.js';

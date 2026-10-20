@@ -133,6 +133,26 @@ const probes = [
     ],
   },
   {
+    file: 'apps/client/theme/zz-probe-scroll-admission.ts',
+    source:
+      "import { admitDocument } from '@knowscroll/scroll-model/admission';\nimport { admitBlock } from '../../../packages/scroll-model/src/admission/index.js';\nexport const p = [admitDocument, admitBlock];\n",
+    expect: [
+      ['@knowscroll/scroll-model/admission', 'clients-never-import-scroll-admission'],
+      ['packages/scroll-model/src/admission/index.ts', 'clients-never-import-scroll-admission'],
+    ],
+  },
+  {
+    file: 'packages/ui/src/zz-probe-admission.ts',
+    source:
+      "import { validateDocument } from '@knowscroll/scroll-model/admission';\nexport const p = validateDocument;\n",
+    expect: [['@knowscroll/scroll-model/admission', 'clients-never-import-scroll-admission']],
+  },
+  {
+    file: 'packages/client-core/src/zz-probe-admission.ts',
+    source: "import { admitDocument } from '@knowscroll/scroll-model/admission';\nexport const p = admitDocument;\n",
+    expect: [['@knowscroll/scroll-model/admission', 'clients-never-import-scroll-admission']],
+  },
+  {
     file: 'packages/contracts/src/zz-probe.ts',
     source: "import { honestyIssues } from '@knowscroll/scroll-model/internal';\nexport const p = honestyIssues;\n",
     expect: [['packages/scroll-model/src/internal/index.ts', 'contracts-are-wire-only']],
@@ -140,11 +160,12 @@ const probes = [
   {
     file: 'packages/scroll-model/src/zz-probe.ts',
     source:
-      "import { readFileSync } from 'node:fs';\nimport fc from 'fast-check';\nimport { compileDraft } from './producer/index.js';\nexport const p = [readFileSync, fc, compileDraft];\n",
+      "import { readFileSync } from 'node:fs';\nimport fc from 'fast-check';\nimport { compileDraft } from './producer/index.js';\nimport { admitDocument } from './admission/index.js';\nexport const p = [readFileSync, fc, compileDraft, admitDocument];\n",
     expect: [
       ['node:fs', 'scroll-model-is-portable'],
       ['fast-check', 'scroll-model-depends-on-zod-only'],
       ['packages/scroll-model/src/producer/index.ts', 'scroll-model-public-entry-is-self-contained'],
+      ['packages/scroll-model/src/admission/index.ts', 'scroll-model-public-entry-is-self-contained'],
     ],
   },
   // Apps never import each other; no cycles.
@@ -246,6 +267,7 @@ try {
   rmSync('apps/client/theme/zz-probe.ts', { force: true });
   rmSync('apps/client/theme/zz-probe-scroll.ts', { force: true });
   rmSync('apps/client/theme/zz-probe-scroll-name.ts', { force: true });
+  rmSync('apps/client/theme/zz-probe-scroll-admission.ts', { force: true });
 }
 if (failed) process.exit(1);
 console.log(

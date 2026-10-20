@@ -30,6 +30,7 @@ Background reading:
 | `@knowscroll/scroll-model` | everyone (server, worker, client); see *Limits and cost* for which functions a client may call | Document and block schemas, limits, `admitDocument` / `validateDocument`, `parseDocument`, `admitBlock`, `parseBlock`, `negotiate`, `parseCapabilities`, locators and anchor maps, block state and snapshots, the telemetry payload, measures and coverage, simulation evaluation and its runtime guards, the readers of a simulation's stored display (`displayScale`, `displayRange`), `fallbackTextOf`, `textFields`, canonical JSON and SHA-256 |
 | `@knowscroll/scroll-model/producer` | backend only | `ScrollDraft` (what the writer model returns), `DraftProvenance` (the compile input), `blockCatalogueText()` for the prompt, `validateDraft`, `compileDraft`, `draftFromDocument`, stages and repair hints |
 | `@knowscroll/scroll-model/internal` | backend only | `ScrollProvenance` (claims, sources, bindings, checks, production record) and the honesty checks |
+| `@knowscroll/scroll-model/admission` | backend only | `admitDocument`, `admitBlock` and `validateDocument`: every check including the full-grid proof. The public entry still re-exports the same functions for code written before this entry existed (they are the same function objects); new server code imports them from here, and client code may import neither (see the rules below). |
 | `@knowscroll/scroll-model/fixtures/<name>.json` | tests only | The labelled consumer-document fixtures (`fixtures/documents/`). Drafts, compile inputs and internal provenance fixtures are not exported. |
 
 Dependency direction, enforced by dependency-cruiser and proved by `pnpm boundaries:probe`:
@@ -37,15 +38,17 @@ Dependency direction, enforced by dependency-cruiser and proved by `pnpm boundar
 ```text
  apps/client, packages/{ui,client-core,design-tokens,scene-core} ──▶ scroll-model (public entry)
  packages/contracts (content.ts re-export)                        ──▶ scroll-model (public entry)
- packages/backend, apps/api, apps/worker                          ──▶ scroll-model, ./producer, ./internal
+ packages/backend, apps/api, apps/worker                          ──▶ scroll-model, ./producer, ./internal, ./admission
  ./producer ──▶ ./internal ──▶ public modules ──▶ zod
 ```
 
 | Rule | What it enforces |
 |---|---|
 | `clients-never-import-scroll-internals` | Client code never imports `./internal` or `./producer`, whether by resolved path or by the bare package specifier (`@knowscroll/scroll-model/internal`). |
+| `clients-never-import-scroll-admission` | Client code never imports `./admission`, by resolved path or by the bare package specifier (`@knowscroll/scroll-model/admission`). `pnpm boundaries:probe` proves it for `apps/client`, `packages/ui` and `packages/client-core`. |
+| ESLint `no-restricted-imports` (client packages) | Client code does not import `admitDocument`, `admitBlock` or `validateDocument` by name from the public entry either, where they remain for compatibility. `pnpm lint:probe` proves it for the three client packages. |
 | `clients-never-import-scroll-producer-fixtures` | Client code never reaches `fixtures/producer/` (claims, sources, URLs). |
-| `scroll-model-public-entry-is-self-contained` | The public modules never reach `internal/` or `producer/`, so a client cannot get them transitively. |
+| `scroll-model-public-entry-is-self-contained` | The public modules never reach `internal/`, `producer/` or `admission/`, so a client cannot get them transitively. |
 | `contracts-are-wire-only` | `contracts` may re-export scroll-model's public entry only. |
 | `scroll-model-is-portable`, `scroll-model-depends-on-zod-only` | No Node built-ins, and no third-party package other than Zod, outside tests. |
 
@@ -150,7 +153,7 @@ Deliberately absent: sources, claims, quotes, model, prompt, run, reviewer, coun
 
 | Kind | Envelope | Who writes what |
 |---|---|---|
-| Text blocks: paragraph, subheading, list, quote, callout | `{id, type, version, a11y, essential, gesture, data}` | Code sets `a11y.label`. Code derives the fallback text on demand (`fallbackTextOf`). |
+| Text blocks: paragraph, subheading, list, quote, callout | `{id, type, version, a11y, essential, gesture, data}` | Code sets `a11y.label` (`deriveTextLabel`) and nothing else: admission **recomputes** it and refuses any other label (`a11y_label_mismatch`) and any description (`a11y_description_unexpected`), because screen readers speak both and no honesty, copy or length check would see them. Code derives the fallback text on demand (`fallbackTextOf`). |
 | Every other block | `{id, type, version, a11y, fallbackText, essential, gesture, data}` | The writer supplies `a11y` and a standalone `fallbackText` of at least 40 characters. |
 
 | Type | Data (bounds) | Gesture (derived) | State | Interactive | Reduced motion | Passages |
@@ -208,9 +211,9 @@ Deliberately absent: sources, claims, quotes, model, prompt, run, reviewer, coun
 | `readout` | `{kind: 'none'}` | nothing to scale |
 
 - **Never written by the model.** The draft schema has no such member, so a draft that carries one is refused (`schema_unrecognized_keys`); `draftFromDocument` drops it, and `compileDraft` replaces the producer's placeholder with the proven value before the document is signed.
-- **Covered by the integrity hash**, and **recomputed and compared at admission** (`sim_display_mismatch`, to the last digits: relative 1e-9, so a library update cannot refuse a stored scale), the same tamper check as the reading measures. It is a derived number, not a claim: the honesty checks do not bind it.
+- **Covered by the integrity hash**, and **recomputed and compared at admission** (`sim_display_mismatch`, to the last digits: a relative 1e-9 of the scale's own magnitude, and for a range of its largest end, with no absolute floor, so a library update cannot refuse a stored scale but a wrong scale of a simulation whose outputs are tiny is refused too), the same tamper check as the reading measures. It is a derived number, not a claim: the honesty checks do not bind it.
 - **Checked on the client path** (`parseDocument`, `parseBlock`, rendition validation): present (the schema), the kind its view needs, finite, a positive scale or an increasing range (`sim_display_invalid`). The client does not recompute it.
-- **Read, never computed, by the client**: `displayScale(data)` and `displayRange(data)` return the stored value (a neutral 1 or `[0, 1]` for a view without one). `cardsScale`, `plotRange` and the grid sweep are gone from the public entry (`display.test.ts` asserts it); a renderer whose own arithmetic puts a value a hair above the stored scale clamps it.
+- **Read, never computed, by the client**: `displayScale(data)` and `displayRange(data)` return the stored value (a neutral 1 or `[0, 1]` for a view without one), and `displayFraction(value, data)` turns a value into a position from 0 to 1 that is always finite (a `null`, an `Infinity` or a forged scale of 5e-324 reads as 0 or 1, never `NaN` or `Infinity`), so a renderer can use it as a length without a further guard. `cardsScale`, `plotRange` and the grid sweep are gone from the public entry (`display.test.ts` asserts it); a renderer whose own arithmetic puts a value a hair above the stored scale clamps it.
 
 **Proof over the whole grid (admission only).**
 - The product of all the parameters' grid sizes must be at most **10,000** points (`sim_grid_too_large`). This is a count, checked on both paths.
@@ -252,7 +255,9 @@ Text primitives refuse:
 - control characters and line separators;
 - lone surrogates (two different strings would otherwise hash alike);
 - text that is not NFC;
-- web addresses in reader text.
+- web addresses in reader text (a URL scheme, `www.`, `mailto:`, or a host name on a common suffix, including one with an underscore, `my_site.com`).
+
+Every one of these checks is a single scan of constant state per character, so it costs time linear in the text, and each runs only on text within its length cap: text over its limit is refused by the cap alone, with no scan (a regular expression with nested quantifiers here cost O(length²), 5.8 s for a 40,000-character title, in the first version of this PR).
 
 ## Limits and cost
 
@@ -280,7 +285,7 @@ The review of #254 (M1) asked what validation costs. The ruling: the full-grid f
 
 ### Budgets
 
-Measured in `performance.test.ts` on the CI runner as the median CPU time of the test process, after warm-up, on a fresh copy of the input (the runner shares its cores with other suites, so wall-clock time is printed beside it and is not asserted). The inputs are the largest the limits allow (`test-support/worst-case.ts`): the worst simulation is the largest grid (10,000 points) with six outputs that all depend on every parameter, five of them fractional powers, twelve constants and a cards view; the worst document holds four of them at the block, interactive-block, media and parameter limits.
+Measured in `performance.test.ts` on the CI runner as the median CPU time of the test process, after warm-up, on a fresh copy of the input (the runner shares its cores with other suites, so wall-clock time is printed beside it and is not asserted). The inputs are the largest the limits allow (`test-support/worst-case.ts`): the worst simulation is the largest grid (10,000 points) with six outputs that all depend on every parameter, five of them fractional powers, twelve constants and a cards view; the worst document holds eight simulations of two parameters (100 × 100 points each, 80,000 grid points: the 16-parameter and 8-interactive-block limits together), twelve figures and paragraphs up to the 80-block limit. Hostile text is measured too: an 85 KB document whose title is a long dotted string, a 120,000-character field in a draft, and a document filled to its visible-text limit with dotted and hyphenated paragraphs, each within the budget of the path it takes.
 
 | Path | Input | Budget |
 |---|---|---|
@@ -304,8 +309,8 @@ These checks are pure functions of a document and its provenance. They prove tha
    - A numeric token is a run of `\p{N}`: digits, fractions such as ⅜, superscripts such as ², and Roman numerals. `4,096` and `1.46` are one token each.
    - The rule covers **every reader-facing text**: title, dek, kicker, section headings, and every field `textFields` lists (prose, captions, labels, units, number-format suffixes, a11y label and description, fallback text, alt text, transcripts, table cells).
    - Each token must lie inside an anchor bound to a claim on that same field (`number_unbound`).
-   - An anchor never crosses a sentence boundary (`binding_anchor_crosses_sentence`).
-   - Exemptions: the **body of a code block**, because code is shown, never run, and is not a factual claim; and the `{key}` placeholders of a readout template, whose values are the simulation's own numbers.
+   - An anchor never crosses a sentence boundary (`binding_anchor_crosses_sentence`). A sentence ends at a line break; at `!`, `?`, `…`, `。`, `！` or `？`, with any closing quotes and brackets after it (`.)`, `."`, `.”`, `?»`); and at a `.` (with its closers) followed by whitespace, by the end, or directly by a capital letter or a digit. A `.` between two digits is a decimal point and one before a lower-case letter is part of a name (`np.exp`), so both stay inside a sentence. A break made too eagerly only asks for a second anchor; one that is missed lets a single claim stand behind two numbers.
+   - Exemptions: the **body of a code block**, because code is shown, never run, and is not a factual claim; the `{key}` placeholders of a readout template, whose values are the simulation's own numbers; and, **in a unit field only**, a superscript exponent attached to a unit symbol (`m/s²`, `km²`, `kg/m³`), which is notation. A superscript anywhere else, a standalone one, or one with ordinary digits (`10²`) is a number like any other.
 2. **Every chart** has a claim binding for its data (`numeric_block_unbound`).
 3. **A simulation that is not illustrative binds every number it states.**
    - The numbers covered (`simulationNumbers`): parameter min, max, step and default; constants; every literal operand; power exponents; lookup breakpoints; and readout band thresholds.
@@ -360,6 +365,7 @@ Outcomes:
 | `compileDraft(raw, provenance)` | `compiled {document, internalProvenance}` · `refused {stage, issues}`; a `publish` refusal means an internal bug, so escalate rather than repair |
 
 `repointLocator` notes:
+- **Trust in the anchor map.** The map is stored data and could be stale or forged, so it is trusted for one thing only: the pairing of ids (the moves the correction workflow declared). Its `change` for each pair is recomputed from the two blocks, and a map that disagrees (a rewritten paragraph called `same`, a block called removed that the next revision still has, an id the next revision does not have) is refused as `map-mismatch`.
 - `same` only when the anchor map says the block is identical under the same id. A rewritten, updated or moved block is `remapped`, with its change.
 - A state whose declaration changed (ranges, frames, steps, or a parameter's `personal` flag) is kept only if it still fits and its consent label still holds; otherwise it is reset.
 - Every kept locator is re-validated against the next revision.
@@ -464,7 +470,7 @@ Vitest with fast-check property tests, run in GitHub Actions only (D-010). They 
 - **Display scale (`display.test.ts`):** the stored scale equals a brute-force scale over every grid point (fixtures, and generated simulations of every view); it is refused in a draft; admission refuses a scale that is not the one the grid gives and the hash covers it; the client path refuses a missing, non-finite, non-positive, inverted or wrong-kind display and reads the stored value; the public entry exports no scale, range or sweep function.
 - **Rulings (`rulings.test.ts`):** no chart "inspect" interaction or glyph, one `explanationUnitId` with an optional series reference, no stored fallback text on text blocks.
 
-`review-254.test.ts` reproduces each of the reviewer's proof-of-concept inputs (p1–p11) as a regression test.
+`review-254.test.ts` reproduces each of the reviewer's proof-of-concept inputs (p1–p11) as a regression test. `review-254b.test.ts` does the same for the re-review (sentence breaks, accessibility text, display tolerance, the sweep above 1,024 points, unit exponents, the admission entry, the anchor map), with `primitives.test.ts` and `performance.test.ts` carrying the linear-cost cases.
 
 ## Interpretations
 
@@ -472,4 +478,10 @@ Vitest with fast-check property tests, run in GitHub Actions only (D-010). They 
 - **Added document fields:** `corrections[]` (the persistent "Corrected" note belongs to a revision), `limitsVersion`, the optional `series`, and the rendition-only `rendition`. Measures carry per-block weights, so the server's coverage is fixed per revision.
 - **Diagram interactions.** `toggle` is one labelled button per frame (2–8 frames). `steps` is Previous/Next.
 - **Per-block hashes (design note, review minor 12).** The integrity hash covers the whole document, so a client cannot check that the blocks `negotiate` did not substitute are those of the stored revision: `rendition.sha256` proves what it received and `rendition.of` names the revision, nothing more. Giving every block its own hash (and hashing the hashes) would let a client verify the untouched blocks of any rendition. v1 does not: it adds about 70 bytes to each of up to 80 blocks, changes the canonical form, and verification on a device is the cost the M1 ruling avoids. The `scroll-document.v1` hash method is versioned (`canonical-json-sha256.v1`), so a block-hash method can arrive as a new method name without changing the stored blocks.
+- **Judgement calls of the re-review, recorded.**
+  - `framing` and `corrections[].summary` are reader-facing but written by the brief and the correction workflow, not the model, and no binding kind addresses them; they stay outside the numeric and copy checks and the visible-text count (the kicker, also code-set, is checked because it has a binding kind). They hold at most about 3,400 characters.
+  - The structural literals (0, ±1, 2, 0.5) also exempt lookup values and breakpoints, band thresholds and parameter ranges, where one of them could in principle be a quantity. Constants are never exempt. Tightening it further would ask for a binding on every `[0, …]` range; not done.
+  - `validateDocument` keeps its default `purpose: 'stored'` (the expensive, admission one) for compatibility; it is documented as admission, imported from `./admission`, and refused in client code by name.
+  - dependency-cruiser excludes `dist/` by convention, so a relative import of `packages/scroll-model/dist/...` from client code is not seen by the client rules; the package specifiers, `src/` paths and `fixtures/producer/` are.
+  - `package.json` declares `"sideEffects": false`: no module here has an import-time effect a bundle must keep, so a client bundle may drop the admission code it never calls (not measured).
 - **"Binds all its numbers".** For a non-illustrative simulation this means every number it states except the structural ones, plus at least one binding. The structural numbers are not bindable quantities.

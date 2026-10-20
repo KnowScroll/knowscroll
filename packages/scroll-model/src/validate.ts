@@ -13,7 +13,15 @@ import { issueFromSchema, uniqueIssues, type Issue, type ReasonCode } from './is
 import { FIELD_LIMITS, LIMITS } from './limits.js';
 import { computeMeasures } from './measures.js';
 import { LocalId } from './primitives.js';
-import { BASELINE_TYPES, deriveGesture, fallbackTextOf, isInteractiveBlock, visibleTexts } from './registry.js';
+import {
+  BASELINE_TYPES,
+  deriveGesture,
+  deriveTextLabel,
+  fallbackTextOf,
+  isInteractiveBlock,
+  visibleTexts,
+  type TextBlockType,
+} from './registry.js';
 import type { SimulationDisplay } from './blocks/simulation.js';
 import { displayIssues, sameDisplay } from './simulation/display.js';
 import { simulationDeclarationIssues, simulationProof } from './simulation/checks.js';
@@ -128,6 +136,7 @@ export function blockIssues(block: AnyBlock, path: string, options: CheckOptions
   switch (block.type) {
     case 'quote':
       if (block.data.kind === 'pull' && block.data.attribution !== undefined) add('quote_attribution_unexpected', data);
+      issues.push(...derivedA11yIssues(block, path));
       break;
     case 'code': {
       const lines = block.data.code.split('\n');
@@ -180,12 +189,29 @@ export function blockIssues(block: AnyBlock, path: string, options: CheckOptions
     case 'subheading':
     case 'list':
     case 'callout':
+      issues.push(...derivedA11yIssues(block, path));
+      break;
     case 'disclosure':
     case 'figure':
     case 'comparison':
     case 'fallback':
       break;
   }
+  return issues;
+}
+
+/**
+ * A text block's accessibility text is derived by code from its own text (`deriveTextLabel`), so
+ * it is recomputed and compared here like gesture, measures and hash: a stored label that is not
+ * the derived one, or any description, would be reader-facing text (screen readers speak it) that
+ * no honesty, copy or length check sees. (The quote case is in the switch above.)
+ */
+function derivedA11yIssues(block: Extract<AnyBlock, { type: TextBlockType }>, path: string): Issue[] {
+  const issues: Issue[] = [];
+  if (block.a11y.label !== deriveTextLabel(block))
+    issues.push({ code: 'a11y_label_mismatch', path: `${path}.a11y.label` });
+  if (block.a11y.description !== undefined)
+    issues.push({ code: 'a11y_description_unexpected', path: `${path}.a11y.description` });
   return issues;
 }
 
@@ -396,6 +422,8 @@ export function documentIssues(document: DocumentLike, options: CheckOptions): I
  *
  * `purpose: 'stored'` (the default) is the ADMISSION path and `purpose: 'rendition'` the CLIENT
  * path; see `ValidateOptions`. Prefer `admitDocument` and `parseDocument`, which name the two.
+ * Server code imports the admission functions from `@knowscroll/scroll-model/admission`; client
+ * code must not import `validateDocument` at all (its default is the full-grid proof).
  */
 export function validateDocument(input: unknown, options: ValidateOptions = {}): DocumentOutcome {
   return checkDocument(input, options.purpose ?? 'stored', true);

@@ -57,10 +57,37 @@ export function countWords(text: string): number {
   return count;
 }
 
+/** Sentence ends that need nothing after them: they end a sentence wherever they stand. */
+const SENTENCE_ENDERS: ReadonlySet<string> = new Set(['!', '?', '…', '。', '！', '？', '｡', '‼', '⁇', '⁈', '⁉']);
+/** Quotes and brackets that close a sentence and belong to it: `."`, `.”`, `.)`, `?»`. */
+const SENTENCE_CLOSERS: ReadonlySet<string> = new Set([
+  '"',
+  "'",
+  '”',
+  '’',
+  '»',
+  '›',
+  ')',
+  ']',
+  '}',
+  '）',
+  '］',
+  '｝',
+  '」',
+  '』',
+  '】',
+  '》',
+]);
+
 /**
- * Sentence ranges `[start, end)` over UTF-16 code units. A sentence ends at a line break or at
- * `.`, `!` or `?` followed by whitespace or the end, so decimals (`1.46`) stay inside a sentence.
- * Leading whitespace is excluded from each range.
+ * Sentence ranges `[start, end)` over UTF-16 code units, in one pass. A sentence ends at a line
+ * break; at `!`, `?`, `…`, `。`, `！` or `？` (with any closing quotes and brackets after it); and at
+ * a `.` (with its closers) that is followed by whitespace, by the end, or directly by a capital
+ * letter or a digit. A `.` between two digits is a decimal point (`1.46`) and a `.` before a
+ * lower-case letter is part of a name (`np.exp`, `e.g.`), so both stay inside a sentence. The
+ * ranges are what an anchor must fit in (`binding_anchor_crosses_sentence`), so a break that is
+ * missed lets one claim stand behind two numbers; a break that is made too eagerly only asks for
+ * a second anchor. Leading whitespace is excluded from each range.
  */
 export function sentenceRanges(text: string): Array<readonly [number, number]> {
   const ranges: Array<readonly [number, number]> = [];
@@ -75,13 +102,27 @@ export function sentenceRanges(text: string): Array<readonly [number, number]> {
     if (character === '\n') {
       push(index);
       start = index + 1;
-    } else if (character === '.' || character === '!' || character === '?') {
-      const next = text.charAt(index + 1);
-      if (next === '' || /\s/u.test(next)) {
-        push(index + 1);
-        start = index + 1;
-      }
+      continue;
     }
+    const hard = SENTENCE_ENDERS.has(character);
+    if (!hard && character !== '.') continue;
+    // The terminator, any further terminators and the closing quotes and brackets after it.
+    let end = index + 1;
+    let ends = hard;
+    while (end < text.length) {
+      const next = text.charAt(end);
+      if (SENTENCE_ENDERS.has(next)) ends = true;
+      else if (next !== '.' && !SENTENCE_CLOSERS.has(next)) break;
+      end += 1;
+    }
+    const next = text.charAt(end);
+    const decimalPoint = end === index + 1 && /\p{Nd}/u.test(next) && /\p{Nd}/u.test(text.charAt(index - 1));
+    const boundary = ends || next === '' || /\s/u.test(next) || (!decimalPoint && /[\p{Lu}\p{Nd}]/u.test(next));
+    if (boundary) {
+      push(end);
+      start = end;
+    }
+    index = end - 1;
   }
   push(text.length);
   return ranges;
@@ -96,6 +137,17 @@ export function numericTokens(text: string): Array<readonly [number, number]> {
   return [...text.matchAll(/\p{N}+(?:[.,]\p{N}+)*/gu)].map(
     (match) => [match.index, match.index + match[0].length] as const,
   );
+}
+
+const SUPERSCRIPT_DIGITS = /^[\u2070\u00b9\u00b2\u00b3\u2074-\u2079]+$/u;
+
+/**
+ * True when the numeric token `[start, end)` of a unit symbol is only a superscript exponent
+ * attached to the symbol before it (`m/s²`, `km²`, `kg/m³`): notation, not a stated number. A
+ * token with ordinary digits (`10²`) or one that stands alone is not.
+ */
+export function isUnitExponent(text: string, [start, end]: readonly [number, number]): boolean {
+  return start > 0 && !/\s/u.test(text.charAt(start - 1)) && SUPERSCRIPT_DIGITS.test(text.slice(start, end));
 }
 
 /** True when a UTF-16 offset falls between the two halves of a surrogate pair. */

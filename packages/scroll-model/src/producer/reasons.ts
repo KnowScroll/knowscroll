@@ -102,6 +102,8 @@ export const REPAIR_HINTS: Readonly<Record<ReasonCode, string>> = {
   visible_text_too_long:
     'Keep reader-visible text, counting each non-text block at its longer of text and fallback text, within 24,000 characters.',
   gesture_mismatch: 'Do not write gestures; code derives them.',
+  a11y_label_mismatch: 'A text block\u2019s accessibility label is derived by code from its text; do not write it.',
+  a11y_description_unexpected: 'A text block has no accessibility description; code derives its label.',
   fallback_text_too_short: 'Give this block a standalone text version of at least 40 characters.',
   fallback_in_stored_document: 'Fallback blocks exist only in client renditions.',
   quote_attribution_unexpected: 'A pull quote repeats the article and has no attribution.',

@@ -2,10 +2,12 @@ import { createHash } from 'node:crypto';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { canonicalJson, canonicalSha256, sha256Hex, utf8ByteLength } from './index.js';
-import { mentionsWebAddress, plainText } from './primitives.js';
+import { codeText, mentionsWebAddress, plainText, spanText } from './primitives.js';
+import { fastestMs } from './test-support/timing.js';
 import {
   countWords,
   isGraphemeBoundary,
+  isUnitExponent,
   numericTokens,
   sentenceRanges,
   splitsSurrogatePair,
@@ -114,6 +116,180 @@ describe('plain text', () => {
     for (const text of ['U.S. and U.K.', 'e.g. this', 'Node.js', '1.46 times', 'np.exp is not a host']) {
       expect(mentionsWebAddress(text), text).toBe(false);
     }
+  });
+});
+
+describe('web address detection is linear (re-review of #254, MA-1)', () => {
+  it('finds the same addresses as before, and the host names with an underscore too', () => {
+    for (const text of [
+      'http://x',
+      'HTTPS://EXAMPLE.ORG',
+      'a+b.c-d://e',
+      'Visit WWW.example now',
+      'MAILTO:someone',
+      'a.com',
+      'x-y.example.NET',
+      'science.nasa.gov',
+      'see 1.2.in the text',
+      'sub.domain.co.uk/page',
+      'my_site.com',
+      'wwwx.com is not www.',
+    ]) {
+      expect(mentionsWebAddress(text), text).toBe(true);
+    }
+    for (const text of [
+      'plain words, and a. b. c.',
+      'a..com',
+      '.com',
+      '-.com',
+      'version 1.2.3',
+      'the community',
+      'ratio 3:4 or 12://',
+      'np.linalg.norm',
+      'com.example.package',
+    ]) {
+      expect(mentionsWebAddress(text), text).toBe(false);
+    }
+  });
+
+  it('scans in time linear in the text: a long dotted or hyphenated string costs milliseconds', () => {
+    for (const unit of ['a.', 'a-b-', 'abc.def.', '1.2.', 'A.b-C.', 'np.linalg.norm.']) {
+      const text = unit.repeat(Math.ceil(100_000 / unit.length));
+      expect(
+        fastestMs(() => mentionsWebAddress(text), 3),
+        unit,
+      ).toBeLessThan(50);
+    }
+  });
+
+  it('runs no scan on text over its length cap: the cap is the only refusal', () => {
+    // Text that would also fail every other check: a web address, a control character, not NFC.
+    const hostile = `${'a.com\u0007 Cafe\u0301 '.repeat(100)}end`;
+    for (const [schema, name] of [
+      [plainText(1, 50), 'plainText'],
+      [spanText(50), 'spanText'],
+      [codeText(50), 'codeText'],
+    ] as const) {
+      const result = schema.safeParse(hostile);
+      expect(result.success, name).toBe(false);
+      expect(
+        result.error?.issues.map((issue) => issue.code),
+        name,
+      ).toEqual(['too_big']);
+      // Within the cap the same text is refused for what it is.
+      const within = schema.safeParse(hostile.slice(0, 30)).error?.issues.map((issue) => issue.code);
+      expect(within, name).toContain('custom');
+      expect(within, name).not.toContain('too_big');
+    }
+  });
+
+  it('costs milliseconds on a long over-limit field of every text kind', () => {
+    const long = 'a.'.repeat(60_000);
+    for (const [schema, name] of [
+      [plainText(1, 90), 'plainText'],
+      [spanText(1_200), 'spanText'],
+      [codeText(4_000), 'codeText'],
+    ] as const) {
+      expect(
+        fastestMs(() => schema.safeParse(long), 3),
+        name,
+      ).toBeLessThan(50);
+    }
+  });
+});
+
+describe('sentence breaks (re-review of #254, MA-2)', () => {
+  const sentences = (text: string) => sentenceRanges(text).map(([start, end]) => text.slice(start, end));
+
+  it('ends a sentence at a terminator followed by closing quotes and brackets', () => {
+    expect(sentences('Venus spins once in 243 days (a very slow turn.) Mercury needs 59 days.')).toEqual([
+      'Venus spins once in 243 days (a very slow turn.)',
+      'Mercury needs 59 days.',
+    ]);
+    expect(sentences('He said "it is slow." Mercury needs 59 days.')).toEqual([
+      'He said "it is slow."',
+      'Mercury needs 59 days.',
+    ]);
+    expect(sentences('She said “it is slow.” Mercury needs 59 days.')).toEqual([
+      'She said “it is slow.”',
+      'Mercury needs 59 days.',
+    ]);
+    expect(sentences('Really?! Yes. [See below.] «Done.» Next')).toEqual([
+      'Really?!',
+      'Yes.',
+      '[See below.]',
+      '«Done.»',
+      'Next',
+    ]);
+  });
+
+  it('ends a sentence at an ellipsis and at full-width and CJK terminators', () => {
+    expect(sentences('Venus spins once in 243 days… Mercury needs 59 days.')).toEqual([
+      'Venus spins once in 243 days…',
+      'Mercury needs 59 days.',
+    ]);
+    expect(sentences('金星は243日で自転する。水星は59日です。')).toEqual([
+      '金星は243日で自転する。',
+      '水星は59日です。',
+    ]);
+    expect(sentences('本当ですか？はい！次です')).toEqual(['本当ですか？', 'はい！', '次です']);
+  });
+
+  it('ends a sentence at a period directly followed by a capital letter or a digit', () => {
+    expect(sentences('Venus spins once in 243 days.Mercury needs 59 days.')).toEqual([
+      'Venus spins once in 243 days.',
+      'Mercury needs 59 days.',
+    ]);
+    expect(sentences('Venus spins once in 243 days.59 more follow.')).toEqual([
+      'Venus spins once in 243 days.',
+      '59 more follow.',
+    ]);
+    expect(sentences('It ended."Then it began.')).toEqual(['It ended."', 'Then it began.']);
+  });
+
+  it('keeps decimals, versions, names and abbreviations inside a sentence', () => {
+    for (const text of [
+      'About 1.46 times as heavy',
+      'Version 2.0.1 shipped',
+      'It computes np.exp of the score',
+      'Use Node.js for this',
+      'Pi is 3.14159 or so... and then more',
+      'Ask at the U.S. embassy',
+    ]) {
+      const parts = sentences(text);
+      // Only the abbreviation "U.S. embassy" and the ellipsis "... and" (space after) may split.
+      expect(parts.join(' ').replace(/\s+/gu, ' ')).toBe(text);
+      if (!text.includes('...') && !text.includes('U.S.')) expect(parts, text).toEqual([text]);
+    }
+  });
+
+  it('finds the same ranges however the text is chunked: ranges are ordered, disjoint and inside the text', () => {
+    fc.assert(
+      fc.property(fc.string({ maxLength: 120 }), (text) => {
+        let previousEnd = 0;
+        for (const [start, end] of sentenceRanges(text)) {
+          expect(start).toBeGreaterThanOrEqual(previousEnd);
+          expect(end).toBeGreaterThan(start);
+          expect(end).toBeLessThanOrEqual(text.length);
+          previousEnd = end;
+        }
+      }),
+    );
+  });
+});
+
+describe('a unit exponent is notation (re-review of #254, minor 7)', () => {
+  it('is a superscript attached to the symbol before it, and nothing else', () => {
+    const exponent = (text: string) => numericTokens(text).map((token) => isUnitExponent(text, token));
+    expect(exponent('m/s²')).toEqual([true]);
+    expect(exponent('km²')).toEqual([true]);
+    expect(exponent('kg/m³')).toEqual([true]);
+    expect(exponent('s⁻¹')).toEqual([true]);
+    expect(exponent('10²')).toEqual([false]);
+    expect(exponent('m 3')).toEqual([false]);
+    expect(exponent('² alone')).toEqual([false]);
+    expect(exponent('m ²')).toEqual([false]);
+    expect(exponent('⅜ of m²')).toEqual([false, true]);
   });
 });
 

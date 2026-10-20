@@ -27,6 +27,7 @@ import {
   type SimulationData,
   type Span,
 } from '../index.js';
+import { deriveTextLabel, isTextBlockType, type TextBlockType } from '../registry.js';
 import { simulationProof } from '../simulation/checks.js';
 import { placeholderDisplay } from '../simulation/display.js';
 
@@ -117,7 +118,11 @@ export function make<T extends BlockType>(type: T, data: MakeData<T>, essential 
         ...envelope,
         fallbackText: `Text version of this ${type}, standing on its own for every reader.`,
       }) as unknown as BlockOfType<T>;
-  return { ...block, gesture: deriveGesture(block) };
+  // A text block's accessibility label is derived by code from its text, and admission checks it.
+  const labelled = isTextBlockType(type)
+    ? { ...block, a11y: { label: deriveTextLabel(block as Extract<AnyBlock, { type: TextBlockType }>) } }
+    : block;
+  return { ...labelled, gesture: deriveGesture(labelled) };
 }
 
 /** Letters for generated labels: generated text never contains numbers unless a test adds them. */

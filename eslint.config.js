@@ -90,6 +90,30 @@ export default defineConfig(
     },
   },
   {
+    // Admission proves every simulation over its whole grid, which costs tens to hundreds of
+    // milliseconds per Scroll on a device without a JIT (S2.1, #254, M1). A client parses with
+    // `parseDocument` / `parseBlock`. The admission entry itself is refused by dependency-cruiser
+    // (`clients-never-import-scroll-admission`); these names are also still exported from the
+    // public entry for compatibility, so they are refused by name here.
+    files: ['apps/client/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}', 'packages/client-core/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@knowscroll/scroll-model',
+              importNames: ['admitDocument', 'admitBlock', 'validateDocument'],
+              message:
+                'Admission walks the whole grid of every simulation: not on a device. Parse with parseDocument or parseBlock.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Command-line check scripts and the web smoke's static server report to the terminal.
     files: ['tests/integration/boundaries/*.mjs', 'apps/client/e2e/*.mjs'],
     rules: { 'no-console': 'off' },
