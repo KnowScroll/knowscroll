@@ -53,6 +53,10 @@ describe('actual encounter controller over CI transport fixtures', () => {
       expect(commands(h, '/activate')).toHaveLength(2);
       expect(commands(h, '/activate')[1]!.body).toEqual(commands(h, '/activate')[0]!.body);
       expect(commands(h, '/open')).toHaveLength(2);
+      // The backend uses this declaration for eligibility; a capable Reel player must advertise it.
+      expect((commands(h, '/open')[0]!.body.capabilities as { documentSchemas: string[] }).documentSchemas).toEqual(
+        expect.arrayContaining(['scroll-document.v1', 'reel-document.v1']),
+      );
     } finally {
       h.scope.end();
     }
@@ -319,6 +323,9 @@ describe('actual encounter controller over CI transport fixtures', () => {
       await waitForPhase(h.session, 'active');
       const input = commands(h, '/open')[0]!.body as unknown as OpenExposureRequest;
       expect(input.target).toEqual({ kind: 'return', assetId: offer(0).assetId, assetRevision: 2 });
+      expect(input.capabilities.documentSchemas).toEqual(
+        expect.arrayContaining(['scroll-document.v1', 'reel-document.v1']),
+      );
       expect(JSON.stringify(input)).not.toMatch(/positionMs|blockId|offsetWithinBlock/);
     } finally {
       h.scope.end();
