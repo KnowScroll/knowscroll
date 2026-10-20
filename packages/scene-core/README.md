@@ -74,7 +74,8 @@ return locators by their existing account/epoch resource scope.
 JSON escape accounting at the same ceiling, depth 12, 12,000 nodes, 100 objects
 and 100 routes per chunk, and 128 chunk references per manifest. These are
 transport/render bounds, never consumption thresholds. The fixed generator
-uses integer seed mixing and rounded numeric geometry. All family outputs are
+uses integer seed mixing, a pinned 64-sample unit circle and rounded numeric
+geometry; no runtime trigonometric functions can vary across engines. All family outputs are
 finite and bounded; stored anchors are bounded to ±10,000 and scale to
 0.125–16. No global parser/compiler setting is changed.
 

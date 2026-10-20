@@ -10,6 +10,20 @@ const FAMILIES: Readonly<Record<SceneFamily, { radius: number; lobes: number; am
   'ridged.v1': { radius: 60, lobes: 7, amplitude: 0.13 },
   'archipelago.v1': { radius: 56, lobes: 3, amplitude: 0.18 },
 };
+// Pinned quarter-circle constants. No engine-dependent transcendental math: all samples,
+// harmonics and low-detail subsets address the same versioned integer lattice.
+const QUARTER_CIRCLE = [
+  0, 0.0980171403295606, 0.19509032201612825, 0.29028467725446233, 0.3826834323650898, 0.47139673682599764,
+  0.5555702330196022, 0.6343932841636455, 0.7071067811865475, 0.7730104533627369, 0.8314696123025452,
+  0.8819212643483549, 0.9238795325112867, 0.9569403357322089, 0.9807852804032304, 0.9951847266721968, 1,
+] as const;
+function sineSample(index: number): number {
+  const sample = index % 64;
+  if (sample <= 16) return QUARTER_CIRCLE[sample] ?? 0;
+  if (sample <= 32) return QUARTER_CIRCLE[32 - sample] ?? 0;
+  if (sample <= 48) return -(QUARTER_CIRCLE[sample - 32] ?? 0);
+  return -(QUARTER_CIRCLE[64 - sample] ?? 0);
+}
 function rounded(n: number): number {
   return Math.round(n * 1_000_000) / 1_000_000;
 }
@@ -53,16 +67,16 @@ export function buildSceneGeometry(input: unknown, options: SceneGeometryOptions
     throw new SceneParseError();
   const family = FAMILIES[descriptor.family];
   const state = seedState(descriptor.seed);
-  const phase = variation(state, 0) * Math.PI * 2;
-  const phase2 = variation(state, 1) * Math.PI * 2;
+  const coarseAmplitude = 0.025 + variation(state, 0) * 0.02;
+  const finePhase = Math.floor(variation(state, 1) * 64);
   const points = detail.value === 'full' ? 64 : 16;
   const silhouette = Array.from({ length: points }, (_, index) => {
-    const angle = (index / points) * Math.PI * 2;
-    const base = family.amplitude * Math.sin(family.lobes * angle);
-    const coarse = 0.045 * Math.sin(2 * angle + phase);
-    const fine = descriptor.detail.roughness * 0.025 * Math.sin(11 * angle + phase2);
+    const sample = index * (64 / points);
+    const base = family.amplitude * sineSample(family.lobes * sample);
+    const coarse = coarseAmplitude * sineSample(2 * sample);
+    const fine = descriptor.detail.roughness * 0.025 * sineSample(11 * sample + finePhase);
     const radius = family.radius * (1 + base + coarse + fine);
-    return { x: rounded(radius * Math.cos(angle)), y: rounded(radius * Math.sin(angle)) };
+    return { x: rounded(radius * sineSample(sample + 16)), y: rounded(radius * sineSample(sample)) };
   });
   return {
     objectId: descriptor.objectId,

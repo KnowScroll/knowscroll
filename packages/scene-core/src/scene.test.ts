@@ -160,6 +160,15 @@ describe('pure portable family geometry', () => {
     expect(a.radius).toBe(52);
     expect(a.silhouette).toHaveLength(64);
   });
+  it('pins the v1 ridged cardinal template coordinates without runtime trigonometry', () => {
+    const output = buildSceneGeometry({ ...descriptorFixture(), family: 'ridged.v1', detail: { roughness: 0 } }, full);
+    expect([0, 16, 32, 48].map((index) => output.silhouette[index])).toEqual([
+      { x: 60, y: 0 },
+      { x: 0, y: 52.2 },
+      { x: -60, y: 0 },
+      { x: 0, y: -67.8 },
+    ]);
+  });
   it('retains old geometry/anchors/targets when unrelated siblings arrive or reorder', () => {
     const original = chunkFixture();
     const before = buildSceneGeometry(original.objects[0], full);
