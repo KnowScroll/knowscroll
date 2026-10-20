@@ -20,6 +20,7 @@
     "@knowscroll/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "expo": "catalog:",
+    "expo-clipboard": "catalog:",
     "expo-constants": "catalog:",
     "expo-crypto": "catalog:",
     "expo-font": "catalog:",
