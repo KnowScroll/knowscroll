@@ -100,6 +100,10 @@ export function isReadingInteractionAllowed(blockType: string, interactionKind: 
   return declared[blockType]?.includes(interactionKind) === true;
 }
 
+/** Code-selected production topics and predictable model-request ceiling; no research is exported. */
+export { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from './production/topics.js';
+export type { ScrollTopic } from './production/topics.js';
+export type { ProduceScrollResult } from './production/types.js';
 export {
   validateTopics,
   type EncounterRef,

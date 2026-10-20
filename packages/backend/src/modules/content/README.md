@@ -12,6 +12,7 @@ leaves it), and nothing here records who read what.
 | `content.assets` | `0003_content_assets` | Asset identity, `kind` (`reel`/`scroll`), `status` (`admitted`/`withdrawn`) and the **current** revision | None: shared content |
 | `content.asset_revisions` | `0010_content_asset_revisions` | One immutable row per admitted revision: `provenance_kind` (`authored_editorial` · `generated` · `cutroom_import`, D-005), the consumer document (`document_version`, `document`, `document_sha256`), `explanation_unit_id`, `language`, `title`, and the derived `reading_facts` | None: shared content |
 | `content.asset_provenance` | `0010_content_asset_revisions` | The internal provenance of a revision (claims, sources, bindings, checks, production record). Written by admission, **read by no API route**: the consumer document and its provenance are separate tables, so no read of the document can return them | None: shared content |
+| `content.scroll_production_runs` | `0015_scroll_production` | Private nonpersonal topic/version jobs, frozen research/passages, accepted claims, code-only outcomes, draft and publication pointer; no consumer read port | None: shared public supply |
 
 A revision’s document, provenance and identity are never updated; a content change is a new revision, and anything that rests on one (an exposure,
 a saved item) keeps pointing at exactly the bytes it presented.
@@ -79,6 +80,17 @@ asset. The consumer `reel-document.v1` contains logical media keys, title/summar
 truth/fixture/caption labels; internal production/checks/approvals never appear in it. Media grants are
 separate ephemeral access credentials, never content provenance or consumption evidence.
 
+## Generated Scroll production
+
+The worker's `content produce-scroll --topic seasons|tides|greenhouse [--dry-run] [--resume]`
+uses content-owned claims/writer roles through the explicit nonpersonal harness (0013), never a
+personal universe. Both roles put code checks inside the harness's single repair boundary: at most
+four model requests per topic, with uncertain attempts never resent. Publication closes the writer
+run and stores the immutable admitted revision in the same production-root transaction. Research
+and model waits happen outside it. The same version reruns idempotently; explicit resume continues
+frozen stages after a crash. See [production/README.md](production/README.md) and the
+[operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
+provider/browser evidence are separate requirements; no authored starter is labelled generated.
 ## Admitted discovery and continuity (#234 first backend slice)
 
 Implemented backend capabilities, without navigation/API consumers: `ReadDiscoveryCandidates`,
@@ -101,8 +113,10 @@ only the actual approved seasons-v5/tides-v4/greenhouse concepts to `earth.seaso
 the frozen approved **run ID, script, media digest and size**, exact revision and import provenance.
 The import-completion trigger runs after its import row exists in the same admission transaction;
 a failed import leaves no projection. Synthetic imports and arbitrary editorial explanation-ID
-lookalikes stay unknown. Generated Scroll attribution is explicitly **unknown/deferred** until the
-producer's real published-job/revision authority (`0015`) is integrated and wired. No title-derived
+lookalikes stay unknown. New generated Scroll attribution uses the private producer completion hook (`0015` + `0016`):
+it requires actual same-scope writer closure/accounting and the exact published job, admitted
+revision and matching model provenance. Fixture/foreign/incomplete authority stays unknown.
+Historical reconciliation remains deferred until a separate completed-run attestation port exists. No title-derived
 concepts, Part 2/related edges, invented semantic variety or personal-activity-derived topics exist.
 
 Discovery retrieves an indexed union of topic matches (max 40), text matches (max 30) and general
