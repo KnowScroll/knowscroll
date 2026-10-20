@@ -1,6 +1,5 @@
-import { INTERACTION_KINDS, type BlockType } from '@knowscroll/scroll-model';
 import { OBSERVATION_LIMITS, type InteractionEvent, type ObservationBatchResponse } from '@knowscroll/contracts';
-import type { ReadingFacts } from '../../content/public.js';
+import { isReadingInteractionAllowed, type ReadingFacts } from '../../content/public.js';
 import type { PersonalAuthority, ScopeRefusal } from '../../identity/public.js';
 import { boundIntervals, boundOccurredAt, elapsedCapMs } from '../domain/bounds.js';
 import type { ExposureLineage } from '../domain/exposure-lineage.js';
@@ -179,8 +178,7 @@ function refusalOf(
     case 'scroll.block_interaction': {
       const block = [...facts.blocks, ...facts.nested].find((item) => item.id === event.payload.blockId);
       if (block === undefined) return 'block_unknown';
-      const declared: Partial<Record<BlockType, readonly string[]>> = INTERACTION_KINDS;
-      return declared[block.type]?.includes(event.payload.kind) === true ? undefined : 'interaction_kind_invalid';
+      return isReadingInteractionAllowed(block.type, event.payload.kind) ? undefined : 'interaction_kind_invalid';
     }
     case 'scroll.active_dwell':
       return undefined;

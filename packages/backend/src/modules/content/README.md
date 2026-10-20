@@ -16,6 +16,8 @@ leaves it), and nothing here records who read what.
 A revision’s document, provenance and identity are never updated; a content change is a new revision, and anything that rests on one (an exposure,
 a saved item) keeps pointing at exactly the bytes it presented.
 
+The storage adapter validates derived reading facts against the canonical Scroll block registry. Domain facts stay plain data; evidence checks declared interactions through content’s framework-free public predicate, without importing renderer schemas into domain/application code.
+
 ## Use cases and ports
 
 | Operation | Caller | Authority, effects, failure |

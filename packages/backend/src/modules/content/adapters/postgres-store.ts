@@ -5,7 +5,8 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf, withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
 import { readingFactsOf } from './scroll-compiler.js';
 import type { AssetKind } from '../domain/provenance.js';
-import { ReadingFactsSchema, ReadingFactsUnavailableError, type ReadingFacts } from '../domain/reading-facts.js';
+import { ReadingFactsUnavailableError, type ReadingFacts } from '../domain/reading-facts.js';
+import { ReadingFactsSchema } from './reading-facts-schema.js';
 import type { AdmissionTx, ImportEditorialScrollPorts, LockedAsset } from '../application/ports.js';
 import type { AssetForAction, OpenableAsset } from '../public.js';
 

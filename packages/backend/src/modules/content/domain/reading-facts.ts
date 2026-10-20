@@ -1,6 +1,3 @@
-import { BLOCK_TYPES } from '@knowscroll/scroll-model';
-import { z } from 'zod';
-
 /** Version of the stored reading facts below. A new shape gets a new version (blueprint §5). */
 export const READING_FACTS_VERSION = 2;
 
@@ -14,21 +11,16 @@ export const READING_FACTS_VERSION = 2;
  * the revision as `content.asset_revisions.reading_facts`. It is a derived view with one owner
  * (content); nothing edits it independently of the document.
  */
-export const ReadingFactsSchema = z.object({
-  v: z.literal(READING_FACTS_VERSION),
+export interface ReadingFacts {
+  readonly v: typeof READING_FACTS_VERSION;
   /** The measures version the weights come from (`scroll-measures.v1`). */
-  measuresVersion: z.string().regex(/^[a-z][a-z0-9.-]{1,39}$/),
-  /** The sum of the top-level weights. */
-  totalWeight: z.number().int().min(0),
-  /** Estimated reading time in milliseconds at the measures' reading speed. */
-  estimatedReadingMs: z.number().int().min(0),
-  /** Top-level blocks in document order. */
-  blocks: z.array(z.object({ id: z.string(), weight: z.number().int().min(0), type: z.enum(BLOCK_TYPES) })).max(2_000),
-  /** Blocks nested in a disclosure, with the top-level block that owns each. */
-  nested: z.array(z.object({ id: z.string(), owner: z.string(), type: z.enum(BLOCK_TYPES) })).max(2_000),
-});
-
-export type ReadingFacts = z.infer<typeof ReadingFactsSchema>;
+  readonly measuresVersion: string;
+  readonly totalWeight: number;
+  readonly estimatedReadingMs: number;
+  /** Runtime block kinds are validated by content's storage adapter. */
+  readonly blocks: readonly { readonly id: string; readonly weight: number; readonly type: string }[];
+  readonly nested: readonly { readonly id: string; readonly owner: string; readonly type: string }[];
+}
 
 /** A stable operational failure: facts cannot be recovered from the stored document. No content in diagnostics. */
 export class ReadingFactsUnavailableError extends Error {

@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { OpaqueId, WORDS_PER_MINUTE, admitDocument, walkBlocks } from '@knowscroll/scroll-model';
 import { DraftProvenance, compileDraft } from '@knowscroll/scroll-model/producer';
-import { ReadingFactsSchema, READING_FACTS_VERSION, type ReadingFacts } from '../domain/reading-facts.js';
+import { READING_FACTS_VERSION, type ReadingFacts } from '../domain/reading-facts.js';
+import { ReadingFactsSchema } from './reading-facts-schema.js';
 import type { AdmissionIssue, CompileOutcome, SourceParse } from '../application/ports.js';
 
 /** The editorial source file's version. A new shape gets a new version; this release reads only this one. */

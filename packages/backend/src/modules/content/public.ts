@@ -7,7 +7,7 @@
  * Content is shared, not personal: no port here takes a person's data, and none writes. The one
  * write path (`importEditorialScroll`) is the operator command's.
  */
-import type { ScrollDocument } from '@knowscroll/scroll-model';
+import { INTERACTION_KINDS, type ScrollDocument } from '@knowscroll/scroll-model';
 import type { PersonalScopeTx } from '../identity/public.js';
 import type { AssetKind } from './domain/provenance.js';
 import type { ReadingFacts } from './domain/reading-facts.js';
@@ -92,3 +92,10 @@ export type RenderScroll = (request: {
 }) => Promise<RenderScrollResult>;
 
 export const RENDER_SCROLL = Symbol('content.renderScroll');
+
+/** Whether the admitted block kind declares this value-free interaction in the canonical Scroll registry. */
+export function isReadingInteractionAllowed(blockType: string, interactionKind: string): boolean {
+  if (!Object.hasOwn(INTERACTION_KINDS, blockType)) return false;
+  const declared: Readonly<Record<string, readonly string[] | undefined>> = INTERACTION_KINDS;
+  return declared[blockType]?.includes(interactionKind) === true;
+}
