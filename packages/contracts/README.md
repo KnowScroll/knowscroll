@@ -209,11 +209,18 @@ delivery and scene rebuilds preserve the same transition ID. U05's once-per-tran
 can key on that ID per account/epoch; durable cross-device shown/skipped acknowledgement still needs
 its own consumer implementation. Reads must never enqueue work or dispatch a provider attempt.
 
-These declarations are **not routed or implemented**. They do not establish formation authority,
-real maps/coverage, a Cartographer run, scene generation, UI/native/browser behaviour or deployment
-acceptance. The geography backend still owns bounded proposals, evidence references, formation
-policy, current-authority checks, atomic apply, correction/erasure and required pg-boss work. Scenes
-still need canonical `scene-core` descriptors, chunk manifests and independent projection revisions.
+The HTTP declarations are `POST /v1/universe/geography/read` and
+`POST /v1/universe/geography/deltas/read`, with the existing strict read schemas and response unions.
+These are read-only operations: POST preserves the bounded nested selection/cursor JSON without
+inventing string codecs or a second query schema. Neither route is a cartography command or shown/
+skipped transition acknowledgement. The future adapter retains the existing origin/session/scope
+guards and current own-scope backend reads; a cursor or revision grants no authority.
+
+The HTTP declarations are **not served by an API controller yet**. The separate Geography backend
+owns proposals, current trusted authority, policy, atomic application, durable deltas and erasure.
+Neither these declarations nor a read establishes real maps/coverage, a Cartographer run, scene
+projection, UI/native/browser behaviour or deployment acceptance. Scene descriptors/manifests and
+projection have separate versions and consumers.
 `geography.test.ts` contains synthetic wire-validation fixtures only; automated suites run in Actions.
 
 Rules:
