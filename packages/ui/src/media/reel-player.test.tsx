@@ -2,6 +2,7 @@ import { createRef, useLayoutEffect } from 'react';
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { useVideoPlayer, type VideoPlayer, type VideoSource } from 'expo-video';
 import { renderOn } from '../test-support/render';
+import { DisplayProvider } from '../display/display';
 import { ReelPlayer, type ReelPlayerProps, type ReelPositionHandle } from './reel-player';
 
 // The native SDK is a recording stand-in here; real playback belongs to browser/emulator evidence.
@@ -593,7 +594,11 @@ describe('local Reel positions', () => {
     expect(f.positionRef.current?.capture()).toEqual({ positionMs: expected, playing: false });
     expect(f.player.play).not.toHaveBeenCalled();
     f.advanceSdk(6.25);
-    await rendered.rerender(<ReelPlayer {...f.props} initialPositionMs={9000} />);
+    await rendered.rerender(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ReelPlayer {...f.props} initialPositionMs={9000} />
+      </DisplayProvider>,
+    );
     expect(f.positionRef.current?.capture()?.positionMs).toBe(6250);
     await rendered.unmount();
   });
@@ -703,7 +708,11 @@ describe('local Reel positions', () => {
       expect(f.seeks).toHaveBeenCalledTimes(seeks);
       expect(f.player.play).not.toHaveBeenCalled();
       if (ending === 'scope') {
-        await rendered.rerender(<ReelPlayer {...f.props} active={false} initialPositionMs={12000} />);
+        await rendered.rerender(
+          <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+            <ReelPlayer {...f.props} active={false} initialPositionMs={12000} />
+          </DisplayProvider>,
+        );
         expect(f.positionRef.current).toBeNull();
         await rendered.unmount();
       }
