@@ -126,6 +126,21 @@ describe('admitted discovery, exact revision and explicit continuity (real Postg
     };
     await store.inAdmission((tx) => admitContinuity(tx, input));
     await store.inAdmission((tx) => admitContinuity(tx, input));
+    await expect(
+      store.inAdmission((tx) =>
+        admitContinuity(tx, {
+          ...input,
+          links: [],
+          series: [{ ...input.series[0]!, units: input.series[0]!.units.slice(0, 2) }],
+        }),
+      ),
+    ).rejects.toThrow('CONTINUITY_SERIES_CONFLICT');
+    await expect(
+      store.inAdmission((tx) =>
+        admitContinuity(tx, { ...input, links: [], series: [{ ...input.series[0]!, seriesId: 'ci-other-series' }] }),
+      ),
+    ).rejects.toThrow('CONTINUITY_SERIES_CONTRADICTORY');
+
     expect(
       await withScope(person.authority, (s) => resolveContinuityLink(s, { linkId, source: a, target: b })),
     ).toMatchObject({ kind: 'entered', value: { linkId, target: b } });

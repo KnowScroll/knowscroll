@@ -58,13 +58,43 @@ export const admitContinuity: AdmitContinuity = async (tx, input) => {
     if (!r.rows[0]) throw new Error('CONTINUITY_REVISION_UNAVAILABLE');
     return r.rows[0];
   };
+  if (new Set(a.series.map((s) => `${s.seriesId}@${String(s.seriesRevision)}`)).size !== a.series.length)
+    throw new Error('CONTINUITY_SERIES_CONTRADICTORY');
   for (const series of a.series) {
+    const existing = await sql<{
+      part: number;
+      asset_id: string;
+      asset_revision: number;
+      authority_reference: string;
+    }>`select part,asset_id,asset_revision,authority_reference from content.series_units where series_id=${series.seriesId} and series_revision=${series.seriesRevision} order by part limit 100`.execute(
+      db,
+    );
+    const expected = [...series.units].sort((a, b) => a.part - b.part);
+    if (
+      existing.rows.length &&
+      (existing.rows.length !== expected.length ||
+        existing.rows.some((row, i) => {
+          const unit = expected[i]!;
+          return (
+            row.part !== unit.part ||
+            row.asset_id !== unit.assetId ||
+            row.asset_revision !== unit.assetRevision ||
+            row.authority_reference !== a.authorityReference
+          );
+        }))
+    )
+      throw new Error('CONTINUITY_SERIES_CONFLICT');
     if (
       new Set(series.units.map((u) => u.part)).size !== series.units.length ||
       new Set(series.units.map((u) => `${u.assetId}@${String(u.assetRevision)}`)).size !== series.units.length
     )
       throw new Error('CONTINUITY_SERIES_CONTRADICTORY');
     for (const unit of series.units) {
+      const foreignSeries =
+        await sql`select series_id from content.series_units where asset_id=${unit.assetId}::uuid and asset_revision=${unit.assetRevision} and series_id<>${series.seriesId} limit 1`.execute(
+          db,
+        );
+      if (foreignSeries.rows.length) throw new Error('CONTINUITY_SERIES_CONTRADICTORY');
       const revision = await checkRef(unit);
       const declared = (revision.document as { series?: { seriesId?: string; part?: number } }).series;
       if (declared && (declared.seriesId !== series.seriesId || declared.part !== unit.part))

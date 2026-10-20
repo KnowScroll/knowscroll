@@ -2,6 +2,9 @@ import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 import { composeEncounter, type ComposerSnapshot } from '../public.js';
 import { score } from '../domain/features.js';
+function ref(value: { readonly assetId: string; readonly assetRevision: number }) {
+  return { assetId: value.assetId, assetRevision: value.assetRevision };
+}
 function fixture(count = 5): ComposerSnapshot {
   return {
     universeId: 'fixture-universe',
@@ -95,14 +98,14 @@ describe('Composer v0 pure policy (labelled CI input fixtures)', () => {
     const d = composeEncounter({
       ...s,
       mode: 'return',
-      intent: { ...s.intent, format: 'scroll', exactTarget: chosen },
-      explorationPool: s.candidates.map((c) => c.encounter),
+      intent: { ...s.intent, format: 'scroll', exactTarget: ref(chosen) },
+      explorationPool: s.candidates.map((c) => ref(c.encounter)),
     });
     expect(d.selection).toHaveLength(1);
     expect(d.selection[0]?.assetId).toBe(chosen.assetId);
     expect(d.exploration.fraction).toBe(0);
     expect(
-      composeEncounter({ ...s, intent: { ...s.intent, exactTarget: { ...chosen, assetRevision: 2 } } }).outcome,
+      composeEncounter({ ...s, intent: { ...s.intent, exactTarget: { ...ref(chosen), assetRevision: 2 } } }).outcome,
     ).toBe('exhausted');
   });
   it('unknown attribution cannot match a hard topic but remains general discovery supply', () => {
@@ -178,10 +181,16 @@ describe('Composer v0 pure policy (labelled CI input fixtures)', () => {
         s.candidates[0]!,
         {
           ...c,
-          continuity: { linkId: 'fixture-link', source, target: c.encounter, direction: 'next' as const, strength: 1 },
+          continuity: {
+            linkId: 'fixture-link',
+            source,
+            target: ref(c.encounter),
+            direction: 'next' as const,
+            strength: 1,
+          },
         },
       ],
-      explorationPool: [c.encounter],
+      explorationPool: [ref(c.encounter)],
     };
     const d = composeEncounter(input);
     expect(d.selection[0]?.assetId).toBe(c.encounter.assetId);
@@ -241,7 +250,7 @@ describe('Composer v0 pure policy (labelled CI input fixtures)', () => {
           renderable: i % 13 !== 0,
           encounter: { ...c.encounter, explanationUnitId: `unit-${String(Math.floor(i / 2))}` },
         })),
-        explorationPool: s.candidates.map((c) => c.encounter),
+        explorationPool: s.candidates.map((c) => ref(c.encounter)),
       };
       const d = composeEncounter(input);
       expect(composeEncounter(input)).toEqual(d);
@@ -265,7 +274,7 @@ describe('Composer v0 pure policy (labelled CI input fixtures)', () => {
     'probability is the actual ranked plus uniform exploration mixture',
     (seed) => {
       const s = fixture(5);
-      const d = composeEncounter({ ...s, seed, explorationPool: s.candidates.map((c) => c.encounter) });
+      const d = composeEncounter({ ...s, seed, explorationPool: s.candidates.map((c) => ref(c.encounter)) });
       const chosen = d.selection[0]!;
       const isWinner = chosen.assetId === d.exploration.rankedWinner?.assetId;
       expect(d.exploration.selectedProbability).toBeCloseTo((isWinner ? 0.9 : 0) + 0.1 / 5);

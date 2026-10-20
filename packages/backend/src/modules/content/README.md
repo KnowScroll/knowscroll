@@ -120,7 +120,9 @@ source, target and optional link revision must all still match on resolution.
 consumer input invokes it. A single shared metadata advisory lock serializes bounded batches,
 with no personal root acquisition or external wait. It validates real supplied authority refs,
 exact admitted revisions, unique units/slots and declared adjacent parts within the same series
-revision. Related edges cannot masquerade as series, format twins cannot masquerade as another
+revision. A series revision is a complete immutable unit manifest: replay cannot extend/reduce it,
+and one immutable asset revision cannot acquire conflicting series identities. Historical
+versions remain retained; only explicit active links authorize continuation, never ordinal inference. Related edges cannot masquerade as series, format twins cannot masquerade as another
 explanation, and contradictory immutable link replay refuses. There are no runtime relationship
 fixtures. Missing authorized facts remain unknown/unavailable.
 
