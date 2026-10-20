@@ -25,3 +25,7 @@ to the separate database root's enabled/generation checks. No provider is enable
 the worker's reasoning transport/caps and scope-lock timeout. It does not require release identity
 or personal identity. Both configuration and the database production root still default disabled;
 this parser does not mint a production grant.
+
+`KS_PLANNER_ENABLED` accepts0/1 and defaults0 in worker configuration (#236). It gates the
+personal Planner before any model reservation and does not confer paid allowance. Disabled
+work remains durable and resumes only through an explicit same-business-run request.
