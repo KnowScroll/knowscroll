@@ -43,3 +43,9 @@ export {
   type SessionOutcome,
 } from './auth-client';
 export { base64UrlOfBase64, base64UrlOfBytes } from './sign-in-binding';
+export {
+  createScopedBlockStateStore,
+  type EarlierBlockState,
+  type ScrollBlockKey,
+  type ScrollBlockStateStore,
+} from './scroll-state';
