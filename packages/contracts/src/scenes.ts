@@ -160,8 +160,10 @@ export const SceneManifestReadSchema = z
       ctx.addIssue({ code: 'custom', message: 'Manifest status or scene revision is inconsistent.' });
     if (s.status === 'lagging') {
       if (
-        s.pendingProjection.geographyRevision <= s.manifest.revisions.geographyRevision &&
-        s.pendingProjection.personalRevision <= s.manifest.revisions.personalRevision
+        s.pendingProjection.geographyRevision < s.manifest.revisions.geographyRevision ||
+        s.pendingProjection.personalRevision < s.manifest.revisions.personalRevision ||
+        (s.pendingProjection.geographyRevision === s.manifest.revisions.geographyRevision &&
+          s.pendingProjection.personalRevision === s.manifest.revisions.personalRevision)
       )
         ctx.addIssue({ code: 'custom', message: 'Lag requires a newer pending projection input.' });
     } else if (

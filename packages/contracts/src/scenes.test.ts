@@ -170,6 +170,11 @@ describe('scene HTTP declaration-only contracts', () => {
         pendingProjection: { geographyRevision: 10, personalRevision: 16 },
       }).success,
     ).toBe(false);
+    for (const pendingProjection of [
+      { geographyRevision: 8, personalRevision: 15 },
+      { geographyRevision: 10, personalRevision: 11 },
+    ])
+      expect(SceneManifestReadSchema.safeParse({ ...lagging, pendingProjection }).success).toBe(false);
     for (const reason of ['temporarily_unavailable', 'limit']) {
       const unavailable = { version: ready.version, ...common, status: 'unavailable', reason };
       expect(SceneManifestReadSchema.parse(unavailable)).toEqual(unavailable);
