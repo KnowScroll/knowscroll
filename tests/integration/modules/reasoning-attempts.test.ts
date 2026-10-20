@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createBoss, drainConsumers, jobConsumer, startConsumers } from '@knowscroll/backend/infrastructure/jobs';
 import { makeAuthorityHolds, makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { AuthorityHolds } from '@knowscroll/backend/modules/identity';
@@ -37,11 +37,12 @@ const ci = 'cli:ci-fixture';
  * + real database.
  */
 describe('the reasoning attempt ledger (real database, real pg-boss, fixture model)', () => {
+  // Unresolved liabilities and failure receipts intentionally survive within a case, not across unrelated cases.
   let database: TestDatabase<Database>;
-  beforeAll(async () => {
+  beforeEach(async () => {
     database = await createTestDatabase<Database>('reasoning');
   });
-  afterAll(async () => {
+  afterEach(async () => {
     await database.drop();
   });
 

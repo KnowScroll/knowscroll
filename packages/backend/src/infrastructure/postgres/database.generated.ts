@@ -172,6 +172,78 @@ export interface ReasoningExternalAttempts {
   written_off_reason: string | null;
 }
 
+export interface ReasoningProductionAttempts {
+  budget_window: Timestamp | null;
+  cached_tokens: number | null;
+  causation_attempt_id: string | null;
+  dispatch_id: string | null;
+  dispatched_at: Timestamp | null;
+  dispatched_by: string | null;
+  id: string;
+  input_tokens: number | null;
+  max_output_tokens: number | null;
+  model: string;
+  outcome_code: string | null;
+  output: Json | null;
+  output_issues: Json | null;
+  output_tokens: number | null;
+  prompt_version: string | null;
+  provider: string;
+  quota_observation: Json | null;
+  reasoning_tokens: number | null;
+  remote_id: string | null;
+  request_bytes: number | null;
+  request_hash: string;
+  reserved_at: Generated<Timestamp>;
+  reserved_tokens: Generated<number>;
+  role_id: string | null;
+  role_version: string | null;
+  run_id: string;
+  scope_id: string;
+  settled_at: Timestamp | null;
+  state: Generated<string>;
+  step: string;
+  written_off_at: Timestamp | null;
+  written_off_by: string | null;
+  written_off_reason: string | null;
+}
+
+export interface ReasoningProductionRequests {
+  attempt_id: string;
+  body: Buffer;
+  body_sha256: string;
+  created_at: Generated<Timestamp>;
+  erasure_class: Generated<string>;
+  expires_at: Timestamp;
+  scope_id: string;
+}
+
+export interface ReasoningProductionRuns {
+  closed_at: Timestamp | null;
+  context_bundle_ref: string | null;
+  context_refs: Json | null;
+  created_at: Generated<Timestamp>;
+  fence: Generated<number>;
+  generation: number;
+  id: string;
+  model: string | null;
+  owner_module: string;
+  policy_version: string | null;
+  provider: string | null;
+  purpose: string;
+  role_id: string | null;
+  role_version: string | null;
+  scope_id: string;
+  state: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ReasoningProductionScopes {
+  enabled: Generated<boolean>;
+  generation: Generated<number>;
+  id: string;
+}
+
 export interface ReasoningProtectedRequests {
   attempt_id: string;
   body: Buffer;
@@ -186,6 +258,7 @@ export interface ReasoningUsageReceipts {
   attempt_id: string;
   budget_window: Timestamp;
   cached_tokens: number | null;
+  conclusive_failure: Generated<boolean>;
   created_at: Generated<Timestamp>;
   input_tokens: number | null;
   late_usage: Generated<boolean>;
@@ -236,6 +309,10 @@ export interface DB {
   "ops.operator_sign_ins": OpsOperatorSignIns;
   "reasoning.business_runs": ReasoningBusinessRuns;
   "reasoning.external_attempts": ReasoningExternalAttempts;
+  "reasoning.production_attempts": ReasoningProductionAttempts;
+  "reasoning.production_requests": ReasoningProductionRequests;
+  "reasoning.production_runs": ReasoningProductionRuns;
+  "reasoning.production_scopes": ReasoningProductionScopes;
   "reasoning.protected_requests": ReasoningProtectedRequests;
   "reasoning.usage_receipts": ReasoningUsageReceipts;
   "receipts.personal_commands": ReceiptsPersonalCommands;
