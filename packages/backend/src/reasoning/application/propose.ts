@@ -46,7 +46,9 @@ export interface ReasoningRole<T> {
   /**
    * Optional static code → hint catalogue for custom issues with `params.safeCode`. Owned by
    * role code, never context/provider/user data. At most 128 codes (lowercase, digits, `_`, 64
-   * chars), each hint 1–256 characters without controls. Unknown codes/messages stay suppressed.
+   * chars), each hint 1–256 characters without Unicode Cc/Cf controls. Only enumerable string
+   * data properties are accepted; hidden, accessor and symbol entries refuse admission.
+   * Unknown codes/messages stay suppressed.
    * Changes to this feedback contract require a role version change.
    */
   readonly safeCustomIssues?: SafeCustomIssues;

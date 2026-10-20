@@ -224,6 +224,41 @@ describe('the validator summary', () => {
       expect(validSafeCustomIssues(invalid)).toBe(false);
   });
 
+  it('rejects hidden, accessor and symbol catalogue properties without invoking getters', () => {
+    let getterReads = 0;
+    const accessor = Object.defineProperty({}, 'code', {
+      enumerable: true,
+      get() {
+        getterReads += 1;
+        return 'x'.repeat(257);
+      },
+    }) as Record<string, string>;
+    const hiddenCodes = Object.defineProperties(
+      {},
+      Object.fromEntries(Array.from({ length: 129 }, (_, i) => [`code_${i}`, { value: 'hint', enumerable: false }])),
+    ) as Record<string, string>;
+    for (const invalid of [
+      Object.defineProperty({}, 'code', { value: 'A short hidden hint.' }) as Record<string, string>,
+      Object.defineProperty({}, 'code', { value: 'x'.repeat(257) }) as Record<string, string>,
+      hiddenCodes,
+      accessor,
+      { [Symbol('hidden-code')]: 'hint' },
+    ])
+      expect(validSafeCustomIssues(invalid)).toBe(false);
+    expect(getterReads).toBe(0);
+  });
+
+  it.each([
+    ['C1 next line', '\u0085'],
+    ['C1 control sequence', '\u009b'],
+    ['bidi override', '\u202e'],
+    ['bidi isolate', '\u2066'],
+    ['zero-width space', '\u200b'],
+  ])('rejects Unicode control/format hint characters: %s', (_label, control) => {
+    expect(validSafeCustomIssues({ code: `Fixed${control}hint.` })).toBe(false);
+    expect(validSafeCustomIssues({ code: 'Keep the Scroll’s original meaning — rewrite this passage.' })).toBe(true);
+  });
+
   it('reports missing fields, bounds, literals and unexpected keys structurally', () => {
     const verdict = validateOutput(schema, { ok: false, echo: 'lantern', 'run rm -rf': 1 });
     expect(verdict.valid).toBe(false);

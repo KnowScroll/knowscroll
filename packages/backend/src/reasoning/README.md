@@ -17,8 +17,10 @@ const outcome = await harness.propose({ run, role, context, limits }, signal);
 - Optional `role.safeCustomIssues` is a static, code-owned semantic code → fixed hint catalogue.
   Never construct it from user/provider values, retrieved text or context. Admission allows at most
   128 own entries, lowercase codes of at most 64 characters (`[a-z][a-z0-9_]*`, no prototype names)
-  and nonempty hints of at most 256 characters without controls. A custom Zod issue can opt in with
-  `params: { safeCode: 'declared_code' }`. Only an own allowlisted code and its fixed hint reach the
+  and nonempty hints of at most 256 characters without Unicode Cc/Cf control/format characters.
+  Every own property counts: only enumerable string data properties are accepted; hidden,
+  accessor and symbol entries refuse admission without invoking getters. A custom Zod issue can opt
+  in with `params: { safeCode: 'declared_code' }`. Only an own allowlisted code and its fixed hint reach the
   existing bounded issue/repair record; `custom.message` is never read. Undeclared/malformed codes
   remain `custom` without detail. Paths still use only schema-declared names, numeric positions and
   placeholders. Roles without a catalogue keep the existing behavior. Feedback changes require a

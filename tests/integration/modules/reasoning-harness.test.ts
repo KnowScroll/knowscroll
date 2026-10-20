@@ -133,16 +133,29 @@ describe('the reasoning harness (real database, fixture model)', () => {
     const person = await seedPerson(db());
     const model = fixtureModel();
     const { harness } = fixtureHarness(db(), { model });
+    let getterReads = 0;
+    const accessor = Object.defineProperty({}, 'code', {
+      enumerable: true,
+      get() {
+        getterReads += 1;
+        return 'hint';
+      },
+    }) as Record<string, string>;
     for (const safeCustomIssues of [
       { code: 'x'.repeat(257) },
       { constructor: 'hint' },
       Object.fromEntries(Array.from({ length: 129 }, (_, i) => [`code_${i}`, 'hint'])),
+      Object.defineProperty({}, 'code', { value: 'x'.repeat(257) }) as Record<string, string>,
+      accessor,
+      { [Symbol('code')]: 'hint' },
+      ...['\u0085', '\u009b', '\u202e', '\u2066', '\u200b'].map((control) => ({ code: `Fixed${control}hint.` })),
     ])
       expect(await propose(harness, person, { role: { ...echoRole, safeCustomIssues } })).toEqual({
         kind: 'refused',
         reason: 'role_invalid',
       });
     expect(model.calls).toHaveLength(0);
+    expect(getterReads).toBe(0);
     expect(await attemptsOf(db(), person.universeId)).toEqual([]);
   });
 

@@ -187,22 +187,18 @@ const customCode = /^[a-z][a-z0-9_]{0,63}$/u;
 
 /** Admission bound for the optional role catalogue; no custom feedback is enabled by default. */
 export function validSafeCustomIssues(catalogue: SafeCustomIssues): boolean {
-  return (
-    typeof catalogue === 'object' &&
-    catalogue !== null &&
-    !Array.isArray(catalogue) &&
-    Object.keys(catalogue).length <= 128 &&
-    Object.entries(catalogue).every(
-      ([code, hint]) =>
-        customCode.test(code) &&
-        code !== 'constructor' &&
-        code !== 'prototype' &&
-        typeof hint === 'string' &&
-        hint.length > 0 &&
-        hint.length <= 256 &&
-        Array.from(hint).every((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127),
-    )
-  );
+  if (typeof catalogue !== 'object' || catalogue === null || Array.isArray(catalogue)) return false;
+  const keys = Reflect.ownKeys(catalogue);
+  if (keys.length > 128) return false;
+  return keys.every((code) => {
+    if (typeof code !== 'string' || !customCode.test(code) || code === 'constructor' || code === 'prototype')
+      return false;
+    // Lookup consumes own properties: admission must inspect all of them without invoking getters.
+    const descriptor = Object.getOwnPropertyDescriptor(catalogue, code);
+    if (descriptor?.enumerable !== true || !Object.hasOwn(descriptor, 'value')) return false;
+    const hint: unknown = descriptor.value;
+    return typeof hint === 'string' && hint.length > 0 && hint.length <= 256 && !/[\p{Cc}\p{Cf}]/u.test(hint);
+  });
 }
 
 function customFeedback(
