@@ -12,7 +12,13 @@ import {
   type OutputIssue,
   type SafeCustomIssues,
 } from '../domain/output.js';
-import { HARNESS_PROMPT_VERSION, SINGLE_TOOL_PROMPT_VERSION, buildPrompt } from '../domain/prompt.js';
+import {
+  HARNESS_PROMPT_VERSION,
+  SINGLE_TOOL_PROMPT_VERSION,
+  NATIVE_SCHEMA_PROMPT_VERSION,
+  buildPrompt,
+} from '../domain/prompt.js';
+import { deriveNativeInputSchema, NATIVE_SCHEMA_MODE } from '../domain/native-schema.js';
 import { makeExecuteAttempt, type AttemptResult, type Judgement } from './execute-attempt.js';
 import {
   MAX_STORED_OUTPUT_BYTES,
@@ -48,6 +54,8 @@ export interface ReasoningRole<T> {
    * A format change requires a role version change. Omitted preserves historical text bytes.
    */
   readonly outputFormat?: 'single-tool-object';
+  /** Advisory native input shape derived from outputSchema; requires single-tool-object and a new role/policy version. */
+  readonly nativeOutputSchema?: typeof NATIVE_SCHEMA_MODE;
   /**
    * Optional static code → hint catalogue for custom issues with `params.safeCode`. Owned by
    * role code, never context/provider/user data. At most 128 codes (lowercase, digits, `_`, 64
@@ -114,6 +122,7 @@ export interface ProposeInput<T, A = PersonalAuthority> {
 export type ProposeRefusal =
   | 'provider_unavailable'
   | 'output_format_unsupported'
+  | 'output_schema_unsupported'
   | 'role_invalid'
   | 'run_invalid'
   | 'context_invalid'
@@ -217,6 +226,8 @@ function roleProblem<T>(role: ReasoningRole<T>): boolean {
     role.instructions.trim() === '' ||
     role.instructions.length > MAX_INSTRUCTION_CHARS ||
     (role.outputFormat !== undefined && role.outputFormat !== 'single-tool-object') ||
+    (role.nativeOutputSchema !== undefined &&
+      (role.nativeOutputSchema !== NATIVE_SCHEMA_MODE || role.outputFormat !== 'single-tool-object')) ||
     !Number.isInteger(role.maxOutputTokens) ||
     role.maxOutputTokens < 1 ||
     role.maxOutputTokens > MAX_ROLE_OUTPUT_TOKENS ||
@@ -374,12 +385,22 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
       if (roleProblem(role)) return refuse('role_invalid');
       if (role.outputFormat === 'single-tool-object' && model.supportsSingleToolObject !== true)
         return refuse('output_format_unsupported');
+      if (role.nativeOutputSchema !== undefined && model.supportsNativeOutputSchema !== true)
+        return refuse('output_schema_unsupported');
+      const outputJsonSchema =
+        role.nativeOutputSchema === undefined ? undefined : deriveNativeInputSchema(role.outputSchema);
+      if (role.nativeOutputSchema !== undefined && outputJsonSchema === undefined)
+        return refuse('output_schema_unsupported');
       if (runProblem(run)) return refuse('run_invalid');
       if (contextProblem(context)) return refuse('context_invalid');
       if (context.items.length < (role.minContextItems ?? 0)) return refuse('context_insufficient');
-      await maybePurge();
-
-      const promptVersion = role.outputFormat === undefined ? HARNESS_PROMPT_VERSION : SINGLE_TOOL_PROMPT_VERSION;
+      if (role.nativeOutputSchema === undefined) await maybePurge();
+      const promptVersion =
+        role.nativeOutputSchema !== undefined
+          ? NATIVE_SCHEMA_PROMPT_VERSION
+          : role.outputFormat === undefined
+            ? HARNESS_PROMPT_VERSION
+            : SINGLE_TOOL_PROMPT_VERSION;
       const descriptor: RunDescriptor = {
         id: run.id,
         ownerModule: run.ownerModule,
@@ -405,6 +426,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
           bundleRef: context.bundleRef,
           items: context.items,
           ...(role.outputFormat === undefined ? {} : { outputFormat: role.outputFormat }),
+          ...(role.nativeOutputSchema === undefined ? {} : { nativeOutputSchema: role.nativeOutputSchema }),
           ...(feedback === undefined ? {} : { feedback }),
         });
         const body = model.encode({
@@ -412,6 +434,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
           user: text.user,
           maxOutputTokens: role.maxOutputTokens,
           ...(role.outputFormat === undefined ? {} : { outputFormat: role.outputFormat }),
+          ...(outputJsonSchema === undefined ? {} : { outputJsonSchema }),
         });
         return body.length > ports.settings.maxRequestBytes ? undefined : body;
       };
@@ -433,6 +456,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
 
       const primaryBody = encode();
       if (primaryBody === undefined) return refuse('request_too_large');
+      if (role.nativeOutputSchema !== undefined) await maybePurge();
       const primary = outcomeOf(
         role.outputSchema,
         await executeAttempt(model, plan(primaryBody, 'primary'), judge, signal),
