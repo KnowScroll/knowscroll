@@ -38,6 +38,13 @@ describe('Explore contract prerequisite compatibility refusals', () => {
       }),
     ).rejects.toMatchObject(unsupported);
     await expect(
+      call(controller.openExposureRoute(request), {
+        commandId: id,
+        target: { kind: 'return', assetId: id, assetRevision: 2 },
+        capabilities: { documentSchemas: ['scroll-document.v1'], blocks: { fallback: [1] } },
+      }),
+    ).rejects.toMatchObject(unsupported);
+    await expect(
       call(controller.navigateExperienceRoute(request), {
         commandId: id,
         sessionId: id,

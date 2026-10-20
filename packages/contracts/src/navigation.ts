@@ -82,6 +82,20 @@ export const OpenDiscoveryRequestSchema = z.strictObject({
 });
 
 /**
+ * A deliberate fresh revisit, such as opening Saved before Explore has an active encounter. It
+ * may create a Composer session without a `from` offer/exposure. The consumer must recheck both
+ * current asset admission/access and this exact immutable revision; a saved reference never
+ * bypasses withdrawal. It returns a Composer outcome, not the interim direct exposure response.
+ * Opening alone is not consumption or a return bonus. Local anchors/playheads are not uploaded.
+ */
+export const OpenRevisitRequestSchema = z.strictObject({
+  commandId: CommandIdSchema,
+  target: z.strictObject({ kind: z.literal('return'), assetId: AssetIdSchema, assetRevision: Revision }),
+  session: ExperienceSessionRefSchema.optional(),
+  capabilities: ClientCapabilities,
+});
+
+/**
  * Semantic moves, not gesture directions. A previous series step is a new forward navigation in
  * history; it is never platform Back. `return` is an explicit fresh revisit (for example Saved),
  * whose qualification/separation is decided by evidence policy. Restoring a parked Back entry is
@@ -202,6 +216,7 @@ export const ActivateOfferResponseSchema = z.strictObject({
 export type EncounterMetadata = z.infer<typeof EncounterMetadataSchema>;
 export type EncounterOffer = z.infer<typeof EncounterOfferSchema>;
 export type OpenDiscoveryRequest = z.infer<typeof OpenDiscoveryRequestSchema>;
+export type OpenRevisitRequest = z.infer<typeof OpenRevisitRequestSchema>;
 export type NavigateExperienceRequest = z.infer<typeof NavigateExperienceRequestSchema>;
 export type NavigationOutcome = z.infer<typeof NavigationOutcomeSchema>;
 export type ActivateOfferRequest = z.infer<typeof ActivateOfferRequestSchema>;

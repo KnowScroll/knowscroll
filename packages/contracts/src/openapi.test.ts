@@ -56,6 +56,8 @@ describe('the API contract', () => {
     const navigate = JSON.stringify(document.paths?.['/v1/experience/navigate']);
     for (const field of [
       'discover',
+      'return',
+      'assetRevision',
       'capabilities',
       'expectedIntentRevision',
       'exposureId',

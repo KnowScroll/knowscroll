@@ -8,6 +8,7 @@ import {
   EncounterMetadataSchema,
   NavigationOutcomeSchema,
   OpenDiscoveryRequestSchema,
+  OpenRevisitRequestSchema,
 } from './navigation.js';
 
 /**
@@ -133,8 +134,12 @@ export const DirectOpenExposureResponseSchema = z.object({
   replayed: z.boolean(),
 });
 
-/** The original direct-open wire stays usable while Composer sessions are introduced. */
-export const OpenExposureRequestSchema = z.union([OpenDiscoveryRequestSchema, DirectOpenExposureRequestSchema]);
+/** Direct open keeps its exposure result; discovery/revisit use Composer session outcomes. */
+export const OpenExposureRequestSchema = z.union([
+  OpenDiscoveryRequestSchema,
+  OpenRevisitRequestSchema,
+  DirectOpenExposureRequestSchema,
+]);
 export const OpenExposureResponseSchema = z.union([NavigationOutcomeSchema, DirectOpenExposureResponseSchema]);
 
 export type OpenExposureRequest = z.infer<typeof OpenExposureRequestSchema>;

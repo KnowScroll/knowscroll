@@ -88,6 +88,26 @@ describe('Explore prerequisite wire contracts', () => {
       expect(OpenExposureRequestSchema.safeParse(invalid).success).toBe(false);
   });
 
+  it('opens Saved as an exact-revision revisit before a current encounter exists, with the same optional session pair', () => {
+    const revisit = { commandId: id, target: { kind: 'return', assetId: id, assetRevision: 2 }, capabilities };
+    const session = { sessionId: id, expectedIntentRevision: 0 };
+    expect(OpenExposureRequestSchema.parse(revisit)).toEqual(revisit);
+    expect(OpenExposureRequestSchema.parse({ ...revisit, session })).toEqual({ ...revisit, session });
+    for (const invalid of [
+      { ...revisit, target: { kind: 'return', assetId: id } },
+      { ...revisit, target: { ...revisit.target, assetRevision: 0 } },
+      { ...revisit, target: { ...revisit.target, assetRevision: 1.5 } },
+      { ...revisit, session: { sessionId: id } },
+      { ...revisit, session: { expectedIntentRevision: 0 } },
+      { ...revisit, session: { ...session, expectedIntentRevision: -1 } },
+      { ...revisit, target: { ...revisit.target, blockId: 'fixture-block', offset: 42 } },
+      { ...revisit, playheadMs: 31000 },
+      { ...revisit, origin: { kind: 'direct' } },
+      { ...revisit, from: { offerId: id, exposureId: id } },
+    ])
+      expect(OpenExposureRequestSchema.safeParse(invalid).success).toBe(false);
+  });
+
   it('requires a current session, offer, activated exposure and expected revision for each semantic move', () => {
     for (const intent of [
       { mode: 'vertical', direction: 'next' },

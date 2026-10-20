@@ -99,7 +99,8 @@ export class ExperienceController {
   openExposureRoute(@Req() request: Request) {
     return implement(apiContract.experience.openExposure).handler(async ({ input }) => {
       const caller = admittedCaller(request);
-      if (input.target.kind === 'discover') throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
+      if (input.target.kind === 'discover' || input.target.kind === 'return')
+        throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
       // The additive Reel contract precedes the media adapter. Keep this release Scroll-only.
       if (input.target.kind !== 'scroll') throw problem('ASSET_NOT_FOUND');
       const result = await this.openExposure(authorityOf(caller), {

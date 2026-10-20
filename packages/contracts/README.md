@@ -23,9 +23,12 @@ must never enter logs, persistent storage, caches or diagnostics.
 
 Explore contracts precede their consumers (#234). The existing `/v1/experience/open` accepts the
 original direct `{target: {kind: scroll|reel, assetId}, origin: {kind: direct}}` command or a new
-`{target: {kind: discover}, capabilities, session?}` command. Initial discovery omits `session`;
+`{target: {kind: discover}, capabilities, session?}` command, or an explicit Saved-first revisit
+`{target: {kind: return, assetId, assetRevision}, capabilities, session?}`. The revisit may create a
+session without a current offer/exposure; it rechecks admission/access and the exact immutable
+revision, including withdrawal. Discovery and revisit omit `session` for a new session;
 resuming supplies both `sessionId` and `expectedIntentRevision`. Direct open still returns its
-original exposure object. Discovery and navigate return `status: ready|pending|exhausted`, a
+original exposure object. Discovery, explicit revisit and navigate return `status: ready|pending|exhausted`, a
 Composer session ID and intent revision; a prepared offer is **not** an exposure. Offer activation
 uses the same `/activate` route with `target: {kind: offer, sessionId, offerId,
 expectedIntentRevision}` and must independently recheck authority and eligibility. Session IDs in
@@ -42,7 +45,7 @@ interim ID-only adapter and allowlists only kind/title/summary/language and avai
 No internal source, provenance, model or ranking data is a consumer field. Decision IDs are opaque
 ops correlation only.
 
-The prerequisite API explicitly refuses discovery, navigate, offer activation and Like/Unlike/Hide
+The prerequisite API explicitly refuses discovery/revisit open, navigate, offer activation and Like/Unlike/Hide
 with `EXPERIENCE_COMMAND_UNSUPPORTED` before legacy use-case effects. The direct client rejects a
 Composer outcome as a controlled session error. These declarations do not implement Composer,
 new action/evidence state, Saved metadata hydration or any Explore UI. No #234 runtime acceptance
@@ -55,7 +58,10 @@ most three distinct explanations, including the current offer, so another format
 a buffer slot. Natural exhaustion contains no phantom next part. Parked Back restoration is local
 AccountScope state: exact Scroll block + offset, Reel playhead and paused return state remain
 private there. It sends no navigation/activation command and earns no fresh return contribution.
-An explicit revisit may create new lineage but still requires actual qualified observations.
+An explicit open revisit can start from Saved before any current encounter exists; an in-session
+navigate revisit names its current offer/exposure. Both create fresh lineage only after activation
+and still require actual qualified observations; neither overrides withdrawal or changes the saved
+immutable revision.
 
 Rules:
 

@@ -34,7 +34,7 @@ request context → `Cache-Control: no-store` under `/auth` → origin guard (40
 (415 otherwise) → size-limited JSON parser (413) → body error handler → Nest routes → oRPC handler
 → problem encoder.
 
-Explore's #234 shared contracts are prerequisites: discovery open, navigate, offer activation and
+Explore's #234 shared contracts are prerequisites: discovery/revisit open, navigate, offer activation and
 Like/Unlike/Hide currently answer `EXPERIENCE_COMMAND_UNSUPPORTED` (422) before legacy use cases.
 The direct open/activate and Save/Unsave paths keep their existing behavior. These refusal guards
 are replaced by the later Composer/action consumer, not by silently treating new commands as old
