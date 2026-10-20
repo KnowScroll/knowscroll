@@ -6,13 +6,15 @@ import { content } from '@knowscroll/design-tokens';
 export function EncounterOverlay({
   children,
   onClose,
+  label = 'Your path',
 }: {
   readonly children: ReactNode;
+  readonly label?: string;
   readonly onClose: () => void;
 }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.host} accessibilityViewIsModal>
+      <View style={styles.host} accessibilityViewIsModal accessibilityLabel={label}>
         {children}
       </View>
     </Modal>

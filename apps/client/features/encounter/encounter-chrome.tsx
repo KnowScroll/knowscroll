@@ -13,6 +13,7 @@ import {
 } from '@knowscroll/ui';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import type { EncounterState, EncounterSession } from './encounter-session';
+import { RequestNotice, RequestPanel } from '../requests/request-panel';
 import { EncounterOverlay } from './encounter-overlay';
 import { ContinuationControls } from './continuation-controls';
 
@@ -68,15 +69,24 @@ export function EncounterActions({
   return (
     <View>
       <ActionStrip
-        available={['like', 'save']}
+        available={['like', 'save', 'ask']}
         liked={entry.context.actions.liked}
         saved={entry.context.actions.saved}
         saving={state.actionPending}
         onAction={(action) => {
+          if (action === 'ask') {
+            session.openRequest();
+            return;
+          }
           if (state.actionPending || state.actionFailed) return;
           if (action === 'save') session.act(entry.context.actions.saved ? 'unsave' : 'save');
           if (action === 'like') session.act(entry.context.actions.liked ? 'unlike' : 'like');
         }}
+      />
+      <RequestNotice
+        session={session.requests}
+        exposureId={entry.exposureId}
+        onPress={() => session.openRequest(session.requests.getState().mode)}
       />
       {state.actionFailed ? (
         <View style={styles.message}>
@@ -99,45 +109,62 @@ export function EncounterMenu({
   if (!state.overlay || !state.entry) return null;
   return (
     <EncounterOverlay
+      label={state.overlayOwner === 'request' ? 'Ask for something' : 'Your path'}
       onClose={() => {
         session.back();
       }}
     >
-      <View style={styles.overlay}>
-        <ScrollView contentContainerStyle={styles.menu}>
-          <View style={styles.top}>
-            <Text variant="title" heading={2}>
-              Your path
-            </Text>
-            <IconButton icon="close" label="Close" onPress={() => session.setOverlay(false)} />
-          </View>
-          <Text variant="meta">Visited · only your own path</Text>
-          {state.trail.map((entry) => (
+      {state.overlayOwner === 'request' ? (
+        <RequestPanel session={session.requests} onClose={() => session.setOverlay(false)} />
+      ) : (
+        <View style={styles.overlay}>
+          <ScrollView contentContainerStyle={styles.menu}>
+            <View style={styles.top}>
+              <Text variant="title" heading={2}>
+                Your path
+              </Text>
+              <IconButton icon="close" label="Close" onPress={() => session.setOverlay(false)} />
+            </View>
+            <Text variant="meta">Visited · only your own path</Text>
+            {state.trail.map((entry) => (
+              <Button
+                key={entry.exposureId}
+                label={`${entry.kind === 'reel' ? 'Reel' : 'Scroll'} · ${entry.offer.metadata.title}`}
+                variant="ghost"
+                disabled={entry.exposureId === state.entry?.exposureId}
+                onPress={() => session.restore(entry.exposureId)}
+              />
+            ))}
+            <ContinuationControls entry={state.entry} session={session} />
             <Button
-              key={entry.exposureId}
-              label={`${entry.kind === 'reel' ? 'Reel' : 'Scroll'} · ${entry.offer.metadata.title}`}
+              label="Hide this encounter"
               variant="ghost"
-              disabled={entry.exposureId === state.entry?.exposureId}
-              onPress={() => session.restore(entry.exposureId)}
+              disabled={state.actionPending || state.actionFailed}
+              onPress={() => {
+                session.setOverlay(false);
+                session.act('hide');
+              }}
             />
-          ))}
-          <ContinuationControls entry={state.entry} session={session} />
-          <Button
-            label="Hide this encounter"
-            variant="ghost"
-            disabled={state.actionPending || state.actionFailed}
-            onPress={() => {
-              session.setOverlay(false);
-              session.act('hide');
-            }}
-          />
-          <Banner
-            kind="info"
-            lead="Share and Ask aren't available yet."
-            message="There is no request to prepare another format from here yet."
-          />
-        </ScrollView>
-      </View>
+            <Button label="Ask for something" onPress={() => session.openRequest()} />
+            {(['reel', 'scroll'] as const)
+              .filter(
+                (format) =>
+                  format !== state.entry?.kind &&
+                  !state.entry?.context.variants.some(
+                    (variant) => variant.kind === format && variant.status === 'ready',
+                  ),
+              )
+              .map((format) => (
+                <Button
+                  key={format}
+                  label={format === 'reel' ? 'Request Reel' : 'Request Scroll'}
+                  onPress={() => session.openRequest(format)}
+                />
+              ))}
+            <Banner kind="info" lead="Share isn't available yet." message="Requests stay private to your account." />
+          </ScrollView>
+        </View>
+      )}
     </EncounterOverlay>
   );
 }

@@ -7,14 +7,18 @@ const candidates =
 export function EncounterOverlay({
   children,
   onClose,
+  label = 'Your path',
 }: {
   readonly children: ReactNode;
+  readonly label?: string;
   readonly onClose: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const first = host.current?.querySelector<HTMLElement>(candidates);
+    const first =
+      host.current?.querySelector<HTMLElement>('textarea:not([disabled])') ??
+      host.current?.querySelector<HTMLElement>(candidates);
     (first ?? host.current)?.focus();
     return () => {
       if (previous?.isConnected) previous.focus();
@@ -25,7 +29,7 @@ export function EncounterOverlay({
       ref={host}
       role="dialog"
       aria-modal="true"
-      aria-label="Your path"
+      aria-label={label}
       tabIndex={-1}
       style={{ position: 'fixed', inset: 0, background: content.paper, zIndex: 1000 }}
       onKeyDown={(event) => {
