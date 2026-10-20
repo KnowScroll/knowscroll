@@ -1,3 +1,4 @@
+import { SupplyController } from './http/supply.controller.js';
 import { MediaController } from './http/media.controller.js';
 import { AuthController } from './http/auth.controller.js';
 import { ExperienceController } from './http/experience.controller.js';
@@ -14,4 +15,5 @@ export const apiControllers = [
   ExperienceController,
   ObservationsController,
   MediaController,
+  SupplyController,
 ];
