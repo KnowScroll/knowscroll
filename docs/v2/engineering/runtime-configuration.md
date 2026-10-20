@@ -146,3 +146,8 @@ release. Migrations are forward-only; recovery is restoring the verified pre-mig
 API and worker exit 0 after a clean stop on SIGTERM/SIGINT, and 1 on invalid configuration,
 failed start, failed or overdue stop, or an unhandled error. Output is JSON diagnostic records on
 stdout only (journald), one per line.
+
+`KS_PLANNER_ENABLED` (worker,0/1, default0): enable personal Planner execution only after separate
+role allowance approval. Disabled jobs remain blocked without model reservation; explicit typed
+`RequestPlanner` with `resumeRunId` resumes the same business run. This does not alter reasoning
+caps, quota or failure-brake policy and does not grant permission to use the #232 allowance.

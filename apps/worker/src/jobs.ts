@@ -1,3 +1,10 @@
+import { plannerRequestProviders, plannerWorkerProviders } from '@knowscroll/backend/modules/planner/nest-providers';
+import {
+  PLANNER_MATERIAL_CHANGE,
+  RUN_PLANNER,
+  plannerQueue,
+  type RunPlanner,
+} from '@knowscroll/backend/modules/planner';
 import type { Provider } from '@nestjs/common';
 import { jobConsumer, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
@@ -42,6 +49,8 @@ import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-co
  * case that handles it. Nothing is discovered by decorators or scanning.
  */
 export const jobWiring: Provider[] = [
+  ...plannerRequestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
+  ...plannerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   ...experienceEvidenceReadProviders(),
   ...contentProviders(),
   // Same required PC-owned Composer adapter as the API; no legacy prepared-input binding.
@@ -51,6 +60,7 @@ export const jobWiring: Provider[] = [
     withPersonalScope: WITH_PERSONAL_SCOPE,
     enqueueJob: ENQUEUE_JOB,
     derivedProjection: ACTIVITY_CONTEXT_EFFECT,
+    materialChange: PLANNER_MATERIAL_CHANGE,
   }),
   ...identitySweepProviders({ database: DATABASE }),
   ...reasoningPurgeProviders({ database: DATABASE, logEvent: LOG_EVENT }),
@@ -58,6 +68,7 @@ export const jobWiring: Provider[] = [
   {
     provide: JOB_CONSUMERS,
     inject: [
+      RUN_PLANNER,
       APPLY_ACTION_EVIDENCE,
       PROJECT_SCROLL_READING,
       PROJECT_ENCOUNTER_ACTIVITY,
@@ -67,6 +78,7 @@ export const jobWiring: Provider[] = [
       LOG_EVENT,
     ],
     useFactory: (
+      runPlanner: RunPlanner,
       applyActionEvidence: ApplyActionEvidence,
       projectScrollReading: ProjectScrollReading,
       projectActivity: ProjectEncounterActivity,
@@ -75,6 +87,9 @@ export const jobWiring: Provider[] = [
       sweepDispatchedAttempts: SweepDispatchedAttempts,
       logEvent: LogEvent,
     ): readonly JobConsumer<unknown>[] => [
+      jobConsumer(plannerQueue, async (payload, delivery) => {
+        await runPlanner(payload, delivery.signal);
+      }),
       jobConsumer(applyActionEvidenceQueue, async (payload) => {
         const result = await applyActionEvidence(payload);
         if (result.kind === 'skipped')

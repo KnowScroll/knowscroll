@@ -62,6 +62,16 @@ describe('process configuration', () => {
     ]);
   });
 
+  it('keeps Planner spending disabled until its explicit role gate is enabled', () => {
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).plannerEnabled).toBe(false);
+    expect(
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_PLANNER_ENABLED: '1' }).plannerEnabled,
+    ).toBe(true);
+    expect(() =>
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_PLANNER_ENABLED: 'true' }),
+    ).toThrow();
+  });
+
   it('defaults the commit and artifact outside production, but never the world', () => {
     const config = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' });
     expect(config).toMatchObject({

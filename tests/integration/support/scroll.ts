@@ -113,6 +113,10 @@ export async function scrollUseCases(
     readonly wrapScope?: (scope: WithPersonalScope) => WithPersonalScope;
     readonly activityNow?: () => Date;
     readonly activityDerived?: ActivityDerivedEffect;
+    readonly activityMaterialChange?: (
+      scope: Parameters<ActivityDerivedEffect['apply']>[0],
+      input: { readonly sourceRevision: number },
+    ) => Promise<void>;
   } = {},
 ): Promise<{
   readonly navigate: NavigateEncounter;
@@ -167,10 +171,11 @@ export async function scrollUseCases(
   ];
   const build = (token: symbol): unknown => buildFromProviders(providers, token, values);
   const activityPorts = build(ACTIVITY_PORTS);
-  values.set(
-    ACTIVITY_PORTS,
-    options.activityNow ? { ...(activityPorts as object), now: options.activityNow } : activityPorts,
-  );
+  values.set(ACTIVITY_PORTS, {
+    ...(activityPorts as object),
+    ...(options.activityNow ? { now: options.activityNow } : {}),
+    ...(options.activityMaterialChange ? { materialChange: options.activityMaterialChange } : {}),
+  });
   values.set(READ_PREPARED_ACTIVITY, build(READ_PREPARED_ACTIVITY));
   values.set(READ_ACTIVITY_STATISTICS, build(READ_ACTIVITY_STATISTICS));
   values.set(READ_OBSERVATION_TAIL, build(READ_OBSERVATION_TAIL));

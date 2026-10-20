@@ -1,3 +1,5 @@
+import { plannerRequestProviders } from '@knowscroll/backend/modules/planner/nest-providers';
+import { PLANNER_MATERIAL_CHANGE } from '@knowscroll/backend/modules/planner';
 import type { Provider } from '@nestjs/common';
 import {
   INGEST_OBSERVATIONS,
@@ -11,12 +13,14 @@ import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-co
 
 /** Evidence wiring for the API composition root: the observation intake and the dev diagnostics read. */
 export const evidenceWiring: Provider[] = [
+  ...plannerRequestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   // Installs the required PC-owned Composer adapter; legacy Evidence preparation stays disabled.
   ...personalContextProviders(),
   ...activityProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
     enqueueJob: ENQUEUE_JOB,
     derivedProjection: ACTIVITY_CONTEXT_EFFECT,
+    materialChange: PLANNER_MATERIAL_CHANGE,
   }),
   ...evidenceIntakeProviders({
     database: DATABASE,

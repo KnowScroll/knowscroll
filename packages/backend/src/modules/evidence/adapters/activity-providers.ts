@@ -39,9 +39,11 @@ export function activityProviders(t: {
   readonly withPersonalScope: symbol;
   readonly enqueueJob: symbol;
   readonly derivedProjection?: symbol;
+  readonly materialChange?: symbol;
   /** Direct compatibility fixtures only; shipped navigation must read the context owner. */
   readonly legacyPreparedRead?: true;
 }) {
+  if (t.materialChange && !t.derivedProjection) throw new Error('ACTIVITY_MATERIAL_CHANGE_REQUIRES_DERIVED_PROJECTION');
   return [
     { provide: READ_RECENT_TOPIC_IDS, inject: [], useFactory: () => readRecentTopicIds },
     { provide: READ_ACTIVITY_STATISTICS, inject: [], useFactory: () => readActivityStatistics },
@@ -58,6 +60,7 @@ export function activityProviders(t: {
         READ_ROUTING_HISTORY,
         READ_ACTIVITY_RECONCILE_PAGE,
         ...(t.derivedProjection ? [t.derivedProjection] : []),
+        ...(t.materialChange ? [t.materialChange] : []),
       ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
@@ -69,8 +72,10 @@ export function activityProviders(t: {
         readHistory: ReadRoutingHistory,
         readReconcilePage: ReadActivityReconcilePage,
         derived?: ActivityPorts['derived'],
+        materialChange?: ActivityPorts['materialChange'],
       ): ActivityPorts => ({
         ...(derived ? { derived } : {}),
+        ...(materialChange ? { materialChange } : {}),
         withPersonalScope,
         readExposure,
         readLineage,

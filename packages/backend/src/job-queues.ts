@@ -1,3 +1,4 @@
+import { plannerQueue } from './modules/planner/public.js';
 import { queueRegistry } from './infrastructure/jobs/queues.js';
 import {
   applyActionEvidenceQueue,
@@ -13,6 +14,7 @@ import { purgeExpiredRequestsQueue, sweepDispatchedAttemptsQueue } from './reaso
  * erasure inventory checks that every queue carrying `universeId` has an eraser.
  */
 export const releaseQueues = queueRegistry([
+  plannerQueue,
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
   projectEncounterActivityQueue,

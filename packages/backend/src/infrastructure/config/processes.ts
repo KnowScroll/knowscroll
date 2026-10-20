@@ -110,6 +110,8 @@ export interface ContentOperatorConfig {
 }
 
 export interface WorkerConfig extends ReleaseIdentity {
+  /** Planner execution gate; default off until a separately approved role allowance. */
+  readonly plannerEnabled: boolean;
   readonly database: DatabaseSettings;
   readonly shutdownGraceMs: number;
   /** Personal-scope lock wait; always shorter than the statement timeout. */
@@ -527,11 +529,13 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     checkEnvironment(
       z.object({
         ...databaseVariables,
+        KS_PLANNER_ENABLED: z.enum(['0', '1']).default('0'),
         KS_DB_POOL_MAX: positiveInteger(5, 100),
         KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
         KS_SCOPE_LOCK_TIMEOUT_MS: positiveInteger(5_000, 60_000),
       }),
       pick(env, [
+        'KS_PLANNER_ENABLED',
         'DATABASE_URL',
         'KS_DB_STATEMENT_TIMEOUT_MS',
         'KS_DB_POOL_MAX',
@@ -549,6 +553,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
   ]);
   return {
     ...release,
+    plannerEnabled: parsed.KS_PLANNER_ENABLED === '1',
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),
     shutdownGraceMs: parsed.KS_SHUTDOWN_GRACE_SECONDS * 1000,
     scopeLockTimeoutMs: parsed.KS_SCOPE_LOCK_TIMEOUT_MS,

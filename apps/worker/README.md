@@ -33,3 +33,11 @@ seasons|tides|greenhouse [--dry-run] [--resume]`. It refuses worlds outside dev/
 prints a four-request maximum, uses the explicit nonpersonal harness grant, and emits bounded
 IDs/outcome codes and reported usage only. `--resume` reuses frozen stages and attempt IDs;
 unknown attempts never resend. No production job or source text is placed on the HTTP path.
+
+The explicit `planner.run` consumer (#236) calls the personal Planner with the delivery abort
+signal. `KS_PLANNER_ENABLED=0` is the default; deliveries persist `blocked_disabled` with no
+reservation. The role needs a separately approved paid allowance before enablement. Backend
+`RequestPlanner(authority,{commandId,resumeRunId})` requeues the same blocked business ID after
+review; unknown attempts remain ledger-bound and never resend. There is no direct paid Planner
+operator command or consumer UI in this slice. Protected `planner.*` rows expose revisions/status
+for operator inspection; ordinary logs contain no Planner context or proposal text.

@@ -140,6 +140,16 @@
       "@knowscroll/source": "./src/modules/personal-context/adapters/nest-providers.ts",
       "types": "./dist/modules/personal-context/adapters/nest-providers.d.ts",
       "default": "./dist/modules/personal-context/adapters/nest-providers.js"
+    },
+    "./modules/planner": {
+      "@knowscroll/source": "./src/modules/planner/public.ts",
+      "types": "./dist/modules/planner/public.d.ts",
+      "default": "./dist/modules/planner/public.js"
+    },
+    "./modules/planner/nest-providers": {
+      "@knowscroll/source": "./src/modules/planner/adapters/nest-providers.ts",
+      "types": "./dist/modules/planner/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/planner/adapters/nest-providers.js"
     }
   },
   "files": [
