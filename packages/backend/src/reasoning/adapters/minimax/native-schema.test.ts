@@ -32,6 +32,7 @@ const hash = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
 
 describe('MiniMax advisory native input shape (fake HTTP only)', () => {
   it('adds one fixed auto-choice data carrier, hashes the full schema and preserves absent-schema bytes', () => {
+    expect(shape).toBeDefined();
     const port = makeMiniMaxModelPort(settings);
     const old = port.encode(request);
     const body = port.encode({ ...request, outputJsonSchema: shape });
@@ -51,6 +52,7 @@ describe('MiniMax advisory native input shape (fake HTTP only)', () => {
   });
 
   it('makes one quota observation and one HTTP request with the exact frozen schema body, without execution', async () => {
+    expect(shape).toBeDefined();
     const calls: { url: string; init: RequestInit }[] = [];
     const port = makeMiniMaxModelPort(settings, (url, init) => {
       const address = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
@@ -100,6 +102,7 @@ describe('MiniMax advisory native input shape (fake HTTP only)', () => {
   });
 
   it('rejects unsupported, remote or over-limit schemas before fetch and keeps the old strict request decoder', async () => {
+    expect(shape).toBeDefined();
     let sends = 0;
     const port = makeMiniMaxModelPort(settings, () => {
       sends++;

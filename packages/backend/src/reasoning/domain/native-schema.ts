@@ -184,14 +184,18 @@ export function isNativeInputSchema(value: unknown): value is NativeInputSchema 
 /** Never executes transforms/refinements or copies registry metadata into the provider request. */
 export function deriveNativeInputSchema(schema: z.ZodType): NativeInputSchema | undefined {
   try {
-    const result = z.toJSONSchema(schema, {
-      target: 'draft-07',
-      io: 'input',
-      metadata: z.registry(),
-      unrepresentable: 'throw',
-      cycles: 'throw',
-      reused: 'ref',
-    });
+    // Zod adds a non-enumerable ~standard executable helper to its returned root. Copy only
+    // enumerable schema data; the strict JSON guard must still reject such helpers on inputs.
+    const result = {
+      ...z.toJSONSchema(schema, {
+        target: 'draft-07',
+        io: 'input',
+        metadata: z.registry(),
+        unrepresentable: 'throw',
+        cycles: 'throw',
+        reused: 'ref',
+      }),
+    };
     // The sole generated dialect URL is unnecessary on a tool input schema; all other URLs refuse.
     delete result.$schema;
     return isNativeInputSchema(result) ? result : undefined;
