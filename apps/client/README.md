@@ -143,6 +143,7 @@ remain outside that responder; article/slider/chart/code pointers stay with the 
 also offer an explicit navigation surface below the article. Axis ownership locks until release; native starts inside the 24 px system-Back edge
 stay with the platform. Vertical Scroll gestures never navigate, including end momentum. Every
 move has a named button; normal keyboard activation works without claiming article reading keys.
+A Reel down-swipe or ArrowUp requests a previous subject; it is distinct from local Back.
 Android Back, browser Back and the toolbar use the same local path, overlay first. Browser state
 holds one transient same-address sentinel rather than an encounter navigation tree.
 

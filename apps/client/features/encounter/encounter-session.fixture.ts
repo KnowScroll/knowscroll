@@ -34,6 +34,7 @@ export function harness() {
   let navigationStale = false;
   let actionFailure = false;
   let saved = false;
+  let contextNotFound = false;
   let contextGate: Promise<void> | undefined;
   let outcomeStatus: 'ready' | 'pending' | 'exhausted' = 'ready';
   const calls: { path: string; body: Record<string, unknown> }[] = [];
@@ -106,6 +107,7 @@ export function harness() {
       }
       if (path.endsWith('/context')) {
         await contextGate;
+        if (contextNotFound) return problem('ASSET_NOT_FOUND');
         const exposure = path.split('/').at(-2)!;
         const n = Number(exposure.slice(-12)) - 400;
         return json(context(n));
@@ -177,6 +179,9 @@ export function harness() {
     },
     setActionFailure: (value: boolean) => {
       actionFailure = value;
+    },
+    setContextNotFound: (value: boolean) => {
+      contextNotFound = value;
     },
     setGate: (value: Promise<void> | undefined) => {
       contextGate = value;

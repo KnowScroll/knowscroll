@@ -24,19 +24,21 @@ export function ActivatedReelView({
   readonly initialPositionMs?: number;
   readonly positionRef?: Ref<ReelPositionHandle>;
   readonly retainedGrant?: {
+    active(): boolean;
     get(): { path: string; expiresAt: string } | undefined;
     set(grant: { path: string; expiresAt: string }): void;
   };
 }) {
   const source = useCallback(async () => {
-    if (!scope.active) throw new Error('scope_ended');
+    if (!scope.active || (retainedGrant && !retainedGrant.active())) throw new Error('encounter_ended');
     const retained = retainedGrant?.get();
     const grant =
       retained && Date.parse(retained.expiresAt) > Date.now() + 30_000
         ? retained
         : await scope.api.media.grant({ exposureId });
     if (scope.active) retainedGrant?.set({ path: grant.path, expiresAt: grant.expiresAt });
-    if (!scope.active || !scope.mediaSource) throw new Error('media_adapter_unavailable');
+    if (!scope.active || (retainedGrant && !retainedGrant.active()) || !scope.mediaSource)
+      throw new Error('media_adapter_unavailable');
     return { source: { ...scope.mediaSource(grant.path), useCaching: false }, expiresAt: grant.expiresAt };
   }, [scope, exposureId, retainedGrant]);
   const registerEnd = useCallback((stop: () => void) => scope.onEnd?.(stop) ?? (() => undefined), [scope]);

@@ -66,6 +66,13 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
           {entry.kind === 'scroll' ? <EncounterGestures scroll onMove={(move) => session.gesture(move)} /> : null}
           <View style={styles.buttons}>
             <Button
+              label="Previous subject"
+              size="sm"
+              variant="ghost"
+              disabled={state.phase !== 'active' || state.actionFailed}
+              onPress={() => session.navigate({ mode: 'vertical', direction: 'previous' })}
+            />
+            <Button
               label="Next subject"
               size="sm"
               variant="ghost"

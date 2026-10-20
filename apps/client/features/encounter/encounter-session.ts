@@ -13,6 +13,7 @@ import type {
   NavigationOutcome,
 } from '@knowscroll/contracts';
 import { parseDocument } from '@knowscroll/scroll-model';
+import type { EncounterGestureMove } from './gestures/arbitration';
 import { SCROLL_CAPABILITIES } from '../scroll/capabilities';
 import { createEncounterHistory, readResume, type EncounterEntry } from './encounter-history';
 
@@ -62,7 +63,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let busy = false;
   let work: Work | undefined;
   let latestSession: { sessionId: string; intentRevision: number } | undefined;
-  let action: ApplyActionRequest | undefined;
+  let action: { readonly input: ApplyActionRequest; readonly entry: EncounterEntry } | undefined;
   let actionRunning = false;
   let contextSerial = 0;
   const valid = () => live && scope.active;
@@ -103,9 +104,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     const serial = ++contextSerial;
     try {
       await context(entry);
-      if (valid() && serial === contextSerial) publish({ contextReady: true });
+      if (valid() && serial === contextSerial && history.current() === entry) publish({ contextReady: true });
     } catch (error) {
-      if (valid() && serial === contextSerial) {
+      if (valid() && serial === contextSerial && history.current() === entry) {
         if (state.phase === 'stale' && apiProblem(error)?.status !== 404) publish({ contextReady: false });
         else fail(error);
       }
@@ -160,6 +161,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       restored: offer.relation.kind === 'return',
       started: false,
       suspended: false,
+      disposed: false,
     };
     const exposure = { exposureId, assetId: offer.assetId, assetRevision: offer.assetRevision };
     if (offer.metadata.kind === 'scroll') {
@@ -258,7 +260,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     void run();
   };
   const open = (target: { kind: 'discover' } | { kind: 'return'; assetId: string; assetRevision: number }) => {
-    if (!valid() || work || busy || action !== undefined) return false;
+    if (!valid() || work || busy || actionRunning || action !== undefined) return false;
     const commandId = newId();
     const session = latestSession
       ? { sessionId: latestSession.sessionId, expectedIntentRevision: latestSession.intentRevision }
@@ -297,9 +299,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     begin(() => scope.api.experience.navigate(input));
   };
   async function runAction() {
-    const input = action;
-    const entry = history.current();
-    if (!input || !entry || !valid() || actionRunning) return;
+    const pending = action;
+    if (!pending || !valid() || actionRunning) return;
+    const { input, entry } = pending;
     actionRunning = true;
     const before = entry.context.actions;
     const optimistic = { ...before };
@@ -311,6 +313,12 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     try {
       const result = await scope.api.experience.applyAction(input);
       if (!valid()) return;
+      if (
+        result.assetId !== input.target.assetId ||
+        result.assetRevision !== input.target.assetRevision ||
+        result.kind !== input.kind
+      )
+        throw new Error('action_lineage');
       action = undefined;
       entry.context = {
         ...entry.context,
@@ -355,11 +363,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     },
     open,
     navigate,
-    gesture(move: 'next' | 'previous' | 'subject') {
+    gesture(move: EncounterGestureMove) {
       const entry = history.current();
       if (!entry || state.phase !== 'active' || !foreground || state.overlay) return;
-      if (move === 'subject') {
-        navigate({ mode: 'vertical', direction: 'next' });
+      if (move === 'subjectNext' || move === 'subjectPrevious') {
+        navigate({ mode: 'vertical', direction: move === 'subjectNext' ? 'next' : 'previous' });
         return;
       }
       const target =
@@ -438,18 +446,19 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (value && work && !busy) void run();
     },
     bindSurface(entry: EncounterEntry, surface: NonNullable<EncounterEntry['surface']>) {
-      if (valid() && foreground && history.current() === entry) entry.surface = surface;
+      if (valid() && !entry.disposed && foreground && history.current() === entry) entry.surface = surface;
     },
     mediaGrant(entry: EncounterEntry) {
       return {
-        get: () => (valid() && entry.kind === 'reel' ? entry.mediaGrant : undefined),
+        active: () => valid() && !entry.disposed,
+        get: () => (valid() && !entry.disposed && entry.kind === 'reel' ? entry.mediaGrant : undefined),
         set: (grant: { path: string; expiresAt: string }) => {
-          if (valid() && entry.kind === 'reel') entry.mediaGrant = grant;
+          if (valid() && !entry.disposed && entry.kind === 'reel') entry.mediaGrant = grant;
         },
       };
     },
     mount(entry: EncounterEntry) {
-      if (!valid() || !foreground || history.current() !== entry || state.overlay) return;
+      if (!valid() || entry.disposed || !foreground || history.current() !== entry || state.overlay) return;
       if (entry.kind === 'scroll') entry.recorder.start();
       if (entry.suspended) entry.recorder.resume();
       entry.suspended = false;
@@ -472,12 +481,14 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       }
       if (work || busy) return false;
       if (!history.back()) return false;
+      contextSerial += 1;
       // No read, command, activation, or new recorder on Back. Latest server intent remains independent.
       publish({ phase: 'active', outcome: undefined });
       return true;
     },
     restore(exposureId: string) {
       if (work || busy || !history.restore(exposureId)) return;
+      contextSerial += 1;
       publish({ phase: 'active', outcome: undefined, overlay: false });
     },
     setOverlay(overlay: boolean) {
@@ -498,10 +509,13 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (kind === 'save') history.capture();
       if (!action)
         action = {
-          commandId: newId(),
-          kind,
-          target: { assetId: entry.offer.assetId, assetRevision: entry.offer.assetRevision },
-          exposureId: entry.exposureId,
+          entry,
+          input: {
+            commandId: newId(),
+            kind,
+            target: { assetId: entry.offer.assetId, assetRevision: entry.offer.assetRevision },
+            exposureId: entry.exposureId,
+          },
         };
       void runAction();
     },

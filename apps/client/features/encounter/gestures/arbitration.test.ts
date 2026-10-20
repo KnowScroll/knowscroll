@@ -36,6 +36,9 @@ describe('navigation gesture ownership', () => {
     const reel = create();
     expect(reel.move(2, -30)).toBe('vertical');
     reel.move(-200, -90);
-    expect(reel.release()).toBe('subject');
+    expect(reel.release()).toBe('subjectNext');
+    const previous = create();
+    previous.move(2, 100);
+    expect(previous.release()).toBe('subjectPrevious');
   });
 });

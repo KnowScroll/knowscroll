@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from 'react';
-import { createGestureArbitrator } from './arbitration';
+import { createGestureArbitrator, type EncounterGestureMove } from './arbitration';
 
 /** DOM pointer ownership lives only on the real video stage; player buttons/seek controls stay outside. */
 export function ReelGestureStage({
@@ -7,7 +7,7 @@ export function ReelGestureStage({
   onMove,
 }: {
   readonly children: ReactNode;
-  readonly onMove: (move: 'next' | 'previous' | 'subject') => void;
+  readonly onMove: (move: EncounterGestureMove) => void;
 }) {
   const gesture = useRef<ReturnType<typeof createGestureArbitrator> | undefined>(undefined);
   const start = useRef({ x: 0, y: 0, pointerId: -1 });
@@ -22,12 +22,14 @@ export function ReelGestureStage({
         if (event.target !== event.currentTarget) return;
         const move =
           event.key === 'ArrowDown'
-            ? 'subject'
-            : event.key === 'ArrowRight'
-              ? 'next'
-              : event.key === 'ArrowLeft'
-                ? 'previous'
-                : undefined;
+            ? 'subjectNext'
+            : event.key === 'ArrowUp'
+              ? 'subjectPrevious'
+              : event.key === 'ArrowRight'
+                ? 'next'
+                : event.key === 'ArrowLeft'
+                  ? 'previous'
+                  : undefined;
         if (move) {
           event.preventDefault();
           onMove(move);

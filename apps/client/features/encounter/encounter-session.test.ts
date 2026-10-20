@@ -214,6 +214,103 @@ describe('actual encounter controller over CI transport fixtures', () => {
     }
   });
 
+  it('retrying an unknown action after Back only reconciles its originating entry', async () => {
+    const h = harness();
+    try {
+      const previous = await ready(h);
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'active');
+      const origin = h.session.getState().entry!;
+      h.setActionFailure(true);
+      h.session.act('save');
+      await waitFor(() => expect(h.session.getState()).toMatchObject({ actionFailed: true, actionPending: false }));
+      expect(origin.context.actions.saved).toBe(false);
+      expect(h.session.back()).toBe(true);
+      expect(h.session.getState().entry).toBe(previous);
+      const previousActions = previous.context.actions;
+      h.setActionFailure(false);
+      h.session.retryAction();
+      // The optimistic update must also target the parked origin, before the reply arrives.
+      expect(origin.context.actions.saved).toBe(true);
+      expect(previous.context.actions).toBe(previousActions);
+      await waitFor(() => expect(h.session.getState()).toMatchObject({ actionFailed: false, actionPending: false }));
+      expect(origin.context.actions.saved).toBe(true);
+      expect(previous.context.actions).toBe(previousActions);
+      expect(previous.context.actions.saved).toBe(false);
+      expect(h.session.getState().entry).toBe(previous);
+      expect(commands(h, '/actions')[1]!.body).toEqual(commands(h, '/actions')[0]!.body);
+      expect(commands(h, '/actions')[1]!.body.exposureId).toBe(origin.exposureId);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('ignores a deferred departed-entry context refusal after Back to an authorized member', async () => {
+    const h = harness();
+    try {
+      const previous = await ready(h);
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'active');
+      const departed = h.session.getState().entry!;
+      let release: () => void = () => undefined;
+      h.setGate(
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      );
+      const count = commands(h, '/context').length;
+      const refreshing = h.session.refreshContext();
+      await waitFor(() => expect(commands(h, '/context')).toHaveLength(count + 1));
+      expect(h.session.back()).toBe(true);
+      h.setContextNotFound(true);
+      release();
+      await refreshing;
+      expect(h.session.getState().phase).toBe('active');
+      expect(h.session.getState().entry).toBe(previous);
+      expect(h.session.getState().entry).not.toBe(departed);
+      expect(h.session.getState().contextReady).toBeUndefined();
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('previous-subject Reel intent is a new command distinct from local Back', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      h.session.gesture('subjectPrevious');
+      await waitForPhase(h.session, 'active');
+      expect(commands(h, '/navigate')[0]!.body.intent).toEqual({ mode: 'vertical', direction: 'previous' });
+      expect(commands(h, '/activate')).toHaveLength(2);
+      const count = commands(h, '/navigate').length;
+      h.session.back();
+      expect(commands(h, '/navigate')).toHaveLength(count);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('an evicted entry cannot regain an in-memory media grant through a retained callback', async () => {
+    const h = harness();
+    try {
+      const first = await ready(h);
+      const retained = h.session.mediaGrant(first);
+      expect(retained.active()).toBe(true);
+      expect(retained.get()).toBeDefined();
+      for (let index = 0; index < 20; index += 1) {
+        h.session.navigate({ mode: 'vertical', direction: 'next' });
+        await waitForPhase(h.session, 'active');
+      }
+      expect(first.disposed).toBe(true);
+      expect(retained.active()).toBe(false);
+      retained.set({ path: '/media/late-fixture', expiresAt: '2099-10-20T18:00:00.000Z' });
+      expect(retained.get()).toBeUndefined();
+      expect(first.kind === 'reel' && first.mediaGrant).toBeUndefined();
+    } finally {
+      h.scope.end();
+    }
+  });
+
   it('explicit Saved revisit sends the immutable revision without a local position on the wire', async () => {
     const h = harness();
     try {

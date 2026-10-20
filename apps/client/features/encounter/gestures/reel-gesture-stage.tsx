@@ -1,8 +1,8 @@
 import { useMemo, type ReactNode } from 'react';
 import { PanResponder, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { createGestureArbitrator } from './arbitration';
+import { createGestureArbitrator, type EncounterGestureMove } from './arbitration';
 
-function createReelResponder(onMove: (move: 'next' | 'previous' | 'subject') => void, width: number) {
+function createReelResponder(onMove: (move: EncounterGestureMove) => void, width: number) {
   let gesture: ReturnType<typeof createGestureArbitrator> | undefined;
   let locked = false;
   return PanResponder.create({
@@ -49,7 +49,7 @@ export function ReelGestureStage({
   onMove,
 }: {
   readonly children: ReactNode;
-  readonly onMove: (move: 'next' | 'previous' | 'subject') => void;
+  readonly onMove: (move: EncounterGestureMove) => void;
 }) {
   const { width } = useWindowDimensions();
   const responder = useMemo(() => createReelResponder(onMove, width), [onMove, width]);

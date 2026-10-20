@@ -1,3 +1,4 @@
+export type EncounterGestureMove = 'next' | 'previous' | 'subjectNext' | 'subjectPrevious';
 export type GestureOwner = 'undecided' | 'child' | 'platform_back' | 'reading' | 'horizontal' | 'vertical';
 /** One gesture is one intent, locked until release. Reading momentum never navigates. */
 export function createGestureArbitrator(input: {
@@ -22,9 +23,9 @@ export function createGestureArbitrator(input: {
         owner = Math.abs(x) > Math.abs(y) * 1.2 ? 'horizontal' : input.scroll ? 'reading' : 'vertical';
       return owner;
     },
-    release(): 'next' | 'previous' | 'subject' | undefined {
+    release(): EncounterGestureMove | undefined {
       if (owner === 'horizontal' && Math.abs(dx) >= 64) return dx < 0 ? 'next' : 'previous';
-      if (owner === 'vertical' && dy <= -64) return 'subject';
+      if (owner === 'vertical' && Math.abs(dy) >= 64) return dy < 0 ? 'subjectNext' : 'subjectPrevious';
       return undefined;
     },
     cancel() {

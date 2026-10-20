@@ -7,6 +7,7 @@ import { ActivatedScrollView } from '../scroll/activated-scroll-view';
 import { ActivatedReelView } from '../reel/activated-reel-view';
 import { EncounterEdges } from './encounter-edges';
 import { EncounterActions } from './encounter-chrome';
+import type { EncounterGestureMove } from './gestures/arbitration';
 import { ReelGestureStage } from './gestures/reel-gesture-stage';
 import { ContinuationControls } from './continuation-controls';
 import type { EncounterEntry } from './encounter-history';
@@ -28,7 +29,7 @@ export function EncounterView({
   const scrollPosition = useRef<ScrollPositionHandle>(null);
   const reelPosition = useRef<ReelPositionHandle>(null);
   const retainedGrant = useMemo(() => session.mediaGrant(entry), [entry, session]);
-  const onMove = useCallback((move: 'next' | 'previous' | 'subject') => session.gesture(move), [session]);
+  const onMove = useCallback((move: EncounterGestureMove) => session.gesture(move), [session]);
   const renderStage = useCallback(
     (stage: React.ReactNode) => <ReelGestureStage onMove={onMove}>{stage}</ReelGestureStage>,
     [onMove],

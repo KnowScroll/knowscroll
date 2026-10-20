@@ -24,6 +24,7 @@ function fixture() {
     sessionId: id(3),
     started: true,
     suspended: false,
+    disposed: false,
     restored: false,
     offer: {
       offerId: id(index + 20),

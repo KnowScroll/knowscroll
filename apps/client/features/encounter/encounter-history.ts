@@ -13,6 +13,7 @@ export type EncounterEntry = {
   restored: boolean;
   started: boolean;
   suspended: boolean;
+  disposed: boolean;
   /** Bound only while the actual renderer is mounted. Capture happens before pause/unmount. */
   surface?: { capture(): PrivatePosition | undefined; pause(): void };
 } & (
@@ -87,6 +88,8 @@ export function createEncounterHistory(scope: Pick<AccountScope, 'active' | 'sto
     entry.surface = undefined;
   };
   const endEntry = (entry: EncounterEntry) => {
+    if (entry.disposed) return;
+    entry.disposed = true;
     entry.surface?.pause();
     entry.surface = undefined;
     entry.recorder.end();

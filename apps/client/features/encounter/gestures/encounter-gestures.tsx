@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Text } from '@knowscroll/ui';
 import { spacing, content } from '@knowscroll/design-tokens';
-import { createGestureArbitrator } from './arbitration';
+import { createGestureArbitrator, type EncounterGestureMove } from './arbitration';
 
 /** A dedicated navigation surface never claims a chart/slider/article pointer. All controls also have buttons. */
 export function EncounterGestures({
@@ -10,7 +10,7 @@ export function EncounterGestures({
   onMove,
 }: {
   readonly scroll: boolean;
-  readonly onMove: (move: 'next' | 'previous' | 'subject') => void;
+  readonly onMove: (move: EncounterGestureMove) => void;
 }) {
   const gesture = useRef<ReturnType<typeof createGestureArbitrator> | null>(null);
   const origin = useRef({ x: 0, y: 0 });

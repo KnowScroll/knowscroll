@@ -13,6 +13,7 @@ import {
 } from '@knowscroll/ui';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import type { EncounterState, EncounterSession } from './encounter-session';
+import { EncounterOverlay } from './encounter-overlay';
 import { ContinuationControls } from './continuation-controls';
 
 export function EncounterChrome({
@@ -97,41 +98,47 @@ export function EncounterMenu({
 }) {
   if (!state.overlay || !state.entry) return null;
   return (
-    <View style={styles.overlay} accessibilityViewIsModal>
-      <ScrollView contentContainerStyle={styles.menu}>
-        <View style={styles.top}>
-          <Text variant="title" heading={2}>
-            Your path
-          </Text>
-          <IconButton icon="close" label="Close" onPress={() => session.setOverlay(false)} />
-        </View>
-        <Text variant="meta">Visited · only your own path</Text>
-        {state.trail.map((entry) => (
+    <EncounterOverlay
+      onClose={() => {
+        session.back();
+      }}
+    >
+      <View style={styles.overlay}>
+        <ScrollView contentContainerStyle={styles.menu}>
+          <View style={styles.top}>
+            <Text variant="title" heading={2}>
+              Your path
+            </Text>
+            <IconButton icon="close" label="Close" onPress={() => session.setOverlay(false)} />
+          </View>
+          <Text variant="meta">Visited · only your own path</Text>
+          {state.trail.map((entry) => (
+            <Button
+              key={entry.exposureId}
+              label={`${entry.kind === 'reel' ? 'Reel' : 'Scroll'} · ${entry.offer.metadata.title}`}
+              variant="ghost"
+              disabled={entry.exposureId === state.entry?.exposureId}
+              onPress={() => session.restore(entry.exposureId)}
+            />
+          ))}
+          <ContinuationControls entry={state.entry} session={session} />
           <Button
-            key={entry.exposureId}
-            label={`${entry.kind === 'reel' ? 'Reel' : 'Scroll'} · ${entry.offer.metadata.title}`}
+            label="Hide this encounter"
             variant="ghost"
-            disabled={entry.exposureId === state.entry?.exposureId}
-            onPress={() => session.restore(entry.exposureId)}
+            disabled={state.actionPending || state.actionFailed}
+            onPress={() => {
+              session.setOverlay(false);
+              session.act('hide');
+            }}
           />
-        ))}
-        <ContinuationControls entry={state.entry} session={session} />
-        <Button
-          label="Hide this encounter"
-          variant="ghost"
-          disabled={state.actionPending || state.actionFailed}
-          onPress={() => {
-            session.setOverlay(false);
-            session.act('hide');
-          }}
-        />
-        <Banner
-          kind="info"
-          lead="Share and Ask aren't available yet."
-          message="There is no request to prepare another format from here yet."
-        />
-      </ScrollView>
-    </View>
+          <Banner
+            kind="info"
+            lead="Share and Ask aren't available yet."
+            message="There is no request to prepare another format from here yet."
+          />
+        </ScrollView>
+      </View>
+    </EncounterOverlay>
   );
 }
 const styles = StyleSheet.create({
