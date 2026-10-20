@@ -45,8 +45,8 @@ model-generated Scrolls, at least two interactive, still require actual publicat
 through the connected app. A fixture publication or green CI cannot establish this. Human quality
 notes must cover accuracy, clarity, interactivity, unsupported inference and analogy limitations.
 
-The current recipe is `scroll-production.v3`, with `scroll-claims.v2` and unchanged
-`scroll-writer.v2` stage versions; the writer version is recorded as publication `promptVersion`.
+The current recipe is `scroll-production.v4`, with unchanged `scroll-claims.v2` and
+`scroll-writer.v3` stage versions; the writer version is recorded as publication `promptVersion`.
 Claims now select four to eight immutable offered evidence IDs. Code verifies source hashes,
 complete original 40–600-character quote spans, offsets and membership, then hydrates statement
 and quote to the same source text. `documented` labels a direct quotation, not proven truth or
@@ -54,9 +54,11 @@ verified entailment. The pool has at most 32 candidates; insufficient, corrupt, 
 unpartitionable pools refuse before provider admission. No source text is silently clipped.
 
 The harness retains raw selections for exact same-run replay; writer resume also verifies privately
-stored hydrated claims. This narrower role cannot author synthesis or interpretation. Writer v2's
-strict JSON instructions and fictional syntax example, research policy, parser, reader copy/honesty/
-number checks, admission, request bound and token ceilings are unchanged. Rejected v1/v2 jobs and
-attempts remain immutable. Invoking the reviewed new version is a new allocated business run,
+stored hydrated claims. This narrower role cannot author synthesis or interpretation. Writer v3 requests a finished 2–3 minute article using a smaller canonical recipe and one
+mode-matched fictional syntax example. Comparison points explicitly contain span arrays. The
+writer wire requires canonical arrays directly; global compiler normalization is unchanged.
+The full catalogue, computed 2–8 minute admission contract, strict parser, research policy, reader
+copy/honesty/number checks, admission, request bound and token ceilings remain unchanged. All four
+rejected v1/v2/v3 jobs and eleven attempts remain immutable. Invoking the reviewed new version is a new allocated business run,
 never an automatic retry of a rejected version. `--resume` applies only to an unfinished job of the
 current recipe. New exact-head CI/review and coordinator allocation are required before generation.

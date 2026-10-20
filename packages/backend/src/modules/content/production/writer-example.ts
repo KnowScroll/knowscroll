@@ -5,11 +5,11 @@ import type { ScrollDraft } from '@knowscroll/scroll-model/producer';
  * outside claimsRole's `claim-` namespace, so real offered evidence cannot authorize a copy.
  * JSON.stringify produces the one complete JSON exemplar embedded in the writer instructions.
  */
-export function writerDraftExampleJson(): string {
+export function writerDraftExampleJson(interactive: boolean): string {
   const example: ScrollDraft = {
     draftVersion: 'scroll-draft.v1',
     title: 'A fictional signal switch',
-    dek: 'An invented device illustrates how paragraph text, diagram frames and evidence bindings fit together.',
+    dek: 'An invented device illustrates how original text, a format block and evidence bindings fit together.',
     sections: [
       {
         id: 'example-opening',
@@ -21,7 +21,7 @@ export function writerDraftExampleJson(): string {
             data: {
               spans: [
                 {
-                  text: 'Imagine a device with a switch between an input and an output. In this invented model, closing the switch connects the route. Opening it removes the connection. The buttons change the drawing so the contrast can be inspected directly.',
+                  text: 'Imagine a device with a switch between an input and an output. In this invented model, closing the switch connects the route. Opening it removes the connection. Comparing these authored states makes the connection and interruption visible.',
                 },
               ],
             },
@@ -65,13 +65,58 @@ export function writerDraftExampleJson(): string {
               interaction: { kind: 'toggle' },
             },
           },
+          {
+            id: 'example-limit',
+            type: 'callout',
+            data: {
+              kind: 'limit',
+              title: 'Limits of this invented picture',
+              spans: [
+                {
+                  text: 'This authored device explains a contrast through selected states. It does not measure a real signal or simulate a physical circuit.',
+                },
+              ],
+            },
+          },
         ],
       },
     ],
     bindings: [
       { kind: 'block', claimId: 'example-only-claim', blockId: 'example-paragraph' },
       { kind: 'block', claimId: 'example-only-claim', blockId: 'example-diagram' },
+      { kind: 'block', claimId: 'example-only-claim', blockId: 'example-limit' },
     ],
   };
+  if (!interactive) {
+    const section = example.sections[0];
+    if (section === undefined) throw new Error('EXAMPLE_SECTION_MISSING');
+    section.blocks[1] = {
+      id: 'example-comparison',
+      type: 'comparison',
+      a11y: { label: 'Compare the connected and interrupted fictional routes' },
+      fallbackText:
+        'The invented closed state connects input to output. The invented open state interrupts the route. This comparison describes an authored device, not a measured physical system.',
+      data: {
+        title: 'Compare the invented routes',
+        columns: [
+          {
+            label: 'Closed',
+            points: [
+              [{ text: 'The switch joins the input to the output in this invented state.' }],
+              [{ text: 'The connection is present, so the drawn route can be followed.' }],
+            ],
+          },
+          {
+            label: 'Open',
+            points: [
+              [{ text: 'The switch interrupts the route in this invented state.' }],
+              [{ text: 'The input and output remain separate in the authored picture.' }],
+            ],
+          },
+        ],
+      },
+    };
+    example.bindings[1] = { kind: 'block', claimId: 'example-only-claim', blockId: 'example-comparison' };
+  }
   return JSON.stringify(example);
 }

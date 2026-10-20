@@ -89,68 +89,164 @@ describe('Scroll production roles (labelled CI fixture)', () => {
       expect(compiled.document).not.toHaveProperty(hidden);
     expect(compiled.explanationUnitId).toBe('legacy-cutroom-greenhouse');
   });
-  it('embeds one valid fictional JSON draft that compiles only with synthetic example evidence', () => {
-    const json = writerDraftExampleJson();
-    const example: unknown = JSON.parse(json);
-    expect(ScrollDraft.safeParse(example).success).toBe(true);
-    const synthetic: DraftProvenance = {
-      ...provenance,
-      publication: {
-        ...provenance.publication,
-        assetId: 'example-only-asset',
-        explanationUnitId: 'example-only-explanation',
-        targetMinutes: [1, 1],
-      },
-      claims: [
-        {
-          claimId: 'example-only-claim',
-          sourceId: 'example-only-source',
-          statement: 'Assume an invented switch whose selected state controls whether a drawn connection exists.',
-          quote:
-            'This authored test stipulates a fictional connection that can be shown or hidden by selecting a state.',
-          truthState: 'fictional',
+  it.each([false, true])(
+    'embeds one valid fictional JSON draft for interactive=%s, authorized only by synthetic evidence',
+    (interactive) => {
+      const json = writerDraftExampleJson(interactive);
+      const example: unknown = JSON.parse(json);
+      expect(ScrollDraft.safeParse(example).success).toBe(true);
+      const synthetic: DraftProvenance = {
+        ...provenance,
+        publication: {
+          ...provenance.publication,
+          assetId: 'example-only-asset',
+          explanationUnitId: 'example-only-explanation',
+          targetMinutes: [1, 1],
         },
-      ],
-      sources: [
-        {
-          sourceId: 'example-only-source',
-          title: 'Authored fictional syntax fixture',
-          url: 'https://fixture.invalid/writer-example',
-          snapshotSha256: '0'.repeat(64),
-          retrievedAt: '2026-10-20T00:00:00.000Z',
-        },
-      ],
-      material: [],
-      production: { kind: 'fixture', label: 'Authored fictional JSON syntax example; not generated product content' },
+        claims: [
+          {
+            claimId: 'example-only-claim',
+            sourceId: 'example-only-source',
+            statement: 'Assume an invented switch whose selected state controls whether a drawn connection exists.',
+            quote:
+              'This authored test stipulates a fictional connection that can be shown or hidden by selecting a state.',
+            truthState: 'fictional',
+          },
+        ],
+        sources: [
+          {
+            sourceId: 'example-only-source',
+            title: 'Authored fictional syntax fixture',
+            url: 'https://fixture.invalid/writer-example',
+            snapshotSha256: '0'.repeat(64),
+            retrievedAt: '2026-10-20T00:00:00.000Z',
+          },
+        ],
+        material: [],
+        production: { kind: 'fixture', label: 'Authored fictional JSON syntax example; not generated product content' },
+      };
+      expect(compileGeneratedDraft(example, synthetic, interactive).kind).toBe('compiled');
+      // Actual production evidence cannot authorize the example, even though its JSON/DSL is valid.
+      expect(writerRole(provenance, interactive).outputSchema.safeParse(example).success).toBe(false);
+      expect(
+        claimsRole([page]).outputSchema.safeParse({
+          candidateIds: ['example-only-claim', ...selection.candidateIds.slice(1)],
+        }).success,
+      ).toBe(false);
+    },
+  );
+  it.each([false, true])(
+    'separates reference grammar from one mode-matched JSON exemplar for interactive=%s',
+    (interactive) => {
+      const role = writerRole(provenance, interactive);
+      const json = writerDraftExampleJson(interactive);
+      expect(role.instructions.split(json)).toHaveLength(2);
+      expect(role.instructions).toContain(blockCatalogueText());
+      expect(role.instructions.indexOf('SCHEMA REFERENCE GRAMMAR ONLY')).toBeLessThan(
+        role.instructions.indexOf(blockCatalogueText()),
+      );
+      expect(role.instructions.indexOf('</schema-reference-grammar>')).toBeLessThan(role.instructions.indexOf(json));
+      expect(role.instructions).toContain('No comments, trailing commas, ellipses');
+      expect(role.instructions).toContain('NOT valid JSON to copy');
+      expect(role.instructions).toContain('Do not copy its prose, IDs or claim ID');
+      expect(role.instructions.length).toBeLessThanOrEqual(MAX_INSTRUCTION_CHARS);
+      expect(Buffer.byteLength(role.instructions)).toBeLessThan(20_000);
+      expect(role.instructions).toContain('finished 2–3 minute');
+      expect(role.instructions).toContain('2–8 minute admission contract');
+      expect(role.instructions).toContain('columns[].points is nested');
+      const parsed = ScrollDraft.parse(JSON.parse(json));
+      expect(parsed.sections[0]?.blocks[1]?.type).toBe(interactive ? 'diagram' : 'comparison');
+      expect(role.instructions).not.toContain(writerDraftExampleJson(!interactive));
+      expect(role.maxOutputTokens).toBe(12_000);
+      expect(claimsRole([page]).maxOutputTokens).toBe(4_000);
+      expect(role.version).toBe(WRITER_PROMPT_VERSION);
+      expect(claimsRole([page]).version).toBe(CLAIMS_ROLE_VERSION);
+      expect(provenance.production).toMatchObject({ promptVersion: role.version });
+    },
+  );
+  it.each([false, true])(
+    'admits a compact authored CI structure with a real computed 2–3 minute measure, interactive=%s',
+    (interactive) => {
+      // Existing editorial prose plus fictional format examples are structure fixtures, not generated teaching content.
+      const paragraphs = fixtureDraft()
+        .sections.flatMap((section) => section.blocks)
+        .filter((block) => block.type === 'paragraph')
+        .slice(0, 8);
+      expect(paragraphs).toHaveLength(8);
+      const groups = [
+        paragraphs.slice(0, 2),
+        paragraphs.slice(2, 3),
+        paragraphs.slice(3, 4),
+        paragraphs.slice(4, 5),
+        paragraphs.slice(5, 6),
+        paragraphs.slice(6, 8),
+      ];
+      const prose = groups.map((group, index) => ({
+        id: `compact-paragraph-${index}`,
+        type: 'paragraph' as const,
+        data: { spans: [{ text: group.flatMap((block) => block.data.spans.map((span) => span.text)).join(' ') }] },
+      }));
+      const example = ScrollDraft.parse(JSON.parse(writerDraftExampleJson(interactive)));
+      const formats = example.sections[0]?.blocks.slice(1) ?? [];
+      const compact: ScrollDraft = {
+        draftVersion: 'scroll-draft.v1',
+        title: 'Authored compact structure fixture',
+        dek: 'A labelled CI structure check combines existing authored prose and fictional format blocks.',
+        sections: [
+          { id: 'compact-opening', heading: null, blocks: prose.slice(0, 2) },
+          {
+            id: 'compact-mechanism',
+            heading: 'Inspect the structure',
+            blocks: [...prose.slice(2, 4), ...formats.slice(0, 1)],
+          },
+          {
+            id: 'compact-limits',
+            heading: 'Keep the limits visible',
+            blocks: [...prose.slice(4), ...formats.slice(1)],
+          },
+        ],
+        bindings: [...prose, ...formats].map((block) => ({
+          kind: 'block',
+          blockId: block.id ?? '',
+          claimId: claims.claims[0]?.claimId ?? '',
+        })),
+      };
+      const result = compileGeneratedDraft(compact, provenance, interactive);
+      expect(result.kind).toBe('compiled');
+      if (result.kind !== 'compiled') return;
+      const measures = result.document['measures'] as { readingMinutes: number };
+      expect(measures.readingMinutes).toBeGreaterThanOrEqual(2);
+      expect(measures.readingMinutes).toBeLessThanOrEqual(3);
+      expect(writerRole(provenance, interactive).outputSchema.safeParse(compact).success).toBe(true);
+      const format = formats[0];
+      if (format?.type === 'diagram') expect(format.data.interaction.kind).toBe('toggle');
+    },
+  );
+  it('requires canonical rich-text arrays on the writer wire while leaving compiler normalization unchanged', () => {
+    const single = fixtureDraft();
+    const first = single.sections[0]?.blocks[0];
+    if (first?.type !== 'paragraph') throw new Error('CI_PARAGRAPH_MISSING');
+    const text = first.data.spans.map((span) => span.text).join('');
+    const raw = JSON.parse(JSON.stringify(single)) as { sections: { blocks: { data: { spans: unknown } }[] }[] };
+    const target = raw.sections[0]?.blocks[0];
+    if (target === undefined) throw new Error('CI_PARAGRAPH_MISSING');
+    target.data.spans = { text };
+    const refused = writerRole(provenance, false).outputSchema.safeParse(raw);
+    expect(refused.success).toBe(false);
+    if (!refused.success)
+      expect(refused.error.issues).toContainEqual(
+        expect.objectContaining({ code: 'invalid_type', path: ['sections', 0, 'blocks', 0, 'data', 'spans'] }),
+      );
+    target.data.spans = text;
+    expect(writerRole(provenance, false).outputSchema.safeParse(raw).success).toBe(false);
+    expect(compileGeneratedDraft(raw, provenance, false).kind).toBe('compiled');
+    const comparison = JSON.parse(writerDraftExampleJson(false)) as {
+      sections: { blocks: { data: { columns?: { points: unknown[] }[] } }[] }[];
     };
-    expect(compileGeneratedDraft(example, synthetic, true).kind).toBe('compiled');
-    // Actual production evidence cannot authorize the example, even though its JSON/DSL is valid.
-    expect(writerRole(provenance, true).outputSchema.safeParse(example).success).toBe(false);
-    expect(
-      claimsRole([page]).outputSchema.safeParse({
-        candidateIds: ['example-only-claim', ...selection.candidateIds.slice(1)],
-      }).success,
-    ).toBe(false);
-  });
-  it('separates reference grammar from one real JSON exemplar within the unchanged token and prompt ceilings', () => {
-    const role = writerRole(provenance, true);
-    const json = writerDraftExampleJson();
-    expect(role.instructions.split(json)).toHaveLength(2);
-    expect(role.instructions).toContain(blockCatalogueText());
-    expect(role.instructions.indexOf('SCHEMA REFERENCE GRAMMAR ONLY')).toBeLessThan(
-      role.instructions.indexOf(blockCatalogueText()),
-    );
-    expect(role.instructions.indexOf('</schema-reference-grammar>')).toBeLessThan(role.instructions.indexOf(json));
-    expect(role.instructions).toContain('No comments, trailing commas, ellipses');
-    expect(role.instructions).toContain('NOT valid JSON to copy');
-    expect(role.instructions).toContain('Do not copy its prose, IDs or claim ID');
-    expect(role.instructions.length).toBeLessThanOrEqual(MAX_INSTRUCTION_CHARS);
-    expect(Buffer.byteLength(role.instructions)).toBeLessThan(20_000);
-    expect(role.maxOutputTokens).toBe(12_000);
-    expect(claimsRole([page]).maxOutputTokens).toBe(4_000);
-    expect(role.version).toBe(WRITER_PROMPT_VERSION);
-    expect(claimsRole([page]).version).toBe(CLAIMS_ROLE_VERSION);
-    expect(provenance.production).toMatchObject({ promptVersion: role.version });
+    const column = comparison.sections[0]?.blocks[1]?.data.columns?.[0];
+    if (column === undefined) throw new Error('CI_COMPARISON_MISSING');
+    column.points[0] = { text: 'An invalid lone object instead of a point span array.' };
+    expect(ScrollDraft.safeParse(comparison).success).toBe(false);
   });
   it('puts copy, number, source-name and binding failures inside the same writer schema repair boundary', () => {
     const role = writerRole(provenance, false);

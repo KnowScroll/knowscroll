@@ -44,15 +44,15 @@ JSON; v2 makes that distinction explicit and adds one `JSON.stringify`-generated
 example. This is a bounded prompt correction, not evidence that the earlier model copied grammar
 or that the revised prompt will succeed. Parsing, schemas, admission and repair limits are unchanged.
 
-| Identity | v1 | v2 | Current |
-|---|---|---|---|
-| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` |
-| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) |
-| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) |
-| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged |
-| Evidence candidate recipe | None | None | `quote-candidates.v1` |
+| Identity | v1 | v2 | v3 | Current v4 |
+|---|---|---|---|---|
+| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` |
+| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged |
+| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) | `scroll-writer.v3` |
+| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged | Unchanged |
+| Evidence candidate recipe | None | None | `quote-candidates.v1` | Unchanged |
 
-The rejected v1/v2 jobs, their stable run IDs and attempts stay untouched. A reviewed v3 invocation
+All four rejected v1/v2/v3 jobs, their stable run IDs and eleven attempts stay untouched. A reviewed v4 invocation
 creates a different job and role runs; it is not a resend or resume of an earlier version. It still
 needs an explicit coordinator allocation and costs at most four requests, with the same
 4,000/12,000 role ceilings.
@@ -83,8 +83,30 @@ or modelled claims. Relevance, faithful selection and final teaching quality sti
 
 The harness retains/revalidates the raw selection, not the transformed hydrated claims. The
 content job stores those hydrated claims privately. Resume deterministically rebuilds the pool
-from frozen pages and verifies the stored claims before writer admission. The writer still creates
-original prose using `scroll-writer.v2`; all research participates in the unchanged copy check,
+from frozen pages and verifies the stored claims before writer admission. The writer creates
+original prose using the separately versioned writer recipe; all research participates in the unchanged copy check,
 and number, honesty, binding, parser and admission checks remain in force. CI fixtures cover raw
 selection replay, source/claim tampering, foreign/duplicate IDs, long caveats, multiple sources,
 max-four repairs, and byte preservation of terminal v1/v2 rows. No fixture is model generation.
+
+## Compact writer recipe in v4
+
+The real v3 greenhouse claims request succeeded. Writer primary was valid JSON but failed array
+validation at masked paths; repair failed internal JSON syntax with a separator-category diagnostic.
+Invalid answers were not retained, so neither exact fields nor punctuation are known. A smaller
+recipe may reduce mistakes; CI does not establish a successful real generation.
+
+Writer v3 asks for a finished 2–3 minute explanation (roughly 450–600 words), three short sections,
+paragraphs, one useful comparison or toggle diagram, and a closing limits callout. The code's
+computed measure and 2–8 minute admission contract are unchanged. Greenhouse uses a comparison
+with nested RichText arrays; seasons/tides use useful bounded interactive states. The full canonical
+catalogue remains authoritative, and each request includes exactly one matching JSON.stringify
+fictional shape example. Nothing authored is published as generation.
+
+The writer wire schema is directly exported `ScrollDraft.superRefine`: canonical arrays are
+required before compilation, so schema-declared outer paths are available to existing safe repair
+feedback. This removes only content's writer preprocessing wrapper; global compiler normalization
+and strict JSON extraction remain unchanged. Copy-nine, binding, numeric, honesty, source/privacy,
+interactive and admission checks still use the same one repair. Role identity and failure brake are
+unchanged; writer provenance records `scroll-writer.v3`. CI preserves synthetic historical terminal
+job/attempt bytes and tests both valid modes, malformed arrays and unchanged refusals.

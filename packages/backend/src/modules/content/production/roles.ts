@@ -1,12 +1,6 @@
 import { z } from 'zod';
 import { admitDocument, textFields, walkBlocks } from '@knowscroll/scroll-model';
-import {
-  type DraftProvenance,
-  ScrollDraft,
-  blockCatalogueText,
-  compileDraft,
-  normaliseDraftInput,
-} from '@knowscroll/scroll-model/producer';
+import { type DraftProvenance, ScrollDraft, blockCatalogueText, compileDraft } from '@knowscroll/scroll-model/producer';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import { readingFactsOf } from '../adapters/scroll-compiler.js';
@@ -20,9 +14,9 @@ import {
   type ClaimPackage,
 } from './quote-candidates.js';
 
-/** Stage versions are distinct from the job policy; writer instructions remain unchanged. */
+/** Stage versions are distinct from the job policy; v4 preserves claims v2 and changes writer v3. */
 export const CLAIMS_ROLE_VERSION = 'scroll-claims.v2';
-export const WRITER_PROMPT_VERSION = 'scroll-writer.v2';
+export const WRITER_PROMPT_VERSION = 'scroll-writer.v3';
 
 const Selection = z.strictObject({
   candidateIds: z
@@ -169,34 +163,32 @@ export function writerRole(provenance: DraftProvenance, interactive: boolean): R
     instructions: [
       'RETURN FORMAT: exactly one complete, syntactically valid JSON object for scroll-draft.v1. The first non-whitespace character must be { and the last must be }. Return no explanation, reasoning, Markdown fence, XML tag or text outside that object.',
       'JSON syntax is mandatory: double-quote every property name and string, escape quotes and control characters inside strings, use commas between members and array items, and close every object and array. No comments, trailing commas, ellipses, undefined values, type names, optional-field markers or typed placeholders. Bounds such as 4–240 chars describe limits; they are never literal values in your answer.',
-      'Write an original, clear explanatory Scroll from the brief and checked evidence. Use only the canonical catalogue below; do not invent fields or a DSL. Produce a finished explanation of 2–8 minutes, not an outline or an incomplete template.',
+      'Write an original, finished 2–3 minute explanation from the brief and checked evidence: aim for 450–600 reader words, three short sections and about six paragraphs, one useful format block and one closing limits callout. Cover the mechanism, distinctions and caveats without padding or omitting substance. The canonical computed measure and unchanged 2–8 minute admission contract remain authoritative. Use only the canonical catalogue below; do not invent fields or a DSL.',
+      'For this recipe use paragraphs, the requested comparison or toggle diagram, and a closing callout. Avoid lists, tables, nested disclosures, quotes, media, code, charts and simulations. Omit unnecessary optional fields and text marks. Every rich-text value is an ARRAY of span objects, never a lone span object: spans:[{"text":"your prose"}]. A comparison point is itself a span array, so columns[].points is nested: [[{"text":"one point"}],[{"text":"another point"}]]. These fragments explain canonical shapes; the final answer must be one complete valid JSON object.',
       'Reader prose must have no URLs or source/publisher names. Never reproduce nine consecutive source words. Every empirical numeric text/value needs an exact binding; prefer words and conceptual diagrams over arbitrary numbers. Every reader block except subheadings needs a claim binding, including nested blocks. Use exact anchorText copied from your OWN prose for passage bindings.',
       'Interactive diagrams need bounded frames and a11y/fallbackText. A simplified model must be honestly illustrative. All factual assertions must follow supplied claims; include caveats naturally.',
       interactive
-        ? 'At least one useful interactive diagram or simulation is required.'
-        : 'A comparison or disclosure can explain the mechanism.',
+        ? 'Include one useful toggle diagram with two to four reader-selectable frames and a small set of nodes and edges. The states must explain the requested mechanism, not merely change decoration. Supply all canonical arrays (including empty groups, emphasis, hidden and weights where appropriate), a11y and an honest accessible fallback. State the limits of the simplified illustration; do not invent empirical numbers.'
+        : 'Include one useful comparison with two columns and two points per column. Contrast the requested mechanisms or distinctions faithfully; do not imply that the analogy is a literal physical barrier. Each point must be an array of span objects. Include the requested caveats in the paragraphs and closing limits callout.',
       'SCHEMA REFERENCE GRAMMAR ONLY: the following catalogue describes fields, choices and bounds. Its pseudo-JSON, type names, ranges and optional markers are explanatory notation, NOT valid JSON to copy. Choose actual values and emit valid JSON instead.',
       '<schema-reference-grammar>',
       blockCatalogueText(),
       '</schema-reference-grammar>',
       'VALID JSON SHAPE EXAMPLE ONLY: the next object is authored fictional syntax guidance, shorter than the required article. It is not supplied evidence, a topic draft or publishable content. Do not copy its prose, IDs or claim ID. The example-only-claim ID is never offered by the claims role; use only the actual supplied claim IDs.',
       '<example-json>',
-      writerDraftExampleJson(),
+      writerDraftExampleJson(interactive),
       '</example-json>',
       'Now write the complete requested topic draft from the supplied evidence. Return only its valid JSON object, with your own content and actual offered claim IDs. Do not return any reference grammar, example labels, tags, comments, fences, ellipses or placeholders.',
     ].join('\n'),
-    outputSchema: z.preprocess(
-      normaliseDraftInput,
-      ScrollDraft.superRefine((draft, ctx) => {
-        const result = compileGeneratedDraft(draft, provenance, interactive);
-        if (result.kind === 'refused')
-          for (const issue of result.issues.slice(0, 32))
-            ctx.addIssue({
-              code: 'custom',
-              path: issue.path.split('.').map((part) => (/^\d+$/u.test(part) ? Number(part) : part)),
-              message: issue.code,
-            });
-      }),
-    ),
+    outputSchema: ScrollDraft.superRefine((draft, ctx) => {
+      const result = compileGeneratedDraft(draft, provenance, interactive);
+      if (result.kind === 'refused')
+        for (const issue of result.issues.slice(0, 32))
+          ctx.addIssue({
+            code: 'custom',
+            path: issue.path.split('.').map((part) => (/^\d+$/u.test(part) ? Number(part) : part)),
+            message: issue.code,
+          });
+    }),
   };
 }

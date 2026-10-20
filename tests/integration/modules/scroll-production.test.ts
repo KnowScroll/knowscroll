@@ -153,49 +153,110 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(first);
     expect(p.model.calls).toHaveLength(4);
   });
-  it('preserves rejected v1/v2 job bytes while v3 creates distinct runs with explicit role versions', async () => {
-    const old = ['scroll-production.v1', 'scroll-production.v2'].map((policy) => ({
-      policy,
-      id: randomUUID(),
-      claims: randomUUID(),
-      writer: randomUUID(),
-    }));
-    for (const job of old)
-      await sql`insert into content.scroll_production_runs (id, topic, policy_version, target_revision, scope_generation, state, claims_run_id, writer_run_id, outcomes, completed_at) values (${job.id},'greenhouse',${job.policy},1,1,'rejected',${job.claims},${job.writer},'[ {"role":"checks","kind":"rejected","code":"ci_prior_invalid_output"} ]'::jsonb,now())`.execute(
+  it('preserves all four historical terminal jobs and eleven attempt fixtures byte-for-byte while v4 creates distinct runs', async () => {
+    // Historical SHAPES only: synthetic IDs/receipts, never imported real research or provider output.
+    const old = [
+      { policy: 'scroll-production.v1', topic: 'seasons', counts: [1, 2] },
+      { policy: 'scroll-production.v2', topic: 'seasons', counts: [2, 0] },
+      { policy: 'scroll-production.v3', topic: 'seasons', counts: [1, 2] },
+      { policy: 'scroll-production.v3', topic: 'greenhouse', counts: [1, 2] },
+    ].map((shape) => ({ ...shape, id: randomUUID(), claims: randomUUID(), writer: randomUUID() }));
+    for (const job of old) {
+      await sql`insert into content.scroll_production_runs (id,topic,policy_version,target_revision,scope_generation,state,claims_run_id,writer_run_id,outcomes,completed_at) values (${job.id},${job.topic},${job.policy},1,1,'rejected',${job.claims},${job.writer},'[ {"role":"checks","kind":"rejected","code":"ci_prior_invalid_output"} ]'::jsonb,now())`.execute(
         database.db,
       );
-    const previousBytes = () =>
-      sql<{
-        id: string;
-        bytes: string;
-      }>`select id,row_to_json(r)::text as bytes from content.scroll_production_runs r where policy_version in ('scroll-production.v1','scroll-production.v2') order by id`.execute(
-        database.db,
-      );
-    const before = (await previousBytes()).rows;
+      for (const [index, role] of ['claims', 'writer'].entries()) {
+        const count = job.counts[index] ?? 0;
+        if (count === 0) continue;
+        const id = role === 'claims' ? job.claims : job.writer;
+        const version =
+          job.policy === 'scroll-production.v1'
+            ? job.policy
+            : role === 'writer'
+              ? 'scroll-writer.v2'
+              : job.policy === 'scroll-production.v2'
+                ? 'scroll-claims.v1'
+                : 'scroll-claims.v2';
+        await sql`insert into reasoning.production_runs (scope_id,id,owner_module,purpose,generation,role_id,role_version,policy_version,provider,model,state,closed_at) values ('scroll-supply',${id},'content',${`scroll-${role}`},1,${`content.scroll-${role}`},${version},${job.policy},'fixture','historical-CI-fixture','failed',now())`.execute(
+          database.db,
+        );
+        for (let step = 0; step < count; step += 1)
+          await sql`insert into reasoning.production_attempts (scope_id,id,run_id,step,provider,model,role_id,role_version,request_hash,state,dispatch_id,dispatched_at,settled_at,outcome_code) values ('scroll-supply',${randomUUID()},${id},${step === 0 ? 'primary' : 'repair'},'fixture','historical-CI-fixture',${`content.scroll-${role}`},${version},${'f'.repeat(64)},'failed',${randomUUID()},now(),now(),'CI_HISTORICAL_REFUSAL')`.execute(
+            database.db,
+          );
+      }
+    }
+    const ids = old.flatMap((job) => [job.claims, job.writer]);
+    const previousBytes = async () => ({
+      jobs: (
+        await sql<{
+          bytes: string;
+        }>`select row_to_json(r)::text as bytes from content.scroll_production_runs r where policy_version in ('scroll-production.v1','scroll-production.v2','scroll-production.v3') order by id`.execute(
+          database.db,
+        )
+      ).rows,
+      runs: (
+        await sql<{
+          bytes: string;
+        }>`select row_to_json(r)::text as bytes from reasoning.production_runs r where id=any(${ids}::uuid[]) order by id`.execute(
+          database.db,
+        )
+      ).rows,
+      attempts: (
+        await sql<{
+          bytes: string;
+        }>`select row_to_json(r)::text as bytes from reasoning.production_attempts r where run_id=any(${ids}::uuid[]) order by id`.execute(
+          database.db,
+        )
+      ).rows,
+    });
+    const before = await previousBytes();
+    expect(before.jobs).toHaveLength(4);
+    expect(before.attempts).toHaveLength(11);
     const p = setup((n) => answer(n === 1 ? selection : draft()));
     const result = await p.produce()('greenhouse', false, signal());
     expect(result.outcome).toBe('published');
     expect(old.map(({ id }) => id)).not.toContain(result.runId);
-    expect((await previousBytes()).rows).toEqual(before);
+    expect(await previousBytes()).toEqual(before);
     const current = await database.db
       .selectFrom('content.scroll_production_runs')
       .select(['policy_version', 'claims_run_id', 'writer_run_id'])
       .where('id', '=', result.runId ?? '')
       .executeTakeFirstOrThrow();
-    expect(current.policy_version).toBe('scroll-production.v3');
-    expect(old.map(({ claims }) => claims)).not.toContain(current.claims_run_id);
-    expect(old.map(({ writer }) => writer)).not.toContain(current.writer_run_id);
+    expect(current.policy_version).toBe('scroll-production.v4');
+    expect(ids).not.toContain(current.claims_run_id);
+    expect(ids).not.toContain(current.writer_run_id);
     expect(p.model.calls[0]?.request.system).toContain('version scroll-claims.v2,');
-    expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v2,');
+    expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v3,');
     const provenance = await database.db
       .selectFrom('content.asset_provenance')
       .select('provenance')
       .where('asset_id', '=', result.assetId ?? '')
       .executeTakeFirstOrThrow();
-    expect(provenance.provenance).toMatchObject({ production: { promptVersion: 'scroll-writer.v2' } });
+    expect(provenance.provenance).toMatchObject({ production: { promptVersion: 'scroll-writer.v3' } });
     expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(result);
     expect(p.model.calls).toHaveLength(2);
-    expect((await previousBytes()).rows).toEqual(before);
+    expect(await previousBytes()).toEqual(before);
+  });
+  it('repairs a lone span object once with schema-declared field paths, without loosening the canonical array contract', async () => {
+    const bad = JSON.parse(JSON.stringify(draft())) as { sections: { blocks: { data: { spans: unknown } }[] }[] };
+    const paragraph = bad.sections[0]?.blocks[0];
+    if (!paragraph) throw new Error('CI_PARAGRAPH_MISSING');
+    paragraph.data.spans = { text: 'An authored malformed shape, not a model output.' };
+    const p = setup((n) => answer(n === 1 ? selection : n === 2 ? bad : draft()));
+    expect((await p.produce()('greenhouse', false, signal())).outcome).toBe('published');
+    expect(p.model.calls).toHaveLength(3);
+    expect(p.model.calls[2]?.request.user).toContain('sections[0].blocks[0].data.spans');
+    expect(p.model.calls[2]?.request.user).toContain('expected array');
+    const failed = await database.db
+      .selectFrom('reasoning.production_attempts')
+      .select('output_issues')
+      .where('role_id', '=', 'content.scroll-writer')
+      .where('step', '=', 'primary')
+      .executeTakeFirstOrThrow();
+    expect(failed.output_issues).toMatchObject({
+      issues: [{ code: 'invalid_type', path: 'sections[0].blocks[0].data.spans', detail: 'expected array' }],
+    });
   });
   it('still refuses reference grammar as invalid JSON through only one writer repair', async () => {
     const p = setup((n) =>
@@ -302,11 +363,11 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     };
     await expect(p.produce(stopBeforeWriter)('greenhouse', false, signal())).rejects.toThrow('CI_STOP_BEFORE_WRITER');
     if (changed === 'claims')
-      await sql`update content.scroll_production_runs set claims=jsonb_set(claims,'{claims,0,quote}','"tampered CI quote"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v3'`.execute(
+      await sql`update content.scroll_production_runs set claims=jsonb_set(claims,'{claims,0,quote}','"tampered CI quote"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v4'`.execute(
         database.db,
       );
     else
-      await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v3'`.execute(
+      await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v4'`.execute(
         database.db,
       );
     const resumed = await p.produce()('greenhouse', false, signal(), true);
