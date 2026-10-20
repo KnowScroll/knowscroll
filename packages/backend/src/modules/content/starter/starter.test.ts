@@ -55,7 +55,7 @@ describe('the authored starter Scroll (D-005)', () => {
     expect(compiled.readingFacts.blocks.reduce((sum, block) => sum + block.weight, 0)).toBe(measures.totalWeight);
     expect(compiled.readingFacts.estimatedReadingMs).toBe(Math.round((measures.totalWeight / 200) * 60_000));
     // The block nested in the disclosure is owned by it.
-    expect(compiled.readingFacts.nested).toEqual([{ id: 'violet-eye-cones', owner: 'violet-eye' }]);
+    expect(compiled.readingFacts.nested).toEqual([{ id: 'violet-eye-cones', owner: 'violet-eye', type: 'paragraph' }]);
   });
 
   it('compiles identically every time, and the revision number is part of the hash', () => {

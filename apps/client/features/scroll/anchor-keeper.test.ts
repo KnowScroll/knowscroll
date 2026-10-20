@@ -27,6 +27,18 @@ describe('the resume anchor', () => {
     expect(createAnchorKeeper({ assetId: 'asset-1', revision: 2, order, storage: store }).restore()).toBe('air');
   });
 
+  it('keeps the top visible anchor when in-app exit unmounts every visible child', () => {
+    const store = storage();
+    const keeper = createAnchorKeeper({ assetId: 'asset-1', revision: 2, order, storage: store });
+    for (const blockId of order) keeper.observer.onBlockVisibility({ blockId, visibleFraction: 0.8, at: 1 });
+    keeper.stop();
+    for (const blockId of order) keeper.observer.onBlockVisibility({ blockId, visibleFraction: 0, at: 2 });
+    expect(keeper.restore()).toBe('intro');
+    keeper.start();
+    keeper.observer.onBlockVisibility({ blockId: 'intro', visibleFraction: 0, at: 3 });
+    expect(keeper.restore()).toBe('sunlight');
+  });
+
   it('never points a new revision at an old position, or at a block the document no longer has', () => {
     const store = storage();
     store.set(anchorKey('asset-1', 1), 'air');
@@ -60,7 +72,7 @@ describe('the resume anchor', () => {
     };
     const both = combineObservers(broken, recording);
     both.onBlockVisibility({ blockId: 'a', visibleFraction: 1, at: 1 });
-    both.onBlockInteraction({ blockId: 'a', kind: 'control', at: 2 });
+    both.onBlockInteraction({ blockId: 'a', kind: 'param-changed', at: 2 });
     both.onActivity({ active: false, at: 3 });
     expect(seen).toEqual(['visibility', 'interaction', 'activity']);
   });

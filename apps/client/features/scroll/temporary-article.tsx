@@ -322,7 +322,7 @@ export function TemporaryArticle({
   }, []);
 
   const onInteraction = useCallback(
-    (blockId: string) => observerRef.current.onBlockInteraction({ blockId, kind: 'disclosure', at: now() }),
+    (blockId: string) => observerRef.current.onBlockInteraction({ blockId, kind: 'expanded', at: now() }),
     [],
   );
 

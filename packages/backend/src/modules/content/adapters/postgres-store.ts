@@ -1,9 +1,11 @@
+import { parseDocument } from '@knowscroll/scroll-model';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf, withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
+import { readingFactsOf } from './scroll-compiler.js';
 import type { AssetKind } from '../domain/provenance.js';
-import { ReadingFactsSchema, type ReadingFacts } from '../domain/reading-facts.js';
+import { ReadingFactsSchema, ReadingFactsUnavailableError, type ReadingFacts } from '../domain/reading-facts.js';
 import type { AdmissionTx, ImportEditorialScrollPorts, LockedAsset } from '../application/ports.js';
 import type { AssetForAction, OpenableAsset } from '../public.js';
 
@@ -56,14 +58,19 @@ export async function readScrollReadingFacts(
   const row = await transactionOf(scope)
     .selectFrom('content.asset_revisions as revision')
     .innerJoin('content.assets as asset', 'asset.id', 'revision.asset_id')
-    .select('revision.reading_facts')
+    .select(['revision.reading_facts', 'revision.document'])
     .where('revision.asset_id', '=', assetId)
     .where('revision.revision', '=', revision)
     .where('asset.kind', '=', 'scroll')
     .executeTakeFirst();
   if (row === undefined) return undefined;
   const parsed = ReadingFactsSchema.safeParse(row.reading_facts);
-  return parsed.success ? parsed.data : undefined;
+  if (parsed.success) return parsed.data;
+  // A facts-version rollout must not strand existing exposures. The immutable admitted document
+  // contains everything needed to derive the current view; operators can persist it on re-import.
+  const document = parseDocument(row.document);
+  if (document.kind !== 'valid') throw new ReadingFactsUnavailableError();
+  return readingFactsOf(document.document);
 }
 
 /** One stored revision's consumer document, read outside any personal transaction. */
@@ -99,7 +106,7 @@ function admissionTransaction(tx: AdmissionTx): Transaction<Database> {
  */
 export function makeAdmissionStore(
   db: Kysely<Database>,
-): Pick<ImportEditorialScrollPorts, 'inAdmission' | 'lockAsset' | 'storeRevision'> {
+): Pick<ImportEditorialScrollPorts, 'inAdmission' | 'lockAsset' | 'storeRevision' | 'refreshReadingFacts'> {
   return {
     inAdmission: (work) =>
       withTransaction(db, 'content.admission', async (trx) => {
@@ -134,6 +141,17 @@ export function makeAdmissionStore(
         revision: asset.revision,
         documentSha256: stored?.document_sha256,
       };
+    },
+
+    async refreshReadingFacts(tx, assetId, revision, facts): Promise<boolean> {
+      const result = await admissionTransaction(tx)
+        .updateTable('content.asset_revisions')
+        .set({ reading_facts: JSON.stringify(facts) })
+        .where('asset_id', '=', assetId)
+        .where('revision', '=', revision)
+        .where(sql<boolean>`reading_facts is distinct from ${JSON.stringify(facts)}::jsonb`)
+        .executeTakeFirst();
+      return result.numUpdatedRows > 0n;
     },
 
     async storeRevision(tx, admitted): Promise<void> {

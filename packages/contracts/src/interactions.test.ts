@@ -84,7 +84,7 @@ describe('interaction.v1 (observations the recorder sends)', () => {
       InteractionEventSchema.safeParse({
         ...base,
         kind: 'scroll.block_interaction',
-        payload: { blockId: 'sim-1', kind: 'control', atMs: 1, value: 4096 },
+        payload: { blockId: 'sim-1', kind: 'param-changed', atMs: 1, value: 4096 },
       }).success,
     ).toBe(false);
     expect(InteractionEventSchema.safeParse({ ...coverage({ blocks: [] }), owner: 'someone-else' }).success).toBe(

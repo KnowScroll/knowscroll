@@ -1,3 +1,4 @@
+import { INTERACTION_KINDS, type BlockType } from '@knowscroll/scroll-model';
 import { OBSERVATION_LIMITS, type InteractionEvent, type ObservationBatchResponse } from '@knowscroll/contracts';
 import type { ReadingFacts } from '../../content/public.js';
 import type { PersonalAuthority, ScopeRefusal } from '../../identity/public.js';
@@ -175,8 +176,12 @@ function refusalOf(
   switch (event.kind) {
     case 'scroll.block_coverage':
       return event.payload.blocks.every((block) => known.has(block.blockId)) ? undefined : 'block_unknown';
-    case 'scroll.block_interaction':
-      return known.has(event.payload.blockId) ? undefined : 'block_unknown';
+    case 'scroll.block_interaction': {
+      const block = [...facts.blocks, ...facts.nested].find((item) => item.id === event.payload.blockId);
+      if (block === undefined) return 'block_unknown';
+      const declared: Partial<Record<BlockType, readonly string[]>> = INTERACTION_KINDS;
+      return declared[block.type]?.includes(event.payload.kind) === true ? undefined : 'interaction_kind_invalid';
+    }
     case 'scroll.active_dwell':
       return undefined;
   }

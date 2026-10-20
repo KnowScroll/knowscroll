@@ -186,7 +186,7 @@ sudo sh -c 'set -a; . /etc/knowscroll/dev.v2.env; . /etc/knowscroll/secrets/v2-d
 ```
 
 It prints one JSON line (`outcome`, `assetId`, `revision`, `documentSha256`, `path`): `created` the first
-time, `unchanged` when run again, `revised` when the shipped file changed. The Scroll is then at
+time, `unchanged` when run again, `revised` when the shipped file changed, `facts_refreshed` when only its derived reading-facts view needed refreshing. The Scroll is then at
 `https://app.dev.knowscroll.space/scroll/<assetId>`. Refused outside dev, stage, ci and local.
 
 The v2 API must answer `GET /health` on `PORT` with

@@ -184,6 +184,7 @@ export function makeReadDiagnostics(db: Kysely<Database>): ReadEvidenceDiagnosti
       .selectFrom('evidence.observations')
       .select((eb) => [eb.fn.countAll<string>().as('count'), eb.fn.max('received_at').as('last_received_at')])
       .where('universe_id', '=', authority.universeId)
+      .where('privacy_epoch', '=', authority.privacyEpoch)
       .where('exposure_id', '=', exposureId)
       .executeTakeFirstOrThrow();
     const latest = await db
@@ -200,6 +201,7 @@ export function makeReadDiagnostics(db: Kysely<Database>): ReadEvidenceDiagnosti
         'created_at',
       ])
       .where('universe_id', '=', authority.universeId)
+      .where('privacy_epoch', '=', authority.privacyEpoch)
       .where('exposure_id', '=', exposureId)
       .orderBy('revision', 'desc')
       .limit(1)

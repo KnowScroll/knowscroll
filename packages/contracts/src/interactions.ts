@@ -1,5 +1,5 @@
 import { oc } from '@orpc/contract';
-import { LocalId } from '@knowscroll/scroll-model';
+import { INTERACTION_KINDS, LocalId } from '@knowscroll/scroll-model';
 import { z } from 'zod';
 import { AssetIdSchema, UuidSchema } from './ids.js';
 
@@ -29,15 +29,8 @@ export const OBSERVATION_KINDS = ['scroll.block_coverage', 'scroll.active_dwell'
  * a control changed or reset, a step moved, a disclosure opened or closed, a drag finished, text
  * copied, the text version opened, a failed block retried.
  */
-export const SCROLL_INTERACTION_KINDS = [
-  'control',
-  'step',
-  'disclosure',
-  'drag',
-  'copy',
-  'text_version',
-  'retry',
-] as const;
+export const SCROLL_INTERACTION_KINDS = Object.values(INTERACTION_KINDS).flat();
+export type ScrollInteractionKind = (typeof SCROLL_INTERACTION_KINDS)[number];
 
 /**
  * Versioned limits of the intake (`observation-limits.v1`), shared so the recorder never builds a
@@ -142,6 +135,7 @@ export const OBSERVATION_REJECTIONS = [
   'exposure_not_active',
   'lineage_mismatch',
   'block_unknown',
+  'interaction_kind_invalid',
   'too_old',
   'exposure_event_limit',
 ] as const;

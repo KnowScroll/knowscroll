@@ -56,7 +56,7 @@ export const FIND_OPENABLE_ASSET = Symbol('content.findOpenableAsset');
 /**
  * Port: the reading facts of one stored Scroll revision (block weights, owner of each nested block,
  * the reading estimate), read inside the caller's personal transaction. `undefined` when the
- * revision does not exist or is not a Scroll.
+ * revision does not exist or is not a Scroll. Old derived versions are recovered from the immutable document; an unsupported stored document raises a typed operational failure.
  */
 export type ReadScrollReadingFacts = (
   scope: PersonalScopeTx,

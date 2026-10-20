@@ -87,7 +87,7 @@ describe('the scroll recorder', () => {
     const { recorder, clock, sink } = build();
     recorder.start();
     recorder.observer.onBlockVisibility({ blockId: 'intro', visibleFraction: 1, at: clock.now() + 1_000 });
-    recorder.observer.onBlockInteraction({ blockId: 'intro', kind: 'disclosure', at: clock.now() + 2_000 });
+    recorder.observer.onBlockInteraction({ blockId: 'intro', kind: 'expanded', at: clock.now() + 2_000 });
     clock.advance(6_000);
     recorder.flush();
     const events = sink.events();
@@ -100,7 +100,7 @@ describe('the scroll recorder', () => {
       blocks: [{ blockId: 'intro', intervalsMs: [[1_000, 6_000]], peakFraction: 1 }],
     });
     expect(events[1]?.payload).toEqual({ activeIntervalsMs: [[1_000, 6_000]] });
-    expect(events[2]?.payload).toEqual({ blockId: 'intro', kind: 'disclosure', atMs: 2_000 });
+    expect(events[2]?.payload).toEqual({ blockId: 'intro', kind: 'expanded', atMs: 2_000 });
     expect(sink.batches[0]?.instrumentationVersion).toBe(RECORDER_INSTRUMENTATION_VERSION);
   });
 

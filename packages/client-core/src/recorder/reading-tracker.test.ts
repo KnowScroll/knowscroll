@@ -99,16 +99,16 @@ describe('the reading tracker (summaries, never frames)', () => {
 
   it('keeps a deliberate interaction once per block and kind, with no value, and ignores unknown kinds', () => {
     const t = tracker();
-    t.interaction({ blockId: 'sim-1', kind: 'control', at: 2_000 });
-    t.interaction({ blockId: 'sim-1', kind: 'control', at: 2_500 });
-    t.interaction({ blockId: 'sim-1', kind: 'step', at: 3_000 });
+    t.interaction({ blockId: 'sim-1', kind: 'param-changed', at: 2_000 });
+    t.interaction({ blockId: 'sim-1', kind: 'param-changed', at: 2_500 });
+    t.interaction({ blockId: 'sim-1', kind: 'step-changed', at: 3_000 });
     t.interaction({ blockId: 'sim-1', kind: 'slider' as never, at: 3_000 });
     expect(t.report(4_000).interactions).toEqual([
-      { blockId: 'sim-1', kind: 'control', atMs: 1_000 },
-      { blockId: 'sim-1', kind: 'step', atMs: 2_000 },
+      { blockId: 'sim-1', kind: 'param-changed', atMs: 1_000 },
+      { blockId: 'sim-1', kind: 'step-changed', atMs: 2_000 },
     ]);
     // Reported once for the session: the same interaction again adds nothing new.
-    t.interaction({ blockId: 'sim-1', kind: 'control', at: 5_000 });
+    t.interaction({ blockId: 'sim-1', kind: 'param-changed', at: 5_000 });
     expect(t.report(6_000).interactions).toEqual([]);
   });
 });

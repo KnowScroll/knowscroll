@@ -275,7 +275,7 @@ describe('the thin journey through the built API, worker and operator command', 
         eventId: randomUUID(),
         deviceSequence: 3,
         kind: 'scroll.block_interaction',
-        payload: { blockId: 'violet-eye', kind: 'disclosure', atMs: 9_000 },
+        payload: { blockId: 'violet-eye', kind: 'expanded', atMs: 9_000 },
       },
     ];
     const stored = await client.observations.submit({ instrumentationVersion: 1, events });
@@ -380,7 +380,7 @@ describe('the thin journey through the built API, worker and operator command', 
           assetRevision: 1,
           occurredAt: new Date().toISOString(),
           kind: 'scroll.block_interaction',
-          payload: { blockId: 'no-such-block', kind: 'control', atMs: 10 },
+          payload: { blockId: 'no-such-block', kind: 'param-changed', atMs: 10 },
         },
       ],
     });

@@ -78,5 +78,12 @@ export interface ImportEditorialScrollPorts {
   readonly inAdmission: <T>(work: (tx: AdmissionTx) => Promise<T>) => Promise<T>;
   /** Serialises admissions of one asset, then reads its current state (no row may be missed or doubled). */
   readonly lockAsset: (tx: AdmissionTx, assetId: string) => Promise<LockedAsset>;
+  /** Refresh derived facts only; the document, provenance and revision identity stay immutable. */
+  readonly refreshReadingFacts: (
+    tx: AdmissionTx,
+    assetId: string,
+    revision: number,
+    facts: ReadingFacts,
+  ) => Promise<boolean>;
   readonly storeRevision: (tx: AdmissionTx, revision: AdmittedRevision) => Promise<void>;
 }

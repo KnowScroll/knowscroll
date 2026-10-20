@@ -1,7 +1,8 @@
+import { BLOCK_TYPES } from '@knowscroll/scroll-model';
 import { z } from 'zod';
 
 /** Version of the stored reading facts below. A new shape gets a new version (blueprint §5). */
-export const READING_FACTS_VERSION = 1;
+export const READING_FACTS_VERSION = 2;
 
 /**
  * What the evidence module needs to qualify a reading of one Scroll revision, derived by content
@@ -22,9 +23,18 @@ export const ReadingFactsSchema = z.object({
   /** Estimated reading time in milliseconds at the measures' reading speed. */
   estimatedReadingMs: z.number().int().min(0),
   /** Top-level blocks in document order. */
-  blocks: z.array(z.object({ id: z.string(), weight: z.number().int().min(0) })).max(2_000),
+  blocks: z.array(z.object({ id: z.string(), weight: z.number().int().min(0), type: z.enum(BLOCK_TYPES) })).max(2_000),
   /** Blocks nested in a disclosure, with the top-level block that owns each. */
-  nested: z.array(z.object({ id: z.string(), owner: z.string() })).max(2_000),
+  nested: z.array(z.object({ id: z.string(), owner: z.string(), type: z.enum(BLOCK_TYPES) })).max(2_000),
 });
 
 export type ReadingFacts = z.infer<typeof ReadingFactsSchema>;
+
+/** A stable operational failure: facts cannot be recovered from the stored document. No content in diagnostics. */
+export class ReadingFactsUnavailableError extends Error {
+  override readonly name = 'ReadingFactsUnavailableError';
+  readonly code = 'READING_FACTS_REQUIRES_REFRESH';
+  constructor() {
+    super('READING_FACTS_REQUIRES_REFRESH');
+  }
+}

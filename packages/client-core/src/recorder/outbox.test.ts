@@ -71,6 +71,31 @@ function setup(answers: SendOutcome[], options: { maxBatches?: number; maxBytes?
 }
 
 describe('the durable observation outbox', () => {
+  it('delivers from memory when storage writes fail from quota exhaustion', async () => {
+    const sent: ObservationBatchRequest[] = [];
+    const outbox = createObservationOutbox({
+      storage: {
+        get: () => undefined,
+        set: () => {
+          throw new Error('quota');
+        },
+        remove: () => {
+          throw new Error('quota');
+        },
+      },
+      isActive: () => true,
+      send: (batch) => {
+        sent.push(batch);
+        return Promise.resolve({ kind: 'delivered' });
+      },
+    });
+    const original = dwellEvent();
+    expect(() => outbox.enqueue([original], 1)).not.toThrow();
+    await settle();
+    expect(sent).toEqual([{ instrumentationVersion: 1, events: [original] }]);
+    expect(outbox.status().pendingEvents).toBe(0);
+  });
+
   it('persists a batch, sends it, and forgets it once the API stored it', async () => {
     const { storage, sent, outbox } = setup([]);
     const events = [dwellEvent(), dwellEvent()];

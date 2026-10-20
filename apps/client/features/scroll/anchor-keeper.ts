@@ -6,6 +6,10 @@ export interface AnchorKeeper {
   readonly observer: ReadingObserver;
   /** The block to restore to (its ID), if one was remembered for this revision and still exists. */
   restore(): string | undefined;
+  /** Freeze before the renderer emits its unmount visibility zeroes. */
+  stop(): void;
+  /** Resume observing after a development effect remount. */
+  start(): void;
 }
 
 /** The storage key of the resume anchor of one article revision (inside the account scope's prefix). */
@@ -32,11 +36,12 @@ export function createAnchorKeeper(options: {
   const key = anchorKey(options.assetId, options.revision);
   const fractions = new Map<string, number>();
   let current: string | undefined;
+  let stopped = false;
   const known = new Set(options.order);
   return {
     observer: {
       onBlockVisibility(event) {
-        if (!known.has(event.blockId)) return;
+        if (stopped || !known.has(event.blockId)) return;
         fractions.set(event.blockId, event.visibleFraction);
         const top = options.order.find((id) => (fractions.get(id) ?? 0) >= 0.1);
         if (top !== undefined && top !== current) {
@@ -46,6 +51,12 @@ export function createAnchorKeeper(options: {
       },
       onBlockInteraction() {},
       onActivity() {},
+    },
+    stop() {
+      stopped = true;
+    },
+    start() {
+      stopped = false;
     },
     restore() {
       const stored = options.storage.get(key);

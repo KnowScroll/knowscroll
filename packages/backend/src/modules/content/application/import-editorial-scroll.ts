@@ -1,7 +1,7 @@
 import type { AdmissionIssue, ImportEditorialScrollPorts } from './ports.js';
 
 /** Whether admission made a new asset, a new revision of one, or found the same revision already there. */
-export type ImportOutcome = 'created' | 'revised' | 'unchanged';
+export type ImportOutcome = 'created' | 'revised' | 'unchanged' | 'facts_refreshed';
 
 export type ImportRefusal =
   /** The file is not an editorial Scroll source (wrong envelope). */
@@ -40,7 +40,7 @@ export type ImportEditorialScrollResult =
  *   content is shared, not personal, and has no erasure.
  * Steps (one transaction, serialised per asset): lock the asset; compile the source at the asset's
  *   current revision and compare the integrity hash with the stored revision's: equal means the
- *   same file (or the same compiled result), so nothing is written (`unchanged`); otherwise compile
+ *   same file (or the same compiled result), so only outdated derived facts may be refreshed (`facts_refreshed`; otherwise `unchanged`); otherwise compile
  *   at the next revision number, and store the revision, its internal provenance and the asset's
  *   new current revision together (`created` for the first revision, `revised` after). Compilation
  *   is scroll-model's admission path: staged draft checks, the honesty rules, code-set measures
@@ -68,9 +68,10 @@ export function makeImportEditorialScroll(ports: ImportEditorialScrollPorts) {
         if (same.kind === 'refused')
           return { kind: 'refused', reason: 'compile_refused', stage: same.stage, issues: same.issues };
         if (same.documentSha256 === asset.documentSha256) {
+          const refreshed = await ports.refreshReadingFacts(tx, parsed.assetId, current, same.readingFacts);
           return {
             kind: 'imported',
-            outcome: 'unchanged',
+            outcome: refreshed ? 'facts_refreshed' : 'unchanged',
             assetId: parsed.assetId,
             revision: current,
             documentSha256: same.documentSha256,

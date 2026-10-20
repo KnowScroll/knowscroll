@@ -47,7 +47,7 @@ export function parseEditorialSource(raw: unknown): SourceParse {
 }
 
 /** Block weights, nested owners and the reading estimate of a document, from its code-set measures. */
-function readingFactsOf(document: {
+export function readingFactsOf(document: {
   readonly measures: {
     readonly version: string;
     readonly totalWeight: number;
@@ -55,16 +55,22 @@ function readingFactsOf(document: {
   };
   readonly sections: Parameters<typeof walkBlocks>[0];
 }): ReadingFacts {
-  const nested: { id: string; owner: string }[] = [];
+  const nested: { id: string; owner: string; type: string }[] = [];
+  const types = new Map<string, string>();
   for (const visit of walkBlocks(document.sections)) {
-    if (visit.parent !== null) nested.push({ id: visit.block.id, owner: visit.parent.id });
+    types.set(visit.block.id, visit.block.type);
+    if (visit.parent !== null) nested.push({ id: visit.block.id, owner: visit.parent.id, type: visit.block.type });
   }
   return ReadingFactsSchema.parse({
     v: READING_FACTS_VERSION,
     measuresVersion: document.measures.version,
     totalWeight: document.measures.totalWeight,
     estimatedReadingMs: Math.round((document.measures.totalWeight / WORDS_PER_MINUTE) * 60_000),
-    blocks: document.measures.blocks.map((block) => ({ id: block.blockId, weight: block.weight })),
+    blocks: document.measures.blocks.map((block) => ({
+      id: block.blockId,
+      weight: block.weight,
+      type: types.get(block.blockId),
+    })),
     nested,
   });
 }

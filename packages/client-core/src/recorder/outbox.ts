@@ -124,12 +124,16 @@ export function createObservationOutbox(options: ObservationOutboxOptions): Obse
 
   const persist = (): void => {
     if (stopped || !options.isActive()) return;
-    if (queue.length === 0 && dropped === 0) {
-      options.storage.remove(OUTBOX_STORAGE_KEY);
-      return;
+    try {
+      if (queue.length === 0 && dropped === 0) {
+        options.storage.remove(OUTBOX_STORAGE_KEY);
+        return;
+      }
+      const stored: StoredOutbox = { v: 1, dropped, batches: queue };
+      options.storage.set(OUTBOX_STORAGE_KEY, JSON.stringify(stored));
+    } catch {
+      // Storage quota/availability can remove crash durability, never prevent in-memory delivery.
     }
-    const stored: StoredOutbox = { v: 1, dropped, batches: queue };
-    options.storage.set(OUTBOX_STORAGE_KEY, JSON.stringify(stored));
   };
 
   const load = (): void => {

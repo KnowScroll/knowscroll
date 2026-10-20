@@ -202,20 +202,20 @@ describe('projection and §8 qualification of a Scroll reading (real database)',
 
   it('counts a deliberate interaction once per block and kind, however often it is reported', async () => {
     const { person, exposure } = await reader();
-    const interaction = (kind: 'disclosure' | 'drag') =>
+    const interaction = (kind: 'expanded' | 'collapsed') =>
       event(exposure, { kind: 'scroll.block_interaction', payload: { blockId: 'violet-eye', kind, atMs: 1_000 } });
     await ingest(person, [
-      interaction('disclosure'),
-      interaction('disclosure'),
-      interaction('drag'),
+      interaction('expanded'),
+      interaction('expanded'),
+      interaction('collapsed'),
       event(exposure, coverage([blocks[0] ?? ''], 1_000)),
       event(exposure, dwell([0, 1_000])),
     ]);
     await project(person, exposure);
     const [row] = await evidence(person, exposure);
     expect((row?.summary as { interactions: unknown[] }).interactions).toEqual([
-      { blockId: 'violet-eye', interaction: 'disclosure' },
-      { blockId: 'violet-eye', interaction: 'drag' },
+      { blockId: 'violet-eye', interaction: 'expanded' },
+      { blockId: 'violet-eye', interaction: 'collapsed' },
     ]);
   });
 

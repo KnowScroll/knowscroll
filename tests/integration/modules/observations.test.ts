@@ -8,7 +8,7 @@ import { projectScrollReadingQueue } from '@knowscroll/backend/modules/evidence'
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { activatedAgo, coverage, dwell, event, openActive, type OpenedFixture } from '../support/observations.js';
-import { admitStarter, scrollUseCases } from '../support/scroll.js';
+import { admitStarter, scrollUseCases, starterSource } from '../support/scroll.js';
 
 describe('observation intake (real database)', () => {
   let database: TestDatabase<Database>;
@@ -65,7 +65,7 @@ describe('observation intake (real database)', () => {
       event(exposure, dwell([0, 12_000])),
       event(exposure, {
         kind: 'scroll.block_interaction',
-        payload: { blockId: 'violet-eye', kind: 'disclosure', atMs: 8_000 },
+        payload: { blockId: 'violet-eye', kind: 'expanded', atMs: 8_000 },
       }),
     ];
     const result = await ingest(person, events);
@@ -109,6 +109,44 @@ describe('observation intake (real database)', () => {
       .executeTakeFirstOrThrow();
     expect(universe.revision).toBe(0);
     expect(await projectionJobs(person.universeId)).toBe(1);
+  });
+
+  it('validates canonical interaction kinds against the immutable block type, including nested blocks', async () => {
+    const { person, exposure } = await setup();
+    const result = await ingest(person, [
+      event(exposure, {
+        kind: 'scroll.block_interaction',
+        payload: { blockId: 'violet-eye', kind: 'expanded', atMs: 100 },
+      }),
+      event(exposure, {
+        kind: 'scroll.block_interaction',
+        payload: { blockId: 'violet-eye', kind: 'param-changed', atMs: 100 },
+      }),
+      event(exposure, {
+        kind: 'scroll.block_interaction',
+        payload: { blockId: 'violet-eye-cones', kind: 'expanded', atMs: 100 },
+      }),
+    ]);
+    expect(result).toMatchObject({ accepted: 1, rejected: 2 });
+    if (result.kind === 'ingested')
+      expect(result.results.slice(1)).toEqual([
+        { eventId: expect.any(String), status: 'rejected', reason: 'interaction_kind_invalid' },
+        { eventId: expect.any(String), status: 'rejected', reason: 'interaction_kind_invalid' },
+      ]);
+  });
+
+  it('continues intake from an immutable document when stored derived facts have an older version', async () => {
+    const source = starterSource() as { assetId: string };
+    source.assetId = randomUUID();
+    const imported = await useCases.importScroll(source);
+    if (imported.kind !== 'imported') throw new Error('fixture import refused');
+    const person = await seedPerson(database.db);
+    const exposure = await openActive(useCases, person, imported);
+    await sql`update content.asset_revisions set reading_facts = '{"v":1}'::jsonb where asset_id = ${source.assetId}`.execute(
+      database.db,
+    );
+    expect(await ingest(person, [event(exposure, dwell([0, 500]))])).toMatchObject({ accepted: 1, rejected: 0 });
+    expect(await useCases.importScroll(source)).toMatchObject({ outcome: 'facts_refreshed' });
   });
 
   it('counts nothing twice when the same batch is retried, and enqueues no second job', async () => {
@@ -177,7 +215,7 @@ describe('observation intake (real database)', () => {
       }),
       event(exposure, {
         kind: 'scroll.block_interaction',
-        payload: { blockId: 'no-such-block', kind: 'drag', atMs: 100 },
+        payload: { blockId: 'no-such-block', kind: 'token-dropped', atMs: 100 },
       }),
     ]);
     expect(unknownBlock).toMatchObject({ accepted: 0, rejected: 2 });
@@ -213,7 +251,7 @@ describe('observation intake (real database)', () => {
       event(exposure, dwell([2_000_000, 2_100_000])),
       event(exposure, {
         kind: 'scroll.block_interaction',
-        payload: { blockId: 'violet-eye', kind: 'disclosure', atMs: 3_000_000 },
+        payload: { blockId: 'violet-eye', kind: 'expanded', atMs: 3_000_000 },
       }),
     ]);
     expect(result).toMatchObject({ kind: 'ingested', accepted: 4 });

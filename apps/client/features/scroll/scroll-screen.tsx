@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createScrollRecorder, type AccountScope } from '@knowscroll/client-core';
@@ -76,6 +76,11 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
       }),
     [scope, scroll],
   );
+  useLayoutEffect(() => {
+    keeper.start();
+    // Parent cleanup runs before the article cleanup: closing recorder intervals must not move resume.
+    return () => keeper.stop();
+  }, [keeper]);
   const observer = useMemo(() => combineObservers(recorder.observer, keeper.observer), [recorder, keeper]);
   // A deep link names the block (`?anchor=<blockId>`); otherwise the person's own last position.
   const [anchorBlockId] = useState(() => firstOf(params.anchor) ?? keeper.restore());

@@ -1,3 +1,5 @@
+import type { ScrollInteractionKind } from '@knowscroll/contracts';
+
 /**
  * What a Scroll renderer reports while a person reads (blueprint §18 "Shared interaction recorder").
  * It is **structurally identical** to `ScrollReadingObserver` in `packages/ui/src/scroll/observer.ts`
@@ -10,14 +12,14 @@
  */
 export interface ReadingObserver {
   /**
-   * The visible fraction (0..1) of a block's area inside the reading viewport changed by at least
+   * The visible fraction (0..1), relative to min(block height, reading viewport height), changed by at least
    * 0.1, crossed 0, 0.5 or 1, or the block mounted or unmounted.
    */
   onBlockVisibility(event: { readonly blockId: string; readonly visibleFraction: number; readonly at: number }): void;
   /** A deliberate interaction; never raw pointer frames, never a value. */
   onBlockInteraction(event: {
     readonly blockId: string;
-    readonly kind: 'control' | 'step' | 'disclosure' | 'drag' | 'copy' | 'text_version' | 'retry';
+    readonly kind: ScrollInteractionKind;
     readonly at: number;
   }): void;
   /** The article became active or inactive (app backgrounded, tab hidden, an overlay opened or closed). */

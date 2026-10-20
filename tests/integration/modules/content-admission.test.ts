@@ -85,7 +85,7 @@ describe('content admission of the authored starter Scroll (real database)', () 
       .select('reading_facts')
       .where('asset_id', '=', result.assetId)
       .executeTakeFirstOrThrow();
-    expect(facts.reading_facts).toMatchObject({ v: 1, measuresVersion: 'scroll-measures.v1' });
+    expect(facts.reading_facts).toMatchObject({ v: 2, measuresVersion: 'scroll-measures.v1' });
   });
 
   it('is idempotent: the same file is the same revision, a changed file is a new one that leaves the old untouched', async () => {
@@ -114,6 +114,32 @@ describe('content admission of the authored starter Scroll (real database)', () 
     expect(after.revisions[0]?.document_sha256).not.toBe(after.revisions[1]?.document_sha256);
     // The revision number is part of the integrity hash: the document says which revision it is.
     expect((after.revisions[1]?.document as { revision: number }).revision).toBe(2);
+  });
+
+  it('refreshes outdated derived facts on unchanged import without changing revision or provenance', async () => {
+    const assetId = randomUUID();
+    const source = editedSource(assetId, 'A stored revision survives a reading facts format rollout.');
+    await useCases.importScroll(source);
+    const before = await rows(assetId);
+    await sql`update content.asset_revisions set reading_facts = '{"v":1}'::jsonb where asset_id = ${assetId}`.execute(
+      database.db,
+    );
+    expect(await useCases.importScroll(source)).toMatchObject({
+      kind: 'imported',
+      outcome: 'facts_refreshed',
+      revision: 1,
+    });
+    expect(await rows(assetId)).toEqual(before);
+    const stored = await database.db
+      .selectFrom('content.asset_revisions')
+      .select('reading_facts')
+      .where('asset_id', '=', assetId)
+      .executeTakeFirstOrThrow();
+    expect(stored.reading_facts).toMatchObject({
+      v: 2,
+      blocks: expect.arrayContaining([{ id: 'violet-eye', weight: expect.any(Number), type: 'disclosure' }]),
+    });
+    expect(await useCases.importScroll(source)).toMatchObject({ kind: 'imported', outcome: 'unchanged', revision: 1 });
   });
 
   it('serialises concurrent imports of one asset: one creates it, the other finds it', async () => {
