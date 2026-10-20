@@ -8,7 +8,8 @@ import {
   type QuotaObservation,
 } from '../../application/ports.js';
 import { judgeQuota, parseMessagesReply, providerErrorCode } from './reply.js';
-import { OUTPUT_TOOL, requestReplyFormat } from './output-format.js';
+import { OUTPUT_TOOL, SCHEMA_OUTPUT_TOOL_DESCRIPTION, requestReplyFormat } from './output-format.js';
+import { isNativeInputSchema } from '../../domain/native-schema.js';
 
 /** The fixed Anthropic-compatible messages route of the token plan (no endpoint override). */
 export const MINIMAX_MESSAGES_URL = 'https://api.minimax.io/anthropic/v1/messages';
@@ -140,6 +141,7 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
     provider: 'minimax',
     model: settings.model,
     supportsSingleToolObject: settings.model === 'MiniMax-M3',
+    supportsNativeOutputSchema: settings.model === 'MiniMax-M3',
 
     encode(request) {
       if (
@@ -147,6 +149,13 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
         (request.outputFormat !== 'single-tool-object' || settings.model !== 'MiniMax-M3')
       )
         throw new ModelNotSentError('OUTPUT_FORMAT_UNSUPPORTED');
+      if (
+        request.outputJsonSchema !== undefined &&
+        (request.outputFormat !== 'single-tool-object' ||
+          settings.model !== 'MiniMax-M3' ||
+          !isNativeInputSchema(request.outputJsonSchema))
+      )
+        throw new ModelNotSentError('OUTPUT_SCHEMA_UNSUPPORTED');
       return encoder.encode(
         canonicalJson({
           model: settings.model,
@@ -154,7 +163,20 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
           system: request.system,
           messages: [{ role: 'user', content: [{ type: 'text', text: request.user }] }],
           thinking: { type: 'disabled' },
-          ...(request.outputFormat === undefined ? {} : { tools: [OUTPUT_TOOL], tool_choice: { type: 'auto' } }),
+          ...(request.outputFormat === undefined
+            ? {}
+            : {
+                tools: [
+                  request.outputJsonSchema === undefined
+                    ? OUTPUT_TOOL
+                    : {
+                        name: OUTPUT_TOOL.name,
+                        description: SCHEMA_OUTPUT_TOOL_DESCRIPTION,
+                        input_schema: request.outputJsonSchema,
+                      },
+                ],
+                tool_choice: { type: 'auto' },
+              }),
         }),
       );
     },

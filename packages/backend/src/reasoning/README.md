@@ -108,6 +108,57 @@ rules enforce it), so a module cannot build its own harness with its own ledger 
 ESLint rule keeps global `fetch`, Node's HTTP clients and provider SDKs out of everything but
 `infrastructure/` and `reasoning/adapters/` (`pnpm lint:probe:network` proves it bites).
 
+### Optional advisory native input shape (#232 foundation)
+
+An additive `role.nativeOutputSchema: 'zod-structural.v1'` requires `outputFormat:
+'single-tool-object'` and explicit `supportsNativeOutputSchema` transport capability. It derives
+the structural **input** of the existing role Zod schema using Zod's Draft7 conversion, an empty
+metadata registry, `io: input`, `unrepresentable: throw`, `cycles: throw` and `reused: ref`.
+Input mode matters: the claims selector's transform hydrates an internal ClaimPackage, but the
+model must submit `candidateIds`, never the hydrated output. Conversion executes no transform or
+custom refinement. Registry IDs, descriptions, examples and other annotations are excluded.
+
+The supported subset is `type`, `properties`, `required`, `additionalProperties`, root-local
+`definitions`/`$ref`, `items` (including bounded tuple arrays), `additionalItems`, `anyOf`, `oneOf`,
+`allOf`, scalar `enum`/`const`, `minLength`/`maxLength`, `minItems`/`maxItems`, `minimum`/`maximum`,
+numeric `exclusiveMinimum`/`exclusiveMaximum`, positive `multipleOf` and `pattern`. The root must
+be an object with explicit properties. Boolean child schemas and empty child schemas retain their
+ordinary JSON Schema meaning; unsupported types are never silently replaced by an empty schema.
+All refs must resolve under the same root's definitions; missing/recursive/remote refs, metadata,
+unknown keywords, format/default/content vocabularies, URLs and non-JSON/accessor data refuse.
+Patterns are data; this module never executes them. This subset is our bounded request policy,
+not a claim that MiniMax enforces each constraint.
+
+Bounds: schema 32768 UTF-8 bytes, 4096 JSON nodes, 24 serialized levels, 32 resolved-reference levels,
+256 references/map entries, 64 alternatives/tuple items, 1024 characters/string. The generated dialect
+URL alone is omitted; no remote schema is fetched. Unsupported shape/capability returns fixed
+`output_schema_unsupported` before purge, run admission, reservation, quota or send. An oversized
+complete serialized request returns `request_too_large` at the same boundary. Existing request
+ceilings, including production 100000 bytes, remain authoritative; there is no truncation or cap raise.
+
+This mode uses new `hp4-tool-schema` framing and a distinct fixed tool description with the derived
+`input_schema`. The tool remains `submit_output`, choice remains `auto`, and the strict native reply
+parser is unchanged. The adapter revalidates the bounded schema in each frozen request before
+fetch. Schema bytes participate in exact request hashes, protected storage and the existing
+byte-based token reservation. The absent opt-in preserves historical hp2/hp3 prompt and wire bytes,
+including repair; old unknown tool configurations do not become valid under the old description.
+
+[MiniMax's Messages reference](https://platform.minimax.io/docs/api-reference/text-chat-anthropic)
+and [Tool/ToolChoice OpenAPI](https://platform.minimax.io/docs/api-reference/text/api/openapi-chat-anthropic.json)
+declare JSON Schema tool inputs and only `auto` choice. They do not establish constrained decoding,
+strict schema enforcement or semantic truth. [Zod input conversion](https://zod.dev/json-schema#io)
+provides structural guidance only: custom refinements, semantic grouping, source/copy checks,
+compiler/admission, min4 and copy9 remain in the unchanged actual validators. Invalid native
+answers stay invalid, failed raw drafts stay null, and only the existing one repair is possible.
+No executor, follow-up tool result, provider retry or extra model turn is introduced.
+
+No Content role or job policy opts in in this foundation. A separate consumer PR must bump actual
+role/prompt and policy identity, review full primary/repair request sizes and preserve old runs and
+request bytes. Nothing here authorises another paid call, resets a ledger/brake, reopens v6, or
+establishes a generated Scroll/runtime result. Tests are source and fake-HTTP/real-PostgreSQL CI
+fixtures only, including actual Content descriptors and fixed authored context; all suites run in
+GitHub Actions, never locally.
+
 ## Nonpersonal Scroll production (#232 foundation)
 
 The worker also injects `PRODUCTION_REASONING_HARNESS` (`ProductionReasoningHarness`) and

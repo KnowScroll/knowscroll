@@ -13,6 +13,7 @@ import type { OutputIssue } from './output.js';
 export const HARNESS_PROMPT_VERSION = 'hp2';
 /** Separate framing only for the opt-in output-data carrier; hp2 bytes remain unchanged. */
 export const SINGLE_TOOL_PROMPT_VERSION = 'hp3-tool-object';
+export const NATIVE_SCHEMA_PROMPT_VERSION = 'hp4-tool-schema';
 
 /** One piece of prepared context. `ref` is the owning module's reference; `text` is data. */
 export interface PromptItem {
@@ -30,6 +31,7 @@ export interface PromptInput {
   /** Present only for a repair: schema findings or role-declared static semantic feedback. */
   readonly feedback?: readonly OutputIssue[];
   readonly outputFormat?: 'single-tool-object';
+  readonly nativeOutputSchema?: 'zod-structural.v1';
 }
 
 export interface PromptText {
@@ -70,7 +72,7 @@ export function buildPrompt(input: PromptInput): PromptText {
   const systemParts = [
     toolOutput ? toolPreamble : preamble,
     '',
-    `Role ${escapeData(input.roleId)} (version ${escapeData(input.roleVersion)}, framing ${toolOutput ? SINGLE_TOOL_PROMPT_VERSION : HARNESS_PROMPT_VERSION}):`,
+    `Role ${escapeData(input.roleId)} (version ${escapeData(input.roleVersion)}, framing ${input.nativeOutputSchema === undefined ? (toolOutput ? SINGLE_TOOL_PROMPT_VERSION : HARNESS_PROMPT_VERSION) : NATIVE_SCHEMA_PROMPT_VERSION}):`,
     input.instructions,
   ];
   if (input.feedback !== undefined)
@@ -86,6 +88,10 @@ export function buildPrompt(input: PromptInput): PromptText {
     systemParts.push(
       '',
       'Output transport: submit the entire answer object as the native input of exactly one submit_output tool call, including for a repair. Do not return text or execute actions.',
+    );
+  if (input.nativeOutputSchema !== undefined)
+    systemParts.push(
+      'The tool input schema describes structural input only. Semantic validation and application checks still apply.',
     );
   const items = input.items.map((item) =>
     [

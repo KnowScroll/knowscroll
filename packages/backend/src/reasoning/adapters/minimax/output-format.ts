@@ -1,6 +1,10 @@
+import { isNativeInputSchema } from '../../domain/native-schema.js';
+
 /** Fixed output-data carrier. It grants no action, executor, network access or follow-up turn. */
 export const OUTPUT_TOOL_NAME = 'submit_output';
 export const OUTPUT_TOOL_DESCRIPTION = 'Submit the complete answer object as data. This tool executes no action.';
+export const SCHEMA_OUTPUT_TOOL_DESCRIPTION =
+  'Submit the complete answer object as data matching the advisory input shape. This tool executes no action.';
 export const OUTPUT_TOOL = Object.freeze({
   name: OUTPUT_TOOL_NAME,
   description: OUTPUT_TOOL_DESCRIPTION,
@@ -41,14 +45,16 @@ export function requestReplyFormat(text: string): ReplyFormat | undefined {
     tool === undefined ||
     !exactKeys(tool, ['name', 'description', 'input_schema']) ||
     tool['name'] !== OUTPUT_TOOL_NAME ||
-    tool['description'] !== OUTPUT_TOOL_DESCRIPTION ||
+    (tool['description'] !== OUTPUT_TOOL_DESCRIPTION && tool['description'] !== SCHEMA_OUTPUT_TOOL_DESCRIPTION) ||
     choice === undefined ||
     !exactKeys(choice, ['type']) ||
     choice['type'] !== 'auto'
   )
     return undefined;
   const schema = record(tool['input_schema']);
-  if (schema === undefined || !exactKeys(schema, ['type']) || schema['type'] !== 'object') return undefined;
+  if (tool['description'] === OUTPUT_TOOL_DESCRIPTION) {
+    if (schema === undefined || !exactKeys(schema, ['type']) || schema['type'] !== 'object') return undefined;
+  } else if (!isNativeInputSchema(schema)) return undefined;
   // This opt-in is documented only for M3; existing text model choices remain unchanged.
   return body['model'] === 'MiniMax-M3' ? 'single-tool-object' : undefined;
 }

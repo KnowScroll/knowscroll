@@ -3,6 +3,7 @@ import type { AuthorityHolds, PersonalScopeTx, WithPersonalScope } from '../../m
 import type { AttemptState } from '../domain/attempts.js';
 import type { BudgetCap, BudgetUsage, ReportedUsage } from '../domain/budgets.js';
 import type { OutputIssue } from '../domain/output.js';
+import type { NativeInputSchema } from '../domain/native-schema.js';
 
 /**
  * A request as the harness frames it: system text (preamble + role instructions), user text
@@ -15,6 +16,8 @@ export interface ModelRequest {
   readonly maxOutputTokens: number;
   /** Opt-in output-data carrier, never a tool executor or an autonomous interaction. */
   readonly outputFormat?: 'single-tool-object';
+  /** Derived structural input only; opt-in and bounded before admission. */
+  readonly outputJsonSchema?: NativeInputSchema;
 }
 
 /** How a provider ended its answer. `max_tokens` means it was cut off. */
@@ -93,6 +96,7 @@ export interface ModelPort {
   readonly model: string;
   /** Explicit transport capability; absent means existing text output only. */
   readonly supportsSingleToolObject?: boolean;
+  readonly supportsNativeOutputSchema?: boolean;
   encode(request: ModelRequest): Uint8Array;
   observeQuota(signal: AbortSignal): Promise<QuotaObservation>;
   send(body: Uint8Array, signal: AbortSignal): Promise<ModelReply>;
