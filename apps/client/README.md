@@ -98,3 +98,13 @@ builds are not part of CI (CF-31). Automated suites run in GitHub Actions only (
 
 
 Native module host declarations: `expo-clipboard` is declared directly by this app so Expo autolinking includes the module used lazily by `packages/ui`'s code-copy control. Knip's app-only `ignoreDependencies` entry records that native linking dependency; TypeScript, the UI import, frozen lockfile and Android build remain checked.
+
+`/reel/<assetId>` opens/activates an admitted immutable Reel, renders the shared format switch/action
+rail, and records playback into the account-scoped durable outbox. Save uses the real command; actions
+without a command are hidden and an absent Scroll sibling is unavailable. Fixture imports carry a
+prominent fixture banner. Renewing a media grant reuses the existing exposure and never counts as a
+new encounter. Browser cookies authenticate video GETs; native source headers come from AccountScope.
+
+The interim direct Scroll session accepts only direct-open exposure lineage. A Composer
+ready/pending/exhausted response produces the existing controlled error state; the new Explore
+consumer will own those outcomes (#234). This compatibility guard adds no navigation UI.

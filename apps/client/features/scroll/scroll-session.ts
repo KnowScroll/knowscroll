@@ -101,6 +101,11 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
           capabilities: SCROLL_CAPABILITIES,
         });
         if (disposed) return;
+        // A direct open must return exposure lineage; Composer ready/pending is a different flow.
+        if (response.status !== undefined) {
+          set({ status: 'error' });
+          return;
+        }
         opened = { exposureId: response.exposureId, assetRevision: response.assetRevision };
       }
       if (loaded === undefined) {

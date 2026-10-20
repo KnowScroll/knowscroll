@@ -55,5 +55,8 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
   });
 }
 
+export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
+export { makeMediaAccess } from './media-access.js';
+
 /** Composition-only factory for the worker's bounded, nonpersonal Scroll operator. */
 export { makeProduceScroll as produceScrollUseCase } from '../production/produce.js';

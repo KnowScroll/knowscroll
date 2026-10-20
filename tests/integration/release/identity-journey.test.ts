@@ -144,14 +144,30 @@ describe('sign-in through the built API', () => {
   }
 
   async function requestLink(address: string, codeChallenge?: string): Promise<string> {
+    const previousMailCount = mailCountFor(address);
     const response = await post('/auth/sign-in', {
       email: address,
       ...(codeChallenge === undefined ? {} : { codeChallenge }),
     });
     expect(response.status).toBe(202);
     expect(await response.json()).toEqual({ status: 'requested' });
-    await expect.poll(() => readOutbox().includes(address), { timeout: 10_000 }).toBe(true);
+    // Delivery runs after the HTTP acknowledgement. A second request for the same address
+    // must wait for its new message, rather than immediately redeeming the first link again.
+    await expect.poll(() => mailCountFor(address), { timeout: 10_000 }).toBe(previousMailCount + 1);
     return tokenOf(lastLinkFor(address));
+  }
+
+  function mailCountFor(address: string): number {
+    return readOutbox()
+      .split('\n')
+      .filter((line) => {
+        try {
+          return (JSON.parse(line) as { to?: unknown }).to === address;
+        } catch {
+          // A read can overlap the fixture sender appending its next complete JSON line.
+          return false;
+        }
+      }).length;
   }
 
   function readOutbox(): string {

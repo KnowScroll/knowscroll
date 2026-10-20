@@ -13,6 +13,8 @@ export const READING_FACTS_VERSION = 2;
  */
 export interface ReadingFacts {
   readonly v: typeof READING_FACTS_VERSION;
+  /** Present only for an admitted Reel; no Scroll weighting is used. */
+  readonly reelDurationMs?: number;
   /** The measures version the weights come from (`scroll-measures.v1`). */
   readonly measuresVersion: string;
   readonly totalWeight: number;

@@ -14,6 +14,7 @@ export {
   readContentOperatorConfig,
   readScrollProductionOperatorConfig,
   readMigrateConfig,
+  readMediaImportConfig,
   readOperatorConfig,
   readWorkerConfig,
   readWorkerOperatorConfig,

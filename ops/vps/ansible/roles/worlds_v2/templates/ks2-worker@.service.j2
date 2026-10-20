@@ -14,6 +14,8 @@ Type=simple
 # Its own user (#226 review m6): not v1's ks-%i, so nothing of v1 is readable to it.
 User=ks2-%i
 Group=ks2-%i
+# Read-only Cutroom artifacts for zero-cost reuse import; the API has no supplementary group.
+SupplementaryGroups=ks-pool
 Slice=ks-%i.slice
 WorkingDirectory=/srv/knowscroll/%i/current
 EnvironmentFile=/etc/knowscroll/%i.v2.env
@@ -25,6 +27,8 @@ EnvironmentFile=/etc/knowscroll/secrets/shared/minimax.env
 EnvironmentFile=/srv/knowscroll/%i/current/.ks/release.env
 Environment=NODE_ENV=production
 Environment=KS_WORLD=%i
+Environment=KS_CUTROOM_ORIGIN=http://127.0.0.1:8797
+Environment=KS_CUTROOM_ARTIFACT_ROOT=/srv/knowscroll/cutroom-pool/artifacts
 # Turns the harness on with MiniMax. Without it the worker's provider is `none` and every model
 # call is refused before anything is reserved.
 Environment=KS_REASONING_PROVIDER=minimax

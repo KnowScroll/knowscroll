@@ -45,3 +45,14 @@ retries with backoff from 2 s, dead letter `<name>.dead`, retained 7 days queued
 Lock order: personal root only (the exposure and facts are read inside the same scope). Erasure: the three
 tables and both queues' payloads per universe (`adapters/erasure.ts`); raw observations are not promised
 replayable forever.
+
+## Reel observations (S2.4)
+
+`reel.playback` carries bounded pairs of continuous active-time and media-time intervals, without text
+or playback position shared to peers. Intake applies the same scope/epoch/activation/lineage/batch
+idempotency and elapsed-time bounds; media endpoints must lie inside the admitted duration. Scroll
+kinds cannot use Reel facts or vice versa. The existing durable projection queue dispatches by the
+admitted revision's facts. `reel-qualification.v0` computes unique visible media / duration, capped by
+unique active time, with experimental q≥0.6. Overlap, loops and duplicate delivery add no unique media;
+missing/gapped instrumentation leaves short encounters unknown. Consumer navigation/open/grant renewal
+is not evidence. Diagnostics retain q, unique media, active time, duration and policy version.

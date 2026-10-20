@@ -171,8 +171,14 @@ function refusalOf(
   if (event.assetId !== exposure.assetId || event.assetRevision !== exposure.assetRevision) return 'lineage_mismatch';
   if (exposure.activatedAt === undefined) return 'exposure_not_active';
   if (facts === undefined) return 'lineage_mismatch';
+  if (event.kind !== 'reel.playback' && facts.reelDurationMs !== undefined) return 'lineage_mismatch';
   const known = new Set<string>([...facts.blocks.map((block) => block.id), ...facts.nested.map((block) => block.id)]);
   switch (event.kind) {
+    case 'reel.playback':
+      return facts.reelDurationMs !== undefined &&
+        event.payload.samples.every((sample) => sample.mediaMs[1] <= facts.reelDurationMs!)
+        ? undefined
+        : 'lineage_mismatch';
     case 'scroll.block_coverage':
       return event.payload.blocks.every((block) => known.has(block.blockId)) ? undefined : 'block_unknown';
     case 'scroll.block_interaction': {
@@ -194,6 +200,19 @@ function boundPayload(
   capMs: number,
 ): { readonly payload: { readonly [key: string]: unknown }; readonly bounded: boolean } {
   switch (event.kind) {
+    case 'reel.playback': {
+      let bounded = false;
+      const samples = event.payload.samples.flatMap((sample) => {
+        const [from, to] = sample.activeMs;
+        const end = Math.min(to, Math.floor(capMs));
+        if (end !== to) bounded = true;
+        if (end <= from) return [];
+        const mediaEnd = Math.min(sample.mediaMs[1], sample.mediaMs[0] + end - from);
+        if (mediaEnd <= sample.mediaMs[0]) return [];
+        return [{ activeMs: [from, end], mediaMs: [sample.mediaMs[0], mediaEnd] }];
+      });
+      return { payload: { samples }, bounded };
+    }
     case 'scroll.block_coverage': {
       let bounded = false;
       const blocks = event.payload.blocks.map((block) => {

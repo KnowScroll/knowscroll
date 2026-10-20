@@ -57,6 +57,22 @@ describe('observation intake (real database)', () => {
     return { person, exposure: await openActive(useCases, person, starter) };
   }
 
+  it('refuses Reel playback for a Scroll exposure without storing evidence or work', async () => {
+    const { person, exposure } = await setup();
+    const playback = event(exposure, {
+      kind: 'reel.playback',
+      payload: { samples: [{ activeMs: [0, 1000], mediaMs: [0, 1000] }] },
+    });
+    expect(await ingest(person, [playback])).toMatchObject({
+      kind: 'ingested',
+      accepted: 0,
+      rejected: 1,
+      results: [{ eventId: playback.eventId, status: 'rejected', reason: 'lineage_mismatch' }],
+    });
+    expect(await observationCount(person.universeId)).toBe(0);
+    expect(await projectionJobs(person.universeId)).toBe(0);
+  });
+
   it('stores a valid batch, acknowledges it as stored, and enqueues one projection job for the exposure', async () => {
     const { person, exposure } = await setup();
     await activatedAgo(database.db, exposure.exposureId, 10);

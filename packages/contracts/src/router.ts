@@ -1,3 +1,5 @@
+import { mediaGrantContract } from './media.js';
+import { exposureContextContract, navigateExperienceContract } from './navigation.js';
 import {
   activateExposureContract,
   applyActionContract,
@@ -18,6 +20,7 @@ import { evidenceDiagnosticsContract, submitObservationsContract } from './inter
 /** The complete HTTP contract of the KnowScroll API. Every route the API serves is listed here. */
 export const apiContract = {
   health: healthContract,
+  media: { grant: mediaGrantContract },
   identity: {
     requestSignIn: requestSignInContract,
     peekSignIn: peekSignInContract,
@@ -29,8 +32,10 @@ export const apiContract = {
     applyAction: applyActionContract,
     listSaved: listSavedContract,
     openExposure: openExposureContract,
+    navigate: navigateExperienceContract,
     activateExposure: activateExposureContract,
     exposureDocument: exposureDocumentContract,
+    exposureContext: exposureContextContract,
   },
   observations: {
     submit: submitObservationsContract,

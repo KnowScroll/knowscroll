@@ -110,13 +110,23 @@
       "@knowscroll/source": "./src/reasoning/adapters/nest-providers.ts",
       "types": "./dist/reasoning/adapters/nest-providers.d.ts",
       "default": "./dist/reasoning/adapters/nest-providers.js"
+    },
+    "./infrastructure/media-store": {
+      "@knowscroll/source": "./src/infrastructure/media-store/index.ts",
+      "types": "./dist/infrastructure/media-store/index.d.ts",
+      "default": "./dist/infrastructure/media-store/index.js"
+    },
+    "./infrastructure/media-store/range": {
+      "@knowscroll/source": "./src/infrastructure/media-store/range.ts",
+      "types": "./dist/infrastructure/media-store/range.d.ts",
+      "default": "./dist/infrastructure/media-store/range.js"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/build-cutroom-wire.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "db:types": "kysely-codegen --config-file kysely-codegen.json",

@@ -176,3 +176,36 @@ Consequences: `KS_AUTH_ADAPTER` defaults to `session` (`none` is gone; `test-bea
 The owner's Codex continuation request authorises continuing the existing v2 programme through all remaining implementation phases, connected real-service journeys and verified dev/stage delivery. The earlier inferred pause before Phase 3 is superseded; report after each phase and continue the next unblocked phase. Main/production, total paid budgets, individual Reel-script approval, destructive actions and unavailable credentials retain their explicit owner controls. No PIO or Software Factory workflow is reinstated.
 
 Use the existing tracker #222, branches and implementation work. The Codex coordinator integrates, reviews, merges and deploys; bounded Sol agents own named issues/worktrees. Historical Claude agent IDs and attribution settings are not current assignments or controls.
+
+
+## D-024 · 2026-10-20 · Owner: bounded additional MiniMax allowance for Scroll production
+
+For #232 the owner explicitly approved up to 24 additional MiniMax model requests total: 12 development and 12 dev generation. Every admitted attempt/repair must be recorded, uncertainty consumes the allocation until reconciliation, and a new agent/session does not reset it. The historical harness six-call grant is exhausted and separate. Coordinator shared ledger: SSD `knowscroll-dev/v2/agents/coordinator/provider-allowance-232.json`; harness database attempts remain the execution authority. This does not change D-018's separate Cutroom budget or per-script approvals.
+
+
+## D-025 · 2026-10-20 · Coordinator: navigation lineage and mutable encounter context
+
+Implementation interpretation of blueprint §§8–9 and N01/J1/J5: platform Back restores a parked
+AccountScope entry without a command, activation or new evidence/return bonus. A later deliberate
+navigation may name any previously activated, still-authorized member offer/exposure of that same
+session and epoch. It must carry the latest server intent revision, not the parked snapshot's old
+revision. Cross-session, stale, withdrawn or otherwise ineligible lineage is refused. The new move
+commits its new intent atomically; restoring Back does not manufacture a server encounter.
+
+An authorized exposure-context read supplies current action state, latest Composer session revision
+when applicable, and bounded existing series/related/format availability. Mutable context is not
+stored in immutable offers/receipts. A ready continuation descriptor is not activation authority; a
+card-selected expected link/revision is revalidated rather than silently substituted. Pending always
+requires existing durable authorized work; no invented series total, future part or generated supply.
+
+Explicit actions may carry an exposure ID. The consumer rechecks ownership, activation, epoch and
+exact revision before using it for encounter attribution. An action without this lineage remains an
+asset preference only; never guess the latest exposure or award encounter qualification/bonuses.
+Saved keeps its original immutable revision; a current revision may appear only with corrected
+availability and must differ. Neither Saved nor a context read bypasses withdrawal.
+
+New command branches stay strict. Existing legacy unknown-field stripping remains compatible
+except newly reserved discriminators (`target` for activation, `status` for open responses and
+`sessionId` for activation responses); malformed new branches cannot downgrade into legacy effects.
+Interim consumers refuse unsupported new commands before any effect. Shared contracts land and
+pass independent review/Actions before feature consumers.

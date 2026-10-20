@@ -1,3 +1,4 @@
+import { makeCutroomReelImporter } from '@knowscroll/backend/modules/content/nest-providers';
 import { userInfo } from 'node:os';
 import { parseArgs } from 'node:util';
 import {
@@ -6,12 +7,11 @@ import {
   readWorkerOperatorConfig,
   readContentOperatorConfig,
   readScrollProductionOperatorConfig,
+  readMediaImportConfig,
   worldForDiagnostics,
 } from '@knowscroll/backend/infrastructure/config';
 import { createEventLog } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from '@knowscroll/backend/modules/content';
-import { produceScrollUseCase } from '@knowscroll/backend/modules/content/nest-providers';
 import {
   reasoningOperatorFor,
   configuredModelPort,
@@ -19,6 +19,8 @@ import {
   makeProductionReasoningHarness,
   postgresProductionHarnessPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
+import { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from '@knowscroll/backend/modules/content';
+import { produceScrollUseCase } from '@knowscroll/backend/modules/content/nest-providers';
 
 /**
  * `node dist/operator.js <area> <command> [options]`: operator commands of the worker release,
@@ -74,6 +76,9 @@ async function main(): Promise<number> {
         topic: { type: 'string' },
         'dry-run': { type: 'boolean', default: false },
         resume: { type: 'boolean', default: false },
+        run: { type: 'string' },
+        script: { type: 'string' },
+        fixture: { type: 'boolean' },
         attempt: { type: 'string' },
         reason: { type: 'string' },
         limit: { type: 'string' },
@@ -143,6 +148,35 @@ async function main(): Promise<number> {
     } catch (error) {
       if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
       else logEvent('process.crashed', { reasonCode: 'scroll_production_failed', error });
+      return 1;
+    }
+  }
+  if (area === 'content' && command === 'import-cutroom-reel' && args.positionals.length === 2) {
+    if (!args.values.run || !args.values.script) {
+      print({
+        result: 'usage',
+        usage: 'content import-cutroom-reel --run <uuid> --script <name> [--fixture (ci/local only)]',
+      });
+      return 2;
+    }
+    try {
+      const settings = readMediaImportConfig(process.env);
+      const database = createDatabase<Database>(settings.database, {
+        onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+      });
+      try {
+        const result = await makeCutroomReelImporter(
+          database.db,
+          settings,
+        )({ runId: args.values.run, script: args.values.script, fixture: args.values.fixture });
+        print({ command: 'content import-cutroom-reel', ...result });
+        return result.kind === 'refused' ? 2 : 0;
+      } finally {
+        await database.close();
+      }
+    } catch (error) {
+      if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
+      else logEvent('process.crashed', { reasonCode: 'media_import_failed' });
       return 1;
     }
   }

@@ -53,6 +53,28 @@ export interface ContentAssets {
   status: string;
 }
 
+export interface ContentMediaObjects {
+  backend: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  logical_key: string;
+  mime: string;
+  probe: Json;
+  revision: Generated<number>;
+  sha256: string;
+  size_bytes: number;
+}
+
+export interface ContentReelImports {
+  asset_id: string;
+  asset_revision: number;
+  fixture: Generated<boolean>;
+  imported_at: Generated<Timestamp>;
+  media_id: string;
+  run_id: string;
+  script_name: string;
+}
+
 export interface ContentScrollProductionRuns {
   asset_id: string | null;
   asset_revision: number | null;
@@ -394,6 +416,8 @@ export interface DB {
   "content.asset_provenance": ContentAssetProvenance;
   "content.asset_revisions": ContentAssetRevisions;
   "content.assets": ContentAssets;
+  "content.media_objects": ContentMediaObjects;
+  "content.reel_imports": ContentReelImports;
   "content.scroll_production_runs": ContentScrollProductionRuns;
   "evidence.action_events": EvidenceActionEvents;
   "evidence.encounter_evidence": EvidenceEncounterEvidence;
