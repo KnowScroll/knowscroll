@@ -232,7 +232,7 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
   await page.keyboard.press('Escape');
   await expect(page.getByRole('heading', { name: 'Your path', exact: true })).not.toBeVisible();
   expect(commands).toHaveLength(count);
-  await page.getByRole('tab', { name: 'Keep' }).click();
+  await page.getByRole('link', { name: 'Keep', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Withdrawn CI fixture' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open saved encounter' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Remove from Keep' }).click();
