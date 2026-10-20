@@ -1,5 +1,5 @@
 import type { PersonalAuthority } from '../../modules/identity/public.js';
-import { decideOnDelivery, type AttemptState } from '../domain/attempts.js';
+import { OUTCOME_NOT_RECORDED, decideOnDelivery, type AttemptState } from '../domain/attempts.js';
 import {
   NO_USAGE,
   decideReservation,
@@ -26,7 +26,7 @@ import {
 /** Outcome codes the harness writes itself; a provider's own codes are recorded as the adapter maps them. */
 export const outcomeCodes = {
   succeeded: 'SUCCEEDED',
-  notRecorded: 'OUTCOME_NOT_RECORDED',
+  notRecorded: OUTCOME_NOT_RECORDED,
   transportUnknown: 'TRANSPORT_OUTCOME_UNKNOWN',
   authorityRefused: 'AUTHORITY_REFUSED',
   quotaUnavailable: 'QUOTA_UNAVAILABLE',
@@ -162,7 +162,9 @@ function settlementForReply(reply: ModelReply, judgement: Judgement): Settlement
  * Output: a typed `AttemptResult`. Authority: admission and dispatch intent run under
  * `withPersonalScope` (rechecked after the lock wait); settlement does not depend on authority.
  *
- * 1. Ledger inspection (no lock): a recorded attempt with another request hash is refused; one left
+ * 1. Ledger inspection (no lock): a recorded attempt of a run admitted at another privacy epoch
+ *    is refused (`run_mismatch`) and one of a closed run answers `run_closed`; a recorded attempt
+ *    with another request hash is refused; one left
  *    `dispatched` by an earlier delivery becomes `unknown` and is never resent; a settled one is
  *    answered from the ledger (a stored usable output is returned again after the eligibility
  *    check). `not_sent` lets a new attempt of the same logical step be reserved (bounded).
@@ -283,6 +285,10 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
     // 1. Ledger inspection.
     const recorded = await ledger.find(authority.universeId, run.id, plan.step);
     if (recorded !== undefined) {
+      // A run admitted at epoch N never continues, and never returns output, at another epoch; and
+      // a closed run answers `run_closed` even when its kept answer is still in the ledger.
+      if (recorded.runPrivacyEpoch !== authority.privacyEpoch) return { kind: 'refused', reason: 'run_mismatch' };
+      if (recorded.runState !== 'admitted') return { kind: 'refused', reason: 'run_closed' };
       if (recorded.requestHash !== plan.requestHash) return { kind: 'refused', reason: 'request_mismatch' };
       switch (decideOnDelivery(recorded.state)) {
         case 'mark_unknown': {
@@ -434,6 +440,8 @@ export function makeExecuteAttempt(ports: HarnessPorts) {
 
     // 6. Ledger settlement.
     const settledAs = (state: AttemptState): AttemptRow => ({
+      runPrivacyEpoch: authority.privacyEpoch,
+      runState: 'admitted',
       id: attemptId,
       step: admission.step,
       state,

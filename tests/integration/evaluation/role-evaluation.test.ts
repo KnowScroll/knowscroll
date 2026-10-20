@@ -3,9 +3,8 @@ import { Writable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createEventLog } from '@knowscroll/backend/infrastructure/observability';
-import type { Database } from '@knowscroll/backend/infrastructure/postgres';
+import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { ContextItem, ProposeOutcome, ReasoningContext, ReasoningRole } from '@knowscroll/backend/reasoning';
-import type { FixtureScenario } from '@knowscroll/backend/reasoning/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import {
   advanceEpoch,
@@ -19,6 +18,7 @@ import {
   signal,
   systemAuthority,
 } from '../support/fixture-model.js';
+import { type FixtureScenario } from '../support/fixture-model-port.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 
 /**
@@ -520,6 +520,46 @@ describe('role evaluation (harness behaviours; labelled synthetic contexts; fixt
         repaired: false,
       });
       expect(model.calls).toHaveLength(1);
+    });
+  });
+
+  describe('source correction', () => {
+    it('[synthetic] source-correction/new-run: a corrected source closes the old run and goes out under a new one; the superseded text is never sent again', async () => {
+      const person = await seedPerson(db());
+      const model = fixtureModel(() => supported('evaluation:corrected:1'));
+      const harness = harnessFor(model);
+      const oldRun = randomUUID();
+      const original = syntheticContext('corrected', ['The meeting is on Tuesday. EVALMARK-superseded']);
+      expect((await propose(harness, person, original, { runId: oldRun })).kind).toBe('proposed');
+
+      // The module learns the source was corrected: its applier closes the old run (cancelled).
+      const closed = await makeWithPersonalScope(db(), { lockTimeoutMs: 5_000 })(
+        systemAuthority(person.universeId),
+        (scope) => harness.closeRun(scope, { runId: oldRun, state: 'cancelled' }),
+      );
+      expect(closed).toEqual({ kind: 'entered', value: 'closed' });
+
+      // The superseded run answers nothing more, from the ledger or the provider: not its kept
+      // answer, and not a resend of the old text, whichever context a late delivery brings.
+      expect(await propose(harness, person, original, { runId: oldRun })).toEqual({
+        kind: 'refused',
+        reason: 'run_closed',
+      });
+      const corrected = syntheticContext('corrected', ['The meeting moved to Wednesday.']);
+      expect(await propose(harness, person, corrected, { runId: oldRun })).toEqual({
+        kind: 'refused',
+        reason: 'run_closed',
+      });
+      expect(model.calls).toHaveLength(1);
+
+      // The corrected context is a new run, and carries only the corrected text.
+      expect((await propose(harness, person, corrected)).kind).toBe('proposed');
+      expect(model.calls).toHaveLength(2);
+      const second = model.calls[1]?.request.user ?? '';
+      expect(second).toContain('Wednesday');
+      expect(second).not.toContain('Tuesday');
+      expect(second).not.toContain('EVALMARK-superseded');
+      expect(await steps(person)).toEqual(['primary:succeeded:SUCCEEDED', 'primary:succeeded:SUCCEEDED']);
     });
   });
 

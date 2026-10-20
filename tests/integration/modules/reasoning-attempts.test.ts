@@ -3,12 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createBoss, drainConsumers, jobConsumer, startConsumers } from '@knowscroll/backend/infrastructure/jobs';
 import { makeAuthorityHolds, makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { AuthorityHolds } from '@knowscroll/backend/modules/identity';
-import type { AttemptLedger, ProposeOutcome } from '@knowscroll/backend/reasoning';
+import type { ProposeOutcome } from '@knowscroll/backend/reasoning';
 import {
   makeAttemptLedger,
   reasoningOperatorFor,
-  type FixtureModelPort,
-  type FixtureScenario,
+  type AttemptLedger,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import {
@@ -25,6 +24,7 @@ import {
   silent,
   systemAuthority,
 } from '../support/fixture-model.js';
+import { type FixtureModelPort, type FixtureScenario } from '../support/fixture-model-port.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { fixtureModelQueue } from '../support/queues.js';
 

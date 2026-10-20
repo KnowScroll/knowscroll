@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
@@ -34,7 +34,9 @@ function fixtureRunDescriptor(id: string) {
   };
 }
 
-function fixtureReservation(id: string, runId: string, hashDigit: string) {
+function fixtureReservation(id: string, runId: string, label: string) {
+  // The database recomputes the hash of the stored bytes (a CHECK): the hash is the real one.
+  const requestBody = new TextEncoder().encode(`{"fixture":"erasure-${label}"}`);
   return {
     id,
     runId,
@@ -44,8 +46,8 @@ function fixtureReservation(id: string, runId: string, hashDigit: string) {
     roleId: 'fixture.erasure',
     roleVersion: 'v1',
     promptVersion: 'hp-fixture',
-    requestHash: hashDigit.repeat(64),
-    requestBody: new TextEncoder().encode('{"fixture":"erasure"}'),
+    requestHash: createHash('sha256').update(requestBody).digest('hex'),
+    requestBody,
     maxOutputTokens: 16,
     reservedTokens: 37,
     requestRetentionSeconds: 3_600,

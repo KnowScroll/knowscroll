@@ -412,7 +412,8 @@ const reasoningVariables = z.object({
   MINIMAX_API_KEY: z.string().optional(),
   KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3'),
   KS_MINIMAX_REQUEST_TIMEOUT_MS: positiveInteger(60_000, 300_000),
-  KS_MINIMAX_QUOTA_FLOOR_PERCENT: z.coerce.number().int().min(0).max(100).default(25),
+  // At least 1: a floor of 0 would switch the quota check off.
+  KS_MINIMAX_QUOTA_FLOOR_PERCENT: z.coerce.number().int().min(1).max(100).default(25),
   KS_REASONING_GLOBAL_REQUESTS_PER_DAY: positiveInteger(300, 1_000_000),
   KS_REASONING_GLOBAL_TOKENS_PER_DAY: positiveInteger(3_000_000, 1_000_000_000),
   KS_REASONING_SCOPE_REQUESTS_PER_DAY: positiveInteger(60, 1_000_000),

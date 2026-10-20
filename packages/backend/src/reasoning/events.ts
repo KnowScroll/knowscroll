@@ -29,3 +29,33 @@ export const purgeExpiredRequestsQueue = defineQueue({
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
   schedule: { cron: '*/15 * * * *', payload: { v: 1 } },
 });
+
+/** Payload of `reasoning.sweep-dispatched-attempts`: a schema version only; the sweep reads what is due. */
+export const SweepDispatchedAttemptsPayloadSchema = z.object({ v: z.literal(1) });
+
+export type SweepDispatchedAttemptsPayload = z.infer<typeof SweepDispatchedAttemptsPayloadSchema>;
+
+/**
+ * The crash-recovery sweep (blueprint §15): every 5 minutes the worker moves attempts that have
+ * been `dispatched` for longer than the provider request deadline plus a margin to `unknown`. A
+ * crash after dispatch leaves such an attempt, and until a later delivery of the same step found
+ * it nothing could see it: not the operator's `reasoning unknown`, not the write-off, and the
+ * universe's erasure waited on it for ever. The sweep never resends anything and a late answer
+ * still settles the attempt as `reconciled`. Safe to run late, twice or concurrently.
+ */
+export const sweepDispatchedAttemptsQueue = defineQueue({
+  name: 'reasoning.sweep-dispatched-attempts',
+  purpose: 'Move attempts left dispatched past the request deadline to unknown (crash recovery).',
+  payload: SweepDispatchedAttemptsPayloadSchema,
+  policy: {
+    expireInSeconds: 300,
+    retryLimit: 2,
+    retryDelaySeconds: 60,
+    retryBackoff: false,
+    retentionSeconds: 60 * 60,
+    deleteAfterSeconds: 24 * 60 * 60,
+    deadLetter: false,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
+  schedule: { cron: '*/5 * * * *', payload: { v: 1 } },
+});

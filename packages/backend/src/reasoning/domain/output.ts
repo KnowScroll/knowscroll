@@ -9,6 +9,29 @@ import type { z } from 'zod';
 /** Largest answer text considered for extraction (UTF-16 code units, a cheap pre-parse bound). */
 export const MAX_ANSWER_CHARS = 262_144;
 
+/**
+ * Deepest container nesting an answer may have (the answer object itself is level 1). A real
+ * proposal is shallow; deeper input is refused as `OUTPUT_TOO_DEEP` before anything is redacted,
+ * validated or stored, so the recording boundary's own depth bound is never what stands between a
+ * credential and the ledger.
+ */
+export const MAX_ANSWER_DEPTH = 32;
+
+/**
+ * Whether `value` nests containers deeper than `limit` levels (the value itself is level 1 when
+ * it is an object or array). Iterative, so hostile depth cannot overflow the stack. Pure.
+ */
+export function exceedsDepth(value: unknown, limit: number): boolean {
+  const stack: [unknown, number][] = [[value, 1]];
+  for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
+    const [current, depth] = frame;
+    if (typeof current !== 'object' || current === null) continue;
+    if (depth > limit) return true;
+    for (const child of Array.isArray(current) ? current : Object.values(current)) stack.push([child, depth + 1]);
+  }
+  return false;
+}
+
 /** Why an answer is not usable. Stable codes, recorded on the attempt as its outcome code. */
 export type InvalidOutputReason =
   | 'OUTPUT_EMPTY'
@@ -16,6 +39,7 @@ export type InvalidOutputReason =
   | 'OUTPUT_SCHEMA_MISMATCH'
   | 'OUTPUT_TRUNCATED'
   | 'OUTPUT_TOO_LARGE'
+  | 'OUTPUT_TOO_DEEP'
   | 'REPLY_UNREADABLE';
 
 export type Extraction =
@@ -68,19 +92,101 @@ export const MAX_ISSUES = 8;
 
 const safeSegment = /^[A-Za-z0-9_-]{1,32}$/;
 
-function pathOf(path: readonly PropertyKey[]): string {
+/** The parts of a Zod 4 schema definition the path walk reads (`schema._zod.def`). */
+interface SchemaDef {
+  readonly type?: string;
+  readonly shape?: Readonly<Record<string, unknown>>;
+  readonly element?: unknown;
+  readonly valueType?: unknown;
+  readonly innerType?: unknown;
+  readonly in?: unknown;
+  readonly options?: readonly unknown[];
+  readonly items?: readonly unknown[];
+  readonly rest?: unknown;
+  readonly left?: unknown;
+  readonly right?: unknown;
+  readonly getter?: () => unknown;
+}
+
+function defOf(schema: unknown): SchemaDef | undefined {
+  if (typeof schema !== 'object' || schema === null) return undefined;
+  const internals = (schema as { _zod?: { def?: SchemaDef } })._zod;
+  return internals?.def;
+}
+
+/** Wrappers that do not change which keys a value has. */
+const transparent = new Set(['optional', 'nullable', 'default', 'prefault', 'readonly', 'catch', 'nonoptional']);
+
+/** What one path segment means in the schema: its label in the summary and the schema below it. */
+interface Step {
+  readonly label: string;
+  readonly next: unknown;
+}
+
+/**
+ * Resolves one path segment against a schema. Only names the SCHEMA declares are ever returned as
+ * names (object shape keys); array and tuple positions are numeric indexes; the keys of a record
+ * or map are chosen by the model, so they become the fixed placeholder `[key]`. Anything the walk
+ * cannot resolve returns `undefined` (the caller prints `?`).
+ */
+function stepInto(schema: unknown, segment: PropertyKey, first: boolean, depth = 0): Step | undefined {
+  let current = schema;
+  for (let unwrap = 0; unwrap < 8; unwrap += 1) {
+    const def = defOf(current);
+    if (def === undefined) return undefined;
+    if (def.type !== undefined && transparent.has(def.type)) current = def.innerType;
+    else if (def.type === 'pipe') current = def.in;
+    else if (def.type === 'lazy' && def.getter !== undefined) current = def.getter();
+    else break;
+  }
+  const def = defOf(current);
+  if (def === undefined || depth > 4) return undefined;
+  switch (def.type ?? '') {
+    case 'object':
+      return typeof segment === 'string' &&
+        safeSegment.test(segment) &&
+        def.shape !== undefined &&
+        Object.prototype.hasOwnProperty.call(def.shape, segment)
+        ? { label: first ? segment : `.${segment}`, next: def.shape[segment] }
+        : undefined;
+    case 'array':
+      return typeof segment === 'number' ? { label: `[${segment}]`, next: def.element } : undefined;
+    case 'tuple':
+      return typeof segment === 'number'
+        ? { label: `[${segment}]`, next: def.items?.[segment] ?? def.rest }
+        : undefined;
+    case 'record':
+    case 'map':
+      return { label: '[key]', next: def.valueType };
+    case 'union':
+      for (const option of def.options ?? []) {
+        const step = stepInto(option, segment, first, depth + 1);
+        if (step !== undefined) return step;
+      }
+      return undefined;
+    case 'intersection':
+      return stepInto(def.left, segment, first, depth + 1) ?? stepInto(def.right, segment, first, depth + 1);
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * The path of an issue in the summary: `(root)`, schema-declared key names joined by `.`,
+ * numeric indexes as `[n]`, and `[key]` for a record's model-chosen keys. No string that came from
+ * the answer is ever part of it: an unknown key (or one below something the walk cannot resolve)
+ * is `?`. Without a schema every name is `?`.
+ */
+function pathOf(path: readonly PropertyKey[], schema?: unknown): string {
   if (path.length === 0) return '(root)';
-  return path
-    .slice(0, 6)
-    .map((segment) =>
-      typeof segment === 'number'
-        ? `[${segment}]`
-        : typeof segment === 'string' && safeSegment.test(segment)
-          ? segment
-          : '?',
-    )
-    .join('.')
-    .replaceAll('.[', '[');
+  let current = schema;
+  let text = '';
+  path.slice(0, 6).forEach((segment, index) => {
+    const step = current === undefined ? undefined : stepInto(current, segment, index === 0);
+    current = step?.next;
+    text += step?.label ?? (typeof segment === 'number' ? `[${segment}]` : index === 0 ? '?' : '.?');
+  });
+  return text;
 }
 
 function primitiveList(values: unknown): string | undefined {
@@ -144,11 +250,16 @@ function isAbsent(value: unknown, path: readonly PropertyKey[]): boolean {
 
 /**
  * Summarises schema issues for the model and the ledger. Bounded (`MAX_ISSUES`), structural only:
- * paths keep simple keys and indexes (anything else becomes `?`), details come from the schema's
- * expectations (types, bounds, allowed literals), never from the issue message or received values.
+ * paths contain only names the role's schema declares, numeric indexes and the placeholder `[key]`
+ * (`pathOf`), details come from the schema's expectations (types, bounds, allowed literals),
+ * never from the issue message, received values or received key names.
  * A type issue at a path the answer does not have is reported as `missing` (a required field).
  */
-export function summariseIssues(issues: readonly z.core.$ZodIssue[], value?: unknown): readonly OutputIssue[] {
+export function summariseIssues(
+  issues: readonly z.core.$ZodIssue[],
+  value?: unknown,
+  schema?: unknown,
+): readonly OutputIssue[] {
   const summary: OutputIssue[] = issues.slice(0, MAX_ISSUES).map((issue) => {
     const record = issue as unknown as Readonly<Record<string, unknown>>;
     const detail = detailOf(record);
@@ -159,12 +270,12 @@ export function summariseIssues(issues: readonly z.core.$ZodIssue[], value?: unk
       isAbsent(value, issue.path)
     )
       return {
-        path: pathOf(issue.path),
+        path: pathOf(issue.path, schema),
         code: 'missing',
         detail: `required${detail === undefined ? '' : `; ${detail}`}`,
       };
     const code = typeof record['code'] === 'string' && safeSegment.test(record['code']) ? record['code'] : 'invalid';
-    return { path: pathOf(issue.path), code, ...(detail === undefined ? {} : { detail }) };
+    return { path: pathOf(issue.path, schema), code, ...(detail === undefined ? {} : { detail }) };
   });
   if (issues.length > MAX_ISSUES)
     summary.push({ path: '(root)', code: 'more', detail: `${issues.length - MAX_ISSUES} more` });
@@ -183,7 +294,11 @@ export type OutputVerdict<T> =
 export function validateOutput<T>(schema: z.ZodType<T>, value: Readonly<Record<string, unknown>>): OutputVerdict<T> {
   const parsed = schema.safeParse(value);
   if (parsed.success) return { valid: true, output: parsed.data, value };
-  return { valid: false, reason: 'OUTPUT_SCHEMA_MISMATCH', issues: summariseIssues(parsed.error.issues, value) };
+  return {
+    valid: false,
+    reason: 'OUTPUT_SCHEMA_MISMATCH',
+    issues: summariseIssues(parsed.error.issues, value, schema),
+  };
 }
 
 /** The issue recorded for an answer that failed before schema validation. */
@@ -201,6 +316,8 @@ export function issueFor(reason: InvalidOutputReason): OutputIssue {
       return { path: '(root)', code: 'truncated', detail: 'the answer was cut off; answer more briefly' };
     case 'OUTPUT_TOO_LARGE':
       return { path: '(root)', code: 'too_large', detail: 'the answer was too large; answer more briefly' };
+    case 'OUTPUT_TOO_DEEP':
+      return { path: '(root)', code: 'too_deep', detail: `nest objects at most ${MAX_ANSWER_DEPTH} levels deep` };
     case 'REPLY_UNREADABLE':
       return { path: '(root)', code: 'unreadable', detail: 'the answer could not be read' };
     case 'OUTPUT_SCHEMA_MISMATCH':

@@ -12,13 +12,14 @@ import {
   makeWithPersonalScope,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
-import type { HarnessSettings, QuotaObservation, ReasoningRole } from '@knowscroll/backend/reasoning';
+import type { ReasoningRole } from '@knowscroll/backend/reasoning';
 import {
   makeMiniMaxModelPort,
   reasoningOperatorFor,
-  type FixtureModelPort,
-  type FixtureScenario,
+  type HarnessSettings,
+  type QuotaObservation,
 } from '@knowscroll/backend/reasoning/nest-providers';
+import { type FixtureModelPort, type FixtureScenario } from '../support/fixture-model-port.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import {
   attemptsOf,

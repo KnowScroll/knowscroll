@@ -85,6 +85,18 @@ What the v2 programs need at runtime, and where each comes from on the server (c
 | `MINIMAX_API_KEY` | worker only (never the API; S2.2, D-021) | `/etc/knowscroll/secrets/shared/minimax.env` (root only; the token-plan `sk-cp-…` key, the file v1 reads too), an extra `EnvironmentFile=` of `ks2-worker@` |
 | `KS_REASONING_PROVIDER=minimax` | worker only | `Environment=` of `ks2-worker@` (a setting, not a secret). Unset means `none`: every model call is refused. Caps, model, timeouts and protected-request retention have defaults (`runtime-configuration.md`) |
 
+**The worker's MiniMax file and what it can stop (S2.2).** `ks2-worker@` reads
+`/etc/knowscroll/secrets/shared/minimax.env`, and the Ansible role refuses to install the unit unless
+the file exists and defines `MINIMAX_API_KEY` in the token-plan shape (`sk-cp-…`; the check returns
+only ok or bad, never the value). Without that check the failure modes are: a missing file stops
+the worker unit; a key of the wrong shape, or an invalid `KS_MINIMAX_*`/`KS_REASONING_*` value,
+makes the worker exit with `config.invalid`. The worker is one process, so either takes its other
+consumers (evidence apply, the identity sweep, the reasoning sweeps) down with it; `ks` keeps the
+previous release only for what its own health checks see (the API), not for the worker's
+consumers, so check `journalctl -u ks2-worker@<world>` after the first deploy that carries this
+unit. The API never reads this file. Fixing it is a change on the server (copy the file, 0600
+root); nothing in Git can.
+
 Optional with defaults the server does not override: `KS_LISTEN_HOST` (127.0.0.1, which Caddy
 proxies), `KS_DB_POOL_MAX` (api 10, worker 5), `KS_DB_STATEMENT_TIMEOUT_MS` (15 s; migrate 15 min),
 `KS_BODY_LIMIT_BYTES`, `KS_SHUTDOWN_GRACE_SECONDS`; with S1.2 also `KS_SCOPE_LOCK_TIMEOUT_MS`,
@@ -150,7 +162,10 @@ sudo sh -c 'set -a; . /etc/knowscroll/dev.v2.env; . /etc/knowscroll/secrets/v2-d
 ```
 
 `reasoning unknown [--limit n]` lists attempts awaiting reconciliation (IDs, provider, model,
-role, outcome code, dispatch time; no context). `reasoning write-off --attempt <uuid> --reason
+role, outcome code, dispatch time; no context). `reasoning sweep-dispatched [--older-than-seconds n]`
+moves attempts a crash left `dispatched` (the worker does this itself every 5 minutes, past the
+request deadline + 2 minutes) to `unknown` so they can be listed and written off; run it when a
+worker died mid-call and you want the answer now (default 900 s). `reasoning write-off --attempt <uuid> --reason
 "<text>"` moves one `unknown` attempt to `written_off`, recording the reason and `cli:<SUDO_USER>`
 on the attempt; it never resends, does not prove the provider stopped work, and does not refund the
 attempt's reserved budget. `reasoning purge-expired` deletes expired protected request bytes now

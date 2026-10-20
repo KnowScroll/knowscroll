@@ -355,6 +355,18 @@ describe('process configuration', () => {
         }),
       ).problems,
     ).toEqual(['KS_MINIMAX_MODEL: not_allowed']);
+    // A floor of 0 would switch the quota preflight off: refused.
+    expect(
+      configurationError(() =>
+        readWorkerConfig({
+          DATABASE_URL: secretUrl,
+          KS_WORLD: 'local',
+          KS_REASONING_PROVIDER: 'minimax',
+          MINIMAX_API_KEY: fixtureKey,
+          KS_MINIMAX_QUOTA_FLOOR_PERCENT: '0',
+        }),
+      ).problems,
+    ).toEqual(['KS_MINIMAX_QUOTA_FLOOR_PERCENT: out_of_range']);
     const config = readWorkerConfig({
       DATABASE_URL: secretUrl,
       KS_WORLD: 'local',

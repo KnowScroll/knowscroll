@@ -1,13 +1,14 @@
-import { sql, type Expression, type ExpressionBuilder, type Kysely, type SqlBool } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { Database } from '../../infrastructure/postgres/database.js';
 import { transactionOf, withTransaction } from '../../infrastructure/postgres/personal-scope.js';
-import { canTransition, isSettled, type AttemptState } from '../domain/attempts.js';
+import { OUTCOME_NOT_RECORDED, canTransition, isSettled, type AttemptState } from '../domain/attempts.js';
 import type { ReportedUsage } from '../domain/budgets.js';
 import type { OutputIssue } from '../domain/output.js';
 import type {
   AttemptLedger,
   AttemptRow,
   QuotaObservation,
+  SettlementDetails,
   StoredModelOutput,
   StoredOutputIssues,
 } from '../application/ports.js';
@@ -23,20 +24,24 @@ const BUDGET_LOCK_KEY = 2_231_001;
 const today = sql<string>`(now() at time zone 'UTC')::date`;
 
 const attemptColumns = [
-  'id',
-  'step',
-  'state',
-  'request_hash',
-  'outcome_code',
-  'output',
-  'output_issues',
-  'input_tokens',
-  'output_tokens',
-  'reasoning_tokens',
-  'cached_tokens',
+  'attempt.id',
+  'attempt.step',
+  'attempt.state',
+  'attempt.request_hash',
+  'attempt.outcome_code',
+  'attempt.output',
+  'attempt.output_issues',
+  'attempt.input_tokens',
+  'attempt.output_tokens',
+  'attempt.reasoning_tokens',
+  'attempt.cached_tokens',
+  'run.privacy_epoch as run_privacy_epoch',
+  'run.state as run_state',
 ] as const;
 
 interface AttemptSelection {
+  run_privacy_epoch: number;
+  run_state: string;
   id: string;
   step: string;
   state: string;
@@ -52,6 +57,8 @@ interface AttemptSelection {
 
 function toRow(row: AttemptSelection): AttemptRow {
   return {
+    runPrivacyEpoch: row.run_privacy_epoch,
+    runState: row.run_state,
     id: row.id,
     step: row.step,
     state: row.state as AttemptState,
@@ -103,17 +110,34 @@ function quotaJson(quota: QuotaObservation): string {
   });
 }
 
-/** The receipt state that goes with an attempt state. */
-function receiptState(state: AttemptState): 'held' | 'settled' | 'released' | 'unknown' | 'written_off' {
+/** Whether the provider reported any input or output count. */
+function reportsUsage(usage: ReportedUsage | undefined): boolean {
+  return usage !== undefined && (usage.inputTokens !== null || usage.outputTokens !== null);
+}
+
+/**
+ * The receipt state that goes with an attempt state. A conclusive failure that reported no usage
+ * (a refused connection, a 429 or 5xx before any work, an abort before the bytes left) is
+ * `released`: it charges nothing, like `not_sent`. The same holds for a late conclusive rejection
+ * that reconciled an `unknown` attempt. Anything that returned an answer (usable or not), or
+ * reported usage, is `settled` and charged what it used.
+ */
+function receiptState(
+  state: AttemptState,
+  details: SettlementDetails,
+): 'held' | 'settled' | 'released' | 'unknown' | 'written_off' {
   switch (state) {
     case 'reserved':
     case 'dispatched':
       return 'held';
     case 'not_sent':
       return 'released';
-    case 'succeeded':
     case 'failed':
     case 'reconciled':
+      return details.output === undefined && details.issues === undefined && !reportsUsage(details.usage)
+        ? 'released'
+        : 'settled';
+    case 'succeeded':
       return 'settled';
     case 'unknown':
       return 'unknown';
@@ -133,12 +157,6 @@ function usageColumns(usage: ReportedUsage | undefined) {
   };
 }
 
-/** Attempts of a logical step: `step` itself and its later sequences `step.2`, `step.3`, … */
-function ofLogicalStep(step: string) {
-  return (eb: ExpressionBuilder<Database, 'reasoning.external_attempts'>): Expression<SqlBool> =>
-    eb.or([eb('step', '=', step), eb('step', 'like', `${step}.%`)]);
-}
-
 /** Today's spend: requests not released, and their charge (reported usage, or the reservation). */
 const receiptSpend = sql<{ requests: string; tokens: string }>`
   count(*) filter (where state <> 'released') as requests,
@@ -147,10 +165,17 @@ const receiptSpend = sql<{ requests: string; tokens: string }>`
     when input_tokens is not null and output_tokens is not null then input_tokens + output_tokens + coalesce(cached_tokens, 0)
     else reserved_tokens end), 0)::bigint as tokens`;
 
+/**
+ * Attempts that charge nothing: never sent, or concluded without an answer and without reported
+ * usage (the same rule `receiptState` applies to the receipt).
+ */
+const attemptFree = sql`(state = 'not_sent' or (state in ('failed', 'reconciled')
+  and input_tokens is null and output_tokens is null and output is null and output_issues is null))`;
+
 const attemptSpend = sql<{ requests: string; tokens: string }>`
-  count(*) filter (where state <> 'not_sent') as requests,
+  count(*) filter (where not ${attemptFree}) as requests,
   coalesce(sum(case
-    when state = 'not_sent' then 0
+    when ${attemptFree} then 0
     when input_tokens is not null and output_tokens is not null then input_tokens + output_tokens + coalesce(cached_tokens, 0)
     else reserved_tokens end), 0)::bigint as tokens`;
 
@@ -169,13 +194,16 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
   return {
     async find(universeId, runId, step) {
       const row = await db
-        .selectFrom('reasoning.external_attempts')
+        .selectFrom('reasoning.external_attempts as attempt')
+        .innerJoin('reasoning.business_runs as run', (join) =>
+          join.onRef('run.universe_id', '=', 'attempt.universe_id').onRef('run.id', '=', 'attempt.run_id'),
+        )
         .select(attemptColumns)
-        .where('universe_id', '=', universeId)
-        .where('run_id', '=', runId)
-        .where(ofLogicalStep(step))
-        .orderBy('reserved_at', 'desc')
-        .orderBy('id', 'desc')
+        .where('attempt.universe_id', '=', universeId)
+        .where('attempt.run_id', '=', runId)
+        .where((eb) => eb.or([eb('attempt.step', '=', step), eb('attempt.step', 'like', `${step}.%`)]))
+        .orderBy('attempt.reserved_at', 'desc')
+        .orderBy('attempt.id', 'desc')
         .limit(1)
         .executeTakeFirst();
       return row === undefined ? undefined : toRow(row);
@@ -213,6 +241,7 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
           'provider',
           'model',
           'context_bundle_ref',
+          'privacy_epoch',
           'state',
           'fence',
         ])
@@ -227,7 +256,9 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
         row.policy_version === run.policyVersion &&
         row.provider === run.provider &&
         row.model === run.model &&
-        row.context_bundle_ref === run.contextBundleRef;
+        row.context_bundle_ref === run.contextBundleRef &&
+        // A run admitted at epoch N is not the same run at epoch N+1 (a privacy reset in between).
+        row.privacy_epoch === scope.authority.privacyEpoch;
       if (!same) return { kind: 'mismatch' };
       if (row.state !== 'admitted') return { kind: 'closed' };
       return { kind: 'admitted', fence: row.fence };
@@ -235,13 +266,16 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
 
     async findLocked(scope, runId, step) {
       const row = await transactionOf(scope)
-        .selectFrom('reasoning.external_attempts')
+        .selectFrom('reasoning.external_attempts as attempt')
+        .innerJoin('reasoning.business_runs as run', (join) =>
+          join.onRef('run.universe_id', '=', 'attempt.universe_id').onRef('run.id', '=', 'attempt.run_id'),
+        )
         .select(attemptColumns)
-        .where('universe_id', '=', scope.authority.universeId)
-        .where('run_id', '=', runId)
-        .where(ofLogicalStep(step))
-        .orderBy('reserved_at', 'desc')
-        .orderBy('id', 'desc')
+        .where('attempt.universe_id', '=', scope.authority.universeId)
+        .where('attempt.run_id', '=', runId)
+        .where((eb) => eb.or([eb('attempt.step', '=', step), eb('attempt.step', 'like', `${step}.%`)]))
+        .orderBy('attempt.reserved_at', 'desc')
+        .orderBy('attempt.id', 'desc')
         .limit(1)
         .executeTakeFirst();
       return row === undefined ? undefined : toRow(row);
@@ -349,7 +383,7 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
         await trx
           .updateTable('reasoning.usage_receipts')
           .set({
-            state: receiptState(to),
+            state: receiptState(to, details),
             ...(isSettled(to) ? { settled_at: sql<Date>`now()` } : {}),
             ...usageColumns(details.usage),
           })
@@ -457,16 +491,58 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
 
     purgeExpiredRequests(limit) {
       return withTransaction(db, 'protected-request-expiry', async (trx) => {
+        // An expired `reserved` attempt will never be sent (its bytes are about to go): settle it
+        // `not_sent` first and release its reservation. A redelivery reserves a fresh attempt.
+        const expired = await sql<{ id: string }>`
+          update reasoning.external_attempts attempt
+          set state = 'not_sent', outcome_code = 'REQUEST_EXPIRED', settled_at = now()
+          where (attempt.universe_id, attempt.id) in (
+            select x.universe_id, x.id from reasoning.external_attempts x
+            join reasoning.protected_requests p on p.universe_id = x.universe_id and p.attempt_id = x.id
+            where x.state = 'reserved' and p.expires_at <= now()
+            order by p.expires_at
+            limit ${limit}
+            for update of x skip locked
+          ) and attempt.state = 'reserved'
+          returning attempt.id`.execute(trx);
+        if (expired.rows.length > 0)
+          await sql`
+            update reasoning.usage_receipts set state = 'released', settled_at = now()
+            where state = 'held' and attempt_id in (${sql.join(expired.rows.map((row) => row.id))})`.execute(trx);
+        // Never the bytes of a `dispatched` attempt: the sweep resolves it first.
         const result = await sql`
           delete from reasoning.protected_requests
           where (universe_id, attempt_id) in (
-            select universe_id, attempt_id from reasoning.protected_requests
-            where expires_at <= now()
-            order by expires_at
+            select p.universe_id, p.attempt_id from reasoning.protected_requests p
+            join reasoning.external_attempts x on x.universe_id = p.universe_id and x.id = p.attempt_id
+            where p.expires_at <= now() and x.state <> 'dispatched'
+            order by p.expires_at
             limit ${limit}
-            for update skip locked
+            for update of p skip locked
           )`.execute(trx);
         return Number(result.numAffectedRows ?? 0n);
+      });
+    },
+
+    sweepStaleDispatched(olderThanSeconds, limit) {
+      return withTransaction(db, 'attempt-ledger', async (trx) => {
+        const moved = await sql<{ id: string }>`
+          update reasoning.external_attempts attempt
+          set state = 'unknown', outcome_code = ${OUTCOME_NOT_RECORDED}
+          where (attempt.universe_id, attempt.id) in (
+            select x.universe_id, x.id from reasoning.external_attempts x
+            where x.state = 'dispatched'
+              and x.dispatched_at < now() - make_interval(secs => ${olderThanSeconds}::double precision)
+            order by x.dispatched_at
+            limit ${limit}
+            for update skip locked
+          ) and attempt.state = 'dispatched'
+          returning attempt.id`.execute(trx);
+        if (moved.rows.length > 0)
+          await sql`
+            update reasoning.usage_receipts set state = 'unknown'
+            where state = 'held' and attempt_id in (${sql.join(moved.rows.map((row) => row.id))})`.execute(trx);
+        return moved.rows.length;
       });
     },
   };

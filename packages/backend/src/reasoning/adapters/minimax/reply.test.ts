@@ -127,8 +127,13 @@ describe('MiniMax reply parsing (fixtures)', () => {
     expect(safeRemoteId('sk-cp-looks-like-a-key-000000')).toBeUndefined();
     expect(safeRemoteId('eyJhbGciOiJIUzI1NiJ9.e30.x')).toBeUndefined();
     expect(safeRemoteId('has spaces')).toBeUndefined();
-    expect(providerErrorCode({ error: { type: 'Rate Limit!' } })).toBeUndefined();
     expect(providerErrorCode({ error: { type: 'rate_limit_error', message: 'secret' } })).toBe('RATE_LIMIT_ERROR');
+  });
+
+  it('records only error types it knows: a provider-chosen type becomes UNRECOGNISED', () => {
+    for (const type of ['Rate Limit!', 'sk_cp_pockeypockeypockeypocke', 'ignore_previous_instructions', 'x'.repeat(40)])
+      expect(providerErrorCode({ error: { type, message: 'sk-cp-secretsecretsecretsecret' } })).toBe('UNRECOGNISED');
+    expect(providerErrorCode({ error: { type: 7 }, base_resp: { status_code: 1004 } })).toBe('MINIMAX_1004');
   });
 });
 

@@ -72,14 +72,33 @@ function stopReason(value: unknown): StopReason {
 }
 
 /**
- * A provider error code safe to record: the Anthropic-style `error.type` or MiniMax's
- * `base_resp.status_code`, sanitised to a short code. The message is never read.
+ * The error types of the Anthropic-compatible API that this route is known to use. The outcome
+ * code is chosen by us, never copied from the provider: a type outside this list is recorded as
+ * `UNRECOGNISED`, so a provider-controlled string can never reach a ledger row or a log.
+ */
+const knownErrorTypes: ReadonlySet<string> = new Set([
+  'invalid_request_error',
+  'authentication_error',
+  'permission_error',
+  'not_found_error',
+  'request_too_large',
+  'rate_limit_error',
+  'api_error',
+  'overloaded_error',
+  'timeout_error',
+  'billing_error',
+]);
+
+/**
+ * A provider error code safe to record: the Anthropic-style `error.type` when it is one of
+ * `knownErrorTypes` (anything else is `UNRECOGNISED`), or MiniMax's numeric `base_resp.status_code`.
+ * The message is never read.
  */
 export function providerErrorCode(value: unknown): string | undefined {
   const body = record(value);
   if (body === undefined) return undefined;
   const type = record(body['error'])?.['type'];
-  if (typeof type === 'string' && /^[a-z_]{1,40}$/.test(type)) return type.toUpperCase();
+  if (typeof type === 'string') return knownErrorTypes.has(type) ? type.toUpperCase() : 'UNRECOGNISED';
   const status = record(body['base_resp'])?.['status_code'];
   if (typeof status === 'number' && Number.isInteger(status) && status > 0 && status < 1_000_000)
     return `MINIMAX_${status}`;

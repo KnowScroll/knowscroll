@@ -93,6 +93,15 @@ export interface ModelPort {
   send(body: Uint8Array, signal: AbortSignal): Promise<ModelReply>;
 }
 
+declare const guardedBrand: unique symbol;
+
+/**
+ * A `ModelPort` wrapped by `guardedModelPort`, which makes its network operations refuse to run
+ * inside a database transaction (blueprint §19). Only that function creates the brand, and the
+ * harness accepts nothing else: a composition root that forgets the guard gets a type error.
+ */
+export type GuardedModelPort = ModelPort & { readonly [guardedBrand]: true };
+
 /**
  * A usable answer kept on its attempt, so a later delivery can still apply it without a second
  * paid call: the validated, redacted JSON object as text. Bounded by `MAX_STORED_OUTPUT_BYTES`.
@@ -112,8 +121,15 @@ export interface StoredOutputIssues {
 /** Largest stored output, as serialised JSON in UTF-8 bytes. */
 export const MAX_STORED_OUTPUT_BYTES = 65_536;
 
-/** An attempt as the harness reads it back from the ledger. */
+/**
+ * An attempt as the harness reads it back from the ledger, with the two facts of its run that
+ * decide whether it may be served at all: the privacy epoch the run was admitted at and the run's
+ * state (a run admitted at epoch N never continues or returns output at epoch N+1; a closed run
+ * answers `run_closed`).
+ */
 export interface AttemptRow {
+  readonly runPrivacyEpoch: number;
+  readonly runState: string;
   readonly id: string;
   readonly step: string;
   readonly state: AttemptState;
@@ -140,7 +156,10 @@ export interface RunDescriptor {
 
 export type RunAdmission =
   | { readonly kind: 'admitted'; readonly fence: number }
-  /** A run with this ID exists with a different descriptor (role, policy, model, bundle, owner). */
+  /**
+   * A run with this ID exists with a different descriptor (role, policy, model, bundle, owner) or
+   * was admitted at another privacy epoch than the caller's authority.
+   */
   | { readonly kind: 'mismatch' }
   /** The run was closed (completed, failed or cancelled): it starts no new attempt. */
   | { readonly kind: 'closed' };
@@ -260,8 +279,21 @@ export interface AttemptLedger {
   readonly writeOff: (attemptId: string, reason: string, source: string) => Promise<WriteOffResult>;
   /** Attempts awaiting reconciliation or write-off, oldest first. */
   readonly listUnknown: (limit: number) => Promise<readonly UnknownAttempt[]>;
-  /** Deletes up to `limit` expired protected requests; returns how many were deleted. */
+  /**
+   * Deletes up to `limit` protected requests past their expiry; returns how many were deleted.
+   * Never deletes the bytes of a `dispatched` attempt (the sweep resolves it first); an expired
+   * `reserved` attempt is first settled `not_sent` (`REQUEST_EXPIRED`, reservation released), so no
+   * attempt is left waiting for bytes that no longer exist.
+   */
   readonly purgeExpiredRequests: (limit: number) => Promise<number>;
+  /**
+   * Crash recovery: moves up to `limit` attempts that have been `dispatched` for longer than
+   * `olderThanSeconds` to `unknown` (outcome `OUTCOME_NOT_RECORDED`, receipt `unknown`), so an
+   * operator can see and write them off and erasure can finish even when no delivery ever comes
+   * back. Conditional on the attempt still being `dispatched`; returns how many moved. A late
+   * conclusive answer still settles such an attempt as `reconciled`.
+   */
+  readonly sweepStaleDispatched: (olderThanSeconds: number, limit: number) => Promise<number>;
 }
 
 /** Process-wide settings of the harness (from configuration). */
@@ -284,7 +316,7 @@ export interface HarnessPorts {
   /** Lock-free authority read for the output-eligibility check (nothing is written there). */
   readonly authorityHolds: AuthorityHolds;
   /** The configured provider, or `undefined` when no provider is configured (every propose refuses). */
-  readonly model: ModelPort | undefined;
+  readonly model: GuardedModelPort | undefined;
   readonly ledger: AttemptLedger;
   /** SHA-256 (lowercase hex) of request bytes. */
   readonly hashBytes: (bytes: Uint8Array) => string;

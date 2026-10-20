@@ -15,8 +15,9 @@
 --   current UTC day (under a transaction advisory lock); expired protected requests for purging.
 -- Writes: run admission and closure (fence + 1); reservation = attempt + protected request bytes +
 --   receipt in the admission transaction; dispatch intent with the quota observation; ledger-owned
---   settlement with usage, outcome code and the stored output or validator issues; operator
---   write-off of `unknown` attempts with its reason.
+--   settlement with usage, outcome code and the stored output or validator issues; the crash
+--   sweep (`dispatched` past the request deadline → `unknown`); operator write-off of `unknown`
+--   attempts with its reason and actor.
 -- Growth: one run per admitted job, at most a few attempts per run (primary, one repair, and new
 --   sequences only after `not_sent`), one receipt per attempt, one protected request per attempt
 --   until it expires (default 48 hours).
@@ -74,6 +75,30 @@ alter table reasoning.external_attempts
   add column written_off_by text,
   add column written_off_at timestamptz;
 
+-- The ledger tables (0006) hold no product data yet (S2.2 is their first writer, nothing has been
+-- deployed), so validating the checks and building the index inside this transaction blocks nothing
+-- real; squawk's ignore comments below say so where it would otherwise ask for two transactions.
+--
+-- The state machine, as far as a row can say it (defence in depth: the application only ever
+-- moves state through conditional updates). A written-off attempt says why and by whom; an
+-- attempt that was dispatched (or went on to any outcome) says which dispatch and when.
+alter table reasoning.external_attempts
+  add constraint external_attempts_written_off_check check (
+    state <> 'written_off'
+    or (written_off_reason is not null and written_off_by is not null and written_off_at is not null)
+  ) not valid,
+  add constraint external_attempts_dispatch_check check (
+    state in ('reserved', 'not_sent') or (dispatch_id is not null and dispatched_at is not null)
+  ) not valid;
+-- squawk-ignore constraint-missing-not-valid
+alter table reasoning.external_attempts validate constraint external_attempts_written_off_check;
+-- squawk-ignore constraint-missing-not-valid
+alter table reasoning.external_attempts validate constraint external_attempts_dispatch_check;
+
+-- The crash-recovery sweep looks for attempts left dispatched.
+-- squawk-ignore require-concurrent-index-creation
+create index external_attempts_dispatched_idx on reasoning.external_attempts (dispatched_at) where state = 'dispatched';
+
 create table reasoning.protected_requests (
   universe_id uuid not null,
   attempt_id uuid not null,
@@ -89,6 +114,9 @@ create table reasoning.protected_requests (
   constraint protected_requests_attempt_fkey foreign key (universe_id, attempt_id) references reasoning.external_attempts (universe_id, id) on delete restrict,
   constraint protected_requests_size_check check (octet_length(body) between 1 and 262144),
   constraint protected_requests_hash_check check (body_sha256 ~ '^[0-9a-f]{64}$'),
+  -- The recorded hash is the hash of the stored bytes: the database recomputes it, so a caller
+  -- cannot store bytes under another request's hash.
+  constraint protected_requests_body_hash_check check (encode(sha256(body), 'hex') = body_sha256),
   constraint protected_requests_class_check check (erasure_class in ('personal_context')),
   constraint protected_requests_expiry_check check (expires_at > created_at)
 );

@@ -1,7 +1,7 @@
 import { queueRegistry } from './infrastructure/jobs/queues.js';
 import { applyActionEvidenceQueue } from './modules/evidence/public.js';
 import { sweepSignInRecordsQueue } from './modules/identity/public.js';
-import { purgeExpiredRequestsQueue } from './reasoning/events.js';
+import { purgeExpiredRequestsQueue, sweepDispatchedAttemptsQueue } from './reasoning/events.js';
 
 /**
  * Every durable queue this release declares. `migrate.js` creates them and applies their
@@ -12,4 +12,5 @@ export const releaseQueues = queueRegistry([
   applyActionEvidenceQueue,
   sweepSignInRecordsQueue,
   purgeExpiredRequestsQueue,
+  sweepDispatchedAttemptsQueue,
 ]);

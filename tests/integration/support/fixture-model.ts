@@ -4,26 +4,20 @@ import { z } from 'zod';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { PersonalAuthority } from '@knowscroll/backend/modules/identity';
+import type { ReasoningContext, ReasoningRole, ReasoningRun } from '@knowscroll/backend/reasoning';
 import {
+  guardedModelPort,
   makeReasoningHarness,
+  postgresHarnessPorts,
   type HarnessPorts,
   type HarnessSettings,
   type ModelPort,
-  type ReasoningContext,
-  type ReasoningRole,
-  type ReasoningRun,
-} from '@knowscroll/backend/reasoning';
-import {
-  fixtureModelPort,
-  guardedModelPort,
-  postgresHarnessPorts,
-  type FixtureModelPort,
-  type FixtureScenario,
 } from '@knowscroll/backend/reasoning/nest-providers';
+import { fixtureModelPort, type FixtureModelPort, type FixtureScenario } from './fixture-model-port.js';
 
 /**
- * CI fixtures for the reasoning harness: a labelled fixture model (the backend's
- * `fixtureModelPort`, wrapped by the same transaction guard as a real transport), generous default
+ * CI fixtures for the reasoning harness: a labelled fixture model (`fixture-model-port.ts`,
+ * wrapped by the same transaction guard as a real transport), generous default
  * settings, a tiny synthetic role and context, and helpers to read the ledger. Nothing here is
  * provider output.
  */

@@ -90,6 +90,49 @@ export default defineConfig(
     },
   },
   {
+    // A model is called only through the reasoning harness (blueprint §15, §22): network clients
+    // live in infrastructure/ and in the reasoning engine's provider adapters. Everything else (a
+    // module's domain, application and adapters, the apps) has no global fetch, Node HTTP client
+    // or provider SDK, so a role cannot reach a model API around the harness's admission, budgets,
+    // attempt ledger and recording boundary. A module adapter for a non-model provider that really
+    // needs the network says so with a justified `eslint-disable` (AgentMail's sender does).
+    files: ['apps/**/*.ts', 'packages/backend/src/**/*.ts'],
+    ignores: ['packages/backend/src/infrastructure/**', 'packages/backend/src/reasoning/adapters/**', '**/*.test.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        ...['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource'].map((name) => ({
+          name,
+          message:
+            'Network clients live in infrastructure/ or reasoning/adapters/. Call a model through the reasoning harness (REASONING_HARNESS).',
+        })),
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            'http',
+            'https',
+            'http2',
+            'undici',
+            'node-fetch',
+            'axios',
+            'got',
+            'ws',
+            'openai',
+            '@anthropic-ai/sdk',
+          ].flatMap((name) =>
+            [name, `node:${name}`].map((path) => ({
+              name: path,
+              message:
+                'Network clients live in infrastructure/ or reasoning/adapters/. Call a model through the reasoning harness (REASONING_HARNESS).',
+            })),
+          ),
+        },
+      ],
+    },
+  },
+  {
     // Command-line check scripts and the web smoke's static server report to the terminal.
     files: ['tests/integration/boundaries/*.mjs', 'apps/client/e2e/*.mjs'],
     rules: { 'no-console': 'off' },

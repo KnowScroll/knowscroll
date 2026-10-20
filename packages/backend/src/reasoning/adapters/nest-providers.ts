@@ -7,7 +7,13 @@ import type { WithPersonalScope } from '../../modules/identity/public.js';
 import { makeReasoningOperator } from '../application/operator.js';
 import type { HarnessPorts, HarnessSettings, ModelPort } from '../application/ports.js';
 import { makeReasoningHarness } from '../application/propose.js';
-import { PURGE_EXPIRED_REQUESTS, REASONING_HARNESS, type PurgeExpiredRequests } from '../public.js';
+import {
+  PURGE_EXPIRED_REQUESTS,
+  REASONING_HARNESS,
+  SWEEP_DISPATCHED_ATTEMPTS,
+  type PurgeExpiredRequests,
+  type SweepDispatchedAttempts,
+} from '../public.js';
 import { guardedModelPort } from './guarded-model.js';
 import { makeMiniMaxModelPort } from './minimax/minimax-model.js';
 import { makeAttemptLedger } from './postgres-ledger.js';
@@ -15,15 +21,28 @@ import { redactRecorded, sha256Hex } from './recording.js';
 
 /**
  * Reusable outer wiring of the reasoning engine (blueprint §22), for composition roots and
- * integration tests only: the PostgreSQL attempt ledger, the transaction guard every transport is
- * wrapped in, the MiniMax and fixture transports, and the harness and operator factories.
+ * integration tests only (a module cannot import this file: the dependency rules allow it from the
+ * apps' composition roots and tests): the PostgreSQL attempt ledger, the transaction guard every
+ * transport is wrapped in, the MiniMax transport, and the harness and operator factories with the
+ * types they need. The CI fixture model is test support (`tests/integration/support`), not here.
  */
+export { makeReasoningHarness } from '../application/propose.js';
+export { makeReasoningOperator, type ReasoningOperator } from '../application/operator.js';
 export {
-  fixtureModelPort,
-  type FixtureCall,
-  type FixtureModelPort,
-  type FixtureScenario,
-} from './fixture/fixture-model.js';
+  MAX_STORED_OUTPUT_BYTES,
+  ModelNotSentError,
+  ModelOutcomeUnknownError,
+  ModelRejectedError,
+  type AttemptLedger,
+  type GuardedModelPort,
+  type HarnessPorts,
+  type HarnessSettings,
+  type ModelPort,
+  type ModelReply,
+  type ModelRequest,
+  type QuotaObservation,
+  type StopReason,
+} from '../application/ports.js';
 export { guardedModelPort } from './guarded-model.js';
 export { makeMiniMaxModelPort, type MiniMaxSettings } from './minimax/minimax-model.js';
 export { makeAttemptLedger } from './postgres-ledger.js';
@@ -40,6 +59,15 @@ export function harnessSettings(settings: ReasoningSettings, dispatchedBy: strin
     purgeIntervalMs: PURGE_INTERVAL_MS,
     dispatchedBy,
   };
+}
+
+/**
+ * How long an attempt may stay `dispatched` before the sweep treats it as orphaned: the provider
+ * request deadline plus two minutes for settlement (for `provider: none`, nothing is ever
+ * dispatched; the largest allowed deadline is assumed).
+ */
+export function dispatchStaleAfterSeconds(settings: ReasoningSettings): number {
+  return Math.ceil((settings.minimax?.requestTimeoutMs ?? 300_000) / 1000) + 120;
 }
 
 /**
@@ -87,7 +115,34 @@ export function postgresHarnessPorts(options: {
   };
 }
 
-/** The operator actions (write-off, unknown list, purge) over one database. */
+/**
+ * Nest wiring of the scheduled crash-recovery sweep (`reasoning.sweep-dispatched-attempts`, every
+ * 5 minutes) for the worker composition root.
+ */
+export function reasoningSweepProviders(tokens: {
+  readonly database: symbol;
+  readonly logEvent: symbol;
+  /** Injects an object with the worker's `reasoning` settings. */
+  readonly workerConfig: symbol;
+}) {
+  return [
+    {
+      provide: SWEEP_DISPATCHED_ATTEMPTS,
+      inject: [tokens.database, tokens.logEvent, tokens.workerConfig],
+      useFactory: (
+        db: Kysely<Database>,
+        logEvent: LogEvent,
+        config: { readonly reasoning: ReasoningSettings },
+      ): SweepDispatchedAttempts => {
+        const operator = reasoningOperatorFor(db, logEvent);
+        const staleAfterSeconds = dispatchStaleAfterSeconds(config.reasoning);
+        return () => operator.sweepStaleDispatched(staleAfterSeconds);
+      },
+    },
+  ];
+}
+
+/** The operator actions (write-off, unknown list, sweep, purge) over one database. */
 export function reasoningOperatorFor(db: Kysely<Database>, logEvent: LogEvent) {
   return makeReasoningOperator({ ledger: makeAttemptLedger(db), logEvent });
 }

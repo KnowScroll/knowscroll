@@ -47,6 +47,22 @@ export function makeReasoningOperator(ports: { readonly ledger: AttemptLedger; r
     listUnknown(limit: number): Promise<readonly UnknownAttempt[]> {
       return ports.ledger.listUnknown(Math.min(Math.max(1, Math.trunc(limit)), 500));
     },
+    /**
+     * Moves attempts left `dispatched` for longer than `olderThanSeconds` to `unknown` (crash
+     * recovery; the scheduled sweep calls this). Returns how many moved. Never resends; a late
+     * answer still reconciles the attempt. Safe to repeat.
+     */
+    async sweepStaleDispatched(olderThanSeconds: number): Promise<number> {
+      let total = 0;
+      for (
+        let batch = await ports.ledger.sweepStaleDispatched(olderThanSeconds, 200);
+        batch > 0;
+        batch = await ports.ledger.sweepStaleDispatched(olderThanSeconds, 200)
+      )
+        total += batch;
+      if (total > 0) ports.logEvent('reasoning.dispatched_swept', { count: total });
+      return total;
+    },
     /** Deletes expired protected request bytes now (the harness also does this periodically). */
     async purgeExpired(): Promise<number> {
       let total = 0;

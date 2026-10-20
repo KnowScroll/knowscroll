@@ -125,6 +125,12 @@ describe('the MiniMax transport (fake fetch)', () => {
       { type: 'error', error: { type: 'authentication_error' } },
     ],
     [429, ModelRejectedError, 'HTTP_429_RATE_LIMIT_ERROR', { type: 'error', error: { type: 'rate_limit_error' } }],
+    [
+      400,
+      ModelRejectedError,
+      'HTTP_400_UNRECOGNISED',
+      { type: 'error', error: { type: 'sk_cp_pockeypockeypockeypocke' } },
+    ],
     [500, ModelRejectedError, 'HTTP_500', 'internal error'],
     [503, ModelRejectedError, 'HTTP_503', ''],
     [529, ModelRejectedError, 'HTTP_529_OVERLOADED_ERROR', { type: 'error', error: { type: 'overloaded_error' } }],

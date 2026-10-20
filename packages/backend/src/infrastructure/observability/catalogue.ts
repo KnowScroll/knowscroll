@@ -52,7 +52,7 @@ export interface FieldTypes {
   model: string;
   /** The role (`<module>.<role>`) whose prompt was sent. */
   role: string;
-  /** The harness framing version (`hp1`); the role version is on the attempt record. */
+  /** The harness framing version (`hp2` today); the role version is on the attempt record. */
   promptVersion: string;
   inputTokens: number;
   outputTokens: number;
@@ -194,6 +194,8 @@ export const diagnosticCatalogue = {
   },
   // Once at worker start: which provider the harness will use (`none` when unconfigured). Never a key.
   'reasoning.provider_configured': { severity: 'info', module: 'reasoning', fields: ['provider', 'model'] },
+  // A crash left attempts `dispatched`; the sweep moved them to `unknown` for an operator.
+  'reasoning.dispatched_swept': { severity: 'warn', module: 'reasoning', fields: ['count'] },
   'reasoning.requests_purged': { severity: 'info', module: 'reasoning', fields: ['count'] },
   'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },
   'migrate.started': { severity: 'info', module: 'migrate', fields: ['count'] },

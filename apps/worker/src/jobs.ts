@@ -11,11 +11,14 @@ import {
 import { identitySweepProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import {
   PURGE_EXPIRED_REQUESTS,
+  SWEEP_DISPATCHED_ATTEMPTS,
   purgeExpiredRequestsQueue,
+  sweepDispatchedAttemptsQueue,
   type PurgeExpiredRequests,
+  type SweepDispatchedAttempts,
 } from '@knowscroll/backend/reasoning';
-import { reasoningPurgeProviders } from '@knowscroll/backend/reasoning/nest-providers';
-import { DATABASE, JOB_CONSUMERS, LOG_EVENT, WITH_PERSONAL_SCOPE } from './tokens.js';
+import { reasoningPurgeProviders, reasoningSweepProviders } from '@knowscroll/backend/reasoning/nest-providers';
+import { DATABASE, JOB_CONSUMERS, LOG_EVENT, WITH_PERSONAL_SCOPE, WORKER_CONFIG } from './tokens.js';
 
 /**
  * The worker's explicit consumer registry: every queue this process claims work from and the use
@@ -26,13 +29,21 @@ export const jobWiring = [
   ...evidenceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...identitySweepProviders({ database: DATABASE }),
   ...reasoningPurgeProviders({ database: DATABASE, logEvent: LOG_EVENT }),
+  ...reasoningSweepProviders({ database: DATABASE, logEvent: LOG_EVENT, workerConfig: WORKER_CONFIG }),
   {
     provide: JOB_CONSUMERS,
-    inject: [APPLY_ACTION_EVIDENCE, SWEEP_SIGN_IN_RECORDS, PURGE_EXPIRED_REQUESTS, LOG_EVENT],
+    inject: [
+      APPLY_ACTION_EVIDENCE,
+      SWEEP_SIGN_IN_RECORDS,
+      PURGE_EXPIRED_REQUESTS,
+      SWEEP_DISPATCHED_ATTEMPTS,
+      LOG_EVENT,
+    ],
     useFactory: (
       applyActionEvidence: ApplyActionEvidence,
       sweepSignInRecords: SweepSignInRecords,
       purgeExpiredRequests: PurgeExpiredRequests,
+      sweepDispatchedAttempts: SweepDispatchedAttempts,
       logEvent: LogEvent,
     ): readonly JobConsumer<unknown>[] => [
       jobConsumer(applyActionEvidenceQueue, async (payload) => {
@@ -48,6 +59,10 @@ export const jobWiring = [
       // Every 15 minutes: protected request bytes past their retention (logs `reasoning.requests_purged`).
       jobConsumer(purgeExpiredRequestsQueue, async () => {
         await purgeExpiredRequests();
+      }),
+      // Every 5 minutes: attempts a crash left `dispatched` become `unknown` (logs `reasoning.dispatched_swept`).
+      jobConsumer(sweepDispatchedAttemptsQueue, async () => {
+        await sweepDispatchedAttempts();
       }),
     ],
   },

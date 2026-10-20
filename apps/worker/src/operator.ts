@@ -17,6 +17,7 @@ import { reasoningOperatorFor } from '@knowscroll/backend/reasoning/nest-provide
  *
  *   reasoning write-off --attempt <uuid> --reason <text>   unknown → written_off, reason and `cli:<name>` recorded
  *   reasoning unknown [--limit <n>]                        attempts awaiting reconciliation
+ *   reasoning sweep-dispatched [--older-than-seconds <n>]  attempts a crash left dispatched -> unknown
  *   reasoning purge-expired                                delete expired protected requests
  *
  * Exit status: 0 done, 2 refused or not applicable (bad usage, not unknown, missing), 1 failure.
@@ -24,7 +25,7 @@ import { reasoningOperatorFor } from '@knowscroll/backend/reasoning/nest-provide
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning purge-expired';
+  'usage: operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -59,7 +60,12 @@ async function main(): Promise<number> {
   try {
     args = parseArgs({
       args: process.argv.slice(2),
-      options: { attempt: { type: 'string' }, reason: { type: 'string' }, limit: { type: 'string' } },
+      options: {
+        attempt: { type: 'string' },
+        reason: { type: 'string' },
+        limit: { type: 'string' },
+        'older-than-seconds': { type: 'string' },
+      },
       allowPositionals: true,
       strict: true,
     });
@@ -69,7 +75,8 @@ async function main(): Promise<number> {
   }
   const [area, command] = args.positionals;
   const known =
-    area === 'reasoning' && (command === 'write-off' || command === 'unknown' || command === 'purge-expired');
+    area === 'reasoning' &&
+    (command === 'write-off' || command === 'unknown' || command === 'sweep-dispatched' || command === 'purge-expired');
   if (!known || args.positionals.length !== 2) {
     print({ result: 'usage', usage });
     return 2;
@@ -111,6 +118,20 @@ async function main(): Promise<number> {
             ...attempt,
             dispatchedAt: attempt.dispatchedAt === null ? null : attempt.dispatchedAt.toISOString(),
           })),
+        });
+        return 0;
+      }
+      case 'sweep-dispatched': {
+        const olderThan =
+          args.values['older-than-seconds'] === undefined ? 900 : Number(args.values['older-than-seconds']);
+        if (!Number.isInteger(olderThan) || olderThan < 0) {
+          print({ result: 'usage', usage });
+          return 2;
+        }
+        print({
+          command: 'reasoning sweep-dispatched',
+          result: 'swept',
+          count: await operator.sweepStaleDispatched(olderThan),
         });
         return 0;
       }

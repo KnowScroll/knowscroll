@@ -1,7 +1,14 @@
 import type { z } from 'zod';
 import type { PersonalAuthority, PersonalScopeTx } from '../../modules/identity/public.js';
 import { reservedTokensFor, type BudgetCap, type BudgetDimension, type ReportedUsage } from '../domain/budgets.js';
-import { extractJsonObject, issueFor, validateOutput, type OutputIssue } from '../domain/output.js';
+import {
+  MAX_ANSWER_DEPTH,
+  exceedsDepth,
+  extractJsonObject,
+  issueFor,
+  validateOutput,
+  type OutputIssue,
+} from '../domain/output.js';
 import { HARNESS_PROMPT_VERSION, buildPrompt } from '../domain/prompt.js';
 import { makeExecuteAttempt, type AttemptResult, type Judgement } from './execute-attempt.js';
 import {
@@ -144,6 +151,12 @@ export interface ReasoningHarness {
    * answers from the ledger (a kept answer is returned again without a second paid call), never
    * resends a dispatched attempt, and refuses a different request for the same run step.
    * Exceptions are infrastructure failures (database unavailable, lock busy): retry the job.
+   * A run that was closed (`closeRun`) answers `run_closed` to every later call, including a
+   * redelivery whose answer is still kept in the ledger: the module's applier closes the run in
+   * the transaction that applies the result, so a handler seeing `run_closed` knows the work is
+   * done. A run admitted at one privacy epoch answers `run_mismatch` to a call under another.
+   * A conclusive provider failure (`failed`) charges nothing unless usage was reported, ends the
+   * attempt, and does not retry: starting a new run is the caller's decision.
    * Invariants: no transaction spans the network; unknown outcomes are never resent or repaired;
    * a repair is a new admitted attempt with its own reservation and causation, only after the
    * first attempt is conclusively complete; provider-returned values are redacted before they are
@@ -161,8 +174,9 @@ export interface ReasoningHarness {
    * Side effects: one update of the run row (state, `closed_at`, fence + 1) inside the caller's
    * transaction, so a rollback leaves the run open. Failure/retry: idempotent (a second call
    * answers `not_open`); database errors propagate and roll the caller's transaction back.
-   * Invariants: a closed run starts no new attempt (`propose` answers `run_closed`); the fence only
-   * increases, so a stale applier holding the old fence can be recognised.
+   * Invariants: a closed run starts no new attempt and returns no kept answer (`propose` answers
+   * `run_closed`). The fence only increases and is recorded for audit; the applier's idempotency
+   * token is this call's own answer (`closed` once, `not_open` after).
    */
   closeRun(
     scope: PersonalScopeTx,
@@ -248,6 +262,9 @@ export function makeReasoningHarness(ports: HarnessPorts): ReasoningHarness {
       if (reply.answer.stop === 'max_tokens') return invalid('OUTPUT_TRUNCATED', [issueFor('OUTPUT_TRUNCATED')]);
       const extracted = extractJsonObject(reply.answer.text);
       if (!extracted.ok) return invalid(extracted.reason, [issueFor(extracted.reason)]);
+      // Deep nesting is refused before anything is redacted, validated or stored.
+      if (exceedsDepth(extracted.value, MAX_ANSWER_DEPTH))
+        return invalid('OUTPUT_TOO_DEEP', [issueFor('OUTPUT_TOO_DEEP')]);
       const redacted = ports.redactRecorded(extracted.value);
       const verdict = validateOutput(schema, redacted);
       if (!verdict.valid) return invalid(verdict.reason, verdict.issues);
