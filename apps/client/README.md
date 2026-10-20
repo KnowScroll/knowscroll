@@ -20,6 +20,7 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 | `/redeem` | `app/(auth)/redeem.tsx` | Where a link lands (`/redeem#token=…`): the token is read from the fragment and removed from the address bar; one tap POSTs it (opening the link consumes nothing); without a link, a paste field | Finish signing in · Use your sign-in link |
 | `/recover` | `app/(auth)/recover.tsx` | A02: `?reason=link` "This link didn't work" (send a new link); otherwise "You were signed out" | This link didn't work · You were signed out |
 | `/gallery` | `app/gallery.tsx` | Developer component gallery and API health, only when built with `EXPO_PUBLIC_KS_GALLERY=1` (stable marker `testID="ks-component-gallery"`); otherwise "This page isn't here" | Component gallery |
+| `/gallery-scroll` | `app/gallery-scroll.tsx` | Developer Scroll gallery (fixture documents through `prepareScrollDocument` and `ScrollArticle`; query `doc`, `block`, `motion=reduce`, `scale=2`), only when built with `EXPO_PUBLIC_KS_GALLERY=1` (marker `testID="ks-scroll-gallery"`); otherwise "This page isn't here" | Scroll gallery |
 | `/s/<token>` | none (reserved) | Share links (D-006 d). On the web the edge sends `/s/*` to the API's public page (D-008); the client's `/s/[token]` screen arrives with sharing (H01–H02). No route, group or catch-all may claim `/s` before then (`features/shell/route-map.test.ts`) | — |
 | anything else | `app/+not-found.tsx` | Not found, with "Go to Explore" | Page not found |
 

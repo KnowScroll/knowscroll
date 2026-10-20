@@ -127,9 +127,10 @@ const probes = [
     file: 'packages/ui/src/zz-probe.ts',
     source:
       "import { ScrollProvenance } from '@knowscroll/scroll-model/internal';\nimport { compileDraft } from '@knowscroll/scroll-model/producer';\nexport const p = [ScrollProvenance, compileDraft];\n",
+    // `packages/ui` declares scroll-model (S2.1 part 2), so the specifiers resolve to its sources.
     expect: [
-      ['@knowscroll/scroll-model/internal', 'clients-never-import-scroll-internals'],
-      ['@knowscroll/scroll-model/producer', 'clients-never-import-scroll-internals'],
+      ['packages/scroll-model/src/internal/index.ts', 'clients-never-import-scroll-internals'],
+      ['packages/scroll-model/src/producer/index.ts', 'clients-never-import-scroll-internals'],
     ],
   },
   {
