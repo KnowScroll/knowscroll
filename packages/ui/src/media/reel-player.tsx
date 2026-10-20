@@ -17,6 +17,10 @@ function pausePlayback(player: VideoPlayer): void {
 function seekPlayback(player: VideoPlayer, time: number): void {
   player.currentTime = time;
 }
+type PlaybackStatus = 'loading' | 'ready' | 'buffering' | 'error';
+function playbackStatus(status: VideoPlayer['status'], playing: boolean): PlaybackStatus {
+  return status === 'error' ? 'error' : status === 'readyToPlay' ? 'ready' : playing ? 'buffering' : 'loading';
+}
 
 export interface ReelPlayerProps {
   readonly title: string;
@@ -60,12 +64,12 @@ export function ReelPlayer({
   const needsRefresh = useRef(true);
   const loaded = useRef(false);
   const refreshSource = useRef<() => Promise<void>>(() => Promise.resolve());
-  const [status, setStatus] = useState<'loading' | 'ready' | 'buffering' | 'error'>('loading');
+  const [status, setStatus] = useState<PlaybackStatus>('loading');
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [attempt, setAttempt] = useState(0);
   const [sourceRevision, setSourceRevision] = useState(0);
-  const installedPosition = useRef(0);
+  const installedSource = useRef<{ position: number; isCurrent: () => boolean } | null>(null);
 
   useEffect(
     () =>
@@ -116,6 +120,7 @@ export function ReelPlayer({
         return;
       }
       refreshing = true;
+      setStatus('loading');
       try {
         const grant = await loadSource();
         if (disposed) return;
@@ -147,7 +152,7 @@ export function ReelPlayer({
         // every replacement is paused first, and only current explicit intent can resume it.
         pausePlayback(player);
         setPlaying(false);
-        installedPosition.current = time;
+        installedSource.current = { position: time, isCurrent: () => !disposed };
         replacing.current = false;
         loaded.current = true;
         needsRefresh.current = false;
@@ -179,12 +184,33 @@ export function ReelPlayer({
     };
   }, [player, loadSource, registerEnd, onDiscontinuity, attempt]);
   useEffect(() => {
-    if (sourceRevision === 0) return;
-    seekPlayback(player, installedPosition.current);
-    resumePosition.current = installedPosition.current;
-    setPosition(installedPosition.current);
-    if (playbackIntent.current && activeRef.current && visible.current) player.play();
-  }, [player, sourceRevision]);
+    const installed = installedSource.current;
+    if (sourceRevision === 0 || !installed?.isCurrent()) return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled || !installed.isCurrent()) return;
+      try {
+        // SDK58 web replacement does not reset status. If a grant request failed while the SDK
+        // stayed ready, canplay sets the same status and emits no statusChange. Reconcile the
+        // actual SDK status after VideoView commits the source; settlement alone is not readiness.
+        const sdkStatus = player.status;
+        setStatus(playbackStatus(sdkStatus, player.playing));
+        seekPlayback(player, installed.position);
+        resumePosition.current = installed.position;
+        setPosition(installed.position);
+        if (sdkStatus !== 'error' && playbackIntent.current && activeRef.current && visible.current) player.play();
+      } catch {
+        if (installed.isCurrent()) {
+          pausePlayback(player);
+          onDiscontinuity();
+          setStatus('error');
+        }
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [player, sourceRevision, onDiscontinuity]);
   useEffect(() => {
     const time = player.addListener('timeUpdate', (event) => {
       resumePosition.current = event.currentTime;
@@ -198,15 +224,7 @@ export function ReelPlayer({
       });
     });
     const state = player.addListener('statusChange', (event) => {
-      setStatus(
-        event.status === 'error'
-          ? 'error'
-          : event.status === 'readyToPlay'
-            ? 'ready'
-            : player.playing
-              ? 'buffering'
-              : 'loading',
-      );
+      setStatus(playbackStatus(event.status, player.playing));
       if (event.status !== 'readyToPlay') onDiscontinuity();
     });
     const changed = player.addListener('playingChange', (event) => {

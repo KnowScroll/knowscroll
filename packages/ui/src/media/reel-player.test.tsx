@@ -183,17 +183,35 @@ describe('paused grant renewal', () => {
 });
 
 describe('paused loaded-source Retry', () => {
-  it('fetches a replacement after an error even though cleanup cleared playback intent', async () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+  it('recovers a grant failure without a duplicate SDK ready event, staying paused until explicit Play', async () => {
+    jest.useFakeTimers();
     const listeners = new Map<string, (payload: unknown) => void>();
-    const replace = jest.fn(() => Promise.resolve());
-    const play = jest.fn();
+    const sample = jest.fn();
+    let finishRetry: ((grant: { source: { uri: string }; expiresAt: string }) => void) | undefined;
+    // Like SDK58 web: replace changes src/playing but never status; an equal canplay status
+    // emits nothing. A failed HTTP grant request leaves the existing SDK status readyToPlay.
+    const replace = jest.fn((source: VideoSource) => {
+      player.src = source;
+      player.playing = true;
+      return Promise.resolve();
+    });
+    const play = jest.fn(() => {
+      player.playing = true;
+      listeners.get('playingChange')?.({ isPlaying: true });
+    });
     const player = {
+      src: null as VideoSource,
       currentTime: 5,
       muted: false,
       playing: false,
       status: 'readyToPlay',
       playbackRate: 1,
-      pause: jest.fn(),
+      pause: jest.fn(() => {
+        player.playing = false;
+      }),
       play,
       replaceAsync: replace,
       addListener: (kind: string, listener: (payload: unknown) => void) => {
@@ -204,13 +222,26 @@ describe('paused loaded-source Retry', () => {
           },
         };
       },
-    } as unknown as VideoPlayer;
-    jest.mocked(useVideoPlayer).mockReturnValue(player);
+    };
+    jest.mocked(useVideoPlayer).mockReturnValue(player as unknown as VideoPlayer);
     const load = jest.fn(() =>
       Promise.resolve({
         source: { uri: 'https://fixture.invalid/media/fixture' },
         expiresAt: new Date(Date.now() + 60000).toISOString(),
       }),
+    );
+    load.mockImplementationOnce(() =>
+      Promise.resolve({
+        source: { uri: 'https://fixture.invalid/media/initial' },
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+      }),
+    );
+    load.mockRejectedValueOnce(new Error('Fixture grant transport unavailable'));
+    load.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishRetry = resolve;
+        }),
     );
     const rendered = await renderOn(
       <ReelPlayer
@@ -218,26 +249,164 @@ describe('paused loaded-source Retry', () => {
         durationMs={30000}
         active
         loadSource={load}
-        onSample={() => undefined}
+        onSample={sample}
         onDiscontinuity={() => undefined}
         registerEnd={() => () => undefined}
       />,
     );
     await act(async () => {
+      jest.advanceTimersByTime(45000);
+      await Promise.resolve();
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    expect(screen.getByText('Playback interrupted')).toBeTruthy();
+    expect(player.status).toBe('readyToPlay');
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+    expect(screen.queryByText('Playback interrupted')).toBeNull();
+    expect(load).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      finishRetry?.({
+        source: { uri: 'https://fixture.invalid/media/retry' },
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+      });
+      await Promise.resolve();
+    });
+    // Scope/effect cleanup clears the old source before the retry installs the fresh one.
+    expect(replace).toHaveBeenCalledTimes(3);
+    expect(player.src).toEqual({ uri: 'https://fixture.invalid/media/retry' });
+    expect(screen.queryByText('Playback interrupted')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
+    expect(player.playing).toBe(false);
+    expect(play).not.toHaveBeenCalled();
+    await act(async () => {
+      listeners.get('timeUpdate')?.({ currentTime: 5 });
+      await Promise.resolve();
+    });
+    expect(sample).toHaveBeenLastCalledWith(expect.objectContaining({ playing: false }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
+    await act(async () => {
+      listeners.get('timeUpdate')?.({ currentTime: 5.25 });
+      await Promise.resolve();
+    });
+    expect(sample).toHaveBeenLastCalledWith(expect.objectContaining({ playing: true }));
+    // A genuine later SDK error must still surface even after the snapshot reconciled ready.
+    await act(async () => {
+      player.status = 'error';
       listeners.get('statusChange')?.({ status: 'error' });
       await Promise.resolve();
     });
-    await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
-    expect(load).toHaveBeenCalledTimes(2);
-    // Scope/effect cleanup clears the old source before the retry installs the fresh one.
-    expect(replace).toHaveBeenCalledTimes(3);
-    expect(play).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+    expect(screen.getByText('Playback interrupted')).toBeTruthy();
     await rendered.unmount();
   });
+
+  it.each(['error', 'loading'] as const)(
+    'keeps the committed SDK %s state instead of assuming replace success means ready',
+    async (sdkStatus) => {
+      const play = jest.fn();
+      const player = {
+        currentTime: 0,
+        muted: false,
+        playing: false,
+        status: sdkStatus,
+        playbackRate: 1,
+        pause: jest.fn(),
+        play,
+        replaceAsync: () => Promise.resolve(),
+        addListener: () => ({ remove: () => undefined }),
+      } as unknown as VideoPlayer;
+      jest.mocked(useVideoPlayer).mockReturnValue(player);
+      const rendered = await renderOn(
+        <ReelPlayer
+          title="Fixture"
+          durationMs={30000}
+          active
+          loadSource={() => Promise.resolve({ source: null, expiresAt: new Date(Date.now() + 60000).toISOString() })}
+          onSample={() => undefined}
+          onDiscontinuity={() => undefined}
+          registerEnd={() => () => undefined}
+        />,
+      );
+      expect(screen.getByText(sdkStatus === 'error' ? 'Playback interrupted' : 'Fixture')).toBeTruthy();
+      if (sdkStatus === 'error') {
+        await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+        expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+      }
+      expect(play).not.toHaveBeenCalled();
+      await rendered.unmount();
+    },
+  );
 });
 
 // Stand-in for VideoView committing its new src after replaceAsync has resolved.
 describe('source commit and resume ordering', () => {
+  it.each(['ended', 'released'] as const)('fences an %s source before post-commit reconciliation', async (ending) => {
+    let scopeEnded: (() => void) | undefined;
+    let released = false;
+    let statusReads = 0;
+    const player = {
+      src: null as VideoSource,
+      currentTime: 0,
+      muted: false,
+      playing: false,
+      get status() {
+        statusReads += 1;
+        if (released) throw new Error('Fixture SharedObject released');
+        return 'readyToPlay';
+      },
+      playbackRate: 1,
+      pause: jest.fn(),
+      play: jest.fn(),
+      replaceAsync: (source: VideoSource) => {
+        player.src = source;
+        return Promise.resolve();
+      },
+      addListener: () => ({ remove: () => undefined }),
+    };
+    function useStandInPlayer() {
+      const source = player.src;
+      useLayoutEffect(() => {
+        if (!source) return;
+        // The child source commit can coincide with scope teardown or native SDK release.
+        if (ending === 'ended') scopeEnded?.();
+        else released = true;
+      }, [source]);
+      return player as unknown as VideoPlayer;
+    }
+    jest.mocked(useVideoPlayer).mockImplementation(useStandInPlayer);
+    const rendered = await renderOn(
+      <ReelPlayer
+        title="Fixture"
+        durationMs={30000}
+        active
+        loadSource={() =>
+          Promise.resolve({
+            source: { uri: 'https://fixture.invalid/media/fixture' },
+            expiresAt: new Date(Date.now() + 60000).toISOString(),
+          })
+        }
+        onSample={() => undefined}
+        onDiscontinuity={() => undefined}
+        registerEnd={(stop) => {
+          scopeEnded = stop;
+          return () => undefined;
+        }}
+      />,
+    );
+    expect(player.play).not.toHaveBeenCalled();
+    if (ending === 'ended') {
+      expect(player.src).toBeNull();
+      expect(statusReads).toBe(0);
+      expect(screen.queryByText('Playback interrupted')).toBeNull();
+    } else {
+      expect(screen.getByText('Playback interrupted')).toBeTruthy();
+    }
+    await rendered.unmount();
+  });
+
   it('resumes only after the rendered source commit that resets HTML playback', async () => {
     jest.useFakeTimers();
     const player = {
