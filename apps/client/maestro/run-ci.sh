@@ -70,10 +70,12 @@ run_flow() {
   if [ "$status" -ne 0 ]; then
     outcome="FAILED"
     failed=1
-  elif grep -q 'KS-LANE-SKIP' "$KS_OUT/logs/$name.log"; then
-    # A flow that found nothing to check says so itself (scroll-blocks.yaml); it is reported as
-    # skipped, never as a pass.
+  elif grep -rqE --include=maestro.log 'onCommandFinished: Run .*KS-LANE-SKIP.* COMPLETED' "$KS_OUT/maestro/$name"; then
+    # A flow that found nothing to check says so itself (scroll-blocks.yaml: an evalScript that logs
+    # KS-LANE-SKIP; Maestro keeps script output out of its console and records the command in its own
+    # log). It is reported as skipped, never as a pass.
     outcome="skipped"
+    echo "KS-LANE-SKIP $name: the flow found nothing to check in this build (see its maestro.log)"
   fi
   results+=("| $name | $outcome | ${elapsed}s |")
   echo "maestro $name: $outcome in ${elapsed}s"

@@ -60,13 +60,26 @@ All flows start with `launchApp` and `clearState: true`, so each one is a cold s
 |---|---|---|
 | `shell.yaml` | Cold start reaches the four-tab shell (Explore, Universe, Talk, Keep by testID and by label) on Explore's honest empty state, with the account avatar | `shell-01-cold-start` |
 | `tabs-and-back.yaml` | Each tab opens its screen; from Keep the avatar pushes the account screen (signed out, "Back to Keep"); the **system Back** returns to Keep, not to the start tab; the on-screen Back does the same | `tabs-01…04`, `back-01`, `back-02` |
-| `gallery.yaml` (gallery builds) | `knowscroll://gallery` opens the developer gallery (marker `ks-component-gallery`), it scrolls to its last section, and the system Back returns to the shell. The API-health panel asks the baked-in origin; the flow does not depend on the answer, but the screenshot shows it | `gallery-01…06` |
+| `gallery.yaml` (gallery builds) | `knowscroll://gallery` opens the developer gallery (marker `ks-component-gallery`), it scrolls to its last section, the system Back closes the bottom sheet without leaving the gallery, and a second Back returns to the shell. The API-health panel asks the baked-in origin; the flow does not depend on the answer, but the screenshot shows what the dev API reported | `gallery-01…06` (with `04b`, `04c`) |
 | `scroll-blocks.yaml` (gallery builds) | Placeholder. When the gallery has an element with testID **`gallery-scroll-blocks`** it opens it and takes a screenshot. Until the Scroll renderers (#230 part 2) add it, the flow logs a `KS-LANE-SKIP` line and checks nothing; `run-ci.sh` then reports it as **skipped**, never as passed | `scroll-blocks-01-section` |
 
 Adding a flow: put `<name>.yaml` in `apps/client/maestro/` (selectors are testIDs, which React Native exposes as the
 Android resource id, or visible text) and add a `run_flow` line to `run-ci.sh`. Keep names of screenshots unique
 across flows; they are collected into one folder. When the renderers land, the author of #230 part 2 gives the
 gallery's Scroll section the testID above and extends `scroll-blocks.yaml` with one assertion per block type.
+
+## What the first runs found
+
+- **The release bundle did not compile with Hermes.** Metro bundled the app, then `hermesc` rejected
+  `async (...[input, options2 = {}]) =>` in `@orpc/client` ("invalid destructuring target"): Expo's Hermes profile
+  leaves parameters alone, so no Android release build of the app could be produced. `apps/client/babel.config.js`
+  (Expo's own preset plus `@babel/plugin-transform-parameters`) fixes it for every platform. It was a product
+  defect, not a lane defect, and no Android release build had been made before this lane.
+- **Generated files may lack a final newline.** Appending Gradle properties glued the first appended line onto
+  `expo.inlineModules.watchedDirectories=[]`, which `:expo:generateInlineModules` parses as JSON. The workflow starts
+  its appends on a new line.
+- **Maestro keeps `console.log` out of its console output.** A flow that skips itself is recognised from Maestro's
+  own per-flow `maestro.log`, which records the command that ran.
 
 ## What it proves, and what it cannot
 

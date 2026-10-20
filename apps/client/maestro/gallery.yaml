@@ -23,18 +23,31 @@ tags:
 - takeScreenshot: gallery-01-top
 - scrollUntilVisible:
     element: Pressed toggles
+    centerElement: true
     timeout: 90000
 - takeScreenshot: gallery-02-toggles
 - scrollUntilVisible:
     element: Banner
+    centerElement: true
     timeout: 90000
 - takeScreenshot: gallery-03-banner
 - scrollUntilVisible:
     element: Bottom sheet and scrim
+    centerElement: true
     timeout: 90000
 - takeScreenshot: gallery-04-sheet
+# The sheet is an overlay, not a history entry: the system Back closes only the sheet, not the gallery.
+- tapOn: Open a sheet
+- assertVisible: An overlay, not a history entry.*
+- takeScreenshot: gallery-04b-sheet-open
+- back
+- assertNotVisible: An overlay, not a history entry.*
+- assertVisible:
+    id: ks-component-gallery
+- takeScreenshot: gallery-04c-sheet-closed-by-back
 - scrollUntilVisible:
     element: Type scale
+    centerElement: true
     timeout: 90000
 - takeScreenshot: gallery-05-type-scale
 # The gallery is a screen pushed over the tabs: Back returns to the shell.
