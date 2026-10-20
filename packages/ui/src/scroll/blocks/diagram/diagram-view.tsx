@@ -75,7 +75,7 @@ export function DiagramView({ block }: { readonly block: Block }) {
 
   const choose = (frame: string, kind: 'step' | 'drag' | 'control') => {
     handle.setState({ type: 'diagram', frame });
-    context.report(block.id, kind);
+    context.report(block.id, 'diagram', kind === 'drag' ? 'token-dropped' : 'frame-changed');
   };
   const gesture = useDragGesture({
     enabled: drag !== null,
@@ -219,7 +219,7 @@ export function DiagramView({ block }: { readonly block: Block }) {
             disabled={atStart}
             onPress={() => {
               handle.reset();
-              context.report(block.id, 'control');
+              context.report(block.id, 'diagram', 'reset');
             }}
           />
         )}
@@ -231,7 +231,7 @@ export function DiagramView({ block }: { readonly block: Block }) {
             toggled={described}
             onPress={() => {
               setDescribed((value) => !value);
-              context.report(block.id, 'text_version');
+              if (!described) context.report(block.id, 'diagram', 'described');
             }}
           />
         )}

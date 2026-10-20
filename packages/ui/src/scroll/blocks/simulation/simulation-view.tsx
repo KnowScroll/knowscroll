@@ -123,10 +123,10 @@ export function SimulationView({ block }: { readonly block: BlockOfType<'simulat
 
   const defaults = resolveParams(data);
   const atDefaults = data.params.every((param) => shownParams[param.key] === defaults[param.key]);
-  const commit = (param: SimulationParam, value: number, how: 'drag' | 'control') => {
+  const commit = (param: SimulationParam, value: number) => {
     setDrag(null);
     handle.setState({ type: 'simulation', params: { ...shownParams, [param.key]: value } });
-    context.report(block.id, how === 'drag' ? 'drag' : 'control');
+    context.report(block.id, 'simulation', 'param-changed');
   };
   const textual = context.textVersion;
   const sentence = !usable || data.readout === undefined ? null : renderTemplate(data.readout.template, data, values);
@@ -158,7 +158,7 @@ export function SimulationView({ block }: { readonly block: BlockOfType<'simulat
           value={shownParams[param.key] ?? param.default}
           textVersion={textual}
           onPreview={(value) => setDrag({ key: param.key, value })}
-          onCommit={(value, how) => commit(param, value, how)}
+          onCommit={(value) => commit(param, value)}
           onDragging={setDragging}
         />
       ))}
@@ -199,7 +199,7 @@ export function SimulationView({ block }: { readonly block: BlockOfType<'simulat
           onPress={() => {
             handle.reset();
             setDrag(null);
-            context.report(block.id, 'control');
+            context.report(block.id, 'simulation', 'reset');
           }}
         />
       </BlockActions>

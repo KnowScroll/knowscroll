@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { render } from '@testing-library/react-native';
-import type { Block, ScrollDocument } from '@knowscroll/scroll-model';
+import { INTERACTION_KINDS, type Block, type ScrollDocument } from '@knowscroll/scroll-model';
 import { DisplayProvider, type Display } from '../display/display';
 import { scrollFixture, section } from '../scroll/fixtures/build';
 import type { ScrollDiagnostics, ScrollReadingObserver } from '../scroll/observer';
@@ -32,7 +32,12 @@ export function ready(document: ScrollDocument): ScrollDocument {
 export function observerDouble() {
   return {
     onBlockVisibility: jest.fn(),
-    onBlockInteraction: jest.fn(),
+    onBlockInteraction: jest.fn(
+      (event: { blockId: string; blockType: keyof typeof INTERACTION_KINDS; kind: string; at: number }) => {
+        expect(INTERACTION_KINDS[event.blockType] as readonly string[]).toContain(event.kind);
+        expect(Object.keys(event).sort()).toEqual(['at', 'blockId', 'blockType', 'kind']);
+      },
+    ),
     onActivity: jest.fn(),
   } satisfies ScrollReadingObserver;
 }

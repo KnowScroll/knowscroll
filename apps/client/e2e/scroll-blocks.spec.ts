@@ -78,7 +78,7 @@ test('a drag moves the slider live, keeps the value on release and reports one d
   const kinds = (await events(page)).interactions
     .filter((entry) => entry.blockId === 'sim-pendulum')
     .map((entry) => entry.kind);
-  expect(kinds).toEqual(['drag', 'control']);
+  expect(kinds).toEqual(['param-changed', 'param-changed']);
 });
 
 test('the notice is always there, and Reset puts the slider back', async ({ page }) => {
@@ -145,7 +145,7 @@ test('the token drags onto a target and chooses its frame; anywhere else changes
   const kinds = (await events(page)).interactions
     .filter((entry) => entry.blockId === 'diagram-weight')
     .map((entry) => entry.kind);
-  expect(kinds).toEqual(['drag', 'control', 'control']);
+  expect(kinds).toEqual(['token-dropped', 'frame-changed', 'reset']);
 });
 
 test('the stepper steps, the chart gives its table, and Describe gives a diagram in words', async ({ page }) => {

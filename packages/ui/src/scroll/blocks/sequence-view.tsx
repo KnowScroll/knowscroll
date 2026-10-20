@@ -52,7 +52,7 @@ export function SequenceView({ block }: { readonly block: BlockOfType<'sequence'
     const target = steps[next];
     if (target === undefined) return;
     handle.setState({ type: 'sequence', step: target.id });
-    context.report(block.id, 'step');
+    context.report(block.id, 'sequence', 'step-changed');
   };
 
   if (context.textVersion) {
@@ -104,7 +104,7 @@ export function SequenceView({ block }: { readonly block: BlockOfType<'sequence'
           disabled={index === 0}
           onPress={() => {
             handle.reset();
-            context.report(block.id, 'control');
+            context.report(block.id, 'sequence', 'step-changed');
           }}
         />
       </BlockActions>

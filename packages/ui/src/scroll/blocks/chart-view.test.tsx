@@ -49,7 +49,8 @@ describe('a chart', () => {
     ).toHaveLength(0);
     expect(watcher.onBlockInteraction).toHaveBeenCalledWith({
       blockId: 'chart-designs',
-      kind: 'text_version',
+      blockType: 'chart',
+      kind: 'text-version-opened',
       at: anyNumber,
     });
 

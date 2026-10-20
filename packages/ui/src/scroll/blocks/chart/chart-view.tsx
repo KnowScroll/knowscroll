@@ -77,7 +77,7 @@ export function ChartView({ block }: { readonly block: BlockOfType<'chart'> }) {
             toggled={asTable}
             onPress={() => {
               setAsTable((value) => !value);
-              context.report(block.id, 'text_version');
+              if (!table) context.report(block.id, 'chart', 'text-version-opened');
             }}
           />
         </BlockActions>

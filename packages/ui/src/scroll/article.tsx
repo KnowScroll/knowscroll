@@ -156,7 +156,17 @@ function ScrollArticleBody({
       retried,
       renderNested: renderNestedBlock,
     }),
-    [document.assetId, document.revision, store, carryOverBlockIds, textVersion, renderMedia, report, diagnose, retried],
+    [
+      document.assetId,
+      document.revision,
+      store,
+      carryOverBlockIds,
+      textVersion,
+      renderMedia,
+      report,
+      diagnose,
+      retried,
+    ],
   );
 
   const hasVisualBlocks = useMemo(() => {

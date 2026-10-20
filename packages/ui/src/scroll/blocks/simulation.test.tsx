@@ -66,7 +66,8 @@ describe('a simulation with a slider', () => {
     expect(store.get(key('sim-pendulum'))).toEqual({ type: 'simulation', params: { length: 1.25 } });
     expect(watcher.onBlockInteraction).toHaveBeenCalledWith({
       blockId: 'sim-pendulum',
-      kind: 'control',
+      blockType: 'simulation',
+      kind: 'param-changed',
       at: anyNumber,
     });
 
@@ -128,7 +129,7 @@ describe('a simulation with a slider', () => {
 
     expect(store.get(key('sim-pendulum'))).toEqual({ type: 'simulation', params: { length: 4 } });
     const kinds = watcher.onBlockInteraction.mock.calls.map(([entry]: [{ kind: string }]) => entry.kind);
-    expect(kinds).toEqual(['drag']);
+    expect(kinds).toEqual(['param-changed']);
   });
 
   it('starts over on Reset, which is off while the block is at its start', async () => {

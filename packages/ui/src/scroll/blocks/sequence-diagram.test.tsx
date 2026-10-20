@@ -46,7 +46,12 @@ describe('a stepper', () => {
     expect(screen.getByText('Step 2 of 4')).toBeOnTheScreen();
     expect(screen.getByText('Choose the shape')).toBeOnTheScreen();
     expect(store.get(seqKey)).toEqual({ type: 'sequence', step: 'st-shape' });
-    expect(watcher.onBlockInteraction).toHaveBeenCalledWith({ blockId: 'seq-size', kind: 'step', at: anyNumber });
+    expect(watcher.onBlockInteraction).toHaveBeenCalledWith({
+      blockId: 'seq-size',
+      blockType: 'sequence',
+      kind: 'step-changed',
+      at: anyNumber,
+    });
 
     await fireEvent.press(screen.getByRole('button', { name: 'Previous' }));
     expect(screen.getByText('Step 1 of 4')).toBeOnTheScreen();
@@ -84,7 +89,8 @@ describe('a stepper', () => {
     expect(store.get(seqKey)).toBeNull();
     expect(watcher.onBlockInteraction).toHaveBeenLastCalledWith({
       blockId: 'seq-size',
-      kind: 'control',
+      blockType: 'sequence',
+      kind: 'step-changed',
       at: anyNumber,
     });
   });
@@ -123,7 +129,12 @@ describe('a stepped diagram', () => {
     expect(block.getByText(/The cables pull on the towers/)).toBeOnTheScreen();
     expect(block.getByText('Step 2 of 3')).toBeOnTheScreen();
     expect(store.get(key)).toEqual({ type: 'diagram', frame: 'f-towers' });
-    expect(watcher.onBlockInteraction).toHaveBeenCalledWith({ blockId: 'diagram-load', kind: 'step', at: anyNumber });
+    expect(watcher.onBlockInteraction).toHaveBeenCalledWith({
+      blockId: 'diagram-load',
+      blockType: 'diagram',
+      kind: 'frame-changed',
+      at: anyNumber,
+    });
     expect(block.getByRole('button', { name: 'Reset' })).toBeEnabled();
 
     await fireEvent.press(block.getByRole('button', { name: 'Reset' }));
@@ -154,7 +165,8 @@ describe('a stepped diagram', () => {
     expect(block.getByText('Towers → Ground')).toBeOnTheScreen();
     expect(watcher.onBlockInteraction).toHaveBeenCalledWith({
       blockId: 'diagram-load',
-      kind: 'text_version',
+      blockType: 'diagram',
+      kind: 'described',
       at: anyNumber,
     });
 
@@ -193,7 +205,12 @@ describe('a diagram with a button per frame', () => {
     expectPressed(block.getByRole('togglebutton', { name: 'Build' }), true);
     expectPressed(block.getByRole('togglebutton', { name: 'Plan' }), false);
     expect(block.getByText(/Parts are made and put in place/)).toBeOnTheScreen();
-    expect(watcher.onBlockInteraction).toHaveBeenCalledWith({ blockId: 'diagram-cycle', kind: 'step', at: anyNumber });
+    expect(watcher.onBlockInteraction).toHaveBeenCalledWith({
+      blockId: 'diagram-cycle',
+      blockType: 'diagram',
+      kind: 'frame-changed',
+      at: anyNumber,
+    });
   });
 });
 
@@ -257,7 +274,12 @@ describe('a diagram that drags', () => {
       type: 'diagram',
       frame: 'f-left',
     });
-    expect(watcher.onBlockInteraction).toHaveBeenCalledWith({ blockId: 'diagram-weight', kind: 'drag', at: anyNumber });
+    expect(watcher.onBlockInteraction).toHaveBeenCalledWith({
+      blockId: 'diagram-weight',
+      blockType: 'diagram',
+      kind: 'token-dropped',
+      at: anyNumber,
+    });
   });
 
   it('changes nothing when the token is dropped anywhere else', async () => {
@@ -290,7 +312,8 @@ describe('a diagram that drags', () => {
     expectPressed(view.getByRole('togglebutton', { name: 'Toward Right pier' }), true);
     expect(watcher.onBlockInteraction).toHaveBeenCalledWith({
       blockId: 'diagram-weight',
-      kind: 'control',
+      blockType: 'diagram',
+      kind: 'frame-changed',
       at: anyNumber,
     });
   });
