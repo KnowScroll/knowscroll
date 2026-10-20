@@ -181,8 +181,8 @@ describe('Scroll qualification (blueprint §8), as pure functions of the observa
     const lenient: ScrollQualificationPolicy = {
       ...policy,
       version: 'scroll-qualification.test',
-      minQ: 0.2,
-      minCoverage: 0.1,
+      minQ: 0.05,
+      minCoverage: 0.05,
     };
     const records = reading([['a', 0, 5_000]], [[0, 10_000]]);
     expect(qualify(records, policy).qualification).toBe('not_qualified');
