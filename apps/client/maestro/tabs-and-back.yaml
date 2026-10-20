@@ -1,0 +1,51 @@
+# Tab switching, and Android Back from a pushed screen (the account stack opened from the avatar).
+# Back follows the person's own history (backBehavior="history"), and the on-screen Back names where it goes.
+appId: com.knowscroll.client
+name: Tab switching and Android Back
+tags:
+  - shell
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      id: destination-explore
+    timeout: 120000
+- tapOn:
+    id: destination-universe
+- assertVisible: Your universe starts quiet.
+- takeScreenshot: tabs-01-universe
+- tapOn:
+    id: destination-conversations
+- assertVisible: No conversations yet
+- takeScreenshot: tabs-02-talk
+- tapOn:
+    id: destination-saved
+- assertVisible: Nothing kept yet
+- takeScreenshot: tabs-03-keep
+- tapOn:
+    id: destination-explore
+- assertVisible: Nothing is ready to play yet.
+- takeScreenshot: tabs-04-explore
+# From Keep, the avatar pushes the account screen; its Back is named for the tab it returns to.
+- tapOn:
+    id: destination-saved
+- assertVisible: Nothing kept yet
+- tapOn:
+    id: account-button
+- assertVisible: Back to Keep
+- assertVisible: You're not signed in
+- takeScreenshot: back-01-account-pushed
+# The system Back returns to Keep, not to the app's start tab.
+- back
+- assertVisible: Nothing kept yet
+- takeScreenshot: back-02-after-system-back
+# The on-screen Back does the same.
+- tapOn:
+    id: account-button
+- assertVisible: Back to Keep
+- tapOn: Back to Keep
+- assertVisible: Nothing kept yet
+- assertVisible:
+    id: destination-saved

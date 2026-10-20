@@ -1,0 +1,29 @@
+# Cold start, signed out (native sign-in binding is off on every world, D-022): the four-tab shell.
+appId: com.knowscroll.client
+name: Cold start shows the four-tab shell
+tags:
+  - shell
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+# Fonts load and the session is read (no stored token: signed out, no network wait) before anything renders.
+- extendedWaitUntil:
+    visible:
+      id: destination-explore
+    timeout: 120000
+- assertVisible:
+    id: destination-universe
+- assertVisible:
+    id: destination-conversations
+- assertVisible:
+    id: destination-saved
+- assertVisible: Explore
+- assertVisible: Universe
+- assertVisible: Talk
+- assertVisible: Keep
+# Explore is the first tab: the honest empty state (no starter content exists before the thin journey).
+- assertVisible: Nothing is ready to play yet.
+- assertVisible:
+    id: account-button
+- takeScreenshot: shell-01-cold-start

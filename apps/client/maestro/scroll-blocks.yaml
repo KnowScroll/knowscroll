@@ -1,0 +1,40 @@
+# Scroll blocks in the gallery. Placeholder until the Scroll renderers land (#230 part 2): that PR adds a
+# gallery section whose root has testID "gallery-scroll-blocks". Until then this flow finds nothing, says so
+# with a KS-LANE-SKIP line (run-ci.sh reports the flow as skipped, never as passed) and checks nothing.
+# When the section exists, the flow opens it and takes a screenshot; extend it with one assertion per block
+# type the renderers draw.
+appId: com.knowscroll.client
+name: Scroll blocks in the gallery
+tags:
+  - gallery
+  - scroll-blocks
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      id: destination-explore
+    timeout: 120000
+- openLink: knowscroll://gallery
+- extendedWaitUntil:
+    visible:
+      id: ks-component-gallery
+    timeout: 60000
+- scrollUntilVisible:
+    element:
+      id: gallery-scroll-blocks
+    timeout: 90000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: gallery-scroll-blocks
+    commands:
+      - takeScreenshot: scroll-blocks-01-section
+- runFlow:
+    when:
+      notVisible:
+        id: gallery-scroll-blocks
+    commands:
+      - evalScript: ${console.log('KS-LANE-SKIP scroll-blocks - the gallery has no element with testID gallery-scroll-blocks yet (Scroll renderers, #230)')}
