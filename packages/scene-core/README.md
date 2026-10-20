@@ -55,8 +55,11 @@ hypothetical framing. No frame loop or model call is needed.
 
 Chunk references contain only IDs/revisions, not fetch URLs. A manifest can be
 empty and a chunk can contain zero objects; parsing never creates a placeholder
-planet. Geography, structure, activity, scene and personal revisions are separate
-watermarks, with no artificial equality or ordering across independent domains.
+planet. Geography, structure, activity and scene revisions are separate watermarks, with no
+artificial equality or ordering across independent domains. `personalRevision` is the
+personal-root watermark read with the Geography input used by this projection. It is
+not a Personal Context projection revision or the current root watermark; within the
+same scope it cannot exceed the current root watermark.
 A chunk reference's scene revision belongs to that immutable chunk. Local parent
 hierarchy and duplicate identity are guarded; parents and route endpoints may
 live in another permitted chunk. The projector must validate cross-chunk
@@ -86,3 +89,13 @@ identity/anchor stability after unrelated arrivals, family/seed variation,
 strict bounds/refusal, exact returns, finite generation, input ownership,
 empty scenes, independent activity/framing and CSP. Automated suites run only
 in GitHub Actions, as required by AGENTS.md.
+
+## Structural wire documentation
+
+The public `SceneDescriptorJsonSchema`, `SceneChunkJsonSchema`, `SceneManifestJsonSchema`
+and `SceneReturnLocatorJsonSchema` describe the JSON structure for OpenAPI consumers.
+They stay here beside the canonical parsers, without runtime dependencies. They are
+documentation, not a replacement validator: cross-field identity, hierarchy, unique
+object/chunk/route identities, label safety, total UTF-8/escape-byte/node/depth limits
+and hostile host-object refusal remain parser authority. Wire adapters delegate to
+`safeParse` and attach this metadata through their documented schema converter API.

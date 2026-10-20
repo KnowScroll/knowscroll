@@ -6,6 +6,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 
 | File | Contents |
 |---|---|
+| `src/scenes.ts` | Canonical scene re-exports/validation wrappers, capability negotiation, scoped read-only manifest/chunk declarations |
 | `src/problems.ts` | `problemCatalogue` (code → HTTP status, fixed title), RFC 9457 `ProblemDetailsSchema`, `problemDetails()` |
 | `src/health.ts` | `GET /health` response and contract |
 | `src/identity.ts` | `/auth/*` sign-in and session routes, the link and session token shapes, the session cookie names (D-022) |
@@ -228,8 +229,8 @@ Rules:
 - A problem code never changes meaning; a new meaning gets a new code. Codes double as
   `reasonCode` in diagnostics.
 - Job payloads, model outputs and internal projections are backend-local and never live here.
-- Allowed imports: `zod`, `@orpc/contract` and the public entry of `@knowscroll/scroll-model`
-  only (enforced by dependency-cruiser, `contracts-are-wire-only`).
+- Allowed imports: `zod`, `@orpc/contract` and the public entries of
+  `@knowscroll/scroll-model` and `@knowscroll/scene-core` only (enforced by dependency-cruiser, `contracts-are-wire-only`).
 - `src/openapi.test.ts` covers every route, direct/Composer unions and RFC 9457 errors.
 - `src/navigation.test.ts` covers compatibility, intent fencing, bounded public metadata, distinct
   pending/exhausted states and downgrade refusal. Automated suites run in GitHub Actions only.
@@ -240,3 +241,99 @@ Rules:
 Build: `tsc -p tsconfig.build.json` → `dist/`. Inside the workspace, TypeScript, Vitest and
 dependency-cruiser read the sources through the `@knowscroll/source` export condition
 (`docs/v2/engineering/workspace.md`).
+
+## Scene HTTP prerequisite (#238)
+
+`POST /v1/universe/scenes/manifest/read` and
+`POST /v1/universe/scenes/chunks/read` declare bounded, read-only **own-universe**
+scene reads. POST preserves one strict JSON selector/capability/reference shape,
+consistent with Geography reads. They are declarations only: no API controller,
+projection worker, renderer, browser/native journey or deployment acceptance is
+implemented here. Reads must not enqueue projection, formation or model work.
+
+`SceneDescriptorSchema`, `SceneChunkSchema`, `SceneManifestSchema`,
+`SceneReturnLocatorSchema` and their TypeScript types are canonical scene-core
+re-exports. The `*WireSchema` Zod wrappers call those exact `safeParse` guards,
+without transforms or a second scene DSL. Successful values retain their JSON
+shape. Untrusted raw scene JSON should still use the core `parseJson` entry to
+check UTF-8 bytes before native JSON parsing; the HTTP adapter must enforce its
+body ceiling before decoding. The core guards retain total byte/depth/node caps,
+strict nested keys, plain host-object checks, non-executable data and stable
+identity/hierarchy constraints. Wire validation establishes no access authority.
+
+`SceneClientCapabilitiesSchema` advertises unique bounded version lists for
+manifest/chunk/descriptor/generator/family support, plus `full`/`low` detail and
+reduced motion. Unknown bounded versions can be parsed and receive
+`unsupported_version` with no scene payload. This first protocol requires the
+v1 manifest, chunk and descriptor, `silhouette.v1` and all three current families;
+it never substitutes a different generator/family to make a scene render.
+Rendering quality changes preserve object/family/generator/seed/anchor/target,
+truth and activity identities. Responses echo the exact selector and capability
+advertisement; the future adapter and AccountScope consumer must compare them to
+the initiating read. Extra supported version strings do not authorise new output.
+
+Every response separates the current authorised universe/epoch/root
+`personalWatermark`, current committed `currentGeography` stamps and current
+`sceneRevision`. The canonical manifest/chunk revisions describe projection
+**inputs**: geography/structure/activity stamps, the scene's own publication
+revision, and `personalRevision` (the personal-root watermark read with that
+projection input, not a Personal Context revision). Within the same scope,
+projection inputs cannot exceed their corresponding current stamps; no number
+is compared across unrelated revision domains. Consumers fence by their existing
+AccountScope, universe and epoch, retain the highest current personal/Geography/
+scene stamps independently, and refuse regressions or responses to an obsolete
+read. New personal activity alone does not prove that Geography or scenes changed.
+
+`empty` contains an actual empty canonical manifest, without placeholder worlds.
+`ready` contains a nonempty current manifest. `loading` contains no manifest and
+requires an actual pending projector target. `lagging` retains the last valid
+manifest and requires a newer pending geography/root input. The future backend
+must verify real queued work; wire declarations cannot prove a job exists.
+Pending targets cannot name uncommitted future input. `unavailable` carries only
+fixed coarse reasons (`temporarily_unavailable` or `limit`), never provider text.
+These states make no promise of formation, coverage, mastery, ETA or progress.
+
+A chunk read binds universe/epoch, selection, exact `manifestSceneRevision`,
+`chunkId`, `chunkSceneRevision` and the capability advertisement. Chunk revisions
+may be older than the current manifest revision when that immutable chunk is
+still referenced. The future adapter must recheck current session, first-party
+origin, `X-KS-Scope`, current epoch, manifest membership, selection and
+capabilities under the owning scope. A guessed universe/chunk/revision never
+grants permission. An expired manifest or unknown chunk returns `unavailable`
+with `stale_manifest`/`unknown_chunk` and **no chunk payload**, never an arbitrary
+historical chunk or silent downgrade. A valid chunk may contain zero objects;
+its read never invents them. Account IDs, owner selection, visits/public sharing,
+private evidence/scores, model/provider fields and executable HTML/SVG/asset URLs
+have no slots on these contracts.
+
+`SceneReturnLocator` is private client navigation metadata, including exact
+bounded coordinates, scale and optional object focus. It is not sent by either
+HTTP route, never a shown/skipped acknowledgement, formation authority or durable
+receipt. AccountScope must purge both private cached scenes and return locators
+on account switch, logout and privacy reset. No acknowledgement route is declared.
+
+### OpenAPI generation
+
+Scene-core owns the structural `*JsonSchema` metadata too. Cross-field and
+host-object invariants remain the canonical parser's responsibility; structural
+metadata is not an alternative validator. The supported Zod converter requires
+an interceptor for the custom wrappers. At the **dev/server OpenAPI generation
+boundary**, configure it as below (as exercised for every route in
+`src/openapi.test.ts`). There is no served OpenAPI generator yet. Shared clients
+import no OpenAPI generator or converter registry at runtime.
+
+```ts
+const converter = new ZodToJsonSchemaConverter({
+  interceptors: [(options) => {
+    const scene = sceneWireJsonSchemas.find((entry) => entry.schema === options.schema);
+    return scene ? [true, scene.jsonSchema] : options.next();
+  }],
+});
+```
+
+`sceneWireJsonSchemas` maps exact Zod wrapper identities to canonical metadata;
+it copies no descriptor fields. This uses the converter's supported interceptor
+API: default conversion of a Zod custom validator would otherwise be an
+unrepresentable schema. `scenes.test.ts` and core metadata tests are synthetic
+protocol fixtures only, run by GitHub Actions. No database, real-world projection,
+rendered world, native performance, provider budget or completed #238 is claimed.

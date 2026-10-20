@@ -8,11 +8,24 @@ import {
   apiContract,
   problemCatalogue,
   scopeClaimOf,
+  sceneWireJsonSchemas,
 } from './index.js';
+
+// Supported converter interception keeps canonical scene metadata out of shared runtime imports.
+function makeSchemaConverter(): ZodToJsonSchemaConverter {
+  return new ZodToJsonSchemaConverter({
+    interceptors: [
+      (options) => {
+        const scene = sceneWireJsonSchemas.find((entry) => entry.schema === options.schema);
+        return scene ? [true, scene.jsonSchema] : options.next();
+      },
+    ],
+  });
+}
 
 describe('the API contract', () => {
   it('generates an OpenAPI document with every route and the RFC 9457 problem schema', async () => {
-    const generator = new OpenAPIGenerator({ schemaConverters: [new ZodToJsonSchemaConverter()] });
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
     const document = await generator.generate(apiContract, {
       info: { title: 'KnowScroll API', version: '1' },
       commonSchemas: { ProblemDetails: { schema: ProblemDetailsSchema, strategy: 'output' } },
@@ -20,6 +33,8 @@ describe('the API contract', () => {
 
     const routes = [
       apiContract.health,
+      apiContract.scenes.manifest,
+      apiContract.scenes.chunk,
       apiContract.geography.read,
       apiContract.geography.deltas,
       apiContract.media.grant,
@@ -55,7 +70,7 @@ describe('the API contract', () => {
   });
 
   it('describes direct and Composer shapes through one open and one activate route', async () => {
-    const generator = new OpenAPIGenerator({ schemaConverters: [new ZodToJsonSchemaConverter()] });
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
     const document = await generator.generate(apiContract, { info: { title: 'KnowScroll API', version: '1' } });
     const open = JSON.stringify(document.paths?.['/v1/experience/open']);
     const activate = JSON.stringify(document.paths?.['/v1/experience/activate']);
@@ -103,7 +118,7 @@ describe('the API contract', () => {
   });
 
   it('declares private request commands separately from current status without granting encounter authority', async () => {
-    const generator = new OpenAPIGenerator({ schemaConverters: [new ZodToJsonSchemaConverter()] });
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
     const document = await generator.generate(apiContract, { info: { title: 'KnowScroll API', version: '1' } });
     const create = document.paths?.['/v1/content/requests']?.post;
     const read = document.paths?.['/v1/content/requests/{requestId}']?.get;
@@ -140,7 +155,7 @@ describe('the API contract', () => {
   });
 
   it('describes bounded read-only geography bodies without a cartography command or caller authority', async () => {
-    const generator = new OpenAPIGenerator({ schemaConverters: [new ZodToJsonSchemaConverter()] });
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
     const document = await generator.generate(apiContract, { info: { title: 'KnowScroll API', version: '1' } });
     const snapshot = document.paths?.['/v1/universe/geography/read']?.post;
     const deltas = document.paths?.['/v1/universe/geography/deltas/read']?.post;
@@ -172,6 +187,81 @@ describe('the API contract', () => {
     for (const wire of [result, changes])
       for (const field of ['observations', 'evidenceRefs', 'provider', 'prompt', 'draftVersion', 'score', 'seed'])
         expect(wire).not.toContain(`"${field}"`);
+  });
+
+  it('enumerates canonical scene descriptors and bounded own-scope reads through the supported converter', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const document = await generator.generate(apiContract, { info: { title: 'KnowScroll API', version: '1' } });
+    const manifest = document.paths?.['/v1/universe/scenes/manifest/read']?.post;
+    const chunk = document.paths?.['/v1/universe/scenes/chunks/read']?.post;
+    for (const route of [manifest, chunk]) {
+      expect(route?.requestBody).toBeDefined();
+      expect(route?.responses?.['200']).toBeDefined();
+      const input = JSON.stringify(route?.requestBody);
+      for (const field of [
+        'selection',
+        'capabilities',
+        'descriptors',
+        'generators',
+        'families',
+        'reducedMotion',
+        'detail',
+      ])
+        expect(input).toContain(field);
+      for (const field of ['accountId', 'ownerId', 'commandId', 'shown', 'skipped', 'returnLocator'])
+        expect(input).not.toContain(`"${field}"`);
+    }
+    const manifestWire = JSON.stringify(manifest?.responses?.['200']);
+    for (const field of [
+      'empty',
+      'loading',
+      'lagging',
+      'ready',
+      'unavailable',
+      'unsupported_version',
+      'pendingProjection',
+      'scope',
+      'privacyEpoch',
+      'personalWatermark',
+      'currentGeography',
+      'scene-manifest.v1',
+      'objectIds',
+    ])
+      expect(manifestWire).toContain(field);
+    const chunkWire = JSON.stringify(chunk?.responses?.['200']);
+    for (const field of [
+      'stale_manifest',
+      'unknown_chunk',
+      'manifestSceneRevision',
+      'chunkSceneRevision',
+      'scene-chunk.v1',
+      'scene-descriptor.v1',
+      'silhouette.v1',
+      'terraced.v1',
+      'ridged.v1',
+      'archipelago.v1',
+      'anchor',
+      'target',
+      'originTransitionId',
+      'truthStatus',
+      'activity',
+      'roughness',
+      'density',
+      'seed',
+      'routes',
+    ])
+      expect(chunkWire).toContain(field);
+    expect(chunkWire).not.toContain('"not":{}');
+    for (const wire of [manifestWire, chunkWire])
+      for (const field of ['evidenceRefs', 'score', 'sources', 'provider', 'prompt', 'assetUrl', 'svg', 'html'])
+        expect(wire).not.toContain(`"${field}"`);
+    const [, metadata] = makeSchemaConverter().convert(sceneWireJsonSchemas[0]!.schema, { strategy: 'output' });
+    expect(metadata).toEqual(sceneWireJsonSchemas[0]!.jsonSchema);
+    expect(metadata).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: expect.arrayContaining(['schemaVersion', 'family', 'seed', 'anchor', 'target']) as unknown,
+    });
   });
 
   it('names a scope by account and privacy epoch, refused with a 409 problem', () => {

@@ -26,3 +26,12 @@ export {
 export type { SceneSchema } from './parse.js';
 export { buildSceneGeometry } from './geometry.js';
 export type { SceneGeometryOptions } from './geometry.js';
+
+export {
+  SceneDescriptorJsonSchema,
+  SceneChunkJsonSchema,
+  SceneManifestJsonSchema,
+  SceneReturnLocatorJsonSchema,
+} from './json-schema.js';
+
+export type { SceneJsonSchema } from './json-schema.js';

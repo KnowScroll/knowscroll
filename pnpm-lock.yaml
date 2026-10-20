@@ -574,6 +574,9 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@knowscroll/scene-core':
+        specifier: workspace:*
+        version: link:../scene-core
       '@knowscroll/scroll-model':
         specifier: workspace:*
         version: link:../scroll-model

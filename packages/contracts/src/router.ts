@@ -1,3 +1,4 @@
+import { readSceneManifestContract, readSceneChunkContract } from './scenes.js';
 import { readGeographyContract, readUniverseDeltasContract } from './geography.js';
 import { mediaGrantContract } from './media.js';
 import { cancelContentRequestContract, createContentRequestContract, readContentRequestContract } from './supply.js';
@@ -22,6 +23,7 @@ import { evidenceDiagnosticsContract, submitObservationsContract } from './inter
 /** The complete HTTP contract of the KnowScroll API. Every route the API serves is listed here. */
 export const apiContract = {
   health: healthContract,
+  scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract },
   geography: { read: readGeographyContract, deltas: readUniverseDeltasContract },
   media: { grant: mediaGrantContract },
   supply: {
