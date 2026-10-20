@@ -14,9 +14,10 @@ tags:
     timeout: 60000
 - assertVisible: Why bridges stay up
 - takeScreenshot: scroll-01-poster
+# Stop when the control is fully visible. Extra centering can scroll the frame caption
+# above the viewport (native run 39497349337); keep the caption assertion below mandatory.
 - scrollUntilVisible:
     element: Describe this diagram
-    centerElement: true
     timeout: 90000
 - tapOn:
     text: Next
