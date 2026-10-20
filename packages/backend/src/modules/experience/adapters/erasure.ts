@@ -7,6 +7,7 @@ export const experienceErasure: ModuleErasure = {
   tables: [
     { schema: 'experience', table: 'saved_items', ownerColumn: 'universe_id' },
     { schema: 'experience', table: 'actions', ownerColumn: 'universe_id' },
+    { schema: 'experience', table: 'exposures', ownerColumn: 'universe_id' },
   ],
   nonRowStores: [],
   async erase(scope) {
@@ -17,10 +18,14 @@ export const experienceErasure: ModuleErasure = {
       .where('universe_id', '=', universeId)
       .executeTakeFirst();
     const actions = await trx.deleteFrom('experience.actions').where('universe_id', '=', universeId).executeTakeFirst();
+    const exposures = await trx
+      .deleteFrom('experience.exposures')
+      .where('universe_id', '=', universeId)
+      .executeTakeFirst();
     return {
       module: 'experience',
       status: 'completed',
-      removed: Number(saved.numDeletedRows + actions.numDeletedRows),
+      removed: Number(saved.numDeletedRows + actions.numDeletedRows + exposures.numDeletedRows),
     };
   },
 };
