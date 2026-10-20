@@ -1,3 +1,13 @@
+import { canonicalJson, canonicalSha256, utf8ByteLength } from '@knowscroll/scroll-model';
+import { makePrepareObservedCoverage } from '../application/prepare-coverage.js';
+import { readCoverageEvidence, checkCoverageEvidence } from './coverage-store.js';
+import { CHECK_COVERAGE_EVIDENCE } from '../public.js';
+import {
+  READ_ADMITTED_COVERAGE_MAPPING,
+  READ_SCROLL_READING_FACTS,
+  type ReadAdmittedCoverageMapping,
+  type ReadScrollReadingFacts,
+} from '../../content/public.js';
 import { READ_ENCOUNTER_ATTRIBUTION, type ReadEncounterAttribution } from '../../content/public.js';
 import {
   READ_ACTIVITY_LINEAGE,
@@ -45,6 +55,7 @@ export function activityProviders(t: {
 }) {
   if (t.materialChange && !t.derivedProjection) throw new Error('ACTIVITY_MATERIAL_CHANGE_REQUIRES_DERIVED_PROJECTION');
   return [
+    { provide: CHECK_COVERAGE_EVIDENCE, inject: [], useFactory: () => checkCoverageEvidence },
     { provide: READ_RECENT_TOPIC_IDS, inject: [], useFactory: () => readRecentTopicIds },
     { provide: READ_ACTIVITY_STATISTICS, inject: [], useFactory: () => readActivityStatistics },
     { provide: READ_OBSERVATION_TAIL, inject: [], useFactory: () => readObservationTail },
@@ -59,6 +70,8 @@ export function activityProviders(t: {
         READ_ENCOUNTER_ATTRIBUTION,
         READ_ROUTING_HISTORY,
         READ_ACTIVITY_RECONCILE_PAGE,
+        READ_ADMITTED_COVERAGE_MAPPING,
+        READ_SCROLL_READING_FACTS,
         ...(t.derivedProjection ? [t.derivedProjection] : []),
         ...(t.materialChange ? [t.materialChange] : []),
       ],
@@ -71,9 +84,18 @@ export function activityProviders(t: {
         readAttribution: ReadEncounterAttribution,
         readHistory: ReadRoutingHistory,
         readReconcilePage: ReadActivityReconcilePage,
+        readMapping: ReadAdmittedCoverageMapping,
+        readFacts: ReadScrollReadingFacts,
         derived?: ActivityPorts['derived'],
         materialChange?: ActivityPorts['materialChange'],
       ): ActivityPorts => ({
+        prepareCoverage: makePrepareObservedCoverage({
+          readEvidence: readCoverageEvidence,
+          readMapping,
+          readFacts,
+          hash: canonicalSha256,
+          bytes: (value) => utf8ByteLength(canonicalJson(value)),
+        }),
         ...(derived ? { derived } : {}),
         ...(materialChange ? { materialChange } : {}),
         withPersonalScope,

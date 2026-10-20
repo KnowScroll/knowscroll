@@ -1,3 +1,13 @@
+import { CHECK_COVERAGE_EVIDENCE, type CheckCoverageEvidence } from '../../evidence/public.js';
+import {
+  READ_ADMITTED_COVERAGE_MAPPING,
+  LOCK_CURRENT_COVERAGE_AUTHORITIES,
+  type ReadAdmittedCoverageMapping,
+  type LockCurrentCoverageAuthorities,
+} from '../../content/public.js';
+import { makeReadTrustedCoverage } from './read-coverage.js';
+import { makeCoverageActivityContextEffect } from './activity-effect.js';
+import { READ_TRUSTED_COVERAGE } from '../public.js';
 import {
   READ_ACTIVITY_STATISTICS,
   READ_OBSERVATION_TAIL,
@@ -19,7 +29,6 @@ import {
   READ_COMPOSER_CONTEXT,
 } from '../public.js';
 import { applyProjectedEncounter, readContextRevision, readStructure } from './postgres-store.js';
-import { activityContextEffect } from './activity-effect.js';
 export function personalContextProviders() {
   return [
     {
@@ -32,7 +41,24 @@ export function personalContextProviders() {
       inject: [READ_RECENT_TOPIC_IDS],
       useFactory: (read: ReadRecentTopicIds) => read,
     },
-    { provide: ACTIVITY_CONTEXT_EFFECT, inject: [], useFactory: () => activityContextEffect },
+    {
+      provide: ACTIVITY_CONTEXT_EFFECT,
+      inject: [CHECK_COVERAGE_EVIDENCE, READ_ADMITTED_COVERAGE_MAPPING, LOCK_CURRENT_COVERAGE_AUTHORITIES],
+      useFactory: (
+        checkEvidence: CheckCoverageEvidence,
+        readMapping: ReadAdmittedCoverageMapping,
+        lockAuthorities: LockCurrentCoverageAuthorities,
+      ) => makeCoverageActivityContextEffect({ checkEvidence, readMapping, lockAuthorities }),
+    },
+    {
+      provide: READ_TRUSTED_COVERAGE,
+      inject: [CHECK_COVERAGE_EVIDENCE, READ_ADMITTED_COVERAGE_MAPPING, LOCK_CURRENT_COVERAGE_AUTHORITIES],
+      useFactory: (
+        checkEvidence: CheckCoverageEvidence,
+        readMapping: ReadAdmittedCoverageMapping,
+        lockAuthorities: LockCurrentCoverageAuthorities,
+      ) => makeReadTrustedCoverage({ checkEvidence, readMapping, lockAuthorities }),
+    },
     { provide: APPLY_PROJECTED_ENCOUNTER, inject: [], useFactory: () => applyProjectedEncounter },
     {
       provide: READ_EXPLORATION_SNAPSHOT,

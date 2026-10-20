@@ -3,6 +3,9 @@ import type { ActivityDerivedEffect, ActivityDerivedInput } from '../../evidence
 import { requestHash } from '../../../infrastructure/receipts/index.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { CONTEXT_POLICY, ContributionSchema, type Contribution } from '../domain/context.js';
+import { applyCoverage, coverageDigest, readStoredCoverage } from './coverage-store.js';
+import type { CoverageDependencies } from '../application/coverage-ports.js';
+import { advanceContextState } from './postgres-store.js';
 import { applyProjectedEncounter } from './postgres-store.js';
 function contribution(x: ActivityDerivedInput): Contribution {
   return ContributionSchema.parse({
@@ -38,3 +41,37 @@ export const activityContextEffect: ActivityDerivedEffect = {
     return r.rows[0]?.input_sha256 === requestHash(CONTEXT_POLICY, next);
   },
 };
+
+/** Shipped required effect. Existing isolated compatibility fixtures may use the legacy effect. */
+export function makeCoverageActivityContextEffect(p: CoverageDependencies): ActivityDerivedEffect {
+  function checked(x: ActivityDerivedInput) {
+    const c = x.coverage;
+    if (
+      !c ||
+      !x.id ||
+      c.exposureId !== x.exposure.exposureId ||
+      c.assetId !== x.exposure.assetId ||
+      c.assetRevision !== x.exposure.assetRevision ||
+      c.explanationUnitId !== x.metadata.explanationUnitId ||
+      (c.evidence?.revision ?? 0) !== x.inputVector.qualificationRevision
+    )
+      throw new Error('PERSONAL_COVERAGE_PROJECTION_INVALID');
+    return { certificate: c, activityId: x.id };
+  }
+  return {
+    async apply(scope, x) {
+      const { certificate, activityId } = checked(x);
+      const legacy = await activityContextEffect.apply(scope, x);
+      const coverage = await applyCoverage(scope, activityId, certificate, p);
+      if (coverage && !legacy) await advanceContextState(scope);
+      return legacy || coverage;
+    },
+    async isCurrent(scope, x) {
+      const { certificate, activityId } = checked(x);
+      return (
+        (await activityContextEffect.isCurrent(scope, x)) &&
+        (await readStoredCoverage(scope, certificate.exposureId))?.digest === coverageDigest(activityId, certificate)
+      );
+    },
+  };
+}

@@ -15,3 +15,9 @@ export const ACTIVITY_CONTEXT_EFFECT = Symbol('personal-context.activityContextE
 export const READ_RECENT_CONTEXT_TOPICS = Symbol('personal-context.readRecentContextTopics');
 /** Implements Composer's existing backend-only prepared-input capability via the context owner. */
 export const READ_COMPOSER_CONTEXT = Symbol('personal-context.readComposerContext');
+
+/** Exact current observed witnesses; raw retained support counts are not geography authority. */
+export { TrustedCoverageQuerySchema } from './domain/coverage.js';
+export type { TrustedCoverageQuery, TrustedCoverageRead } from './domain/coverage.js';
+export type { ReadTrustedCoverage } from './application/coverage-ports.js';
+export const READ_TRUSTED_COVERAGE = Symbol('personal-context.readTrustedCoverage');

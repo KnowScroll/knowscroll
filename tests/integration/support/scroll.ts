@@ -15,12 +15,11 @@ import {
   type ActivityDerivedEffect,
 } from '@knowscroll/backend/modules/evidence';
 import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
-import {
-  personalContextProviders,
-  activityContextEffect,
-} from '@knowscroll/backend/modules/personal-context/nest-providers';
+import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import {
   ACTIVITY_CONTEXT_EFFECT,
+  READ_TRUSTED_COVERAGE,
+  type ReadTrustedCoverage,
   READ_EXPLORATION_SNAPSHOT,
   type ReadExplorationSnapshot,
   type ReadRecentContextTopics,
@@ -29,6 +28,7 @@ import {
 } from '@knowscroll/backend/modules/personal-context';
 import {
   READ_ACTIVITY_STATISTICS,
+  CHECK_COVERAGE_EVIDENCE,
   READ_OBSERVATION_TAIL,
   READ_RECENT_TOPIC_IDS,
 } from '@knowscroll/backend/modules/evidence';
@@ -129,6 +129,7 @@ export async function scrollUseCases(
   readonly readPrepared: ReadPreparedEvidenceInput;
   readonly readComposerContext: ReadPreparedEvidenceInput;
   readonly readExploration: ReadExplorationSnapshot;
+  readonly readTrustedCoverage: ReadTrustedCoverage;
   readonly readRecentTopics: ReadRecentContextTopics;
   readonly importScroll: ImportEditorialScroll;
   readonly openExposure: OpenExposure;
@@ -149,7 +150,7 @@ export async function scrollUseCases(
     [DATABASE, database.db],
     [SCOPE, options.wrapScope ? options.wrapScope(scope) : scope],
     [ENQUEUE, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],
-    [ACTIVITY_CONTEXT_EFFECT, options.activityDerived ?? activityContextEffect],
+    ...(options.activityDerived ? [[ACTIVITY_CONTEXT_EFFECT, options.activityDerived] as [symbol, unknown]] : []),
     ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...experienceEvidenceReadProviders().map((provider) => [provider.provide, provider.useValue] as const),
   ]);
@@ -170,6 +171,8 @@ export async function scrollUseCases(
     ...evidenceProviders({ enqueueJob: ENQUEUE, withPersonalScope: SCOPE }),
   ];
   const build = (token: symbol): unknown => buildFromProviders(providers, token, values);
+  values.set(CHECK_COVERAGE_EVIDENCE, build(CHECK_COVERAGE_EVIDENCE));
+  if (!options.activityDerived) values.set(ACTIVITY_CONTEXT_EFFECT, build(ACTIVITY_CONTEXT_EFFECT));
   const activityPorts = build(ACTIVITY_PORTS);
   values.set(ACTIVITY_PORTS, {
     ...(activityPorts as object),
@@ -194,6 +197,7 @@ export async function scrollUseCases(
     readPrepared: values.get(READ_PREPARED_ACTIVITY) as ReadPreparedEvidenceInput,
     readComposerContext: values.get(READ_COMPOSER_CONTEXT) as ReadPreparedEvidenceInput,
     readExploration: build(READ_EXPLORATION_SNAPSHOT) as ReadExplorationSnapshot,
+    readTrustedCoverage: build(READ_TRUSTED_COVERAGE) as ReadTrustedCoverage,
     readRecentTopics: build(READ_RECENT_CONTEXT_TOPICS) as ReadRecentContextTopics,
     importScroll: importEditorialScrollUseCase(database.db),
     openExposure: build(OPEN_EXPOSURE) as OpenExposure,

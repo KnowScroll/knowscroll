@@ -455,6 +455,37 @@ export interface PersonalContextContributions {
   universe_id: string;
 }
 
+export interface PersonalContextCoverageContributions {
+  activity_id: string;
+  exposure_id: string;
+  input_sha256: string;
+  payload: Json;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
+export interface PersonalContextCoverageReferences {
+  explanation_unit_id: string;
+  exposure_id: string;
+  facet_id: string;
+  meaning_sha256: string;
+  privacy_epoch: number;
+  topic_id: string;
+  truth_sha256: string;
+  universe_id: string;
+}
+
+export interface PersonalContextCoverageSupports {
+  explanation_unit_id: string;
+  facet_id: string;
+  meaning_sha256: string;
+  privacy_epoch: number;
+  reference_count: number;
+  topic_id: string;
+  truth_sha256: string;
+  universe_id: string;
+}
+
 export interface PersonalContextState {
   policy_version: string;
   privacy_epoch: number;
@@ -736,6 +767,9 @@ export interface DB {
   "identity.universes": IdentityUniverses;
   "ops.operator_sign_ins": OpsOperatorSignIns;
   "personal_context.contributions": PersonalContextContributions;
+  "personal_context.coverage_contributions": PersonalContextCoverageContributions;
+  "personal_context.coverage_references": PersonalContextCoverageReferences;
+  "personal_context.coverage_supports": PersonalContextCoverageSupports;
   "personal_context.state": PersonalContextState;
   "personal_context.supports": PersonalContextSupports;
   "personal_context.topics": PersonalContextTopics;
