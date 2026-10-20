@@ -89,6 +89,7 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
       <ScrollArticle
         key={`${scroll.assetId}:${String(scroll.assetRevision)}:${anchorBlockId ?? ''}`}
         store={blockState}
+        testID="scroll-article"
         document={scroll.document}
         observer={observer}
         {...(anchorBlockId === undefined ? {} : { anchorBlockId })}

@@ -214,8 +214,8 @@ describe('projection and §8 qualification of a Scroll reading (real database)',
     await project(person, exposure);
     const [row] = await evidence(person, exposure);
     expect((row?.summary as { interactions: unknown[] }).interactions).toEqual([
-      { blockId: 'violet-eye', interaction: 'expanded' },
       { blockId: 'violet-eye', interaction: 'collapsed' },
+      { blockId: 'violet-eye', interaction: 'expanded' },
     ]);
   });
 
