@@ -48,6 +48,9 @@
     "packages/client-core": {
       "project": ["src/**/*.ts"]
     },
+    "packages/scene-core": {
+      "project": ["src/**/*.ts"]
+    },
     "packages/scroll-model": {
       "project": ["src/**/*.ts"]
     },
