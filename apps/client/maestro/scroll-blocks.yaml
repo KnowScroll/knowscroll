@@ -1,34 +1,77 @@
-# Scroll blocks in the gallery. Placeholder until the Scroll renderers land (#230 part 2): that PR adds a
-# gallery section whose root has testID "gallery-scroll-blocks". Until then this flow finds nothing, says so
-# with a KS-LANE-SKIP line (run-ci.sh reports the flow as skipped, never as passed) and checks nothing.
-# When the section exists, the flow opens it and takes a screenshot; extend it with one assertion per block
-# type the renderers draw.
+# Mandatory renderer fixture journey (#230). This lane has no session and proves no generation,
+# consumption recording or server journey. Missing controls fail the flow; none is optional.
 appId: com.knowscroll.client
-name: Scroll blocks in the gallery
+name: Scroll renderer gestures and text alternatives
 tags:
   - gallery
   - scroll-blocks
 ---
 - runFlow: start-app.yaml
-- openLink: knowscroll://gallery
+- openLink: knowscroll://gallery-scroll
 - extendedWaitUntil:
     visible:
-      id: ks-component-gallery
+      id: ks-scroll-gallery
     timeout: 60000
+- assertVisible: Why bridges stay up
+- takeScreenshot: scroll-01-poster
+- scrollUntilVisible:
+    element: Describe this diagram
+    centerElement: true
+    timeout: 90000
+- tapOn:
+    text: Next
+    enabled: true
+- assertVisible: The towers.*The cables pull on the towers.*
+- tapOn: Describe this diagram
+- assertVisible: Hide description
+- takeScreenshot: scroll-02-diagram-description
+
+- openLink: knowscroll://gallery-scroll?doc=experiments
+- extendedWaitUntil:
+    visible: Small experiments you can run
+    timeout: 30000
 - scrollUntilVisible:
     element:
-      id: gallery-scroll-blocks
+      id: slider-length
+    centerElement: true
     timeout: 90000
-    optional: true
-- runFlow:
-    when:
-      visible:
-        id: gallery-scroll-blocks
-    commands:
-      - takeScreenshot: scroll-blocks-01-section
-- runFlow:
-    when:
-      notVisible:
-        id: gallery-scroll-blocks
-    commands:
-      - evalScript: ${console.log('KS-LANE-SKIP scroll-blocks - the gallery has no element with testID gallery-scroll-blocks yet (Scroll renderers, #230)')}
+# Starts on the actual native slider. Horizontal ownership must survive through release.
+- swipe:
+    from:
+      id: slider-length
+    direction: RIGHT
+    duration: 1000
+- assertVisible: A 4.00 m string swings once in about 4.0 s.
+- takeScreenshot: scroll-03-native-slider-release
+
+- scrollUntilVisible:
+    element: More Your altitude
+    centerElement: true
+    timeout: 90000
+- tapOn: More Your altitude
+- assertVisible: 250 m
+- assertVisible: 99.2 °C
+- takeScreenshot: scroll-04-personal-number-control
+
+- scrollUntilVisible:
+    element: Toward Left pier
+    centerElement: true
+    timeout: 90000
+- tapOn: Toward Left pier
+- assertVisible: Left pier.*With the weight over the left pier.*
+- takeScreenshot: scroll-05-diagram-choice
+
+- scrollUntilVisible:
+    element: Text version of diagrams
+    direction: DOWN
+    centerElement: true
+    timeout: 90000
+- tapOn: Text version of diagrams
+- scrollUntilVisible:
+    element: More String length
+    centerElement: true
+    timeout: 90000
+- assertVisible: Swing time.*4.0 s
+- assertNotVisible:
+    id: slider-length
+- takeScreenshot: scroll-06-text-alternative-preserves-value
