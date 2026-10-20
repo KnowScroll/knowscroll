@@ -281,7 +281,7 @@ describe('observation intake (real database)', () => {
       ]),
       peakFraction: 0.123456789012345,
     }));
-    const events = Array.from({ length: 12 }, () =>
+    const events = Array.from({ length: 20 }, () =>
       event(large.exposure, { kind: 'scroll.block_coverage', payload: { blocks: heavy } }),
     );
     expect(await ingest(large.person, events)).toEqual({ kind: 'refused', reason: 'batch_too_large' });
