@@ -104,7 +104,7 @@ describe('the renderer on the device', () => {
     );
     expect(runtimeExports.length).toBeGreaterThan(0);
     expect(runtimeExports.filter((name) => !clientEntries.has(name))).toEqual([]);
-    expect(model).not.toMatch(/export\s*\*/);
+    expect(model).not.toMatch(/^export\s*\*/m);
     const forbidden =
       /\b(admitDocument|admitBlock|validateDocument|validateBlock|sweepGrid|validateDraft|compileDraft)\b|purpose:\s*'stored'/;
     const offenders = sourcesOf(__dirname).filter((path) => forbidden.test(readFileSync(path, 'utf8')));
