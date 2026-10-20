@@ -8,6 +8,7 @@ import {
 import type {
   ApplyActionRequest,
   EncounterOffer,
+  ExposureContextResponse,
   NavigateExperienceRequest,
   NavigationOutcome,
 } from '@knowscroll/contracts';
@@ -86,7 +87,12 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       staleTime: 0,
     });
     if (!valid()) return;
-    if (response.assetId !== entry.offer.assetId || response.assetRevision !== entry.offer.assetRevision)
+    if (
+      response.exposureId !== entry.exposureId ||
+      response.assetId !== entry.offer.assetId ||
+      response.assetRevision !== entry.offer.assetRevision ||
+      response.session?.sessionId !== entry.sessionId
+    )
       throw new Error('context_lineage');
     entry.context = response;
     latest(response.session);
@@ -136,9 +142,15 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     const exposureId = activation.exposureId;
     const response = await scope.api.experience.exposureContext({ exposureId });
     if (!valid()) throw new ScopeEndedError();
-    if (response.assetId !== offer.assetId || response.assetRevision !== offer.assetRevision)
+    if (
+      response.exposureId !== exposureId ||
+      response.assetId !== offer.assetId ||
+      response.assetRevision !== offer.assetRevision ||
+      response.session?.sessionId !== activation.sessionId
+    )
       throw new Error('context_lineage');
     latest(response.session);
+    scope.queryClient.setQueryData(scope.queryKey('encounter', 'context', exposureId), response);
     const common = {
       offer,
       exposureId,
@@ -154,7 +166,14 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       const loaded = await scope.api.experience.exposureDocument({ exposureId });
       if (!valid()) throw new ScopeEndedError();
       const parsed = parseDocument(loaded.document);
-      if (parsed.kind !== 'valid' || loaded.assetId !== offer.assetId || loaded.assetRevision !== offer.assetRevision)
+      if (
+        parsed.kind !== 'valid' ||
+        loaded.exposureId !== exposureId ||
+        loaded.assetId !== offer.assetId ||
+        loaded.assetRevision !== offer.assetRevision ||
+        parsed.document.assetId !== offer.assetId ||
+        parsed.document.revision !== offer.assetRevision
+      )
         throw new Error('document_lineage');
       return {
         ...common,
@@ -209,7 +228,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         });
         if (!valid() || work !== current) return;
         if (
-          !activated.sessionId ||
+          activated.sessionId !== outcome.sessionId ||
+          activated.intentRevision !== outcome.intentRevision ||
+          activated.kind !== outcome.offer.metadata.kind ||
           activated.offerId !== outcome.offer.offerId ||
           activated.assetId !== outcome.offer.assetId ||
           activated.assetRevision !== outcome.offer.assetRevision
@@ -335,13 +356,45 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     open,
     navigate,
     retry() {
-      if (state.phase !== 'stale') void run();
+      if (state.phase === 'stale') return;
+      if (work) {
+        void run();
+        return;
+      }
+      const entry = history.current();
+      if (!entry || !valid()) return;
+      void context(entry)
+        .then(() => {
+          if (valid() && history.current() === entry)
+            publish({ phase: 'active', surfaceRevision: state.surfaceRevision + 1 });
+        })
+        .catch(fail);
     },
     acknowledgeStale() {
       if (valid() && state.phase === 'stale' && state.contextReady)
         publish({ phase: history.current() ? 'active' : 'idle', surfaceRevision: state.surfaceRevision + 1 });
     },
     refreshContext,
+    acceptContext(exposureId: string, response: ExposureContextResponse) {
+      const entry = history.current();
+      if (!valid() || !entry || entry.exposureId !== exposureId) return;
+      if (
+        response.exposureId !== exposureId ||
+        response.assetId !== entry.offer.assetId ||
+        response.assetRevision !== entry.offer.assetRevision ||
+        response.session?.sessionId !== entry.sessionId
+      ) {
+        fail(new Error('context_lineage'));
+        return;
+      }
+      latest(response.session);
+      if (entry.context === response) return;
+      entry.context = response;
+      publish();
+    },
+    contextFailure(exposureId: string, error: unknown) {
+      if (valid() && history.current()?.exposureId === exposureId) fail(error);
+    },
     setForeground(value: boolean) {
       const returning = value && !foreground;
       foreground = value;

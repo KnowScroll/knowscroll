@@ -282,6 +282,9 @@ describe('actual encounter controller over CI transport fixtures', () => {
       first.recorder.sample({ positionMs: 12845, monotonicMs: now, playing: true, visible: true, buffering: false });
       first.recorder.flush();
       await scopeOutbox(h.scope).drain();
+      await waitFor(() =>
+        expect(h.batches.flatMap((batch) => batch.events).some((item) => item.kind === 'reel.playback')).toBe(true),
+      );
       const event = h.batches.flatMap((batch) => batch.events).find((item) => item.kind === 'reel.playback');
       expect(event?.sessionId).toBe(handle.sessionId);
       expect(event?.kind === 'reel.playback' && event.payload.samples[0]?.activeMs).toEqual([4000, 4500]);

@@ -12,6 +12,7 @@ import { EncounterView } from '../encounter/encounter-view';
 import { EncounterGestures } from '../encounter/gestures/encounter-gestures';
 import { useEncounterBack } from '../encounter/use-encounter-back';
 import { useEncounterSession } from '../encounter/use-encounter-session';
+import { useEncounterContext } from '../encounter/use-encounter-context';
 import { FirstArrivalScreen } from './first-arrival-screen';
 
 export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
@@ -19,6 +20,7 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [foreground, setForeground] = useState(false);
+  useEncounterContext(scope, session, state.entry, foreground);
   const [hint, setHint] = useState(() => scope.storage.get('explore.hint.dismissed') !== '1');
   useDocumentTitle(state.entry?.offer.metadata.title ?? 'Explore');
   useFocusEffect(
@@ -150,12 +152,21 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
       {state.phase === 'stale' ? (
         <StateBlock
           title="Your path changed"
-          body="The latest directions have been refreshed. Choose your next move again."
+          body={
+            entry
+              ? 'Refresh current directions, then choose your next move again.'
+              : 'That offer is no longer ready. Choose something new when you want.'
+          }
           actions={[
             {
-              label: state.contextReady ? 'Review current directions' : 'Refresh current directions',
+              label: !entry
+                ? 'Choose something new'
+                : state.contextReady
+                  ? 'Review current directions'
+                  : 'Refresh current directions',
               onPress: () => {
-                if (state.contextReady) session.acknowledgeStale();
+                if (!entry) session.open({ kind: 'discover' });
+                else if (state.contextReady) session.acknowledgeStale();
                 else void session.refreshContext();
               },
               variant: 'primary',
