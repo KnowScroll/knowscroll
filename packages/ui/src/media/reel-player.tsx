@@ -26,6 +26,9 @@ function pausePlayback(player: VideoPlayer): void {
 function seekPlayback(player: VideoPlayer, time: number): void {
   player.currentTime = time;
 }
+function mutePlayback(player: VideoPlayer, muted: boolean): void {
+  player.muted = muted;
+}
 function clampPositionMs(positionMs: number, durationMs: number): number {
   return Number.isFinite(positionMs)
     ? Math.max(0, Math.min(positionMs, Number.isFinite(durationMs) ? Math.max(0, durationMs) : 0))
@@ -39,6 +42,7 @@ function setPositionRef(ref: Ref<ReelPositionHandle> | undefined, value: ReelPos
 export interface ReelLocalPosition {
   readonly positionMs: number;
   readonly playing: boolean;
+  readonly muted: boolean;
 }
 export interface ReelPositionHandle {
   /** Synchronous SDK snapshot; null while unavailable, replacing, or released. */
@@ -57,6 +61,10 @@ export interface ReelPlayerProps {
   readonly active: boolean;
   /** Mount-only restore intent in milliseconds. Non-finite values become zero. */
   readonly initialPositionMs?: number;
+  /** Mount-only sound preference; the encounter owner retains it only for that entry. */
+  readonly initialMuted?: boolean;
+  /** Explicit sound changes only; never called for the temporary source-replacement mute. */
+  readonly onMutedChange?: (muted: boolean) => void;
   readonly positionRef?: Ref<ReelPositionHandle>;
   /** Wrap only the noninteractive video/poster stage. Playback controls remain outside.
    * Return a flex-filling element and preserve the supplied stage; own gesture policy in the app.
@@ -80,6 +88,8 @@ export function ReelPlayer({
   durationMs,
   active,
   initialPositionMs,
+  initialMuted,
+  onMutedChange,
   positionRef,
   renderStage,
   loadSource,
@@ -88,8 +98,11 @@ export function ReelPlayer({
   registerEnd,
 }: ReelPlayerProps) {
   const window = useWindowDimensions();
+  const [muted, setMuted] = useState(initialMuted === true);
+  const muteIntent = useRef(initialMuted === true);
   const player = useVideoPlayer(null, (instance) => {
     instance.loop = false;
+    instance.muted = muted;
     instance.timeUpdateEventInterval = 0.25;
     instance.staysActiveInBackground = false;
     instance.allowsExternalPlayback = false;
@@ -136,7 +149,11 @@ export function ReelPlayer({
         try {
           const seconds = player.currentTime;
           if (!Number.isFinite(seconds)) return null;
-          return { positionMs: clampPositionMs(seconds * 1000, durationMs), playing: player.playing };
+          return {
+            positionMs: clampPositionMs(seconds * 1000, durationMs),
+            playing: player.playing,
+            muted: muteIntent.current,
+          };
         } catch {
           // Native SharedObjects can be released before React runs our cleanup.
           return null;
@@ -260,7 +277,6 @@ export function ReelPlayer({
         replacing.current = true;
         pausePlayback(player);
         onDiscontinuity();
-        const wasMuted = player.muted;
         player.muted = true;
         try {
           const pending = player.replaceAsync(grant.source);
@@ -270,7 +286,11 @@ export function ReelPlayer({
           await pending;
           if (!disposed && !ended.current) pausePlayback(player);
         } finally {
-          if (!disposed && !ended.current) player.muted = wasMuted;
+          if (!disposed && !ended.current) {
+            // Even a rejected replacement must stop before explicit sound intent is restored.
+            pausePlayback(player);
+            player.muted = muteIntent.current;
+          }
         }
         if (disposed || ended.current) return;
         // SDK58's web replaceAsync starts the HTML video itself. Fence that internal autoplay:
@@ -415,9 +435,10 @@ export function ReelPlayer({
           {Math.floor(position)} / {Math.round(durationMs / 1000)} s · Captions in video
         </Text>
         <View style={styles.buttons}>
-          <Button label="Back 10s" size="sm" variant="default" onPress={() => seek(-10)} />
+          <Button label="Back 10s" size="sm" variant="default" surface="dark" onPress={() => seek(-10)} />
           <Button
             size="sm"
+            surface="dark"
             label={status === 'error' ? 'Retry' : playing ? 'Pause' : 'Play'}
             onPress={() => {
               if (ended.current) return;
@@ -437,7 +458,28 @@ export function ReelPlayer({
               }
             }}
           />
-          <Button label="Forward 10s" size="sm" variant="default" onPress={() => seek(10)} />
+          <Button label="Forward 10s" size="sm" variant="default" surface="dark" onPress={() => seek(10)} />
+          <Button
+            label={muted ? 'Unmute' : 'Mute'}
+            toggled={muted}
+            size="sm"
+            variant="default"
+            surface="dark"
+            onPress={() => {
+              if (ended.current) return;
+              const next = !muteIntent.current;
+              try {
+                // Keep SDK autoplay inaudible while replacement is pending. Its finally block
+                // restores the latest explicit intent only after pausing the player.
+                if (!replacing.current) mutePlayback(player, next);
+              } catch {
+                return; // A released native SharedObject cannot accept a sound change.
+              }
+              muteIntent.current = next;
+              setMuted(next);
+              onMutedChange?.(next);
+            }}
+          />
         </View>
       </View>
     </View>

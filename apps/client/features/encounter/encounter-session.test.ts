@@ -72,7 +72,7 @@ describe('actual encounter controller over CI transport fixtures', () => {
       first.surface = {
         capture: () => {
           order.push('capture');
-          return { kind: 'reel', positionMs: 12345 };
+          return { kind: 'reel', positionMs: 12345, playing: true, muted: true };
         },
         pause: () => {
           order.push('pause');
@@ -92,7 +92,12 @@ describe('actual encounter controller over CI transport fixtures', () => {
       expect(h.session.back()).toBe(true);
       expect(h.calls).toHaveLength(count);
       expect(h.session.getState().entry?.recorder).toBe(handle);
-      expect(h.session.getState().entry?.position).toEqual({ kind: 'reel', positionMs: 12345 });
+      expect(h.session.getState().entry?.position).toEqual({
+        kind: 'reel',
+        positionMs: 12345,
+        playing: true,
+        muted: true,
+      });
       expect(h.session.getState().entry?.restored).toBe(true);
       h.session.mount(first);
       if (first.kind !== 'reel') throw new Error('Reel fixture');

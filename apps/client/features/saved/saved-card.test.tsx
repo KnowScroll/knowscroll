@@ -19,7 +19,7 @@ function card(value: typeof item, onOpen: (revision: number) => void, onRemove =
         removing={false}
         onOpen={onOpen}
         onRemove={onRemove}
-        resume={{ kind: 'reel', positionMs: 12345 }}
+        resume={{ kind: 'reel', positionMs: 12345, playing: false, muted: false }}
       />
     </DisplayProvider>,
   );

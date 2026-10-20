@@ -11,6 +11,8 @@ export function ActivatedReelView({
   recorder,
   active,
   initialPositionMs,
+  initialMuted,
+  onMutedChange,
   positionRef,
   retainedGrant,
   renderStage,
@@ -22,6 +24,8 @@ export function ActivatedReelView({
   readonly active: boolean;
   readonly renderStage?: (stage: ReactNode) => ReactNode;
   readonly initialPositionMs?: number;
+  readonly initialMuted?: boolean;
+  readonly onMutedChange?: (muted: boolean) => void;
   readonly positionRef?: Ref<ReelPositionHandle>;
   readonly retainedGrant?: {
     active(): boolean;
@@ -54,6 +58,8 @@ export function ActivatedReelView({
         active={active && scope.active}
         loadSource={source}
         initialPositionMs={initialPositionMs}
+        initialMuted={initialMuted}
+        onMutedChange={onMutedChange}
         positionRef={positionRef}
         onSample={sample}
         onDiscontinuity={discontinuity}

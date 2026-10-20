@@ -150,7 +150,9 @@ to the existing open-disclosure anchor behaviour, without converting its offset 
 
 `media/ReelPlayer` uses Expo SDK58's pinned expo-video58.0.11 on both platforms. Paused first frames
 serve as the poster; the title appears while loading. Visible buffering/error/retry states accompany
-custom play/pause and ±10s seek controls. Those controls explicitly fence the recorder at seeks; native
+custom play/pause, Mute/Unmute and ±10s seek controls. The sound toggle uses the same accessible
+pressed state, focus/keyboard behavior and wrapping phone control row as existing buttons. Explicit
+sound changes never play, seek, reload a source or emit an observation. Those controls explicitly fence the recorder at seeks; native
 controls/PiP/external/background playback are disabled because their offsurface/seek events would not
 satisfy the recorder contract. Web intersection/visibility plus route focus/AppState gate observations.
 A 60s grant refreshes at most every40s during intended playback, preserving position and the same
@@ -165,7 +167,7 @@ source. Native playback is still a separate emulator/device verification require
 `ReelPlayer` accepts mount-only `initialPositionMs` (default zero; non-finite values become zero,
 finite values clamp to `[0, durationMs]`) and `positionRef: Ref<ReelPositionHandle>`. The same public
 seam works on native and web. `capture()` synchronously reads the actual SDK playhead and returns
-`ReelLocalPosition { positionMs, playing }`, including progress since the last recorder time update.
+`ReelLocalPosition { positionMs, playing, muted }`, including progress since the last recorder time update.
 It returns `null` while the source is unavailable, replacing, awaiting readiness, or released; it
 never substitutes a recorder sample. Call `capture()` **before** `pause()` and before unmounting to
 park the current position and prior play state. `pause()` immediately clears playback intent and
@@ -177,7 +179,12 @@ exposure activation, telemetry, upload or wire persistence belongs in this local
 clears synchronously on unmount or ScopeEnd; retained methods cannot operate on the ended player.
 Restore waits for the source commit and SDK readiness and remains paused until explicit Play.
 Changing `initialPositionMs` on a mounted player does not seek; remount for another restore intent.
-Grant renewal and Retry preserve the newest actual playhead instead of reapplying the initial offset.
+Grant renewal and Retry preserve the newest actual playhead instead of reapplying the initial offset. `initialMuted` is mount-only, default false; `onMutedChange` reports explicit user intent only.
+The sound choice is distinct from temporary SDK autoplay muting. While replacement is pending,
+toggles update intent but keep the SDK muted; settlement pauses first, then restores the latest
+choice. Disposed players never receive a late unmute or resume. The encounter owner retains the
+sound choice only for that exact entry, including a park with unavailable SDK position; scope end,
+eviction or a new encounter ends that preference. It is not part of durable resume storage.
 This is a player prerequisite only: navigation/Back integration and real native/browser acceptance
 remain separate work. Share overlay playback restoration is not implemented by this seam.
 
