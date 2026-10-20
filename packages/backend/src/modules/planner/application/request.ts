@@ -58,7 +58,11 @@ export function makeRequestPlanner(
         }
         const { claimId: _claim, claimUntil: _until, ...released } = run;
         // A durable explicit request is the only transition out of a settled blocked/unknown decision.
-        await p.store.writeRun(scope, { ...released, status: run.context ? 'prepared' : 'queued' });
+        await p.store.writeRun(scope, {
+          ...released,
+          status: run.context ? 'prepared' : 'queued',
+          ...(run.status === 'unknown' ? { outcome: 'unknown' } : {}),
+        });
         await p.enqueue(scope, c.resumeRunId);
         const outcome = { kind: 'accepted', revision: state.desiredRevision, runId: c.resumeRunId } as const;
         await p.receipts.complete(scope, c.commandId, outcome);

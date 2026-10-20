@@ -525,7 +525,6 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     expect(r.model.calls).toHaveLength(1);
     expect((await attemptsOf(database.db, p.universeId)).map((a) => a.state)).toEqual(['unknown']);
     // A code-version mismatch is an administrative refusal, never permission to abandon unknown work.
-    await request(p.authority, { commandId: randomUUID(), resumeRunId: s.active_run_id! });
     const changedRole = makeRunPlanner({
       ...r.ports,
       harness: {
@@ -534,19 +533,22 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
           r.ports.harness.propose({ ...input, role: { ...input.role, version: 'planner2' } }, abort),
       },
     });
-    expect(await changedRole(job(p, s.active_run_id!), signal())).toMatchObject({
-      kind: 'entered',
-      value: { kind: 'blocked' },
-    });
-    expect((await state(p)).active_run_id).toBe(s.active_run_id);
-    expect(
-      await database.db
-        .selectFrom('planner.runs')
-        .select('status')
-        .where('id', '=', s.active_run_id!)
-        .executeTakeFirstOrThrow(),
-    ).toMatchObject({ status: 'unknown' });
-    expect(r.model.calls).toHaveLength(1);
+    for (let resume = 0; resume < 2; resume++) {
+      await request(p.authority, { commandId: randomUUID(), resumeRunId: s.active_run_id! });
+      expect(await changedRole(job(p, s.active_run_id!), signal())).toMatchObject({
+        kind: 'entered',
+        value: { kind: 'blocked' },
+      });
+      expect((await state(p)).active_run_id).toBe(s.active_run_id);
+      expect(
+        await database.db
+          .selectFrom('planner.runs')
+          .select('status')
+          .where('id', '=', s.active_run_id!)
+          .executeTakeFirstOrThrow(),
+      ).toMatchObject({ status: 'unknown' });
+      expect(r.model.calls).toHaveLength(1);
+    }
   });
   it('keeps durable recovery after a real pg-boss failed delivery and early retry, then applies the kept answer once', async () => {
     // This file owns this disposable database. Remove prior completed-test wake-ups before claiming.
