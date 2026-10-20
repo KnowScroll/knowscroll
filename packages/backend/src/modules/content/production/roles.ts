@@ -123,7 +123,8 @@ export function compileGeneratedDraft(raw: unknown, provenance: DraftProvenance,
   );
   for (const { block } of walkBlocks(doc.sections)) {
     texts.push(...textFields(block).map((field) => field.text));
-    if (['diagram', 'simulation'].includes(block.type)) hasInteractive = true;
+    if (block.type === 'simulation' || (block.type === 'diagram' && block.data.interaction.kind !== 'static'))
+      hasInteractive = true;
     if (block.type !== 'subheading' && !bound.has(block.id))
       return { kind: 'refused', stage: 'support', issues: [{ code: 'reader_block_unbound', path: 'bindings' }] };
   }
