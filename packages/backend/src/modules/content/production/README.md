@@ -44,13 +44,13 @@ JSON; v2 makes that distinction explicit and adds one `JSON.stringify`-generated
 example. This is a bounded prompt correction, not evidence that the earlier model copied grammar
 or that the revised prompt will succeed. Parsing, schemas, admission and repair limits are unchanged.
 
-| Identity | v1 | v2 | v3 | v4 | v5 | v6 | Current v7 |
-|---|---|---|---|---|---|---|---|
-| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` | `scroll-production.v5` | `scroll-production.v6` | `scroll-production.v7` |
-| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged | Unchanged | `scroll-claims.v3` (native object carrier) | `scroll-claims.v4` (advisory input shape) |
-| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) | `scroll-writer.v3` | `scroll-writer.v4` (semantic repair feedback) | `scroll-writer.v5` (native object + original prose) | `scroll-writer.v6` (advisory input shape) |
-| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged |
-| Evidence candidate recipe | None | None | `quote-candidates.v1` | Unchanged | Unchanged | Unchanged | Unchanged |
+| Identity | v1 | v2 | v3 | v4 | v5 | v6 | v7 | Current v8 |
+|---|---|---|---|---|---|---|---|---|
+| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` | `scroll-production.v5` | `scroll-production.v6` | `scroll-production.v7` | `scroll-production.v8` |
+| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged | Unchanged | `scroll-claims.v3` (native object carrier) | `scroll-claims.v4` (advisory input shape) | Unchanged |
+| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) | `scroll-writer.v3` | `scroll-writer.v4` (semantic repair feedback) | `scroll-writer.v5` (native object + original prose) | `scroll-writer.v6` (advisory input shape) | Unchanged |
+| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged |
+| Evidence candidate recipe | None | None | `quote-candidates.v1` | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged |
 
 All four rejected v1/v2/v3 jobs, their stable run IDs and eleven attempts stay untouched. A reviewed v4 invocation
 creates a different job and role runs; it is not a resend or resume of an earlier version. It still
@@ -204,6 +204,60 @@ one repair and retained historical snapshots. Fixtures are not generated content
 acceptance. This source change authorises no call, allowance, role-cap reset or runtime activation;
 a reviewed operator profile and any missing owner allocation remain separate work.
 
+## Coherent explanation recipes in v8
+
+Policy `scroll-production.v8` adds three code-owned recipe keys under the same existing
+`earth.greenhouse-effect` primary topic. Each has an independent static asset ID and explicit
+explanation identity. The original `seasons`, `tides`, and `greenhouse` keys, scripts, briefs,
+source URLs, asset IDs and Reel-shared explanation identities remain exact. Their required
+interaction values remain true, true and false. `TOPICS` now declares explanation identity and
+interaction explicitly; the producer uses that value for both writer validation and compilation.
+No new recipe inherits a Reel identity, series relationship or semantic coverage map.
+
+| Key / explanation identity | Intended teaching question | Required interaction | Bounded source list |
+|---|---|---|---|
+| `greenhouse-radiation` / `earth-greenhouse-radiation-paths.v1` | Follow reflection, absorption and emission along incoming/outgoing radiation paths | Selectable physical-process diagram frames with accessible text; no time simulation | NASA radiation budget + greenhouse FAQ |
+| `greenhouse-balance` / `earth-greenhouse-system-balance.v1` | Distinguish internal redistribution from energy crossing the whole-system boundary; compare equilibrium and imbalance | Qualitative balance/imbalance diagram states with accessible text; no prediction | NASA energy budget + greenhouse FAQ |
+| `greenhouse-limits` / `earth-greenhouse-analogy-audit.v1` | Audit useful versus misleading blanket inferences and natural versus strengthened context | Comparison or disclosure; no interactive requirement | NASA radiation budget + greenhouse FAQ |
+
+The analogy audit deliberately excludes another complete radiation-path/balance tutorial. It
+still overlaps background ideas in the unchanged broad greenhouse overview: new keys, titles,
+formats and IDs cannot establish conceptual variety. After actual generation, editorial review
+must check all three outputs against each other and the old overview for distinct explanatory
+work, faithful support, caveats, useful interaction and absence of redundant retelling. Exact
+coverage-map approval remains separate and requires actual admitted bytes. Recipes, fixtures,
+publication metadata and primary topic attribution never seed trusted coverage or form geography.
+
+The investigation used the actual `public-research.v1` extraction and unchanged candidate builder
+on unauthenticated public pages. The retained radiation-budget pool had 15 candidates, FAQ 7 and
+energy-budget 20. Thus radiation+FAQ had 22 and energy+FAQ 27; the 35-candidate energy+radiation
+combination and 33-candidate climate-causes page were refused by the unchanged 32 limit. Nothing
+is clipped or a bound raised. Fetches remain live and bounded: different future extracts can
+refuse, and these counts are dated investigation evidence, not a runtime promise. The retained
+energy-budget extract ended before later greenhouse sections; those unseen sections confer no
+writer authority. Historical numerical estimates must not be represented as current measurements.
+The briefs forbid temperature forecasts, invented calculations/timescales and glasshouse experiments.
+
+Forward migration `0026_scroll_recipe_units` extends only the closed job recipe-key constraint
+from immutable 0015, after Geography 0025. It inserts no job, asset, personal evidence, semantic
+approval or operation grant and rewrites no historical row. Unknown keys still refuse in the
+operator parser and database. Old workers continue recognizing only their own keys.
+
+Claims v4, writer/provenance v6, hp4 advisory schema, role instructions, strict validators,
+min-four, copy-nine, support/honesty checks, canonical compilation/admission, 100000 request bytes,
+4000/12000 output ceilings, max-four attempts, one repair per role, stable roles, generation,
+daily brakes and unknown liabilities remain unchanged. The new policy records changed prepared
+recipe context; no v1–v7 job is rewritten or resumed. Publication uses the existing private
+current-version hook, so only genuinely completed new publications can project the shared topic.
+
+CI uses authored bounded context (matching the investigated pool counts/text sizes, without
+committing full public pages), the real M3 encoder and labelled PostgreSQL/publication stand-ins.
+It checks full primary/repair request shapes/bytes and retained refusals, all six identities and
+interaction values, closed unknown keys, three exact new publication lineages under one canonical
+topic, and unchanged historical snapshots. This establishes source/protocol behavior, not generated
+content, semantic variety, provider acceptance, UI reading or formation. No call, allowance,
+role-cap/day reset, deployment or live registry seed is authorized by this source extension.
+
 ## New-publication topic authority
 
 `completeWriterPublication` is private to production and has no consumer/composition attribution
@@ -230,4 +284,4 @@ Historical-published reconciliation is **unavailable**: completed old runs need 
 reasoning attestation read before any such capability can exist. All four actual historical jobs
 are rejected, so no known generated publication is omitted. CI uses explicitly labelled transport
 identity stand-ins for positives and fault injection for authority negatives; none is real provider
-or discovery journey evidence. No additional SQL migration or existing migration edit is needed.
+or discovery journey evidence. The publication projection itself needs no SQL change; v8 extends only the closed recipe-key constraint in forward migration 0026.

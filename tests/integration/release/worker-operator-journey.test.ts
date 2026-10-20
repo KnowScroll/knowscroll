@@ -155,6 +155,28 @@ describe('the worker operator command (reasoning) from the built release', () =>
     }
   });
 
+  it('accepts all closed Scroll recipe keys for a dry run and refuses unknown keys before provider work', async () => {
+    for (const topic of [
+      'seasons',
+      'tides',
+      'greenhouse',
+      'greenhouse-radiation',
+      'greenhouse-balance',
+      'greenhouse-limits',
+    ]) {
+      const result = await operator(env(), ['content', 'produce-scroll', '--topic', topic, '--dry-run']);
+      expect(result.code).toBe(0);
+      expect(result.result).toEqual({ command: 'content produce-scroll', outcome: 'dry_run', requestBound: 4 });
+    }
+    for (const topic of ['greenhouse-unknown', '__proto__', 'greenhouse ']) {
+      const refused = await operator(env(), ['content', 'produce-scroll', '--topic', topic, '--dry-run']);
+      expect(refused.code).toBe(2);
+      expect(refused.result).toEqual({ result: 'topic_refused', requestBound: 4 });
+    }
+    expect(await handle.db.selectFrom('content.scroll_production_runs').select('id').execute()).toHaveLength(0);
+    expect(await handle.db.selectFrom('reasoning.production_attempts').select('id').execute()).toHaveLength(0);
+  });
+
   it('refuses to start without its configuration, naming the variable and echoing no value', async () => {
     const missing = await operator({ KS_WORLD: 'ci' }, ['reasoning', 'unknown']);
     expect({ code: missing.code, stdout: missing.stdout }).toEqual({ code: 1, stdout: '' });

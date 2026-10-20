@@ -257,7 +257,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     const writer = await deps.harness.proposeProduction(
       {
         run: run(row.writer_run_id, 'scroll-writer'),
-        role: writerRole(provenance, topic !== 'greenhouse'),
+        role: writerRole(provenance, TOPICS[topic].interactive),
         context: {
           bundleRef: `scroll:${row.id}:claims`,
           items: [
@@ -297,7 +297,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           promptVersion: WRITER_PROMPT_VERSION,
         },
       },
-      topic !== 'greenhouse',
+      TOPICS[topic].interactive,
     );
     if (compiled.kind === 'refused')
       return reject(

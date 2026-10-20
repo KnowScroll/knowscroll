@@ -37,7 +37,7 @@ import { produceScrollUseCase } from '@knowscroll/backend/modules/content/nest-p
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js content produce-scroll --topic seasons|tides|greenhouse [--dry-run] [--resume] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired';
+  'usage: operator.js content produce-scroll --topic seasons|tides|greenhouse|greenhouse-radiation|greenhouse-balance|greenhouse-limits [--dry-run] [--resume] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
