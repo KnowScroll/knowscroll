@@ -1,5 +1,5 @@
 import { queueRegistry } from './infrastructure/jobs/queues.js';
-import { applyActionEvidenceQueue } from './modules/evidence/public.js';
+import { applyActionEvidenceQueue, projectScrollReadingQueue } from './modules/evidence/public.js';
 import { sweepSignInRecordsQueue } from './modules/identity/public.js';
 
 /**
@@ -7,4 +7,8 @@ import { sweepSignInRecordsQueue } from './modules/identity/public.js';
  * policies; the API sends to them; the worker consumes them through its explicit registry; the
  * erasure inventory checks that every queue carrying `universeId` has an eraser.
  */
-export const releaseQueues = queueRegistry([applyActionEvidenceQueue, sweepSignInRecordsQueue]);
+export const releaseQueues = queueRegistry([
+  applyActionEvidenceQueue,
+  projectScrollReadingQueue,
+  sweepSignInRecordsQueue,
+]);

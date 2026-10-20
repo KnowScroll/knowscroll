@@ -123,6 +123,24 @@ export const diagnosticCatalogue = {
     fields: ['requestId', 'method', 'route', 'reasonCode'],
   },
   'identity.operator_sign_in': { severity: 'by-call', module: 'identity', fields: ['outcome', 'reasonCode', 'error'] },
+  // Content admission (the operator command): outcome and codes only, never the source's text.
+  'content.scroll_admitted': {
+    severity: 'by-call',
+    module: 'content',
+    fields: ['outcome', 'reasonCode', 'count', 'error'],
+  },
+  // Evidence intake (API) and projection (worker). Counts and codes; no event, block or exposure
+  // content (D-017); personal-linkable IDs are withheld from the journal by the sink projection.
+  'evidence.observations_ingested': {
+    severity: 'info',
+    module: 'evidence',
+    fields: ['requestId', 'count', 'outcome', 'reasonCode'],
+  },
+  'evidence.reading_projected': {
+    severity: 'info',
+    module: 'evidence',
+    fields: ['outcome', 'reasonCode', 'exposureId', 'durationMs'],
+  },
   'reasoning.attempt_settled': {
     severity: 'info',
     module: 'reasoning',
