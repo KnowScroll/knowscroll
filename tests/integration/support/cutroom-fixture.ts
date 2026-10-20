@@ -89,6 +89,7 @@ export async function cutroomFixture(root: string, options: { ffmpeg?: string } 
     ],
     degradations: [],
   };
+  const ready = { contractVersion: 1, ready: true };
   const methods: string[] = [];
   const server = createServer((request, response) => {
     methods.push(request.method ?? '');
@@ -100,7 +101,7 @@ export async function cutroomFixture(root: string, options: { ffmpeg?: string } 
     const endpoint = new URL(request.url ?? '', 'http://fixture.invalid').pathname;
     const body =
       endpoint === '/v1/ready'
-        ? { contractVersion: 1, ready: true }
+        ? ready
         : endpoint.endsWith('/result')
           ? result
           : endpoint.endsWith('/record')
@@ -113,6 +114,7 @@ export async function cutroomFixture(root: string, options: { ffmpeg?: string } 
   if (!address || typeof address === 'string') throw new Error('fixture_bind_failed');
   return {
     artifactRoot,
+    ready,
     mediaRoot,
     path,
     status,

@@ -120,7 +120,7 @@ export function cutroomReadClient(settings: { origin: string; artifactRoot: stri
   }
   const id = (value: string): string => encodeURIComponent(value);
   return {
-    ready: () => get('/v1/ready', 'ready', 'ReadyResponse'),
+    ready: () => get('/v1/ready', 'ready', 'ReadyResponse') as Promise<{ contractVersion: 1; ready: boolean }>,
     lookup: (requestId: string) =>
       get(`/v1/runs?requestId=${id(requestId)}`, 'responses', 'RunStatus') as Promise<RunStatus>,
     status: (runId: string) => get(`/v1/runs/${id(runId)}`, 'responses', 'RunStatus') as Promise<RunStatus>,

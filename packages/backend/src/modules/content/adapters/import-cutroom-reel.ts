@@ -37,7 +37,7 @@ export function makeCutroomReelImporter(db: Kysely<Database>, settings: CutroomI
     }>`select asset_id from content.reel_imports where run_id = ${command.runId}::uuid`.execute(db);
     if (previous.rows[0]) return { kind: 'unchanged', assetId: previous.rows[0].asset_id } as const;
     const engine = cutroomReadClient({ origin: settings.cutroomOrigin, artifactRoot: settings.cutroomArtifactRoot });
-    await engine.ready();
+    if (!(await engine.ready()).ready) return { kind: 'refused', reason: 'engine_not_ready' } as const;
     const status = await engine.status(command.runId);
     const result = await engine.result(command.runId);
     const record = await engine.record(command.runId);

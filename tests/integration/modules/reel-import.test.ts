@@ -42,6 +42,9 @@ describe('read-only Cutroom reuse (real database + generated fixture MP4)', () =
     expect((await sql`select * from content.reel_imports`.execute(database.db)).rows).toHaveLength(0);
   });
   it('refuses failed engine checks, mismatched identities, escape, symlink, oversize and invalid video', async () => {
+    fixture.ready.ready = false;
+    expect(await importer()(command)).toMatchObject({ kind: 'refused', reason: 'engine_not_ready' });
+    fixture.ready.ready = true;
     fixture.record.takes[0]!.checks[0]!.outcome = 'fail';
     expect(await importer()(command)).toMatchObject({ kind: 'refused', reason: 'record' });
     fixture.record.takes[0]!.checks[0]!.outcome = 'accept';
