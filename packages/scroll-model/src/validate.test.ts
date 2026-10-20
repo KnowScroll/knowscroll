@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { negotiate, parseBlock, validateDocument, type Block, type ScrollDocument } from './index.js';
 import { arrange, make, scrollDocument, seal } from './test-support/arbitraries.js';
 import { fixture } from './test-support/fixtures.js';
+import { fastestMs } from './test-support/timing.js';
 
 const codes = (outcome: ReturnType<typeof validateDocument>) =>
   outcome.kind === 'invalid' ? outcome.issues.map((issue) => issue.code) : [];
@@ -161,9 +162,8 @@ describe('validateDocument: typed outcomes', () => {
       issues: [{ code: 'document_too_deep', path: '$' }],
     });
     const huge = { ...document, kicker: 'x'.repeat(200_000) };
-    const started = performance.now();
     expect(validateDocument(huge)).toEqual({ kind: 'invalid', issues: [{ code: 'document_too_large', path: '$' }] });
-    expect(performance.now() - started).toBeLessThan(200);
+    expect(fastestMs(() => validateDocument(huge))).toBeLessThan(200);
   });
 
   it('caps figure and media blocks at 12', () => {

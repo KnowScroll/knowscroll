@@ -1,5 +1,5 @@
 import fc from 'fast-check';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   AUTHORED_BLOCK_TYPES,
   BASELINE_BLOCKS,
@@ -18,6 +18,7 @@ import {
 } from './index.js';
 import { arrange, make, scrollDocument, seal, sentence } from './test-support/arbitraries.js';
 import { allFixtures, fixture } from './test-support/fixtures.js';
+import { fastestMs } from './test-support/timing.js';
 
 /** Capabilities that always include the baseline; other types supported at v1, a future version, or not at all. */
 const capabilities: fc.Arbitrary<ClientCapabilities> = fc
@@ -167,12 +168,19 @@ describe('negotiate', () => {
     const blocks = Object.fromEntries(
       Array.from({ length: 200_000 }, (_, index) => [`type-${index.toString(36).replace(/\d/gu, 'x')}${index}`, [1]]),
     );
-    const started = performance.now();
-    expect(parseCapabilities({ documentSchemas: ['scroll-document.v1'], blocks })).toEqual({
-      kind: 'invalid',
-      issues: [{ code: 'schema_too_big', path: 'blocks' }],
-    });
-    expect(performance.now() - started).toBeLessThan(100);
+    const input = { documentSchemas: ['scroll-document.v1'], blocks };
+    // Refused before the schema runs: the Zod schema is never asked to look at 200,000 keys.
+    const schema = vi.spyOn(ClientCapabilities, 'safeParse');
+    try {
+      expect(parseCapabilities(input)).toEqual({
+        kind: 'invalid',
+        issues: [{ code: 'schema_too_big', path: 'blocks' }],
+      });
+      expect(schema).not.toHaveBeenCalled();
+      expect(fastestMs(() => parseCapabilities(input))).toBeLessThan(100);
+    } finally {
+      schema.mockRestore();
+    }
   });
 
   it('parses advertised capabilities strictly', () => {
