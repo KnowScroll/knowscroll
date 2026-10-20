@@ -35,7 +35,9 @@
     "react-native-safe-area-context": "catalog:",
     "react-native-screens": "catalog:",
     "react-native-svg": "catalog:",
-    "react-native-web": "catalog:"
+    "react-native-web": "catalog:",
+    "expo-video": "catalog:",
+    "@knowscroll/contracts": "workspace:*"
   },
   "devDependencies": {
     "@babel/plugin-transform-parameters": "catalog:",

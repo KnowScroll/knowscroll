@@ -1,3 +1,4 @@
+import { mediaWiring } from './modules/media.js';
 import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { ORPCModule } from '@orpc/nest';
@@ -93,6 +94,7 @@ export class AppModule {
           logEvent: resources.logEvent,
         }),
         ...contentWiring,
+        ...mediaWiring,
         ...experienceWiring,
         ...evidenceWiring,
         ScopeGateway,

@@ -1,4 +1,5 @@
 import {
+  ReelPlaybackPayloadSchema,
   ActiveDwellPayloadSchema,
   BlockCoveragePayloadSchema,
   BlockInteractionPayloadSchema,
@@ -13,6 +14,10 @@ import type { ObservationBody } from '../domain/reading-summary.js';
  */
 export function observationBody(kind: string, payload: unknown): ObservationBody | undefined {
   switch (kind) {
+    case 'reel.playback': {
+      const parsed = ReelPlaybackPayloadSchema.safeParse(payload);
+      return parsed.success ? { kind, samples: parsed.data.samples } : undefined;
+    }
     case 'scroll.block_coverage': {
       const parsed = BlockCoveragePayloadSchema.safeParse(payload);
       return parsed.success ? { kind, blocks: parsed.data.blocks } : undefined;

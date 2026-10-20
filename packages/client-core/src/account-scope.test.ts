@@ -35,6 +35,33 @@ function deferredApi() {
 const saved = (revision: number) => json(200, { revision, items: [] });
 
 describe('an account scope', () => {
+  it('stops playback synchronously and fences media sources even when native cleanup throws', () => {
+    const scope = createAccountScope({
+      account: accountA,
+      baseUrl: 'https://app.scope.test',
+      fetch: deferredApi().fetch,
+      authorization: () => 'Bearer fixture-media-canary',
+      store: memoryStore(),
+    });
+    let activeWhenStopped: boolean | undefined;
+    const stopped = vi.fn(() => {
+      activeWhenStopped = scope.active;
+      throw new Error('native already released');
+    });
+    scope.onEnd?.(stopped);
+    expect(scope.mediaSource?.('/media/digest?grant=fixture')).toEqual({
+      uri: 'https://app.scope.test/media/digest?grant=fixture',
+      headers: { authorization: 'Bearer fixture-media-canary' },
+    });
+    scope.end();
+    expect(stopped).toHaveBeenCalledTimes(1);
+    expect(activeWhenStopped).toBe(true);
+    expect(scope.active).toBe(false);
+    expect(() => scope.mediaSource?.('/media/digest?grant=fixture')).toThrow(ScopeEndedError);
+    scope.end();
+    expect(stopped).toHaveBeenCalledTimes(1);
+  });
+
   it('drops a late response: a request of an ended scope never resolves into any cache', async () => {
     const api = deferredApi();
     const store = memoryStore();

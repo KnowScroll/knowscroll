@@ -13,6 +13,7 @@ export {
   readApiConfig,
   readContentOperatorConfig,
   readMigrateConfig,
+  readMediaImportConfig,
   readOperatorConfig,
   readWorkerConfig,
   readWorkerOperatorConfig,

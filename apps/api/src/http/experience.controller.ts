@@ -102,8 +102,6 @@ export class ExperienceController {
       const caller = admittedCaller(request);
       if (input.target.kind === 'discover' || input.target.kind === 'return')
         throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
-      // The additive Reel contract precedes the media adapter. Keep this release Scroll-only.
-      if (input.target.kind !== 'scroll') throw problem('ASSET_NOT_FOUND');
       const result = await this.openExposure(authorityOf(caller), {
         ...input,
         target: { kind: input.target.kind, assetId: input.target.assetId },
