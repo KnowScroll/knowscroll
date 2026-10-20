@@ -15,6 +15,8 @@ export const problemCatalogue = {
   NOT_FOUND: { status: 404, title: 'Not found.' },
   ASSET_NOT_FOUND: { status: 404, title: 'This content is not available.' },
   METHOD_NOT_ALLOWED: { status: 405, title: 'This method is not allowed here.' },
+  SHARING_REVISION_STALE: { status: 409, title: 'Sharing settings changed; reload and try again.' },
+  SHARING_UNAVAILABLE: { status: 404, title: 'This sharing resource is not available.' },
   CONFLICT: { status: 409, title: 'This conflicts with the current state; reload and try again.' },
   ASSET_REVISION_STALE: { status: 409, title: 'This content has changed; reload it and try again.' },
   PRIVACY_EPOCH_CHANGED: { status: 409, title: 'Your privacy settings changed; reload and try again.' },

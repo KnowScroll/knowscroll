@@ -339,3 +339,104 @@ API: default conversion of a Zod custom validator would otherwise be an
 unrepresentable schema. `scenes.test.ts` and core metadata tests are synthetic
 protocol fixtures only, run by GitHub Actions. No database, real-world projection,
 rendered world, native performance, provider budget or completed #238 is claimed.
+
+## Friends/visibility HTTP prerequisite (#241)
+
+`sharing.v1` declares strict JSON-native profile/handle, exact lookup, paged own
+friends/requests/blocks, explicit pair commands, own invite-link lifecycle,
+visibility/presence preferences and a separate permission-filtered visitor read.
+These are declarations only. No Social endpoint, database table, account lifecycle,
+server filter, presence heartbeat, projection, consumer or deployed journey is
+implemented by this package. Messaging, threads, scenarios, rooms, transport and
+provider work need separate contracts. AI is not accepted in these real-account
+person references; future participant unions must explicitly label AI.
+
+Handles are explicitly chosen 3–24 lowercase ASCII letters/digits with internal
+`.`/`_` separators, no adjacent/final separators (including `asha.k`). Public
+people contain only opaque public person ID, handle and chosen display name;
+public person IDs are not account/universe/root locators. No email lookup/default,
+prefix directory, address-book upload, private activity or fabricated contacts.
+Lookup and invite resolve are authenticated **POST** bodies with one coarse
+unavailable answer for absent/hidden/blocked/inactive identities.
+
+`apiContract.sharing` declares GET own profile, invites, visibility and presence
+preference; POST updates on profile/visibility/presence preference; POST
+`/v1/social/people/lookup`, `/pairs/read`, `/friends/read`, `/requests/read`,
+`/friends/request|accept|decline|cancel|remove|block|unblock`,
+`/invites/resolve|create|revoke` and `/visits/read`, all with `/v1/social` prefix.
+The bounded nested list cursor stays JSON on POST rather than inventing a query
+codec. Fixed API paths contain no handle, person or capability. Future adapters
+retain first-party Origin/session/`X-KS-Scope` enforcement.
+
+Every command uses one command ID and exact validated body across uncertain
+transport retries. Explicit expected resource revisions bind authority;
+request selection also binds the exact resolved public person ID. Receipt replay
+requires **current** scope/epoch/account and relevant pair/visibility access
+checks first. Accepted receipts remain immutable, distinct from current resources;
+changed canonical body returns `COMMAND_KEY_REUSED`. Retryable stale/busy/access
+refusals write no success receipt. No declaration/receipt/cursor is a grant.
+
+`pairRevision` is explicitly **per-caller public relationship-view** revision,
+independent of recipient-private/internal pair transitions and presence expiry/
+preference. Private events cannot advance sender-visible list snapshot revisions. Silent decline must preserve the
+sender's outgoing view, fixed public expiry and public revision until that expiry;
+neither staleness, list revisions nor problem details may reveal the decline or
+another side's block. The backend separately fences actual locked internal pair
+authority. Sender views have no declined/peer-blocked state or recipient timestamp.
+Reciprocal requests require explicit Accept; unblock restores no friendship or
+visibility publication. Own block state is visible only to its actor.
+
+Pages contain at most 50 unique matching rows, no total/private counts. Cursors
+bind owner AccountScope, epoch, filter and immutable list snapshot revision;
+the backend validates opaque cursor authenticity and current authority before
+use. Membership/order belongs to that snapshot; presence is separately evaluated
+under current authority/expiry per page, never replayed from an old snapshot lease. Changed/expired snapshots require a fresh page. Clients compare initiating
+scope/filter and refuse regressions rather than merging different snapshots.
+Wire validation cannot prove current database authority or cursor authenticity.
+
+Invite capability secrets appear only in sensitive input bodies or ephemeral
+first delivery. Only the acceptance/link reference is durable: never persist raw
+secret in an ordinary receipt, queue, log, notice, API path or own-status read.
+A create replay returns the same accepted link reference and unavailable delivery.
+After losing the first delivery, deliberately revoke that link then issue a new
+create command. No implicit token reissue. Opening/resolving a link never sends
+or accepts a request; each side explicitly acts. Revocation leaves already
+accepted friendships unchanged. Lifetime/heartbeat/cooldown numbers remain
+future runtime policy, not values frozen from the planning proposal.
+
+Visibility chooses nobody, chosen friends or all friends **and** explicit own
+system selections; widening an audience never auto-selects systems. Own settings
+may name own Geography IDs; visitors never receive them. Intended future defaults
+are nobody and hidden presence, not schema transforms or database seeds. Pair,
+visibility, published projection, presence preference and presence expiry revisions
+have distinct meanings. Visible availability has a relative `validForMs` freshness
+lease (one-day transport ceiling, no selected heartbeat policy), conservatively
+aged from request start. Future adapters check actual expiry on every read and
+clients discard expired/lost-freshness presence. Hidden, expired and unknown have
+one constant `{state: "unknown"}` public shape without revision/TTL; never exact peer event/last-seen timestamps or playback.
+
+Visitor output is a **separate public projection**, initially `list.v1` only:
+explicitly shared system labels and opaque publication-scoped public system IDs.
+These IDs must be generated for that public scope and never serialize private
+Geography/Scene/universe IDs. No private descriptor is reused and no new geometry
+DSL is invented. Graphical U06 rendering needs a separate reviewed public geometry
+extension; this prerequisite does not claim the complete visitor UI. Lists are
+bounded at 100 disclosed systems; overflow is unavailable, never private-count
+truncation. Empty lists assert only no disclosed systems. Generic haze/banner are
+constant consumer decoration, independent of hidden-world existence or size.
+
+Future reads recheck active accounts, accepted unblocked pair, current visibility
+and publication before returning the allowlist. Optional expected pair/visibility/
+publication revisions are exact checks, never permission; stale/denied/unpublished
+answers are uniformly unavailable without projection. Available responses echo
+selected target/capabilities and bind the public owner. Consumers compare request,
+AccountScope and independently monotonic revisions and purge on access/scope loss.
+No coordinates, gaps, private counts/IDs, private history, evidence, peer presence
+timestamps, playhead/seen/branches, personal watermarks or personal seeds occur.
+Visits cannot form worlds, supply evidence or grant source access. Strict schemas
+cannot establish that a future server generated truly public IDs/labels; backend
+allowlist and denial/revocation tests remain mandatory before consumers ship.
+
+`sharing.test.ts` and focused real OpenAPI-generation assertions are synthetic
+wire fixtures, run only in GitHub Actions. They establish no actual friendship,
+expiry, transaction/replay safety, privacy completion or #241 acceptance.

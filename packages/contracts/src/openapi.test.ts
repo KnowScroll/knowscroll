@@ -33,6 +33,7 @@ describe('the API contract', () => {
 
     const routes = [
       apiContract.health,
+      ...Object.values(apiContract.sharing),
       apiContract.scenes.manifest,
       apiContract.scenes.chunk,
       apiContract.geography.read,
@@ -262,6 +263,90 @@ describe('the API contract', () => {
       additionalProperties: false,
       required: expect.arrayContaining(['schemaVersion', 'family', 'seed', 'anchor', 'target']) as unknown,
     });
+  });
+
+  it('declares exact Friends paths/methods and strict public projection and secret delivery shapes', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const document = await generator.generate(apiContract, { info: { title: 'KnowScroll API', version: '1' } });
+    const expected = {
+      '/v1/social/profile': ['get', 'post'],
+      '/v1/social/people/lookup': ['post'],
+      '/v1/social/pairs/read': ['post'],
+      '/v1/social/friends/read': ['post'],
+      '/v1/social/requests/read': ['post'],
+      '/v1/social/friends/request': ['post'],
+      '/v1/social/friends/accept': ['post'],
+      '/v1/social/friends/decline': ['post'],
+      '/v1/social/friends/cancel': ['post'],
+      '/v1/social/friends/remove': ['post'],
+      '/v1/social/friends/block': ['post'],
+      '/v1/social/friends/unblock': ['post'],
+      '/v1/social/invites/resolve': ['post'],
+      '/v1/social/invites': ['get'],
+      '/v1/social/invites/create': ['post'],
+      '/v1/social/invites/revoke': ['post'],
+      '/v1/social/visibility': ['get', 'post'],
+      '/v1/social/presence/preference': ['get', 'post'],
+      '/v1/social/visits/read': ['post'],
+    };
+    expect(
+      Object.keys(document.paths ?? {})
+        .filter((p) => p.startsWith('/v1/social/'))
+        .sort(),
+    ).toEqual(Object.keys(expected).sort());
+    for (const [path, methods] of Object.entries(expected)) {
+      const route = document.paths?.[path];
+      expect(Object.keys(route ?? {}).sort()).toEqual([...methods].sort());
+      for (const method of methods) {
+        const operation = route?.[method as 'get' | 'post'];
+        expect(operation?.responses?.['200']).toBeDefined();
+        if (method === 'post') expect(operation?.requestBody).toBeDefined();
+        else expect(operation?.requestBody).toBeUndefined();
+        expect(operation?.parameters ?? []).toEqual([]);
+      }
+    }
+    const lookup = JSON.stringify(document.paths?.['/v1/social/people/lookup']?.post);
+    expect(lookup).toContain('handle');
+    expect(lookup).not.toContain('email');
+    const create = JSON.stringify(document.paths?.['/v1/social/invites/create']?.post?.responses?.['200']);
+    for (const field of ['acceptance', 'delivery', 'linkId', 'token', 'unavailable', 'replayed'])
+      expect(create).toContain(field);
+    const status = JSON.stringify(document.paths?.['/v1/social/invites']?.get?.responses?.['200']);
+    expect(status).not.toContain('"token"');
+    const request = JSON.stringify(document.paths?.['/v1/social/friends/request']?.post?.requestBody);
+    for (const field of ['expectedPeerPersonId', 'expectedPairRevision', 'commandId', 'handle', 'token'])
+      expect(request).toContain(field);
+    const visit = JSON.stringify(document.paths?.['/v1/social/visits/read']?.post?.responses?.['200']);
+    for (const field of [
+      'publicSystemId',
+      'list.v1',
+      'pairRevision',
+      'visibilityRevision',
+      'publishedProjectionRevision',
+    ])
+      expect(visit).toContain(field);
+    for (const field of [
+      'universeId',
+      'privateIds',
+      'geographyRevision',
+      'personalWatermark',
+      'scene',
+      'seed',
+      'anchor',
+      'coordinates',
+      'evidence',
+      'playhead',
+      'seen',
+      'branch',
+      'lastSeenAt',
+      'hiddenCount',
+    ])
+      expect(visit).not.toContain(`"${field}"`);
+    expect(visit).toContain('"additionalProperties":false');
+    for (const [key, procedure] of Object.entries(apiContract.sharing)) {
+      const input = procedure['~orpc'].route.path ?? '';
+      expect(input, key).not.toContain('{'); // no dynamic path/token parameter
+    }
   });
 
   it('names a scope by account and privacy epoch, refused with a 409 problem', () => {
