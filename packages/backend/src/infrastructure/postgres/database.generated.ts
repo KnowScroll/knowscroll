@@ -23,6 +23,28 @@ export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export interface ContentAssetProvenance {
+  asset_id: string;
+  provenance: Json;
+  provenance_version: string;
+  recorded_at: Generated<Timestamp>;
+  revision: number;
+}
+
+export interface ContentAssetRevisions {
+  admitted_at: Generated<Timestamp>;
+  asset_id: string;
+  document: Json;
+  document_sha256: string;
+  document_version: string;
+  explanation_unit_id: string;
+  language: string;
+  provenance_kind: string;
+  reading_facts: Json;
+  revision: number;
+  title: string;
+}
+
 export interface ContentAssets {
   created_at: Generated<Timestamp>;
   id: string;
@@ -42,6 +64,45 @@ export interface EvidenceActionEvents {
   universe_id: string;
 }
 
+export interface EvidenceEncounterEvidence {
+  active_dwell_ms: number;
+  asset_id: string;
+  asset_revision: number;
+  coverage: number;
+  created_at: Generated<Timestamp>;
+  estimated_reading_ms: number;
+  exposure_id: string;
+  id: string;
+  input_watermark: number;
+  policy_version: string;
+  privacy_epoch: number;
+  q: number;
+  qualification: string;
+  revision: number;
+  summary: Json;
+  universe_id: string;
+}
+
+export interface EvidenceObservations {
+  asset_id: string;
+  asset_revision: number;
+  bounded: Generated<boolean>;
+  device_sequence: number;
+  event_id: string;
+  exposure_id: string;
+  id: string;
+  instrumentation_version: number;
+  kind: string;
+  occurred_at: Timestamp;
+  payload: Json;
+  privacy_epoch: number;
+  received_at: Timestamp;
+  schema_version: string;
+  seq: number;
+  session_id: string;
+  universe_id: string;
+}
+
 export interface ExperienceActions {
   asset_id: string;
   asset_revision: number;
@@ -49,6 +110,20 @@ export interface ExperienceActions {
   created_at: Generated<Timestamp>;
   id: string;
   kind: string;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
+export interface ExperienceExposures {
+  activated_at: Timestamp | null;
+  asset_id: string;
+  asset_revision: number;
+  capabilities: Json;
+  command_id: string;
+  id: string;
+  kind: string;
+  opened_at: Generated<Timestamp>;
+  origin: string;
   privacy_epoch: number;
   universe_id: string;
 }
@@ -224,9 +299,14 @@ export interface ReceiptsSharedCommands {
 }
 
 export interface DB {
+  "content.asset_provenance": ContentAssetProvenance;
+  "content.asset_revisions": ContentAssetRevisions;
   "content.assets": ContentAssets;
   "evidence.action_events": EvidenceActionEvents;
+  "evidence.encounter_evidence": EvidenceEncounterEvidence;
+  "evidence.observations": EvidenceObservations;
   "experience.actions": ExperienceActions;
+  "experience.exposures": ExperienceExposures;
   "experience.saved_items": ExperienceSavedItems;
   "identity.accounts": IdentityAccounts;
   "identity.email_addresses": IdentityEmailAddresses;
