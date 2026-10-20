@@ -3,7 +3,7 @@ import { scopeOutbox } from '@knowscroll/client-core';
 import type { OpenExposureRequest } from '@knowscroll/contracts';
 import type { EncounterSession } from './encounter-session';
 import { retainReelMuted } from './encounter-history';
-import { harness, offer } from './encounter-session.fixture';
+import { harness, id, offer } from './encounter-session.fixture';
 
 function waitForPhase(
   session: EncounterSession,
@@ -394,6 +394,36 @@ describe('request overlay ownership', () => {
       expect(h.session.requests.getState().text).toBe('');
       expect(h.session.requests.getState().source).toBeUndefined();
       expect(h.session.getState().trail).toEqual([]);
+    } finally {
+      h.scope.end();
+    }
+  });
+  it('freezes latest intent for a parked member of the same session and refuses a different global session', async () => {
+    const h = harness();
+    try {
+      const first = await ready(h);
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'active');
+      h.session.back();
+      h.session.openRequest('scroll');
+      expect(h.session.requests.getState().source).toEqual({
+        exposureId: first.exposureId,
+        assetId: first.offer.assetId,
+        assetRevision: first.offer.assetRevision,
+        session: { sessionId: first.sessionId, expectedIntentRevision: 2 },
+      });
+      h.session.back();
+      h.setOutcome('pending');
+      h.setOutcomeSession(id(999));
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'pending');
+      h.session.resumeCurrent();
+      h.session.openRequest('scroll');
+      expect(h.session.requests.getState().source).toBeUndefined();
+      h.session.requests.submit();
+      expect(h.session.requests.getState().error).toBe('source');
+      expect(h.calls.filter((call) => call.path === '/v1/content/requests')).toEqual([]);
+      expect(h.session.getState().entry).toBe(first);
     } finally {
       h.scope.end();
     }

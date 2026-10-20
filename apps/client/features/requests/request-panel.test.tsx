@@ -24,7 +24,8 @@ describe('E04 request panel', () => {
       </SafeAreaProvider>,
     );
     try {
-      expect(screen.getByRole('dialog', { name: 'Ask for something' })).toBeTruthy();
+      expect(screen.getByLabelText('Ask for something')).toHaveProp('role', 'dialog');
+      expect(screen.getByLabelText('Ask for something')).toHaveProp('accessibilityViewIsModal', true);
       const input = screen.getByLabelText('What would you like now?');
       expect(input).toHaveProp('maxLength', 500);
       expect(screen.getByRole('button', { name: 'Send request' })).toBeDisabled();
