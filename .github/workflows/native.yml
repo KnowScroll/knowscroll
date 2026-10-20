@@ -216,7 +216,7 @@ jobs:
           MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: 'true'
         with:
           api-level: 35
-          target: google_apis
+          target: default
           arch: x86_64
           profile: pixel_6
           cores: 3
