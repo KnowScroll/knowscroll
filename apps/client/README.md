@@ -104,3 +104,7 @@ rail, and records playback into the account-scoped durable outbox. Save uses the
 without a command are hidden and an absent Scroll sibling is unavailable. Fixture imports carry a
 prominent fixture banner. Renewing a media grant reuses the existing exposure and never counts as a
 new encounter. Browser cookies authenticate video GETs; native source headers come from AccountScope.
+
+The interim direct Scroll session accepts only direct-open exposure lineage. A Composer
+ready/pending/exhausted response produces the existing controlled error state; the new Explore
+consumer will own those outcomes (#234). This compatibility guard adds no navigation UI.

@@ -29,8 +29,10 @@ describe('the API contract', () => {
       apiContract.experience.applyAction,
       apiContract.experience.listSaved,
       apiContract.experience.openExposure,
+      apiContract.experience.navigate,
       apiContract.experience.activateExposure,
       apiContract.experience.exposureDocument,
+      apiContract.experience.exposureContext,
       apiContract.observations.submit,
       apiContract.diagnostics.evidence,
     ].map((procedure) => procedure['~orpc'].route);
@@ -45,6 +47,54 @@ describe('the API contract', () => {
       type: 'object',
       required: expect.arrayContaining(['type', 'title', 'status', 'code']) as unknown,
     });
+  });
+
+  it('describes direct and Composer shapes through one open and one activate route', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [new ZodToJsonSchemaConverter()] });
+    const document = await generator.generate(apiContract, { info: { title: 'KnowScroll API', version: '1' } });
+    const open = JSON.stringify(document.paths?.['/v1/experience/open']);
+    const activate = JSON.stringify(document.paths?.['/v1/experience/activate']);
+    const navigate = JSON.stringify(document.paths?.['/v1/experience/navigate']);
+    const context = JSON.stringify(document.paths?.['/v1/experience/exposures/{exposureId}/context']);
+    const action = JSON.stringify(document.paths?.['/v1/actions']);
+    for (const field of [
+      'discover',
+      'return',
+      'assetRevision',
+      'capabilities',
+      'expectedIntentRevision',
+      'exposureId',
+      'ready',
+      'pending',
+      'exhausted',
+    ])
+      expect(open).toContain(field);
+    for (const field of ['offerId', 'sessionId', 'expectedIntentRevision', 'exposureId'])
+      expect(activate).toContain(field);
+    for (const mode of ['vertical', 'series', 'related', 'variant', 'return']) expect(navigate).toContain(mode);
+    for (const field of ['expectedContinuation', 'linkId', 'assetId', 'assetRevision'])
+      expect(navigate).toContain(field);
+    for (const field of [
+      'actions',
+      'saved',
+      'liked',
+      'hidden',
+      'sessionId',
+      'intentRevision',
+      'seriesPrevious',
+      'seriesNext',
+      'related',
+      'requestId',
+      'linkId',
+    ])
+      expect(context).toContain(field);
+    expect(action).toContain('exposureId');
+    for (const privateField of ['playheadMs', 'blockOffset', 'sources', 'provenance', 'score', 'peerPlayback']) {
+      expect(open).not.toContain(`"${privateField}"`);
+      expect(navigate).not.toContain(`"${privateField}"`);
+      expect(context).not.toContain(`"${privateField}"`);
+    }
+    expect(context).not.toContain('totalParts');
   });
 
   it('names a scope by account and privacy epoch, refused with a 409 problem', () => {
