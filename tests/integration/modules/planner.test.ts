@@ -518,6 +518,28 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     expect((await state(p)).active_run_id).toBe(s.active_run_id);
     expect(r.model.calls).toHaveLength(1);
     expect((await attemptsOf(database.db, p.universeId)).map((a) => a.state)).toEqual(['unknown']);
+    // A code-version mismatch is an administrative refusal, never permission to abandon unknown work.
+    const changedRole = makeRunPlanner({
+      ...r.ports,
+      harness: {
+        ...r.ports.harness,
+        propose: (input, abort) =>
+          r.ports.harness.propose({ ...input, role: { ...input.role, version: 'planner2' } }, abort),
+      },
+    });
+    expect(await changedRole(job(p, s.active_run_id!), signal())).toMatchObject({
+      kind: 'entered',
+      value: { kind: 'blocked' },
+    });
+    expect((await state(p)).active_run_id).toBe(s.active_run_id);
+    expect(
+      await database.db
+        .selectFrom('planner.runs')
+        .select('status')
+        .where('id', '=', s.active_run_id!)
+        .executeTakeFirstOrThrow(),
+    ).toMatchObject({ status: 'unknown' });
+    expect(r.model.calls).toHaveLength(1);
   });
   it('uses one admitted semantic repair and erases all Planner/memory/protected inputs/jobs across epochs', async () => {
     const p = await seedPerson(database.db);

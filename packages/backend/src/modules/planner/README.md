@@ -61,11 +61,11 @@ until the same ledger work is conclusively resolved. Terminal failures do not si
 run for the same desired revision.
 
 The `planner.run` queue contains only version/universe/epoch/run IDs. It uses local concurrency1,
-1000s expiry, three retries with30s exponential backoff, seven-day queued retention, two-day result
-retention and the common14-day dead-letter retention. A950s claim token fences concurrent deliveries;
+1200s expiry, three retries with30s exponential backoff, seven-day queued retention, two-day result
+retention and the common14-day dead-letter retention. A1150s claim token fences concurrent deliveries;
 a live claim returns `already_running`. A crashed delivery resumes its frozen business run after
 claim expiry. Prepared JSON sorts object keys so JSONB storage cannot change request bytes on replay. The expiry exceeds two attempts at maximum300s transport +10s quota + two maximum60s
-scope locks per attempt plus margin. Claim tokens cannot override the harness's external-attempt
+scope locks per attempt, two application-scope waits and margin. Claim tokens cannot override the harness's external-attempt
 ledger. A duplicate unknown delivery never sends/repairs another attempt.
 
 Lock order is personal root → Planner state/run/domain rows → harness admission/attempt bookkeeping

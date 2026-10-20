@@ -87,7 +87,7 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
           ...run,
           context: run.context,
           claimId: p.newId(),
-          claimUntil: new Date(p.now().getTime() + 950000).toISOString(),
+          claimUntil: new Date(p.now().getTime() + 1150000).toISOString(),
         };
         await p.store.writeRun(scope, claimed);
         return { kind: 'prepared', run: claimed } as const;
@@ -112,7 +112,7 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
         revision: state.desiredRevision,
         status: 'prepared' as const,
         claimId: p.newId(),
-        claimUntil: new Date(p.now().getTime() + 950000).toISOString(),
+        claimUntil: new Date(p.now().getTime() + 1150000).toISOString(),
         context,
       };
       await p.store.writeRun(scope, prepared);

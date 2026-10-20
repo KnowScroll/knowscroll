@@ -287,7 +287,8 @@ describe('the erasure registry (real database)', () => {
             context_revision: 1,
             attempt_id: randomUUID(),
             policy_version: 'personal-planner.v0',
-            opportunities: [],
+            // Explicit JSON text: pg otherwise encodes a JS array as a PostgreSQL array.
+            opportunities: JSON.stringify([]),
           })
           .execute();
       });

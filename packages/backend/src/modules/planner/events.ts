@@ -10,9 +10,9 @@ export const plannerQueue = defineQueue({
   name: 'planner.run',
   purpose: 'Prepare and validate one bounded personal exploration plan; never commission supply.',
   payload: PlannerJobSchema,
-  // Covers two attempts at max300s transport +10s quota +2×60s scope lock, plus margin.
+  // Covers two attempts at max300s transport +10s quota +2×60s scope lock, plus two application-scope waits and margin.
   policy: {
-    expireInSeconds: 1000,
+    expireInSeconds: 1200,
     retryLimit: 3,
     retryDelaySeconds: 30,
     retryBackoff: true,
