@@ -129,6 +129,8 @@ jobs:
       # runner. Its Vitest config also runs files serially; every Scroll test still runs here.
       - name: Scroll model unit, property and timing tests (isolated scheduling)
         run: pnpm --filter @knowscroll/scroll-model test
+      - name: Scene core unit tests (bounded descriptors and deterministic geometry)
+        run: pnpm --filter @knowscroll/scene-core test
       - name: Unit and property tests (contracts, backend, migrations, api)
         run: pnpm --filter @knowscroll/contracts --filter @knowscroll/backend --filter @knowscroll/migrations --filter @knowscroll/api test
       - name: Integration tests (real PostgreSQL, one template-derived database per file)

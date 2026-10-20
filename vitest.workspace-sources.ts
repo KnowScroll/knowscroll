@@ -11,6 +11,7 @@ const workspacePackages: Readonly<Record<string, string>> = {
   '@knowscroll/backend': 'packages/backend',
   '@knowscroll/contracts': 'packages/contracts',
   '@knowscroll/migrations': 'migrations',
+  '@knowscroll/scene-core': 'packages/scene-core',
   '@knowscroll/scroll-model': 'packages/scroll-model',
 };
 
