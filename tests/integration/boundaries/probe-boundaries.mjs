@@ -146,12 +146,14 @@ const probes = [
     file: 'packages/ui/src/zz-probe-admission.ts',
     source:
       "import { validateDocument } from '@knowscroll/scroll-model/admission';\nexport const p = validateDocument;\n",
-    expect: [['@knowscroll/scroll-model/admission', 'clients-never-import-scroll-admission']],
+    // `packages/ui` and `packages/client-core` declare scroll-model (S2.1 part 2), so the specifier
+    // resolves to its sources, as the producer and internal probes above do.
+    expect: [['packages/scroll-model/src/admission/index.ts', 'clients-never-import-scroll-admission']],
   },
   {
     file: 'packages/client-core/src/zz-probe-admission.ts',
     source: "import { admitDocument } from '@knowscroll/scroll-model/admission';\nexport const p = admitDocument;\n",
-    expect: [['@knowscroll/scroll-model/admission', 'clients-never-import-scroll-admission']],
+    expect: [['packages/scroll-model/src/admission/index.ts', 'clients-never-import-scroll-admission']],
   },
   {
     file: 'packages/contracts/src/zz-probe.ts',
