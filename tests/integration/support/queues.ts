@@ -1,3 +1,4 @@
+import { resolveSupplyQueue } from '@knowscroll/backend/modules/supply';
 import { plannerQueue } from '@knowscroll/backend/modules/planner';
 import { z } from 'zod';
 import { defineQueue, queueRegistry } from '@knowscroll/backend/infrastructure/jobs';
@@ -43,6 +44,7 @@ export const fixtureModelQueue = defineQueue({
 
 /** Every queue the template database declares: the release's own plus the fixtures above. */
 export const testQueues = queueRegistry([
+  resolveSupplyQueue,
   plannerQueue,
   applyActionEvidenceQueue,
   projectScrollReadingQueue,

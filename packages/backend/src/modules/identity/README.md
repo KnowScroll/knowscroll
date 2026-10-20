@@ -206,3 +206,10 @@ scope claim already refuses an old epoch's requests if the notice is lost). Acco
 erase the account tables above and null `ops.operator_sign_ins.account_id`. Native magic-link
 opening (universal/app links) needs mobile builds (owner decision 2); the device binding is built
 and tested only against fixtures until then.
+
+`CHECK_PERSONAL_OWNER_ACTIVE` (#239) reads the owning account's current `status` inside an already
+locked personal scope, including for a system worker. Suspension operations follow the existing
+root-before-account mutation protocol; this port adds no account row lock or reverse lock order.
+Supply checks it before and after Content authority waits, before resolver effects. It observes
+account suspension only. `withPersonalScope` still handles universe status/epoch; session/device
+sign-out does not revoke an already accepted private demand or impersonate the original actor.

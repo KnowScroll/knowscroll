@@ -60,6 +60,8 @@ export interface ContentAssetRevisions {
 }
 
 export interface ContentAssets {
+  availability_changed_at: Generated<Timestamp>;
+  availability_revision: Generated<number>;
   created_at: Generated<Timestamp>;
   id: string;
   kind: string;
@@ -728,6 +730,34 @@ export interface ReceiptsSharedCommands {
   scope_kind: string;
 }
 
+export interface SupplyRequests {
+  brief: Json | null;
+  command: Json;
+  content: Json | null;
+  content_availability_revision: number | null;
+  created_at: Timestamp;
+  decision: string;
+  id: string;
+  privacy_epoch: number;
+  reason: string | null;
+  request_revision: number;
+  revision: number;
+  source_availability_revision: number | null;
+  state: string;
+  universe_id: string;
+  updated_at: Timestamp;
+  work_id: string | null;
+}
+
+export interface SupplyWork {
+  active: Generated<boolean>;
+  brief: Json;
+  canonical_key: string;
+  closed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  id: string;
+}
+
 export interface DB {
   "composer.decisions": ComposerDecisions;
   "content.asset_provenance": ContentAssetProvenance;
@@ -786,4 +816,6 @@ export interface DB {
   "reasoning.usage_receipts": ReasoningUsageReceipts;
   "receipts.personal_commands": ReceiptsPersonalCommands;
   "receipts.shared_commands": ReceiptsSharedCommands;
+  "supply.requests": SupplyRequests;
+  "supply.work": SupplyWork;
 }

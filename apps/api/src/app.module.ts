@@ -1,3 +1,5 @@
+import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
+import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { mediaWiring } from './modules/media.js';
 import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
@@ -93,9 +95,11 @@ export class AppModule {
           lockTimeoutMs: resources.config.scopeLockTimeoutMs,
           logEvent: resources.logEvent,
         }),
+        ...identityScopeOwnerProviders(),
         ...contentWiring,
         ...mediaWiring,
         ...experienceWiring,
+        ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
         ...evidenceWiring,
         ScopeGateway,
       ],
