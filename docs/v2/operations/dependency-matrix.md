@@ -100,6 +100,13 @@ Client data (S1.4, #227; not part of Expo's bundled modules):
 | @orpc/client, @orpc/openapi-client | 1.15.7 (lockstep with the server's oRPC) | 2026-10-14 | MIT | ES modules only: the client's Jest config sends `.mjs` through jest-expo's Babel transform |
 | @tanstack/react-query | 5.104.4 | 2026-10-17 | MIT | react ^18‖^19, @types/react ^18‖^19; brings @tanstack/query-core 5.104.4 |
 
+Client build (Babel for Metro; added by the native lane, #249; both already in the lockfile as transitive dependencies of `expo`):
+
+| Package | Version | Published | Licence | Notes |
+|---|---|---|---|---|
+| babel-preset-expo | 58.0.18 | 2026-10-19 | MIT | The preset Expo uses without a config file; the exact version `expo@58.0.14` depends on. Named in `apps/client/babel.config.js` |
+| @babel/plugin-transform-parameters | 7.29.7 | 2026-05-25 | MIT | Lowers rest parameters that are patterns. Hermes' compiler rejects `async (...[input, options = {}]) =>` (in `@orpc/client`), which Expo's Hermes profile leaves untouched, so the Android release build failed at `hermesc` |
+
 | Client verification | Version | Published | Licence | Peer notes |
 |---|---|---|---|---|
 | jest | 30.5.2 | 2026-09-18 | MIT | jest-expo accepts ^29‖^30 |

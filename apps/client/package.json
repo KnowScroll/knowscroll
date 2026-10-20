@@ -36,12 +36,14 @@
     "react-native-web": "catalog:"
   },
   "devDependencies": {
+    "@babel/plugin-transform-parameters": "catalog:",
     "@playwright/test": "catalog:",
     "@react-native/jest-preset": "catalog:",
     "@testing-library/react-native": "catalog:",
     "@types/jest": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
+    "babel-preset-expo": "catalog:",
     "jest": "catalog:",
     "jest-expo": "catalog:",
     "test-renderer": "catalog:",
