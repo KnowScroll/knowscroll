@@ -120,6 +120,16 @@
       "@knowscroll/source": "./src/infrastructure/media-store/range.ts",
       "types": "./dist/infrastructure/media-store/range.d.ts",
       "default": "./dist/infrastructure/media-store/range.js"
+    },
+    "./modules/composer": {
+      "@knowscroll/source": "./src/modules/composer/public.ts",
+      "types": "./dist/modules/composer/public.d.ts",
+      "default": "./dist/modules/composer/public.js"
+    },
+    "./modules/composer/nest-providers": {
+      "@knowscroll/source": "./src/modules/composer/adapters/nest-providers.ts",
+      "types": "./dist/modules/composer/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/composer/adapters/nest-providers.js"
     }
   },
   "files": [

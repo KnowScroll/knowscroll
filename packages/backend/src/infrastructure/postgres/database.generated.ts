@@ -23,6 +23,20 @@ export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export interface ComposerDecisions {
+  command_id: string;
+  expires_at: Timestamp;
+  id: string;
+  input_sha256: string;
+  intent_revision: number | null;
+  payload: Json;
+  policy_version: string;
+  privacy_epoch: number;
+  recorded_at: Generated<Timestamp>;
+  session_id: string | null;
+  universe_id: string;
+}
+
 export interface ContentAssetProvenance {
   asset_id: string;
   provenance: Json;
@@ -53,6 +67,37 @@ export interface ContentAssets {
   status: string;
 }
 
+export interface ContentContinuityLinks {
+  active: Generated<boolean>;
+  authority_reference: string;
+  direction: string;
+  id: string;
+  relation: Json;
+  revision: number;
+  source_asset_id: string;
+  source_asset_revision: number;
+  strength: number;
+  target_asset_id: string;
+  target_asset_revision: number;
+}
+
+export interface ContentDiscoveryRevisions {
+  asset_id: string;
+  asset_revision: number;
+  attribution_version: Generated<string>;
+  facets: Generated<string[]>;
+  search_text: string;
+  summary: string;
+}
+
+export interface ContentEncounterTopics {
+  asset_id: string;
+  asset_revision: number;
+  role: string;
+  topic_id: string;
+  weight: number;
+}
+
 export interface ContentMediaObjects {
   backend: string;
   created_at: Generated<Timestamp>;
@@ -73,6 +118,15 @@ export interface ContentReelImports {
   media_id: string;
   run_id: string;
   script_name: string;
+}
+
+export interface ContentSeriesUnits {
+  asset_id: string;
+  asset_revision: number;
+  authority_reference: string;
+  part: number;
+  series_id: string;
+  series_revision: number;
 }
 
 export interface EvidenceActionEvents {
@@ -394,11 +448,16 @@ export interface ReceiptsSharedCommands {
 }
 
 export interface DB {
+  "composer.decisions": ComposerDecisions;
   "content.asset_provenance": ContentAssetProvenance;
   "content.asset_revisions": ContentAssetRevisions;
   "content.assets": ContentAssets;
+  "content.continuity_links": ContentContinuityLinks;
+  "content.discovery_revisions": ContentDiscoveryRevisions;
+  "content.encounter_topics": ContentEncounterTopics;
   "content.media_objects": ContentMediaObjects;
   "content.reel_imports": ContentReelImports;
+  "content.series_units": ContentSeriesUnits;
   "evidence.action_events": EvidenceActionEvents;
   "evidence.encounter_evidence": EvidenceEncounterEvidence;
   "evidence.observations": EvidenceObservations;
