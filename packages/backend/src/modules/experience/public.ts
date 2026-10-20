@@ -5,6 +5,7 @@
  */
 import type { PersonalScopeTx } from '../identity/public.js';
 import type { ActionKind } from './domain/actions.js';
+import type { ExposureKind } from './domain/exposures.js';
 
 export {
   ACTION_OUTCOME_VERSION,
@@ -16,6 +17,24 @@ export {
   type ApplyActionResult,
 } from './application/apply-action.js';
 export { SAVED_PAGE_LIMIT, type ListSaved, type ListSavedResult } from './application/list-saved.js';
+export {
+  OPEN_EXPOSURE_OPERATION,
+  OpenExposureOutcomeSchema,
+  type OpenExposure,
+  type OpenExposureCommand,
+  type OpenExposureOutcome,
+  type OpenExposureResult,
+} from './application/open-exposure.js';
+export {
+  ACTIVATE_EXPOSURE_OPERATION,
+  ActivateExposureOutcomeSchema,
+  type ActivateExposure,
+  type ActivateExposureCommand,
+  type ActivateExposureOutcome,
+  type ActivateExposureResult,
+} from './application/activate-exposure.js';
+export type { ReadExposureDocument, ReadExposureDocumentResult } from './application/read-exposure-document.js';
+export { EXPOSURE_ORIGINS, type ExposureOrigin } from './domain/exposures.js';
 
 /** An action as the evidence module reads it. */
 export interface ActionForEvidence {
@@ -36,3 +55,29 @@ export type ReadActionForEvidence = (
 ) => Promise<ActionForEvidence | undefined>;
 
 export const READ_ACTION_FOR_EVIDENCE = Symbol('experience.readActionForEvidence');
+
+/**
+ * An exposure as the evidence module reads it, to validate an observation's lineage: which revision
+ * the exposure presents and whether (and when) its article became the active reading surface.
+ */
+export interface ExposureForEvidence {
+  readonly id: string;
+  readonly assetId: string;
+  readonly assetRevision: number;
+  readonly kind: ExposureKind;
+  readonly openedAt: Date;
+  /** Undefined until activation: observations are accepted only for an activated exposure. */
+  readonly activatedAt: Date | undefined;
+  readonly privacyEpoch: number;
+}
+
+/**
+ * Port: read one exposure of the scope's universe inside the reader's own locked scope. `undefined`
+ * when it does not exist (never opened, another person's, or erased).
+ */
+export type ReadExposureForEvidence = (
+  scope: PersonalScopeTx,
+  exposureId: string,
+) => Promise<ExposureForEvidence | undefined>;
+
+export const READ_EXPOSURE_FOR_EVIDENCE = Symbol('experience.readExposureForEvidence');
