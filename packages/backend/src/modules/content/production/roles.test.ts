@@ -55,6 +55,9 @@ function fixtureDraft() {
 describe('Scroll production roles (labelled CI fixture)', () => {
   it('hydrates only distinct offered IDs and rejects model-authored claim fields', () => {
     const role = claimsRole([page]);
+    expect(role.outputFormat).toBe('single-tool-object');
+    expect(role.instructions).toContain('native input of exactly one submit_output tool call');
+    expect(role.outputSchema.safeParse({ candidateIds: selection.candidateIds.slice(0, 3) }).success).toBe(false);
     const accepted = role.outputSchema.safeParse(selection);
     expect(accepted.success).toBe(true);
     if (accepted.success) {
@@ -160,6 +163,11 @@ describe('Scroll production roles (labelled CI fixture)', () => {
       expect(role.maxOutputTokens).toBe(12_000);
       expect(claimsRole([page]).maxOutputTokens).toBe(4_000);
       expect(role.version).toBe(WRITER_PROMPT_VERSION);
+      expect(role.outputFormat).toBe('single-tool-object');
+      expect(role.instructions).toContain('native input of exactly one submit_output tool call');
+      expect(role.instructions).toContain('your own sentence structure and wording');
+      expect(role.instructions).toContain('matching passage anchorText');
+      expect(role.instructions).toContain('Never reproduce nine consecutive source words');
       expect(claimsRole([page]).version).toBe(CLAIMS_ROLE_VERSION);
       expect(provenance.production).toMatchObject({ promptVersion: role.version });
     },

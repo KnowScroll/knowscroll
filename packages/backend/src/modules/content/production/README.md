@@ -44,13 +44,13 @@ JSON; v2 makes that distinction explicit and adds one `JSON.stringify`-generated
 example. This is a bounded prompt correction, not evidence that the earlier model copied grammar
 or that the revised prompt will succeed. Parsing, schemas, admission and repair limits are unchanged.
 
-| Identity | v1 | v2 | v3 | v4 | Current v5 |
-|---|---|---|---|---|---|
-| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` | `scroll-production.v5` |
-| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged | Unchanged |
-| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) | `scroll-writer.v3` | `scroll-writer.v4` (semantic repair feedback) |
-| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged | Unchanged | Unchanged |
-| Evidence candidate recipe | None | None | `quote-candidates.v1` | Unchanged | Unchanged |
+| Identity | v1 | v2 | v3 | v4 | v5 | Current v6 |
+|---|---|---|---|---|---|---|
+| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` | `scroll-production.v5` | `scroll-production.v6` |
+| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged | Unchanged | `scroll-claims.v3` (native object carrier) |
+| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) | `scroll-writer.v3` | `scroll-writer.v4` (semantic repair feedback) | `scroll-writer.v5` (native object + original prose) |
+| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged |
+| Evidence candidate recipe | None | None | `quote-candidates.v1` | Unchanged | Unchanged | Unchanged |
 
 All four rejected v1/v2/v3 jobs, their stable run IDs and eleven attempts stay untouched. A reviewed v4 invocation
 creates a different job and role runs; it is not a resend or resume of an earlier version. It still
@@ -136,9 +136,47 @@ immutable. CI preserves five historical job shapes/fourteen attempts byte-for-by
 actual writer semantic refusal → safe stored issue → fixed repair context → replay without resend.
 This is fixture evidence; no real generation success is established by this change.
 
-The publication hook imports these exact policy/writer constants, so new topic projection requires
-v5 job lineage and v4 writer provenance in addition to all existing scope, closure, receipt and
-admission checks. No historical reconciliation or backfill is added.
+The publication hook imports the current policy/writer constants in addition to all existing
+scope, closure, receipt and admission checks. No historical reconciliation or backfill is added.
+
+## Native object carrier and original prose in v6
+
+The latest real dev v5 claims primary selected fewer than four IDs; its single repair succeeded.
+Writer primary parsed but failed `copied_passage` at a masked reader path: at least nine consecutive
+words matched the supplied material. Its repair failed one-object JSON handling, with only a bare
+object prefix, `unexpected_token` category and 8,147-character count retained. Invalid drafts were
+not stored; the exact copied passage and malformed token are unknown.
+
+Policy `scroll-production.v6` uses the reviewed shared `single-tool-object` format for both
+`scroll-claims.v3` and `scroll-writer.v5`. Both primary and repair submit one native object through
+the fixed `submit_output` data carrier; it executes no action and creates no tool interaction loop.
+The writer asks for freshly composed sentences from the selected documented claims, preserving
+their technical meaning and caveats. A copy refusal asks for rewritten prose and corresponding
+passage anchors, without omitting substance or evading the check across spans/blocks. This is
+prompt guidance, not evidence of improved actual model output or semantic entailment.
+
+The [MiniMax Messages reference](https://platform.minimax.io/docs/api-reference/text-chat-anthropic)
+and [published ToolChoice schema](https://platform.minimax.io/docs/api-reference/text/api/openapi-chat-anthropic.json)
+document only `auto` choice. The model can choose an invalid reply. There is no forced-name or
+schema-decoder guarantee, response-format mode, schema conversion, text fallback or JSON salvage.
+The reviewed M3 adapter accepts exactly one correctly named tool with object input and a conclusive
+tool stop, no mixed text or extra tools. Unsupported transports/models refuse before reasoning
+reservation/quota/dispatch. All other roles with no opt-in retain their historical hp2 bytes.
+
+Stable role IDs, generation, research, candidate selection, min-four claims, strict JSON/Zod,
+canonical DSL, copy-nine, numeric/honesty/support binding, privacy, publication admission, daily
+brake and all spend/unknown/replay rules are unchanged. At most two claims calls and two writer
+calls remain possible. The new job policy and role versions record actual format/instruction
+changes; they do not alter or resume terminal v1–v5 jobs, old attempts, receipts or protected bytes.
+Current publication attribution requires v6 job lineage and v5 writer provenance automatically
+through the same imported constants. No runtime activation, new allowance or call is authorized.
+
+CI uses authored HTTP responses through the real reviewed M3 encoder/parser and production harness
+to exercise both role primaries/repairs, native min-four/copy refusals, exact new lineage, private
+safe feedback, stored bytes, max-four accounting, terminal/unknown replay and unsupported models.
+Historical synthetic v1–v5 job/attempt snapshots stay byte-identical. Such fixtures establish
+protocol/application behavior; actual provider selection, three generated Scrolls (two interactive)
+and quality review still require separately allocated real runs and connected reading evidence.
 
 ## New-publication topic authority
 
