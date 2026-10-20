@@ -14,18 +14,10 @@ import type {
 } from '../../../reasoning/public.js';
 import { inAdmissionTransaction, makeAdmissionStore } from '../adapters/postgres-store.js';
 import { type ClaimPackage, claimsRole, compileGeneratedDraft, generatedProvenance, writerRole } from './roles.js';
-import { productionStore, type ProductionRow, type RoleReceipt } from './store.js';
+import { productionStore, type ProductionRow } from './store.js';
+import type { ProduceScrollResult, RoleReceipt } from './types.js';
 import { REQUEST_BOUND_PER_TOPIC, SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
 
-export interface ProduceScrollResult {
-  readonly outcome: 'dry_run' | 'published' | 'rejected' | 'unknown' | 'in_progress' | 'scope_refused';
-  readonly requestBound: number;
-  readonly runId?: string;
-  readonly assetId?: string;
-  readonly revision?: number;
-  readonly codes?: readonly string[];
-  readonly attempts?: readonly RoleReceipt[];
-}
 export interface ProduceScrollDependencies {
   readonly db: Kysely<Database>;
   readonly authority: ProductionAuthority;
@@ -143,10 +135,10 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           context: {
             bundleRef: `scroll:${row.id}:research`,
             items: [
-              { ref: `brief:${topic}`, kind: 'production-brief', text: TOPICS[topic].brief },
+              { ref: `brief:${topic}`, kind: 'production_brief', text: TOPICS[topic].brief },
               ...pages.map((page) => ({
                 ref: page.id,
-                kind: 'public-research',
+                kind: 'public_research',
                 text: JSON.stringify({ pageId: page.id, passages: page.passages }),
               })),
             ],
@@ -192,8 +184,8 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
         context: {
           bundleRef: `scroll:${row.id}:claims`,
           items: [
-            { ref: `brief:${topic}`, kind: 'production-brief', text: TOPICS[topic].brief },
-            { ref: `claims:${row.id}`, kind: 'checked-claims', text: JSON.stringify(claimPackage) },
+            { ref: `brief:${topic}`, kind: 'production_brief', text: TOPICS[topic].brief },
+            { ref: `claims:${row.id}`, kind: 'checked_claims', text: JSON.stringify(claimPackage) },
           ],
         },
         limits: { allowRepair: true },

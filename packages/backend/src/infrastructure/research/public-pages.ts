@@ -5,7 +5,7 @@ import { isIP } from 'node:net';
 import { assertOutsideTransaction } from '../postgres/transaction-marker.js';
 
 /** Public research policy. Hosts are individually reviewed; a .gov suffix alone is not authority. */
-export const RESEARCH_POLICY = 'public-research.v1';
+const RESEARCH_POLICY = 'public-research.v1';
 const hosts = new Set([
   'en.wikipedia.org',
   'arxiv.org',
@@ -31,6 +31,7 @@ export interface ResearchPassage {
 }
 export interface ResearchPage {
   readonly id: string;
+  readonly policyVersion: typeof RESEARCH_POLICY;
   readonly url: string;
   readonly retrievedAt: string;
   readonly sha256: string;
@@ -146,6 +147,7 @@ export function extractResearch(html: string, url: string, retrievedAt: string):
   const id = `page-${sha256.slice(0, 24)}`;
   return {
     id,
+    policyVersion: RESEARCH_POLICY,
     url,
     retrievedAt,
     sha256,
@@ -166,7 +168,18 @@ export interface ResearchNetwork {
   ) => Promise<ResearchResponse>;
 }
 const network: ResearchNetwork = {
-  addresses: (hostname) => lookup(hostname, { all: true }),
+  addresses: async (hostname) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const expired = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new ResearchRefusal('dns_timeout')), 10_000);
+      timer.unref();
+    });
+    try {
+      return await Promise.race([lookup(hostname, { all: true }), expired]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  },
   read: (url, address) =>
     new Promise((resolve, reject) => {
       const req = request(
@@ -206,6 +219,9 @@ const network: ResearchNetwork = {
           );
         },
       );
+      const deadline = setTimeout(() => req.destroy(new ResearchRefusal('request_timeout')), 20_000);
+      deadline.unref();
+      req.on('close', () => clearTimeout(deadline));
       req.on('timeout', () => req.destroy(new ResearchRefusal('request_timeout')));
       req.on('error', (error) =>
         reject(error instanceof ResearchRefusal ? error : new ResearchRefusal('network_failed')),
@@ -236,6 +252,10 @@ export async function fetchResearchPage(
     if (response.status !== 200) throw new ResearchRefusal('http_refused');
     if (!/^text\/html(?:\s*;|$)/iu.test(response.headers['content-type'] ?? ''))
       throw new ResearchRefusal('content_type_refused');
+    const charset = /charset\s*=\s*["']?([^;"'\s]+)/iu.exec(response.headers['content-type'] ?? '')?.[1];
+    if (charset !== undefined && !/^(?:utf-?8|us-ascii|ascii)$/iu.test(charset))
+      throw new ResearchRefusal('charset_refused');
+    if (response.body.includes('\ufffd')) throw new ResearchRefusal('text_encoding_refused');
     if (response.headers['content-encoding'] && response.headers['content-encoding'] !== 'identity')
       throw new ResearchRefusal('encoding_refused');
     if (Buffer.byteLength(response.body) > MAX_RESEARCH_BYTES) throw new ResearchRefusal('page_too_large');

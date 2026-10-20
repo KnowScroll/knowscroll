@@ -62,7 +62,7 @@ describe('Scroll production roles (labelled CI fixture)', () => {
     expect(Array.isArray(compiled.provenance['claims'])).toBe(true);
     for (const hidden of ['claims', 'sources', 'bindings', 'production'])
       expect(compiled.document).not.toHaveProperty(hidden);
-    expect(compiled.explanationUnitId).toBe('legacy-cutroom:greenhouse');
+    expect(compiled.explanationUnitId).toBe('legacy-cutroom-greenhouse');
   });
   it('puts copy, number, source-name and binding failures inside the same writer schema repair boundary', () => {
     const role = writerRole(provenance, false);

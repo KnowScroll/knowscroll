@@ -29,7 +29,7 @@ An unknown attempt stays unknown and is never resent. Ordinary reruns report exi
 terminal rejection stays rejected. A changed prompt, source list or policy requires a reviewed
 version bump, never editing the old job or published revision.
 
-Topic explanation identities are `legacy-cutroom:seasons-v5`, `legacy-cutroom:tides-v4`, and
-`legacy-cutroom:greenhouse`, exactly matching the approved Reel import. The frozen v1 scripts are
+Topic explanation identities are `legacy-cutroom-seasons-v5`, `legacy-cutroom-tides-v4`, and
+`legacy-cutroom-greenhouse`, exactly matching the approved Reel import. The frozen v1 scripts are
 continuity references only. No v1 Scroll or authored example is presented as generated content.
 Neither private research nor provenance is reachable through content's client-facing read ports.

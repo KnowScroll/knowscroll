@@ -99,7 +99,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       .select(['document', 'explanation_unit_id', 'provenance_kind'])
       .where('asset_id', '=', first.assetId ?? '')
       .executeTakeFirstOrThrow();
-    expect(revision.explanation_unit_id).toBe('legacy-cutroom:greenhouse');
+    expect(revision.explanation_unit_id).toBe('legacy-cutroom-greenhouse');
     expect(revision.provenance_kind).toBe('generated');
     for (const hidden of ['claims', 'sources', 'bindings', 'checks', 'production'])
       expect(revision.document).not.toHaveProperty(hidden);

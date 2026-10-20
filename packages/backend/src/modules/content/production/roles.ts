@@ -87,7 +87,7 @@ export function generatedProvenance(input: {
       retrievedAt: page.retrievedAt,
     })),
     // All stored research, not only selected quotes, participates in the copy check. Each page is
-    // bounded to 8 KiB before storage/context, so no fetched reader material escapes this check.
+    // bounded to 8,000 characters before storage/context, so no fetched reader material escapes this check.
     material: input.pages.map((page) => page.passages.map((p) => p.text).join('\n')),
     offeredMedia: [],
     production: {

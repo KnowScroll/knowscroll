@@ -3,6 +3,7 @@ import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { ClaimPackage } from './roles.js';
+import type { RoleReceipt } from './types.js';
 import { SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
 
 export interface ProductionRow {
@@ -20,15 +21,6 @@ export interface ProductionRow {
   readonly outcomes: readonly RoleReceipt[];
   readonly asset_id: string | null;
   readonly asset_revision: number | null;
-}
-export interface RoleReceipt {
-  readonly role: 'claims' | 'writer' | 'checks';
-  readonly kind: string;
-  readonly attemptId?: string;
-  readonly code?: string;
-  readonly repaired?: boolean;
-  readonly inputTokens?: number;
-  readonly outputTokens?: number;
 }
 /** The private production store. SQL is parameterised; source material is never logged or returned by a client port. */
 export function productionStore(db: Kysely<Database>) {

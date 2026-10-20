@@ -30,7 +30,7 @@ export const TOPICS = {
 export type ScrollTopic = keyof typeof TOPICS;
 /** The same explanation identity as its owner-approved imported Reel sibling. */
 export function explanationUnitFor(topic: ScrollTopic): string {
-  return `legacy-cutroom:${TOPICS[topic].script}`;
+  return `legacy-cutroom-${TOPICS[topic].script}`;
 }
 /** Parse a bounded, code-defined topic identifier. */
 export function parseScrollTopic(raw: string | undefined): ScrollTopic | undefined {
