@@ -598,6 +598,7 @@ function pick(env: Environment, names: readonly string[]): Record<string, string
 /** The bounded, nonpersonal Scroll operator's validated world, database and harness settings. */
 export interface ScrollProductionOperatorConfig extends ContentOperatorConfig {
   readonly scopeLockTimeoutMs: number;
+  readonly productionGeneration: number;
   readonly reasoning: ReasoningSettings;
 }
 
@@ -609,8 +610,11 @@ export function readScrollProductionOperatorConfig(env: Environment): ScrollProd
   const content = readContentOperatorConfig(env);
   const [scope, reasoning] = combineChecks(
     checkEnvironment(
-      z.object({ KS_SCOPE_LOCK_TIMEOUT_MS: positiveInteger(5_000, 60_000) }),
-      pick(env, ['KS_SCOPE_LOCK_TIMEOUT_MS']),
+      z.object({
+        KS_SCOPE_LOCK_TIMEOUT_MS: positiveInteger(5_000, 60_000),
+        KS_SCROLL_PRODUCTION_GENERATION: positiveInteger(1, 2_147_483_647),
+      }),
+      pick(env, ['KS_SCOPE_LOCK_TIMEOUT_MS', 'KS_SCROLL_PRODUCTION_GENERATION']),
     ),
     checkEnvironment(reasoningVariables, pick(env, Object.keys(reasoningVariables.shape))),
   );
@@ -620,5 +624,10 @@ export function readScrollProductionOperatorConfig(env: Environment): ScrollProd
       'KS_SCOPE_LOCK_TIMEOUT_MS: must_be_below_statement_timeout',
     ],
   ]);
-  return { ...content, scopeLockTimeoutMs: scope.KS_SCOPE_LOCK_TIMEOUT_MS, reasoning: reasoningSettings(reasoning) };
+  return {
+    ...content,
+    scopeLockTimeoutMs: scope.KS_SCOPE_LOCK_TIMEOUT_MS,
+    productionGeneration: scope.KS_SCROLL_PRODUCTION_GENERATION,
+    reasoning: reasoningSettings(reasoning),
+  };
 }

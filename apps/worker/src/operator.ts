@@ -1,6 +1,5 @@
 import { userInfo } from 'node:os';
 import { parseArgs } from 'node:util';
-import { sql } from 'kysely';
 import {
   ConfigurationError,
   commitForDiagnostics,
@@ -110,14 +109,6 @@ async function main(): Promise<number> {
       process.once('SIGTERM', stop);
       process.once('SIGINT', stop);
       try {
-        const root = await sql<{
-          generation: number;
-        }>`select generation from reasoning.production_scopes where id='scroll-supply'`.execute(contentDatabase.db);
-        const generation = root.rows[0]?.generation;
-        if (generation === undefined) {
-          print({ outcome: 'scope_refused', requestBound: REQUEST_BOUND_PER_TOPIC });
-          return 2;
-        }
         const withScope = makeWithProductionScope(contentDatabase.db, {
           enabled: contentConfig.reasoning.productionEnabled,
           lockTimeoutMs: contentConfig.scopeLockTimeoutMs,
@@ -135,7 +126,7 @@ async function main(): Promise<number> {
         );
         const produce = produceScrollUseCase({
           db: contentDatabase.db,
-          authority: { scopeId: 'scroll-supply', generation },
+          authority: { scopeId: 'scroll-supply', generation: contentConfig.productionGeneration },
           withScope,
           harness,
           model: model?.model ?? 'none',

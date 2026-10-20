@@ -155,7 +155,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
               ...pages.map((page) => ({
                 ref: page.id,
                 kind: 'public_research',
-                text: canonicalJson({ pageId: page.id, passages: page.passages }),
+                text: canonicalJson({ pageId: page.id, passages: page.passages.map(({ id, text }) => ({ id, text })) }),
               })),
             ],
           },

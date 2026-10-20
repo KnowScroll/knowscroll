@@ -4,6 +4,9 @@ Run the worker release operator with the selected world's child-process environm
 worlds are `local`, `ci`, `dev`, `stage`; production is refused before database/provider work.
 The reasoning provider defaults to none; production additionally needs its explicit configuration
 switch and the database `scroll-supply` root enabled at the exact current generation (0013).
+`KS_SCROLL_PRODUCTION_GENERATION` is the explicit expected generation (default1); a newer
+database generation is refused until the operator updates this value. The command never adopts
+a replacement grant by reading its generation automatically.
 Never create a personal universe to authorize shared production.
 
 ```

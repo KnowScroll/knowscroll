@@ -6,6 +6,7 @@ import {
   readOperatorConfig,
   readWorkerConfig,
   readWorkerOperatorConfig,
+  readScrollProductionOperatorConfig,
 } from './index.js';
 
 const secretUrl = 'postgres://ks_api:hunter2-very-secret@127.0.0.1:5432/knowscroll_v2_dev';
@@ -403,5 +404,24 @@ describe('process configuration', () => {
     const config = readWorkerOperatorConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev' });
     expect(config.world).toBe('dev');
     expect(config.database.applicationName).toBe('knowscroll-operator-dev');
+  });
+
+  it('keeps Scroll production disabled and pins its expected grant generation explicitly', () => {
+    const env = { KS_WORLD: 'local', DATABASE_URL: secretUrl };
+    const config = readScrollProductionOperatorConfig(env);
+    expect(config.reasoning.provider).toBe('none');
+    expect(config.reasoning.productionEnabled).toBe(false);
+    expect(config.productionGeneration).toBe(1);
+    expect(
+      readScrollProductionOperatorConfig({ ...env, KS_SCROLL_PRODUCTION_GENERATION: '2' }).productionGeneration,
+    ).toBe(2);
+    expect(
+      configurationError(() =>
+        readScrollProductionOperatorConfig({ ...env, KS_SCROLL_PRODUCTION_GENERATION: '0' }),
+      ).problems.some((problem) => problem.startsWith('KS_SCROLL_PRODUCTION_GENERATION:')),
+    ).toBe(true);
+    expect(
+      configurationError(() => readScrollProductionOperatorConfig({ ...env, KS_WORLD: 'live' })).problems,
+    ).toContain('KS_WORLD: operator_command_refused_in_this_world');
   });
 });
