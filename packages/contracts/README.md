@@ -76,7 +76,8 @@ context reads, exposure-linked actions (including Save/Unsave) and Like/Unlike/H
 with `EXPERIENCE_COMMAND_UNSUPPORTED` before legacy use-case effects. The direct client rejects a
 Composer outcome as a controlled session error. These declarations do not implement Composer,
 new action/evidence state, Saved metadata hydration or any Explore UI. No #234 runtime acceptance
-is claimed. Existing Scroll-only behavior and Reel refusal remain until their consumer PRs land.
+is claimed. Direct Scroll and Reel encounters use their implemented adapters; the prerequisite
+refusals above apply to the future Composer and action consumers.
 
 Vertical discovery, declared series next/previous, admitted related moves, existing format variants
 and explicit new revisits are distinct intents. A missing variant is unavailable unless a real

@@ -26,7 +26,11 @@ function OpenReel({ scope, assetId }: { scope: AccountScope; assetId: string }) 
           origin: { kind: 'direct' },
           capabilities: SCROLL_CAPABILITIES,
         });
+        if (stopped || !scope.active) return;
+        // Discovery outcomes are prepared supply, not direct Reel exposure lineage.
+        if (exposure.status !== undefined || exposure.kind !== 'reel') throw new Error('unexpected_reel_open_result');
         const grant = await scope.api.media.grant({ exposureId: exposure.exposureId });
+        if (stopped || !scope.active) return;
         await scope.api.experience.activateExposure({ commandId: commands.activate, exposureId: exposure.exposureId });
         if (!stopped && scope.active) setOpened({ exposureId: exposure.exposureId, document: grant.document });
       } catch {
@@ -105,7 +109,7 @@ function ReadyReel({
   const sample = useCallback((value: PlaybackSample) => recorder.sample(value), [recorder]);
   const discontinuity = useCallback(() => recorder.discontinuity(), [recorder]);
   const save = async () => {
-    if (saving) return;
+    if (saving || !scope.active) return;
     setSaving(true);
     setSaveFailed(false);
     try {
@@ -114,6 +118,7 @@ function ReadyReel({
         kind: saved ? 'unsave' : 'save',
         target: { assetId: document.assetId, assetRevision: document.revision },
       });
+      if (result.kind !== 'save' && result.kind !== 'unsave') throw new Error('unexpected_save_result');
       if (scope.active) setSaved(result.saved);
     } catch {
       if (scope.active) setSaveFailed(true);

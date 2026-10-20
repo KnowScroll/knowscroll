@@ -123,6 +123,9 @@ describe('Reel journey in the installed release trees', () => {
       origin: { kind: 'direct' },
       capabilities: textCapabilities,
     });
+    expect(opened.status).toBeUndefined();
+    if (opened.status !== undefined) throw new Error('Direct Reel fixture returned a Composer outcome');
+    expect(opened.kind).toBe('reel');
     exposureId = opened.exposureId;
     const grant = await client.media.grant({ exposureId });
     path = grant.path;
