@@ -65,7 +65,11 @@ class NativeReadingViewport implements ReadingViewport {
         this.measureAll();
       },
       onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        this.scrollTop = Math.max(0, event.nativeEvent.contentOffset.y);
+        const next = Math.max(0, event.nativeEvent.contentOffset.y);
+        // Accessibility scrolling need not send a drag event. An offset different from the
+        // last commanded restore is reader takeover too; its matching completion is not.
+        if (Math.abs(next - this.scrollTop) > 1) this.restoring = false;
+        this.scrollTop = next;
         // A scroll event that carries the viewport height keeps it fresh (rotation, keyboard).
         const measured = event.nativeEvent.layoutMeasurement.height;
         if (measured > 0) this.height = measured;

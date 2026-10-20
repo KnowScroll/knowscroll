@@ -606,7 +606,12 @@ describe('exact local Scroll resume', () => {
     expect(scrollTo).toHaveBeenLastCalledWith({ y: 1100, animated: false });
     await fireEvent(reader, 'contentSizeChange', 350, 1500);
     expect(scrollTo).toHaveBeenLastCalledWith({ y: 700, animated: false });
-    await fireEvent(reader, 'scrollBeginDrag', { nativeEvent: {} });
+    await fireEvent.scroll(reader, {
+      nativeEvent: { contentOffset: { y: 700 }, layoutMeasurement: { height: 800 } },
+    });
+    expect(changed).not.toHaveBeenCalled();
+    // Accessibility may scroll without emitting onScrollBeginDrag.
+
     await fireEvent.scroll(reader, { nativeEvent: { contentOffset: { y: 800 }, layoutMeasurement: { height: 800 } } });
     expect(positionRef.current?.capture()?.offsetWithinBlock).toBe(400);
     expect(changed).toHaveBeenCalledTimes(1);
