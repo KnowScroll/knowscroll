@@ -337,7 +337,7 @@ describe('process configuration', () => {
     expect(
       configurationError(() =>
         readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_REASONING_PRODUCTION_ENABLED: 'true' }),
-      ),
+      ).problems,
     ).toEqual(['KS_REASONING_PRODUCTION_ENABLED: not_allowed']);
   });
 
