@@ -25,6 +25,10 @@ describe('Reel qualification is unique visible media over duration', () => {
   });
   it('caps coverage by active time, ignores Scroll bodies, and leaves missing/gapped measurement unknown', () => {
     expect(summariseReel([], 30000).qualification).toBe('unknown');
+    expect(
+      summariseReel([{ ...observation(1, 0, 1000), body: { kind: 'reel.playback', samples: [] } }], 30000)
+        .qualification,
+    ).toBe('unknown');
     expect(summariseReel([observation(2, 0, 1000)], 30000).qualification).toBe('unknown');
     expect(summariseReel([observation(1, 0, 20000)], 30000)).toMatchObject({ q: 0.6667, qualification: 'qualified' });
     const inflated = observation(1, 0, 20000);

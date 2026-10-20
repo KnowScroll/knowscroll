@@ -38,7 +38,10 @@ export function summariseReel(observations: readonly ObservationRecord[], durati
   const q = Math.round((durationMs > 0 ? uniqueMediaMs / durationMs : 0) * 10000) / 10000;
   const gaps = [...sequences.values()].reduce((sum, set) => sum + Math.max(...set) - set.size, 0);
   const complete =
-    reports > 0 && instrumentation >= REEL_QUALIFICATION_POLICY_V0.minInstrumentationVersion && gaps === 0;
+    uniqueMediaMs > 0 &&
+    reports > 0 &&
+    instrumentation >= REEL_QUALIFICATION_POLICY_V0.minInstrumentationVersion &&
+    gaps === 0;
   const qualification = q >= REEL_QUALIFICATION_POLICY_V0.minQ ? 'qualified' : complete ? 'not_qualified' : 'unknown';
   return {
     inputWatermark: watermark,

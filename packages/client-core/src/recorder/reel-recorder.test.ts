@@ -4,6 +4,33 @@ import { createReelRecorder } from './reel-recorder';
 import type { AccountScope } from '../account-scope';
 import type { ObservationOutbox } from './outbox';
 describe('continuous visible Reel recording', () => {
+  it('emits nothing for open/load/hidden/never-playing discontinuities and teardown', () => {
+    const events: InteractionEvent[] = [];
+    const outbox: ObservationOutbox = {
+      enqueue: (batch) => {
+        events.push(...batch);
+      },
+      drain: () => Promise.resolve(),
+      status: () => ({ pendingBatches: 0, pendingEvents: 0, dropped: 0, stopped: false }),
+      dispose: () => undefined,
+    };
+    const recorder = createReelRecorder({
+      exposure: { exposureId: 'e', assetId: 'a', assetRevision: 1 },
+      durationMs: 30000,
+      scope: { active: true } as AccountScope,
+      outbox,
+      newId: () => 'fixture',
+      clock: { monotonicMs: () => 0, wallIso: () => '2026-10-20T00:00:00.000Z' },
+    });
+    recorder.discontinuity();
+    recorder.flush();
+    recorder.sample({ monotonicMs: 0, positionMs: 0, playing: false, visible: true, buffering: false });
+    recorder.sample({ monotonicMs: 250, positionMs: 0, playing: false, visible: false, buffering: true });
+    recorder.discontinuity();
+    recorder.end();
+    expect(events).toEqual([]);
+  });
+
   it('excludes seek jumps, loop jumps, buffering, background and fenced scopes', () => {
     const events: InteractionEvent[] = [];
     let active = true;

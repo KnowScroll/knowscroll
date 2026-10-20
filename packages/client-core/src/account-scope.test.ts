@@ -43,8 +43,9 @@ describe('an account scope', () => {
       authorization: () => 'Bearer fixture-media-canary',
       store: memoryStore(),
     });
+    let activeWhenStopped: boolean | undefined;
     const stopped = vi.fn(() => {
-      expect(scope.active).toBe(true);
+      activeWhenStopped = scope.active;
       throw new Error('native already released');
     });
     scope.onEnd?.(stopped);
@@ -54,6 +55,7 @@ describe('an account scope', () => {
     });
     scope.end();
     expect(stopped).toHaveBeenCalledTimes(1);
+    expect(activeWhenStopped).toBe(true);
     expect(scope.active).toBe(false);
     expect(() => scope.mediaSource?.('/media/digest?grant=fixture')).toThrow(ScopeEndedError);
     scope.end();

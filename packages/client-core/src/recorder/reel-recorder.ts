@@ -26,12 +26,10 @@ export function createReelRecorder(options: {
   const sessionId = options.newId();
   let previous: PlaybackSample | undefined;
   let sequence = 0;
-  let first = true;
   let ended = false;
   let samples: { activeMs: [number, number]; mediaMs: [number, number] }[] = [];
   const flush = () => {
-    if (!options.scope.active || (samples.length === 0 && !first)) return;
-    first = false;
+    if (!options.scope.active || samples.length === 0) return;
     sequence += 1;
     const event: InteractionEvent = {
       schemaVersion: INTERACTION_SCHEMA_VERSION,
