@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "scroll-draft-provenance.v1",
+  "publication": {
+    "assetId": "fixture-weight-other-worlds",
+    "revision": 1,
+    "language": "en",
+    "explanationUnitId": "fixture-eu-surface-gravity",
+    "template": "poster",
+    "theme": {
+      "family": "worlds"
+    },
+    "kicker": "Astronomy",
+    "framing": {
+      "kind": "factual"
+    },
+    "corrections": [],
+    "targetMinutes": [1, 4]
+  },
+  "claims": [
+    {
+      "claimId": "clm-gravity-moon",
+      "statement": "Surface gravity on the Moon is about 0.165 of Earth's.",
+      "quote": "FIXTURE PLACEHOLDER: lunar surface gravity ratio.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-gravity-mars",
+      "statement": "Surface gravity on Mars is about 0.38 of Earth's.",
+      "quote": "FIXTURE PLACEHOLDER: martian surface gravity ratio.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-gravity-jupiter",
+      "statement": "Gravity at Jupiter's cloud tops is about 2.53 times Earth's.",
+      "quote": "FIXTURE PLACEHOLDER: jovian cloud-top gravity ratio.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-weight-range",
+      "statement": "A bathroom scale for people reads body weights from about 20 to 200 kg; 60 kg is a typical adult example.",
+      "quote": "FIXTURE PLACEHOLDER: typical range of a personal scale.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    }
+  ],
+  "sources": [
+    {
+      "sourceId": "src-fixture-gravity",
+      "title": "Fixture source (not a real document)",
+      "url": "https://fixture.invalid/src-fixture-gravity",
+      "snapshotSha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
+      "retrievedAt": "2026-10-19T00:00:00Z"
+    }
+  ],
+  "material": [],
+  "offeredMedia": [],
+  "production": {
+    "kind": "fixture",
+    "label": "scroll-model fixture: authored example for tests, not product content"
+  }
+}

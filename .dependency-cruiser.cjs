@@ -131,16 +131,73 @@ module.exports = {
     {
       name: 'contracts-are-wire-only',
       comment:
-        'packages/contracts holds JSON-native wire schemas: Zod and oRPC contract definitions, and re-exports of the canonical scroll-model/scene-core schemas (blueprint §22).',
+        "packages/contracts holds JSON-native wire schemas: Zod and oRPC contract definitions, and re-exports of the canonical scroll-model/scene-core schemas (blueprint §22) — never scroll-model's internal provenance or producer contract.",
       severity: 'error',
       from: { path: '^packages/contracts/src/', pathNot: testFile },
       to: {
         pathNot: [
           '^packages/contracts/src/',
-          '^packages/(?:scroll-model|scene-core)/src/',
+          '^packages/scroll-model/src/(?!internal/|producer/|admission/)',
+          '^packages/scene-core/src/',
           'node_modules/(?:zod|@orpc/contract)/',
         ],
       },
+    },
+    {
+      name: 'clients-never-import-scroll-internals',
+      comment:
+        "Scroll provenance (claims, sources, checks) and the producer contract are backend-only: the client app and client packages never import scroll-model's internal or producer entries, resolved or not.",
+      severity: 'error',
+      from: { path: '^(?:apps/client|packages/(?:client-core|ui|design-tokens|scene-core))/' },
+      to: {
+        path: [
+          '^packages/scroll-model/src/(?:internal|producer)/',
+          '^@knowscroll/scroll-model/(?:internal|producer)(?:/|$)',
+        ],
+      },
+    },
+    {
+      name: 'clients-never-import-scroll-admission',
+      comment:
+        "Admission proves every simulation over its whole grid (milliseconds on a JIT, tens to hundreds on Hermes): the client app and client packages never import scroll-model's admission entry, resolved or not. Their entry point is `parseDocument` / `parseBlock` on the public entry.",
+      severity: 'error',
+      from: { path: '^(?:apps/client|packages/(?:client-core|ui|design-tokens|scene-core))/' },
+      to: {
+        path: ['^packages/scroll-model/src/admission/', '^@knowscroll/scroll-model/admission(?:/|$)'],
+      },
+    },
+    {
+      name: 'clients-never-import-scroll-producer-fixtures',
+      comment:
+        'Only consumer-document fixtures are client-reachable: drafts, compile inputs and internal provenance fixtures (claims, sources) stay with the backend and tests.',
+      severity: 'error',
+      from: { path: '^(?:apps/client|packages/(?:client-core|ui|design-tokens|scene-core))/' },
+      to: { path: '^packages/scroll-model/fixtures/producer/' },
+    },
+    {
+      name: 'scroll-model-public-entry-is-self-contained',
+      comment:
+        "scroll-model's public modules never reach its internal, producer or admission entries, so a client cannot get them transitively.",
+      severity: 'error',
+      from: {
+        path: '^packages/scroll-model/src/',
+        pathNot: ['^packages/scroll-model/src/(?:internal|producer|admission)/', testFile, '/test-support/'],
+      },
+      to: { path: '^packages/scroll-model/src/(?:internal|producer|admission)/' },
+    },
+    {
+      name: 'scroll-model-is-portable',
+      comment: 'scroll-model runs unchanged on the server, the web and React Native: no Node built-ins outside tests.',
+      severity: 'error',
+      from: { path: '^packages/scroll-model/src/', pathNot: [testFile, '/test-support/'] },
+      to: { dependencyTypes: ['core'] },
+    },
+    {
+      name: 'scroll-model-depends-on-zod-only',
+      comment: 'scroll-model is pure TypeScript and Zod (no React, no SDKs) outside tests.',
+      severity: 'error',
+      from: { path: '^packages/scroll-model/src/', pathNot: [testFile, '/test-support/'] },
+      to: { path: 'node_modules/', pathNot: 'node_modules/zod/' },
     },
     {
       name: 'clients-never-import-backend',

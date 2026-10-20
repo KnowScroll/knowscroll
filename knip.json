@@ -41,6 +41,9 @@
     "packages/client-core": {
       "project": ["src/**/*.ts"]
     },
+    "packages/scroll-model": {
+      "project": ["src/**/*.ts"]
+    },
     "migrations": {
       "project": ["src/**/*.ts"],
       "ignoreDependencies": ["squawk-cli"]

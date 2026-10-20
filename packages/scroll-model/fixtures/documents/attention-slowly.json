@@ -1,0 +1,617 @@
+{
+  "schemaVersion": "scroll-document.v1",
+  "assetId": "fixture-attention-slowly",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "fixture-eu-attention",
+  "template": "poster",
+  "theme": {
+    "family": "learning-machines"
+  },
+  "kicker": "Machine learning",
+  "title": "Attention, slowly",
+  "dek": "The same idea as the Reel, with room to try it yourself.",
+  "framing": {
+    "kind": "factual"
+  },
+  "sections": [
+    {
+      "id": "crowd",
+      "heading": null,
+      "blocks": [
+        {
+          "id": "crowd-p1",
+          "type": "paragraph",
+          "version": 1,
+          "a11y": {
+            "label": "Paragraph"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "spans": [
+              {
+                "text": "Read this: "
+              },
+              {
+                "text": "the animal didn’t cross the street because it was too tired.",
+                "marks": ["em"]
+              },
+              {
+                "text": " You knew at once that “it” meant the animal, not the street."
+              }
+            ]
+          }
+        },
+        {
+          "id": "crowd-p2",
+          "type": "paragraph",
+          "version": 1,
+          "a11y": {
+            "label": "Paragraph"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "spans": [
+              {
+                "text": "A language model has to work that out too. In a step called attention, every word looks at every other word and asks how much each one matters to it."
+              }
+            ]
+          }
+        },
+        {
+          "id": "it-diagram",
+          "type": "diagram",
+          "version": 1,
+          "a11y": {
+            "label": "Where “it” looks",
+            "description": "The word “it” is linked to animal, street, tired and cross. Line thickness shows how much attention “it” pays to each word."
+          },
+          "fallbackText": "Text version: in “because it was too tired”, the word “it” pays most attention to animal and some to tired. Change the ending to “too wide” and most attention moves to street.",
+          "essential": true,
+          "gesture": "two-axis",
+          "data": {
+            "title": "Where “it” looks",
+            "instruction": "Drag “it” onto the word you think it means",
+            "layout": "radial",
+            "nodes": [
+              {
+                "id": "it",
+                "label": "it",
+                "kind": "token"
+              },
+              {
+                "id": "animal",
+                "label": "animal",
+                "kind": "entity"
+              },
+              {
+                "id": "street",
+                "label": "street",
+                "kind": "entity"
+              },
+              {
+                "id": "tired",
+                "label": "tired",
+                "kind": "entity"
+              },
+              {
+                "id": "wide",
+                "label": "wide",
+                "kind": "entity"
+              },
+              {
+                "id": "cross",
+                "label": "cross",
+                "kind": "entity"
+              }
+            ],
+            "edges": [
+              {
+                "id": "e-animal",
+                "from": "it",
+                "to": "animal",
+                "directed": true,
+                "style": "solid",
+                "weight": 0.8
+              },
+              {
+                "id": "e-street",
+                "from": "it",
+                "to": "street",
+                "directed": true,
+                "style": "solid",
+                "weight": 0.1
+              },
+              {
+                "id": "e-tired",
+                "from": "it",
+                "to": "tired",
+                "directed": true,
+                "style": "solid",
+                "weight": 0.45
+              },
+              {
+                "id": "e-wide",
+                "from": "it",
+                "to": "wide",
+                "directed": true,
+                "style": "solid",
+                "weight": 0.45
+              },
+              {
+                "id": "e-cross",
+                "from": "it",
+                "to": "cross",
+                "directed": true,
+                "style": "solid",
+                "weight": 0.05
+              }
+            ],
+            "groups": [],
+            "frames": [
+              {
+                "id": "means-animal",
+                "label": "…because it was too tired",
+                "description": "With “too tired”, “it” pays most attention to animal, some to tired, and very little to street or cross.",
+                "emphasis": ["animal", "tired", "e-animal"],
+                "hidden": ["wide", "e-wide"],
+                "weights": [
+                  {
+                    "edge": "e-animal",
+                    "weight": 0.8
+                  },
+                  {
+                    "edge": "e-tired",
+                    "weight": 0.45
+                  },
+                  {
+                    "edge": "e-street",
+                    "weight": 0.1
+                  },
+                  {
+                    "edge": "e-cross",
+                    "weight": 0.05
+                  }
+                ]
+              },
+              {
+                "id": "means-street",
+                "label": "…because it was too wide",
+                "description": "Change one word to “too wide” and “it” now points mostly at street: the ending decides what “it” means.",
+                "emphasis": ["street", "wide", "e-street"],
+                "hidden": ["tired", "e-tired"],
+                "weights": [
+                  {
+                    "edge": "e-street",
+                    "weight": 0.8
+                  },
+                  {
+                    "edge": "e-wide",
+                    "weight": 0.45
+                  },
+                  {
+                    "edge": "e-animal",
+                    "weight": 0.1
+                  },
+                  {
+                    "edge": "e-cross",
+                    "weight": 0.05
+                  }
+                ]
+              }
+            ],
+            "interaction": {
+              "kind": "drag-to-target",
+              "token": "it",
+              "targets": [
+                {
+                  "node": "animal",
+                  "frame": "means-animal"
+                },
+                {
+                  "node": "street",
+                  "frame": "means-street"
+                }
+              ],
+              "initialFrame": "means-animal"
+            }
+          }
+        },
+        {
+          "id": "crowd-p3",
+          "type": "paragraph",
+          "version": 1,
+          "a11y": {
+            "label": "Paragraph"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "spans": [
+              {
+                "text": "Thicker line, more attention. The weights here are illustrative, but the pattern is real: one word at the end of the sentence decides where “it” looks."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "why-squared",
+      "heading": "Why squared?",
+      "blocks": [
+        {
+          "id": "squared-p1",
+          "type": "paragraph",
+          "version": 1,
+          "a11y": {
+            "label": "Paragraph"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "spans": [
+              {
+                "text": "Six words means six × six comparisons. Twelve words means 144. Double the length, and the work roughly quadruples."
+              }
+            ]
+          }
+        },
+        {
+          "id": "grid-chart",
+          "type": "chart",
+          "version": 1,
+          "a11y": {
+            "label": "Every word compared with every word",
+            "description": "A six by six grid. Each cell is one word compared with another; darker cells mean more attention. The row for “it” is darkest at “animal”."
+          },
+          "fallbackText": "Text version: six words make a six by six grid of comparisons. In the row for “it”, the strongest cell is “animal” and the next is “tired”.",
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "title": "Every word × every word",
+            "caption": "36 comparisons for six words. The highlighted row is “it”.",
+            "spec": {
+              "kind": "heatmap",
+              "rows": ["the", "animal", "street", "it", "was", "tired"],
+              "columns": ["the", "animal", "street", "it", "was", "tired"],
+              "values": [
+                [0.4, 0.2, 0.1, 0.1, 0.1, 0.1],
+                [0.1, 0.5, 0.1, 0.1, 0.1, 0.1],
+                [0.1, 0.1, 0.5, 0.1, 0.1, 0.1],
+                [0.05, 0.6, 0.05, 0.1, 0.05, 0.15],
+                [0.1, 0.1, 0.1, 0.2, 0.4, 0.1],
+                [0.1, 0.3, 0.05, 0.1, 0.05, 0.4]
+              ],
+              "scale": {
+                "label": "Attention",
+                "min": 0,
+                "max": 1
+              },
+              "highlightRow": 3
+            }
+          }
+        },
+        {
+          "id": "length-sim",
+          "type": "simulation",
+          "version": 1,
+          "a11y": {
+            "label": "Sentence length and the work of attention",
+            "description": "Choose a longer or shorter sentence to see how much more work attention needs than for the shortest one."
+          },
+          "fallbackText": "Text version: the work grows with the square of the length. Twice as long is about four times the work; eight times as long is about sixty-four times the work.",
+          "essential": true,
+          "gesture": "horizontal",
+          "data": {
+            "title": "Try a longer sentence",
+            "prompt": "Sentence length",
+            "params": [
+              {
+                "key": "len",
+                "label": "Sentence length",
+                "unit": "words",
+                "min": 512,
+                "max": 4096,
+                "step": 512,
+                "default": 512,
+                "control": "slider",
+                "format": {
+                  "decimals": 0,
+                  "grouping": true,
+                  "approximate": false
+                }
+              }
+            ],
+            "constants": [
+              {
+                "key": "refLength",
+                "label": "Reference length",
+                "value": 512,
+                "unit": "words"
+              }
+            ],
+            "outputs": [
+              {
+                "key": "work",
+                "label": "Work compared with the reference",
+                "formula": {
+                  "kind": "power",
+                  "x": "len",
+                  "base": "refLength",
+                  "exponent": 2,
+                  "scale": 1
+                },
+                "format": {
+                  "decimals": 0,
+                  "grouping": true,
+                  "approximate": true,
+                  "suffix": "×"
+                }
+              },
+              {
+                "key": "longer",
+                "label": "Times longer",
+                "formula": {
+                  "kind": "ratio",
+                  "numerator": "len",
+                  "denominator": "refLength"
+                },
+                "format": {
+                  "decimals": 0,
+                  "grouping": false,
+                  "approximate": false,
+                  "suffix": "×"
+                }
+              }
+            ],
+            "view": {
+              "kind": "readout",
+              "primary": "work",
+              "secondary": "longer"
+            },
+            "readout": {
+              "template": "{work} the work of {refLength} words",
+              "bands": [
+                {
+                  "output": "work",
+                  "max": 1.5,
+                  "text": "Same length, same work."
+                },
+                {
+                  "output": "work",
+                  "min": 1.5,
+                  "max": 20,
+                  "text": "The work grows much faster than the length."
+                },
+                {
+                  "output": "work",
+                  "min": 20,
+                  "text": "Eight times longer is about sixty-four times the work: long prompts cost far more to process."
+                }
+              ]
+            },
+            "modelNote": "Counts only the comparisons, relative to the shortest sentence. Other costs grow more slowly.",
+            "illustrative": {
+              "notice": "Illustrative"
+            },
+            "display": {
+              "kind": "none"
+            }
+          }
+        },
+        {
+          "id": "squared-more",
+          "type": "disclosure",
+          "version": 1,
+          "a11y": {
+            "label": "Why squared, in code"
+          },
+          "fallbackText": "Text version: the scores form a grid with one row and one column per word, so the work grows with the square of the length.",
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "summary": "Why squared, in code",
+            "blocks": [
+              {
+                "id": "squared-more-p1",
+                "type": "paragraph",
+                "version": 1,
+                "a11y": {
+                  "label": "Paragraph"
+                },
+                "essential": false,
+                "gesture": "none",
+                "data": {
+                  "spans": [
+                    {
+                      "text": "In code, the grid is a single line: "
+                    },
+                    {
+                      "text": "q @ k.T",
+                      "marks": ["code"]
+                    },
+                    {
+                      "text": " compares every word’s query with every word’s key."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "attention-code",
+                "type": "code",
+                "version": 1,
+                "a11y": {
+                  "label": "Python attention function"
+                },
+                "fallbackText": "Text version: the function scores every query against every key, turns each row of scores into weights, and mixes the values by those weights.",
+                "essential": false,
+                "gesture": "horizontal",
+                "data": {
+                  "language": "python",
+                  "title": "Attention",
+                  "code": "import numpy as np\n\ndef attention(q, k, v):\n    scores = q @ k.T / np.sqrt(q.shape[-1])\n    weights = np.exp(scores) / np.exp(scores).sum(axis=-1, keepdims=True)\n    return weights @ v",
+                  "highlightLines": [4]
+                }
+              },
+              {
+                "id": "squared-more-p2",
+                "type": "paragraph",
+                "version": 1,
+                "a11y": {
+                  "label": "Paragraph"
+                },
+                "essential": false,
+                "gesture": "none",
+                "data": {
+                  "spans": [
+                    {
+                      "text": "Shown, never run: the grid of scores is what makes long inputs slow."
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "weights",
+      "heading": "Scores become weights",
+      "blocks": [
+        {
+          "id": "weights-p1",
+          "type": "paragraph",
+          "version": 1,
+          "a11y": {
+            "label": "Paragraph"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "spans": [
+              {
+                "text": "Each row of scores is turned into weights that add up to one, so every word shares out a fixed amount of attention."
+              }
+            ]
+          }
+        },
+        {
+          "id": "it-table",
+          "type": "table",
+          "version": 1,
+          "a11y": {
+            "label": "Where “it” looks, as a table"
+          },
+          "fallbackText": "Text version: from “it”, attention goes most to animal, some to tired, little to street and very little to cross.",
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "caption": "Attention from “it” to each word in the first sentence",
+            "columns": [
+              {
+                "label": "Word",
+                "align": "start"
+              },
+              {
+                "label": "Attention",
+                "align": "start"
+              }
+            ],
+            "rows": [
+              ["animal", "Most"],
+              ["tired", "Some"],
+              ["street", "Little"],
+              ["cross", "Very little"]
+            ],
+            "rowHeader": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "limits",
+      "heading": "What it can’t do",
+      "blocks": [
+        {
+          "id": "limits-callout",
+          "type": "callout",
+          "version": 1,
+          "a11y": {
+            "label": "Limits"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "kind": "limit",
+            "spans": [
+              {
+                "text": "Attention shows which words a model weighs together. It does not show that the model understands the sentence the way you do, and long inputs make every step slower."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "corrections": [],
+  "limitsVersion": "scroll-limits.v1",
+  "measures": {
+    "version": "scroll-measures.v1",
+    "readingMinutes": 2,
+    "totalWeight": 381,
+    "blocks": [
+      {
+        "blockId": "crowd-p1",
+        "weight": 25
+      },
+      {
+        "blockId": "crowd-p2",
+        "weight": 30
+      },
+      {
+        "blockId": "it-diagram",
+        "weight": 60
+      },
+      {
+        "blockId": "crowd-p3",
+        "weight": 26
+      },
+      {
+        "blockId": "squared-p1",
+        "weight": 19
+      },
+      {
+        "blockId": "grid-chart",
+        "weight": 45
+      },
+      {
+        "blockId": "length-sim",
+        "weight": 75
+      },
+      {
+        "blockId": "squared-more",
+        "weight": 23
+      },
+      {
+        "blockId": "weights-p1",
+        "weight": 23
+      },
+      {
+        "blockId": "it-table",
+        "weight": 26
+      },
+      {
+        "blockId": "limits-callout",
+        "weight": 29
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "e6450771696ecfa412c3b1a47ca98a0324b4e83c2d3a1e46c1897c6811b5f3f1"
+  }
+}

@@ -103,6 +103,71 @@ const probes = [
       [`${B}/modules/zz-probe-geography/adapters/nest-providers.ts`, 'nest-providers-only-in-composition-roots'],
     ],
   },
+  // S2.1: Scroll provenance and the producer contract stay backend-only; scroll-model stays portable.
+  {
+    file: 'apps/client/theme/zz-probe-scroll.ts',
+    source:
+      "import { ScrollProvenance } from '../../../packages/scroll-model/src/internal/index.js';\nexport const p = ScrollProvenance;\n",
+    expect: [['packages/scroll-model/src/internal/index.ts', 'clients-never-import-scroll-internals']],
+  },
+  {
+    file: 'apps/client/theme/zz-probe-scroll-name.ts',
+    source:
+      "import { compileDraft } from '@knowscroll/scroll-model/producer';\nimport { honestyIssues } from '@knowscroll/scroll-model/internal';\nimport internal from '../../../packages/scroll-model/fixtures/producer/weight-other-worlds.internal.json';\nexport const p = [compileDraft, honestyIssues, internal];\n",
+    expect: [
+      ['@knowscroll/scroll-model/producer', 'clients-never-import-scroll-internals'],
+      ['@knowscroll/scroll-model/internal', 'clients-never-import-scroll-internals'],
+      [
+        'packages/scroll-model/fixtures/producer/weight-other-worlds.internal.json',
+        'clients-never-import-scroll-producer-fixtures',
+      ],
+    ],
+  },
+  {
+    file: 'packages/ui/src/zz-probe.ts',
+    source:
+      "import { ScrollProvenance } from '@knowscroll/scroll-model/internal';\nimport { compileDraft } from '@knowscroll/scroll-model/producer';\nexport const p = [ScrollProvenance, compileDraft];\n",
+    expect: [
+      ['@knowscroll/scroll-model/internal', 'clients-never-import-scroll-internals'],
+      ['@knowscroll/scroll-model/producer', 'clients-never-import-scroll-internals'],
+    ],
+  },
+  {
+    file: 'apps/client/theme/zz-probe-scroll-admission.ts',
+    source:
+      "import { admitDocument } from '@knowscroll/scroll-model/admission';\nimport { admitBlock } from '../../../packages/scroll-model/src/admission/index.js';\nexport const p = [admitDocument, admitBlock];\n",
+    expect: [
+      ['@knowscroll/scroll-model/admission', 'clients-never-import-scroll-admission'],
+      ['packages/scroll-model/src/admission/index.ts', 'clients-never-import-scroll-admission'],
+    ],
+  },
+  {
+    file: 'packages/ui/src/zz-probe-admission.ts',
+    source:
+      "import { validateDocument } from '@knowscroll/scroll-model/admission';\nexport const p = validateDocument;\n",
+    expect: [['@knowscroll/scroll-model/admission', 'clients-never-import-scroll-admission']],
+  },
+  {
+    file: 'packages/client-core/src/zz-probe-admission.ts',
+    source: "import { admitDocument } from '@knowscroll/scroll-model/admission';\nexport const p = admitDocument;\n",
+    expect: [['@knowscroll/scroll-model/admission', 'clients-never-import-scroll-admission']],
+  },
+  {
+    file: 'packages/contracts/src/zz-probe.ts',
+    source: "import { honestyIssues } from '@knowscroll/scroll-model/internal';\nexport const p = honestyIssues;\n",
+    expect: [['packages/scroll-model/src/internal/index.ts', 'contracts-are-wire-only']],
+  },
+  {
+    file: 'packages/scroll-model/src/zz-probe.ts',
+    source:
+      "import { readFileSync } from 'node:fs';\nimport fc from 'fast-check';\nimport { compileDraft } from './producer/index.js';\nimport { admitDocument } from './admission/index.js';\nexport const p = [readFileSync, fc, compileDraft, admitDocument];\n",
+    expect: [
+      ['node:fs', 'scroll-model-is-portable'],
+      ['fast-check', 'scroll-model-depends-on-zod-only'],
+      ['packages/scroll-model/src/producer/index.ts', 'scroll-model-public-entry-is-self-contained'],
+      ['packages/scroll-model/src/admission/index.ts', 'scroll-model-public-entry-is-self-contained'],
+    ],
+  },
   // A module reaches the reasoning engine only through reasoning/public.ts: not its application
   // code, its ledger adapter or its composition wiring (it could build its own harness around the
   // harness's admission, budgets and ledger).
@@ -191,13 +256,16 @@ try {
   const result = JSON.parse(cruise.stdout);
   const found = result.summary.violations;
   const violations = found.map((violation) => `${violation.from} → ${violation.to} [${violation.rule.name}]`);
-  /** `node:x` matches the core module `x`; a bare package name matches its resolved node_modules path. */
+  /**
+   * `node:x` matches the core module `x`; a bare package name matches its resolved node_modules
+   * path, or itself when it is a workspace specifier the importer cannot resolve.
+   */
   const targetMatches = (actual, expected) =>
     expected.startsWith('node:')
       ? actual === expected.slice(5)
       : /^(?:packages|apps|migrations|tests)\//.test(expected)
         ? actual === expected
-        : actual.includes(`/node_modules/${expected}/`);
+        : actual === expected || actual.includes(`/node_modules/${expected}/`);
   for (const probe of probes) {
     for (const [to, rule] of probe.expect) {
       const wanted = `${probe.file} → ${to} [${rule}]`;
@@ -219,6 +287,9 @@ try {
   for (const probe of probes) rmSync(probe.file, { force: true });
   for (const directory of createdDirectories) rmSync(directory, { recursive: true, force: true });
   rmSync('apps/client/theme/zz-probe.ts', { force: true });
+  rmSync('apps/client/theme/zz-probe-scroll.ts', { force: true });
+  rmSync('apps/client/theme/zz-probe-scroll-name.ts', { force: true });
+  rmSync('apps/client/theme/zz-probe-scroll-admission.ts', { force: true });
 }
 if (failed) process.exit(1);
 console.log(

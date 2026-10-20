@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// `pnpm lint:probe`: proves the ESLint rule against unmarked transactions bites. Writes a module
+// `pnpm lint:probe`: proves two ESLint rules bite: the rule against unmarked transactions, and the
+// rule keeping scroll-model's admission functions out of client code (second half of this file).
+// For the first, it writes a module
 // adapter that opens transactions and connections in each direct form Kysely allows (a path that
 // must not exist yet), lints it with the repository configuration, checks that every form is
 // reported by `no-restricted-syntax`, and removes the file again whatever happens. Aliasing
@@ -54,5 +56,41 @@ try {
   rmSync(file, { force: true });
 }
 
+// Admission functions in client code (S2.1, #254): each client package, each name.
+const admissionNames = ['admitDocument', 'admitBlock', 'validateDocument'];
+const clientFiles = [
+  'apps/client/theme/zz-probe-admission.ts',
+  'packages/ui/src/zz-probe-admission.ts',
+  'packages/client-core/src/zz-probe-admission.ts',
+];
+const admissionSource = [
+  `import { ${admissionNames.join(', ')} } from '@knowscroll/scroll-model';`,
+  `export const probe = [${admissionNames.join(', ')}];`,
+  '',
+].join('\n');
+let admissionProbes = 0;
+for (const clientFile of clientFiles) {
+  if (existsSync(clientFile)) {
+    console.error(`lint:probe: ${clientFile} already exists; refusing to overwrite it`);
+    process.exit(2);
+  }
+}
+try {
+  for (const clientFile of clientFiles) {
+    writeFileSync(clientFile, admissionSource);
+    const [result] = await new ESLint().lintFiles([clientFile]);
+    const reported = (result?.messages ?? []).filter((message) => message.ruleId === 'no-restricted-imports');
+    // One report per restricted name, on the import line.
+    if (reported.length < admissionNames.length) {
+      failures += 1;
+      console.error(`lint:probe: admission import not reported in ${clientFile} (${reported.length} reports)`);
+    }
+    admissionProbes += 1;
+  }
+} finally {
+  for (const clientFile of clientFiles) rmSync(clientFile, { force: true });
+}
+
 if (failures > 0) process.exit(1);
 console.log(`lint:probe: all ${probes.length} unmarked transaction forms reported`);
+console.log(`lint:probe: admission imports reported in all ${admissionProbes} client packages`);

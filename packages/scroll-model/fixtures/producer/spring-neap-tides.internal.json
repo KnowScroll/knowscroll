@@ -1,0 +1,123 @@
+{
+  "schemaVersion": "scroll-provenance.v1",
+  "assetId": "fixture-spring-neap-tides",
+  "revision": 1,
+  "documentSha256": "978f497b9c4ad0019f648f60954af152e65cc534c98d9a6dd7c753cbec36a329",
+  "claims": [
+    {
+      "claimId": "clm-tide-bulges",
+      "statement": "The Moon's gravitational pull causes the oceans to bulge on both the side closest to the Moon and the side farthest from it, creating high tides.",
+      "quote": "On Earth, the Moon’s gravitational pull causes the oceans to bulge out on both the side closest to the Moon and the side farthest from the Moon. These bulges create high tides.",
+      "sourceId": "src-nasa-tides",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-tide-sun-ratio",
+      "statement": "The Sun contributes a little less than half of the Moon's tide-generating force, producing spring tides when aligned and neap tides at right angles.",
+      "quote": "But it’s a distant gorilla, about 390 times farther away than the Moon, which gives it a little less than half of the Moon’s tide-generating force.",
+      "sourceId": "src-nasa-tides",
+      "truthState": "documented"
+    }
+  ],
+  "sources": [
+    {
+      "sourceId": "src-nasa-tides",
+      "title": "Tides - NASA Science",
+      "url": "https://science.nasa.gov/moon/tides/",
+      "snapshotSha256": "1aca9029bc975179a4a508a3d4b3af416e7fc4f5dac394309279d70f55a5b858",
+      "retrievedAt": "2026-10-08T10:46:02.075Z"
+    }
+  ],
+  "bindings": [
+    {
+      "kind": "passage",
+      "claimId": "clm-tide-bulges",
+      "blockId": "pulls-p1",
+      "field": "text",
+      "start": 0,
+      "end": 87
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-tide-sun-ratio",
+      "blockId": "pulls-p2",
+      "field": "text",
+      "start": 45,
+      "end": 97
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-tide-sun-ratio",
+      "blockId": "align-diagram"
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-tide-sun-ratio",
+      "blockId": "range-sim"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-tide-sun-ratio",
+      "blockId": "range-sim",
+      "field": "fallbackText",
+      "start": 88,
+      "end": 121
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-tide-sun-ratio",
+      "blockId": "range-sim",
+      "field": "fallbackText",
+      "start": 126,
+      "end": 153
+    }
+  ],
+  "checks": [
+    {
+      "name": "envelope",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "schema",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "structure",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "computation",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "evidence",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "brief",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "publish",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    }
+  ],
+  "production": {
+    "kind": "fixture",
+    "label": "scroll-model fixture: authored example for tests; claims are from the frozen v1 library pack 1aca9029bc97"
+  }
+}

@@ -1,0 +1,438 @@
+{
+  "schemaVersion": "scroll-document.v1",
+  "assetId": "fixture-spring-neap-tides",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "fixture-eu-spring-neap",
+  "template": "editorial",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "Essay · Earth and Moon",
+  "title": "Why some tides are bigger",
+  "dek": "The Moon does most of the lifting. Twice a month the Sun helps, and twice a month it gets in the way.",
+  "framing": {
+    "kind": "factual"
+  },
+  "sections": [
+    {
+      "id": "two-pulls",
+      "heading": null,
+      "blocks": [
+        {
+          "id": "pulls-p1",
+          "type": "paragraph",
+          "version": 1,
+          "a11y": {
+            "label": "Paragraph"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "spans": [
+              {
+                "text": "The Moon raises two bulges of ocean, one on the side facing it and one on the far side. As Earth turns through them, a coast gets two high tides a day."
+              }
+            ]
+          }
+        },
+        {
+          "id": "pulls-p2",
+          "type": "paragraph",
+          "version": 1,
+          "a11y": {
+            "label": "Paragraph"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "spans": [
+              {
+                "text": "The Sun raises bulges too, but smaller ones: its tidal pull is "
+              },
+              {
+                "text": "a little less than half",
+                "marks": ["em"]
+              },
+              {
+                "text": " the Moon’s. What matters is where those two sets of bulges point."
+              }
+            ]
+          }
+        },
+        {
+          "id": "align-diagram",
+          "type": "diagram",
+          "version": 1,
+          "a11y": {
+            "label": "Sun, Earth and Moon in three arrangements",
+            "description": "Three steps: the Moon alone, the Sun and Moon in a line, and the Moon at a right angle to the Sun."
+          },
+          "fallbackText": "Text version: with the Moon alone, Earth has two bulges. When the Sun and Moon line up, their bulges add and tides are biggest: spring tides. When they are at a right angle, the Sun’s bulges fill the Moon’s low tides and tides are smallest: neap tides.",
+          "essential": true,
+          "gesture": "none",
+          "data": {
+            "title": "Line up, or cross",
+            "layout": "grid",
+            "nodes": [
+              {
+                "id": "sun",
+                "label": "Sun",
+                "kind": "entity",
+                "cell": {
+                  "column": 0,
+                  "row": 2
+                }
+              },
+              {
+                "id": "earth",
+                "label": "Earth",
+                "kind": "entity",
+                "cell": {
+                  "column": 3,
+                  "row": 2
+                }
+              },
+              {
+                "id": "moon-line",
+                "label": "Moon",
+                "kind": "entity",
+                "cell": {
+                  "column": 5,
+                  "row": 2
+                }
+              },
+              {
+                "id": "moon-cross",
+                "label": "Moon",
+                "kind": "entity",
+                "cell": {
+                  "column": 3,
+                  "row": 0
+                }
+              }
+            ],
+            "edges": [
+              {
+                "id": "pull-sun",
+                "from": "sun",
+                "to": "earth",
+                "label": "smaller pull",
+                "directed": true,
+                "style": "dashed",
+                "weight": 0.45
+              },
+              {
+                "id": "pull-moon-line",
+                "from": "moon-line",
+                "to": "earth",
+                "label": "bigger pull",
+                "directed": true,
+                "style": "solid",
+                "weight": 1
+              },
+              {
+                "id": "pull-moon-cross",
+                "from": "moon-cross",
+                "to": "earth",
+                "label": "bigger pull",
+                "directed": true,
+                "style": "solid",
+                "weight": 1
+              }
+            ],
+            "groups": [],
+            "frames": [
+              {
+                "id": "moon-only",
+                "label": "The Moon alone",
+                "description": "Only the Moon pulls: two bulges, one facing the Moon and one on the far side.",
+                "emphasis": ["moon-line", "pull-moon-line"],
+                "hidden": ["sun", "pull-sun", "moon-cross", "pull-moon-cross"],
+                "weights": []
+              },
+              {
+                "id": "spring",
+                "label": "In a line: spring tides",
+                "description": "Sun, Earth and Moon in a line. The two sets of bulges add up: higher highs and lower lows.",
+                "emphasis": ["sun", "moon-line", "pull-sun", "pull-moon-line"],
+                "hidden": ["moon-cross", "pull-moon-cross"],
+                "weights": []
+              },
+              {
+                "id": "neap",
+                "label": "At a right angle: neap tides",
+                "description": "The Moon is at a right angle to the Sun. The Sun’s bulges fill the Moon’s lows, so the tide range shrinks.",
+                "emphasis": ["sun", "moon-cross", "pull-sun", "pull-moon-cross"],
+                "hidden": ["moon-line", "pull-moon-line"],
+                "weights": []
+              }
+            ],
+            "interaction": {
+              "kind": "steps"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "how-much",
+      "heading": "How much bigger?",
+      "blocks": [
+        {
+          "id": "much-p1",
+          "type": "paragraph",
+          "version": 1,
+          "a11y": {
+            "label": "Paragraph"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "spans": [
+              {
+                "text": "Slide the Sun’s share of the pull and watch the two kinds of tide move apart. In a line the pulls add; at a right angle the Sun takes some away."
+              }
+            ]
+          }
+        },
+        {
+          "id": "range-sim",
+          "type": "simulation",
+          "version": 1,
+          "a11y": {
+            "label": "Spring and neap tide ranges",
+            "description": "A slider sets how strong the Sun’s tidal pull is compared with the Moon’s; two cards show the spring and neap tide ranges."
+          },
+          "fallbackText": "Text version: with the Sun’s pull a little less than half the Moon’s, spring tides have about 1.46 times the Moon’s range and neap tides about 0.54 times, so spring tides are nearly three times the neap range.",
+          "essential": true,
+          "gesture": "horizontal",
+          "data": {
+            "title": "Turn up the Sun",
+            "params": [
+              {
+                "key": "sunShare",
+                "label": "Sun’s pull compared with the Moon’s",
+                "min": 0,
+                "max": 0.9,
+                "step": 0.02,
+                "default": 0.46,
+                "control": "slider",
+                "format": {
+                  "decimals": 2,
+                  "grouping": false,
+                  "approximate": false
+                }
+              }
+            ],
+            "constants": [],
+            "outputs": [
+              {
+                "key": "spring",
+                "label": "Spring tide range",
+                "formula": {
+                  "kind": "linear",
+                  "x": "sunShare",
+                  "a": 1,
+                  "b": 1
+                },
+                "format": {
+                  "decimals": 2,
+                  "grouping": false,
+                  "approximate": true,
+                  "suffix": "×"
+                }
+              },
+              {
+                "key": "neap",
+                "label": "Neap tide range",
+                "formula": {
+                  "kind": "linear",
+                  "x": "sunShare",
+                  "a": -1,
+                  "b": 1
+                },
+                "format": {
+                  "decimals": 2,
+                  "grouping": false,
+                  "approximate": true,
+                  "suffix": "×"
+                }
+              },
+              {
+                "key": "ratio",
+                "label": "Spring compared with neap",
+                "formula": {
+                  "kind": "ratio",
+                  "numerator": "spring",
+                  "denominator": "neap"
+                },
+                "format": {
+                  "decimals": 1,
+                  "grouping": false,
+                  "approximate": true,
+                  "suffix": "×"
+                }
+              }
+            ],
+            "view": {
+              "kind": "cards",
+              "items": [
+                {
+                  "id": "spring-card",
+                  "label": "Spring tides",
+                  "output": "spring"
+                },
+                {
+                  "id": "neap-card",
+                  "label": "Neap tides",
+                  "output": "neap"
+                }
+              ]
+            },
+            "readout": {
+              "template": "Spring tides are {ratio} the range of neap tides",
+              "bands": [
+                {
+                  "output": "ratio",
+                  "max": 1.5,
+                  "text": "With a weak Sun, spring and neap tides are nearly the same."
+                },
+                {
+                  "output": "ratio",
+                  "min": 1.5,
+                  "max": 4,
+                  "text": "Near the real share, spring tides are well over twice the neap range."
+                },
+                {
+                  "output": "ratio",
+                  "min": 4,
+                  "text": "A Sun this strong would make neap tides almost vanish."
+                }
+              ]
+            },
+            "modelNote": "Idealised: each range is the Moon’s pull plus or minus the Sun’s, relative to the Moon alone. The slider starts near the real share; real coasts differ.",
+            "illustrative": {
+              "notice": "Illustrative"
+            },
+            "display": {
+              "kind": "cards",
+              "scale": 1.9
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "real-coasts",
+      "heading": "Real coasts",
+      "blocks": [
+        {
+          "id": "month-timeline",
+          "type": "timeline",
+          "version": 1,
+          "a11y": {
+            "label": "Tides through one lunar month"
+          },
+          "fallbackText": "Text version: spring tides come at the new and full Moon; neap tides come at the first and last quarter.",
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "title": "One lunar month",
+            "events": [
+              {
+                "id": "new-moon",
+                "when": "New Moon",
+                "title": "Spring tides",
+                "detail": [
+                  {
+                    "text": "Sun and Moon on the same side of Earth."
+                  }
+                ]
+              },
+              {
+                "id": "first-quarter",
+                "when": "First quarter",
+                "title": "Neap tides"
+              },
+              {
+                "id": "full-moon",
+                "when": "Full Moon",
+                "title": "Spring tides",
+                "detail": [
+                  {
+                    "text": "Sun and Moon on opposite sides, still in a line."
+                  }
+                ]
+              },
+              {
+                "id": "last-quarter",
+                "when": "Last quarter",
+                "title": "Neap tides"
+              }
+            ]
+          }
+        },
+        {
+          "id": "coasts-callout",
+          "type": "callout",
+          "version": 1,
+          "a11y": {
+            "label": "Limits"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "kind": "limit",
+            "spans": [
+              {
+                "text": "Coastline shape, ocean depth, wind and storms bend the real pattern away from this picture, so a local tide table matters more than the Moon alone."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "corrections": [],
+  "limitsVersion": "scroll-limits.v1",
+  "measures": {
+    "version": "scroll-measures.v1",
+    "readingMinutes": 2,
+    "totalWeight": 301,
+    "blocks": [
+      {
+        "blockId": "pulls-p1",
+        "weight": 32
+      },
+      {
+        "blockId": "pulls-p2",
+        "weight": 29
+      },
+      {
+        "blockId": "align-diagram",
+        "weight": 70
+      },
+      {
+        "blockId": "much-p1",
+        "weight": 31
+      },
+      {
+        "blockId": "range-sim",
+        "weight": 75
+      },
+      {
+        "blockId": "month-timeline",
+        "weight": 38
+      },
+      {
+        "blockId": "coasts-callout",
+        "weight": 26
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "978f497b9c4ad0019f648f60954af152e65cc534c98d9a6dd7c753cbec36a329"
+  }
+}

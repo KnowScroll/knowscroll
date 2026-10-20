@@ -123,8 +123,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: PostgreSQL server version
         run: psql "$KS_TEST_DATABASE_URL" --no-psqlrc --tuples-only --command 'select version()'
-      - name: Unit tests (contracts, backend, migrations, api)
-        run: pnpm --filter @knowscroll/contracts --filter @knowscroll/backend --filter @knowscroll/migrations --filter @knowscroll/api test
+      - name: Unit and property tests (contracts, scroll-model, backend, migrations, api)
+        run: pnpm --filter @knowscroll/contracts --filter @knowscroll/scroll-model --filter @knowscroll/backend --filter @knowscroll/migrations --filter @knowscroll/api test
       - name: Integration tests (real PostgreSQL, one template-derived database per file)
         run: pnpm --filter @knowscroll/integration-tests test
 
@@ -200,9 +200,11 @@ jobs:
         run: pnpm --filter @knowscroll/ui test
       - name: Component tests (jest-expo)
         run: pnpm --filter @knowscroll/client test
-      # The export bundles @knowscroll/contracts from its dist/, like every other build (D-012).
+      # The export bundles @knowscroll/contracts and the @knowscroll/scroll-model it re-exports from
+      # their dist/, like every other build (D-012); the trailing `...` builds contracts' own
+      # workspace dependencies first.
       - name: Build the packages the web export bundles
-        run: pnpm --filter @knowscroll/contracts build
+        run: pnpm --filter '@knowscroll/contracts...' build
       - name: Web export (expo export --platform web)
         run: |
           pnpm --filter @knowscroll/client build

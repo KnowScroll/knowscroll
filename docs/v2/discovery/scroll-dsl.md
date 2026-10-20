@@ -2,6 +2,8 @@
 
 KnowScroll v2 programme · discovery note · 19 October 2026 · read-only research, no repository changed.
 
+> **Status (S2.1, #230).** This proposal predates the implementation. `packages/scroll-model/README.md` is authoritative for what `scroll-document.v1` is. Among the differences, the model writes no display number: the `barMax` of `factor_cards` and the `y.domain` of `function_plot` below became a **bar scale and plot range computed by code once, at admission** (in the same pass that proves the outputs finite) and stored as `data.display`, which the draft schema refuses and the client only reads (D-012; the coordinator's ruling after the review of #254).
+
 Inputs read:
 
 - Blueprint `02d-greenfield-blueprint.md` §6, §8, §11, §17, §18, §21, §22 and `03-design-brief.md` (worktree `72-personal-universe-architecture`).

@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "scroll-draft-provenance.v1",
+  "publication": {
+    "assetId": "fixture-attention-slowly",
+    "revision": 1,
+    "language": "en",
+    "explanationUnitId": "fixture-eu-attention",
+    "template": "poster",
+    "theme": {
+      "family": "learning-machines"
+    },
+    "kicker": "Machine learning",
+    "framing": {
+      "kind": "factual"
+    },
+    "corrections": [],
+    "targetMinutes": [1, 6]
+  },
+  "claims": [
+    {
+      "claimId": "clm-attn-pairwise",
+      "statement": "In self-attention every token is compared with every other token in the sequence.",
+      "quote": "FIXTURE PLACEHOLDER: each position attends to all positions.",
+      "sourceId": "src-fixture-attention",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-attn-quadratic",
+      "statement": "The cost of self-attention grows with the square of the sequence length.",
+      "quote": "FIXTURE PLACEHOLDER: per-layer cost is quadratic in length.",
+      "sourceId": "src-fixture-attention",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-attn-softmax",
+      "statement": "Attention scores in a row are normalised so the weights sum to one.",
+      "quote": "FIXTURE PLACEHOLDER: a softmax gives the weights.",
+      "sourceId": "src-fixture-attention",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-attn-coref",
+      "statement": "Attention can link a pronoun to the noun it refers to.",
+      "quote": "FIXTURE PLACEHOLDER: some heads resolve anaphora.",
+      "sourceId": "src-fixture-attention",
+      "truthState": "synthesis"
+    }
+  ],
+  "sources": [
+    {
+      "sourceId": "src-fixture-attention",
+      "title": "Fixture source (not a real document)",
+      "url": "https://fixture.invalid/src-fixture-attention",
+      "snapshotSha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
+      "retrievedAt": "2026-10-19T00:00:00Z"
+    }
+  ],
+  "material": [],
+  "offeredMedia": [],
+  "production": {
+    "kind": "fixture",
+    "label": "scroll-model fixture: authored example for tests, not product content"
+  }
+}

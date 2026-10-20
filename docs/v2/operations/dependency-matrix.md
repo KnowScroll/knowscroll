@@ -68,6 +68,7 @@ permissive. Review the licence list again when a dependency is added.
 | @fast-check/vitest | 0.5.0 | 2026-09-11 | MIT | peers vitest ^4.1‖^5; brings fast-check 4.x for property tests. |
 | kysely-codegen | 0.20.0 | 2026-02-16 | MIT | peers kysely >=0.27 <1, pg >=8.8 <9. Weakest maintenance signal in the DB layer (last release Feb 2026); only used to generate and verify types, never at runtime. |
 | socket.io-client | 4.8.4 | 2026-09-25 | MIT | Release tests' Socket.IO client; since S1.3 also the AccountScope's hint socket in `@knowscroll/client-core`. |
+| fast-check | 4.10.2 | 2026-09-19 | MIT | Property-based tests (`@knowscroll/scroll-model`, S2.1 #230). Depends on pure-rand ^8; no peers. The same version `@fast-check/vitest` brings. |
 
 ## Client (Expo SDK 58)
 

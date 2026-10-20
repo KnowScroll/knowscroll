@@ -67,6 +67,7 @@ catalog:
   '@fast-check/vitest': 0.5.0
   kysely-codegen: 0.20.0
   squawk-cli: 2.70.0
+  fast-check: 4.10.2
   # Client (Expo SDK 58: versions from expo@58.0.14 bundledNativeModules.json)
   expo: 58.0.14
   expo-constants: 58.0.12
