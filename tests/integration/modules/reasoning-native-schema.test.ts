@@ -67,7 +67,7 @@ const provenance = generatedProvenance({
   pages: [page],
 });
 
-describe('actual Content input descriptors, without activating a consumer', () => {
+describe('actual Content input descriptors (authored CI context only)', () => {
   it('encodes canonical writer and claims primary/repair shapes below the unchanged 100000-byte cap', () => {
     const descriptors: readonly ReasoningRole<unknown>[] = [
       claimsRole([page]),
@@ -75,8 +75,8 @@ describe('actual Content input descriptors, without activating a consumer', () =
       writerRole(provenance, true),
     ];
     for (const original of descriptors) {
-      expect(original.nativeOutputSchema).toBeUndefined();
-      const role = { ...original, nativeOutputSchema: 'zod-structural.v1' as const };
+      expect(original.nativeOutputSchema).toBe('zod-structural.v1');
+      const role = original;
       const schema = deriveNativeInputSchema(role.outputSchema);
       expect(schema).toBeDefined();
       expect(schema?.['required']).toEqual(

@@ -56,6 +56,7 @@ describe('Scroll production roles (labelled CI fixture)', () => {
   it('hydrates only distinct offered IDs and rejects model-authored claim fields', () => {
     const role = claimsRole([page]);
     expect(role.outputFormat).toBe('single-tool-object');
+    expect(role.nativeOutputSchema).toBe('zod-structural.v1');
     expect(role.instructions).toContain('native input of exactly one submit_output tool call');
     expect(role.outputSchema.safeParse({ candidateIds: selection.candidateIds.slice(0, 3) }).success).toBe(false);
     const accepted = role.outputSchema.safeParse(selection);
@@ -164,6 +165,7 @@ describe('Scroll production roles (labelled CI fixture)', () => {
       expect(claimsRole([page]).maxOutputTokens).toBe(4_000);
       expect(role.version).toBe(WRITER_PROMPT_VERSION);
       expect(role.outputFormat).toBe('single-tool-object');
+      expect(role.nativeOutputSchema).toBe('zod-structural.v1');
       expect(role.instructions).toContain('native input of exactly one submit_output tool call');
       expect(role.instructions).toContain('your own sentence structure and wording');
       expect(role.instructions).toContain('matching passage anchorText');
