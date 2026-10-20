@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  type DraftProvenance,
+  DraftProvenance,
   ScrollDraft,
   blockCatalogueText,
   normaliseDraftInput,
@@ -16,6 +16,7 @@ import {
   CLAIMS_ROLE_VERSION,
   WRITER_PROMPT_VERSION,
 } from './roles.js';
+import { TOPICS, explanationUnitFor, parseScrollTopic, SCROLL_PRODUCTION_VERSION } from './topics.js';
 import { writerDraftExampleJson } from './writer-example.js';
 import { hydrateSelectedClaims, quoteCandidates } from './quote-candidates.js';
 
@@ -269,5 +270,87 @@ describe('Scroll production roles (labelled CI fixture)', () => {
     const missing = fixtureDraft();
     missing.bindings = [];
     expect(role.outputSchema.safeParse(missing).success).toBe(false);
+  });
+});
+
+describe('code-owned explanation recipes (source declarations, not generated semantic coverage)', () => {
+  it('preserves every original recipe value and exact Reel explanation identity', () => {
+    expect(TOPICS.seasons).toEqual({
+      script: 'seasons-v5',
+      topicId: 'earth.seasons',
+      assetId: 'af2628f1-98a7-4c39-9f81-628506d247a1',
+      explanationUnitId: 'legacy-cutroom-seasons-v5',
+      interactive: true,
+      brief:
+        'Why Earth has seasons: axial tilt changes daylight and sunlight angle; distance is not the cause. Include a useful interactive diagram with frames for opposite hemispheres. Explain the limits of the simplified picture.',
+      pages: ['https://spaceplace.nasa.gov/seasons/en/'],
+    });
+    expect(TOPICS.tides).toEqual({
+      script: 'tides-v4',
+      topicId: 'earth.tides',
+      assetId: '8349204a-0c98-45d3-a354-6c73be4a86de',
+      explanationUnitId: 'legacy-cutroom-tides-v4',
+      interactive: true,
+      brief:
+        'How the Moon and Sun make tides: differential gravity, both tidal bulges, spring and neap alignment, real coastlines. Include an interactive diagram. Avoid implying the far bulge is a pile of water pulled through Earth or that every coast has the same timing.',
+      pages: [
+        'https://oceanservice.noaa.gov/education/tutorial_tides/tides03_gravity.html',
+        'https://oceanservice.noaa.gov/education/tutorial_tides/tides06_variations.html',
+      ],
+    });
+    expect(TOPICS.greenhouse).toEqual({
+      script: 'greenhouse',
+      topicId: 'earth.greenhouse-effect',
+      assetId: 'a73a7732-a154-4c10-aa6f-169fa10cd8aa',
+      explanationUnitId: 'legacy-cutroom-greenhouse',
+      interactive: false,
+      brief:
+        'The greenhouse effect, a blanket made of gas: sunlight heats the surface; infrared absorption and emission slow cooling to space; the surface warms until energy balances. The blanket is an analogy, gases do not create energy or act as a solid lid. Distinguish the natural effect from strengthening it. Use comparison or disclosure.',
+      pages: ['https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/'],
+    });
+    for (const topic of ['seasons', 'tides', 'greenhouse'] as const)
+      expect(explanationUnitFor(topic)).toBe(TOPICS[topic].explanationUnitId);
+  });
+  it('declares three independent same-subtopic units and two required interactive explanations', () => {
+    const keys = ['greenhouse-radiation', 'greenhouse-balance', 'greenhouse-limits'] as const;
+    const units = keys.map((key) => TOPICS[key]);
+    expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v8');
+    expect(units.map(({ interactive }) => interactive)).toEqual([true, true, false]);
+    expect(units.every(({ topicId }) => topicId === 'earth.greenhouse-effect')).toBe(true);
+    expect(new Set(Object.values(TOPICS).map(({ assetId }) => assetId)).size).toBe(6);
+    expect(new Set(Object.values(TOPICS).map(({ explanationUnitId }) => explanationUnitId)).size).toBe(6);
+    for (const key of keys) {
+      expect(parseScrollTopic(key)).toBe(key);
+      expect(explanationUnitFor(key)).not.toMatch(/^legacy-cutroom-/u);
+      expect(TOPICS[key].pages).not.toContain('https://science.nasa.gov/climate-change/causes/');
+    }
+    // These are distinct intended teaching tasks, not an assertion about ungenerated prose.
+    expect(TOPICS['greenhouse-radiation'].brief).toContain('selectable process frames');
+    expect(TOPICS['greenhouse-balance'].brief).toContain('redistribution inside the system');
+    expect(TOPICS['greenhouse-limits'].brief).toContain('useful comparison versus misleading inference');
+    expect(TOPICS['greenhouse-radiation'].pages).toEqual(TOPICS['greenhouse-limits'].pages);
+    expect(TOPICS['greenhouse-balance'].pages).not.toEqual(TOPICS['greenhouse-radiation'].pages);
+    for (const topic of Object.keys(TOPICS) as (keyof typeof TOPICS)[]) {
+      const declared = generatedProvenance({
+        topic,
+        runId: 'fixture-writer-run',
+        attemptIds: ['fixture-attempt'],
+        model: 'CI-fixture-only',
+        claims,
+        pages: [page],
+      });
+      expect(DraftProvenance.safeParse(declared).success, topic).toBe(true);
+    }
+    for (const raw of [
+      undefined,
+      '',
+      'GREENHOUSE',
+      'greenhouse ',
+      'greenhouse-radiation-extra',
+      '__proto__',
+      'constructor',
+      'x'.repeat(10000),
+    ])
+      expect(parseScrollTopic(raw)).toBeUndefined();
   });
 });

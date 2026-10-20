@@ -14,6 +14,10 @@ node dist/operator.js content produce-scroll --topic seasons --dry-run
 node dist/operator.js content produce-scroll --topic seasons
 node dist/operator.js content produce-scroll --topic tides
 node dist/operator.js content produce-scroll --topic greenhouse
+# Additional code-owned units; actual runs require a separate reviewed allocation.
+node dist/operator.js content produce-scroll --topic greenhouse-radiation --dry-run
+node dist/operator.js content produce-scroll --topic greenhouse-balance --dry-run
+node dist/operator.js content produce-scroll --topic greenhouse-limits --dry-run
 node dist/operator.js content produce-scroll --topic seasons --resume
 ```
 
@@ -45,7 +49,7 @@ model-generated Scrolls, at least two interactive, still require actual publicat
 through the connected app. A fixture publication or green CI cannot establish this. Human quality
 notes must cover accuracy, clarity, interactivity, unsupported inference and analogy limitations.
 
-The current source recipe is `scroll-production.v7`, with `scroll-claims.v4` and
+The current source recipe is `scroll-production.v8`, with `scroll-claims.v4` and
 `scroll-writer.v6` stage versions; the writer version is recorded as publication `promptVersion`.
 Both roles opt into the reviewed M3 single native-object data carrier with documented auto-only
 tool choice and the reviewed `zod-structural.v1` advisory input schema (`hp4-tool-schema`), with no
@@ -54,9 +58,9 @@ schemas; transformations and semantic/compiler/admission checks remain authorita
 and repair bytes must fit the unchanged 100000-byte cap. The writer requests original prose
 and corresponding repair anchors; every existing check and max-four request bound stays in force.
 This is source configuration, not runtime/provider acceptance or permission to call. New jobs keep
-stable role IDs and generation; all terminal v1–v6 jobs, attempts, receipts and failed-draft privacy
+stable role IDs and generation; all terminal v1–v7 jobs, attempts, receipts and failed-draft privacy
 remain unchanged. No provider call, allowance or daily-cap change is authorised by this source
-version. See [the production contract](../../../packages/backend/src/modules/content/production/README.md#advisory-native-input-shape-in-v7).
+version. See [the production contract](../../../packages/backend/src/modules/content/production/README.md#coherent-explanation-recipes-in-v8).
 Claims now select four to eight immutable offered evidence IDs. Code verifies source hashes,
 complete original 40–600-character quote spans, offsets and membership, then hydrates statement
 and quote to the same source text. `documented` labels a direct quotation, not proven truth or
@@ -88,3 +92,16 @@ unattributed. Projection uses the existing 0016 baseline and weight guard; it cr
 evidence. Historical reconciliation is unavailable until a separately reviewed completed-run
 attestation port exists; no actual historical generated publication currently needs it. Deploy
 requires the actual ordered schema through 0017, including 0015, and a matching reviewed build.
+
+The three new greenhouse keys are separate explanation units under `earth.greenhouse-effect`:
+radiation paths (interactive), system-boundary balance (interactive), and an analogy audit
+(comparison/disclosure). They have new static asset/explanation IDs. The old three keys and their
+identities/source lists/briefs remain exact. A different key or successful publication does not
+establish conceptual variety: inspect actual generated prose and interactions for redundancy and
+faithful support before any exact semantic map approval. No coverage registry seed is included.
+The selected source combinations fit the investigated 22/27-candidate pools; future changed pages
+can refuse under the unchanged 32 bound. Climate-causes and energy+radiation are unsuitable pools;
+never truncate or raise the bound. No numerical forecast or historical-estimate-as-current claim
+is intended. Deploying this extension requires ordered migrations through 0026 (0025 first), a
+matching reviewed build and separate operational authority. No source recipe grants model calls,
+new allocation or a cap/day reset. Historical v1–v7 jobs and protected bytes remain immutable.
