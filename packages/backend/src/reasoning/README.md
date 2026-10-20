@@ -298,6 +298,24 @@ it is the usual rule that a bad setting stops the program. The API never receive
 outcome and reason **codes**, usage counts and durations. Never a prompt, context, answer, error
 message, URL or key. Failed jobs store code-only output.
 
+For newly refused JSON extraction, the existing `OutputIssue.detail` can additionally contain
+`json-refusal.v1`: fixed `phase` (framing/syntax), `framing` and `prefix` enums, an allowlisted
+syntax category and a bounded UTF-16 character count of the trimmed candidate (the whole trimmed
+reply for an invalid fence). Categories are `expected_property`,
+`expected_comma_or_separator`, `unterminated_string`, `unexpected_end`, `unexpected_token` or
+`other`. Recognised fixed engine prefixes follow [Node22's V8 templates](https://github.com/nodejs/node/blob/v22.23.0/deps/v8/src/common/message-template.h);
+unknown messages fall back to `other`. Classification is a diagnostic hint, not a new parser.
+Only the built-in parser inspects object-shaped refused text; no recovery, lexical repair or
+broader extraction is attempted. Bare/exact-one-fence acceptance, refusal codes, size/depth limits,
+schemas, authority, transport and the single repair are unchanged.
+
+Neither reply snippets, keys, values, URLs, credentials, parser error text, unexpected characters,
+offsets nor answer hashes enter these issues. Invalid raw answers remain unretained; issues alone
+are persisted and used as trusted repair feedback. Logs still carry only the existing refusal code.
+Old refusals are not re-diagnosed: ledger replay uses their original stored issues, so existing
+repair request bytes/hashes stay stable. `issueFor`'s legacy detail and harness framing `hp2` are
+unchanged. This cannot diagnose earlier replies that were intentionally never retained.
+
 ## Tests
 
 Unit tests: `domain/` and `adapters/` next to the code. Real-PostgreSQL integration tests:
