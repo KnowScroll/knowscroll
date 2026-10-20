@@ -153,8 +153,7 @@ export function ReelPlayer({
         if (resume && playbackIntent.current && activeRef.current && visible.current) player.play();
         timer = setTimeout(
           () => {
-            refreshSource.current = () => refresh();
-    void refresh(true);
+            void refresh();
           },
           Math.max(1000, Math.min(40000, Date.parse(grant.expiresAt) - Date.now() - 15000)),
         );
@@ -169,7 +168,8 @@ export function ReelPlayer({
         replacing.current = false;
       }
     };
-    void refresh();
+    refreshSource.current = () => refresh();
+    void refresh(true);
     return () => {
       unregister();
       stop();
@@ -221,6 +221,7 @@ export function ReelPlayer({
   const seek = (delta: number) => {
     onDiscontinuity();
     seekPlayback(player, Math.max(0, Math.min(durationMs / 1000, player.currentTime + delta)));
+    resumePosition.current = player.currentTime;
     setPosition(player.currentTime);
   };
   return (
