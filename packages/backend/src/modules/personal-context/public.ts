@@ -13,3 +13,5 @@ export const READ_EXPLORATION_SNAPSHOT = Symbol('personal-context.readExploratio
 export const ACTIVITY_CONTEXT_EFFECT = Symbol('personal-context.activityContextEffect');
 
 export const READ_RECENT_CONTEXT_TOPICS = Symbol('personal-context.readRecentContextTopics');
+/** Implements Composer's existing backend-only prepared-input capability via the context owner. */
+export const READ_COMPOSER_CONTEXT = Symbol('personal-context.readComposerContext');

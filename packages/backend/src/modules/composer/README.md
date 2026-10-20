@@ -1,12 +1,13 @@
 # modules/composer
 
-Bounded backend slice of #234 / blueprint §9. The pure policy and private persistence are implemented;
-no Experience navigation consumer, HTTP route, prepared activity projector, buffer job, provider,
-Jev assessment, browser journey or deployment is installed here. #234 and J1/J5 remain incomplete.
+Bounded backend slice of #234 / blueprint §9. Pure policy, private persistence and Experience's
+navigation consumer are implemented in source. Navigation reads the Personal Context owner's
+bounded snapshot through `READ_COMPOSER_CONTEXT`; actual dev acceptance remains coordinator work.
+No provider, Jev assessment or new buffer job is installed by this slice.
 
 `composeEncounter(snapshot)` takes an already authorized, immutable prepared snapshot. It performs
-no writes, Nest calls, clock reads or network I/O. The later Experience application must prepare it
-under its live scope, then independently recheck epoch, current session intent, admission, exact
+no writes, Nest calls, clock reads or network I/O. Experience prepares it
+under its live scope, and independently rechecks epoch, current session intent, admission, exact
 revision, render negotiation and expected link in the transaction that commits offers/receipts.
 A decision/offer/buffer is not an activated encounter and contributes no personal evidence.
 
@@ -30,18 +31,17 @@ The equations are exactly blueprint §9:
 - Horizontal: `.45Continuity+.25Intent+.15Format+.15SemanticFit-.25RecentRepetition`.
 
 Every feature is bounded [0,1]. Interest uses prepared actual activity `A/(1+A)`. Format is per
-admitted topic and kind `(1+Q)/(2+O)`; unknown measurements do not enter O/Q. The later evidence
-projector owns the illustrative 14-day interest half-life, replacement deltas and formation inputs;
-Composer does not form them. `ReadPreparedEvidenceInput` is a capability contract for that future
-owner, with no fake implementation. Missing topic history/format/continuity/semantic assessment
+admitted topic and kind `(1+Q)/(2+O)`; unknown measurements do not enter O/Q. Evidence owns the illustrative 14-day interest half-life and same-time replacement deltas;
+Personal Context owns its revisioned snapshot and qualified structural support. Composer changes
+neither. Its existing backend-only `ReadPreparedEvidenceInput` capability is implemented by the
+PC compatibility adapter without a second aggregate or scoring equation. Missing topic history/format/continuity/semantic assessment
 is neutral 0.5; unused attribution mass is also neutral 0.5. Absent recent encounters means zero
 recent repetition. Missing established history is neutral novelty 0.5, never an assertion of newness.
 An optional bounded/versioned candidate-relevant established-history input probes actual retained
 encounters by explanation and admitted facet (maximum 100 units, 16 facets/unit); explicit unseen
 results can establish novelty, while seen explanations/facets reduce it even after 24 hours.
-This is a routing history fact, never proof of learning, belief or identity. The future prepared
-input/query capability requests exact candidate explanation/facet refs; its actual projector/store
-implementation remains deferred. Novelty is one minus the maximum of established repetition and
+This is a routing history fact, never proof of learning, belief or identity. The prepared input/query capability requests exact candidate explanation/facet refs through the
+PC owner's routing projection. These routing facets never become qualified formation coverage. Novelty is one minus the maximum of established repetition and
 known actual recent overlap; absent facet probes are neutral, not unseen. Actual recent explanation
 matches repeat 1 across format siblings; other
 recent repetition uses facet overlap (unknown facets neutral 0.5). Prepared offers are absent from
@@ -71,8 +71,7 @@ These are randomized-policy propensities, not response/confidence probabilities.
 
 `persistComposerDecision` requires the existing `PersonalScopeTx`, validates scope/epoch and binding,
 recomputes the pure output, and hashes canonical binding+decision bytes. Identical replay is a no-op;
-changed IDs/inputs/output or foreign-scope collisions refuse. It opens no nested transaction. The
-later Experience owner must commit this port with its receipt/session/offer changes atomically.
+changed IDs/inputs/output or foreign-scope collisions refuse. It opens no nested transaction. Experience commits this port with its receipt/session/offer changes atomically.
 No session foreign key is invented before that owner's schema exists.
 
 `readComposerDecision` is available only through an adapter requiring an authenticated operator
@@ -88,3 +87,21 @@ referenced by retained offers in that exact scope/epoch. Their private operator 
 logical expiry after30days; physical deletion waits for those references to be removed. No physical
 30-day guarantee or maintenance scheduler is claimed. Full AccountScope erasure removes offers before
 decisions and remains complete.
+
+
+## Personal Context consumer (#235)
+
+The PC-owned adapter maps only `statisticsAvailability: available` rows, including actual A=0.
+Requested-but-unobserved default rows stay absent, so the unchanged Composer policy retains neutral
+interest0.5 for missing history. A/Q/O are copied unchanged; Composer's existing A/(1+A) and
+(1+Q)/(2+O) scoring equations stay in place. Recent20, exact candidate established-history probes
+and candidate-bounded Hide are retained. Structural support, covered facets, original channels and
+provisional inputs are not added to this scoring contract or consumer UI.
+
+Persisted private decisions identify `personal-context.v0`. Both context and established-history
+watermarks use `personal-context-composer.v0:<PC revision>:<scope revision>:<latest projection>:not_asserted`.
+This binds the read's live scope/epoch/evaluation time while retaining the honest historical
+completeness limit. The adapter writes nothing and requests provisionalLimit0. Production navigation
+has no Evidence preparation fallback; an absent PC binding is a startup/DI failure. Legacy Evidence
+preparation is opt-in for direct compatibility fixtures only. No shared wire or migration changes
+are part of this adapter. Real dev reading/context inspection is still required before closing235.

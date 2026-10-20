@@ -44,6 +44,7 @@ import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-co
 export const jobWiring: Provider[] = [
   ...experienceEvidenceReadProviders(),
   ...contentProviders(),
+  // Same required PC-owned Composer adapter as the API; no legacy prepared-input binding.
   ...personalContextProviders(),
   ...evidenceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...activityProviders({

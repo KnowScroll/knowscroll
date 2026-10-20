@@ -1,7 +1,7 @@
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import type { ComposerDecision, ComposerSnapshot, PreparedEvidenceInput } from '../domain/types.js';
 export type ComposeEncounter = (snapshot: ComposerSnapshot) => ComposerDecision;
-/** Implemented by Evidence activity; a missing preparation remains explicit and never manufactures history. */
+/** Implemented by Personal Context compatibility read; missing topic history stays explicit and neutral. */
 export type ReadPreparedEvidenceInput = (
   scope: PersonalScopeTx,
   query: {
