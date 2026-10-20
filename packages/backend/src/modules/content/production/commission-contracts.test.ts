@@ -155,8 +155,10 @@ describe('Cutroom commission prerequisite (authored CI fixtures only)', () => {
     expect(lintCutroomCommission(criterion)).toEqual({ kind: 'refused', code: 'criterion_binding' });
   });
 
-  it('refuses credentials in public-source URLs without treating URL parsing as source review', () => {
+  it('safely refuses malformed or credential-bearing source URLs without claiming source review', () => {
     for (const url of [
+      'not-a-url',
+      'https://',
       'https://user@example.invalid/evidence',
       'https://user:password@example.invalid/evidence',
       'https://:password@example.invalid/evidence',

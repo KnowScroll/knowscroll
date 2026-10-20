@@ -33,6 +33,7 @@ export const CutroomCommissionScriptSchema = z.strictObject({
             .url()
             .max(2048)
             .refine((url) => {
+              if (!URL.canParse(url)) return false;
               const parsed = new URL(url);
               return parsed.protocol === 'https:' && parsed.username === '' && parsed.password === '';
             }),
