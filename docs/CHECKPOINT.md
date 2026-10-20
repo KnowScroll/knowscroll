@@ -2,7 +2,7 @@
 
 Coordinator-owned. Hard cap ~120 lines. Verify Git, CI and deployed revisions before acting.
 
-**Updated:** 2026-10-20 14:21 UTC · **Phase:** 2 recovery / fix-and-review round · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-20 14:40 UTC · **Phase:** 2 recovery / fix-and-review round · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -15,7 +15,7 @@ Coordinator-owned. Hard cap ~120 lines. Verify Git, CI and deployed revisions be
 
 | Item | Value / evidence limit |
 |---|---|
-| Integration | `codex/release-knowscroll-v2` at `deb0cb26ade62536ce15109fee94ccd1eca3ff24` after #258/#254/#260/#267 merges; takeover was clean `d852d440` |
+| Integration | `codex/release-knowscroll-v2` at `94d367cc` after #258/#254/#260/#267/#266 merges; no new deployment; takeover was clean `d852d440` |
 | Worktree | `/Volumes/Mrigesh SSD/knowscroll-worktrees/v2-release` |
 | dev health, 2026-10-20 | v2 `d852d440325d42d0e691e3116d40cf090f919bbc`, artifact `dccc91bdf11113578e783ec6c3ff88880c3b54ee1a99e664308cd77f148c88d0`, migration `0009_reasoning_harness`, relay listening |
 | stage health, 2026-10-20 | v1 `8982391fe6a0dae385fc6e3013bf46b093d2d9d9`; no v2 promotion yet |
@@ -37,11 +37,11 @@ It preserves Git refs, index, dirty files, patches and rebase metadata. Historic
 | Sol/high agent | Existing PR / worktree | Assignment state |
 |---|---|---|
 | `scroll_model_230` | #254 · `v2-230-scroll-model` | Merged #254 as `a640a57e` after independent review + exact-head green; timing scheduling #267 merged `deb0cb26`; every test/threshold preserved, exact-head push + PR all six checks passed |
-| `renderers_230` | #260 + #263 · `v2-230-renderers` / B branch | A merged as `47f826eb`; B `48cecd38` source/tree accepted, all six checks pass after unchanged-head backend retry; APK passed, mandatory emulator executing; preserves reviewed B tree after squash |
-| `thin_journey_229` | #262 · `v2-229-thin-journey` | `954fe64c`, independent source/probe review accepted, exact-head checks green. Root browser/realDB at `5b0f0330` (later change is probe-only): qualified evidence and block return |
-| `production_scope_232` | #232 foundation · `v2-232-production-scope` | PR #266 `1a650f64`; brake + bounded accounting source accepted after late-usage correction, current CI pending; no provider calls |
-| `scroll_production_232` | #232 · `v2-232-scroll-production` | Research/claims/writer/publication + explicit same-run resume; no provider allocation executed |
-| `media_reels_233` | #233 · `v2-233-media-reels` | PR #268 `51d718bb`; local fixture browser/realDB playback + qualified evidence, independent source review/current CI fixes ongoing; no paid calls |
+| `renderers_230` | #260 + #263 · `v2-230-renderers` / B branch | A merged as `47f826eb`; B `4fc08e71`: source accepted. Prior48ce emulator passed real slider/number/diagram controls but failed centre-origin search back to text toggle; bounded gutter search now in mandatory native rerun39439430873 |
+| `thin_journey_229` | #262 · `v2-229-thin-journey` | `c50e5101`: combined ordered0010..13/types merge accepted; fixture-mail wait race fixed/reviewed; exact-head push+PR all six checks green. Root browser/realDB at5b0f0330: qualified authored-fixture evidence and block return |
+| `production_scope_232` | #232 foundation · `v2-232-production-scope` | Merged #266 as94d367cc after independent review and exact1a650 all six push+PR checks green (183integration); no provider calls |
+| `scroll_production_232` | #232 · `v2-232-scroll-production` | PR #26984821b0: source re-review accepted stage-fence/address fixes,236integration green; release pending. Root prepared fresh disposableks232_real, no provider allocation executed |
+| `media_reels_233` | #233 · `v2-233-media-reels` | PR #268: import/grants/evidence source accepted; SDK autoplay/renewal fixes in focused review+CI. Local fixture browser/realDB playback verified, real import not yet; no paid calls |
 | coordinator | #258 · `v2-249-android-lane` | Merged #258 as `957b7655` after independent source/log/artifact review; Scroll-block flow explicitly skipped; #249 stays open |
 
 Workers do not edit checkpoint. Reports live in `agents/codex-230-model/`, `codex-230-renderers/`, `codex-229-journey/`, `codex-249-review/` under the SSD evidence area.
@@ -53,7 +53,7 @@ Workers do not edit checkpoint. Reports live in `agents/codex-230-model/`, `code
 3. #262: preserve recovered history without force-push; fix resume, late writes, reading-fact versioning and interaction vocabulary; integrate ScrollArticle.
 4. #258 lane reviewed/merged. B native journey now mandatory; exact-current-head APK/emulator still required. Do not close #249 for lane setup alone.
 5. Exercise admitted Scroll → reading → observations → persisted qualified evidence on dev.
-6. Continue #232 (three real generated Scrolls, two interactive), #233 (existing real Cutroom import/playback), #234 (Explore/navigation/Saved); then remaining phases.
+6. Continue #232 (three real generated Scrolls, two interactive), #233 (existing real Cutroom import/playback). Prerequisite Reel contracts PR #270 source accepted/f097pushgreen, awaits262/263. #234 contracts agent active onf097 in v2-234-explore-contracts; then remaining phases.
 7. Promote tested dev via `scripts/promote.sh stage`, preserve artifact identity; report and continue.
 
 ## Cautions
@@ -68,6 +68,8 @@ Workers do not edit checkpoint. Reports live in `agents/codex-230-model/`, `code
 
 - Coordinator local disposable c229 DB port 55982/PID45986; API55991/PID73089/session53504; workerPID73165/session82748; edge55993/PID73260/session50181. Root owns cleanup; old child API/worker/edge had ended. No owner DB or provider accessed.
 - Local reader screenshot `agents/coordinator/local-scroll-return-5b0f0330.jpg`; DB observation/evidence audit `local-current-exposure-262.txt`. Authored editorial fixture only, not generated-content acceptance.
+- Root owns additional disposablePG16 port56632/PID38312, SSDtmp/pg-codex-232-20261020; freshks232_real migrated0001..13+15 from84821b0 (isolatedlocal schema without media14), production root disabled,0attempts.
+- VPS read-only preflight evidence `agents/coordinator/vps-preflight-20261020-1423.md`: dev API/worker active, current/stage identities unchanged, existing0600backups, ample disk.
 - Read-only real Cutroom audit confirms three approved completed videos/checksums/probes: `agents/coordinator/cutroom-read-audit-20261020.jsonl`. No import/playback or new commission claimed.
 
 ## Next action
