@@ -10,7 +10,7 @@ import { EncounterActions } from './encounter-chrome';
 import type { EncounterGestureMove } from './gestures/arbitration';
 import { ReelGestureStage } from './gestures/reel-gesture-stage';
 import { ContinuationControls } from './continuation-controls';
-import type { EncounterEntry } from './encounter-history';
+import { retainReelMuted, type EncounterEntry } from './encounter-history';
 import type { EncounterSession, EncounterState } from './encounter-session';
 
 export function EncounterView({
@@ -35,6 +35,12 @@ export function EncounterView({
     [onMove],
   );
   const playable = foreground && !state.overlay && state.phase === 'active';
+  const onMutedChange = useCallback(
+    (muted: boolean) => {
+      retainReelMuted(scope, entry, muted);
+    },
+    [scope, entry],
+  );
   useLayoutEffect(() => {
     if (!playable) return;
     session.bindSurface(entry, {
@@ -44,7 +50,7 @@ export function EncounterView({
           return value ? { kind: 'scroll', value } : undefined;
         }
         const value = reelPosition.current?.capture();
-        return value ? { kind: 'reel', positionMs: value.positionMs } : undefined;
+        return value ? { kind: 'reel', ...value } : undefined;
       },
       pause: () => reelPosition.current?.pause(),
     });
@@ -79,6 +85,8 @@ export function EncounterView({
         renderStage={renderStage}
         positionRef={reelPosition}
         initialPositionMs={entry.position?.kind === 'reel' ? entry.position.positionMs : entry.restored ? 0 : undefined}
+        initialMuted={entry.muted ?? (entry.position?.kind === 'reel' ? entry.position.muted : false)}
+        onMutedChange={onMutedChange}
       />
       <View style={styles.caption}>
         <Text variant="title" color={content.paper}>

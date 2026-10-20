@@ -7,6 +7,9 @@ import type { OpenExposureResponse, ReelDocument } from '@knowscroll/contracts';
 import { DisplayProvider, ReelPlayer } from '@knowscroll/ui';
 import { AccountScopeProvider } from '../../providers/account-scope';
 import { ReelScreen } from './reel-screen';
+import { EncounterView } from '../encounter/encounter-view';
+import { harness } from '../encounter/encounter-session.fixture';
+import { readResume } from '../encounter/encounter-history';
 
 // Real screen, AccountScope and oRPC response parsing over labelled HTTP fixtures. Only the
 // video decoder, command UUIDs and router focus/parameters are stand-ins; no playback or backend is claimed.
@@ -25,6 +28,84 @@ jest.mock('expo-router', () => {
     useRouter: () => ({ canGoBack: () => false, back: jest.fn(), replace: jest.fn() }),
     useFocusEffect: (effect: () => void | (() => void)) => useEffect(effect, [effect]),
   };
+});
+
+describe('retained encounter sound intent (CI player seam)', () => {
+  it('retains exact-entry sound across remount even with no SDK position, but never stores it for another encounter', async () => {
+    const h = harness();
+    h.session.setForeground(true);
+    h.session.open({ kind: 'discover' });
+    await waitFor(() => expect(h.session.getState().phase).toBe('active'));
+    const entry = h.session.getState().entry!;
+    if (entry.kind !== 'reel') throw new Error('CI Reel fixture required');
+    const mountEntry = (current = entry) =>
+      render(
+        <DisplayProvider value={{ width: 320, textScale: 2, reducedMotion: true }}>
+          <EncounterView scope={h.scope} session={h.session} state={h.session.getState()} entry={current} foreground />
+        </DisplayProvider>,
+      );
+    const currentProps = () => jest.mocked(ReelPlayer).mock.calls.at(-1)![0];
+    let app = await mountEntry();
+    try {
+      const first = currentProps();
+      expect(first.initialMuted).toBe(false);
+      await act(() => first.onMutedChange?.(true));
+      const ref = first.positionRef as { current: Ui.ReelPositionHandle | null };
+      ref.current = {
+        capture: () => ({ positionMs: 4125, playing: true, muted: true }),
+        pause: jest.fn(),
+      };
+      const requests = h.calls.length;
+      await app.unmount();
+      expect(entry.position).toEqual({ kind: 'reel', positionMs: 4125, playing: true, muted: true });
+      expect(readResume(h.scope, entry.offer.assetId, entry.offer.assetRevision)).toEqual({
+        kind: 'reel',
+        positionMs: 4125,
+        playing: false,
+        muted: false,
+      });
+      expect(
+        h.store
+          .keys()
+          .map((key) => h.store.getItem(key))
+          .join(''),
+      ).not.toMatch(/muted|playing/);
+      app = await mountEntry();
+      expect(currentProps()).toMatchObject({ initialPositionMs: 4125, initialMuted: true });
+      expect(h.calls).toHaveLength(requests);
+      // Replacement can make capture unavailable; latest explicit sound intent still belongs to the entry.
+      const next = currentProps();
+      await act(() => next.onMutedChange?.(false));
+      (next.positionRef as { current: Ui.ReelPositionHandle | null }).current = {
+        capture: () => null,
+        pause: jest.fn(),
+      };
+      await app.unmount();
+      app = await mountEntry();
+      expect(currentProps().initialMuted).toBe(false);
+      expect(h.calls).toHaveLength(requests);
+      const lateSoundChange = currentProps().onMutedChange;
+      await act(() => lateSoundChange?.(true));
+      await app.unmount();
+      await act(() => h.session.navigate({ mode: 'vertical', direction: 'next' }));
+      await waitFor(() => expect(h.session.getState().entry?.exposureId).not.toBe(entry.exposureId));
+      const nextEntry = h.session.getState().entry!;
+      if (nextEntry.kind !== 'reel') throw new Error('CI next Reel fixture required');
+      app = await mountEntry(nextEntry);
+      expect(currentProps().initialMuted).toBe(false);
+      const lateNextSoundChange = currentProps().onMutedChange;
+      await act(() => h.scope.end());
+      lateSoundChange?.(true);
+      lateNextSoundChange?.(true);
+      expect(entry.muted).toBeUndefined();
+      expect(entry.position).toBeUndefined();
+      expect(nextEntry.muted).toBeUndefined();
+      expect(h.store.keys()).toEqual([]);
+    } finally {
+      await app.unmount();
+      h.scope.end();
+    }
+  });
 });
 
 const ID = '0199a000-0000-7000-8000-0000000000a1';

@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import { createRef, useLayoutEffect } from 'react';
 import { act, fireEvent, screen, within } from '@testing-library/react-native';
 import { useVideoPlayer, type VideoPlayer, type VideoSource } from 'expo-video';
-import { renderOn } from '../test-support/render';
+import { expectPressed, renderOn } from '../test-support/render';
 import { DisplayProvider } from '../display/display';
 import { ReelPlayer, type ReelPlayerProps, type ReelPositionHandle } from './reel-player';
 
@@ -560,14 +560,14 @@ describe('local Reel positions', () => {
     });
     await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
     f.advanceSdk(4.1875); // no timeUpdate: parking must read the SDK synchronously.
-    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 4187.5, playing: true });
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 4187.5, playing: true, muted: false });
     const samples = jest.mocked(f.props.onSample).mock.calls.length;
     await act(() => {
       f.positionRef.current?.pause();
       f.positionRef.current?.pause();
     });
     expect(f.player.playing).toBe(false);
-    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 4187.5, playing: false });
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 4187.5, playing: false, muted: false });
     expect(f.props.onSample).toHaveBeenCalledTimes(samples);
     f.advanceSdk(35);
     expect(f.positionRef.current?.capture()?.positionMs).toBe(30000);
@@ -592,7 +592,7 @@ describe('local Reel positions', () => {
   ])('validates initialPositionMs %s to %s and does not reapply changed props', async (initialPositionMs, expected) => {
     const f = fixture();
     const rendered = await renderOn(<ReelPlayer {...f.props} initialPositionMs={initialPositionMs} />);
-    expect(f.positionRef.current?.capture()).toEqual({ positionMs: expected, playing: false });
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: expected, playing: false, muted: false });
     expect(f.player.play).not.toHaveBeenCalled();
     f.advanceSdk(6.25);
     await rendered.rerender(
@@ -616,7 +616,7 @@ describe('local Reel positions', () => {
       await Promise.resolve();
     });
     expect(f.seeks).toHaveBeenCalledTimes(1);
-    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 8125, playing: false });
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 8125, playing: false, muted: false });
     await act(async () => {
       f.listeners.get('statusChange')?.({ status: 'readyToPlay' });
       await Promise.resolve();
@@ -643,7 +643,7 @@ describe('local Reel positions', () => {
       f.listeners.get('statusChange')?.({ status: 'readyToPlay' });
       await Promise.resolve();
     });
-    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 8125, playing: false });
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 8125, playing: false, muted: false });
     expect(f.player.play).not.toHaveBeenCalled();
     await rendered.unmount();
   });
@@ -669,7 +669,7 @@ describe('local Reel positions', () => {
     const plays = f.player.play.mock.calls.length;
     await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
     expect(f.player.currentTime).toBe(9.25);
-    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 9250, playing: false });
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 9250, playing: false, muted: false });
     expect(f.player.play).toHaveBeenCalledTimes(plays);
     await rendered.unmount();
   });
@@ -774,5 +774,172 @@ describe('Reel noninteractive stage wrapper', () => {
     expect(replaceAsync).toHaveBeenCalledTimes(1);
     expect(positionRef.current?.capture()?.positionMs).toBe(3250);
     await rendered.unmount();
+  });
+});
+
+// Labelled SDK fixtures: audio intent and teardown ordering, never actual decoding or playback.
+describe('explicit Reel sound controls', () => {
+  afterEach(() => jest.useRealTimers());
+  function fixture() {
+    let soundMuted = false;
+    let replacementCount = 0;
+    let finish: ((fail?: boolean) => void) | undefined;
+    let scopeEnd: (() => void) | undefined;
+    const writes: { muted: boolean; playing: boolean }[] = [];
+    const autoplayMuted: boolean[] = [];
+    const listeners = new Map<string, (payload: unknown) => void>();
+    const player = {
+      currentTime: 4,
+      get muted() {
+        return soundMuted;
+      },
+      set muted(value: boolean) {
+        writes.push({ muted: value, playing: player.playing });
+        soundMuted = value;
+      },
+      playing: false,
+      status: 'readyToPlay' as VideoPlayer['status'],
+      playbackRate: 1,
+      play: jest.fn(() => {
+        player.playing = true;
+        listeners.get('playingChange')?.({ isPlaying: true });
+      }),
+      pause: jest.fn(() => {
+        player.playing = false;
+      }),
+      replaceAsync: jest.fn((source: VideoSource) => {
+        if (source === null) {
+          player.playing = false;
+          return Promise.resolve();
+        }
+        replacementCount += 1;
+        autoplayMuted.push(soundMuted);
+        player.playing = true; // SDK58 web's internal replacement autoplay.
+        return replacementCount === 2
+          ? new Promise<void>((resolve, reject) => {
+              finish = (fail) => {
+                if (fail) {
+                  player.playing = true; // A failing SDK can still report playback during settlement.
+                  reject(new Error('CI replacement failure'));
+                } else resolve();
+              };
+            })
+          : Promise.resolve();
+      }),
+      addListener: (kind: string, callback: (payload: unknown) => void) => {
+        listeners.set(kind, callback);
+        return {
+          remove: () => {
+            listeners.delete(kind);
+          },
+        };
+      },
+    };
+    jest.mocked(useVideoPlayer).mockReturnValue(player as unknown as VideoPlayer);
+    const props: ReelPlayerProps = {
+      title: 'Sound control fixture',
+      durationMs: 30000,
+      active: true,
+      loadSource: jest.fn(() =>
+        Promise.resolve({
+          source: { uri: 'https://fixture.invalid/media/sound' },
+          expiresAt: new Date(Date.now() + 60000).toISOString(),
+        }),
+      ),
+      onMutedChange: jest.fn(),
+      onSample: jest.fn(),
+      onDiscontinuity: jest.fn(),
+      registerEnd: (stop) => {
+        scopeEnd = stop;
+        return () => undefined;
+      },
+    };
+    return { player, props, writes, autoplayMuted, finish: (fail = false) => finish?.(fail), end: () => scopeEnd?.() };
+  }
+  it('offers an accessible phone-sized sound toggle without playback, source or recording effects', async () => {
+    const f = fixture();
+    const app = await renderOn(<ReelPlayer {...f.props} />, { width: 320, textScale: 2 });
+    const sources = f.player.replaceAsync.mock.calls.length;
+    const discontinuities = jest.mocked(f.props.onDiscontinuity).mock.calls.length;
+    expectPressed(screen.getByRole('togglebutton', { name: 'Mute' }), false);
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Mute' }));
+    expectPressed(screen.getByRole('togglebutton', { name: 'Unmute' }), true);
+    expect(f.player.muted).toBe(true);
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Unmute' }));
+    expectPressed(screen.getByRole('togglebutton', { name: 'Mute' }), false);
+    expect(f.player.muted).toBe(false);
+    expect(f.props.onMutedChange).toHaveBeenNthCalledWith(1, true);
+    expect(f.props.onMutedChange).toHaveBeenNthCalledWith(2, false);
+    expect(f.player.play).not.toHaveBeenCalled();
+    expect(f.player.currentTime).toBe(4);
+    expect(f.player.replaceAsync).toHaveBeenCalledTimes(sources);
+    expect(f.props.onSample).not.toHaveBeenCalled();
+    expect(f.props.onDiscontinuity).toHaveBeenCalledTimes(discontinuities);
+    await app.unmount();
+  });
+  it.each([
+    [false, false],
+    [true, false],
+    [false, true],
+    [true, true],
+  ])(
+    'restores latest intent after pending replacement (initial muted=%s, SDK fails=%s)',
+    async (initialMuted, fails) => {
+      jest.useFakeTimers();
+      const f = fixture();
+      const app = await renderOn(<ReelPlayer {...f.props} initialMuted={initialMuted} />);
+      await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+      await act(async () => {
+        jest.advanceTimersByTime(40000);
+        await Promise.resolve();
+      });
+      expect(f.player.replaceAsync).toHaveBeenCalledTimes(2);
+      await fireEvent.press(screen.getByRole('togglebutton', { name: initialMuted ? 'Unmute' : 'Mute' }));
+      expect(f.player.muted).toBe(true); // Safety mute remains until replacement is paused.
+      expect(f.props.onMutedChange).toHaveBeenLastCalledWith(!initialMuted);
+      await act(async () => {
+        f.finish(fails);
+        await Promise.resolve();
+      });
+      expect(f.player.muted).toBe(!initialMuted);
+      expect(f.autoplayMuted).toEqual([true, true]);
+      expect(f.writes.filter((write) => !write.muted && write.playing)).toEqual([]);
+      expect(f.player.currentTime).toBe(4);
+      await app.unmount();
+    },
+  );
+  it('never unmutes or resumes from a late replacement after scope disposal, and a new player starts independently', async () => {
+    jest.useFakeTimers();
+    const f = fixture();
+    const app = await renderOn(<ReelPlayer {...f.props} initialMuted />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    await act(async () => {
+      jest.advanceTimersByTime(40000);
+      await Promise.resolve();
+    });
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Unmute' }));
+    await act(async () => {
+      f.end();
+      await Promise.resolve();
+    });
+    const writes = f.writes.length,
+      plays = f.player.play.mock.calls.length;
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Mute' }));
+    await act(async () => {
+      f.finish();
+      await Promise.resolve();
+    });
+    expect(f.writes).toHaveLength(writes);
+    expect(f.player.play).toHaveBeenCalledTimes(plays);
+    expect(f.player.muted).toBe(true);
+    expect(f.autoplayMuted).toEqual([true, true]);
+    expect(f.player.replaceAsync).toHaveBeenLastCalledWith(null);
+    await app.unmount();
+    const next = fixture();
+    const nextApp = await renderOn(<ReelPlayer {...next.props} />);
+    expectPressed(screen.getByRole('togglebutton', { name: 'Mute' }), false);
+    expect(next.player.muted).toBe(false);
+    expect(next.player.play).not.toHaveBeenCalled();
+    await nextApp.unmount();
   });
 });

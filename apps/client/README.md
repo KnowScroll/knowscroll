@@ -135,7 +135,11 @@ before child passive activity setup, including StrictMode.
 `activated-scroll-view.tsx` and `activated-reel-view.tsx` are shared by the direct routes and
 Explore. Supplied activated exposures never direct-open or activate again. Live media grants
 are retained only in memory, fenced and cleared with their entry; expiry renews authorization
-for the same exposure. Local restoration itself contributes no new H/R bonus.
+for the same exposure. Local restoration itself contributes no new H/R bonus. The player's Mute/Unmute choice and full local playback
+snapshot remain on that exact retained entry/exposure/revision across parking and Back. Explicit
+sound intent is retained even during pending source replacement when position capture is unavailable.
+Only the playhead is serialized for a future visit; a new encounter starts paused with default sound,
+and disposal clears retained audio intent. Sound controls never create playback or consumption.
 
 Only admitted ready variants/continuations become navigation controls. A Part is a declared
 series position; Related uses a dashed treatment. The local trail says Visited. Real pending

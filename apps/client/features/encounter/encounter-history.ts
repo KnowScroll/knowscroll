@@ -1,9 +1,9 @@
 import type { AccountScope, ReelRecorder, ScrollRecorder } from '@knowscroll/client-core';
 import type { EncounterOffer, ExposureContextResponse, ReelDocument } from '@knowscroll/contracts';
-import type { ScrollLocalPosition } from '@knowscroll/ui';
+import type { ReelLocalPosition, ScrollLocalPosition } from '@knowscroll/ui';
 import type { OpenedScroll } from '../scroll/scroll-session';
 
-export type PrivatePosition = { kind: 'scroll'; value: ScrollLocalPosition } | { kind: 'reel'; positionMs: number };
+export type PrivatePosition = { kind: 'scroll'; value: ScrollLocalPosition } | ({ kind: 'reel' } & ReelLocalPosition);
 export type EncounterEntry = {
   readonly offer: EncounterOffer;
   readonly exposureId: string;
@@ -18,10 +18,22 @@ export type EncounterEntry = {
   surface?: { capture(): PrivatePosition | undefined; pause(): void };
 } & (
   | { kind: 'scroll'; scroll: OpenedScroll; recorder: ScrollRecorder }
-  | { kind: 'reel'; document: ReelDocument; recorder: ReelRecorder; mediaGrant?: { path: string; expiresAt: string } }
+  | {
+      kind: 'reel';
+      document: ReelDocument;
+      recorder: ReelRecorder;
+      mediaGrant?: { path: string; expiresAt: string };
+      /** Exact retained entry only, including while its position is unavailable during replacement. */
+      muted?: boolean;
+    }
 );
 
 const resumeKey = (assetId: string, revision: number) => `encounter.resume.${assetId}.${String(revision)}`;
+
+/** Private retained-entry state only; late callbacks cannot repopulate a disposed scope. */
+export function retainReelMuted(scope: Pick<AccountScope, 'active'>, entry: EncounterEntry, muted: boolean) {
+  if (scope.active && !entry.disposed && entry.kind === 'reel') entry.muted = muted;
+}
 
 export function writeResume(
   scope: Pick<AccountScope, 'active' | 'storage'>,
@@ -29,7 +41,9 @@ export function writeResume(
   revision: number,
   position: PrivatePosition,
 ) {
-  if (scope.active) scope.storage.set(resumeKey(assetId, revision), JSON.stringify(position));
+  // Sound/play intent belongs to this encounter, never a future visit's durable resume record.
+  const stored = position.kind === 'reel' ? { kind: 'reel', positionMs: position.positionMs } : position;
+  if (scope.active) scope.storage.set(resumeKey(assetId, revision), JSON.stringify(stored));
 }
 
 /** Only exact-revision private positions are durable. History, grants and lineage remain in memory. */
@@ -45,7 +59,7 @@ export function readResume(scope: Pick<AccountScope, 'active' | 'storage'>, asse
       Number.isFinite(value.positionMs) &&
       value.positionMs >= 0
     )
-      return { kind: 'reel', positionMs: value.positionMs } as const;
+      return { kind: 'reel', positionMs: value.positionMs, playing: false, muted: false } as const;
     if (
       value.kind === 'scroll' &&
       value.value?.assetId === assetId &&
@@ -93,7 +107,11 @@ export function createEncounterHistory(scope: Pick<AccountScope, 'active' | 'sto
     entry.surface?.pause();
     entry.surface = undefined;
     entry.recorder.end();
-    if (entry.kind === 'reel') entry.mediaGrant = undefined;
+    if (entry.kind === 'reel') {
+      entry.mediaGrant = undefined;
+      entry.muted = undefined;
+      entry.position = undefined;
+    }
   };
   return {
     current,
