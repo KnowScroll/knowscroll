@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { setStringAsync as SetString } from 'expo-clipboard';
 import {
   ScrollView,
   StyleSheet,
@@ -66,7 +67,8 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
     let next: 'copied' | 'failed' = 'copied';
     try {
       // Loaded when it is needed: no native clipboard module is touched until a reader copies.
-      const { setStringAsync } = await import('expo-clipboard');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- a lazy require keeps the native module out of every import of this package
+      const { setStringAsync } = require('expo-clipboard') as { setStringAsync: typeof SetString };
       await setStringAsync(block.data.code);
     } catch {
       next = 'failed';
