@@ -1,60 +1,66 @@
 # Checkpoint
 
-Coordinator-owned. Hard cap ~120 lines: older detail moves to the tracker and issues. Verify Git, CI and deployed revisions before acting on anything here.
+Coordinator-owned. Hard cap ~120 lines. Verify Git, CI and deployed revisions before acting.
 
-**Updated:** 2026-10-20 07:10 UTC · **Phase:** 2 (approved by the owner 2026-10-20) · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-20 13:30 UTC · **Phase:** 2 recovery / fix-and-review round · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
-## Where things are
+## Authority
 
-| Item | Value |
+- Owner authorised continuation through all remaining implementation phases on 2026-10-20; no routine pause before Phase 3 (D-023).
+- Blueprint governs architecture and behaviour; committed v2.1 governs visuals. No PIO or Software Factory gates.
+- Never update `main` or deploy production. Preserve total budgets, per-Reel-script approval and protected owner/legacy data.
+- Automated suites run in GitHub Actions only; local hands-on app use, build, lint and typecheck are allowed.
+
+## Verified state
+
+| Item | Value / evidence limit |
 |---|---|
-| Integration branch | `codex/release-knowscroll-v2` @ `d467f664` + checkpoint commits (worktree `/Volumes/Mrigesh SSD/knowscroll-worktrees/v2-release`) |
-| Legacy marker | tag `legacy/v1-final` → `106c4701` |
-| dev world | **v2** `d467f664` (S1.3), artifact `c1d138fc…`, DB `knowscroll_v2_dev` at `0008_ops_operator_sign_ins`, relay listening; API + worker run as `ks2-dev`. Deployed by `deploy.yml` dispatch (run 39381429679). v1 kept: `knowscroll_test_dev`, rollback target `106c4701` |
-| stage world | v1 `8982391f` (v2 promotion after the Phase 2 journeys pass on dev, D-004) |
-| live | not deployed (placeholder); owner-only |
-| VPS ops | Ansible applied from `d467f664` on 2026-10-20 (ok=109 changed=8): `ks2-<world>` users, `<world>.v2.env` sign-in settings, CSP + `X-Frame-Options`, unit sandboxing. Logs in `knowscroll-dev/v2/agents/coordinator/ansible-*-d467f664.log` |
-| SSD work area | `/Volumes/Mrigesh SSD/knowscroll-dev/v2/` (evidence, design renders, agent scratch, coordinator prompts/scripts in `agents/coordinator/`) |
+| Integration | `codex/release-knowscroll-v2` at `d852d440325d42d0e691e3116d40cf090f919bbc` before this refresh; clean at takeover |
+| Worktree | `/Volumes/Mrigesh SSD/knowscroll-worktrees/v2-release` |
+| dev health, 2026-10-20 | v2 `d852d440325d42d0e691e3116d40cf090f919bbc`, artifact `dccc91bdf11113578e783ec6c3ff88880c3b54ee1a99e664308cd77f148c88d0`, migration `0009_reasoning_harness`, relay listening |
+| stage health, 2026-10-20 | v1 `8982391fe6a0dae385fc6e3013bf46b093d2d9d9`; no v2 promotion yet |
+| Evidence limit | Health establishes deployment identity, not generation or connected journey acceptance |
+| SSD evidence | `/Volumes/Mrigesh SSD/knowscroll-dev/v2/` |
+| Legacy checkout | `knowscroll-product` stays on older main with unrelated edits; never switch/reset it |
 
-## Done
+## Completed foundations
 
-- Phase 0 (#223). Phase 1: S1.1 (#224, PR #252), S1.2 (#225, PR #253), S1.3 identity (#226, PR #257), S1.4 client foundation (#227, PR #255), S1.5 infrastructure (#228, PRs #251 + #256).
-- S1.3 on dev verified 2026-10-20 (dev deployment, real database): operator link → peek 200 → redeem 200 (403 without Origin, 400 on reuse) → session epoch 1 → `GET /v1/saved` 200 with `X-KS-Scope` (409 without/wrong scope, 401 without session) → audit row → sign-out → 401. Evidence on #226.
-- S1.6 thin journey (#229) moved into the first Phase 2 wave (needs `scroll-document.v1` from #254).
+- #223–#228 and #231 closed; preserve completed foundations.
+- Harness PR #259 merged as `d852d440`; dev deploy [39394534551](https://github.com/KnowScroll/knowscroll/actions/runs/39394534551). Failure-brake follow-up belongs with the first production roles.
+- Prior operator identity/dev real-database verification is on #226. Mailed sign-in remains unproved and native binding off.
 
-## Phase 2 plan (order)
+## Recovery and ownership
 
-1. #254 (S2.1 part 1) finish + re-review + merge; #231 S2.2 harness PR.
-2. #229 S1.6 thin journey on dev; #230 part 2 Scroll renderers in `packages/ui` (both after #254).
-3. #232 S2.3 Scroll production (≥ 3 real generated Scrolls, ≥ 2 interactive) — after #231, #230.
-4. #233 S2.4 media + Reel player + Cutroom reuse import (greenhouse, seasons-v5, tides-v4) — after #229.
-5. #234 S2.5 Explore (Composer v0, actions, Saved, UI states; journeys J1, J5 on dev) — after #232, #233.
-6. Promote the tested dev revision to stage (`scripts/promote.sh stage`); report Phase 2; **ask the owner before Phase 3**.
+Snapshot: `/Volumes/Mrigesh SSD/knowscroll-dev/v2/agents/coordinator/codex-recovery-20261020T132246Z/`.
+It preserves Git refs, index, dirty files, patches and rebase metadata. Historical Claude processes had no active child work at takeover; no unrelated process was killed.
 
-## Active agents (Sonnet 5.5; each in its own SSD worktree)
-
-| Work | Branch / worktree | State |
+| Sol/high agent | Existing PR / worktree | Assignment state |
 |---|---|---|
-| #230 part 1 finish (PR #254) | `codex/230-scroll-model` · `v2-230-scroll-model` | running: drop temporary commit, rebase, M1 ruling, fix-list check, CI |
-| #231 S2.2 harness | `codex/231-harness` · `v2-231-harness` | running: commit WIP, rebase (migration → `0009`), finish brief, PR. 5 of 6 real MiniMax calls used |
+| `scroll_model_230` | #254 · `v2-230-scroll-model` | `782ee0a9`, clean; reconcile review, CSP/jitless, admission/client boundaries |
+| `renderers_230` | #260 + #263 · `v2-230-renderers` / B branch | A `a4cce2ea` + 14 dirty/2 untracked files preserved; B `21772cff`; vocabulary, visibility, scope fences and gestures |
+| `thin_journey_229` | #262 · `v2-229-thin-journey` | Rebase recovered to `3d5fb268`; original/remote `88279257` preserved; no force-push |
+| coordinator | #258 · `v2-249-android-lane` | `b4a19828`; review actual native artifacts; #264/#265 are DO NOT MERGE probes |
 
-Briefs: `knowscroll-dev/v2/agents/coordinator/prompt-*.md`.
+Workers do not edit checkpoint. Reports live in `agents/codex-230-model/`, `codex-230-renderers/`, `codex-229-journey/`, `codex-249-review/` under the SSD evidence area.
 
-## Coordinator rulings this session
+## Sequence
 
-- #254 M1: the full-grid simulation proof runs only on the admission path (server); the client parse path is structural and cheap (Hermes has no JIT). CI budgets: admission block < 10 ms, document < 200 ms; client block < 1 ms, document < 20 ms. No engine-specific numeric approximations (`**`/`Math.*` stay).
+1. #254 fixes → independent targeted re-review → checks on actual head → squash into integration.
+2. Deliberately update stacked #260 → #263, preserve fixes, inspect resulting diffs; review/check each actual candidate.
+3. #262: preserve recovered history without force-push; fix resume, late writes, reading-fact versioning and interaction vocabulary; integrate ScrollArticle.
+4. Review #258 APK/emulator logs/artifacts. Do not close #249 for lane setup alone.
+5. Exercise admitted Scroll → reading → observations → persisted qualified evidence on dev.
+6. Continue #232 (three real generated Scrolls, two interactive), #233 (existing real Cutroom import/playback), #234 (Explore/navigation/Saved); then remaining phases.
+7. Promote tested dev via `scripts/promote.sh stage`, preserve artifact identity; report and continue.
 
-## Owner decisions
+## Cautions
 
-In force: D-018 Cutroom $2 (Phase 4), D-019 Android in Actions, D-020 `checks` required on `dev`, D-021 MiniMax for personal roles. Open before live: identity N2 (sign-in budget saturation; options in the identity README).
-
-## Known gaps / cautions
-
-- This session was started from `~/Desktop`, so the main-update hook is not loaded: discipline only.
-- Mailed sign-in through AgentMail is not proved end to end on dev (operator links only); native sign-in binding is off on every world.
-- `ks`: if killed between switching `current` and the health check, the old release is unreferenced and a later cleanup could delete it (accepted edge case).
-- Playwright MCP screenshots land in `~/Desktop/.playwright-mcp`; move only your own files to the SSD.
+- D-018 total new v2 Cutroom allowance ≤ $2. Read actual spend/reservations/unknowns and balance before paid calls; each script requires approval.
+- Prior harness brief reported 5/6 MiniMax calls used. Reconcile real attempts before treating any allowance as available. No provider call made during recovery.
+- No model/network wait in DB transaction or HTTP navigation. Preserve atomic receipts, epochs, erasure and AccountScope isolation.
+- GitHub-hosted CI only; no secret-bearing PR deployments or weakened/skipped required checks.
+- Claude's main-update hook is not a Codex control; enforce the owner boundary explicitly.
 
 ## Next action
 
-Review and merge #254 (Sonnet re-review first); then start #229 and #230 part 2; review #231 when its PR is green.
+Finish Scroll fixes and Android review, obtain independent reviews/current CI, then integrate the existing chain. Update tracker/checkpoint after material merges, failures and decisions. Fixtures, green CI and health alone do not prove complete journeys.
