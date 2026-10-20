@@ -5,7 +5,7 @@ import { isIP } from 'node:net';
 import { assertOutsideTransaction } from '../postgres/transaction-marker.js';
 
 /** Public research policy. Hosts are individually reviewed; a .gov suffix alone is not authority. */
-const RESEARCH_POLICY = 'public-research.v1';
+export const RESEARCH_POLICY = 'public-research.v1';
 const hosts = new Set([
   'en.wikipedia.org',
   'arxiv.org',

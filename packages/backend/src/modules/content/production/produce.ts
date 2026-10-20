@@ -24,6 +24,12 @@ import {
   WRITER_PROMPT_VERSION,
 } from './roles.js';
 import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
+import {
+  quoteCandidates,
+  verifyHydratedClaims,
+  QuoteCandidateRefusal,
+  QUOTE_CANDIDATE_POLICY,
+} from './quote-candidates.js';
 import type { ProduceScrollResult, RoleReceipt } from './types.js';
 import { REQUEST_BOUND_PER_TOPIC, SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
 
@@ -161,6 +167,18 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       row = frozen.value.row;
       pages = row.research;
     }
+    // Rebuild and verify even on a resumed writer stage before using stored hydrated claims.
+    // A corrupt/insufficient source pool must never reach provider admission.
+    let candidates: ReturnType<typeof quoteCandidates>;
+    try {
+      candidates = quoteCandidates(pages);
+      if (row.state === 'writer' && row.claims !== null) verifyHydratedClaims(pages, candidates, row.claims);
+    } catch (error) {
+      if (row.state !== 'claims' && row.state !== 'writer') return summary(row);
+      return reject(row.state, 'rejected', [
+        error instanceof QuoteCandidateRefusal || error instanceof ResearchRefusal ? error.code : 'candidate_failed',
+      ]);
+    }
     let claimPackage: ClaimPackage;
 
     if (row.state === 'writer' && row.claims !== null) claimPackage = row.claims;
@@ -174,11 +192,21 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
             bundleRef: `scroll:${row.id}:research`,
             items: [
               { ref: `brief:${topic}`, kind: 'production_brief', text: TOPICS[topic].brief },
-              ...pages.map((page) => ({
-                ref: page.id,
-                kind: 'public_research',
-                text: canonicalJson({ pageId: page.id, passages: page.passages.map(({ id, text }) => ({ id, text })) }),
-              })),
+              {
+                ref: `quote-candidates:${row.id}`,
+                kind: 'public_research_candidates',
+                text: canonicalJson({
+                  policyVersion: QUOTE_CANDIDATE_POLICY,
+                  candidates: candidates.map(({ id, pageId, passageId, start, end, text }) => ({
+                    id,
+                    pageId,
+                    passageId,
+                    start,
+                    end,
+                    text,
+                  })),
+                }),
+              },
             ],
           },
           limits: { allowRepair: true },

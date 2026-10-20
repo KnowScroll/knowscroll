@@ -17,6 +17,7 @@ import {
   WRITER_PROMPT_VERSION,
 } from './roles.js';
 import { writerDraftExampleJson } from './writer-example.js';
+import { hydrateSelectedClaims, quoteCandidates } from './quote-candidates.js';
 
 const sourceWords =
   'A deliberately labelled fixture evidence passage describes the private research boundary and provides enough stable original language for checking verbatim quotations without representing any real generation.';
@@ -25,16 +26,9 @@ const page = extractResearch(
   'https://science.nasa.gov/earth/earth-facts/',
   '2026-10-20T00:00:00.000Z',
 );
-const claims = {
-  claims: [0, 1, 2, 3].map((n) => ({
-    claimId: `claim-fixture-${n}`,
-    pageId: page.id,
-    passageId: page.passages[n]?.id ?? '',
-    statement: 'A fixture statement is not product content or evidence of a real model invocation.',
-    quote: sourceWords,
-    truthState: 'documented' as const,
-  })),
-};
+const candidates = quoteCandidates([page]);
+const selection = { candidateIds: candidates.slice(0, 4).map(({ id }) => id) };
+const claims = hydrateSelectedClaims([page], candidates, selection.candidateIds);
 const provenance = generatedProvenance({
   topic: 'greenhouse',
   runId: 'fixture-writer-run',
@@ -51,22 +45,39 @@ function fixtureDraft() {
   for (const section of draft.sections)
     for (const block of section.blocks) {
       if (block.type !== 'subheading')
-        draft.bindings.push({ kind: 'block', blockId: block.id ?? '', claimId: 'claim-fixture-0' });
+        draft.bindings.push({ kind: 'block', blockId: block.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
       if (block.type === 'disclosure')
         for (const child of block.data.blocks)
-          draft.bindings.push({ kind: 'block', blockId: child.id ?? '', claimId: 'claim-fixture-0' });
+          draft.bindings.push({ kind: 'block', blockId: child.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
     }
   return draft;
 }
 describe('Scroll production roles (labelled CI fixture)', () => {
-  it('requires exact original quote characters and unique claim identifiers', () => {
-    expect(claimsRole([page]).outputSchema.safeParse(claims).success).toBe(true);
-    const wrong = structuredClone(claims);
-    if (wrong.claims[0]) wrong.claims[0].quote += ' invented';
-    expect(claimsRole([page]).outputSchema.safeParse(wrong).success).toBe(false);
-    const duplicate = structuredClone(claims);
-    if (duplicate.claims[1]) duplicate.claims[1].claimId = 'claim-fixture-0';
-    expect(claimsRole([page]).outputSchema.safeParse(duplicate).success).toBe(false);
+  it('hydrates only distinct offered IDs and rejects model-authored claim fields', () => {
+    const role = claimsRole([page]);
+    const accepted = role.outputSchema.safeParse(selection);
+    expect(accepted.success).toBe(true);
+    if (accepted.success) {
+      expect(accepted.data).toEqual(claims);
+      for (const claim of accepted.data.claims) {
+        expect(claim.statement).toBe(claim.quote);
+        expect(claim.truthState).toBe('documented');
+        expect(claim.claimId).toMatch(/^claim-[a-z0-9-]{1,48}$/u);
+        expect(page.passages.find(({ id }) => id === claim.passageId)?.text).toContain(claim.quote);
+      }
+    }
+    expect(role.outputSchema.safeParse({ candidateIds: Array(4).fill(selection.candidateIds[0]) }).success).toBe(false);
+    expect(
+      role.outputSchema.safeParse({ candidateIds: [...selection.candidateIds.slice(0, 3), `q-${'0'.repeat(48)}`] })
+        .success,
+    ).toBe(false);
+    expect(role.outputSchema.safeParse({ ...selection, truthState: 'documented' }).success).toBe(false);
+    expect(role.outputSchema.safeParse(claims).success).toBe(false);
+    const mutable = { ...page, passages: page.passages.map((p) => ({ ...p })) };
+    const frozenRole = claimsRole([mutable]);
+    if (mutable.passages[0])
+      mutable.passages[0] = { ...mutable.passages[0], text: `${mutable.passages[0].text} tampered` };
+    expect(frozenRole.outputSchema.safeParse(selection).success).toBe(false);
   });
   it('runs canonical admission and keeps generated provenance separate from the consumer bytes', () => {
     const compiled = compileGeneratedDraft(fixtureDraft(), provenance, false);
@@ -115,9 +126,11 @@ describe('Scroll production roles (labelled CI fixture)', () => {
     expect(compileGeneratedDraft(example, synthetic, true).kind).toBe('compiled');
     // Actual production evidence cannot authorize the example, even though its JSON/DSL is valid.
     expect(writerRole(provenance, true).outputSchema.safeParse(example).success).toBe(false);
-    const invalidOfferedId = structuredClone(claims);
-    if (invalidOfferedId.claims[0]) invalidOfferedId.claims[0].claimId = 'example-only-claim';
-    expect(claimsRole([page]).outputSchema.safeParse(invalidOfferedId).success).toBe(false);
+    expect(
+      claimsRole([page]).outputSchema.safeParse({
+        candidateIds: ['example-only-claim', ...selection.candidateIds.slice(1)],
+      }).success,
+    ).toBe(false);
   });
   it('separates reference grammar from one real JSON exemplar within the unchanged token and prompt ceilings', () => {
     const role = writerRole(provenance, true);
