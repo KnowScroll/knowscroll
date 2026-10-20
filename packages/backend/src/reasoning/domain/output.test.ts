@@ -1,11 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { fc, test } from '@fast-check/vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
   MAX_ANSWER_DEPTH,
+  MAX_ANSWER_CHARS,
   MAX_ISSUES,
   exceedsDepth,
   extractJsonObject,
   issueFor,
+  issueForExtraction,
   summariseIssues,
   validateOutput,
 } from './output.js';
@@ -48,6 +51,98 @@ describe('strict JSON extraction', () => {
       value: { note: '<think>user text</think>' },
     });
   });
+});
+
+describe('safe structural JSON refusal diagnostics (CI fixture)', () => {
+  const reason = 'OUTPUT_NOT_ONE_JSON_OBJECT';
+  const grammar =
+    /^answer with exactly one JSON object and nothing else; json-refusal\.v1 phase=(framing|syntax) framing=(bare|fenced|invalid_fence|embedded_fence) prefix=(object|array|scalar|other) category=(expected_property|expected_comma_or_separator|unterminated_string|unexpected_end|unexpected_token|other) chars=(\d{1,6})$/u;
+  it.each([
+    ['unquoted property', '{unquoted:true}', 'syntax', 'bare', 'object', 'expected_property'],
+    ['trailing comma', '{"a":true,}', 'syntax', 'bare', 'object', 'expected_property'],
+    ['missing comma', '{"a":1 "b":2}', 'syntax', 'bare', 'object', 'expected_comma_or_separator'],
+    ['missing colon', '{"a" 1}', 'syntax', 'bare', 'object', 'expected_comma_or_separator'],
+    ['array separator', '{"a":[1 2]}', 'syntax', 'bare', 'object', 'expected_comma_or_separator'],
+    ['unterminated string', '{"a":"unfinished}', 'syntax', 'bare', 'object', 'unterminated_string'],
+    ['incomplete object', '{"a":', 'syntax', 'bare', 'object', 'unexpected_end'],
+    ['unexpected value', '{"a":nope}', 'syntax', 'bare', 'object', 'unexpected_token'],
+    ['other syntax', '{"a":"\\q"}', 'syntax', 'bare', 'object', 'other'],
+    ['two objects', '{}{}', 'framing', 'bare', 'object', 'unexpected_token'],
+    ['leading prose', 'Here is the object: {}', 'framing', 'bare', 'other', 'other'],
+    ['trailing prose', '{} This is prose.', 'framing', 'bare', 'object', 'unexpected_token'],
+    ['array', '[{}]', 'framing', 'bare', 'array', 'other'],
+    ['scalar', '"value"', 'framing', 'bare', 'scalar', 'other'],
+    ['bad fence', '```json\n{}', 'framing', 'invalid_fence', 'other', 'other'],
+    ['embedded fence', '```json\n{"a":"```"}\n```', 'framing', 'embedded_fence', 'object', 'other'],
+    ['fenced syntax', '```json\n{bad:true}\n```', 'syntax', 'fenced', 'object', 'expected_property'],
+  ])('keeps %s refused with fixed categories only', (_label, text, phase, framing, prefix, category) => {
+    expect(extractJsonObject(text)).toEqual({ ok: false, reason });
+    const issue = issueForExtraction(reason, text);
+    expect(issue.path).toBe('(root)');
+    expect(issue.code).toBe('not_one_json_object');
+    expect(issue.detail).toContain(`phase=${phase} framing=${framing} prefix=${prefix} category=${category}`);
+    expect(issue.detail).toMatch(grammar);
+  });
+
+  it('preserves legacy issue details and all other refusal codes and bounds', () => {
+    expect(issueFor(reason)).toEqual({
+      path: '(root)',
+      code: 'not_one_json_object',
+      detail: 'answer with exactly one JSON object and nothing else',
+    });
+    expect(extractJsonObject('x'.repeat(MAX_ANSWER_CHARS + 1))).toEqual({ ok: false, reason: 'OUTPUT_TOO_LARGE' });
+    for (const code of [
+      'OUTPUT_EMPTY',
+      'OUTPUT_TOO_LARGE',
+      'OUTPUT_TRUNCATED',
+      'OUTPUT_TOO_DEEP',
+      'OUTPUT_SCHEMA_MISMATCH',
+      'REPLY_UNREADABLE',
+    ] as const)
+      expect(issueForExtraction(code, 'PRIVATE-UNREADABLE-ANSWER')).toEqual(issueFor(code));
+    expect(issueForExtraction(reason, 'x'.repeat(MAX_ANSWER_CHARS + 1))).toEqual(issueFor(reason));
+  });
+
+  it('falls back to a fixed other category for an unknown engine error, without its message', () => {
+    const parse = vi.spyOn(JSON, 'parse').mockImplementationOnce(() => {
+      throw new SyntaxError('PRIVATE-ENGINE-ERROR with an arbitrary reply snippet');
+    });
+    try {
+      const issue = issueForExtraction(reason, '{broken: true}');
+      expect(issue.detail).toContain('phase=syntax framing=bare prefix=object category=other');
+      expect(issue.detail).toMatch(grammar);
+      expect(JSON.stringify(issue)).not.toContain('PRIVATE-ENGINE-ERROR');
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  test.prop([fc.string({ maxLength: 512 })])(
+    'malformed secret-bearing keys, values and framing cannot enter an issue',
+    (text) => {
+      const canary = 'DIAGNOSTIC-PRIVATE-CANARY-Zq81';
+      const fakeKey = `sk-cp-${canary}-01234567890123456789`;
+      const fakeUrl = `https://private.example/${canary}?X-Amz-Signature=${canary}`;
+      const key = JSON.stringify(`${text}${fakeKey}${fakeUrl}`);
+      const malformed = `{${key}:nope}`;
+      for (const answer of [
+        malformed,
+        `prose ${fakeUrl} ${malformed}`,
+        `\`\`\`json\n${malformed}\n\`\`\``,
+        `${malformed}${fakeKey}`,
+      ]) {
+        expect(extractJsonObject(answer)).toEqual({ ok: false, reason });
+        const issue = issueForExtraction(reason, answer);
+        expect(issue.detail).toMatch(grammar);
+        expect(issue.detail?.length).toBeLessThan(256);
+        const match = grammar.exec(issue.detail ?? '');
+        expect(Number(match?.[5])).toBeLessThanOrEqual(MAX_ANSWER_CHARS);
+        expect(Number(match?.[5])).toBeGreaterThanOrEqual(0);
+        for (const secret of [canary, fakeKey, fakeUrl, 'private.example', 'X-Amz-Signature'])
+          expect(JSON.stringify(issue)).not.toContain(secret);
+      }
+    },
+  );
 });
 
 describe('the validator summary', () => {

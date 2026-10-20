@@ -2,7 +2,7 @@
 
 Coordinator-owned. Hard cap ~120 lines. Verify Git, CI and deployed revisions before acting.
 
-**Updated:** 2026-10-20 15:35 UTC · **Phase:** 2 recovery / fix-and-review round · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-20 15:53 UTC · **Phase:** 2 implementation / real dev journeys · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -15,9 +15,9 @@ Coordinator-owned. Hard cap ~120 lines. Verify Git, CI and deployed revisions be
 
 | Item | Value / evidence limit |
 |---|---|
-| Integration | `codex/release-knowscroll-v2` at `8835315a` after #258/#254/#260/#267/#266/#263/#262/#270/#271 merges; no new deployment; takeover was clean `d852d440` |
+| Integration | Through `7b998766` after #258/#254/#260/#267/#266/#263/#262/#270/#271/#268 merges; takeover was clean `d852d440` |
 | Worktree | `/Volumes/Mrigesh SSD/knowscroll-worktrees/v2-release` |
-| dev health, 2026-10-20 | v2 `d852d440325d42d0e691e3116d40cf090f919bbc`, artifact `dccc91bdf11113578e783ec6c3ff88880c3b54ee1a99e664308cd77f148c88d0`, migration `0009_reasoning_harness`, relay listening |
+| dev health, 2026-10-20 15:39 UTC | Tested v2 `191d15586dfb3a41a160dbb27eac24d582c34bc3`, artifact `509480db426d44c162b780bd87d68b6ed7eed9272abf99b88aca97b91c27aa17`, migration `0014_media_reels`, relay listening; deploy [39450362574](https://github.com/KnowScroll/knowscroll/actions/runs/39450362574) |
 | stage health, 2026-10-20 | v1 `8982391fe6a0dae385fc6e3013bf46b093d2d9d9`; no v2 promotion yet |
 | Evidence limit | Health establishes deployment identity, not generation or connected journey acceptance |
 | SSD evidence | `/Volumes/Mrigesh SSD/knowscroll-dev/v2/` |
@@ -41,7 +41,7 @@ It preserves Git refs, index, dirty files, patches and rebase metadata. Historic
 | `thin_journey_229` | #262 · `v2-229-thin-journey` | Merged7f639fc8 after accepted4285f599 + exact push/PR all six green/log inspection. Mail-race/anchor/scope/probe fixes retained; root browser5b0f0330 authored-fixture qualified evidence/block return; dev acceptance pending |
 | `production_scope_232` | #232 foundation · `v2-232-production-scope` | Merged #266 as94d367cc after independent review and exact1a650 all six push+PR checks green (183integration); no provider calls |
 | `scroll_production_232` | #232 · `v2-232-scroll-production` | PR #269671f4e1 v3: selection-only claims source accepted/all six Actions39447008436 green. Real v1/v2/v3 terminal rejections3+2+3calls; v3 claims passed but bothwriters invalidJSON. No asset; bounded structural diagnostics prerequisite active, no automatic resend |
-| `media_reels_233` | #233 · `v2-233-media-reels` | PR #268191d1558 final integration/13+14 schema/union guards accepted; exact push39448522493/PR39448524252 release pending. Root ec515 browser Retry/Play/Pause>50s verified syntheticfixture,1observationq0.5857 notqualified. Real Cutroom/dev/native pending |
+| `media_reels_233` | #233 · `v2-233-media-reels` | #268 merged7b998766 from accepted191d1558, exact push39448522493/PR39448524252 all six/logs verified, deployed dev. Local synthetic Retry/Play/Pause verified, q0.5857 notqualified. Real import refused invented used-take→chosen-picture predicate; dedicated #233 fix active, no asset admitted |
 | coordinator | #258 · `v2-249-android-lane` | Merged #258 as `957b7655` after independent source/log/artifact review; Scroll-block flow explicitly skipped; #249 stays open |
 
 Workers do not edit checkpoint. Reports live in `agents/codex-230-model/`, `codex-230-renderers/`, `codex-229-journey/`, `codex-249-review/` under the SSD evidence area.
@@ -53,7 +53,7 @@ Workers do not edit checkpoint. Reports live in `agents/codex-230-model/`, `code
 3. #262: preserve recovered history without force-push; fix resume, late writes, reading-fact versioning and interaction vocabulary; integrate ScrollArticle.
 4. #258 lane reviewed/merged. B mandatory native fixture journey passed at4fc08e71; broader native journeys still required. Do not close #249 for lane setup alone.
 5. Exercise admitted Scroll → reading → observations → persisted qualified evidence on dev.
-6. Continue #232 (three real generated Scrolls, two interactive), #233 (existing real Cutroom import/playback). Prerequisite Reel #270 mergedc3d83bb8 and Explore #271 merged8835315a after exact final reviews/all six push+PR/logs. #234 content/Composer core active from66a3a1a; #272 shared exact Scroll local resume d014762 fixes reviewed web takeover Major, re-review/current CI pending; then remaining phases.
+6. Continue #232 (three real generated Scrolls, two interactive), #233 (existing real Cutroom import/playback). Reel #270 and Explore #271 contracts merged. #234 core PR274 initial1a5e38b9 under independent review/CI, series self-audit fix active; migrations16/17 only,18/19 reserved. #272 exact local Scroll resume816a66f7 accepted final merge source, exact CI/native pending. #273 refusal diagnostics5a575d8b source accepted, exact merged-head CI pending; then remaining phases.
 7. Promote tested dev via `scripts/promote.sh stage`, preserve artifact identity; report and continue.
 
 ## Cautions
@@ -70,9 +70,10 @@ Workers do not edit checkpoint. Reports live in `agents/codex-230-model/`, `code
 - Local reader screenshot `agents/coordinator/local-scroll-return-5b0f0330.jpg`; DB observation/evidence audit `local-current-exposure-262.txt`. Authored editorial fixture only, not generated-content acceptance.
 - Root owns additional disposablePG16 port56632/PID38312, SSDtmp/pg-codex-232-20261020; freshks232_real migrated0001..13+15 from84821b0 (isolatedlocal schema without media14), production root enabled atgeneration1 for authorized bounded operator jobs;8settledattempts, v1/v2/v3terminalrejections. API55994/PID46697 and edge55996/PID46699 source84821; worker providerNONE. Root rebuilt operator671f4e1 for v3; no unattended production jobs.
 - Root media fixture browser completed/closed; own bootstrap57766, worker58058 and restartedAPI79118 stopped. PG56433/PID82068 retained. Evidence agents/coordinator/media-ec515-browser.md + screenshots; synthetic only. Backend agent owns separate disposablePG56674/typegen; never runtime DBs.
-- VPS read-only preflight evidence `agents/coordinator/vps-preflight-20261020-1526.md`: dev API/worker active, current/stage identities unchanged, existing0600backups, ample disk.
-- Read-only real Cutroom audit confirms three approved completed videos/checksums/probes: `agents/coordinator/cutroom-read-audit-20261020.jsonl`. No import/playback or new commission claimed.
+- Dev191d1558 deployed15:39 UTC after reviewed worker-unit-only Ansible change (group ks-pool, Cutroom read settings). Actual worker79093 has groups976/979; API79105 no supplementary group; stage v2 stays inactive. Backup `/srv/knowscroll/backups/knowscroll_v2_dev/pre-deploy-20261020T153925Z-191d15586dfb.dump`0600/197717B. Previous d852 retained. Logs `agents/coordinator/deploy-191d1558.log`; rollback plan `dev-media-rollout-plan.md`.
+- GET-only actual Cutroom preimport audit reverified all three hashes/probes, pool remains cap700¢/settled617¢/83¢left. Transient import held deploy lock and pinned release/sandbox/no provider keys. First launcher had an EnvironmentFile syntax failure before execution (DB0imports); corrected launcher reached import and refused record before copy/admission. `cutroom-record-diagnosis-20261020.jsonl` isolates invented used-take→chosen-picture check; upstream pinned manifest explicitly allows text-to-video shots. Dedicated `cutroom_record_233` owns validator/tests fix, no Cutroom changes. No real import/playback claimed.
+- Root dev disposable account browser tab3 and loopback sign-in bridge55997/PID35967/session34010 active; credentials kept only in child memory, normal first-party session. Actual dev Scroll hands-on in progress. Backend agent's own typegen PG56674 stopped.
 
 ## Next action
 
-Merge final media after release logs; apply reviewed bounded worker-unit/import rollout only from tested integration, deploy dev with backup/artifact identity and exercise real imported videos. Finish #272 review and #234 core; writer diagnostics before further allocated calls. Update tracker/checkpoint after material merges, failures and decisions. Fixtures, green CI and health alone do not prove complete journeys.
+Finish bounded real Cutroom-record fix with independent review/exact Actions, deploy tested candidate with new backup/artifact identity, then import/play real videos. Complete #272 native and #274 core review/fixes; merge #273 safe diagnostics before another separately allocated production recipe. Continue connected #234 backend/UI and remaining phases. Fixtures, green CI and health alone do not prove complete journeys.

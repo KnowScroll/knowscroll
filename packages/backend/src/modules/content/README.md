@@ -58,7 +58,11 @@ siblings. GET-only loopback reads use the actual pinned upstream parsers, compil
 no commissioning, resume, cancel, model, quota, money or provider adapter exists here.
 
 Import validates terminal/run/request identities, every chosen/used engine check and shot/degradation
-coverage, then opens a contained regular engine artifact, stream-stages, hashes, ffprobes H264/AAC
+coverage. Cutroom places up to three pictures; other shots can be text-to-video and need no chosen
+picture. Wire v1's `used` flag attests inclusion in the completed render; it exposes neither take mode
+nor a take-to-picture relation. Result stills must still join chosen pictures by picture and shot ID,
+and each chosen picture's shot must have a used take or degradation. Import then opens a contained
+regular engine artifact, stream-stages, hashes, ffprobes H264/AAC
 portrait 24fps 48kHz stereo/20–60s/faststart, installs bytes, and commits an immutable revision with
 internal provenance in one short admission transaction. No network, media copy or probe is inside that
 transaction. Nonfixture imports must match the frozen approved SHA-256 and size; a repeated run is
