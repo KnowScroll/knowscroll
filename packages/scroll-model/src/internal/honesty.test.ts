@@ -136,6 +136,73 @@ describe('honesty checks', () => {
     expect([...STRUCTURAL_LITERALS].sort((a, b) => a - b)).toEqual([-1, 0, 0.5, 1, 2]);
   });
 
+  it('count a literal operand, a step and a minimum as stated numbers too', () => {
+    const format = { decimals: 2, grouping: false, approximate: false };
+    const sim = make('simulation', {
+      title: 'A drop under gravity',
+      params: [{ key: 'time', label: 'Time', min: 3, max: 4, step: 0.25, default: 3, control: 'slider', format }],
+      constants: [],
+      outputs: [
+        { key: 'pull', label: 'Pull', formula: { kind: 'linear', x: 'time', a: 9.81, b: 0 }, format },
+        { key: 'fast', label: 'Fast', formula: { kind: 'exponential', x: 'time', rate: 0.5, initial: 7 }, format },
+      ],
+      view: { kind: 'readout', primary: 'pull' },
+      modelNote: 'A teaching model of a falling object.',
+      illustrative: false,
+    });
+    const document = documentOf(sim);
+    const id = firstId(document);
+    const issues = honestyIssues(document, { claims, bindings: [] });
+    expect(issues.map((issue) => `${issue.code} ${issue.path.split('.data.')[1] ?? ''}`)).toEqual([
+      'simulation_unbound ',
+      'simulation_number_unbound params.0.min',
+      'simulation_number_unbound params.0.max',
+      'simulation_number_unbound params.0.step',
+      'simulation_number_unbound params.0.default',
+      'simulation_number_unbound outputs.0.formula.a',
+      'simulation_number_unbound outputs.1.formula.initial',
+    ]);
+    // A value binding clears exactly the number it names; 0, 0.5 and the other structural numbers need none.
+    const bind = (path: string): ProvenanceBinding => ({ kind: 'value', claimId: 'clm-a', blockId: id, path });
+    const all = [
+      'params.0.min',
+      'params.0.max',
+      'params.0.step',
+      'params.0.default',
+      'outputs.0.formula.a',
+      'outputs.1.formula.initial',
+    ];
+    expect(codes(document, all.map(bind))).toEqual([]);
+    expect(codes(document, all.slice(1).map(bind))).toEqual(['simulation_number_unbound']);
+  });
+
+  it('never exempt a constant by its value: a stated quantity of 2 or 1 needs its binding too', () => {
+    const weight = fixture('weight-other-worlds');
+    const sim = weight.document.sections[0]?.blocks[0];
+    if (sim?.type !== 'simulation') throw new Error('fixture changed');
+    const bound = weight.internal.bindings.filter((binding) => !('blockId' in binding) || binding.blockId !== sim.id);
+    const keep = weight.internal.bindings.filter((binding) => 'blockId' in binding && binding.blockId === sim.id);
+    const withConstants = structuredClone(weight.document);
+    const target = withConstants.sections[0]?.blocks[0];
+    if (target?.type !== 'simulation') throw new Error('fixture changed');
+    // The Moon's constant becomes 1 and Mars's 2: structural for a literal operand, never for a constant.
+    target.data.constants = target.data.constants.map((constant, index) =>
+      index === 0 ? { ...constant, value: 1 } : index === 1 ? { ...constant, value: 2 } : constant,
+    );
+    const onlyValueBindings = keep.filter((binding) => binding.kind === 'value');
+    const unbound = honestyIssues(withConstants, {
+      claims: weight.internal.claims,
+      bindings: [...bound, ...onlyValueBindings],
+    });
+    expect(
+      unbound
+        .filter((issue) => issue.code === 'constant_unbound')
+        .map((issue) => issue.path.split('.').slice(-3).join('.')),
+    ).toEqual(['constants.0.value', 'constants.1.value', 'constants.2.value']);
+    // A literal operand of 1 or 2 stays structural.
+    expect(STRUCTURAL_LITERALS.has(1) && STRUCTURAL_LITERALS.has(2)).toBe(true);
+  });
+
   it('let an illustrative simulation state numbers without bindings', () => {
     const attention = fixture('attention-slowly');
     const sim = attention.document.sections[1]?.blocks[2];

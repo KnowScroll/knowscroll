@@ -126,8 +126,11 @@ const probes = [
   {
     file: 'packages/ui/src/zz-probe.ts',
     source:
-      "import { ScrollProvenance } from '@knowscroll/scroll-model/internal';\nexport const p = ScrollProvenance;\n",
-    expect: [['@knowscroll/scroll-model/internal', 'clients-never-import-scroll-internals']],
+      "import { ScrollProvenance } from '@knowscroll/scroll-model/internal';\nimport { compileDraft } from '@knowscroll/scroll-model/producer';\nexport const p = [ScrollProvenance, compileDraft];\n",
+    expect: [
+      ['@knowscroll/scroll-model/internal', 'clients-never-import-scroll-internals'],
+      ['@knowscroll/scroll-model/producer', 'clients-never-import-scroll-internals'],
+    ],
   },
   {
     file: 'packages/contracts/src/zz-probe.ts',

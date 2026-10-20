@@ -10,6 +10,7 @@ import {
   utf8ByteLength,
   validateDocument,
   walkBlocks,
+  type ReasonCode,
   type ScrollDocument,
 } from '../index.js';
 import { addressedTexts } from '../internal/honesty.js';
@@ -481,6 +482,41 @@ describe('the producer contract for the writer prompt', () => {
     expect(text).not.toMatch(/^fallback \{/mu);
     expect(text).toContain('no expressions');
     expect(text).not.toMatch(/expr@/u);
+  });
+
+  it('separates the rules code checks from guidance code does not check', () => {
+    const text = blockCatalogueText();
+    const [checked = '', guidance = ''] = text.split('GUIDANCE (not checked by code');
+    expect(checked).toContain('CHECKED BY CODE');
+    expect(guidance).not.toBe('');
+    // Rules that only a reviewer can judge are never presented as checked.
+    for (const advice of ['Name no source', 'Explain, do not summarise', 'Use an interactive block only']) {
+      expect(guidance).toContain(advice);
+      expect(checked).not.toContain(advice);
+    }
+    // Each rule listed as checked is enforced by a reason code that exists and has a repair hint.
+    const enforced: Array<[RegExp, ReasonCode[]]> = [
+      [/Never 9 or more consecutive words/u, ['copied_passage']],
+      [/No web addresses in any text/u, ['text_mentions_web_address', 'schema_unrecognized_keys', 'too_many_blocks']],
+      [/Every number \(digits/u, ['number_unbound', 'numeric_block_unbound', 'binding_anchor_crosses_sentence']],
+      [
+        /illustrative:false binds every number/u,
+        ['simulation_number_unbound', 'constant_unbound', 'simulation_unbound'],
+      ],
+      [/Never write "fallback" blocks/u, ['fallback_reserved', 'schema_unrecognized_keys']],
+    ];
+    const rules = checked.split('\n').filter((line) => /^\d\. /u.test(line));
+    expect(rules).toHaveLength(enforced.length);
+    for (const [pattern, codes] of enforced) {
+      expect(
+        rules.some((rule) => pattern.test(rule)),
+        String(pattern),
+      ).toBe(true);
+      for (const code of codes) {
+        expect(REASON_CODES).toContain(code);
+        expect(REPAIR_HINTS[code].length).toBeGreaterThan(0);
+      }
+    }
   });
 
   it('exports a JSON Schema of the draft for constrained decoding', () => {

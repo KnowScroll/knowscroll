@@ -291,6 +291,8 @@ export function textFields(block: AnyBlock): TextField[] {
         data.readout.bands.forEach((band, index) => add(`data.readout.bands.${index}.text`, band.text));
       }
       add('data.modelNote', data.modelNote);
+      // The notice the renderer must show next to the view of an illustrative simulation.
+      if (data.illustrative !== false) add('data.illustrative.notice', data.illustrative.notice);
       break;
     }
     case 'fallback':

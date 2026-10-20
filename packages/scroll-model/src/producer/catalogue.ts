@@ -63,7 +63,7 @@ export function blockCatalogueText(): string {
     '1. Never 9 or more consecutive words from a claim quote or excerpt, in any text a reader sees or hears.',
     `2. No web addresses in any text. Only the listed block types, fields and limits; at most ${L.blocks} blocks (nested included), ${L.interactiveBlocks} interactive (simulation, sequence, media, non-static diagram), ${L.paramsTotal} parameters, ${visible} visible characters.`,
     '3. Every number (digits, ⅜, ², Roman numerals) in any text — title, dek, headings, prose, captions, labels, units, a11y text, fallback text, alt text, transcripts, table cells — lies inside an anchor bound to a claim. Code bodies are exempt. Every chart has a block binding.',
-    `4. A simulation with illustrative:false binds every number it states other than ${literals} (constants by constant bindings, others by value bindings) and has at least one binding.`,
+    `4. A simulation with illustrative:false binds every number it states other than ${literals} (every constant, whatever its value, by a constant binding; the others by value bindings) and has at least one binding.`,
     '5. Never write "fallback" blocks, "version" or "gesture": code sets them, and the reading time.',
     '',
     'GUIDANCE (not checked by code; reviewed later):',

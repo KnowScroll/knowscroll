@@ -23,8 +23,9 @@ import type { Claim, ProvenanceBinding } from './provenance.js';
  * 2. Every chart has at least one claim binding for its data (`numeric_block_unbound`).
  * 3. A simulation not marked illustrative binds every number it states (`simulationNumbers`:
  *    ranges, steps, defaults, constants, literal operands, exponents, lookup breakpoints, band
- *    thresholds) except the structural ones 0, ±1, 2 and 0.5 (`constant_unbound`,
- *    `simulation_number_unbound`), and has at least one binding (`simulation_unbound`). An
+ *    thresholds) except the structural ones 0, ±1, 2 and 0.5, which a constant never is
+ *    (`constant_unbound`, `simulation_number_unbound`), and has at least one binding
+ *    (`simulation_unbound`). An
  *    illustrative simulation carries the "Illustrative" notice, which the schema requires and the
  *    renderer always shows.
  */
@@ -204,7 +205,9 @@ export function honestyIssues(document: HonestyDocument, provenance: HonestyInpu
     );
     const boundPaths = new Set(bindings.flatMap((binding) => (binding.kind === 'value' ? [binding.path] : [])));
     for (const number of simulationNumbers(block.data)) {
-      if (STRUCTURAL_LITERALS.has(number.value) || boundPaths.has(number.path)) continue;
+      // A constant is a named, stated quantity (the number of Mars's moons is 2): never exempt by value.
+      if ((number.constantKey === undefined && STRUCTURAL_LITERALS.has(number.value)) || boundPaths.has(number.path))
+        continue;
       if (number.constantKey !== undefined) {
         if (!boundConstants.has(number.constantKey))
           issues.push({ code: 'constant_unbound', path: `${path}.data.${number.path}` });
