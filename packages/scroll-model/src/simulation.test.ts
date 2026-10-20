@@ -359,13 +359,13 @@ describe('the full-grid proof (M2)', () => {
     if (weight?.type !== 'simulation') throw new Error('fixture changed');
     expect(simulationProof(weight.data, '$').display).toEqual(weight.data.display);
     expect(displayScale(weight.data)).toBeCloseTo(200 * 2.53);
-    const square = (view: SimulationInput['view']): SimulationInput => ({
+    const square = (view: SimulationInput['view'], min = -2): SimulationInput => ({
       title: 'Square',
       params: [
         {
           key: 'x',
           label: 'X',
-          min: -2,
+          min,
           max: 3,
           step: 1,
           default: 0,
@@ -391,7 +391,11 @@ describe('the full-grid proof (M2)', () => {
       issues: [],
       display: { kind: 'plot', range: [0, 9] },
     });
-    expect(proof({ kind: 'area', length: 'x', area: 'y', lengthLabel: 'X', areaLabel: 'Y' }).display).toEqual({
+    // An area view needs a length that starts at zero or above.
+    expect(
+      simulationProof(square({ kind: 'area', length: 'x', area: 'y', lengthLabel: 'X', areaLabel: 'Y' }, 0), '$')
+        .display,
+    ).toEqual({
       kind: 'area',
       scale: 9,
     });
@@ -400,5 +404,18 @@ describe('the full-grid proof (M2)', () => {
     const zero = { ...square({ kind: 'plot', x: 'x', y: 'y', yLabel: 'Y' }) };
     zero.outputs = [{ ...zero.outputs[0]!, formula: { kind: 'product', factors: ['x', 0] } }];
     expect(simulationProof(zero, '$').display).toEqual({ kind: 'plot', range: [0, 1] });
+    const bars = square(
+      {
+        kind: 'cards',
+        items: [
+          { id: 'card-a', label: 'A', output: 'y' },
+          { id: 'card-b', label: 'B', output: 'y' },
+        ],
+      },
+      0,
+    );
+    expect(simulationProof(bars, '$').display).toEqual({ kind: 'cards', scale: 9 });
+    bars.outputs = [{ ...bars.outputs[0]!, formula: { kind: 'product', factors: ['x', 0] } }];
+    expect(simulationProof(bars, '$').display).toEqual({ kind: 'cards', scale: 1 });
   });
 });

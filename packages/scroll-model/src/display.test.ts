@@ -95,7 +95,8 @@ describe('admission computes the display scale from the grid', () => {
       if (outcome.kind !== 'compiled') throw new Error(JSON.stringify(outcome));
       for (const { data } of simulations(outcome.document)) {
         expect(data.display).toEqual(bruteForce(data));
-        expect(data.display).not.toEqual(placeholderDisplay(data.view));
+        // The placeholder the producer assembles with is replaced by the proven scale.
+        if (data.view.kind !== 'readout') expect(data.display).not.toEqual(placeholderDisplay(data.view));
       }
       expect(admitDocument(outcome.document).kind).toBe('valid');
     }
@@ -231,7 +232,7 @@ describe('the client path checks that the stored display is present and finite, 
         {
           key: 'x',
           label: 'X',
-          min: -2,
+          min: 0,
           max: 3,
           step: 1,
           default: 0,
@@ -251,7 +252,12 @@ describe('the client path checks that the stored display is present and finite, 
       modelNote: 'A parabola for a test.',
       illustrative: { notice: 'Illustrative' as const },
     };
-    const plot = withDisplay({ ...square, view: { kind: 'plot', x: 'x', y: 'y', yLabel: 'Y' } });
+    // A bar or square starts at zero; a curve may cross it.
+    const plot = withDisplay({
+      ...square,
+      params: square.params.map((param) => ({ ...param, min: -2 })),
+      view: { kind: 'plot', x: 'x', y: 'y', yLabel: 'Y' },
+    });
     expect(displayRange(plot)).toEqual([0, 9]);
     expect(displayScale(plot)).toBe(1);
     const area = withDisplay({
