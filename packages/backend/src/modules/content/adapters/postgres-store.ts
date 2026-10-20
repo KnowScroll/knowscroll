@@ -99,6 +99,20 @@ export function admissionTransaction(tx: AdmissionTx): Transaction<Database> {
   return trx;
 }
 
+/** Joins shared content admission to an already-open production transaction; no nested transaction. */
+export async function inAdmissionTransaction<T>(
+  trx: Transaction<Database>,
+  work: (tx: AdmissionTx) => Promise<T>,
+): Promise<T> {
+  const tx = Object.freeze({}) as unknown as AdmissionTx;
+  admissions.set(tx, trx);
+  try {
+    return await work(tx);
+  } finally {
+    admissions.delete(tx);
+  }
+}
+
 /**
  * The admission store's transaction and write ports over one database. Admission is shared-content
  * bookkeeping with no personal root to lock: imports of one asset serialise on a transaction-scoped
@@ -108,16 +122,7 @@ export function makeAdmissionStore(
   db: Kysely<Database>,
 ): Pick<ImportEditorialScrollPorts, 'inAdmission' | 'lockAsset' | 'storeRevision' | 'refreshReadingFacts'> {
   return {
-    inAdmission: (work) =>
-      withTransaction(db, 'content.admission', async (trx) => {
-        const tx = Object.freeze({}) as unknown as AdmissionTx;
-        admissions.set(tx, trx);
-        try {
-          return await work(tx);
-        } finally {
-          admissions.delete(tx);
-        }
-      }),
+    inAdmission: (work) => withTransaction(db, 'content.admission', (trx) => inAdmissionTransaction(trx, work)),
 
     async lockAsset(tx, assetId): Promise<LockedAsset> {
       const trx = admissionTransaction(tx);

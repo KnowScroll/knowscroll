@@ -1,11 +1,11 @@
-import type { ReactElement } from 'react';
+import { createRef, type ReactElement } from 'react';
 import { AppState, ScrollView, Text } from 'react-native';
 import { configure, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
 import { content, spacing, space } from '@knowscroll/design-tokens';
 import { deriveGesture, walkBlocks, type ScrollDocument } from '@knowscroll/scroll-model';
 import { DisplayProvider, type Display } from '../display/display';
-import { ScrollArticle } from './article';
+import { ScrollArticle, type ScrollPositionHandle } from './article';
 import { bridgesPoster, bridgesWithServerFallback, lighthouseEditorial } from './fixtures/documents';
 import type { ScrollDiagnostics, ScrollReadingObserver } from './observer';
 import { prepareScrollDocument } from './prepare';
@@ -569,5 +569,92 @@ describe('whether the article is being read', () => {
 
     handlers.forEach((handler) => handler('active'));
     expect(watcher.onActivity).toHaveBeenLastCalledWith({ active: true, at: anyNumber });
+  });
+});
+
+describe('exact local Scroll resume', () => {
+  const layoutOf = (y: number, height: number) => ({ nativeEvent: { layout: { x: 0, y, width: 350, height } } });
+  it('restores a native tall block with reading inset, freezes synchronously and stops callbacks while parked', async () => {
+    const document = ready(bridgesPoster());
+    const positionRef = createRef<ScrollPositionHandle>();
+    const changed = jest.fn();
+    const watcher = observer();
+    const props = {
+      document,
+      positionRef,
+      onPositionChange: changed,
+      observer: watcher,
+      testID: 'resume-reader',
+      readingInset: { top: 100, bottom: 20 },
+      initialPosition: {
+        assetId: document.assetId,
+        revision: document.revision,
+        blockId: 'code-load',
+        offsetWithinBlock: 1100,
+      },
+    };
+    const view = await show(<ScrollArticle {...props} />);
+    const reader = screen.getByTestId('resume-reader');
+    await fireEvent(reader, 'layout', layoutOf(0, 800));
+    await fireEvent(reader, 'contentSizeChange', 350, 4000);
+    await fireEvent(screen.getByTestId('block-code-load'), 'layout', layoutOf(300, 2400));
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 1300, animated: false });
+    expect(positionRef.current?.capture()).toEqual(props.initialPosition);
+    expect(watcher.onBlockInteraction).not.toHaveBeenCalled();
+    expect(changed).not.toHaveBeenCalled();
+    await fireEvent(screen.getByTestId('block-code-load'), 'layout', layoutOf(500, 700));
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 1100, animated: false });
+    await fireEvent(reader, 'contentSizeChange', 350, 1500);
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 700, animated: false });
+    await fireEvent.scroll(reader, {
+      nativeEvent: { contentOffset: { y: 700 }, layoutMeasurement: { height: 800 } },
+    });
+    expect(changed).not.toHaveBeenCalled();
+    // Accessibility may scroll without emitting onScrollBeginDrag.
+    await fireEvent.scroll(reader, { nativeEvent: { contentOffset: { y: 600 }, layoutMeasurement: { height: 800 } } });
+    expect(positionRef.current?.capture()?.offsetWithinBlock).toBe(200);
+    expect(changed).toHaveBeenCalledTimes(1);
+    await view.rerender(wrap(<ScrollArticle {...props} paused />));
+    await fireEvent.scroll(screen.getByTestId('resume-reader'), {
+      nativeEvent: { contentOffset: { y: 650 }, layoutMeasurement: { height: 800 } },
+    });
+    expect(changed).toHaveBeenCalledTimes(1);
+    await view.unmount();
+    expect(positionRef.current).toBeNull();
+  });
+
+  it('ignores a different revision and unknown block, and falls back to opening a nested child anchor', async () => {
+    const document = ready(bridgesPoster());
+    const position = {
+      assetId: document.assetId,
+      revision: document.revision + 1,
+      blockId: 'code-load',
+      offsetWithinBlock: 600,
+    };
+    const view = await show(<ScrollArticle document={document} initialPosition={position} />);
+    await fireEvent(screen.getByTestId('block-code-load'), 'layout', layoutOf(900, 1200));
+    expect(scrollTo).not.toHaveBeenCalled();
+    await view.unmount();
+    const unknown = await show(
+      <ScrollArticle
+        document={document}
+        initialPosition={{ ...position, revision: document.revision, blockId: 'missing-block' }}
+      />,
+    );
+    await fireEvent(screen.getByTestId('block-code-load'), 'layout', layoutOf(900, 1200));
+    expect(scrollTo).not.toHaveBeenCalled();
+    await unknown.unmount();
+    const watcher = observer();
+    await show(
+      <ScrollArticle
+        document={document}
+        observer={watcher}
+        initialPosition={{ ...position, revision: document.revision, blockId: 'safety-why' }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Why a safety factor?' })).toBeExpanded();
+    await fireEvent(screen.getByTestId('block-d-safety'), 'layout', layoutOf(900, 1200));
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 900 - spacing[4], animated: false });
+    expect(watcher.onBlockInteraction).not.toHaveBeenCalled();
   });
 });

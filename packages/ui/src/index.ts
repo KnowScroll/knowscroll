@@ -33,4 +33,4 @@ export { NavRail, type NavRailProps } from './navigation/nav-rail';
 export { TopBar, type TopBarProps } from './navigation/top-bar';
 export { AccountButton, type AccountButtonProps } from './navigation/account-button';
 export * from './scroll';
-export { ReelPlayer, type ReelPlayerProps } from './media/reel-player';
+export { ReelPlayer, type ReelPlayerProps, type ReelLocalPosition, type ReelPositionHandle } from './media/reel-player';
