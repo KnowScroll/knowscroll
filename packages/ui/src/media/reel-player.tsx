@@ -56,6 +56,7 @@ export function ReelPlayer({
   const activeRef = useRef(active);
   const resumePosition = useRef(0);
   const playbackIntent = useRef(false);
+  const replacing = useRef(false);
   const [status, setStatus] = useState<'loading' | 'ready' | 'buffering' | 'error'>('loading');
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
@@ -109,6 +110,7 @@ export function ReelPlayer({
         if (disposed) return;
         const time = Math.max(player.currentTime, resumePosition.current);
         const resume = playbackIntent.current;
+        replacing.current = true;
         pausePlayback(player);
         onDiscontinuity();
         await player.replaceAsync(grant.source);
@@ -116,7 +118,12 @@ export function ReelPlayer({
           pausePlayback(player);
           return;
         }
-        player.currentTime = time;
+        // SDK58's web replaceAsync starts the HTML video itself. Fence that internal autoplay:
+        // every replacement is paused first, and only current explicit intent can resume it.
+        pausePlayback(player);
+        setPlaying(false);
+        seekPlayback(player, time);
+        replacing.current = false;
         if (resume && playbackIntent.current && activeRef.current && visible.current) player.play();
         timer = setTimeout(
           () => {
@@ -132,6 +139,7 @@ export function ReelPlayer({
         }
       } finally {
         refreshing = false;
+        replacing.current = false;
       }
     };
     void refresh();
@@ -147,7 +155,7 @@ export function ReelPlayer({
       onSample({
         positionMs: event.currentTime * 1000,
         monotonicMs: performance.now(),
-        playing: player.playing && player.playbackRate === 1,
+        playing: playbackIntent.current && !replacing.current && player.playing && player.playbackRate === 1,
         visible: active && visible.current,
         buffering: player.status !== 'readyToPlay',
       });
@@ -165,7 +173,9 @@ export function ReelPlayer({
       if (event.status !== 'readyToPlay') onDiscontinuity();
     });
     const changed = player.addListener('playingChange', (event) => {
-      setPlaying(event.isPlaying);
+      const permitted = playbackIntent.current && !replacing.current && activeRef.current && visible.current;
+      if (event.isPlaying && !permitted) pausePlayback(player);
+      setPlaying(event.isPlaying && permitted);
       onDiscontinuity();
     });
     const ended = player.addListener('playToEnd', () => {

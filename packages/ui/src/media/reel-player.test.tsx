@@ -75,3 +75,53 @@ describe('Reel source renewal authority', () => {
     await rendered.unmount();
   });
 });
+
+describe('SDK58 web replacement autoplay', () => {
+  it('keeps an unplayed source paused and excludes SDK-initiated playback samples', async () => {
+    const listeners = new Map<string, (payload: unknown) => void>();
+    const pause = jest.fn();
+    const sample = jest.fn();
+    const player = {
+      currentTime: 0,
+      playing: true,
+      status: 'readyToPlay',
+      playbackRate: 1,
+      play: jest.fn(),
+      pause,
+      replaceAsync: () => {
+        // Installed SDK58's web implementation attempts play during replace, even while paused.
+        listeners.get('playingChange')?.({ isPlaying: true });
+        return Promise.resolve();
+      },
+      addListener: (kind: string, listener: (payload: unknown) => void) => {
+        listeners.set(kind, listener);
+        return {
+          remove: () => {
+            listeners.delete(kind);
+          },
+        };
+      },
+    } as unknown as VideoPlayer;
+    jest.mocked(useVideoPlayer).mockReturnValue(player);
+    const rendered = await renderOn(
+      <ReelPlayer
+        title="Fixture"
+        durationMs={30000}
+        active
+        loadSource={() => Promise.resolve({ source: null, expiresAt: new Date(Date.now() + 60000).toISOString() })}
+        onSample={sample}
+        onDiscontinuity={() => undefined}
+        registerEnd={() => () => undefined}
+      />,
+    );
+    await act(async () => {
+      listeners.get('timeUpdate')?.({ currentTime: 0.25 });
+      await Promise.resolve();
+    });
+    expect(pause).toHaveBeenCalled();
+    expect(sample).toHaveBeenCalledWith(expect.objectContaining({ playing: false }));
+    expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    await rendered.unmount();
+  });
+});
