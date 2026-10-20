@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from './zod.js';
 import type { AnyBlock, BlockType } from './blocks/catalog.js';
 import { canonicalSize } from './canonical.js';
 import { LIMITS } from './limits.js';

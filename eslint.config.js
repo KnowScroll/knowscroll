@@ -7,6 +7,40 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+/** Network clients and provider SDKs, which only infrastructure/ and the reasoning adapters may import. */
+const networkImportPaths = [
+  'http',
+  'https',
+  'http2',
+  'undici',
+  'node-fetch',
+  'axios',
+  'got',
+  'ws',
+  'openai',
+  '@anthropic-ai/sdk',
+].flatMap((name) =>
+  [name, `node:${name}`].map((path) => ({
+    name: path,
+    message:
+      'Network clients live in infrastructure/ or reasoning/adapters/. Call a model through the reasoning harness (REASONING_HARNESS).',
+  })),
+);
+
+/**
+ * Admission proves every simulation over its whole grid, which costs tens to hundreds of
+ * milliseconds per Scroll on a device without a JIT (S2.1, #254, M1). A client parses with
+ * `parseDocument` / `parseBlock`. The admission entry itself is refused by dependency-cruiser
+ * (`clients-never-import-scroll-admission`); these names are also still exported from the public
+ * entry for compatibility, so they are refused by name here.
+ */
+const admissionImportPath = {
+  name: '@knowscroll/scroll-model',
+  importNames: ['admitDocument', 'admitBlock', 'validateDocument'],
+  message:
+    'Admission walks the whole grid of every simulation: not on a device. Parse with parseDocument or parseBlock.',
+};
+
 /**
  * One typed-lint engine for the whole workspace (blueprint §23): typescript-eslint with type
  * information from each package's tsconfig. Formatting rules are left to Prettier.
@@ -90,28 +124,43 @@ export default defineConfig(
     },
   },
   {
-    // Admission proves every simulation over its whole grid, which costs tens to hundreds of
-    // milliseconds per Scroll on a device without a JIT (S2.1, #254, M1). A client parses with
-    // `parseDocument` / `parseBlock`. The admission entry itself is refused by dependency-cruiser
-    // (`clients-never-import-scroll-admission`); these names are also still exported from the
-    // public entry for compatibility, so they are refused by name here.
-    files: ['apps/client/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}', 'packages/client-core/**/*.{ts,tsx}'],
-    ignores: ['**/*.test.{ts,tsx}'],
+    // A model is called only through the reasoning harness (blueprint §15, §22): network clients
+    // live in infrastructure/ and in the reasoning engine's provider adapters. Everything else (a
+    // module's domain, application and adapters, the apps) has no global fetch, Node HTTP client
+    // or provider SDK, so a role cannot reach a model API around the harness's admission, budgets,
+    // attempt ledger and recording boundary. A module adapter for a non-model provider that really
+    // needs the network says so with a justified `eslint-disable` (AgentMail's sender does).
+    files: ['apps/**/*.ts', 'packages/backend/src/**/*.ts'],
+    ignores: ['packages/backend/src/infrastructure/**', 'packages/backend/src/reasoning/adapters/**', '**/*.test.ts'],
     rules: {
+      'no-restricted-globals': [
+        'error',
+        ...['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource'].map((name) => ({
+          name,
+          message:
+            'Network clients live in infrastructure/ or reasoning/adapters/. Call a model through the reasoning harness (REASONING_HARNESS).',
+        })),
+      ],
       'no-restricted-imports': [
         'error',
         {
-          paths: [
-            {
-              name: '@knowscroll/scroll-model',
-              importNames: ['admitDocument', 'admitBlock', 'validateDocument'],
-              message:
-                'Admission walks the whole grid of every simulation: not on a device. Parse with parseDocument or parseBlock.',
-            },
-          ],
+          paths: networkImportPaths,
         },
       ],
     },
+  },
+  {
+    // Admission functions are not for a device (see `admissionImportPath`).
+    files: ['apps/client/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}', 'packages/client-core/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: { 'no-restricted-imports': ['error', { paths: [admissionImportPath] }] },
+  },
+  {
+    // The block above replaces (not merges) the rule's options for the client app's .ts files,
+    // which the network-client block also covers: they keep both lists.
+    files: ['apps/client/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: { 'no-restricted-imports': ['error', { paths: [admissionImportPath, ...networkImportPaths] }] },
   },
   {
     // Command-line check scripts and the web smoke's static server report to the terminal.

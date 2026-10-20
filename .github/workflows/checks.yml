@@ -82,6 +82,8 @@ jobs:
         run: pnpm boundaries:manifests
       - name: The unmarked-transaction lint rule rejects every direct form (probe)
         run: pnpm lint:probe
+      - name: Network clients stay in infrastructure and the reasoning adapters (probe)
+        run: pnpm lint:probe:network
       - name: Unused files, exports and dependencies (knip)
         run: pnpm knip
       - name: Migration hazards (squawk)

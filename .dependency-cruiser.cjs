@@ -28,6 +28,8 @@ const compositionRoots = [
   '^apps/api/src/modules/[^/]+\\.ts$',
   '^apps/worker/src/worker\\.module\\.ts$',
   '^apps/worker/src/jobs\\.ts$',
+  // The worker's operator command composes the reasoning ledger for write-offs (S2.2).
+  '^apps/worker/src/operator\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 
