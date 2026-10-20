@@ -12,6 +12,7 @@ leaves it), and nothing here records who read what.
 | `content.assets` | `0003_content_assets` | Asset identity, `kind` (`reel`/`scroll`), `status` (`admitted`/`withdrawn`) and the **current** revision | None: shared content |
 | `content.asset_revisions` | `0010_content_asset_revisions` | One immutable row per admitted revision: `provenance_kind` (`authored_editorial` · `generated` · `cutroom_import`, D-005), the consumer document (`document_version`, `document`, `document_sha256`), `explanation_unit_id`, `language`, `title`, and the derived `reading_facts` | None: shared content |
 | `content.asset_provenance` | `0010_content_asset_revisions` | The internal provenance of a revision (claims, sources, bindings, checks, production record). Written by admission, **read by no API route**: the consumer document and its provenance are separate tables, so no read of the document can return them | None: shared content |
+| `content.scroll_production_runs` | `0015_scroll_production` | Private nonpersonal topic/version jobs, frozen research/passages, accepted claims, code-only outcomes, draft and publication pointer; no consumer read port | None: shared public supply |
 
 A revision’s document, provenance and identity are never updated; a content change is a new revision, and anything that rests on one (an exposure,
 a saved item) keeps pointing at exactly the bytes it presented.
@@ -47,3 +48,15 @@ Jobs: none. Lock order: an advisory lock on the asset ID, then the asset row; ad
 root and never takes one. Erasure: none (shared content; stated above).
 
 `reading_facts.v2` is a refreshable derived view, separate from immutable document/provenance bytes. Re-importing an unchanged source repairs it under the asset admission lock without creating a revision.
+
+## Generated Scroll production
+
+The worker's `content produce-scroll --topic seasons|tides|greenhouse [--dry-run] [--resume]`
+uses content-owned claims/writer roles through the explicit nonpersonal harness (0013), never a
+personal universe. Both roles put code checks inside the harness's single repair boundary: at most
+four model requests per topic, with uncertain attempts never resent. Publication closes the writer
+run and stores the immutable admitted revision in the same production-root transaction. Research
+and model waits happen outside it. The same version reruns idempotently; explicit resume continues
+frozen stages after a crash. See [production/README.md](production/README.md) and the
+[operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
+provider/browser evidence are separate requirements; no authored starter is labelled generated.

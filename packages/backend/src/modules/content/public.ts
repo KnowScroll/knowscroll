@@ -4,8 +4,8 @@
  * implemented by `adapters/` and bound by the composition roots through
  * `adapters/nest-providers.ts`.
  *
- * Content is shared, not personal: no port here takes a person's data, and none writes. The one
- * write path (`importEditorialScroll`) is the operator command's.
+ * Content is shared, not personal: no port here takes a person's data, and none writes. The
+ * write paths (editorial admission and generated production) belong to operator commands.
  */
 import { INTERACTION_KINDS, type ScrollDocument } from '@knowscroll/scroll-model';
 import type { PersonalScopeTx } from '../identity/public.js';

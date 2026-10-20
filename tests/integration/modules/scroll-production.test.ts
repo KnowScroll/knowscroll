@@ -153,6 +153,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       const p = setup((n) => answer(n === 1 ? claims : draft()));
       let crashed = false;
       const crashing: ProductionReasoningHarness = {
+        readProductionRunAccounting: (scope, runId) => p.harness.readProductionRunAccounting(scope, runId),
         closeProductionRun: (scope, run) => p.harness.closeProductionRun(scope, run),
         async proposeProduction(input, abort) {
           const output = await p.harness.proposeProduction(input, abort);

@@ -7,6 +7,7 @@ import {
   type ResearchPage,
 } from '../../../infrastructure/research/public-pages.js';
 import type {
+  ProductionAttemptAccounting,
   ProductionAuthority,
   ProductionReasoningHarness,
   ProposeOutcome,
@@ -40,6 +41,16 @@ function receipt<T>(role: 'claims' | 'writer', result: ProposeOutcome<T>): RoleR
           outputTokens: result.usage.outputTokens ?? undefined,
         }
       : {}),
+  };
+}
+function accountingReceipt(base: RoleReceipt, attempts: readonly ProductionAttemptAccounting[]): RoleReceipt {
+  const input = attempts.map((a) => a.usage.inputTokens);
+  const output = attempts.map((a) => a.usage.outputTokens);
+  return {
+    ...base,
+    attempts,
+    inputTokens: input.every((n) => n !== null) ? input.reduce<number>((sum, n) => sum + (n ?? 0), 0) : undefined,
+    outputTokens: output.every((n) => n !== null) ? output.reduce<number>((sum, n) => sum + (n ?? 0), 0) : undefined,
   };
 }
 function summary(row: ProductionRow): ProduceScrollResult {
@@ -91,6 +102,10 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       runId?: string,
     ): Promise<ProduceScrollResult> => {
       const closed = await deps.withScope(deps.authority, async (scope) => {
+        if (runId !== undefined && receipts[0] !== undefined) {
+          const accounting = await deps.harness.readProductionRunAccounting(scope, runId);
+          if (accounting.kind === 'accounted') receipts[0] = accountingReceipt(receipts[0], accounting.attempts);
+        }
         if (runId !== undefined && state !== 'unknown')
           await deps.harness.closeProductionRun(scope, { runId, state: 'failed' });
         await store.finish(productionTransactionOf(scope), row.id, state, [
@@ -158,7 +173,14 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           (await deps.harness.closeProductionRun(scope, { runId: row.claims_run_id, state: 'completed' })) !== 'closed'
         )
           return false;
-        await store.claims(tx, row.id, claims.output, receipt('claims', claims));
+        const accounting = await deps.harness.readProductionRunAccounting(scope, row.claims_run_id);
+        if (accounting.kind !== 'accounted') return false;
+        await store.claims(
+          tx,
+          row.id,
+          claims.output,
+          accountingReceipt(receipt('claims', claims), accounting.attempts),
+        );
         return true;
       });
       if (accepted.kind !== 'entered' || !accepted.value)
@@ -195,6 +217,18 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     receipts.push(receipt('writer', writer));
     if (writer.kind !== 'proposed')
       return reject(writer.kind === 'unknown' ? 'unknown' : 'rejected', [writer.kind], row.writer_run_id);
+    const writerAccounting = await deps.withScope(deps.authority, (scope) =>
+      deps.harness.readProductionRunAccounting(scope, row.writer_run_id),
+    );
+    if (writerAccounting.kind !== 'entered' || writerAccounting.value.kind !== 'accounted')
+      return reject('rejected', ['accounting_unavailable'], row.writer_run_id);
+    const writerAttempts = writerAccounting.value.attempts;
+    receipts[0] = accountingReceipt(receipt('writer', writer), writerAttempts);
+    const paidAttemptIds = writerAttempts
+      .filter((attempt) => !['reserved', 'not_sent'].includes(attempt.state))
+      .map((attempt) => attempt.attemptId);
+    if (paidAttemptIds.length < 1 || paidAttemptIds.length > 2)
+      return reject('rejected', ['attempt_bound_exceeded'], row.writer_run_id);
     const compiled = compileGeneratedDraft(
       writer.output,
       {
@@ -202,7 +236,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
         production: {
           kind: 'model',
           runId: row.writer_run_id,
-          attemptIds: [writer.attemptId],
+          attemptIds: paidAttemptIds,
           model: deps.model,
           promptVersion: SCROLL_PRODUCTION_VERSION,
         },

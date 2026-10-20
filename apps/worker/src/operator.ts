@@ -1,14 +1,25 @@
 import { userInfo } from 'node:os';
 import { parseArgs } from 'node:util';
+import { sql } from 'kysely';
 import {
   ConfigurationError,
   commitForDiagnostics,
   readWorkerOperatorConfig,
+  readContentOperatorConfig,
+  readScrollProductionOperatorConfig,
   worldForDiagnostics,
 } from '@knowscroll/backend/infrastructure/config';
 import { createEventLog } from '@knowscroll/backend/infrastructure/observability';
-import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { reasoningOperatorFor } from '@knowscroll/backend/reasoning/nest-providers';
+import { createDatabase, makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from '@knowscroll/backend/modules/content';
+import { produceScrollUseCase } from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  reasoningOperatorFor,
+  configuredModelPort,
+  harnessSettings,
+  makeProductionReasoningHarness,
+  postgresProductionHarnessPorts,
+} from '@knowscroll/backend/reasoning/nest-providers';
 
 /**
  * `node dist/operator.js <area> <command> [options]`: operator commands of the worker release,
@@ -25,7 +36,7 @@ import { reasoningOperatorFor } from '@knowscroll/backend/reasoning/nest-provide
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired';
+  'usage: operator.js content produce-scroll --topic seasons|tides|greenhouse [--dry-run] [--resume] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -61,6 +72,9 @@ async function main(): Promise<number> {
     args = parseArgs({
       args: process.argv.slice(2),
       options: {
+        topic: { type: 'string' },
+        'dry-run': { type: 'boolean', default: false },
+        resume: { type: 'boolean', default: false },
         attempt: { type: 'string' },
         reason: { type: 'string' },
         limit: { type: 'string' },
@@ -74,6 +88,73 @@ async function main(): Promise<number> {
     return 2;
   }
   const [area, command] = args.positionals;
+  if (area === 'content' && command === 'produce-scroll' && args.positionals.length === 2) {
+    const topic = parseScrollTopic(args.values.topic);
+    if (topic === undefined) {
+      print({ result: 'topic_refused', requestBound: REQUEST_BOUND_PER_TOPIC });
+      return 2;
+    }
+    try {
+      // Both dry and real paths validate the allowlisted world before touching the database/provider.
+      if (args.values['dry-run']) {
+        readContentOperatorConfig(process.env);
+        print({ command: 'content produce-scroll', outcome: 'dry_run', requestBound: REQUEST_BOUND_PER_TOPIC });
+        return 0;
+      }
+      const contentConfig = readScrollProductionOperatorConfig(process.env);
+      const contentDatabase = createDatabase<Database>(contentConfig.database, {
+        onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+      });
+      const abort = new AbortController();
+      const stop = () => abort.abort();
+      process.once('SIGTERM', stop);
+      process.once('SIGINT', stop);
+      try {
+        const root = await sql<{
+          generation: number;
+        }>`select generation from reasoning.production_scopes where id='scroll-supply'`.execute(contentDatabase.db);
+        const generation = root.rows[0]?.generation;
+        if (generation === undefined) {
+          print({ outcome: 'scope_refused', requestBound: REQUEST_BOUND_PER_TOPIC });
+          return 2;
+        }
+        const withScope = makeWithProductionScope(contentDatabase.db, {
+          enabled: contentConfig.reasoning.productionEnabled,
+          lockTimeoutMs: contentConfig.scopeLockTimeoutMs,
+        });
+        const model = configuredModelPort(contentConfig.reasoning);
+        const harness = makeProductionReasoningHarness(
+          postgresProductionHarnessPorts({
+            db: contentDatabase.db,
+            withProductionScope: withScope,
+            enabled: contentConfig.reasoning.productionEnabled,
+            model,
+            logEvent,
+            settings: harnessSettings(contentConfig.reasoning, operatorSource(process.env)),
+          }),
+        );
+        const produce = produceScrollUseCase({
+          db: contentDatabase.db,
+          authority: { scopeId: 'scroll-supply', generation },
+          withScope,
+          harness,
+          model: model?.model ?? 'none',
+        });
+        print({ command: 'content produce-scroll', requestBound: REQUEST_BOUND_PER_TOPIC, outcome: 'starting' });
+        const result = await produce(topic, false, abort.signal, args.values.resume);
+        print({ command: 'content produce-scroll', ...result });
+        return result.outcome === 'published' ? 0 : 2;
+      } finally {
+        process.off('SIGTERM', stop);
+        process.off('SIGINT', stop);
+        await contentDatabase.close();
+      }
+    } catch (error) {
+      if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
+      else logEvent('process.crashed', { reasonCode: 'scroll_production_failed', error });
+      return 1;
+    }
+  }
   const known =
     area === 'reasoning' &&
     (command === 'write-off' || command === 'unknown' || command === 'sweep-dispatched' || command === 'purge-expired');

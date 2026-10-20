@@ -53,6 +53,25 @@ export interface ContentAssets {
   status: string;
 }
 
+export interface ContentScrollProductionRuns {
+  asset_id: string | null;
+  asset_revision: number | null;
+  claims: Json | null;
+  claims_run_id: string;
+  completed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  id: string;
+  outcomes: Generated<Json>;
+  policy_version: string;
+  research: Generated<Json>;
+  scope_generation: number;
+  state: string;
+  target_revision: number;
+  topic: string;
+  writer_output: Json | null;
+  writer_run_id: string;
+}
+
 export interface EvidenceActionEvents {
   action_id: string;
   asset_id: string;
@@ -375,6 +394,7 @@ export interface DB {
   "content.asset_provenance": ContentAssetProvenance;
   "content.asset_revisions": ContentAssetRevisions;
   "content.assets": ContentAssets;
+  "content.scroll_production_runs": ContentScrollProductionRuns;
   "evidence.action_events": EvidenceActionEvents;
   "evidence.encounter_evidence": EvidenceEncounterEvidence;
   "evidence.observations": EvidenceObservations;

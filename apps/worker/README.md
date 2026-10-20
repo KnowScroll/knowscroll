@@ -17,3 +17,9 @@ The composition root binds `PRODUCTION_REASONING_HARNESS` and `WITH_PRODUCTION_S
 from the personal harness. Nonpersonal Scroll supply requires explicit worker configuration and
 the database root enabled/generation gate; both default disabled. Shared sweep/purge/operator
 maintenance still records and resolves production liabilities while production is disabled.
+
+The content production operator is `node dist/operator.js content produce-scroll --topic
+seasons|tides|greenhouse [--dry-run] [--resume]`. It refuses worlds outside dev/stage/ci/local,
+prints a four-request maximum, uses the explicit nonpersonal harness grant, and emits bounded
+IDs/outcome codes and reported usage only. `--resume` reuses frozen stages and attempt IDs;
+unknown attempts never resend. No production job or source text is placed on the HTTP path.
