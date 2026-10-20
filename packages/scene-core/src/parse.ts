@@ -22,6 +22,30 @@ function fail(): never {
   throw new SceneParseError();
 }
 
+/** UTF-8 cost, optionally including JSON string quoting/escapes, without invoking user code. */
+function stringBytes(input: string, escaped: boolean): number {
+  if (input.length > SCENE_LIMITS.bytes) fail();
+  let bytes = escaped ? 2 : 0;
+  for (let i = 0; i < input.length; i++) {
+    const code = input.charCodeAt(i);
+    if (escaped && (code < 32 || code === 34 || code === 92)) bytes += code < 32 ? 6 : 2;
+    else if (code < 0x80) bytes++;
+    else if (code < 0x800) bytes += 2;
+    else if (
+      code >= 0xd800 &&
+      code <= 0xdbff &&
+      i + 1 < input.length &&
+      input.charCodeAt(i + 1) >= 0xdc00 &&
+      input.charCodeAt(i + 1) <= 0xdfff
+    ) {
+      i++;
+      bytes += 4;
+    } else bytes += escaped && code >= 0xd800 && code <= 0xdfff ? 6 : 3;
+    if (bytes > SCENE_LIMITS.bytes) fail();
+  }
+  return bytes;
+}
+
 /**
  * Copy JSON data before parsing: bounded work, no getters, toJSON, coercion or functions invoked.
  * Object entry accepts ordinary JSON records/arrays only. A hostile Proxy is not JSON data;
@@ -33,6 +57,7 @@ function jsonData(input: unknown): unknown {
   const ancestors = new Set<object>();
   function copy(value: unknown, depth: number): unknown {
     if (++nodes > SCENE_LIMITS.nodes || depth > SCENE_LIMITS.depth) fail();
+    bytes += 2; // Container delimiters or a value separator, conservatively.
     if (value === null || typeof value === 'boolean') {
       bytes += 5;
       return value;
@@ -43,8 +68,7 @@ function jsonData(input: unknown): unknown {
       return value;
     }
     if (typeof value === 'string') {
-      // JSON's worst-case escape overhead; UTF-8 checked exactly on string transport below.
-      bytes += value.length * 6 + 2;
+      bytes += stringBytes(value, true);
       if (bytes > SCENE_LIMITS.bytes) fail();
       return value;
     }
@@ -58,7 +82,7 @@ function jsonData(input: unknown): unknown {
     for (const key of keys) {
       if (array && key === 'length') continue;
       if (typeof key !== 'string' || key === '__proto__' || key === 'constructor' || key === 'prototype') fail();
-      bytes += key.length * 6 + 3;
+      bytes += stringBytes(key, true) + 1;
       if (bytes > SCENE_LIMITS.bytes) fail();
       const property = Object.getOwnPropertyDescriptor(value, key);
       if (!property || !('value' in property) || !property.enumerable) fail();
@@ -281,24 +305,8 @@ function schema<T>(parse: (input: unknown) => T): SceneSchema<T> {
     },
     parseJson(input) {
       if (typeof input !== 'string' || input.length > SCENE_LIMITS.bytes) fail();
-      // JSON ASCII escapes use <=6 bytes per code unit; reject excessive wire bytes before JSON.parse.
-      let bytes = 0;
-      for (let i = 0; i < input.length; i++) {
-        const code = input.charCodeAt(i);
-        bytes +=
-          code < 0x80
-            ? 1
-            : code < 0x800
-              ? 2
-              : code >= 0xd800 &&
-                  code <= 0xdbff &&
-                  i + 1 < input.length &&
-                  input.charCodeAt(i + 1) >= 0xdc00 &&
-                  input.charCodeAt(i + 1) <= 0xdfff
-                ? (++i, 4)
-                : 3;
-        if (bytes > SCENE_LIMITS.bytes) fail();
-      }
+      // Reject excessive wire bytes before allocating the parsed JSON structure.
+      stringBytes(input, false);
       try {
         return parseValue(JSON.parse(input) as unknown);
       } catch {

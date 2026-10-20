@@ -70,8 +70,8 @@ return locators by their existing account/epoch resource scope.
 
 ## Bounds and verification
 
-`SCENE_LIMITS` caps wire input at 262,144 UTF-8 bytes, object-input conservative
-JSON escape accounting at the same ceiling, depth 12, 12,000 nodes, 100 objects
+`SCENE_LIMITS` caps wire input at 262,144 UTF-8 bytes, object-input UTF-8/JSON-escape
+accounting with conservative delimiter overhead at the same ceiling, depth 12, 12,000 nodes, 100 objects
 and 100 routes per chunk, and 128 chunk references per manifest. These are
 transport/render bounds, never consumption thresholds. The fixed generator
 uses integer seed mixing, a pinned 64-sample unit circle and rounded numeric
