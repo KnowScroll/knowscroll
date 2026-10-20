@@ -112,3 +112,30 @@ An actual reversible attribution correction A->B->A appends three immutable mono
 even though the first and third hashes coincide. Hash equality with older audit history is not a
 uniqueness rule. The new current pointer and weighted scalar/channel/Q/O replacements commit
 atomically; final redelivery of already-current A does nothing and creates no qualification row.
+
+
+## Personal-context integration (0020, #235)
+
+Evidence publishes a minimal backend-only `ActivityDerivedInput` under its existing personal root
+transaction. The required shipped API/worker effect is the personal-context owner; no Evidence
+adapter writes its tables. Activity replacement, derived structural replacement and one scope
+revision/hint commit together. Failed derived work rolls the whole transaction back. Isolated
+pre-context fixture assemblies may omit the effect; both shipped compositions explicitly bind it.
+Current Evidence redelivery still reconciles a missing/stale personal-context contribution, without
+appending duplicate activity. Unchanged source and derived state cause no revision or hint.
+The explicit bounded reconciliation page now checks both owners' input currency; pending work and
+metadata gaps remain explicit. It does not assert that queued jobs completed.
+
+`ReadActivityStatistics` returns exact requested topics≤100, A plus independently decayed original
+channels and source-owned Q/O evaluated at the same explicit time. PC derives I/F for its snapshot;
+qualification and activity arithmetic remain unchanged. `ReadRecentTopicIds` uses the Evidence-owned
+0020 `(universe,epoch,evaluated_at DESC,topic_id)` index, returns≤100 IDs, the selection policy
+`recent_projected_topics.v0` and `hasMore`. It selects projection recency, never global highest A
+from rows measured at different times. The transactional index creation needs a reviewed rollout
+window with the migration's bounded lock/statement timeouts; no concurrent-creation workaround or
+rewrite of0019 is used.
+
+`ReadObservationTail` accepts≤20 caller-provided actual recent exposure IDs and returns≤20 event/
+exposure/sequence references, plus `hasMore`. Indexed observation sequences already covered by an
+evidence input watermark are excluded. This is a private, routing-only pending tail, never formation,
+qualification or another contribution. Source bodies and peer playback/navigation are absent.

@@ -24,13 +24,14 @@ export const readQualification: ActivityPorts['readQualification'] = async (scop
       }
     : undefined;
 };
-export const currentHash: ActivityPorts['currentHash'] = async (scope, id) => {
+export const currentActivity: ActivityPorts['currentActivity'] = async (scope, id) => {
   const r = await sql<{
     input_sha256: string;
-  }>`select r.input_sha256 from evidence.activity_current c join evidence.activity_revisions r on r.universe_id=c.universe_id and r.id=c.activity_id where c.universe_id=${scope.authority.universeId}::uuid and c.privacy_epoch=${scope.authority.privacyEpoch} and c.exposure_id=${id}::uuid`.execute(
+    id: string;
+  }>`select r.id,r.input_sha256 from evidence.activity_current c join evidence.activity_revisions r on r.universe_id=c.universe_id and r.id=c.activity_id where c.universe_id=${scope.authority.universeId}::uuid and c.privacy_epoch=${scope.authority.privacyEpoch} and c.exposure_id=${id}::uuid`.execute(
     transactionOf(scope),
   );
-  return r.rows[0]?.input_sha256;
+  return r.rows[0] ? { inputHash: r.rows[0].input_sha256, activityId: r.rows[0].id } : undefined;
 };
 type ChannelValues = Record<keyof ActivityChannels, number>;
 const emptyChannels = (): ChannelValues => ({ q: 0, L: 0, B: 0, S: 0, H: 0, R: 0 });

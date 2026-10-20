@@ -1,0 +1,87 @@
+# modules/personal-context
+
+Backend-only prepared exploration context (#235, blueprint §§5,8,19). This source slice does not
+establish a dev Composer consumer, a planet, personal learning, or a completed historical rollout.
+
+Personal context owns revisioned qualified structural support and its bounded snapshot. Evidence
+continues to own qualification, original activity channels, the capped activity function, 14-day
+replacement/decay, and topic-format Q/O. The snapshot reuses Evidence's authorized statistics read;
+it does not rescan observations or maintain a competing copy of those aggregates. Interest is
+`A/(1+A)` and format fit `(1+Q)/(2+O)`, with unknown measurements excluded by Evidence.
+
+## Ports and projection
+
+`ApplyProjectedEncounter(scope, contribution)` runs in the producer's existing personal transaction.
+The input contains an actual activated exposure, immutable asset revision, explanation identity,
+nonincidental topic attribution, qualification and the independent qualification/action/navigation/
+attribution/activity-policy/context-policy input vector. It returns whether its current projection
+changed. A consumer validates current authority/epoch with `withPersonalScope` before calling it.
+No provider, network, nested transaction, extra queue or transport outbox is introduced.
+
+Replacement reads only the affected exposure's previous bounded contribution. Qualified support
+references are removed/added for the affected keys; distinct topic counts change only when a key's
+reference count crosses zero. Reel/Scroll variants and repeated encounters of one explanation can
+have separate Evidence activity but remain one structural unit. A→B→A corrections restore the old
+support. Unqualified/unknown encounters, likes alone, incidental mentions, supply, suggestions and
+social messages add no structural support. Activity corrections remain Evidence's same-time old/new
+replacement, including all original channels. PC never re-evaluates its qualification thresholds.
+
+**Facet coverage is unavailable.** Publication facet tags are routing metadata. No trusted mapping
+from facet to actually seen Scroll blocks/Reel ranges exists yet; the actual producer therefore
+passes `coveredFacets: []`, and snapshots say `coverageAvailability: unavailable`. Partial qualified
+consumption never promotes every asset tag into formation variety. #237 needs a separately reviewed
+coverage port that validates immutable asset revision + actually covered block/media intervals and
+returns only supported facet IDs, with mapping/policy revision added to this input vector. Until
+that exists, no two-facet planet requirement can be met by this module's output. The reference-count
+mechanism can store trusted covered facets but the current integration does not invent them.
+
+`ReadExplorationSnapshot` requires an existing live `PersonalScopeTx`. It validates independent
+bounds: ≤100 exact requested topics, ≤100 candidate explanation units and ≤16 facets/unit,
+≤100 candidate asset IDs, recent actual routing history ≤20, provisional observation IDs ≤20,
+and one current qualified supporting source per requested unit (≤100). All probes are caller-only,
+epoch-bound; content attribution is never opening permission. Historical routing encounters retain
+their original novelty purpose and are not automatically qualified structural evidence. Selected
+Hide/access/revision checks still happen at navigation commit.
+
+`ReadRecentContextTopics(scope,{limit:1..100})` offers an independently bounded discovery seed.
+Evidence selects by `evaluated_at DESC, topic_id` through its owned matching index (`0020`,
+coordinator-approved), returns `recent_projected_topics.v0` and an honest `hasMore` sentinel.
+This is projection recency, **not global top activity**: stored A rows have different evaluation
+times. Callers union these IDs with actual plan/inventory/candidate topics under the total100-topic
+bound; the statistics read evaluates every selected A/channel at one explicit time. Global top-K
+interest ranking is not implemented. No lifetime scan is performed to discover topics.
+
+The IDs-only provisional tail is explicitly `routing_only`. It excludes observation sequences
+already covered by an evidence watermark. It is never merged into A/Q/O, qualification, unit counts,
+facet counts or supporting evidence. A missing item outside the bounded tail is not proof of absence.
+Snapshot scope and latest-applied scope watermarks are separate from PC revision. Each supporting
+contribution carries its complete input vector. `completeness: not_asserted` deliberately does not
+turn a high watermark into a claim that every historical exposure was projected.
+
+## Tables, lock order and lifecycle
+
+| Owned table (`0020`) | Main reads/writes, bound | Retention/erasure |
+|---|---|---|
+| `contributions` | Current row per actual exposure; bounded versioned JSON≤16KiB with source vector/hash, exact unit/epoch index | Retained derived contribution for correction; erase before Experience exposure roots |
+| `supports` | Reference count by caller/epoch/topic/kind/unit-or-facet; ≤272 keys per contribution, ≤544 old/new affected keys | Derived structural support; full erasure |
+| `topics` | Exact requested topic distinct unit/facet counters, ≤100 per read | Lifetime structure does not decay with activity; correction can retract unsupported counts; full erasure |
+| `state` | One caller/epoch row, monotonic PC revision + latest applied scope revision + policy | Never asserts historical completeness; full erasure |
+
+Lock order: personal root → existing evidence/activity rows → this scope's contribution/support/
+topic/state rows. No shared root or other person's root. Per-exposure input identity is idempotent;
+different current input replaces it even if an older audit hash once matched. The authoritative
+Evidence revision audit survives replacement until its own retention/erasure policy removes it.
+Tables reference the personal root with RESTRICT; erasure explicitly deletes all PC rows across
+epochs before Evidence/Experience. There are no PC caches, files, model artifacts or job payloads.
+
+Rollout: apply immutable ordered migrations0001–0020, bind the required derived effect in shipped
+API/worker composition, then page the existing explicit activity reconciliation capability over
+actual activated exposures. Reconciliation must also test PC currency when Evidence is already
+current; completion of enumeration is not proof queued jobs finished. No scheduler or per-swipe
+lifetime reconstruction is allowed. Removing the PC consumer leaves its factual rows erasable;
+never rewrite migrations0001–0019 or reconstruct erased interest from saved items.
+
+Verification: pure source fixtures and real PostgreSQL integration fixtures run in GitHub Actions
+only. Local schema generation/typecheck are not runtime acceptance. #235 remains open until the
+coordinator integrates the deliberately reviewed Composer adapter, deploys and inspects the context
+after actual reading on a disposable dev account.

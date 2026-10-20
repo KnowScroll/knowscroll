@@ -19,6 +19,8 @@ import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
 import { requestHash } from '../../../infrastructure/receipts/index.js';
 import { projectEncounterActivityQueue } from '../events.js';
 import { PROJECT_ENCOUNTER_ACTIVITY, RECONCILE_ENCOUNTER_ACTIVITY, READ_PREPARED_ACTIVITY } from '../public.js';
+import { READ_ACTIVITY_STATISTICS, READ_OBSERVATION_TAIL, READ_RECENT_TOPIC_IDS } from '../public.js';
+import { readActivityStatistics, readObservationTail, readRecentTopicIds } from './context-store.js';
 import {
   makeProjectEncounterActivity,
   makeReconcileEncounterActivity,
@@ -26,15 +28,22 @@ import {
   type ActivityPorts,
 } from '../application/activity.js';
 import {
-  currentHash,
+  currentActivity,
   pendingActivity,
   persistActivity,
   readQualification,
   readTopicContext,
 } from './activity-store.js';
 export const ACTIVITY_PORTS = Symbol('evidence.activityPorts');
-export function activityProviders(t: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol }) {
+export function activityProviders(t: {
+  readonly withPersonalScope: symbol;
+  readonly enqueueJob: symbol;
+  readonly derivedProjection?: symbol;
+}) {
   return [
+    { provide: READ_RECENT_TOPIC_IDS, inject: [], useFactory: () => readRecentTopicIds },
+    { provide: READ_ACTIVITY_STATISTICS, inject: [], useFactory: () => readActivityStatistics },
+    { provide: READ_OBSERVATION_TAIL, inject: [], useFactory: () => readObservationTail },
     {
       provide: ACTIVITY_PORTS,
       inject: [
@@ -46,6 +55,7 @@ export function activityProviders(t: { readonly withPersonalScope: symbol; reado
         READ_ENCOUNTER_ATTRIBUTION,
         READ_ROUTING_HISTORY,
         READ_ACTIVITY_RECONCILE_PAGE,
+        ...(t.derivedProjection ? [t.derivedProjection] : []),
       ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
@@ -56,7 +66,9 @@ export function activityProviders(t: { readonly withPersonalScope: symbol; reado
         readAttribution: ReadEncounterAttribution,
         readHistory: ReadRoutingHistory,
         readReconcilePage: ReadActivityReconcilePage,
+        derived?: ActivityPorts['derived'],
       ): ActivityPorts => ({
+        ...(derived ? { derived } : {}),
         withPersonalScope,
         readExposure,
         readLineage,
@@ -64,7 +76,7 @@ export function activityProviders(t: { readonly withPersonalScope: symbol; reado
         readAttribution,
         readHistory,
         readReconcilePage,
-        currentHash,
+        currentActivity,
         persist: persistActivity,
         readQualification,
         readTopicContext,

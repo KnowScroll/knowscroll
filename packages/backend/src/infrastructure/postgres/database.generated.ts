@@ -426,6 +426,43 @@ export interface OpsOperatorSignIns {
   world: string;
 }
 
+export interface PersonalContextContributions {
+  explanation_unit_id: string;
+  exposure_id: string;
+  input_sha256: string;
+  payload: Json;
+  payload_version: string;
+  privacy_epoch: number;
+  projected_at: Generated<Timestamp>;
+  qualified: boolean;
+  universe_id: string;
+}
+
+export interface PersonalContextState {
+  policy_version: string;
+  privacy_epoch: number;
+  projected_scope_revision: number;
+  revision: number;
+  universe_id: string;
+}
+
+export interface PersonalContextSupports {
+  kind: string;
+  privacy_epoch: number;
+  reference_count: number;
+  support_key: string;
+  topic_id: string;
+  universe_id: string;
+}
+
+export interface PersonalContextTopics {
+  covered_facets: number;
+  privacy_epoch: number;
+  qualified_units: number;
+  topic_id: string;
+  universe_id: string;
+}
+
 export interface ReasoningBusinessRuns {
   closed_at: Timestamp | null;
   context_bundle_ref: string | null;
@@ -642,6 +679,10 @@ export interface DB {
   "identity.sign_in_links": IdentitySignInLinks;
   "identity.universes": IdentityUniverses;
   "ops.operator_sign_ins": OpsOperatorSignIns;
+  "personal_context.contributions": PersonalContextContributions;
+  "personal_context.state": PersonalContextState;
+  "personal_context.supports": PersonalContextSupports;
+  "personal_context.topics": PersonalContextTopics;
   "reasoning.business_runs": ReasoningBusinessRuns;
   "reasoning.external_attempts": ReasoningExternalAttempts;
   "reasoning.production_attempts": ReasoningProductionAttempts;
