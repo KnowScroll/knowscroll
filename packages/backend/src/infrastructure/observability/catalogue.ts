@@ -192,6 +192,8 @@ export const diagnosticCatalogue = {
     module: 'reasoning',
     fields: ['attemptId', 'outcome', 'reasonCode'],
   },
+  // Once at worker start: which provider the harness will use (`none` when unconfigured). Never a key.
+  'reasoning.provider_configured': { severity: 'info', module: 'reasoning', fields: ['provider', 'model'] },
   'reasoning.requests_purged': { severity: 'info', module: 'reasoning', fields: ['count'] },
   'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },
   'migrate.started': { severity: 'info', module: 'migrate', fields: ['count'] },

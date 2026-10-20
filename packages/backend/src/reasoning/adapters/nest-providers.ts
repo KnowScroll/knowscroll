@@ -7,7 +7,7 @@ import type { WithPersonalScope } from '../../modules/identity/public.js';
 import { makeReasoningOperator } from '../application/operator.js';
 import type { HarnessPorts, HarnessSettings, ModelPort } from '../application/ports.js';
 import { makeReasoningHarness } from '../application/propose.js';
-import { REASONING_HARNESS } from '../public.js';
+import { PURGE_EXPIRED_REQUESTS, REASONING_HARNESS, type PurgeExpiredRequests } from '../public.js';
 import { guardedModelPort } from './guarded-model.js';
 import { makeMiniMaxModelPort } from './minimax/minimax-model.js';
 import { makeAttemptLedger } from './postgres-ledger.js';
@@ -93,6 +93,23 @@ export function reasoningOperatorFor(db: Kysely<Database>, logEvent: LogEvent) {
 }
 
 /**
+ * Nest wiring of the scheduled protected-request purge (`reasoning.purge-expired-requests`, every
+ * 15 minutes) for the worker composition root.
+ */
+export function reasoningPurgeProviders(tokens: { readonly database: symbol; readonly logEvent: symbol }) {
+  return [
+    {
+      provide: PURGE_EXPIRED_REQUESTS,
+      inject: [tokens.database, tokens.logEvent],
+      useFactory: (db: Kysely<Database>, logEvent: LogEvent): PurgeExpiredRequests => {
+        const operator = reasoningOperatorFor(db, logEvent);
+        return () => operator.purgeExpired();
+      },
+    },
+  ];
+}
+
+/**
  * Nest providers for the worker composition root: binds `REASONING_HARNESS` to a harness over the
  * worker's database, personal scope and diagnostics, with the configured provider (none, or the
  * MiniMax token plan). Roles inject `REASONING_HARNESS` from their module's wiring.
@@ -105,16 +122,22 @@ export function reasoningProviders(
     {
       provide: REASONING_HARNESS,
       inject: [tokens.database, tokens.withPersonalScope, tokens.logEvent],
-      useFactory: (db: Kysely<Database>, withPersonalScope: WithPersonalScope, logEvent: LogEvent) =>
-        makeReasoningHarness(
+      useFactory: (db: Kysely<Database>, withPersonalScope: WithPersonalScope, logEvent: LogEvent) => {
+        const model = configuredModelPort(settings);
+        logEvent('reasoning.provider_configured', {
+          provider: model?.provider ?? 'none',
+          ...(model === undefined ? {} : { model: model.model }),
+        });
+        return makeReasoningHarness(
           postgresHarnessPorts({
             db,
             withPersonalScope,
-            model: configuredModelPort(settings),
+            model,
             logEvent,
             settings: harnessSettings(settings, `worker:${process.pid}`),
           }),
-        ),
+        );
+      },
     },
   ];
 }

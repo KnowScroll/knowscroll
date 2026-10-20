@@ -100,10 +100,9 @@ function detailOf(issue: Readonly<Record<string, unknown>>): string | undefined 
       return typeof issue['maximum'] === 'number' ? `maximum ${issue['maximum']}` : undefined;
     case 'too_small':
       return typeof issue['minimum'] === 'number' ? `minimum ${issue['minimum']}` : undefined;
-    case 'unrecognized_keys': {
-      const keys = primitiveList(issue['keys']);
-      return keys === undefined ? 'unexpected keys' : `unexpected keys: ${keys}`;
-    }
+    // The received key names are never echoed: they come from the rejected answer.
+    case 'unrecognized_keys':
+      return 'unexpected keys';
     case 'invalid_value': {
       const values = primitiveList(issue['values']);
       return values === undefined ? undefined : `allowed: ${values}`;

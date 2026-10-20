@@ -8,6 +8,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "test:evaluation": "vitest run --project role-evaluation",
     "test:release": "vitest run --config vitest.release.config.ts"
   },
   "devDependencies": {

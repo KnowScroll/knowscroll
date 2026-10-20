@@ -59,7 +59,14 @@ export interface ContextItem {
   readonly text: string;
 }
 
-/** The bounded context a module froze for this run. */
+/**
+ * The bounded context a module froze for this run (D-021, blueprint §26 minimisation). It is a
+ * reference to the module's frozen bundle plus at most `MAX_CONTEXT_ITEMS` prepared items of at
+ * most `MAX_CONTEXT_ITEM_CHARS` characters: topic/unit references and authorised excerpts. It is
+ * never a raw observation stream, another person's private data or a secret, and the harness has
+ * no other way to receive context. Only `bundleRef` and the item `ref`s are recorded on the run;
+ * item text exists only in the protected request bytes (erased with the universe, expiring).
+ */
 export interface ReasoningContext {
   /** The module's reference to its frozen bundle (with the revisions it used). */
   readonly bundleRef: string;
@@ -144,9 +151,18 @@ export interface ReasoningHarness {
    */
   propose<T>(input: ProposeInput<T>, signal: AbortSignal): Promise<ProposeOutcome<T>>;
   /**
-   * Closes an admitted run (the module's applier calls it in the transaction that applies or
-   * rejects the result). Increments the run fence; a closed run starts no new attempt. Returns
-   * `not_open` when the run was already closed or does not exist.
+   * Closes an admitted run: the module's applier calls it in the same transaction that applies or
+   * rejects a `proposed` result.
+   *
+   * Inputs: the open personal scope of the run's universe (the capability proves the lock is held
+   * and the authority was rechecked) and `{ runId, state: 'completed' | 'failed' | 'cancelled' }`.
+   * Output: `closed`, or `not_open` when the run was already closed or does not exist in this
+   * universe. Authority: the caller's `withPersonalScope`; nothing is checked here.
+   * Side effects: one update of the run row (state, `closed_at`, fence + 1) inside the caller's
+   * transaction, so a rollback leaves the run open. Failure/retry: idempotent (a second call
+   * answers `not_open`); database errors propagate and roll the caller's transaction back.
+   * Invariants: a closed run starts no new attempt (`propose` answers `run_closed`); the fence only
+   * increases, so a stale applier holding the old fence can be recognised.
    */
   closeRun(
     scope: PersonalScopeTx,

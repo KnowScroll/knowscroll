@@ -244,7 +244,11 @@ export interface AttemptLedger {
   readonly recordLateUsage: (attemptId: string, usage: ReportedUsage) => Promise<void>;
   /** The protected request bytes of an attempt, if still kept (not expired or erased). Harness-only. */
   readonly readProtectedRequest: (attempt: AttemptRef) => Promise<Uint8Array | undefined>;
-  /** Closes an admitted run (fence + 1); `not_open` when it was already closed or is missing. */
+  /**
+   * Closes an admitted run inside the caller's personal scope (fence + 1, `closed_at`); `not_open`
+   * when it was already closed or is missing. Idempotent; a rollback of the caller's transaction
+   * leaves the run open.
+   */
   readonly closeRun: (
     scope: PersonalScopeTx,
     run: { readonly runId: string; readonly state: 'completed' | 'failed' | 'cancelled' },

@@ -55,7 +55,7 @@ describe('the validator summary', () => {
         { path: 'ok', code: 'invalid_value', detail: 'allowed: true' },
         { path: 'echo', code: 'too_big', detail: 'maximum 5' },
         { path: 'letters', code: 'missing', detail: 'required; expected number' },
-        { path: '(root)', code: 'unrecognized_keys', detail: 'unexpected keys: ?' },
+        { path: '(root)', code: 'unrecognized_keys', detail: 'unexpected keys' },
       ]),
     );
   });
