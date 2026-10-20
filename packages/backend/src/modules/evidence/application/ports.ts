@@ -35,7 +35,7 @@ export interface NewObservation {
   readonly seq: number;
   readonly assetId: string;
   readonly assetRevision: number;
-  readonly kind: 'scroll.block_coverage' | 'scroll.active_dwell' | 'scroll.block_interaction';
+  readonly kind: 'scroll.block_coverage' | 'scroll.active_dwell' | 'scroll.block_interaction' | 'reel.playback';
   readonly instrumentationVersion: number;
   readonly occurredAt: Date;
   readonly receivedAt: Date;

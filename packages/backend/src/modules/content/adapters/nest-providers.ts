@@ -54,3 +54,6 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
     ...makeAdmissionStore(db),
   });
 }
+
+export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
+export { makeMediaAccess } from './media-access.js';

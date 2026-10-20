@@ -109,7 +109,7 @@ export interface NewExposure {
   readonly id: string;
   readonly assetId: string;
   readonly assetRevision: number;
-  readonly kind: 'scroll';
+  readonly kind: 'scroll' | 'reel';
   readonly origin: ExposureOrigin;
   /** What the client said it can render; the document is negotiated for it. */
   readonly capabilities: JsonValue;

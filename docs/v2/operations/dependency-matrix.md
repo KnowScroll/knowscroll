@@ -165,3 +165,13 @@ with a version comment, as in `checks.yml`; Maestro and the Gradle distribution 
 - Long-running pg-boss maintenance, real traffic, and Socket.IO behaviour behind Caddy.
 - Real authentication (S1.3), a real model provider (S2.2), Socket.IO revocation of existing
   subscriptions, and client-side catch-up (the client app does not call the API yet).
+
+## S2.4 media additions (#233)
+
+`expo-video` is pinned to **58.0.11** in the catalog and both client/UI manifests, from the installed
+`expo@58.0.14/bundledNativeModules.json` range `~58.0.11` (MIT; Expo native peer SDK58).
+The web export compiles the real web adapter; native playback requires the opt-in Android lane.
+Backend/build CI install Ubuntu's ffmpeg package for generated fixture MP4s/ffprobe; deployed import
+requires `/usr/bin/ffprobe`. This binary is an OS tool, not a Node dependency. Vendored Cutroom schemas
+are compiled by TypeScript at build, with `.ts` relative imports rewritten to `.js`, and exercised in
+the installed release tree; their source SHA-256 pins remain unchanged.

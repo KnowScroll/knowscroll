@@ -1,4 +1,5 @@
 import { mediaGrantContract } from './media.js';
+import { exposureContextContract, navigateExperienceContract } from './navigation.js';
 import {
   activateExposureContract,
   applyActionContract,
@@ -31,8 +32,10 @@ export const apiContract = {
     applyAction: applyActionContract,
     listSaved: listSavedContract,
     openExposure: openExposureContract,
+    navigate: navigateExperienceContract,
     activateExposure: activateExposureContract,
     exposureDocument: exposureDocumentContract,
+    exposureContext: exposureContextContract,
   },
   observations: {
     submit: submitObservationsContract,

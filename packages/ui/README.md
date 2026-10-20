@@ -147,3 +147,15 @@ revision-keyed block store alongside the local position. Resume opens that discl
 layout. An explicitly supplied nested child ID has no independent measured box: it falls back
 to the existing open-disclosure anchor behaviour, without converting its offset to parent pixels.
 `initialPosition` is mount-only; remount for a different restore intent.
+
+`media/ReelPlayer` uses Expo SDK58's pinned expo-video58.0.11 on both platforms. Paused first frames
+serve as the poster; the title appears while loading. Visible buffering/error/retry states accompany
+custom play/pause and ±10s seek controls. Those controls explicitly fence the recorder at seeks; native
+controls/PiP/external/background playback are disabled because their offsurface/seek events would not
+satisfy the recorder contract. Web intersection/visibility plus route focus/AppState gate observations.
+A 60s grant refreshes at most every40s during intended playback, preserving position and the same
+exposure; replacement is a recording discontinuity. Paused/hidden renewal is deferred until explicit
+Play (buffered media remains paused). SDK58 web replacement internally tries autoplay: audio is muted
+around replacement and paused immediately in the same JavaScript turn as well as after settlement;
+only current visible foreground Play intent may resume. Internal autoplay never records evidence. Playback failure requires Retry; teardown cancels renewal and clears the
+source. Native playback is still a separate emulator/device verification requirement.

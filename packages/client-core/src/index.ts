@@ -49,6 +49,8 @@ export {
   ReadingTracker,
   createObservationOutbox,
   createScrollRecorder,
+  createReelRecorder,
+  type PlaybackSample,
   deliverBatch,
   outboxRetryDelay,
   scopeOutbox,

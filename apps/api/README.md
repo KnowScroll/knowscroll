@@ -28,8 +28,32 @@ sign-in link for a disposable test account, D-007; `content import-editorial --f
 
 Routes: `GET /health` (release identity and relay state), `POST /auth/sign-in`, `POST /auth/redeem`,
 `GET /auth/session`, `POST /auth/sign-out`, `POST /v1/actions`, `GET /v1/saved`, `POST /v1/experience/open`,
-`POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document`, `POST /v1/observations/batch`
+`POST /v1/experience/activate`, `POST /v1/experience/navigate`, `GET /v1/experience/exposures/{id}/document`, `POST /v1/observations/batch`
 and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` (404 outside `dev`, `stage`, `ci`, `local`). Request pipeline:
 request context → `Cache-Control: no-store` under `/auth` → origin guard (403) → JSON-only bodies
 (415 otherwise) → size-limited JSON parser (413) → body error handler → Nest routes → oRPC handler
 → problem encoder.
+
+## Media access (S2.4)
+
+Optional `KS_MEDIA_ROOT` enables local media delivery. The API never reads Cutroom settings/calls it.
+`POST /v1/media/grants` is protected by the unchanged session + X-KS-Scope guard. For an existing Reel
+exposure, it returns the consumer document and a 60s HMAC grant. `/media/:digest?grant=…` has a separate
+reviewed session/grant boundary: every GET/HEAD re-resolves the live session, checks the exact grant
+session/account/universe/epoch/audience/expiry/digest and the caller-owned admitted revision. Unknown,
+foreign, withdrawn, stale or missing media all return404. No broad `/v1` scope exemption was added.
+
+Signing keys are random per API start; this design assumes one API instance/world. Restart invalidates
+grants; the player's renewal/Retry recovers without creating an exposure. Grant URLs are credentials:
+keep them in memory, never logs/evidence, never a public share. Responses use private/no-store caching,
+no-referrer and SHA-256 ETags. Single ranges (including suffixes),206/416, If-None-Match/304, If-Range,
+HEAD and Accept-Ranges are supported; multiple ranges are refused416. Caddy must not compress media.
+Logs use route templates and stable refusals only. Already-buffered client bytes cannot be recalled;
+AccountScope synchronously pauses/clears playback on logout/account switch/privacy reset.
+
+Explore's #234 shared contracts are prerequisites: discovery/revisit open, navigate, offer activation and
+Like/Unlike/Hide, current exposure-context reads and all exposure-linked actions (including
+Save/Unsave) currently answer `EXPERIENCE_COMMAND_UNSUPPORTED` (422) before legacy use cases.
+The direct open/activate and Save/Unsave paths keep their existing behavior. These refusal guards
+are replaced by the later Composer/action consumer, not by silently treating new commands as old
+ones. Contract declaration is not runtime acceptance of Explore navigation.

@@ -69,7 +69,10 @@ export class ExperienceController {
   applyActionRoute(@Req() request: Request) {
     return implement(apiContract.experience.applyAction).handler(async ({ input }) => {
       const caller = admittedCaller(request);
-      const result = await this.applyAction(authorityOf(caller), input);
+      // Shared contracts precede their consumers. Never route a new action into Save/Unsave.
+      if ((input.kind !== 'save' && input.kind !== 'unsave') || input.exposureId !== undefined)
+        throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
+      const result = await this.applyAction(authorityOf(caller), { ...input, kind: input.kind });
       if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
       return { commandId: input.commandId, replayed: result.replayed, ...result.outcome };
     });
@@ -97,14 +100,33 @@ export class ExperienceController {
   openExposureRoute(@Req() request: Request) {
     return implement(apiContract.experience.openExposure).handler(async ({ input }) => {
       const caller = admittedCaller(request);
-      // The additive Reel contract precedes the media adapter. Keep this release Scroll-only.
-      if (input.target.kind !== 'scroll') throw problem('ASSET_NOT_FOUND');
+      if (input.target.kind === 'discover' || input.target.kind === 'return')
+        throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
       const result = await this.openExposure(authorityOf(caller), {
         ...input,
         target: { kind: input.target.kind, assetId: input.target.assetId },
+        origin: { kind: 'direct' },
       });
       if (result.kind === 'refused') throw problem(openRefusalProblems[result.reason]);
       return { commandId: input.commandId, replayed: result.replayed, ...result.outcome };
+    });
+  }
+
+  /** Explicit prerequisite refusal; the Composer consumer lands in a later PR. */
+  @Implement(apiContract.experience.navigate)
+  navigateExperienceRoute(@Req() request: Request) {
+    return implement(apiContract.experience.navigate).handler(() => {
+      admittedCaller(request);
+      throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
+    });
+  }
+
+  /** The current-context consumer is not implemented by this prerequisite release. */
+  @Implement(apiContract.experience.exposureContext)
+  exposureContextRoute(@Req() request: Request) {
+    return implement(apiContract.experience.exposureContext).handler(() => {
+      admittedCaller(request);
+      throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
     });
   }
 
@@ -112,6 +134,7 @@ export class ExperienceController {
   activateExposureRoute(@Req() request: Request) {
     return implement(apiContract.experience.activateExposure).handler(async ({ input }) => {
       const caller = admittedCaller(request);
+      if (input.target !== undefined) throw problem('EXPERIENCE_COMMAND_UNSUPPORTED');
       const result = await this.activateExposure(authorityOf(caller), input);
       if (result.kind === 'refused') throw problem(activateRefusalProblems[result.reason]);
       return { commandId: input.commandId, replayed: result.replayed, ...result.outcome };

@@ -9,7 +9,17 @@
       "bundler": "metro",
       "output": "single"
     },
-    "plugins": ["expo-router", "./plugins/font-scale-config-changes.js"],
+    "plugins": [
+      "expo-router",
+      "./plugins/font-scale-config-changes.js",
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": false
     },

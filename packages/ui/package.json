@@ -21,7 +21,8 @@
     "react-native-gesture-handler": "catalog:",
     "react-native-safe-area-context": "catalog:",
     "react-native-svg": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "expo-video": "catalog:"
   },
   "devDependencies": {
     "@react-native/jest-preset": "catalog:",
