@@ -1,3 +1,4 @@
+import { oc } from '@orpc/contract';
 import { z } from 'zod';
 import { UniverseIdSchema, UuidSchema } from './ids.js';
 
@@ -335,3 +336,16 @@ export type GeographySnapshot = z.infer<typeof GeographySnapshotSchema>;
 export type UniverseDelta = z.infer<typeof UniverseDeltaSchema>;
 export type ReadUniverseDeltas = z.infer<typeof ReadUniverseDeltasSchema>;
 export type UniverseDeltas = z.infer<typeof UniverseDeltasSchema>;
+
+/** Read-only POST preserves the existing bounded nested selection/cursor as one JSON body.
+ * The future adapter authenticates current personal scope; it never schedules cartography. */
+export const readGeographyContract = oc
+  .route({ method: 'POST', path: '/v1/universe/geography/read', successStatus: 200 })
+  .input(ReadGeographySchema)
+  .output(GeographySnapshotSchema);
+
+/** Read-only catch-up; a delta or cursor is never formation or presentation acknowledgement authority. */
+export const readUniverseDeltasContract = oc
+  .route({ method: 'POST', path: '/v1/universe/geography/deltas/read', successStatus: 200 })
+  .input(ReadUniverseDeltasSchema)
+  .output(UniverseDeltasSchema);

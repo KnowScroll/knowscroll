@@ -20,6 +20,8 @@ describe('the API contract', () => {
 
     const routes = [
       apiContract.health,
+      apiContract.geography.read,
+      apiContract.geography.deltas,
       apiContract.media.grant,
       apiContract.supply.create,
       apiContract.supply.read,
@@ -134,6 +136,41 @@ describe('the API contract', () => {
         'exposureGrant',
         'score',
       ])
+        expect(wire).not.toContain(`"${field}"`);
+  });
+
+  it('describes bounded read-only geography bodies without a cartography command or caller authority', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [new ZodToJsonSchemaConverter()] });
+    const document = await generator.generate(apiContract, { info: { title: 'KnowScroll API', version: '1' } });
+    const snapshot = document.paths?.['/v1/universe/geography/read']?.post;
+    const deltas = document.paths?.['/v1/universe/geography/deltas/read']?.post;
+    expect(snapshot?.requestBody).toBeDefined();
+    expect(deltas?.requestBody).toBeDefined();
+    expect(snapshot?.responses?.['200']).toBeDefined();
+    expect(deltas?.responses?.['200']).toBeDefined();
+    const query = JSON.stringify(snapshot?.requestBody);
+    const catchUp = JSON.stringify(deltas?.requestBody);
+    for (const field of ['selection', 'limit', 'cursor', 'afterObjectId', 'geographyRevision'])
+      expect(query).toContain(field);
+    for (const field of ['afterGeographyRevision', 'limit']) expect(catchUp).toContain(field);
+    for (const wire of [query, catchUp])
+      for (const field of ['accountId', 'commandId', 'resumeRunId', 'desiredRevision', 'provider', 'prompt'])
+        expect(wire).not.toContain(`"${field}"`);
+    const result = JSON.stringify(snapshot?.responses?.['200']);
+    for (const field of ['universeId', 'privacyEpoch', 'personalWatermark', 'geography', 'empty', 'loading', 'lagging'])
+      expect(result).toContain(field);
+    const changes = JSON.stringify(deltas?.responses?.['200']);
+    for (const field of [
+      'snapshot_required',
+      'transitionId',
+      'base',
+      'structureRevision',
+      'activityRevision',
+      'hasMore',
+    ])
+      expect(changes).toContain(field);
+    for (const wire of [result, changes])
+      for (const field of ['observations', 'evidenceRefs', 'provider', 'prompt', 'draftVersion', 'score', 'seed'])
         expect(wire).not.toContain(`"${field}"`);
   });
 
