@@ -23,10 +23,11 @@ export function TextVersionToggle({
       {...(Platform.OS === 'web'
         ? {
             // RN Web gives switch Enter activation, but reserves Space activation for button roles.
-            onKeyDown: (event: { key: string; repeat?: boolean; preventDefault(): void }) => {
-              if (event.key !== ' ') return;
+            onKeyDown: (event: { nativeEvent: unknown; preventDefault(): void }) => {
+              const key = event.nativeEvent as { key?: string; repeat?: boolean };
+              if (key.key !== ' ') return;
               event.preventDefault();
-              if (!event.repeat) onChange(!on);
+              if (!key.repeat) onChange(!on);
             },
           }
         : {})}
