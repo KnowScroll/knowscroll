@@ -23,4 +23,6 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
     sha256: 'bbdf12ab2d89105f8ec24accad55a1a537ed8a9cac7ac911a71981dc208bfce3',
   },
   { name: '0014_media_reels', sha256: 'bbdc0029ed20d50e859068553584ae1eae3eff284f4517388e904ea66cf4c7b7' },
+  { name: '0016_content_discovery', sha256: 'b8a3f2dcde57a164f31455270bddfd392ddac168ac8574c79145db18fcdfac00' },
+  { name: '0017_composer_decisions', sha256: '83dd77f63b5c5ea6935d92207ea933e5172fe89095f91640350647ad8aedf202' },
 ];

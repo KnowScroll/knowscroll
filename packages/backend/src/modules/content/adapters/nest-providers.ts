@@ -57,3 +57,15 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
 
 export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
 export { makeMediaAccess } from './media-access.js';
+
+/** Bounded shared retrieval capabilities; no feature consumers are installed by this slice. */
+export {
+  readDiscoveryCandidates,
+  readExactEncounter,
+  readContinuations,
+  resolveContinuityLink,
+  readEncounterTopics,
+  readSavedMetadata,
+} from './discovery-store.js';
+export { admitContinuity } from './continuity-admission.js';
+export { makeAdmissionStore } from './postgres-store.js';
