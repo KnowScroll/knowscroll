@@ -28,3 +28,8 @@ same body with `replayed: true` and no new rows or jobs; `kind: unsave` with C �
 capabilities}` → 200 `{exposureId E, assetRevision 1, replayed: false}`; again → the same with
 `replayed: true`; `GET …/exposures/E/document` → the negotiated document; `POST …/activate {commandId
 V, exposureId E}` → `{activatedAt}`.
+
+S2.4 adds `target.kind: reel` to the existing open/activate lineage. Opening and grant renewal create no
+consumption evidence; an exposure remains bound to its immutable admitted revision. Scroll document
+rendering stays Scroll-only. The separate media read port checks Reel exposure ownership/current epoch
+and admitted revision on every grant and byte-range request.

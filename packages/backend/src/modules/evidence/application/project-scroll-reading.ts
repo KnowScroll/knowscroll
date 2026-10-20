@@ -1,3 +1,4 @@
+import { summariseReel, REEL_QUALIFICATION_POLICY_V0 } from '../domain/reel-summary.js';
 import { SCROLL_QUALIFICATION_POLICY_V0 } from '../domain/policy.js';
 import { qualifyScrollReading } from '../domain/qualification.js';
 import { summariseReading, type ObservationRecord } from '../domain/reading-summary.js';
@@ -79,6 +80,30 @@ export function makeProjectScrollReading(ports: ProjectScrollReadingPorts) {
       }
       if (observations.length === 0) return { kind: 'skipped', reason: 'no_observations' };
 
+      if (facts.reelDurationMs !== undefined) {
+        const reel = summariseReel(observations, facts.reelDurationMs);
+        const latest = await ports.readLatestEvidence(scope, exposure.id);
+        if (
+          latest?.inputWatermark === reel.inputWatermark &&
+          latest.policyVersion === REEL_QUALIFICATION_POLICY_V0.version
+        )
+          return { kind: 'skipped', reason: 'already_applied' };
+        const evidenceId = ports.newId();
+        const revision = (latest?.revision ?? 0) + 1;
+        const inserted = await ports.insertEvidence(scope, {
+          id: evidenceId,
+          exposureId: exposure.id,
+          revision,
+          policyVersion: REEL_QUALIFICATION_POLICY_V0.version,
+          assetId: exposure.assetId,
+          assetRevision: exposure.assetRevision,
+          ...reel,
+        });
+        if (!inserted) return { kind: 'skipped', reason: 'already_applied' };
+        const universeRevision = await ports.advanceRevision(scope);
+        await ports.notifyScopeChanged(scope, { revision: universeRevision, eventId: evidenceId });
+        return { kind: 'applied', evidenceId, revision, qualification: reel.qualification };
+      }
       const summary = summariseReading(observations, facts, policy);
       const latest = await ports.readLatestEvidence(scope, exposure.id);
       if (

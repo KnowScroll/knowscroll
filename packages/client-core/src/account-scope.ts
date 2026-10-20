@@ -65,6 +65,10 @@ export interface AccountScope {
   readonly storage: ScopedStorage;
   /** False once the scope has ended. */
   readonly active: boolean;
+  /** Ephemeral playback URL/headers for this scope only; never persisted or logged. */
+  mediaSource?(path: string): { readonly uri: string; readonly headers?: Record<string, string> };
+  /** Playback resources stop synchronously before scoped requests/cache/storage are purged. */
+  onEnd?(listener: () => void): () => void;
   /** Query keys of this scope start with `['scope', id]`. */
   queryKey(...parts: readonly (string | number)[]): readonly (string | number)[];
   /** Closes and reopens the hint socket (after the server dropped it and the session still holds). */
@@ -186,6 +190,7 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
   const prefix = `${SCOPED_STORAGE_PREFIX}${id}.`;
   const queryClient = options.queryClient ?? createQueryClient();
   let connection: ScopeConnection | undefined;
+  const endListeners = new Set<() => void>();
   const api = createApiClient({
     baseUrl: options.baseUrl,
     fetch: fencedFetch({
@@ -205,6 +210,20 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
     get active() {
       return !ended.signal.aborted;
     },
+    mediaSource(path) {
+      if (ended.signal.aborted || !path.startsWith('/media/') || path.startsWith('//')) throw new ScopeEndedError();
+      const authorization = options.authorization();
+      return {
+        uri: new URL(path, options.baseUrl).href,
+        ...(authorization === undefined ? {} : { headers: { authorization } }),
+      };
+    },
+    onEnd(listener) {
+      endListeners.add(listener);
+      return () => {
+        endListeners.delete(listener);
+      };
+    },
     queryKey: (...parts) => ['scope', id, ...parts],
     reconnect() {
       if (ended.signal.aborted || options.connect === undefined) return;
@@ -213,6 +232,14 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
     },
     end() {
       if (ended.signal.aborted) return;
+      for (const listener of endListeners) {
+        try {
+          listener();
+        } catch {
+          /* A native resource already released must never prevent the scope fence. */
+        }
+      }
+      endListeners.clear();
       connection?.close();
       connection = undefined;
       ended.abort(new ScopeEndedError());

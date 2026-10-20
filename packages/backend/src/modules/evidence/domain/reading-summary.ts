@@ -19,6 +19,10 @@ export interface ReadingFacts {
 /** What one stored observation says, by kind. Payloads were bounded and validated at intake. */
 export type ObservationBody =
   | {
+      readonly kind: 'reel.playback';
+      readonly samples: readonly { readonly activeMs: Interval; readonly mediaMs: Interval }[];
+    }
+  | {
       readonly kind: 'scroll.block_coverage';
       readonly blocks: readonly {
         readonly blockId: string;
@@ -109,6 +113,8 @@ export function summariseReading(
     sessions.set(observation.sessionId, sequences);
     const body = observation.body;
     switch (body.kind) {
+      case 'reel.playback':
+        break;
       case 'scroll.active_dwell':
         dwellEvents += 1;
         active.push(...body.activeIntervalsMs);

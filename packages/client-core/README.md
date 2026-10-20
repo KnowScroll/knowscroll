@@ -30,3 +30,9 @@ Rules:
 
 The package exports its TypeScript sources. Its tests (`src/**/*.test.ts`, Vitest, labelled test
 doubles for `fetch`) run in CI only: `pnpm --filter @knowscroll/client-core test`.
+
+The Reel recorder emits `reel.playback` through the same scope outbox. Only consecutive visible,
+foreground, nonbuffering 1× playback ticks contribute; explicit seek, loop jumps, stalls and gaps reset
+the baseline. Coverage is qualified on the server. AccountScope supplies ephemeral native-header/web-
+cookie media sources and synchronous playback disposal before its cancellation/cache/storage fence.
+No grant URL or credential is persisted. A failing native cleanup cannot prevent scope termination.

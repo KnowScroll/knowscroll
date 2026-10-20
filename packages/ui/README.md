@@ -121,3 +121,12 @@ block, trash, pin, branch map, captions) are added with the surfaces that use th
 Content, message, snippet and branch cards, the share sheet's options, episode browser, mini
 player, thread rail, continue tab, inputs, switches, settings rows and the spatial kit are built
 with the journeys that use them, from these tokens and primitives.
+
+`media/ReelPlayer` uses Expo SDK58's pinned expo-video58.0.11 on both platforms. Paused first frames
+serve as the poster; the title appears while loading. Visible buffering/error/retry states accompany
+custom play/pause and ±10s seek controls. Those controls explicitly fence the recorder at seeks; native
+controls/PiP/external/background playback are disabled because their offsurface/seek events would not
+satisfy the recorder contract. Web intersection/visibility plus route focus/AppState gate observations.
+A 60s grant refreshes at most every40s while preserving position and the same exposure; replacement is
+a recording discontinuity. Playback failure requires Retry; teardown cancels renewal and clears the
+source. Native playback is still a separate emulator/device verification requirement.

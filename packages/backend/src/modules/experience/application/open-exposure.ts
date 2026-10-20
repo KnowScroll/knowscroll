@@ -9,7 +9,7 @@ export const OPEN_EXPOSURE_OUTCOME_VERSION = 1;
 
 export interface OpenExposureCommand {
   readonly commandId: string;
-  readonly target: { readonly kind: 'scroll'; readonly assetId: string };
+  readonly target: { readonly kind: 'scroll' | 'reel'; readonly assetId: string };
   readonly origin: { readonly kind: ExposureOrigin };
   /** What the client can render, as it declared it (validated at the wire boundary). */
   readonly capabilities: JsonValue;
@@ -20,7 +20,7 @@ export const OpenExposureOutcomeSchema = z.object({
   exposureId: z.uuid(),
   assetId: z.uuid(),
   assetRevision: z.number().int().min(1),
-  kind: z.literal('scroll'),
+  kind: z.enum(['scroll', 'reel']),
   /** The universe revision under the lock: opening changes nothing a client reads, so it is unchanged. */
   revision: z.number().int().min(0),
 });
@@ -85,7 +85,7 @@ export function makeOpenExposure(ports: OpenExposurePorts) {
           break;
       }
       const asset = await ports.findOpenableAsset(scope, command.target.assetId);
-      if (asset?.kind !== 'scroll' || !asset.admitted || asset.documentSha256 === undefined)
+      if (asset?.kind !== command.target.kind || !asset.admitted || asset.documentSha256 === undefined)
         return { kind: 'refused', reason: 'asset_not_found' };
 
       await ports.insertReceipt(scope, key);
@@ -94,7 +94,7 @@ export function makeOpenExposure(ports: OpenExposurePorts) {
         id: exposureId,
         assetId: asset.assetId,
         assetRevision: asset.revision,
-        kind: 'scroll',
+        kind: command.target.kind,
         origin: command.origin.kind,
         capabilities: command.capabilities,
         commandId: command.commandId,
@@ -104,7 +104,7 @@ export function makeOpenExposure(ports: OpenExposurePorts) {
         exposureId,
         assetId: asset.assetId,
         assetRevision: asset.revision,
-        kind: 'scroll',
+        kind: command.target.kind,
         revision: scope.revisionAtEntry,
       };
       await ports.completeReceipt(scope, command.commandId, outcome);

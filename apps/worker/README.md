@@ -12,3 +12,13 @@ under `withPersonalScope`.
 | `src/jobs.ts` | Explicit consumer registry: `evidence.apply-action` → `applyActionEvidence`; `evidence.project-scroll-reading` → `projectScrollReading` (qualifies a reading, commits an evidence revision, hints the account); `identity.sweep-sign-in-records` |
 
 Variables: `docs/v2/engineering/runtime-configuration.md`.
+
+`node dist/operator.js content import-cutroom-reel --run <approved uuid> --script <greenhouse|seasons-v5|tides-v4>`
+imports approved existing output at no spend. Required worker-only settings: `KS_WORLD`, `DATABASE_URL`,
+`KS_MEDIA_ROOT`, `KS_CUTROOM_ORIGIN` (HTTP loopback only), `KS_CUTROOM_ARTIFACT_ROOT`; optional
+`KS_FFPROBE_PATH` defaults `/usr/bin/ffprobe`. Only dev/stage/ci/local operator worlds are accepted.
+The worker unit alone receives `SupplementaryGroups=ks-pool`; the API receives no Cutroom origin or
+artifact access group. No Cutroom/provider POST exists. `--fixture` additionally requires ci/local and
+a disposable `ks_it_*`/`knowscroll_fixture_*` DB, and marks content visibly. Operator output is one
+sanitised result line; external errors never log URLs/paths/response text. Failed copy/probe/admission
+can leave an unreferenced object; never delete referenced bytes during rollback.

@@ -76,6 +76,7 @@ export const LIVE_WORLD = 'live';
 export const TEST_ADAPTER_WORLDS: readonly string[] = ['ci', 'local'];
 
 export interface ApiConfig extends ReleaseIdentity {
+  readonly mediaRoot?: string;
   readonly database: DatabaseSettings;
   readonly listen: { readonly host: string; readonly port: number };
   readonly bodyLimitBytes: number;
@@ -201,6 +202,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     z.object({
       ...databaseVariables,
       PORT: PortSchema,
+      KS_MEDIA_ROOT: z.string().regex(/^\//).optional(),
       KS_LISTEN_HOST: z.string().min(1).default('127.0.0.1'),
       KS_DB_POOL_MAX: positiveInteger(10, 100),
       KS_BODY_LIMIT_BYTES: positiveInteger(65_536, 10 * 1024 * 1024),
@@ -213,6 +215,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       'DATABASE_URL',
       'KS_DB_STATEMENT_TIMEOUT_MS',
       'PORT',
+      'KS_MEDIA_ROOT',
       'KS_LISTEN_HOST',
       'KS_DB_POOL_MAX',
       'KS_BODY_LIMIT_BYTES',
@@ -252,6 +255,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     authAdapter: parsed.KS_AUTH_ADAPTER,
     socketAuthorisationCacheMs: parsed.KS_SOCKET_AUTH_CACHE_MS,
     identity,
+    ...(parsed.KS_MEDIA_ROOT === undefined ? {} : { mediaRoot: parsed.KS_MEDIA_ROOT }),
   };
 }
 
@@ -589,4 +593,42 @@ export function readMigrateConfig(env: Environment): MigrateConfig {
 
 function pick(env: Environment, names: readonly string[]): Record<string, string | undefined> {
   return Object.fromEntries(names.map((name) => [name, env[name]]));
+}
+
+/** Worker operator only: the API never reads or holds the Cutroom origin/artifact root. */
+export function readMediaImportConfig(env: Environment) {
+  const base = readWorkerOperatorConfig(env);
+  crossChecks([[!OPERATOR_WORLDS.includes(base.world), 'KS_WORLD: operator_command_refused_in_this_world']]);
+  const [parsed] = combineChecks(
+    checkEnvironment(
+      z.object({
+        KS_MEDIA_ROOT: z.string().regex(/^\//),
+        KS_CUTROOM_ARTIFACT_ROOT: z.string().regex(/^\//),
+        KS_CUTROOM_ORIGIN: z
+          .string()
+          .url()
+          .refine((value) => {
+            const url = new URL(value);
+            return (
+              url.protocol === 'http:' &&
+              ['127.0.0.1', '[::1]'].includes(url.hostname) &&
+              url.pathname === '/' &&
+              !url.username &&
+              !url.password &&
+              !url.search &&
+              !url.hash
+            );
+          }),
+        KS_FFPROBE_PATH: z.string().regex(/^\//).default('/usr/bin/ffprobe'),
+      }),
+      pick(env, ['KS_MEDIA_ROOT', 'KS_CUTROOM_ARTIFACT_ROOT', 'KS_CUTROOM_ORIGIN', 'KS_FFPROBE_PATH']),
+    ),
+  );
+  return {
+    ...base,
+    mediaRoot: parsed.KS_MEDIA_ROOT,
+    cutroomOrigin: parsed.KS_CUTROOM_ORIGIN,
+    cutroomArtifactRoot: parsed.KS_CUTROOM_ARTIFACT_ROOT,
+    ffprobePath: parsed.KS_FFPROBE_PATH,
+  };
 }
