@@ -11,6 +11,7 @@ import {
   issueForExtraction,
   summariseIssues,
   validateOutput,
+  validSafeCustomIssues,
 } from './output.js';
 
 describe('strict JSON extraction', () => {
@@ -147,6 +148,116 @@ describe('safe structural JSON refusal diagnostics (CI fixture)', () => {
 
 describe('the validator summary', () => {
   const schema = z.object({ ok: z.literal(true), echo: z.string().max(5), letters: z.number().int() }).strict();
+
+  it('retains only explicitly declared custom codes and fixed hints, preserving path masking', () => {
+    const privateText = 'PRIVATE-REPLY https://private.example/?signature=fixture';
+    const semantic = z.object({ rows: z.array(z.object({ text: z.string() })) }).superRefine((_value, ctx) => {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rows', 0, privateText],
+        message: privateText,
+        params: { safeCode: 'binding_missing' },
+      });
+    });
+    const value = { rows: [{ text: privateText }] };
+    const catalogue = { binding_missing: 'Bind this passage to an offered claim.' };
+    expect(validateOutput(semantic, value, catalogue)).toEqual({
+      valid: false,
+      reason: 'OUTPUT_SCHEMA_MISMATCH',
+      issues: [{ path: 'rows[0].?', code: 'binding_missing', detail: catalogue.binding_missing }],
+    });
+    expect(validateOutput(semantic, value)).toEqual({
+      valid: false,
+      reason: 'OUTPUT_SCHEMA_MISMATCH',
+      issues: [{ path: 'rows[0].?', code: 'custom' }],
+    });
+    expect(JSON.stringify(validateOutput(semantic, value, catalogue))).not.toContain(privateText);
+  });
+
+  it.each([
+    undefined,
+    null,
+    'binding_missing',
+    {},
+    { safeCode: 1 },
+    { safeCode: ['binding_missing'] },
+    { safeCode: 'undeclared' },
+    { safeCode: '__proto__' },
+    { safeCode: 'constructor' },
+    { safeCode: 'prototype' },
+    { safeCode: 'x'.repeat(65) },
+    { safeCode: 'private value' },
+    Object.create({ safeCode: 'binding_missing' }) as object,
+  ])('suppresses untrusted custom messages and malformed/undeclared metadata (%j)', (params) => {
+    const custom = z.object({}).superRefine((_value, ctx) => {
+      ctx.addIssue({ code: 'custom', message: 'binding_missing', params: params as Record<string, unknown> });
+    });
+    const catalogue = Object.assign(
+      Object.create({ undeclared: 'Never inherit this hint.' }) as Record<string, string>,
+      {
+        binding_missing: 'A fixed code-owned hint.',
+        constructor: 'Never emit this hint.',
+      },
+    );
+    expect(validateOutput(custom, {}, catalogue)).toEqual({
+      valid: false,
+      reason: 'OUTPUT_SCHEMA_MISMATCH',
+      issues: [{ path: '(root)', code: 'custom' }],
+    });
+  });
+
+  it('bounds the opt-in code catalogue at admission', () => {
+    expect(validSafeCustomIssues({ binding_missing: 'A fixed hint.' })).toBe(true);
+    expect(
+      validSafeCustomIssues(Object.fromEntries(Array.from({ length: 128 }, (_, i) => [`code_${i}`, 'hint']))),
+    ).toBe(true);
+    for (const invalid of [
+      Object.fromEntries(Array.from({ length: 129 }, (_, i) => [`code_${i}`, 'hint'])),
+      { ['x'.repeat(65)]: 'hint' },
+      { 'unknown field': 'hint' },
+      { constructor: 'hint' },
+      JSON.parse('{"__proto__":"hint"}') as Record<string, string>,
+      { code: '' },
+      { code: 'x'.repeat(257) },
+      { code: 'line\nbreak' },
+    ])
+      expect(validSafeCustomIssues(invalid)).toBe(false);
+  });
+
+  it('rejects hidden, accessor and symbol catalogue properties without invoking getters', () => {
+    let getterReads = 0;
+    const accessor = Object.defineProperty({}, 'code', {
+      enumerable: true,
+      get() {
+        getterReads += 1;
+        return 'x'.repeat(257);
+      },
+    }) as Record<string, string>;
+    const hiddenCodes = Object.defineProperties(
+      {},
+      Object.fromEntries(Array.from({ length: 129 }, (_, i) => [`code_${i}`, { value: 'hint', enumerable: false }])),
+    ) as Record<string, string>;
+    for (const invalid of [
+      Object.defineProperty({}, 'code', { value: 'A short hidden hint.' }) as Record<string, string>,
+      Object.defineProperty({}, 'code', { value: 'x'.repeat(257) }) as Record<string, string>,
+      hiddenCodes,
+      accessor,
+      { [Symbol('hidden-code')]: 'hint' },
+    ])
+      expect(validSafeCustomIssues(invalid)).toBe(false);
+    expect(getterReads).toBe(0);
+  });
+
+  it.each([
+    ['C1 next line', '\u0085'],
+    ['C1 control sequence', '\u009b'],
+    ['bidi override', '\u202e'],
+    ['bidi isolate', '\u2066'],
+    ['zero-width space', '\u200b'],
+  ])('rejects Unicode control/format hint characters: %s', (_label, control) => {
+    expect(validSafeCustomIssues({ code: `Fixed${control}hint.` })).toBe(false);
+    expect(validSafeCustomIssues({ code: 'Keep the Scroll’s original meaning — rewrite this passage.' })).toBe(true);
+  });
 
   it('reports missing fields, bounds, literals and unexpected keys structurally', () => {
     const verdict = validateOutput(schema, { ok: false, echo: 'lantern', 'run rm -rf': 1 });
