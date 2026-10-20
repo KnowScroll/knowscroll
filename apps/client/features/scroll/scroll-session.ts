@@ -100,11 +100,13 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
           origin: { kind: 'direct' },
           capabilities: SCROLL_CAPABILITIES,
         });
+        if (disposed) return;
         opened = { exposureId: response.exposureId, assetRevision: response.assetRevision };
       }
       if (loaded === undefined) {
         set({ status: 'loading' });
         const response = await options.scope.api.experience.exposureDocument({ exposureId: opened.exposureId });
+        if (disposed) return;
         // The client path: structure, bounds and cheap checks; the server proved the rest at admission.
         const parsed = parseDocument(response.document);
         if (parsed.kind !== 'valid') {

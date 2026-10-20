@@ -10,7 +10,9 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/health.ts` | `GET /health` response and contract |
 | `src/identity.ts` | `/auth/*` sign-in and session routes, the link and session token shapes, the session cookie names (D-022) |
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |
-| `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
+| `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) and `ClientCapabilities` from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
+| `src/experience.ts` | `POST /v1/actions`, `GET /v1/saved`, and the exposure routes: `POST /v1/experience/open`, `POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document` |
+| `src/interactions.ts` | `interaction.v1`: the observation envelope and the three `scroll.*` payloads, `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
 
 Rules:
 

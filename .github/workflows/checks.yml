@@ -291,7 +291,9 @@ jobs:
           DATABASE_URL="postgres://postgres:postgres@localhost:5432/knowscroll_release_smoke" \
             node scripts/release/smoke.mjs "$RUNNER_TEMP/release/release-$GITHUB_SHA.tar" --start --world dev \
             --pass-env AGENTMAIL_API_KEY --pass-env AGENTMAIL_INBOX_ID \
-            --unauthenticated /auth/session --unauthenticated /v1/saved
+            --unauthenticated /auth/session --unauthenticated /v1/saved \
+            --unauthenticated /v1/experience/open --unauthenticated /v1/observations/batch \
+            --unauthenticated /v1/diagnostics/exposures/00000000-0000-4000-8000-000000000000/evidence
       - name: Upload release-${{ github.sha }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

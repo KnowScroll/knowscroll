@@ -3,8 +3,8 @@
 The HTTP and live-hint API: Nest 12 with the Express adapter, oRPC contract handlers
 (`@orpc/nest`), RFC 9457 problem details, and a Socket.IO gateway for revision hints. Entry
 points: `dist/main.js` (serve), `dist/migrate.js` (migrate the database, install pg-boss, apply
-queue policies) and `dist/operator.js issue-sign-in --email <address>` (dev/stage only: a one-time
-sign-in link for a disposable test account, D-007). Variables:
+queue policies) and `dist/operator.js` (dev/stage/ci/local only: `issue-sign-in --email <address>` prints a one-time
+sign-in link for a disposable test account, D-007; `content import-editorial --file <path>` admits the authored starter Scroll, D-005). Variables:
 `docs/v2/engineering/runtime-configuration.md`.
 
 | File | Role |
@@ -20,13 +20,16 @@ sign-in link for a disposable test account, D-007). Variables:
 | `src/http/problems.ts` | The one outcome → HTTP mapping: oRPC errors, Nest exceptions and body-parser errors become `application/problem+json`; lock waits, timeouts, deadlocks and serialisation failures become a 503 with `Retry-After`, logged once as `http.retryable_failure` with their code; unexpected errors are logged once and answered with `INTERNAL` |
 | `src/http/request-context.ts` | Server-generated request ID (`x-request-id`) and `http.request_completed` with the route template |
 | `src/realtime/scope.gateway.ts` | Socket.IO on `/socket.io`: authenticated connections (native: the bearer token in `auth.token`; web: the session cookie, only from `KS_PUBLIC_ORIGIN`); `subscribe_scope` joins first, then checks session validity and current access and leaves when refused (error ack on failure); every relayed hint re-authorised per socket (session and access, cache ≤ 30 s): `scope_revoked` for a dropped subscription, a disconnect for an invalid session; `revokeAccountSockets` notices disconnect an account's sockets; after a relay reconnect every socket is closed and must authenticate again; no socket commands |
-| `src/modules/*.ts` | Feature wiring: identity (read ports, sign-in use cases and the mail sender chosen by configuration, the operator use case), content and experience providers bound to this app's tokens |
+| `src/http/observations.controller.ts` | `POST /v1/observations/batch` (stored, not projected) and the dev-only evidence diagnostics read (world allow-list; 404 elsewhere) |
+| `src/modules/*.ts` | Feature wiring: identity (read ports, sign-in use cases and the mail sender chosen by configuration, the operator use case), content (read ports, the document renderer, the import use case), experience and evidence (intake) providers bound to this app's tokens |
 | `src/queues.ts` | The backend's `releaseQueues` (applied by `migrate.js`) |
 | `src/migrate.ts` | Migration command |
-| `src/operator.ts` | Operator sign-in command (refused in live and without `KS_ALLOW_OPERATOR_SIGN_IN=1`; link on stdout, diagnostics on stderr) |
+| `src/operator.ts` | Operator commands: `issue-sign-in` (refused in live and without `KS_ALLOW_OPERATOR_SIGN_IN=1`; link on stdout, diagnostics on stderr) and `content import-editorial --file <path>` (allow-listed worlds only; one JSON line on stdout, a `content.scroll_admitted` record and, for a refusal, its stage and issue codes and paths on stderr; exit 0 admitted or unchanged, 1 refused or failed, 2 usage) |
 
 Routes: `GET /health` (release identity and relay state), `POST /auth/sign-in`, `POST /auth/redeem`,
-`GET /auth/session`, `POST /auth/sign-out`, `POST /v1/actions`, `GET /v1/saved`. Request pipeline:
+`GET /auth/session`, `POST /auth/sign-out`, `POST /v1/actions`, `GET /v1/saved`, `POST /v1/experience/open`,
+`POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document`, `POST /v1/observations/batch`
+and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` (404 outside `dev`, `stage`, `ci`, `local`). Request pipeline:
 request context → `Cache-Control: no-store` under `/auth` → origin guard (403) → JSON-only bodies
 (415 otherwise) → size-limited JSON parser (413) → body error handler → Nest routes → oRPC handler
 → problem encoder.
