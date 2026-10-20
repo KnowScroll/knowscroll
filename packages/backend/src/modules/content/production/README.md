@@ -44,13 +44,13 @@ JSON; v2 makes that distinction explicit and adds one `JSON.stringify`-generated
 example. This is a bounded prompt correction, not evidence that the earlier model copied grammar
 or that the revised prompt will succeed. Parsing, schemas, admission and repair limits are unchanged.
 
-| Identity | v1 | v2 | v3 | v4 | v5 | Current v6 |
-|---|---|---|---|---|---|---|
-| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` | `scroll-production.v5` | `scroll-production.v6` |
-| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged | Unchanged | `scroll-claims.v3` (native object carrier) |
-| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) | `scroll-writer.v3` | `scroll-writer.v4` (semantic repair feedback) | `scroll-writer.v5` (native object + original prose) |
-| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged |
-| Evidence candidate recipe | None | None | `quote-candidates.v1` | Unchanged | Unchanged | Unchanged |
+| Identity | v1 | v2 | v3 | v4 | v5 | v6 | Current v7 |
+|---|---|---|---|---|---|---|---|
+| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` | `scroll-production.v5` | `scroll-production.v6` | `scroll-production.v7` |
+| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged | Unchanged | `scroll-claims.v3` (native object carrier) | `scroll-claims.v4` (advisory input shape) |
+| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) | `scroll-writer.v3` | `scroll-writer.v4` (semantic repair feedback) | `scroll-writer.v5` (native object + original prose) | `scroll-writer.v6` (advisory input shape) |
+| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged |
+| Evidence candidate recipe | None | None | `quote-candidates.v1` | Unchanged | Unchanged | Unchanged | Unchanged |
 
 All four rejected v1/v2/v3 jobs, their stable run IDs and eleven attempts stay untouched. A reviewed v4 invocation
 creates a different job and role runs; it is not a resend or resume of an earlier version. It still
@@ -168,7 +168,7 @@ canonical DSL, copy-nine, numeric/honesty/support binding, privacy, publication 
 brake and all spend/unknown/replay rules are unchanged. At most two claims calls and two writer
 calls remain possible. The new job policy and role versions record actual format/instruction
 changes; they do not alter or resume terminal v1–v5 jobs, old attempts, receipts or protected bytes.
-Current publication attribution requires v6 job lineage and v5 writer provenance automatically
+That version's publication attribution requires v6 job lineage and v5 writer provenance automatically
 through the same imported constants. No runtime activation, new allowance or call is authorized.
 
 CI uses authored HTTP responses through the real reviewed M3 encoder/parser and production harness
@@ -177,6 +177,32 @@ safe feedback, stored bytes, max-four accounting, terminal/unknown replay and un
 Historical synthetic v1–v5 job/attempt snapshots stay byte-identical. Such fixtures establish
 protocol/application behavior; actual provider selection, three generated Scrolls (two interactive)
 and quality review still require separately allocated real runs and connected reading evidence.
+
+## Advisory native input shape in v7
+
+Policy `scroll-production.v7`, claims `scroll-claims.v4` and writer/provenance `scroll-writer.v6`
+add `nativeOutputSchema: zod-structural.v1` to both existing native-object roles. The reviewed
+shared harness derives structural input from their existing Zod schemas, uses `hp4-tool-schema`
+framing and includes the bounded canonical schema in the same fixed `submit_output` data carrier.
+Claims still submit the pre-transform `candidateIds`; code still hydrates exact offered quotes.
+The writer's complete canonical ScrollDraft arrays/fields are described without copying a DSL.
+Both primary and the existing single repair carry the same structural schema; the full encoded
+request stays within the unchanged 100000-byte limit or refuses before reasoning admission.
+
+This is advisory guidance, not constrained decoding or semantic truth. Custom refinements, exact
+source/selection checks, min-four, copy-nine, binding, numeric/honesty, compiler and stored-document
+admission remain unchanged. Role instructions, the three existing topic recipes, stable role IDs,
+4000/12000 output ceilings, max-four attempts, daily caps/brakes, generation and unknown/replay
+rules are unchanged. No actual failed v6 draft is available or reconstructed here.
+
+The unique v7 job key creates new lineage; it never rewrites or resumes v1–v6 terminal jobs,
+provenance, attempts or protected bytes. Publication uses the existing imported policy/writer
+constants, so new attribution requires v7/v6 lineage and rejects previous native versions.
+CI uses labelled fake HTTP through the real M3 encoder/parser and real PostgreSQL to check full
+primary/repair schemas, bytes/hashes/accounting, exact new publication lineage, null invalid drafts,
+one repair and retained historical snapshots. Fixtures are not generated content or real provider
+acceptance. This source change authorises no call, allowance, role-cap reset or runtime activation;
+a reviewed operator profile and any missing owner allocation remain separate work.
 
 ## New-publication topic authority
 

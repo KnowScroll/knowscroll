@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -34,6 +34,7 @@ import {
   validSafeCustomIssues,
 } from '../../../packages/backend/src/reasoning/domain/output.js';
 import { buildPrompt } from '../../../packages/backend/src/reasoning/domain/prompt.js';
+import { deriveNativeInputSchema } from '../../../packages/backend/src/reasoning/domain/native-schema.js';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureModel, fixtureSettings, gate, signal, silent } from '../support/fixture-model.js';
@@ -106,9 +107,11 @@ describe('writer semantic feedback contract (authored CI fixture; no provider ne
     expect(role.safeCustomIssues).not.toHaveProperty('admission_refused');
     expect(claimsRole([page]).safeCustomIssues).toBeUndefined();
     expect(claimsRole([page]).id).toBe('content.scroll-claims');
-    expect(claimsRole([page]).version).toBe('scroll-claims.v3');
+    expect(claimsRole([page]).version).toBe('scroll-claims.v4');
+    expect(claimsRole([page]).nativeOutputSchema).toBe('zod-structural.v1');
     expect(role.id).toBe('content.scroll-writer');
-    expect(role.version).toBe('scroll-writer.v5');
+    expect(role.version).toBe('scroll-writer.v6');
+    expect(role.nativeOutputSchema).toBe('zod-structural.v1');
   });
 
   it.each([
@@ -132,6 +135,7 @@ describe('writer semantic feedback contract (authored CI fixture; no provider ne
       roleVersion: role.version,
       instructions: role.instructions,
       outputFormat: role.outputFormat,
+      nativeOutputSchema: role.nativeOutputSchema,
       bundleRef: 'ci-fixture-semantic-feedback',
       items: [],
       feedback: result.issues,
@@ -203,6 +207,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       ...fixture,
       // Scripted domain fixtures declare the data capability; actual wire shape is exercised below.
       supportsSingleToolObject: true,
+      supportsNativeOutputSchema: true,
       provider: admittedProviderIdentity ? 'minimax' : fixture.provider,
       model: admittedProviderIdentity ? 'MiniMax-M3' : fixture.model,
     });
@@ -248,7 +253,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         quotaTimeoutMs: 200,
         quotaFloorPercent: 25,
         maxReplyBytes: 524_288,
-        maxRequestBytes: 262_144,
+        maxRequestBytes: 100_000,
       },
       (url, init) => {
         expect(url).toBe('https://api.minimax.io/anthropic/v1/messages');
@@ -295,7 +300,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         enabled: true,
         model,
         logEvent: silent,
-        settings: fixtureSettings,
+        settings: { ...fixtureSettings, maxRequestBytes: 100_000 },
       }),
     );
     const produce = makeProduceScroll({
@@ -332,23 +337,53 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
             tools: unknown[];
             tool_choice: unknown;
             system: string;
+            max_tokens: number;
           },
       );
-      for (const wire of wires) {
+      const expectedClaims = deriveNativeInputSchema(claimsRole([page]).outputSchema);
+      const expectedWriter = deriveNativeInputSchema(
+        writerRole(
+          generatedProvenance({
+            topic,
+            runId: 'ci-schema-only',
+            attemptIds: [],
+            model: 'MiniMax-M3',
+            claims,
+            pages: [page],
+          }),
+          interactive,
+        ).outputSchema,
+      );
+      expect(expectedClaims).toBeDefined();
+      expect(expectedWriter).toBeDefined();
+      expect(expectedClaims?.['required']).toEqual(['candidateIds']);
+      expect(expectedWriter?.['required']).toEqual(['draftVersion', 'title', 'dek', 'sections', 'bindings']);
+      for (const [index, wire] of wires.entries()) {
         expect(wire.tools).toEqual([
           {
             name: 'submit_output',
-            description: 'Submit the complete answer object as data. This tool executes no action.',
-            input_schema: { type: 'object' },
+            description:
+              'Submit the complete answer object as data matching the advisory input shape. This tool executes no action.',
+            input_schema: index < 2 ? expectedClaims : expectedWriter,
           },
         ]);
         expect(wire.tool_choice).toEqual({ type: 'auto' });
-        expect(wire.system).toContain('framing hp3-tool-object');
+        expect(wire.system).toContain('framing hp4-tool-schema');
         expect(wire.system).toContain('including for a repair');
         expect(wire).not.toHaveProperty('response_format');
+        expect(p.calls[index]?.byteLength).toBeLessThanOrEqual(100000);
+        expect(wire.max_tokens).toBe(index < 2 ? 4000 : 12000);
       }
-      expect(wires.slice(0, 2).every((wire) => wire.system.includes('version scroll-claims.v3,'))).toBe(true);
-      expect(wires.slice(2).every((wire) => wire.system.includes('version scroll-writer.v5,'))).toBe(true);
+      process.stdout.write(
+        `${JSON.stringify({
+          event: 'content-native-schema-request-bytes',
+          interactive,
+          bytes: p.calls.map((bytes) => bytes.byteLength),
+          cap: 100000,
+        })}\n`,
+      );
+      expect(wires.slice(0, 2).every((wire) => wire.system.includes('version scroll-claims.v4,'))).toBe(true);
+      expect(wires.slice(2).every((wire) => wire.system.includes('version scroll-writer.v6,'))).toBe(true);
       expect(wires[1]?.system).toContain('candidateIds: too_small (at least 4 items)');
       expect(wires[3]?.system).toContain(`copied_passage (${REPAIR_HINTS.copied_passage})`);
       expect(wires[3]?.system).not.toContain(passage);
@@ -362,10 +397,10 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       expect(
         attempts.map((row) => [row.role_id, row.role_version, row.step, row.prompt_version, row.outcome_code]),
       ).toEqual([
-        ['content.scroll-claims', 'scroll-claims.v3', 'primary', 'hp3-tool-object', 'OUTPUT_SCHEMA_MISMATCH'],
-        ['content.scroll-claims', 'scroll-claims.v3', 'repair', 'hp3-tool-object', 'SUCCEEDED'],
-        ['content.scroll-writer', 'scroll-writer.v5', 'primary', 'hp3-tool-object', 'OUTPUT_SCHEMA_MISMATCH'],
-        ['content.scroll-writer', 'scroll-writer.v5', 'repair', 'hp3-tool-object', 'SUCCEEDED'],
+        ['content.scroll-claims', 'scroll-claims.v4', 'primary', 'hp4-tool-schema', 'OUTPUT_SCHEMA_MISMATCH'],
+        ['content.scroll-claims', 'scroll-claims.v4', 'repair', 'hp4-tool-schema', 'SUCCEEDED'],
+        ['content.scroll-writer', 'scroll-writer.v6', 'primary', 'hp4-tool-schema', 'OUTPUT_SCHEMA_MISMATCH'],
+        ['content.scroll-writer', 'scroll-writer.v6', 'repair', 'hp4-tool-schema', 'SUCCEEDED'],
       ]);
       expect(attempts[0]?.output).toBeNull();
       expect(attempts[2]?.output).toBeNull();
@@ -373,18 +408,32 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       expect(JSON.stringify(attempts)).not.toContain('PRIVATE-NATIVE-THINKING');
       const protectedRows = await database.db
         .selectFrom('reasoning.production_requests')
-        .select(['attempt_id', 'body'])
+        .select(['attempt_id', 'body', 'body_sha256'])
         .execute();
-      for (const [index, bytes] of p.calls.entries())
+      for (const [index, bytes] of p.calls.entries()) {
         expect(new Uint8Array(protectedRows.find((row) => row.attempt_id === attempts[index]?.id)?.body ?? [])).toEqual(
           bytes,
         );
+        const digest = createHash('sha256').update(bytes).digest('hex');
+        expect(attempts[index]?.request_hash).toBe(digest);
+        expect(protectedRows.find((row) => row.attempt_id === attempts[index]?.id)?.body_sha256).toBe(digest);
+        expect(attempts[index]?.reserved_tokens).toBe(bytes.length + (index < 2 ? 4000 : 12000));
+      }
+      const usage = await database.db
+        .selectFrom('reasoning.usage_receipts')
+        .select(['attempt_id', 'state', 'input_tokens', 'output_tokens'])
+        .execute();
+      expect(usage).toHaveLength(4);
+      expect(usage.every((row) => row.state === 'settled' && row.input_tokens === 20 && row.output_tokens === 5)).toBe(
+        true,
+      );
+      expect(new Set(usage.map((row) => row.attempt_id))).toEqual(new Set(attempts.map((row) => row.id)));
       const runs = await database.db
         .selectFrom('reasoning.production_runs')
         .select(['policy_version', 'generation'])
         .execute();
       expect(runs).toHaveLength(2);
-      expect(runs.every((run) => run.policy_version === 'scroll-production.v6' && run.generation === 1)).toBe(true);
+      expect(runs.every((run) => run.policy_version === 'scroll-production.v7' && run.generation === 1)).toBe(true);
       for (const receipt of first.attempts?.filter((item) => item.role !== 'checks') ?? []) {
         expect(receipt).toMatchObject({ repaired: true, inputTokens: 40, outputTokens: 10 });
         expect(receipt.attempts?.map((item) => item.step)).toEqual(['primary', 'repair']);
@@ -396,7 +445,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .executeTakeFirstOrThrow();
       expect(provenance.provenance).toMatchObject({
         production: {
-          promptVersion: 'scroll-writer.v5',
+          promptVersion: 'scroll-writer.v6',
           model: 'MiniMax-M3',
           attemptIds: attempts.slice(2).map((attempt) => attempt.id),
         },
@@ -487,7 +536,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
               id: randomUUID(),
               ownerModule: 'content',
               purpose: 'fixture-unsupported',
-              policyVersion: 'scroll-production.v6',
+              policyVersion: 'scroll-production.v7',
               authority: { scopeId: 'scroll-supply', generation: 1 },
             },
             role,
@@ -538,14 +587,14 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       const result = await p.produce()(topic, false, signal());
       expect(result.outcome).toBe('published');
       expect(p.model.calls).toHaveLength(2);
-      expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v5,');
+      expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v6,');
       expect(
         await database.db
           .selectFrom('content.scroll_production_runs')
           .select('policy_version')
           .where('id', '=', result.runId ?? '')
           .executeTakeFirstOrThrow(),
-      ).toEqual({ policy_version: 'scroll-production.v6' });
+      ).toEqual({ policy_version: 'scroll-production.v7' });
       expect(
         await database.db
           .selectFrom('content.asset_provenance')
@@ -553,7 +602,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
           .where('asset_id', '=', result.assetId ?? '')
           .executeTakeFirstOrThrow(),
       ).toMatchObject({
-        provenance: { production: { promptVersion: 'scroll-writer.v5' } },
+        provenance: { production: { promptVersion: 'scroll-writer.v6' } },
       });
       expect(p.model.calls.every((call) => call.request.fixture === 'scroll-production-CI-fixture')).toBe(true);
       const projected = await database.db
@@ -602,6 +651,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     'wrong_writer_run',
     'wrong_prompt_version',
     'previous_prompt_version',
+    'previous_native_prompt_version',
     'wrong_document_version',
     'wrong_provenance_version',
     'foreign_provenance_run',
@@ -611,6 +661,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     'foreign_model',
     'wrong_job_version',
     'previous_job_version',
+    'previous_native_job_version',
     'incomplete',
     'mismatched_revision',
     'no_baseline',
@@ -628,6 +679,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
           when 'wrong_writer_run' then update content.scroll_production_runs set writer_run_id=gen_random_uuid() where id=new.id;
           when 'wrong_prompt_version' then update content.asset_provenance set provenance=jsonb_set(provenance,'{production,promptVersion}','"scroll-writer.foreign"') where asset_id=new.asset_id;
           when 'previous_prompt_version' then update content.asset_provenance set provenance=jsonb_set(provenance,'{production,promptVersion}','"scroll-writer.v4"') where asset_id=new.asset_id;
+          when 'previous_native_prompt_version' then update content.asset_provenance set provenance=jsonb_set(provenance,'{production,promptVersion}','"scroll-writer.v5"') where asset_id=new.asset_id;
           when 'wrong_document_version' then update content.asset_revisions set document_version='scroll-document.foreign' where asset_id=new.asset_id;
           when 'wrong_provenance_version' then update content.asset_provenance set provenance_version='scroll-provenance.foreign' where asset_id=new.asset_id;
           when 'foreign_provenance_run' then update content.asset_provenance set provenance=jsonb_set(provenance,'{production,runId}',to_jsonb(gen_random_uuid()::text)) where asset_id=new.asset_id;
@@ -637,6 +689,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
           when 'foreign_model' then update content.asset_provenance set provenance=jsonb_set(provenance,'{production,model}','"foreign-model"') where asset_id=new.asset_id;
           when 'wrong_job_version' then update content.scroll_production_runs set policy_version='scroll-production.foreign' where id=new.id;
           when 'previous_job_version' then update content.scroll_production_runs set policy_version='scroll-production.v5' where id=new.id;
+          when 'previous_native_job_version' then update content.scroll_production_runs set policy_version='scroll-production.v6' where id=new.id;
           when 'incomplete' then update content.scroll_production_runs set writer_output=null where id=new.id;
           when 'mismatched_revision' then update content.scroll_production_runs set target_revision=target_revision+1 where id=new.id;
           when 'no_baseline' then delete from content.discovery_revisions where asset_id=new.asset_id;
@@ -739,7 +792,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(first);
     expect(p.model.calls).toHaveLength(4);
   });
-  it('preserves all six historical terminal jobs and eighteen attempt fixtures byte-for-byte while v6 creates distinct runs', async () => {
+  it('preserves historical v1–v6 jobs, attempts and native request bytes while v7 creates distinct runs', async () => {
     // Historical SHAPES only: synthetic IDs/receipts, never imported real research or provider output.
     const old = [
       { policy: 'scroll-production.v1', topic: 'seasons', counts: [1, 2] },
@@ -748,6 +801,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       { policy: 'scroll-production.v3', topic: 'greenhouse', counts: [1, 2] },
       { policy: 'scroll-production.v4', topic: 'greenhouse', counts: [1, 2] },
       { policy: 'scroll-production.v5', topic: 'greenhouse', counts: [2, 2] },
+      { policy: 'scroll-production.v6', topic: 'greenhouse', counts: [1, 2] },
     ].map((shape) => ({ ...shape, id: randomUUID(), claims: randomUUID(), writer: randomUUID() }));
     for (const job of old) {
       await sql`insert into content.scroll_production_runs (id,topic,policy_version,target_revision,scope_generation,state,claims_run_id,writer_run_id,outcomes,completed_at) values (${job.id},${job.topic},${job.policy},1,1,'rejected',${job.claims},${job.writer},'[ {"role":"checks","kind":"rejected","code":"ci_prior_invalid_output"} ]'::jsonb,now())`.execute(
@@ -761,21 +815,58 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
           job.policy === 'scroll-production.v1'
             ? job.policy
             : role === 'writer'
-              ? job.policy === 'scroll-production.v5'
-                ? 'scroll-writer.v4'
-                : job.policy === 'scroll-production.v4'
-                  ? 'scroll-writer.v3'
-                  : 'scroll-writer.v2'
-              : job.policy === 'scroll-production.v2'
-                ? 'scroll-claims.v1'
-                : 'scroll-claims.v2';
+              ? job.policy === 'scroll-production.v6'
+                ? 'scroll-writer.v5'
+                : job.policy === 'scroll-production.v5'
+                  ? 'scroll-writer.v4'
+                  : job.policy === 'scroll-production.v4'
+                    ? 'scroll-writer.v3'
+                    : 'scroll-writer.v2'
+              : job.policy === 'scroll-production.v6'
+                ? 'scroll-claims.v3'
+                : job.policy === 'scroll-production.v2'
+                  ? 'scroll-claims.v1'
+                  : 'scroll-claims.v2';
         await sql`insert into reasoning.production_runs (scope_id,id,owner_module,purpose,generation,role_id,role_version,policy_version,provider,model,state,closed_at) values ('scroll-supply',${id},'content',${`scroll-${role}`},1,${`content.scroll-${role}`},${version},${job.policy},'fixture','historical-CI-fixture','failed',now())`.execute(
           database.db,
         );
-        for (let step = 0; step < count; step += 1)
-          await sql`insert into reasoning.production_attempts (scope_id,id,run_id,step,provider,model,role_id,role_version,request_hash,state,dispatch_id,dispatched_at,settled_at,outcome_code) values ('scroll-supply',${randomUUID()},${id},${step === 0 ? 'primary' : 'repair'},'fixture','historical-CI-fixture',${`content.scroll-${role}`},${version},${'f'.repeat(64)},'failed',${randomUUID()},now(),now(),'CI_HISTORICAL_REFUSAL')`.execute(
+        for (let step = 0; step < count; step += 1) {
+          const attemptId = randomUUID();
+          // Frozen authored hp3 wire shape, not a reconstruction of any real failed answer.
+          const body = Buffer.from(
+            JSON.stringify({
+              model: 'MiniMax-M3',
+              max_tokens: role === 'claims' ? 4000 : 12000,
+              system: `Historical CI fixture ${version}, hp3-tool-object, ${step === 0 ? 'primary' : 'repair'}`,
+              messages: [{ role: 'user', content: [{ type: 'text', text: 'Historical authored CI context only.' }] }],
+              thinking: { type: 'disabled' },
+              tools: [
+                {
+                  name: 'submit_output',
+                  description: 'Submit the complete answer object as data. This tool executes no action.',
+                  input_schema: { type: 'object' },
+                },
+              ],
+              tool_choice: { type: 'auto' },
+            }),
+          );
+          const digest = createHash('sha256').update(body).digest('hex');
+          await sql`insert into reasoning.production_attempts (scope_id,id,run_id,step,provider,model,role_id,role_version,prompt_version,request_hash,state,dispatch_id,dispatched_at,settled_at,outcome_code) values ('scroll-supply',${attemptId},${id},${step === 0 ? 'primary' : 'repair'},'fixture','historical-CI-fixture',${`content.scroll-${role}`},${version},${job.policy === 'scroll-production.v6' ? 'hp3-tool-object' : null},${job.policy === 'scroll-production.v6' ? digest : 'f'.repeat(64)},'failed',${randomUUID()},now(),now(),'CI_HISTORICAL_REFUSAL')`.execute(
             database.db,
           );
+          if (job.policy === 'scroll-production.v6')
+            await database.db
+              .insertInto('reasoning.production_requests')
+              .values({
+                scope_id: 'scroll-supply',
+                attempt_id: attemptId,
+                body,
+                body_sha256: digest,
+                erasure_class: 'nonpersonal_production',
+                expires_at: new Date(Date.now() + 3600000),
+              })
+              .execute();
+        }
       }
     }
     const ids = old.flatMap((job) => [job.claims, job.writer]);
@@ -783,7 +874,14 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       jobs: (
         await sql<{
           bytes: string;
-        }>`select row_to_json(r)::text as bytes from content.scroll_production_runs r where policy_version in ('scroll-production.v1','scroll-production.v2','scroll-production.v3','scroll-production.v4','scroll-production.v5') order by id`.execute(
+        }>`select row_to_json(r)::text as bytes from content.scroll_production_runs r where policy_version in ('scroll-production.v1','scroll-production.v2','scroll-production.v3','scroll-production.v4','scroll-production.v5','scroll-production.v6') order by id`.execute(
+          database.db,
+        )
+      ).rows,
+      requests: (
+        await sql<{
+          bytes: string;
+        }>`select row_to_json(r)::text as bytes from reasoning.production_requests r join reasoning.production_attempts a on a.id=r.attempt_id where a.run_id=any(${ids}::uuid[]) order by r.attempt_id`.execute(
           database.db,
         )
       ).rows,
@@ -803,8 +901,18 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       ).rows,
     });
     const before = await previousBytes();
-    expect(before.jobs).toHaveLength(6);
-    expect(before.attempts).toHaveLength(18);
+    expect(before.jobs).toHaveLength(7);
+    expect(before.attempts).toHaveLength(21);
+    expect(before.requests).toHaveLength(3);
+    const v6 = old.find((job) => job.policy === 'scroll-production.v6');
+    const legacyJobs = before.jobs.filter(
+      (row) => (JSON.parse(row.bytes) as { policy_version: string }).policy_version !== 'scroll-production.v6',
+    );
+    const legacyAttempts = before.attempts.filter(
+      (row) => ![v6?.claims, v6?.writer].includes((JSON.parse(row.bytes) as { run_id: string }).run_id),
+    );
+    expect(legacyJobs).toHaveLength(6);
+    expect(legacyAttempts).toHaveLength(18);
     const p = setup((n) => answer(n === 1 ? selection : draft()));
     const result = await p.produce()('greenhouse', false, signal());
     expect(result.outcome).toBe('published');
@@ -815,17 +923,17 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       .select(['policy_version', 'claims_run_id', 'writer_run_id'])
       .where('id', '=', result.runId ?? '')
       .executeTakeFirstOrThrow();
-    expect(current.policy_version).toBe('scroll-production.v6');
+    expect(current.policy_version).toBe('scroll-production.v7');
     expect(ids).not.toContain(current.claims_run_id);
     expect(ids).not.toContain(current.writer_run_id);
-    expect(p.model.calls[0]?.request.system).toContain('version scroll-claims.v3,');
-    expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v5,');
+    expect(p.model.calls[0]?.request.system).toContain('version scroll-claims.v4,');
+    expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v6,');
     const provenance = await database.db
       .selectFrom('content.asset_provenance')
       .select('provenance')
       .where('asset_id', '=', result.assetId ?? '')
       .executeTakeFirstOrThrow();
-    expect(provenance.provenance).toMatchObject({ production: { promptVersion: 'scroll-writer.v5' } });
+    expect(provenance.provenance).toMatchObject({ production: { promptVersion: 'scroll-writer.v6' } });
     expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(result);
     expect(p.model.calls).toHaveLength(2);
     expect(await previousBytes()).toEqual(before);
@@ -987,11 +1095,11 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     };
     await expect(p.produce(stopBeforeWriter)('greenhouse', false, signal())).rejects.toThrow('CI_STOP_BEFORE_WRITER');
     if (changed === 'claims')
-      await sql`update content.scroll_production_runs set claims=jsonb_set(claims,'{claims,0,quote}','"tampered CI quote"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v6'`.execute(
+      await sql`update content.scroll_production_runs set claims=jsonb_set(claims,'{claims,0,quote}','"tampered CI quote"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v7'`.execute(
         database.db,
       );
     else
-      await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v6'`.execute(
+      await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v7'`.execute(
         database.db,
       );
     const resumed = await p.produce()('greenhouse', false, signal(), true);

@@ -45,14 +45,18 @@ model-generated Scrolls, at least two interactive, still require actual publicat
 through the connected app. A fixture publication or green CI cannot establish this. Human quality
 notes must cover accuracy, clarity, interactivity, unsupported inference and analogy limitations.
 
-The current source recipe is `scroll-production.v6`, with `scroll-claims.v3` and
-`scroll-writer.v5` stage versions; the writer version is recorded as publication `promptVersion`.
+The current source recipe is `scroll-production.v7`, with `scroll-claims.v4` and
+`scroll-writer.v6` stage versions; the writer version is recorded as publication `promptVersion`.
 Both roles opt into the reviewed M3 single native-object data carrier with documented auto-only
-tool choice, no execution or forced/schema-decoder guarantee. The writer requests original prose
+tool choice and the reviewed `zod-structural.v1` advisory input schema (`hp4-tool-schema`), with no
+execution or forced/schema-decoder guarantee. Structural input derives from existing role Zod
+schemas; transformations and semantic/compiler/admission checks remain authoritative. Full primary
+and repair bytes must fit the unchanged 100000-byte cap. The writer requests original prose
 and corresponding repair anchors; every existing check and max-four request bound stays in force.
 This is source configuration, not runtime/provider acceptance or permission to call. New jobs keep
-stable role IDs and generation; all terminal v1–v5 jobs, attempts, receipts and failed-draft privacy
-remain unchanged. See [the production contract](../../../packages/backend/src/modules/content/production/README.md#native-object-carrier-and-original-prose-in-v6).
+stable role IDs and generation; all terminal v1–v6 jobs, attempts, receipts and failed-draft privacy
+remain unchanged. No provider call, allowance or daily-cap change is authorised by this source
+version. See [the production contract](../../../packages/backend/src/modules/content/production/README.md#advisory-native-input-shape-in-v7).
 Claims now select four to eight immutable offered evidence IDs. Code verifies source hashes,
 complete original 40–600-character quote spans, offsets and membership, then hydrates statement
 and quote to the same source text. `documented` labels a direct quotation, not proven truth or

@@ -1,5 +1,5 @@
 /** Reviewed production recipe, including role prompt changes; new versions never resume old jobs. */
-export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v6';
+export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v7';
 export const REQUEST_BOUND_PER_TOPIC = 4;
 export const TOPICS = {
   seasons: {
