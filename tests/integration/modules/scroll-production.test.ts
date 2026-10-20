@@ -30,11 +30,17 @@ import type { FixtureScenario } from '../support/fixture-model-port.js';
 // Every word below and every model answer is a labelled, authored CI fixture, never real provider evidence.
 const passage =
   'This deliberately authored fixture passage describes the public research snapshot boundary with sufficiently distinctive wording for exact quote checks while avoiding overlap with the separate fixture explanation.';
-const page = extractResearch(
-  `<html><title>CI fixture</title><main>${[0, 1, 2, 3].map((n) => `<p>${passage} Example ${n}.</p>`).join('')}</main></html>`,
-  'https://spaceplace.nasa.gov/seasons/en/',
-  '2026-10-20T00:00:00.000Z',
-);
+function researchFixture(url: string): ResearchPage {
+  // The two-page tides recipe needs two distinct source identities; fixture claims keep the
+  // first snapshot's exact bytes while the second is a separately labelled authored source.
+  const extra = url === TOPICS.tides.pages[1] ? ' A separately authored second research snapshot.' : '';
+  return extractResearch(
+    `<html><title>CI fixture</title><main>${[0, 1, 2, 3].map((n) => `<p>${passage} Example ${n}.${extra}</p>`).join('')}</main></html>`,
+    url,
+    '2026-10-20T00:00:00.000Z',
+  );
+}
+const page = researchFixture('https://spaceplace.nasa.gov/seasons/en/');
 const candidates = quoteCandidates([page]);
 const selection = { candidateIds: candidates.slice(0, 4).map(({ id }) => id) };
 const claims = hydrateSelectedClaims([page], candidates, selection.candidateIds);
@@ -96,7 +102,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     );
     const produce = (
       selected: ProductionReasoningHarness = harness,
-      research: (url: string) => Promise<ResearchPage> = () => Promise.resolve(page),
+      research: (url: string) => Promise<ResearchPage> = (url) => Promise.resolve(researchFixture(url)),
     ) =>
       makeProduceScroll({
         db: database.db,
@@ -418,8 +424,8 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     const p = setup((n) => answer(n === 1 ? selection : n === 2 ? bad : draft()));
     expect((await p.produce()('greenhouse', false, signal())).outcome).toBe('published');
     expect(p.model.calls).toHaveLength(3);
-    expect(p.model.calls[2]?.request.user).toContain('sections[0].blocks[0].data.spans');
-    expect(p.model.calls[2]?.request.user).toContain('expected array');
+    expect(p.model.calls[2]?.request.system).toContain('sections[0].blocks[0].data.spans');
+    expect(p.model.calls[2]?.request.system).toContain('expected array');
     const failed = await database.db
       .selectFrom('reasoning.production_attempts')
       .select('output_issues')
