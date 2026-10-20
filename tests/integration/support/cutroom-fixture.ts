@@ -55,6 +55,9 @@ export async function cutroomFixture(root: string, options: { ffmpeg?: string } 
     state: 'finished',
     lastSeq: 1,
   };
+  // Synthetic metadata with the real greenhouse topology: three pictured shots, six used takes.
+  // Other shots are permitted text-to-video by the pinned engine; the wire has no mode field.
+  const picturedShots = [1, 3, 5];
   const result = {
     contractVersion: 1,
     runId: fixtureRunId,
@@ -63,30 +66,30 @@ export async function cutroomFixture(root: string, options: { ffmpeg?: string } 
     until: 'video',
     costCents: 0,
     estimateCents: 0,
-    stills: [{ pictureId: 'fixture-picture', shotId: 'fixture-shot', path: join(folder, 'fixture.jpg') }],
+    stills: picturedShots.map((shot) => ({
+      pictureId: `fixture-picture-${shot}`,
+      shotId: `shot-${shot}`,
+      path: join(folder, `fixture-${shot}.jpg`),
+    })),
     video: { path },
     degradations: [],
   };
   const record = {
     contractVersion: 1,
     runId: fixtureRunId,
-    pictures: [
-      {
-        pictureId: 'fixture-picture',
-        shotId: 'fixture-shot',
-        chosen: true,
-        checks: ['technical', 'text', 'witness', 'reconcile'].map((step) => ({ gate: '1', step, outcome: 'accept' })),
-      },
-    ],
-    takes: [
-      {
-        takeId: 'fixture-take',
-        shotId: 'fixture-shot',
-        number: 1,
-        used: true,
-        checks: ['2', '3', '4', '5'].map((gate) => ({ gate, outcome: 'accept' })),
-      },
-    ],
+    pictures: picturedShots.map((shot) => ({
+      pictureId: `fixture-picture-${shot}`,
+      shotId: `shot-${shot}`,
+      chosen: true,
+      checks: ['technical', 'text', 'witness', 'reconcile'].map((step) => ({ gate: '1', step, outcome: 'accept' })),
+    })),
+    takes: Array.from({ length: 6 }, (_, index) => ({
+      takeId: `fixture-take-${index + 1}`,
+      shotId: `shot-${index + 1}`,
+      number: 1,
+      used: true,
+      checks: ['2', '3', '4', '5'].map((gate) => ({ gate, outcome: 'accept' })),
+    })),
     degradations: [],
   };
   const ready = { contractVersion: 1, ready: true };
