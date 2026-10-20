@@ -329,14 +329,16 @@ export function makeExecuteAttempt<A, S>(ports: ExecutionPorts<A, S>) {
         if (locked === undefined) throw new Error('unreachable: a first attempt always has a step name');
         return { kind: 'exhausted_sequences', row: locked };
       }
-      // Reusing reserved/settled work returned above. Every new primary reservation needs a slot,
-      // including a replacement whose earlier quota preflight stopped it before dispatch.
-      if (plan.step === 'primary' && !(await ledger.canStartRun(scope, plan.roleId)))
-        return { kind: 'refused', reason: 'failure_brake' };
+      // budgetUsage holds the shared advisory lock through reserve. Existing spend limits keep
+      // their stable refusal code when both a spend cap and the role brake are full.
       const usage = await ledger.budgetUsage(scope, plan.roleId);
       const decision = decideReservation(plan.caps, usage, plan.reservedTokens);
       if (decision.kind === 'exhausted')
         return { kind: 'budget', dimension: decision.dimension, limit: decision.limit };
+      // Reusing reserved/settled work returned above. Every new primary reservation needs a slot,
+      // including a replacement whose earlier quota preflight stopped it before dispatch.
+      if (plan.step === 'primary' && !(await ledger.canStartRun(scope, plan.roleId)))
+        return { kind: 'refused', reason: 'failure_brake' };
       const attemptId = ports.newId();
       await ledger.reserve(scope, {
         id: attemptId,

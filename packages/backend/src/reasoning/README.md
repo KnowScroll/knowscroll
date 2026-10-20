@@ -314,3 +314,5 @@ source correction, privacy reset) run through the real harness with the fixture 
 harness behaviour, not content quality. CI never calls a provider.
 
 Primary attempts stopped before dispatch (for example unavailable quota) must recheck the role brake before a new primary reservation. Reusing reserved work or replaying a settled answer remains possible; the single admitted repair remains bounded by its run. This prevents staging unlimited quota-stopped runs and bypassing the brake after quota recovers.
+
+Spend caps retain precedence when both a cap and the failure brake are full. Both checks and the new reservation remain under the same shared budget advisory lock; the ordering does not release a brake slot or allow an extra dispatch. Recovery integration cases use separate template-derived databases, so one case's deliberate unresolved liabilities cannot prevent another case from exercising its intended state transition.
