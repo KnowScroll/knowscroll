@@ -327,10 +327,8 @@ describe('bounded Friends and visibility declarations', () => {
   });
 
   it('collapses expired, hidden and unknown availability without exact timestamps or playback', () => {
-    expect(FriendAvailabilitySchema.parse({ state: 'unknown' })).toEqual({
-      state: 'unknown',
-      expiryRevision: 2,
-    });
+    expect(FriendAvailabilitySchema.parse({ state: 'unknown' })).toEqual({ state: 'unknown' });
+    expect(FriendAvailabilitySchema.safeParse({ state: 'unknown', expiryRevision: 2 }).success).toBe(false);
     expect(FriendAvailabilitySchema.parse({ state: 'online', expiryRevision: 2, validForMs: 20_000 })).toBeDefined();
     for (const validForMs of [0, -1, 86_400_001, Infinity])
       expect(FriendAvailabilitySchema.safeParse({ state: 'online', expiryRevision: 2, validForMs }).success).toBe(
@@ -339,6 +337,7 @@ describe('bounded Friends and visibility declarations', () => {
     for (const state of ['offline', 'hidden', 'expired'])
       expect(FriendAvailabilitySchema.safeParse({ state, expiryRevision: 2 }).success).toBe(false);
     refusesExtras(FriendAvailabilitySchema, { state: 'unknown' }, [
+      'expiryRevision',
       'lastSeenAt',
       'expiresAt',
       'playhead',
