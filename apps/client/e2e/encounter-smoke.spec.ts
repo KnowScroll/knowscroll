@@ -272,6 +272,8 @@ test('the full Reel stage commits vertical and related swipes; dragging a player
     direction: 'next',
   });
   await expect.poll(() => commands.filter((call) => call.path.endsWith('/activate')).length).toBe(2);
+  // Activation arriving at the fixture server precedes context/grant loading and the next surface commit.
+  await expect(page.getByText('CI encounter fixture 2', { exact: true }).last()).toBeVisible();
   await expect(stage).toBeVisible();
   const second = await stage.boundingBox();
   if (!second) throw new Error('Next actual Reel stage is visible');
