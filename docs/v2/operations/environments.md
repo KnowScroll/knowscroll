@@ -82,6 +82,20 @@ What the v2 programs need at runtime, and where each comes from on the server (c
 | `KS_NATIVE_SIGN_IN_BINDING` | api: stays **unset** (off) on dev and stage until the native app ships (#226 re-review N1) | not set anywhere |
 | `KS_MAIL_SENDER=agentmail`, `KS_ALLOW_OPERATOR_SIGN_IN=1`, `KS_OPERATOR_SIGN_IN_PATTERN=*@test.knowscroll.space` | api and the operator command (S1.3: production refuses to start without AgentMail; operator links on dev/stage only, only for the pattern's addresses) | `<world>.v2.env` (`ks_v2_operator_sign_in_pattern` in `group_vars/all.yml`) |
 | `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` | api only (never the worker) | `/etc/knowscroll/secrets/shared/agentmail.env` (root only; copied once from the owner's Mac, CF-40; dev and stage share the inbox), an extra `EnvironmentFile=` of `ks2-api@` |
+| `MINIMAX_API_KEY` | worker only (never the API; S2.2, D-021) | `/etc/knowscroll/secrets/shared/minimax.env` (root only; the token-plan `sk-cp-…` key, the file v1 reads too), an extra `EnvironmentFile=` of `ks2-worker@` |
+| `KS_REASONING_PROVIDER=minimax` | worker only | `Environment=` of `ks2-worker@` (a setting, not a secret). Unset means `none`: every model call is refused. Caps, model, timeouts and protected-request retention have defaults (`runtime-configuration.md`) |
+
+**The worker's MiniMax file and what it can stop (S2.2).** `ks2-worker@` reads
+`/etc/knowscroll/secrets/shared/minimax.env`, and the Ansible role refuses to install the unit unless
+the file exists and defines `MINIMAX_API_KEY` in the token-plan shape (`sk-cp-…`; the check returns
+only ok or bad, never the value). Without that check the failure modes are: a missing file stops
+the worker unit; a key of the wrong shape, or an invalid `KS_MINIMAX_*`/`KS_REASONING_*` value,
+makes the worker exit with `config.invalid`. The worker is one process, so either takes its other
+consumers (evidence apply, the identity sweep, the reasoning sweeps) down with it; `ks` keeps the
+previous release only for what its own health checks see (the API), not for the worker's
+consumers, so check `journalctl -u ks2-worker@<world>` after the first deploy that carries this
+unit. The API never reads this file. Fixing it is a change on the server (copy the file, 0600
+root); nothing in Git can.
 
 Optional with defaults the server does not override: `KS_LISTEN_HOST` (127.0.0.1, which Caddy
 proxies), `KS_DB_POOL_MAX` (api 10, worker 5), `KS_DB_STATEMENT_TIMEOUT_MS` (15 s; migrate 15 min),
@@ -104,7 +118,7 @@ embeds the AgentMail key and v1's database password) or v1's media. The v2 setti
 (`<world>.v2.env`) and secrets are `0600 root`: systemd reads them as root (`EnvironmentFile=`)
 and hands the values to the program as its environment, and the units make `/etc/knowscroll` and
 v1's media folder invisible to the program (`InaccessiblePaths=`). The v2 media folder
-(`media-v2`, recursively) belongs to `ks2-<world>`. Only `ks2-api@` gets the AgentMail file.
+(`media-v2`, recursively) belongs to `ks2-<world>`. Only `ks2-api@` gets the AgentMail file; only `ks2-worker@` gets the MiniMax file.
 
 ### The web app's headers (#226 review m7)
 
@@ -134,6 +148,30 @@ then. Refused: an address outside the pattern (`address_not_allowed`), an addres
 by mail (`not_disposable`). Each issue leaves an audit row: `select world, issued_at,
 operator_source, account_id from ops.operator_sign_ins order by issued_at desc` (as
 `postgres` on `knowscroll_v2_<world>`); `operator_source` is `cli:<SUDO_USER>`.
+
+### Reasoning operator commands (worker tree; S2.2)
+
+The model harness records every external call in an attempt ledger. A call whose outcome is
+unknown (a timeout or reset after the request may have left) is never resent; MiniMax has no
+request lookup, so an operator writes it off. Run from the world's **worker** tree, same pattern
+as above (the world's settings and database secret; the command needs no provider key):
+
+```sh
+sudo sh -c 'set -a; . /etc/knowscroll/dev.v2.env; . /etc/knowscroll/secrets/v2-dev/database.env; set +a;
+  cd /srv/knowscroll/dev/current/worker && exec runuser -u ks2-dev -- /usr/bin/node dist/operator.js reasoning unknown'
+```
+
+`reasoning unknown [--limit n]` lists attempts awaiting reconciliation (IDs, provider, model,
+role, outcome code, dispatch time; no context). `reasoning sweep-dispatched [--older-than-seconds n]`
+moves attempts a crash left `dispatched` (the worker does this itself every 5 minutes, past the
+request deadline + 2 minutes) to `unknown` so they can be listed and written off; run it when a
+worker died mid-call and you want the answer now (default 900 s). `reasoning write-off --attempt <uuid> --reason
+"<text>"` moves one `unknown` attempt to `written_off`, recording the reason and `cli:<SUDO_USER>`
+on the attempt; it never resends, does not prove the provider stopped work, and does not refund the
+attempt's reserved budget. `reasoning purge-expired` deletes expired protected request bytes now
+(the worker also does it every 15 minutes). Results are one JSON line on stdout; exit 0 done, 2
+refused or not applicable, 1 failure. Protected request bytes hold personal model context: only
+the harness reads them; nothing here prints them.
 
 The v2 API must answer `GET /health` on `PORT` with
 `{"status", "world", "commit", "artifact", "migration"}`: `world` = `KS_WORLD`, `commit` =

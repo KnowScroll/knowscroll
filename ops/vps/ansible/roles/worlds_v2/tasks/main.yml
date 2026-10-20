@@ -195,6 +195,47 @@
     dest: /usr/local/lib/knowscroll-ops/ks2-run
     mode: "0755"
 
+# S2.2 (D-021): ks2-worker@ reads the token-plan key from the shared MiniMax file and sets
+# KS_REASONING_PROVIDER=minimax. A missing file stops the worker unit; a key of the wrong shape
+# makes the worker exit with config.invalid, which takes its other consumers (evidence apply, the
+# identity and reasoning sweeps) down with it. So the unit is installed only when the file is
+# there and defines the key in the token-plan shape. The test returns only ok or bad: the value
+# is never printed, never registered with output, never logged.
+- name: MiniMax settings are on the server (the v2 worker unit reads them; copied once from the owner's Mac, never in Git)
+  ansible.builtin.stat:
+    path: /etc/knowscroll/secrets/shared/minimax.env
+  register: ks_v2_minimax
+
+- name: Refuse to install the worker unit without them
+  ansible.builtin.fail:
+    msg: >-
+      /etc/knowscroll/secrets/shared/minimax.env is missing. ks2-worker@ reads the token-plan
+      MINIMAX_API_KEY from it (S2.2) and would not start, taking its other consumers with it; copy
+      the file once from the owner's Mac (root, 0600, never printed) and run this role again.
+      See docs/v2/operations/environments.md.
+  when: not ks_v2_minimax.stat.exists and not ansible_check_mode
+
+- name: The file defines MINIMAX_API_KEY as a token-plan key (returns only ok or bad; the value is never printed)
+  ansible.builtin.shell: |
+    set -eu
+    if grep -Eq "^(export[[:space:]]+)?MINIMAX_API_KEY=[\"']?sk-cp-[A-Za-z0-9_-]{16,}[\"']?[[:space:]]*\$" /etc/knowscroll/secrets/shared/minimax.env; then
+      echo ok
+    else
+      echo bad
+    fi
+  register: ks_v2_minimax_shape
+  changed_when: false
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Refuse to install the worker unit with a missing or malformed key
+  ansible.builtin.fail:
+    msg: >-
+      /etc/knowscroll/secrets/shared/minimax.env does not define MINIMAX_API_KEY as a token-plan
+      key (sk-cp-…, 16 or more characters after the prefix). The worker would exit with
+      config.invalid. Fix the file on the server (never print its contents) and run this role again.
+  when: not ansible_check_mode and ks_v2_minimax_shape.stdout != 'ok'
+
 - name: V2 units (the instance name is the world; installed, not enabled)
   ansible.builtin.template:
     src: "{{ item }}.j2"

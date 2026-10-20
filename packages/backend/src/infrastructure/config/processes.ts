@@ -103,6 +103,44 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly shutdownGraceMs: number;
   /** Personal-scope lock wait; always shorter than the statement timeout. */
   readonly scopeLockTimeoutMs: number;
+  /** The reasoning harness: provider, budgets and protected request limits (S2.2). */
+  readonly reasoning: ReasoningSettings;
+}
+
+/** Text models the MiniMax token-plan key serves (`MiniMax-M3.1-Flash-Preview` is not one). */
+export const MINIMAX_MODELS = ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] as const;
+
+/** Daily caps of one budget dimension. */
+export interface ReasoningCap {
+  readonly requestsPerDay: number;
+  readonly tokensPerDay: number;
+}
+
+/**
+ * Reasoning harness settings (worker only). `provider: none` (the default) means no role can
+ * propose: every call is refused before anything is reserved. `minimax.apiKey` is a credential:
+ * pass it only to the MiniMax adapter, never to a log.
+ */
+export interface ReasoningSettings {
+  readonly provider: 'none' | 'minimax';
+  readonly minimax?: {
+    readonly apiKey: string;
+    readonly model: (typeof MINIMAX_MODELS)[number];
+    readonly requestTimeoutMs: number;
+    readonly quotaFloorPercent: number;
+  };
+  readonly caps: { readonly global: ReasoningCap; readonly scope: ReasoningCap; readonly roleDefault: ReasoningCap };
+  readonly maxRequestBytes: number;
+  readonly requestRetentionSeconds: number;
+}
+
+/**
+ * The worker operator command's configuration (`dist/operator.js` in the worker release tree: the
+ * reasoning write-off). Distinct from {@link OperatorConfig}, the API tree's operator sign-in command.
+ */
+export interface WorkerOperatorConfig {
+  readonly world: string;
+  readonly database: DatabaseSettings;
 }
 
 export interface MigrateConfig {
@@ -369,14 +407,84 @@ export function readOperatorConfig(env: Environment): OperatorConfig {
   };
 }
 
+const reasoningVariables = z.object({
+  KS_REASONING_PROVIDER: z.enum(['none', 'minimax']).default('none'),
+  MINIMAX_API_KEY: z.string().optional(),
+  KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3'),
+  KS_MINIMAX_REQUEST_TIMEOUT_MS: positiveInteger(60_000, 300_000),
+  // At least 1: a floor of 0 would switch the quota check off.
+  KS_MINIMAX_QUOTA_FLOOR_PERCENT: z.coerce.number().int().min(1).max(100).default(25),
+  KS_REASONING_GLOBAL_REQUESTS_PER_DAY: positiveInteger(300, 1_000_000),
+  KS_REASONING_GLOBAL_TOKENS_PER_DAY: positiveInteger(3_000_000, 1_000_000_000),
+  KS_REASONING_SCOPE_REQUESTS_PER_DAY: positiveInteger(60, 1_000_000),
+  KS_REASONING_SCOPE_TOKENS_PER_DAY: positiveInteger(600_000, 1_000_000_000),
+  KS_REASONING_ROLE_REQUESTS_PER_DAY: positiveInteger(200, 1_000_000),
+  KS_REASONING_ROLE_TOKENS_PER_DAY: positiveInteger(2_000_000, 1_000_000_000),
+  KS_REASONING_MAX_REQUEST_BYTES: positiveInteger(262_144, 262_144),
+  KS_REASONING_REQUEST_RETENTION_HOURS: positiveInteger(48, 720),
+});
+
+/**
+ * Reasoning variables of the worker (blueprint §15; providers-and-secrets.md). `MINIMAX_API_KEY`
+ * is required, and must be a token-plan key (`sk-cp-…`), only when `KS_REASONING_PROVIDER` is
+ * `minimax`; it is never echoed in a problem.
+ */
+function reasoningSettings(parsed: z.infer<typeof reasoningVariables>): ReasoningSettings {
+  const key = parsed.MINIMAX_API_KEY;
+  crossChecks([
+    [
+      parsed.KS_REASONING_PROVIDER === 'minimax' && (key === undefined || key === ''),
+      'MINIMAX_API_KEY: missing_or_wrong_type',
+    ],
+    [
+      parsed.KS_REASONING_PROVIDER === 'minimax' &&
+        key !== undefined &&
+        key !== '' &&
+        !/^sk-cp-[A-Za-z0-9_-]{16,}$/.test(key),
+      'MINIMAX_API_KEY: invalid_format',
+    ],
+  ]);
+  return {
+    provider: parsed.KS_REASONING_PROVIDER,
+    ...(parsed.KS_REASONING_PROVIDER === 'minimax' && key !== undefined
+      ? {
+          minimax: {
+            apiKey: key,
+            model: parsed.KS_MINIMAX_MODEL,
+            requestTimeoutMs: parsed.KS_MINIMAX_REQUEST_TIMEOUT_MS,
+            quotaFloorPercent: parsed.KS_MINIMAX_QUOTA_FLOOR_PERCENT,
+          },
+        }
+      : {}),
+    caps: {
+      global: {
+        requestsPerDay: parsed.KS_REASONING_GLOBAL_REQUESTS_PER_DAY,
+        tokensPerDay: parsed.KS_REASONING_GLOBAL_TOKENS_PER_DAY,
+      },
+      scope: {
+        requestsPerDay: parsed.KS_REASONING_SCOPE_REQUESTS_PER_DAY,
+        tokensPerDay: parsed.KS_REASONING_SCOPE_TOKENS_PER_DAY,
+      },
+      roleDefault: {
+        requestsPerDay: parsed.KS_REASONING_ROLE_REQUESTS_PER_DAY,
+        tokensPerDay: parsed.KS_REASONING_ROLE_TOKENS_PER_DAY,
+      },
+    },
+    maxRequestBytes: parsed.KS_REASONING_MAX_REQUEST_BYTES,
+    requestRetentionSeconds: parsed.KS_REASONING_REQUEST_RETENTION_HOURS * 3600,
+  };
+}
+
 /**
  * Worker process configuration. Variables: `DATABASE_URL`, `KS_DB_POOL_MAX` (default 5),
  * `KS_DB_STATEMENT_TIMEOUT_MS`, `KS_SHUTDOWN_GRACE_SECONDS` (default 20),
- * `KS_SCOPE_LOCK_TIMEOUT_MS` (default 5000, below the statement timeout), plus the release
+ * `KS_SCOPE_LOCK_TIMEOUT_MS` (default 5000, below the statement timeout), the reasoning variables
+ * of `reasoningVariables` (`KS_REASONING_PROVIDER` default `none`; `MINIMAX_API_KEY` only with
+ * `minimax`; caps, model, timeouts and protected-request limits with defaults), plus the release
  * identity variables. Throws one `ConfigurationError` listing every problem.
  */
 export function readWorkerConfig(env: Environment): WorkerConfig {
-  const [release, parsed] = combineChecks(
+  const [release, parsed, reasoning] = combineChecks(
     checkReleaseIdentity(env),
     checkEnvironment(
       z.object({
@@ -393,6 +501,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_SCOPE_LOCK_TIMEOUT_MS',
       ]),
     ),
+    checkEnvironment(reasoningVariables, pick(env, Object.keys(reasoningVariables.shape))),
   );
   crossChecks([
     [
@@ -405,7 +514,28 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),
     shutdownGraceMs: parsed.KS_SHUTDOWN_GRACE_SECONDS * 1000,
     scopeLockTimeoutMs: parsed.KS_SCOPE_LOCK_TIMEOUT_MS,
+    reasoning: reasoningSettings(reasoning),
   };
+}
+
+/**
+ * Worker operator command configuration (`node dist/operator.js …` in the worker release tree,
+ * run from a server shell with the world's environment): `KS_WORLD` (required), `DATABASE_URL` and
+ * `KS_DB_STATEMENT_TIMEOUT_MS` (default 30000). Throws one `ConfigurationError` listing every
+ * problem. (The API tree's own `dist/operator.js` is `readOperatorConfig`.)
+ */
+export function readWorkerOperatorConfig(env: Environment): WorkerOperatorConfig {
+  const [parsed] = combineChecks(
+    checkEnvironment(
+      z.object({
+        KS_WORLD: WorldSchema,
+        DATABASE_URL: PostgresUrlSchema,
+        KS_DB_STATEMENT_TIMEOUT_MS: positiveInteger(30_000, 600_000),
+      }),
+      pick(env, ['KS_WORLD', 'DATABASE_URL', 'KS_DB_STATEMENT_TIMEOUT_MS']),
+    ),
+  );
+  return { world: parsed.KS_WORLD, database: databaseSettings(parsed, `knowscroll-operator-${parsed.KS_WORLD}`, 2) };
 }
 
 /**

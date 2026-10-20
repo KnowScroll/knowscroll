@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals -- AgentMail is the sign-in mail provider, not a model: its one POST is this adapter's whole job (see the rule in eslint.config.js). */
 import { assertOutsideTransaction } from '../../../infrastructure/postgres/transaction-marker.js';
 import type { MailDelivery, MailSender, SignInMail } from '../application/ports.js';
 import { SIGN_IN_LINK_TTL_MINUTES } from '../domain/policy.js';

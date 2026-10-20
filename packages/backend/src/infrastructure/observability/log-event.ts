@@ -102,6 +102,16 @@ const validators: Record<FieldName, Validator> = {
       ? value.slice(0, 20).map((item) => (typeof item === 'string' && problemPattern.test(item) ? item : '[invalid]'))
       : REJECTED,
   error: (value) => sanitiseError(value),
+  provider: asCode,
+  model: asCode,
+  role: asCode,
+  promptVersion: asCode,
+  inputTokens: asCount,
+  outputTokens: asCount,
+  reasoningTokens: asCount,
+  cachedTokens: asCount,
+  quotaIntervalPercent: asCount,
+  quotaWeeklyPercent: asCount,
 };
 
 /**
@@ -131,6 +141,17 @@ export const JOURNAL_FIELDS: ReadonlySet<FieldName> = new Set<FieldName>([
   'context',
   'problems',
   'error',
+  // Model execution facts carry no person: provider, model, role, prompt version and counts.
+  'provider',
+  'model',
+  'role',
+  'promptVersion',
+  'inputTokens',
+  'outputTokens',
+  'reasoningTokens',
+  'cachedTokens',
+  'quotaIntervalPercent',
+  'quotaWeeklyPercent',
 ]);
 
 const severityRank: Record<Severity, number> = { debug: 20, info: 30, warn: 40, error: 50, fatal: 60 };

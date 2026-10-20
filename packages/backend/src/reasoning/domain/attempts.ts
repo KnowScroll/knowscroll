@@ -3,6 +3,12 @@
  * an attempt found in `dispatched` by a later delivery has an unknown outcome and is never sent
  * again. Only reconciliation or an explicit write-off leaves `unknown`.
  */
+/**
+ * Outcome code of an attempt that was `dispatched` and never recorded an outcome (a crash, a lost
+ * claim): found by a later delivery or by the scheduled sweep, which both move it to `unknown`.
+ */
+export const OUTCOME_NOT_RECORDED = 'OUTCOME_NOT_RECORDED';
+
 export type AttemptState =
   'reserved' | 'not_sent' | 'dispatched' | 'succeeded' | 'failed' | 'unknown' | 'reconciled' | 'written_off';
 
