@@ -36,3 +36,29 @@ foreground, nonbuffering 1× playback ticks contribute; explicit seek, loop jump
 the baseline. Coverage is qualified on the server. AccountScope supplies ephemeral native-header/web-
 cookie media sources and synchronous playback disposal before its cancellation/cache/storage fence.
 No grant URL or credential is persisted. A failing native cleanup cannot prevent scope termination.
+
+For a parked encounter, retain the **same** Scroll/Reel recorder handle and call `suspend()` before
+leaving it. Suspension flushes actual reading/playback, closes its active intervals, drops the
+renderer/player baseline and stops the Scroll timer. Observer/sample calls while parked are ignored,
+including interactions. `resume()` preserves the exposure, session ID, device sequence and original
+monotonic origin; parked time stays a gap. Scroll resumes its timer only if `start()` was called and
+requires fresh actual visibility **and** activity reports from the renderer. Reel requires fresh
+player samples; the first establishes a baseline, so restoring a paused playhead records nothing.
+Neither method starts playback or restores a position. The app owns the bounded retained handles,
+position restoration and actual foreground/player reporting; Back itself produces no observation.
+Start/resume before the renderer reports its new state. The direct Scroll screen starts in its
+layout effect, before the article's passive mount/activity reports; native host layout and web
+IntersectionObserver callbacks provide subsequent visibility measurements. A retained controller
+must resume before mounting/unpausing its renderer and arrange fresh reports even if it stayed mounted.
+
+Use `end()` when discarding a handle. Late callbacks and flushes are then inert. Scroll's explicit
+`start()` may re-arm that same handle after `end()` for React development effect cleanup/setup;
+it still needs fresh renderer state and keeps the original timeline. Initial observer reports before
+the first `start()` remain supported. `start()` does not unpark a suspended handle: use `resume()`.
+Reel `end()` is final. Once either recorder observes an ended AccountScope, every method is inert
+permanently; the Scroll timer is released on the next lifecycle/observer call or timer tick.
+
+Handles/timebases are in-memory only. After eviction or process restart, do not create a replacement
+recorder at elapsed zero for a previously activated exposure. A fresh revisit must open a new
+exposure through the authorized encounter flow. Durable outbox batches already formed keep their
+original event IDs and retry behavior across parking; suspension does not dispose the scope outbox.

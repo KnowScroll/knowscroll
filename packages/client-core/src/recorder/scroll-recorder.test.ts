@@ -185,6 +185,129 @@ describe('the scroll recorder', () => {
     expect(sink.events()).toEqual([]);
   });
 
+  it('retains one exposure timeline across parking without counting the gap or parked callbacks', () => {
+    const { recorder, clock, timers, sink } = build();
+    recorder.start();
+    recorder.observer.onBlockVisibility({ blockId: 'a', visibleFraction: 1, at: clock.now() });
+    clock.advance(2_000);
+    recorder.suspend();
+    const first = sink.events();
+    expect(timers.running()).toBe(0);
+    for (let i = 0; i < 100; i += 1) {
+      clock.advance(1_000);
+      recorder.observer.onActivity({ active: true, at: clock.now() });
+      recorder.observer.onBlockVisibility({ blockId: 'parked', visibleFraction: 1, at: clock.now() });
+      recorder.observer.onBlockInteraction({ blockId: 'parked', kind: 'expanded', at: clock.now() });
+      recorder.flush();
+      recorder.start(); // A repeated effect cannot unpark the encounter.
+    }
+    expect(sink.events()).toEqual(first);
+    expect(timers.running()).toBe(0);
+    recorder.resume();
+    recorder.resume();
+    expect(timers.running()).toBe(1);
+    // Delayed observer reports from before resume are ignored even after return.
+    recorder.observer.onActivity({ active: true, at: clock.now() - 1 });
+    recorder.observer.onBlockVisibility({ blockId: 'stale', visibleFraction: 1, at: clock.now() - 1 });
+    clock.advance(1_000);
+    timers.tick();
+    expect(sink.events()).toEqual(first);
+    // Neither activity nor visibility is inferred: both must come from the renderer.
+    recorder.observer.onActivity({ active: true, at: clock.now() });
+    clock.advance(1_000);
+    recorder.flush();
+    expect(sink.events()).toEqual(first);
+    recorder.observer.onBlockVisibility({ blockId: 'a', visibleFraction: 1, at: clock.now() });
+    clock.advance(3_000);
+    recorder.end();
+    const events = sink.events();
+    expect(events.map((event) => event.deviceSequence)).toEqual([1, 2, 3, 4]);
+    expect(events.slice(0, 2)).toEqual(first); // Already queued IDs/envelopes stay unchanged.
+    expect(new Set(events.map((event) => event.sessionId))).toEqual(new Set([recorder.sessionId]));
+    expect(events.filter((event) => event.kind === 'scroll.active_dwell').map((event) => event.payload)).toEqual([
+      { activeIntervalsMs: [[0, 2_000]] },
+      { activeIntervalsMs: [[104_000, 107_000]] },
+    ]);
+    expect(events.filter((event) => event.kind === 'scroll.block_coverage').map((event) => event.payload)).toEqual([
+      { blocks: [{ blockId: 'a', intervalsMs: [[0, 2_000]], peakFraction: 1 }] },
+      { blocks: [{ blockId: 'a', intervalsMs: [[104_000, 107_000]], peakFraction: 1 }] },
+    ]);
+  });
+
+  it('waits for actual activity after resume, including a backgrounded return', () => {
+    const { recorder, clock, sink } = build();
+    recorder.start();
+    recorder.suspend();
+    clock.advance(60_000);
+    recorder.resume();
+    recorder.observer.onBlockVisibility({ blockId: 'a', visibleFraction: 1, at: clock.now() });
+    recorder.observer.onActivity({ active: false, at: clock.now() });
+    clock.advance(10_000);
+    recorder.flush();
+    expect(sink.events()).toHaveLength(2); // Only the first empty instrumentation report.
+    recorder.observer.onActivity({ active: true, at: clock.now() });
+    clock.advance(1_000);
+    recorder.end();
+    expect(sink.events().at(-1)?.payload).toEqual({ activeIntervalsMs: [[70_000, 71_000]] });
+  });
+
+  it('keeps pre-start reports and idempotent lifecycles, while end fences late observers', () => {
+    const { recorder, clock, timers, sink } = build();
+    recorder.observer.onBlockVisibility({ blockId: 'a', visibleFraction: 1, at: clock.now() });
+    clock.advance(500);
+    recorder.end(); // A renderer may report before the parent effect starts.
+    expect(sink.events().at(-1)?.payload).toEqual({ activeIntervalsMs: [[0, 500]] });
+    recorder.observer.onBlockVisibility({ blockId: 'late', visibleFraction: 1, at: clock.now() });
+    recorder.observer.onBlockInteraction({ blockId: 'late', kind: 'expanded', at: clock.now() });
+    recorder.resume();
+    clock.advance(2_000);
+    recorder.flush();
+    recorder.end();
+    expect(sink.events()).toHaveLength(2);
+    recorder.start(); // React development cleanup/setup retains the same recorder.
+    recorder.start();
+    expect(timers.running()).toBe(1);
+    recorder.observer.onBlockVisibility({ blockId: 'a', visibleFraction: 1, at: clock.now() });
+    recorder.observer.onActivity({ active: true, at: clock.now() });
+    clock.advance(500);
+    recorder.suspend();
+    recorder.suspend();
+    expect(timers.running()).toBe(0);
+    expect(sink.events().at(-1)?.payload).toEqual({ activeIntervalsMs: [[2_500, 3_000]] });
+    recorder.resume();
+    recorder.resume();
+    expect(timers.running()).toBe(1);
+    recorder.end();
+    expect(timers.running()).toBe(0);
+    expect(sink.events()).toHaveLength(4);
+  });
+
+  it.each(['callback', 'tick', 'resume', 'start', 'flush', 'suspend', 'end'] as const)(
+    'terminally fences a scope and releases its timer on the next %s',
+    (next) => {
+      let active = true;
+      const { recorder, clock, timers, sink } = build({ active: () => active });
+      recorder.start();
+      recorder.observer.onBlockVisibility({ blockId: 'a', visibleFraction: 1, at: clock.now() });
+      clock.advance(1_000);
+      active = false;
+      if (next === 'callback') recorder.observer.onActivity({ active: true, at: clock.now() });
+      else if (next === 'tick') timers.tick();
+      else recorder[next]();
+      expect(timers.running()).toBe(0);
+      active = true; // An ended scope can never revive this handle, even with a faulty adapter.
+      recorder.start();
+      recorder.resume();
+      recorder.observer.onBlockVisibility({ blockId: 'late', visibleFraction: 1, at: clock.now() });
+      recorder.observer.onBlockInteraction({ blockId: 'late', kind: 'expanded', at: clock.now() });
+      clock.advance(1_000);
+      recorder.flush();
+      recorder.end();
+      expect(timers.running()).toBe(0);
+      expect(sink.events()).toEqual([]);
+    },
+  );
+
   it("splits a long report into events within the contract's per-event bounds", () => {
     const { recorder, clock, sink } = build();
     recorder.start();
@@ -330,7 +453,7 @@ describe('the recorder inside a real account scope', () => {
     expect(requests).toHaveLength(1);
   });
 
-  it('retries the same event IDs through the real outbox after a failed send', async () => {
+  it('retries the same event IDs through the real outbox after a failed send and parking', async () => {
     let calls = 0;
     const { scope, requests } = scopeWith(() => (calls++ === 0 ? new Response('no', { status: 503 }) : stored()));
     const clock = fakeClock();
@@ -356,6 +479,9 @@ describe('the recorder inside a real account scope', () => {
     recorder.start();
     recorder.flush();
     await settle();
+    recorder.suspend();
+    clock.advance(120_000);
+    recorder.resume();
     retryTimers.fire?.();
     await settle();
     expect(requests).toHaveLength(2);

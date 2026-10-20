@@ -10,16 +10,30 @@ export interface PlaybackSample {
   readonly visible: boolean;
   readonly buffering: boolean;
 }
+export interface ReelRecorderOptions {
+  readonly exposure: RecordedExposure;
+  readonly durationMs: number;
+  readonly scope: Pick<AccountScope, 'api' | 'storage' | 'active'>;
+  readonly newId: () => string;
+  readonly clock?: RecorderClock;
+  readonly outbox?: ObservationOutbox;
+}
+
+export interface ReelRecorder {
+  readonly sessionId: string;
+  sample(next: PlaybackSample): void;
+  discontinuity(): void;
+  flush(): void;
+  /** Flush actual playback and discard its baseline; parked callbacks are ignored. */
+  suspend(): void;
+  /** Admit fresh player samples on this same handle; the first only establishes a baseline. */
+  resume(): void;
+  /** Final disposal. Neither resume nor late player callbacks can restart this recorder. */
+  end(): void;
+}
 /** Records only continuous 1× playback. A seek/loop, stale tick, stall or hidden sample resets the
  * baseline; it never bridges the gap. Union/qualification belongs to the server, not this recorder. */
-export function createReelRecorder(options: {
-  exposure: RecordedExposure;
-  durationMs: number;
-  scope: Pick<AccountScope, 'api' | 'storage' | 'active'>;
-  newId: () => string;
-  clock?: RecorderClock;
-  outbox?: ObservationOutbox;
-}) {
+export function createReelRecorder(options: ReelRecorderOptions): ReelRecorder {
   const outbox = options.outbox ?? scopeOutbox(options.scope);
   const clock = options.clock ?? { monotonicMs: () => performance.now(), wallIso: () => new Date().toISOString() };
   const started = clock.monotonicMs();
@@ -27,9 +41,20 @@ export function createReelRecorder(options: {
   let previous: PlaybackSample | undefined;
   let sequence = 0;
   let ended = false;
+  let suspended = false;
+  let scopeEnded = false;
+  let acceptAfter = Number.NEGATIVE_INFINITY;
   let samples: { activeMs: [number, number]; mediaMs: [number, number] }[] = [];
-  const flush = () => {
-    if (!options.scope.active || samples.length === 0) return;
+  const scopeActive = (): boolean => {
+    if (!options.scope.active) scopeEnded = true;
+    if (scopeEnded) {
+      previous = undefined;
+      samples = [];
+    }
+    return !scopeEnded;
+  };
+  const report = () => {
+    if (!scopeActive() || samples.length === 0) return;
     sequence += 1;
     const event: InteractionEvent = {
       schemaVersion: INTERACTION_SCHEMA_VERSION,
@@ -44,12 +69,14 @@ export function createReelRecorder(options: {
     samples = [];
     outbox.enqueue([event], 1);
   };
+  const accepts = (): boolean => scopeActive() && !ended && !suspended;
+  const flush = () => {
+    if (accepts()) report();
+  };
   return {
+    sessionId,
     sample(next: PlaybackSample) {
-      if (ended || !options.scope.active) {
-        previous = undefined;
-        return;
-      }
+      if (!accepts() || next.monotonicMs < acceptAfter) return;
       const prior = previous;
       previous = next.playing && next.visible && !next.buffering ? next : undefined;
       if (!prior || !previous) {
@@ -67,15 +94,27 @@ export function createReelRecorder(options: {
       if (samples.length >= 48) flush();
     },
     discontinuity() {
+      if (!accepts()) return;
       previous = undefined;
       flush();
     },
     flush,
-    end() {
-      if (ended) return;
+    suspend() {
+      if (!accepts()) return;
       previous = undefined;
-      flush();
+      suspended = true;
+      report();
+    },
+    resume() {
+      if (!scopeActive() || ended || !suspended) return;
+      acceptAfter = clock.monotonicMs();
+      suspended = false;
+    },
+    end() {
+      if (!scopeActive() || ended) return;
+      previous = undefined;
       ended = true;
+      report();
     },
   };
 }

@@ -122,6 +122,12 @@ export class ReadingTracker {
     this.syncDwell(event.at);
   }
 
+  /** Close actual reading and forget renderer state before a retained encounter is parked. */
+  suspend(at: number): void {
+    this.activity({ active: false, at });
+    for (const state of this.blocks.values()) state.fraction = 0;
+  }
+
   /** A deliberate interaction: kept once per block and kind for the session. Never a value. */
   interaction(event: { readonly blockId: string; readonly kind: InteractionKind; readonly at: number }): void {
     if (!SCROLL_INTERACTION_KINDS.includes(event.kind)) return;
