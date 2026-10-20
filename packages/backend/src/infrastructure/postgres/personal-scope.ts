@@ -29,6 +29,7 @@ export class ScopeBusyError extends Error {
 }
 
 const openScopes = new WeakMap<PersonalScopeTx, Transaction<Database>>();
+const accountFences = new WeakMap<PersonalScopeTx, 'own' | 'pair'>();
 const sharedRoots = new WeakMap<PersonalScopeTx, SharedScopeTx>();
 const openSharedScopes = new WeakMap<SharedScopeTx, PersonalScopeTx>();
 
@@ -60,12 +61,15 @@ export function makeWithPersonalScope(db: Kysely<Database>, options: PersonalSco
     // writes for, whatever the caller does with its object meanwhile.
     const authority = freezeAuthority(claimed);
     return runMarkedTransaction('personal-scope', () =>
-      db.transaction().execute(async (trx): Promise<ScopeOutcome<T>> => {
-        await setLockTimeout(trx, options.lockTimeoutMs);
-        const entry = await lockAndRecheck(trx, authority);
-        if (entry.kind === 'refused') return entry;
-        return { kind: 'entered', value: await runInScope(trx, authority, entry.revision, work) };
-      }),
+      db
+        .transaction()
+        .setIsolationLevel('read committed')
+        .execute(async (trx): Promise<ScopeOutcome<T>> => {
+          await setLockTimeout(trx, options.lockTimeoutMs);
+          const entry = await lockAndRecheck(trx, authority);
+          if (entry.kind === 'refused') return entry;
+          return { kind: 'entered', value: await runInScope(trx, authority, entry.revision, work) };
+        }),
     );
   };
 }
@@ -108,25 +112,28 @@ export function makeWithResolvedPersonalScope(
   ): Promise<ResolvedScopeOutcome<T, R>> => {
     try {
       return await runMarkedTransaction('personal-scope', () =>
-        db.transaction().execute(async (trx): Promise<ResolvedScopeOutcome<T, R>> => {
-          await setLockTimeout(trx, options.lockTimeoutMs);
-          const tx = Object.freeze({}) as unknown as RootResolutionTx;
-          openResolutions.set(tx, trx);
-          let resolution: RootResolution<C, R>;
-          try {
-            resolution = await resolve(tx);
-          } finally {
-            openResolutions.delete(tx);
-          }
-          if (resolution.kind === 'stop') throw new RollbackWith({ kind: 'stopped', result: resolution.result });
-          const authority = freezeAuthority(resolution.authority);
-          const entry = await lockAndRecheck(trx, authority);
-          if (entry.kind === 'refused') throw new RollbackWith(entry);
-          const { context } = resolution;
-          const done = await runInScope(trx, authority, entry.revision, (scope) => work(scope, context));
-          if (done.kind === 'rollback') throw new RollbackWith({ kind: 'stopped', result: done.result });
-          return { kind: 'entered', value: done.value };
-        }),
+        db
+          .transaction()
+          .setIsolationLevel('read committed')
+          .execute(async (trx): Promise<ResolvedScopeOutcome<T, R>> => {
+            await setLockTimeout(trx, options.lockTimeoutMs);
+            const tx = Object.freeze({}) as unknown as RootResolutionTx;
+            openResolutions.set(tx, trx);
+            let resolution: RootResolution<C, R>;
+            try {
+              resolution = await resolve(tx);
+            } finally {
+              openResolutions.delete(tx);
+            }
+            if (resolution.kind === 'stop') throw new RollbackWith({ kind: 'stopped', result: resolution.result });
+            const authority = freezeAuthority(resolution.authority);
+            const entry = await lockAndRecheck(trx, authority);
+            if (entry.kind === 'refused') throw new RollbackWith(entry);
+            const { context } = resolution;
+            const done = await runInScope(trx, authority, entry.revision, (scope) => work(scope, context));
+            if (done.kind === 'rollback') throw new RollbackWith({ kind: 'stopped', result: done.result });
+            return { kind: 'entered', value: done.value };
+          }),
       );
     } catch (error) {
       if (error instanceof RollbackWith) return error.outcome as ResolvedScopeOutcome<T, R>;
@@ -202,6 +209,7 @@ async function runInScope<T>(
   } finally {
     openScopes.delete(scope);
     sharedRoots.delete(scope);
+    accountFences.delete(scope);
   }
 }
 
@@ -332,4 +340,15 @@ export function withTransaction<T>(
   work: (trx: Transaction<Database>) => Promise<T>,
 ): Promise<T> {
   return runMarkedTransaction(purpose, () => db.transaction().execute(work));
+}
+
+/** Identity adapters reserve one account gate before any account SQL or shared root.
+ * An own UPDATE gate cannot follow a pair SHARE gate: upgrades can deadlock with its peer.
+ * The scope must still be open; failed/incompatible entry cannot issue SQL.
+ */
+export function claimAccountFence(scope: PersonalScopeTx, kind: 'own' | 'pair'): void {
+  transactionOf(scope);
+  if (sharedRoots.has(scope) || accountFences.has(scope))
+    throw new LockOrderError('Account fencing must precede the shared root and may be entered only once');
+  accountFences.set(scope, kind);
 }

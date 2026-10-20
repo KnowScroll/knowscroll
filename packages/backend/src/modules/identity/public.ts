@@ -318,3 +318,42 @@ export const SWEEP_SIGN_IN_RECORDS = Symbol('identity.sweepSignInRecords');
  */
 export type CheckPersonalOwnerActive = (scope: PersonalScopeTx) => Promise<boolean>;
 export const CHECK_PERSONAL_OWNER_ACTIVE = Symbol('identity.checkPersonalOwnerActive');
+
+/** Current Identity authority, valid only while its account fence transaction stays open.
+ * Never use a saved snapshot as a reusable authorization capability.
+ */
+export interface AccountAccess {
+  readonly accountId: string;
+  readonly universeId: string;
+  readonly privacyEpoch: number;
+}
+export type AccountAccessResult =
+  { readonly kind: 'active'; readonly owner: AccountAccess } | { readonly kind: 'unavailable' };
+
+/** Own root -> sorted exact-two account SHARE locks -> separate fresh authority read.
+ * No peer root lock. Caller checks prepared epochs and shared membership before any effect/replay.
+ */
+export type FenceAccountPair = (
+  scope: PersonalScopeTx,
+  peerAccountId: string,
+) => Promise<
+  | { readonly kind: 'active'; readonly owner: AccountAccess; readonly peer: AccountAccess }
+  | { readonly kind: 'unavailable' }
+>;
+/** Own root -> own account UPDATE. Must precede domain rows; never upgrade a pair gate. */
+export type FenceOwnAccount = (scope: PersonalScopeTx) => Promise<AccountAccessResult>;
+export type AccountInvalidationMode = 'advance_epoch' | 'suspend';
+export type AccountInvalidation =
+  | { readonly kind: 'invalidated'; readonly privacyEpoch: number; readonly revision: number }
+  | { readonly kind: 'unavailable' }
+  | { readonly kind: 'counter_exhausted' };
+/** Internal authority barrier only: does not erase data or expose an HTTP privacy operation.
+ * Suspension also advances epoch; reactivation must retain that newer epoch.
+ */
+export type InvalidateOwnAccountAccess = (
+  authority: PersonalAuthority,
+  mode: AccountInvalidationMode,
+) => Promise<ScopeOutcome<AccountInvalidation>>;
+export const FENCE_ACCOUNT_PAIR = Symbol('identity.fenceAccountPair');
+export const FENCE_OWN_ACCOUNT = Symbol('identity.fenceOwnAccount');
+export const INVALIDATE_OWN_ACCOUNT_ACCESS = Symbol('identity.invalidateOwnAccountAccess');

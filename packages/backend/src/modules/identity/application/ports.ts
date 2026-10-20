@@ -1,5 +1,9 @@
 import type { LogEvent } from '../../../infrastructure/observability/index.js';
 import type {
+  AccountInvalidation,
+  AccountInvalidationMode,
+  FenceOwnAccount,
+  WithPersonalScope,
   ActiveSession,
   MailDelivery,
   PersonalScopeTx,
@@ -240,4 +244,14 @@ export interface SessionPorts {
 export interface SweepPorts {
   /** Deletes links a day past expiry and sessions 30 days past their end, in bounded batches. */
   readonly sweep: () => Promise<{ readonly links: number; readonly sessions: number }>;
+}
+
+/** Exact Identity lifecycle effects; no arbitrary transaction callback crosses this boundary. */
+export interface AccountLifecyclePorts {
+  readonly withScope: WithPersonalScope;
+  readonly fenceOwn: FenceOwnAccount;
+  readonly advance: (
+    scope: PersonalScopeTx,
+    mode: AccountInvalidationMode,
+  ) => Promise<Extract<AccountInvalidation, { kind: 'invalidated' }>>;
 }

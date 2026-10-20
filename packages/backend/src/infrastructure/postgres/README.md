@@ -37,3 +37,13 @@ The nonpersonal reasoning root protocol is `makeWithProductionScope(db, { enable
 reasoning framework-free public surface. The dependency rule permits only this protocol file to
 import those **types**, and still forbids runtime imports. It never acquires a personal root and
 uses `withTransaction`, so nested entry and network guards remain active. See reasoning/README.
+
+Account-fence extension (#246): both personal-scope builders explicitly use READ COMMITTED.
+Identity takes sorted account-row SHARE fences before a pair's single shared root, or its own
+account UPDATE fence before an access mutation. `claimAccountFence(scope, 'pair' | 'own')` reserves
+one such gate before SQL and rejects second gates or acquisition after shared-root entry. It does
+not lock an account itself; Identity owns that SQL. A separate authority SELECT after all account
+locks sees an epoch changed by a preceding lifecycle transaction even if that transaction only
+locked, without updating, the account row. A joined locking SELECT or an old REPEATABLE READ
+snapshot cannot provide that guarantee. Existing personal root, transaction timeout, network,
+shared-root and capability lifetime protections remain in force. No peer personal root is locked.
