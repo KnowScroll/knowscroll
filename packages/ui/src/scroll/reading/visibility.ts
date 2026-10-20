@@ -1,8 +1,10 @@
 import type { ScrollReadingObserver } from '../observer';
 
 /**
- * How much of a block's area is inside the reading viewport, in [0, 1]. A block with no height
- * is not visible.
+ * How much of a block is inside the reading viewport, in [0, 1], relative to the most of it the
+ * viewport could ever show: `min(blockHeight, viewportHeight)`. A block taller than the viewport
+ * therefore reaches 1 when it fills the reading area (a 2,000 px block in an 800 px viewport reads
+ * 1 with 800 px visible, not 0.4). A block with no height is not visible.
  */
 export function visibleFractionOf(
   blockTop: number,
@@ -14,7 +16,7 @@ export function visibleFractionOf(
   const top = Math.max(blockTop, viewportTop);
   const bottom = Math.min(blockTop + blockHeight, viewportTop + viewportHeight);
   const visible = Math.max(0, bottom - top);
-  return Math.min(1, visible / blockHeight);
+  return Math.min(1, visible / Math.min(blockHeight, viewportHeight));
 }
 
 /** A reported change is worth an event when it moved by at least this much (spec of the observer). */
@@ -45,6 +47,8 @@ export interface VisibilityTracker {
   mounted(blockId: string, fraction: number): void;
   /** A block's visible fraction was measured again: reported only when it is an event. */
   measured(blockId: string, fraction: number): void;
+  /** A replacement observer receives every mounted block’s latest fraction. */
+  replay(): void;
   /** A block unmounted: reported as fraction 0. */
   unmounted(blockId: string): void;
 }
@@ -60,20 +64,28 @@ export function createVisibilityTracker(
   clock: () => number,
 ): VisibilityTracker {
   const reported = new Map<string, number>();
+  const measured = new Map<string, number>();
   const report = (blockId: string, fraction: number) => {
     reported.set(blockId, fraction);
     observer()?.onBlockVisibility({ blockId, visibleFraction: fraction, at: clock() });
   };
   return {
     mounted(blockId, fraction) {
-      report(blockId, settle(fraction));
+      const next = settle(fraction);
+      measured.set(blockId, next);
+      report(blockId, next);
     },
     measured(blockId, fraction) {
       const next = settle(fraction);
+      measured.set(blockId, next);
       const previous = reported.get(blockId);
       if (previous === undefined || isVisibilityEvent(previous, next)) report(blockId, next);
     },
+    replay() {
+      for (const [blockId, fraction] of measured) report(blockId, fraction);
+    },
     unmounted(blockId) {
+      measured.delete(blockId);
       reported.delete(blockId);
       observer()?.onBlockVisibility({ blockId, visibleFraction: 0, at: clock() });
     },

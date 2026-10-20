@@ -16,7 +16,11 @@ export function useArticleActivity(observer: ScrollReadingObserver | undefined, 
   const applyRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
-    observerRef.current = observer;
+    if (observerRef.current !== observer) {
+      if (lastRef.current === true) observerRef.current?.onActivity({ active: false, at: monotonicNow() });
+      lastRef.current = null;
+      observerRef.current = observer;
+    }
     pausedRef.current = paused;
     applyRef.current();
   });

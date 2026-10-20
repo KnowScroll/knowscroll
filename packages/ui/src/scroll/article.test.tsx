@@ -10,6 +10,7 @@ import { bridgesPoster, bridgesWithServerFallback, lighthouseEditorial } from '.
 import type { ScrollDiagnostics, ScrollReadingObserver } from './observer';
 import { prepareScrollDocument } from './prepare';
 import { createMemoryBlockStateStore } from './state';
+import { interactionProblems } from '../test-support/interactions';
 
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve(true)) }));
 
@@ -51,7 +52,7 @@ function observer() {
 }
 
 function diagnostics() {
-  return { onRenderFallback: jest.fn() } satisfies ScrollDiagnostics;
+  return { onRenderFallback: jest.fn(), onFallbackRetry: jest.fn() } satisfies ScrollDiagnostics;
 }
 
 const anyNumber = expect.any(Number) as number;
@@ -222,15 +223,24 @@ describe('a disclosure', () => {
     expect(screen.getByRole('button', { name: 'Why a safety factor?' })).toBeExpanded();
     expect(screen.getByText('safety factor')).toBeOnTheScreen();
     expect(screen.getByText('The factor is chosen from long experience, not from a single formula.')).toBeOnTheScreen();
-    expect(watcher.onBlockInteraction).toHaveBeenCalledWith({
+    expect(watcher.onBlockInteraction).toHaveBeenLastCalledWith({
       blockId: 'd-safety',
-      kind: 'disclosure',
+      blockType: 'disclosure',
+      kind: 'expanded',
       at: anyNumber,
     });
 
     await fireEvent.press(screen.getByRole('button', { name: 'Why a safety factor?' }));
 
     expect(screen.getByRole('button', { name: 'Why a safety factor?' })).toBeCollapsed();
+    expect(watcher.onBlockInteraction).toHaveBeenLastCalledWith({
+      blockId: 'd-safety',
+      blockType: 'disclosure',
+      kind: 'collapsed',
+      at: anyNumber,
+    });
+    // Both directions are kinds the package declares for a disclosure: the recorder can send them.
+    expect(interactionProblems(watcher, ready(bridgesPoster()))).toEqual([]);
   });
 
   it('keeps its state by (revision, block id): it returns when the article does, and a new revision starts over', async () => {
@@ -292,18 +302,22 @@ describe('a code block', () => {
     expect(await screen.findByRole('button', { name: 'Copied' })).toBeOnTheScreen();
     expect(watcher.onBlockInteraction).toHaveBeenCalledWith({
       blockId: 'code-load',
-      kind: 'copy',
+      blockType: 'code',
+      kind: 'copied',
       at: anyNumber,
     });
+    expect(interactionProblems(watcher, ready(bridgesPoster()))).toEqual([]);
   });
 
-  it('says so when the clipboard refuses', async () => {
+  it('says so when the clipboard refuses, and reports no copy (it is evidence only once the write succeeded)', async () => {
     copyText.mockRejectedValueOnce(new Error('denied'));
-    await show(<ScrollArticle document={ready(bridgesPoster())} />);
+    const watcher = observer();
+    await show(<ScrollArticle document={ready(bridgesPoster())} observer={watcher} />);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
 
     expect(await screen.findByRole('button', { name: 'Copy failed' })).toBeOnTheScreen();
+    expect(watcher.onBlockInteraction).not.toHaveBeenCalled();
   });
 });
 
@@ -313,7 +327,7 @@ describe('a block this build cannot draw', () => {
     const document = ready(bridgesPoster());
     await show(<ScrollArticle document={document} diagnostics={watcher} />);
 
-    expect(screen.getByText('This part needs an app update · text version')).toBeOnTheScreen();
+    expect(screen.getByText('Needs an app update · text version')).toBeOnTheScreen();
     expect(
       screen.getByText(
         'The deck passes its load to the cables, the cables pass it to the towers, and the towers pass it down to the ground.',
@@ -332,7 +346,7 @@ describe('a block this build cannot draw', () => {
     const watcher = diagnostics();
     await show(<ScrollArticle document={ready(bridgesWithServerFallback())} diagnostics={watcher} />);
 
-    expect(screen.getByText('This part needs an app update · text version')).toBeOnTheScreen();
+    expect(screen.getByText('Needs an app update · text version')).toBeOnTheScreen();
     expect(watcher.onRenderFallback).toHaveBeenCalledWith(
       expect.objectContaining({ blockId: 'diagram-load', blockType: 'diagram', reason: 'unsupported-by-client' }),
     );
@@ -374,7 +388,7 @@ describe('a block the package does not accept', () => {
 });
 
 describe('a block that throws while rendering', () => {
-  it('shows its fallback with Retry; Retry draws the block again, and reports the retry', async () => {
+  it('shows its fallback with Retry; Retry draws the block again, and records the retry as a diagnostic', async () => {
     const quiet = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     const document = ready(bridgesPoster());
     const paragraph = document.sections[0]?.blocks[0];
@@ -403,11 +417,10 @@ describe('a block that throws while rendering', () => {
         'A bridge has one job: carry weight from where it is to where it can safely go. How it does that is a story about two forces.',
       ),
     ).toBeOnTheScreen();
-    expect(watcher.onBlockInteraction).toHaveBeenCalledWith({
-      blockId: 'p-open-1',
-      kind: 'retry',
-      at: anyNumber,
-    });
+    // A Retry is a diagnostic for engineers, not a reader interaction: the package declares no
+    // interaction kinds for a fallback, so the observer hears nothing and the diagnostic hook does.
+    expect(watcher.onBlockInteraction).not.toHaveBeenCalled();
+    expect(diag.onFallbackRetry).toHaveBeenCalledWith({ blockId: 'p-open-1', blockType: 'paragraph', at: anyNumber });
     quiet.mockRestore();
   });
 });

@@ -64,7 +64,8 @@ export function BlockBody({ block, options }: { readonly block: AnyBlock; readon
           text={safeFallbackText(block, null)}
           cause="load"
           onRetry={() => {
-            context.report(blockId, 'retry');
+            // Not a reader interaction (the package declares none for a fallback): a diagnostic.
+            context.retried(blockId, blockType);
             setAttempt((value) => value + 1);
           }}
         />

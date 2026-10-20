@@ -9,7 +9,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 interface GalleryEvents {
   visibility: { blockId: string; visibleFraction: number }[];
-  interactions: { blockId: string; kind: string }[];
+  interactions: { blockId: string; blockType: string; kind: string }[];
   activity: { active: boolean }[];
   diagnostics: { blockId: string; blockType: string; reason: string }[];
 }
@@ -67,9 +67,9 @@ test.describe('phone', () => {
     const again = page.getByRole('button', { name: 'Why a safety factor?' });
     await again.scrollIntoViewIfNeeded();
     await expect(again).toHaveAttribute('aria-expanded', 'true');
-    expect(
-      (await events(page)).interactions.filter((entry) => entry.kind === 'disclosure').length,
-    ).toBeGreaterThanOrEqual(3);
+    // Each toggle reports the direction it went, under the package's `INTERACTION_KINDS` for a disclosure.
+    const toggles = (await events(page)).interactions.filter((entry) => entry.blockType === 'disclosure');
+    expect(toggles.map((entry) => entry.kind).slice(0, 3)).toEqual(['expanded', 'collapsed', 'expanded']);
   });
 
   test('the code scrolls sideways inside its frame, by keyboard, and never widens the article', async ({ page }) => {
@@ -102,7 +102,11 @@ test.describe('phone', () => {
 
     await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('def deck_load(span_m, traffic_kn):');
-    expect((await events(page)).interactions).toContainEqual({ blockId: 'code-load', kind: 'copy' });
+    expect((await events(page)).interactions).toContainEqual({
+      blockId: 'code-load',
+      blockType: 'code',
+      kind: 'copied',
+    });
   });
 
   test('Tab order is reading order: Copy, then the code, then the disclosure', async ({ page }) => {
@@ -128,7 +132,7 @@ test.describe('phone', () => {
   test('a block this build cannot draw shows its own words, with no Retry and a diagnostic', async ({ page }) => {
     await open(page);
 
-    await expect(page.getByText('This part needs an app update · text version')).toBeVisible();
+    await expect(page.getByText('Needs an app update · text version')).toBeVisible();
     await expect(page.getByText('The deck passes its load to the cables')).toBeVisible();
     await expect(page.getByRole('button', { name: /retry|try again/i })).toHaveCount(0);
     expect((await events(page)).diagnostics).toContainEqual({
@@ -178,7 +182,7 @@ test.describe('phone', () => {
   test('the server fallback document reads the same as the unrendered block', async ({ page }) => {
     await open(page, '?doc=fallback');
 
-    await expect(page.getByText('This part needs an app update · text version')).toBeVisible();
+    await expect(page.getByText('Needs an app update · text version')).toBeVisible();
     await expect(page.getByText('the towers pass it down to the ground', { exact: false })).toBeVisible();
   });
 

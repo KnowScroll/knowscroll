@@ -8,7 +8,7 @@ import { resolveAnchor, type AnchorTarget } from './anchors';
 import { BlockHost } from './blocks/host';
 import { renderNestedBlock } from './blocks/host';
 import { ScrollRenderProvider, type ScrollRenderContext } from './context';
-import type { ScrollDiagnostics, ScrollReadingObserver } from './observer';
+import type { ScrollDiagnostics, ScrollInteraction, ScrollReadingObserver } from './observer';
 import { useReadingViewport } from './reading/reading-viewport';
 import { useArticleActivity } from './reading/use-activity';
 import { monotonicNow } from './reading/visibility';
@@ -121,8 +121,12 @@ function ScrollArticleBody({
   });
   const { flash, onPlaced } = useAnchorRestore(target, scrollRef);
 
-  const report = useCallback<ScrollRenderContext['report']>(
-    (blockId, kind) => observerRef.current?.onBlockInteraction({ blockId, kind, at: monotonicNow() }),
+  const report = useCallback<ScrollRenderContext['report']>((blockId, blockType, kind) => {
+    // The generic signature proved that `kind` belongs to `blockType`; the union needs the cast.
+    observerRef.current?.onBlockInteraction({ blockId, blockType, kind, at: monotonicNow() } as ScrollInteraction);
+  }, []);
+  const retried = useCallback<ScrollRenderContext['retried']>(
+    (blockId, blockType) => diagnosticsRef.current?.onFallbackRetry?.({ blockId, blockType, at: monotonicNow() }),
     [],
   );
   const diagnose = useCallback<ScrollRenderContext['diagnose']>(
@@ -138,9 +142,10 @@ function ScrollArticleBody({
       textVersion: false,
       report,
       diagnose,
+      retried,
       renderNested: renderNestedBlock,
     }),
-    [document.assetId, document.revision, store, carryOverBlockIds, report, diagnose],
+    [document.assetId, document.revision, store, carryOverBlockIds, report, diagnose, retried],
   );
 
   const editorial = document.template === 'editorial';
