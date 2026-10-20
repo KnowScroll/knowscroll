@@ -202,7 +202,7 @@ export function ReelPlayer({
       onDiscontinuity();
       // The hook also releases its native SharedObject on unmount; either cleanup order is safe.
       try {
-        if (hasSource.current && !replacing.current) {
+        if (hasSource.current && installedSource.current?.restored && !replacing.current) {
           const seconds = player.currentTime;
           if (Number.isFinite(seconds)) resumePosition.current = clampPositionMs(seconds * 1000, durationMs) / 1000;
         }
@@ -237,7 +237,7 @@ export function ReelPlayer({
         }
         const actualTime = player.currentTime;
         const time =
-          hasSource.current || (!loaded.current && !initialPosition.supplied)
+          (hasSource.current && installedSource.current?.restored) || (!loaded.current && !initialPosition.supplied)
             ? Number.isFinite(actualTime)
               ? clampPositionMs(actualTime * 1000, durationMs) / 1000
               : resumePosition.current

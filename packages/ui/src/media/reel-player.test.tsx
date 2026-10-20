@@ -620,6 +620,28 @@ describe('local Reel positions', () => {
     await rendered.unmount();
   });
 
+  it('retains the initial restore intent when Retry happens before the SDK has ever been ready', async () => {
+    const f = fixture();
+    f.player.status = 'loading';
+    const rendered = await renderOn(<ReelPlayer {...f.props} initialPositionMs={8125} />);
+    await act(async () => {
+      f.player.status = 'error';
+      f.listeners.get('statusChange')?.({ status: 'error' });
+      await Promise.resolve();
+    });
+    f.player.status = 'loading';
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+    expect(f.seeks).not.toHaveBeenCalled();
+    await act(async () => {
+      f.player.status = 'readyToPlay';
+      f.listeners.get('statusChange')?.({ status: 'readyToPlay' });
+      await Promise.resolve();
+    });
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 8125, playing: false });
+    expect(f.player.play).not.toHaveBeenCalled();
+    await rendered.unmount();
+  });
+
   it('renews and retries at the latest SDK position, including a backward move, rather than the initial position', async () => {
     jest.useFakeTimers();
     const f = fixture();
