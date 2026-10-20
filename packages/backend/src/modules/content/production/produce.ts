@@ -1,5 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
+import { canonicalJson } from '../../../infrastructure/receipts/index.js';
 import { productionTransactionOf } from '../../../infrastructure/postgres/index.js';
 import {
   fetchResearchPage,
@@ -154,7 +155,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
               ...pages.map((page) => ({
                 ref: page.id,
                 kind: 'public_research',
-                text: JSON.stringify({ pageId: page.id, passages: page.passages }),
+                text: canonicalJson({ pageId: page.id, passages: page.passages }),
               })),
             ],
           },
@@ -207,7 +208,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           bundleRef: `scroll:${row.id}:claims`,
           items: [
             { ref: `brief:${topic}`, kind: 'production_brief', text: TOPICS[topic].brief },
-            { ref: `claims:${row.id}`, kind: 'checked_claims', text: JSON.stringify(claimPackage) },
+            { ref: `claims:${row.id}`, kind: 'checked_claims', text: canonicalJson(claimPackage) },
           ],
         },
         limits: { allowRepair: true },
