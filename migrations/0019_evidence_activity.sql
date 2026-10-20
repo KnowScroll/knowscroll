@@ -13,7 +13,9 @@ create table evidence.activity_revisions (
  channels jsonb not null check(octet_length(channels::text)<=2048),
  activity double precision not null check(activity>=0 and activity<=3),
  policy_version text not null check(policy_version='activity.v0'),recorded_at timestamptz not null default now(),
- primary key(universe_id,id),unique(universe_id,privacy_epoch,exposure_id,id),unique(universe_id,exposure_id,revision),unique(universe_id,exposure_id,input_sha256),
+ -- Input hashes may recur after a real reversible correction A -> B -> A; only CURRENT hash
+ -- is idempotent under the personal root lock. Every change appends its own monotonic revision.
+ primary key(universe_id,id),unique(universe_id,privacy_epoch,exposure_id,id),unique(universe_id,exposure_id,revision),
  foreign key(universe_id,exposure_id) references experience.exposures(universe_id,id) on delete restrict
 );
 create table evidence.activity_current (

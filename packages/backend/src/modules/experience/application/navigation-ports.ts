@@ -28,6 +28,7 @@ export interface ComposerSession {
   readonly privacyEpoch: number;
 }
 export interface StoredOffer {
+  readonly policyVersion: 'offer.v0';
   readonly id: string;
   readonly sessionId: string;
   readonly intentRevision: number;
@@ -79,6 +80,7 @@ export interface NavigationPorts extends CommandPorts {
     creates: boolean,
   ) => Promise<void>;
   readonly readOffer: (scope: PersonalScopeTx, id: string) => Promise<StoredOffer | undefined>;
+  readonly readOwnedOffers: (scope: PersonalScopeTx, ids: readonly string[]) => Promise<readonly StoredOffer[]>;
   readonly readMember: (
     scope: PersonalScopeTx,
     sessionId: string,

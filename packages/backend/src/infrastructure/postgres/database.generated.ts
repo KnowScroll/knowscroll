@@ -326,6 +326,7 @@ export interface ExperienceOffers {
   id: string;
   intent_revision: number;
   mode: string;
+  policy_version: Generated<string>;
   privacy_epoch: number;
   session_id: string;
   source_exposure_id: string | null;

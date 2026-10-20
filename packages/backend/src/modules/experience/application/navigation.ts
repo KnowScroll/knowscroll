@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import {
   ActivateOfferResponseSchema,
   ClientCapabilities,
@@ -30,9 +31,39 @@ const scopeCode = (kind: string): ProblemCode =>
   kind === 'epoch_changed' ? 'PRIVACY_EPOCH_CHANGED' : 'UNIVERSE_UNAVAILABLE';
 function keyOf(p: NavigationPorts, command: NavigationCommand): CommandKey {
   const { commandId, ...request } = command;
-  const operation = 'intent' in command ? 'experience.navigate.v0' : 'experience.compose-open.v0';
+  const operation = 'intent' in command ? 'experience.navigate-v0' : 'experience.compose-open-v0';
   return { commandId, operation, requestHash: p.hashRequest(operation, json(request)), outcomeVersion: 1 };
 }
+// The private receipt holds only immutable result identity; public metadata lives in the same
+// atomically committed scoped offer rows. This keeps the existing whole-receipt8KiB constraint.
+const ReceiptCommon = {
+  version: z.literal('navigation-receipt.v0'),
+  commandId: z.uuid(),
+  sessionId: z.uuid(),
+  intentRevision: z.number().int().min(0),
+  revision: z.number().int().min(0),
+  decisionId: z.uuid(),
+  replayed: z.literal(false),
+};
+const NavigationReceipt = z.discriminatedUnion('status', [
+  z.strictObject({
+    ...ReceiptCommon,
+    status: z.literal('ready'),
+    offerId: z.uuid(),
+    bufferedOfferIds: z.array(z.uuid()).max(2),
+  }),
+  z.strictObject({
+    ...ReceiptCommon,
+    status: z.literal('exhausted'),
+    reason: z.enum([
+      'no_eligible_content',
+      'series_boundary',
+      'no_related_ready',
+      'variant_unavailable',
+      'return_unavailable',
+    ]),
+  }),
+]);
 async function receipt(
   p: NavigationPorts,
   scope: PersonalScopeTx,
@@ -40,9 +71,36 @@ async function receipt(
 ): Promise<NavigationResult | undefined> {
   const r = await p.findReceipt(scope, key);
   if (r.kind === 'new') return undefined;
-  if (r.kind === 'replay')
-    return { kind: 'accepted', outcome: { ...NavigationOutcomeSchema.parse(r.outcome), replayed: true } };
-  return refuse(r.kind === 'outcome_version_newer' ? 'SERVICE_UNAVAILABLE' : 'COMMAND_KEY_REUSED');
+  if (r.kind !== 'replay')
+    return refuse(r.kind === 'outcome_version_newer' ? 'SERVICE_UNAVAILABLE' : 'COMMAND_KEY_REUSED');
+  const stored = NavigationReceipt.safeParse(r.outcome);
+  if (!stored.success) return refuse('SERVICE_UNAVAILABLE');
+  const { version: _version, ...value } = stored.data;
+  if (value.status === 'exhausted')
+    return { kind: 'accepted', outcome: NavigationOutcomeSchema.parse({ ...value, replayed: true }) };
+  const ids = [value.offerId, ...value.bufferedOfferIds];
+  const offers = await p.readOwnedOffers(scope, ids);
+  if (
+    offers.length !== ids.length ||
+    offers.some(
+      (o, i) =>
+        o.id !== ids[i] ||
+        o.sessionId !== value.sessionId ||
+        o.intentRevision !== value.intentRevision ||
+        o.descriptor.decisionId !== value.decisionId,
+    )
+  )
+    return refuse('SERVICE_UNAVAILABLE');
+  const { offerId: _offerId, bufferedOfferIds: _bufferedOfferIds, ...common } = value;
+  return {
+    kind: 'accepted',
+    outcome: NavigationOutcomeSchema.parse({
+      ...common,
+      replayed: true,
+      offer: offers[0]!.descriptor,
+      bufferedOffers: offers.slice(1).map((o) => o.descriptor),
+    }),
+  };
 }
 interface Prepared {
   readonly kind: 'prepared';
@@ -356,6 +414,7 @@ export function makeNavigateEncounter(p: NavigationPorts) {
                   ? { kind: 'return' }
                   : { kind: 'discovery' };
             offers.push({
+              policyVersion: 'offer.v0',
               id,
               sessionId: prepared.session.id,
               intentRevision: prepared.session.intentRevision,
@@ -405,7 +464,21 @@ export function makeNavigateEncounter(p: NavigationPorts) {
                 bufferedOffers: offers.slice(1).map((o) => o.descriptor),
               }
             : { ...common, status: 'exhausted', reason: prepared.reason };
-          await p.completeReceipt(scope, c.commandId, json(outcome));
+          await p.completeReceipt(
+            scope,
+            c.commandId,
+            json({
+              ...common,
+              version: 'navigation-receipt.v0',
+              ...(outcome.status === 'ready'
+                ? {
+                    status: 'ready',
+                    offerId: outcome.offer.offerId,
+                    bufferedOfferIds: outcome.bufferedOffers.map((o) => o.offerId),
+                  }
+                : { status: 'exhausted', reason: outcome.reason }),
+            }),
+          );
           await p.notify(scope, { revision, eventId: prepared.decisionId });
           return { kind: 'accepted', outcome };
         },
@@ -418,7 +491,7 @@ export function makeNavigateEncounter(p: NavigationPorts) {
 }
 export function makeActivateOffer(p: NavigationPorts): ActivateOffer {
   return async (authority, c) => {
-    const operation = 'experience.activate-offer.v0';
+    const operation = 'experience.activate-offer-v0';
     const key = {
       commandId: c.commandId,
       operation,

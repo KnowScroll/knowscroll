@@ -41,7 +41,7 @@ export interface EncounterActionPorts extends CommandPorts {
 }
 export function makeApplyEncounterAction(p: EncounterActionPorts) {
   return async (authority: PersonalAuthority, c: ApplyActionRequest) => {
-    const operation = 'experience.encounter-action.v0';
+    const operation = 'experience.encounter-action-v0';
     const request = { kind: c.kind, target: c.target, ...(c.exposureId ? { exposureId: c.exposureId } : {}) };
     const key = {
       commandId: c.commandId,

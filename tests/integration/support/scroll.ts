@@ -93,6 +93,7 @@ export async function scrollUseCases(
   options: {
     readonly wrapEnqueue?: (enqueue: EnqueueJob) => EnqueueJob;
     readonly wrapScope?: (scope: WithPersonalScope) => WithPersonalScope;
+    readonly activityNow?: () => Date;
   } = {},
 ): Promise<{
   readonly navigate: NavigateEncounter;
@@ -136,7 +137,11 @@ export async function scrollUseCases(
     ...evidenceProviders({ enqueueJob: ENQUEUE, withPersonalScope: SCOPE }),
   ];
   const build = (token: symbol): unknown => buildFromProviders(providers, token, values);
-  values.set(ACTIVITY_PORTS, build(ACTIVITY_PORTS));
+  const activityPorts = build(ACTIVITY_PORTS);
+  values.set(
+    ACTIVITY_PORTS,
+    options.activityNow ? { ...(activityPorts as object), now: options.activityNow } : activityPorts,
+  );
   values.set(READ_PREPARED_ACTIVITY, build(READ_PREPARED_ACTIVITY));
   values.set(NAVIGATION_PORTS, build(NAVIGATION_PORTS));
   return {

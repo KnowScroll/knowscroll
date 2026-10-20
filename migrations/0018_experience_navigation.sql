@@ -21,8 +21,9 @@ create table experience.offers (
  universe_id uuid not null references identity.universes(id) on delete restrict,
  id uuid not null,privacy_epoch integer not null check(privacy_epoch>=1),session_id uuid not null,
  intent_revision integer not null check(intent_revision>=0),decision_id uuid not null,
+ policy_version text not null default 'offer.v0' check(policy_version='offer.v0'),
  asset_id uuid not null,asset_revision integer not null,
- descriptor jsonb not null check(jsonb_typeof(descriptor)='object' and octet_length(descriptor::text)<=8192),
+ descriptor jsonb not null check(jsonb_typeof(descriptor)='object' and octet_length(descriptor::text)<=32768),
  source_offer_id uuid,source_exposure_id uuid,mode text not null check(mode in('vertical','series','related','variant','return')),
  continuity_link_id uuid,continuity_link_revision integer,
  expires_at timestamptz not null,created_at timestamptz not null default now(),
@@ -109,3 +110,15 @@ alter table experience.actions add constraint actions_kind_check check(kind in('
 -- Required operator reconcile index on retained actual activations, bounded by migration timeouts.
 -- squawk-ignore require-concurrent-index-creation
 create index exposures_activity_reconcile_idx on experience.exposures(universe_id,privacy_epoch,id) where activated_at is not null;
+
+-- Receipt replay depends on these exact descriptors/bindings, never current catalog metadata.
+-- Retention timestamps are maintenance metadata; changing them cannot alter a completed receipt.
+create function experience.refuse_offer_rewrite() returns trigger language plpgsql as $$
+begin
+ if (new.universe_id,new.id,new.privacy_epoch,new.session_id,new.intent_revision,new.decision_id,new.policy_version,new.asset_id,new.asset_revision,new.descriptor,new.source_offer_id,new.source_exposure_id,new.mode,new.continuity_link_id,new.continuity_link_revision)
+  is distinct from (old.universe_id,old.id,old.privacy_epoch,old.session_id,old.intent_revision,old.decision_id,old.policy_version,old.asset_id,old.asset_revision,old.descriptor,old.source_offer_id,old.source_exposure_id,old.mode,old.continuity_link_id,old.continuity_link_revision) then
+  raise exception 'OFFER_IMMUTABLE';
+ end if;
+ return new;
+end $$;
+create trigger refuse_offer_rewrite before update on experience.offers for each row execute function experience.refuse_offer_rewrite();

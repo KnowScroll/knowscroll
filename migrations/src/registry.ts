@@ -25,6 +25,6 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
   { name: '0014_media_reels', sha256: 'bbdc0029ed20d50e859068553584ae1eae3eff284f4517388e904ea66cf4c7b7' },
   { name: '0016_content_discovery', sha256: 'b8a3f2dcde57a164f31455270bddfd392ddac168ac8574c79145db18fcdfac00' },
   { name: '0017_composer_decisions', sha256: '83dd77f63b5c5ea6935d92207ea933e5172fe89095f91640350647ad8aedf202' },
-  { name: '0018_experience_navigation', sha256: 'e840f178d1cf62719e38efaf58be982c8250a18ca7792fc6fc3c9322b7d569aa' },
-  { name: '0019_evidence_activity', sha256: '16c24f1dc420f2eb9ad6c38a0ba87a318352f44858575a6ddd0e11bcdf5f8b13' },
+  { name: '0018_experience_navigation', sha256: '34f74aaedd40a1f9dd40a70b3d5b69226a6a956602dfcb4918feddc90a50ce88' },
+  { name: '0019_evidence_activity', sha256: '764f3f88924cbc986a10cb780fbfd19ed750340c5fa1b3452b7713378b46a028' },
 ];

@@ -20,7 +20,7 @@ function ready(result: Awaited<ReturnType<Cases['navigate']>>): Extract<Navigati
   if (result.kind !== 'accepted' || result.outcome.status !== 'ready') throw new Error('CI fixture expected ready');
   return result.outcome;
 }
-async function fixtureAsset(c: Cases, unit = `fixture.nav.${randomUUID()}`) {
+async function fixtureAsset(c: Cases, unit = `fixture-nav-${randomUUID()}`) {
   const src = starterSource() as { assetId: string; publication: { explanationUnitId: string } };
   src.assetId = randomUUID();
   src.publication.explanationUnitId = unit;
@@ -621,5 +621,319 @@ describe('Experience navigation and actual routing activity (real PostgreSQL CI 
     expect(
       await database.db.selectFrom('experience.offers').selectAll().where('universe_id', '=', p.universeId).execute(),
     ).toHaveLength(0);
+  });
+  it('persists each new receipt operation with identical replay and reused-key refusal under unchanged receipt grammar', async () => {
+    const p = await seedPerson(database.db),
+      a = await fixtureAsset(c),
+      cmd = { ...discovery(), target: { kind: 'return' as const, assetId: a.assetId, assetRevision: 1 } };
+    const o = ready(await c.navigate(p.authority, cmd));
+    expect(ready(await c.navigate(p.authority, cmd))).toMatchObject({ ...o, replayed: true });
+    expect(await c.navigate(p.authority, { ...cmd, target: { kind: 'discover' } })).toEqual({
+      kind: 'refused',
+      code: 'COMMAND_KEY_REUSED',
+    });
+    const ac = activation(o),
+      active = await c.activateOffer(p.authority, ac);
+    if (active.kind !== 'accepted') throw new Error('fixture activation');
+    expect(await c.activateOffer(p.authority, ac)).toMatchObject({
+      kind: 'accepted',
+      outcome: { ...active.outcome, replayed: true },
+    });
+    expect(await c.activateOffer(p.authority, { ...ac, target: { ...ac.target, expectedIntentRevision: 1 } })).toEqual({
+      kind: 'refused',
+      code: 'COMMAND_KEY_REUSED',
+    });
+    const action = {
+      commandId: randomUUID(),
+      kind: 'like' as const,
+      target: { assetId: a.assetId, assetRevision: 1 },
+      exposureId: active.outcome.exposureId,
+    };
+    const liked = await c.applyEncounterAction(p.authority, action);
+    expect(liked.kind).toBe('applied');
+    expect(await c.applyEncounterAction(p.authority, action)).toMatchObject({
+      kind: 'applied',
+      outcome: { replayed: true, changed: true },
+    });
+    expect(await c.applyEncounterAction(p.authority, { ...action, kind: 'unlike' })).toEqual({
+      kind: 'refused',
+      code: 'COMMAND_KEY_REUSED',
+    });
+    const nav = {
+      commandId: randomUUID(),
+      sessionId: o.sessionId,
+      expectedIntentRevision: o.intentRevision,
+      from: { offerId: o.offer.offerId, exposureId: active.outcome.exposureId },
+      intent: { mode: 'variant' as const, to: 'reel' as const },
+    };
+    const unavailable = await c.navigate(p.authority, nav);
+    expect(unavailable).toMatchObject({
+      kind: 'accepted',
+      outcome: { status: 'exhausted', reason: 'variant_unavailable' },
+    });
+    expect(await c.navigate(p.authority, nav)).toMatchObject({
+      kind: 'accepted',
+      outcome: { status: 'exhausted', replayed: true },
+    });
+    expect(await c.navigate(p.authority, { ...nav, intent: { mode: 'variant', to: 'scroll' } })).toEqual({
+      kind: 'refused',
+      code: 'COMMAND_KEY_REUSED',
+    });
+    expect(
+      await database.db
+        .selectFrom('receipts.personal_commands')
+        .select(['operation', 'outcome_version'])
+        .where('universe_id', '=', p.universeId)
+        .orderBy('operation')
+        .execute(),
+    ).toEqual(
+      ['activate-offer', 'compose-open', 'encounter-action', 'navigate'].map((op) => ({
+        operation: `experience.${op}-v0`,
+        outcome_version: 1,
+      })),
+    );
+  });
+  it('replays all three exact long multibyte descriptors through a bounded immutable private receipt and stored offer.v0', async () => {
+    const p = await seedPerson(database.db),
+      ids: string[] = [];
+    // CI fixtures supply varied valid admitted metadata. Each chosen descriptor can exceed the
+    // original arbitrary8KiB offer cap while the small private receipt retains all three IDs.
+    for (let n = 0; n < 3; n++) {
+      const a = await fixtureAsset(c);
+      ids.push(a.assetId);
+      const summary = Array.from({ length: 2000 }, (_, i) =>
+        i % 2 === 0 ? String.fromCodePoint(0x4e00 + ((i + n * 97) % 20000)) : '\u0001',
+      ).join('');
+      await database.db
+        .updateTable('content.discovery_revisions')
+        .set({ summary })
+        .where('asset_id', '=', a.assetId)
+        .execute();
+    }
+    // Constrain this fixture's discovery inventory via actual scoped Hide preferences, rather
+    // than assuming other cases in the shared CI database have no admitted rows.
+    const others = await database.db
+      .selectFrom('content.assets')
+      .select(['id', 'revision'])
+      .where('status', '=', 'admitted')
+      .where('id', 'not in', ids)
+      .execute();
+    for (const a of others)
+      await c.applyEncounterAction(p.authority, {
+        commandId: randomUUID(),
+        kind: 'hide',
+        target: { assetId: a.id, assetRevision: a.revision },
+      });
+    const cmd = discovery(),
+      o = ready(await c.navigate(p.authority, cmd));
+    expect(o.bufferedOffers).toHaveLength(2);
+    const all = [o.offer, ...o.bufferedOffers];
+    expect(all.map((x) => x.assetId).sort()).toEqual(ids.sort());
+    expect(Buffer.byteLength(JSON.stringify(o), 'utf8')).toBeGreaterThan(8192);
+    expect(Buffer.byteLength(JSON.stringify(o.offer), 'utf8')).toBeGreaterThan(8192);
+    const stored = (
+      await sql<{
+        bytes: number;
+        textbytes: number;
+        outcome: unknown;
+      }>`select pg_column_size(outcome) bytes,octet_length(outcome::text) textbytes,outcome from receipts.personal_commands where universe_id=${p.universeId}::uuid and command_id=${cmd.commandId}::uuid`.execute(
+        database.db,
+      )
+    ).rows[0]!;
+    expect(stored.bytes).toBeLessThanOrEqual(8192);
+    expect(stored.textbytes).toBeLessThanOrEqual(8192);
+    expect(stored.outcome).toMatchObject({
+      version: 'navigation-receipt.v0',
+      offerId: o.offer.offerId,
+      bufferedOfferIds: o.bufferedOffers.map((x) => x.offerId),
+    });
+    const rows = await database.db
+      .selectFrom('experience.offers')
+      .select(['id', 'policy_version', 'descriptor'])
+      .where('universe_id', '=', p.universeId)
+      .execute();
+    expect(rows).toHaveLength(3);
+    expect(rows.every((x) => x.policy_version === 'offer.v0')).toBe(true);
+    expect(rows.map((x) => x.descriptor).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))).toEqual(
+      [...all].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+    );
+    // Replay must use the committed immutable descriptor even after metadata and TTL change.
+    await database.db
+      .updateTable('content.discovery_revisions')
+      .set({ summary: 'CI later correction' })
+      .where('asset_id', 'in', ids)
+      .execute();
+    await database.db
+      .updateTable('experience.offers')
+      .set({ expires_at: new Date(Date.now() - 1000), created_at: new Date(Date.now() - 16 * 60000) })
+      .where('universe_id', '=', p.universeId)
+      .execute();
+    expect(ready(await c.navigate(p.authority, cmd))).toEqual({ ...o, replayed: true });
+    await expect(
+      sql`update experience.offers set descriptor=jsonb_set(descriptor,'{metadata,summary}','"tampered"'::jsonb) where universe_id=${p.universeId}::uuid`.execute(
+        database.db,
+      ),
+    ).rejects.toThrow('OFFER_IMMUTABLE');
+  });
+  it('returns attribution A->B->A as three immutable revisions with current-pointer idempotence and same-time replacement', async () => {
+    const p = await seedPerson(database.db),
+      a = await fixtureAsset(c),
+      tA = `ci-a-${randomUUID()}`,
+      tB = `ci-b-${randomUUID()}`,
+      at = new Date(Date.now() + 86400000);
+    const projected = await scrollUseCases(database, { activityNow: () => at });
+    try {
+      await database.db
+        .insertInto('content.encounter_topics')
+        .values({ asset_id: a.assetId, asset_revision: 1, topic_id: tA, role: 'primary', weight: 0.7 })
+        .execute();
+      const o = ready(
+          await projected.navigate(p.authority, {
+            ...discovery(),
+            target: { kind: 'return', assetId: a.assetId, assetRevision: 1 },
+          }),
+        ),
+        active = await projected.activateOffer(p.authority, activation(o));
+      if (active.kind !== 'accepted') throw new Error('fixture activation');
+      const exposureId = active.outcome.exposureId,
+        payload = job(p.universeId, exposureId);
+      await activatedAgo(database.db, exposureId, 30);
+      await projected.ingestObservations(p.authority, {
+        instrumentationVersion: 1,
+        events: [
+          event(
+            { exposureId, assetId: a.assetId, assetRevision: 1 },
+            coverage(['intro-look-up', 'intro-short-version', 'sunlight-prism'], 3000),
+          ),
+          event({ exposureId, assetId: a.assetId, assetRevision: 1 }, dwell([0, 9000])),
+        ],
+      });
+      await projected.projectScrollReading(payload);
+      await projected.applyEncounterAction(p.authority, {
+        commandId: randomUUID(),
+        kind: 'like',
+        target: { assetId: a.assetId, assetRevision: 1 },
+        exposureId,
+      });
+      expect(await projected.projectActivity(payload)).toMatchObject({ kind: 'applied' });
+      const initial = await database.db
+        .selectFrom('evidence.topic_context')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .where('topic_id', '=', tA)
+        .executeTakeFirstOrThrow();
+      expect(initial.scroll_measured).toBe(1);
+      await database.db.deleteFrom('content.encounter_topics').where('asset_id', '=', a.assetId).execute();
+      await database.db
+        .insertInto('content.encounter_topics')
+        .values({ asset_id: a.assetId, asset_revision: 1, topic_id: tB, role: 'primary', weight: 0.4 })
+        .execute();
+      expect(await projected.projectActivity(payload)).toMatchObject({ kind: 'applied' });
+      expect(
+        await database.db
+          .selectFrom('evidence.topic_context')
+          .select(['activity', 'scroll_measured', 'scroll_qualified'])
+          .where('universe_id', '=', p.universeId)
+          .where('topic_id', '=', tA)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ activity: 0, scroll_measured: 0, scroll_qualified: 0 });
+      await database.db.deleteFrom('content.encounter_topics').where('asset_id', '=', a.assetId).execute();
+      await database.db
+        .insertInto('content.encounter_topics')
+        .values({ asset_id: a.assetId, asset_revision: 1, topic_id: tA, role: 'primary', weight: 0.7 })
+        .execute();
+      expect(await projected.projectActivity(payload)).toMatchObject({ kind: 'applied' });
+      expect(await projected.projectActivity(payload)).toMatchObject({ kind: 'skipped', reason: 'already_applied' });
+      const revisions = await database.db
+        .selectFrom('evidence.activity_revisions')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .orderBy('revision')
+        .execute();
+      expect(revisions).toHaveLength(3);
+      expect(revisions.map((r) => r.revision)).toEqual([1, 2, 3]);
+      expect(revisions[0]?.input_sha256).toBe(revisions[2]?.input_sha256);
+      expect(revisions[1]?.input_sha256).not.toBe(revisions[0]?.input_sha256);
+      expect(revisions[0]?.channels).toEqual(revisions[2]?.channels);
+      expect(
+        await database.db
+          .selectFrom('evidence.activity_current')
+          .select('activity_id')
+          .where('universe_id', '=', p.universeId)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ activity_id: revisions[2]!.id });
+      expect(
+        await database.db
+          .selectFrom('evidence.topic_context')
+          .selectAll()
+          .where('universe_id', '=', p.universeId)
+          .where('topic_id', '=', tA)
+          .executeTakeFirstOrThrow(),
+      ).toEqual(initial);
+      expect(
+        await database.db
+          .selectFrom('evidence.topic_context')
+          .select(['activity', 'channel_values', 'scroll_measured', 'scroll_qualified'])
+          .where('universe_id', '=', p.universeId)
+          .where('topic_id', '=', tB)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({
+        activity: 0,
+        channel_values: { q: 0, L: 0, B: 0, S: 0, H: 0, R: 0 },
+        scroll_measured: 0,
+        scroll_qualified: 0,
+      });
+      expect(
+        await database.db
+          .selectFrom('evidence.encounter_evidence')
+          .select('revision')
+          .where('universe_id', '=', p.universeId)
+          .execute(),
+      ).toEqual([{ revision: 1 }]);
+      await expect(
+        database.db
+          .updateTable('evidence.activity_revisions')
+          .set({ activity: 0 })
+          .where('id', '=', revisions[0]!.id)
+          .execute(),
+      ).rejects.toThrow('ACTIVITY_REVISION_IMMUTABLE');
+    } finally {
+      await projected.close();
+    }
+  });
+
+  it('rolls the private receipt and every session/offer/decision effect back when completion fails', async () => {
+    const p = await seedPerson(database.db),
+      a = await fixtureAsset(c),
+      command = { ...discovery(), target: { kind: 'return' as const, assetId: a.assetId, assetRevision: 1 } };
+    await sql`create function receipts.ci_fail_navigation_receipt() returns trigger language plpgsql as $$ begin raise exception 'CI_RECEIPT_WRITE_FAILURE'; end $$`.execute(
+      database.db,
+    );
+    await sql`create trigger ci_fail_navigation_receipt before update of outcome on receipts.personal_commands for each row execute function receipts.ci_fail_navigation_receipt()`.execute(
+      database.db,
+    );
+    try {
+      await expect(c.navigate(p.authority, command)).rejects.toThrow('CI_RECEIPT_WRITE_FAILURE');
+    } finally {
+      await sql`drop trigger ci_fail_navigation_receipt on receipts.personal_commands`.execute(database.db);
+      await sql`drop function receipts.ci_fail_navigation_receipt()`.execute(database.db);
+    }
+    expect(
+      await database.db
+        .selectFrom('receipts.personal_commands')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(0);
+    expect(
+      await database.db.selectFrom('experience.sessions').selectAll().where('universe_id', '=', p.universeId).execute(),
+    ).toHaveLength(0);
+    expect(
+      await database.db.selectFrom('experience.offers').selectAll().where('universe_id', '=', p.universeId).execute(),
+    ).toHaveLength(0);
+    expect(
+      await database.db.selectFrom('composer.decisions').selectAll().where('universe_id', '=', p.universeId).execute(),
+    ).toHaveLength(0);
+    expect(ready(await c.navigate(p.authority, command)).replayed).toBe(false);
   });
 });

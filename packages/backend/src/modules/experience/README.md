@@ -49,7 +49,7 @@ receipt/session/decision/at most three immutable offers. Catalog drift permits o
 drift refuses `OFFER_UNAVAILABLE`. No model, provider, HTTP wait or new supply request occurs.
 An empty inventory is exhausted. Explicit target revision/format wins; no replacement is silently opened.
 
-Offers use the experimental `offer.v0` 15-minute TTL. A fresh activation command requires current
+Offers persist the fixed experimental `offer.v0` policy version and its 15-minute TTL. A fresh activation command requires current
 intent, TTL, exact access/support and displayed link validation. Concurrent/repeated valid commands
 reuse one bound exposure. A **completed identical activation receipt** replays its original result
 after live scope/epoch and current exact access/support checks; later TTL/session progression cannot
@@ -66,7 +66,7 @@ revision and explicitly reports corrected/withdrawn availability.
 | Personal table | Purpose / indexed query | Growth / retention / erasure |
 |---|---|---|
 | `sessions` | Own session ID, latest revision and declared capabilities/intent | One per session, bounded JSON; retained until full erasure |
-| `offers` | Immutable exact descriptors + owned decision FK, scoped session/intent index and same-session source FK | <=3 per committed decision; 8KiB descriptor; TTL is activation eligibility, not physical deletion |
+| `offers` | Immutable exact descriptors + owned decision FK, scoped session/intent index and same-session source FK | <=3 per committed decision; 32KiB descriptor; TTL is activation eligibility, not physical deletion |
 | `offer_activations` | Unique own offer -> one actual exposure | <=1 per activated offer; erase before offers/exposures |
 | `encounter_lineage` | Actual activated immutable revision/explanation/facets; scoped recent and explanation-time indexes plus facet GIN | One per actual exposure; recent read <=20 within24h, established probes <=100 units/16facets; retained history, no learning claim |
 | `encounter_activity_inputs` | Current independent action/navigation flags and revisions, exact exposure key | One per actual exposure; baseline false never invents a measurement |
@@ -78,3 +78,16 @@ unknown. Full AccountScope erasure deletes evidence first, offer references befo
 exposure roots; shared content survives. The existing generic clear-all is **not** selective history
 clearing. Offers and sessions have no maintenance scheduler in this slice. Retained offers can delay
 physical Composer decision pruning after its 30-day logical read expiry.
+
+Navigation's new receipt operation names satisfy the unchanged `<module>.<operation>` grammar
+(`experience.compose-open-v0`, `experience.navigate-v0`, `experience.activate-offer-v0` and
+`experience.encounter-action-v0`; outcomeVersion1). Legacy operation identities stay unchanged.
+A navigation receipt stores `navigation-receipt.v0`: immutable common outcome fields/status and
+ordered chosen/buffer offer IDs (<=3), well within the unchanged whole-receipt8KiB limit. Replay
+reads only those exact owned epoch/session/intent/decision-bound immutable offer descriptors, never
+current catalog metadata or context. It does not reapply offer TTL. The public wire remains full
+metadata. The independently bounded offer descriptor permits32KiB to accommodate all valid shared
+metadata and conservative JSON escaping, without truncation or dropping Composer selections.
+Descriptor/binding/policy rewrites are refused by a database trigger; full AccountScope erasure
+removes the private receipt and offer references together. A missing/inconsistent replay reference
+is an internal availability refusal, never a silently rebuilt current result.

@@ -42,6 +42,7 @@ export const writeSession: NavigationPorts['writeSession'] = async (scope, s, in
   }
 };
 type OfferRow = {
+  policy_version: 'offer.v0';
   id: string;
   session_id: string;
   intent_revision: number;
@@ -56,6 +57,7 @@ type OfferRow = {
 };
 function offerOf(r: OfferRow): StoredOffer {
   return {
+    policyVersion: r.policy_version,
     id: r.id,
     sessionId: r.session_id,
     intentRevision: r.intent_revision,
@@ -79,6 +81,20 @@ export const readOffer: NavigationPorts['readOffer'] = async (scope, id) => {
     );
   return rows.rows[0] ? offerOf(rows.rows[0]) : undefined;
 };
+/** Receipt replay reads only immutable descriptors named by that own receipt, in recorded order. */
+export const readOwnedOffers: NavigationPorts['readOwnedOffers'] = async (scope, ids) => {
+  if (ids.length > 3 || new Set(ids).size !== ids.length) throw new Error('RECEIPT_OFFER_REFS_INVALID');
+  if (!ids.length) return [];
+  const { u, e, db } = own(scope);
+  const result =
+    await sql<OfferRow>`select * from experience.offers where universe_id=${u}::uuid and privacy_epoch=${e} and id=any(${ids}::uuid[])`.execute(
+      db,
+    );
+  return ids.flatMap((id) => {
+    const row = result.rows.find((r) => r.id === id);
+    return row ? [offerOf(row)] : [];
+  });
+};
 export const readMember: NavigationPorts['readMember'] = async (scope, sessionId, offerId, exposureId) => {
   const { u, e, db } = own(scope);
   const rows = await sql<
@@ -95,7 +111,7 @@ export const insertOffers: NavigationPorts['insertOffers'] = async (scope, offer
   if (offers.length > 3) throw new Error('OFFER_LIMIT');
   const { u, e, db } = own(scope);
   for (const o of offers)
-    await sql`insert into experience.offers(universe_id,id,privacy_epoch,session_id,intent_revision,decision_id,asset_id,asset_revision,descriptor,source_offer_id,source_exposure_id,mode,continuity_link_id,continuity_link_revision,expires_at) values(${u}::uuid,${o.id}::uuid,${e},${o.sessionId}::uuid,${o.intentRevision},${o.descriptor.decisionId}::uuid,${o.descriptor.assetId}::uuid,${o.descriptor.assetRevision},${JSON.stringify(o.descriptor)}::jsonb,${o.source?.offerId ?? null}::uuid,${o.source?.exposureId ?? null}::uuid,${o.mode},${o.link?.linkId ?? null}::uuid,${o.link?.revision ?? null},${o.expiresAt}::timestamptz)`.execute(
+    await sql`insert into experience.offers(universe_id,id,privacy_epoch,session_id,intent_revision,policy_version,decision_id,asset_id,asset_revision,descriptor,source_offer_id,source_exposure_id,mode,continuity_link_id,continuity_link_revision,expires_at) values(${u}::uuid,${o.id}::uuid,${e},${o.sessionId}::uuid,${o.intentRevision},${o.policyVersion},${o.descriptor.decisionId}::uuid,${o.descriptor.assetId}::uuid,${o.descriptor.assetRevision},${JSON.stringify(o.descriptor)}::jsonb,${o.source?.offerId ?? null}::uuid,${o.source?.exposureId ?? null}::uuid,${o.mode},${o.link?.linkId ?? null}::uuid,${o.link?.revision ?? null},${o.expiresAt}::timestamptz)`.execute(
       db,
     );
 };

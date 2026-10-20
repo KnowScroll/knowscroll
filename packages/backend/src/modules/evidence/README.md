@@ -106,3 +106,9 @@ prefix, including separately owned15 before dev rollout.
 The erasure inventory includes all four activity tables and ordinary/retained/dead activity jobs.
 Full erasure removes them before Experience's exposure roots. No formation, Planet, provider,
 assessment, selective history-clearing, or client UI is implemented here.
+
+Activity idempotence compares only the currently applied vector under the personal root lock.
+An actual reversible attribution correction A->B->A appends three immutable monotonic revisions,
+even though the first and third hashes coincide. Hash equality with older audit history is not a
+uniqueness rule. The new current pointer and weighted scalar/channel/Q/O replacements commit
+atomically; final redelivery of already-current A does nothing and creates no qualification row.
