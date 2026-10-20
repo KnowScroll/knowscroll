@@ -3,6 +3,13 @@
  * Pure TypeScript and Zod, no platform APIs: the API, the worker and the Expo app (web and native)
  * run this same code. Internal provenance and the producer contract are separate, backend-only
  * entries (`./internal`, `./producer`).
+ *
+ * Validation has two entry points (coordinator ruling on M1). ADMISSION, for the server, worker
+ * and producer: `admitDocument`, `admitBlock`, `validateDocument(…, {purpose: 'stored'})`, and the producer's
+ * `validateDraft` and `compileDraft`; they prove every simulation over its whole grid. CLIENT, for
+ * the device: `parseDocument`, `validateDocument(…, {purpose: 'rendition'})`, `parseBlock` and
+ * `negotiate`; they never walk a grid, and a single evaluated point is guarded by
+ * `outputsUsable`. A client must not call an admission function.
  */
 export { FIELD_LIMITS, LIMITS, SCROLL_LIMITS_VERSION } from './limits.js';
 export {
@@ -115,8 +122,11 @@ export {
   type SectionCoverage,
 } from './measures.js';
 export {
+  admitBlock,
+  admitDocument,
   computeIntegrity,
   parseBlock,
+  parseDocument,
   readEnvelope,
   validateDocument,
   worstGrowthBytes,
@@ -169,6 +179,7 @@ export {
   cardsScale,
   curveSampleCount,
   curveSamples,
+  curveUsable,
   evaluateFormula,
   evaluateSimulation,
   formatNumber,
@@ -176,6 +187,7 @@ export {
   gridSize,
   gridValues,
   isOnGrid,
+  outputsUsable,
   plotRange,
   readoutBand,
   renderTemplate,

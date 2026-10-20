@@ -27,7 +27,7 @@ Background reading:
 
 | Entry | Who may import it | Contents |
 |---|---|---|
-| `@knowscroll/scroll-model` | everyone (server, worker, client) | Document and block schemas, limits, `validateDocument`, `parseBlock`, `negotiate`, `parseCapabilities`, locators and anchor maps, block state and snapshots, the telemetry payload, measures and coverage, simulation evaluation, `fallbackTextOf`, `textFields`, canonical JSON and SHA-256 |
+| `@knowscroll/scroll-model` | everyone (server, worker, client); see *Limits and cost* for which functions a client may call | Document and block schemas, limits, `admitDocument` / `validateDocument`, `parseDocument`, `admitBlock`, `parseBlock`, `negotiate`, `parseCapabilities`, locators and anchor maps, block state and snapshots, the telemetry payload, measures and coverage, simulation evaluation and its runtime guards, `fallbackTextOf`, `textFields`, canonical JSON and SHA-256 |
 | `@knowscroll/scroll-model/producer` | backend only | `ScrollDraft` (what the writer model returns), `DraftProvenance` (the compile input), `blockCatalogueText()` for the prompt, `validateDraft`, `compileDraft`, `draftFromDocument`, stages and repair hints |
 | `@knowscroll/scroll-model/internal` | backend only | `ScrollProvenance` (claims, sources, bindings, checks, production record) and the honesty checks |
 | `@knowscroll/scroll-model/fixtures/<name>.json` | tests only | The labelled consumer-document fixtures (`fixtures/documents/`). Drafts, compile inputs and internal provenance fixtures are not exported. |
@@ -54,16 +54,17 @@ Dependency direction, enforced by dependency-cruiser and proved by `pnpm boundar
 1. **Production (worker).**
    - The writer role returns one JSON object.
    - `validateDraft` checks it in stages.
-   - `compileDraft(draft, provenance)` turns it into the immutable consumer document and its internal provenance.
+   - `compileDraft(draft, provenance)` turns it into the immutable consumer document and its internal provenance. This is **admission**: every check runs, including the full-grid proof of each simulation.
    - Code, not the model, sets: missing ids, versions, gestures, text blocks' accessibility label, the "Illustrative" notice, framing, template, theme, series, reading time, coverage weights and the integrity hash.
-2. **Storage.** The document is stored per revision and served to clients. The provenance is stored beside it and never served.
+2. **Storage.** The document is stored per revision and served to clients. The provenance is stored beside it and never served. A revision is admitted with `admitDocument` (the same checks again, on exactly the stored bytes).
 3. **Serving.**
    - The client advertises `ClientCapabilities`, and `negotiate` parses them (they are untrusted input).
    - `negotiate` returns the rendition for that client. It replaces each unsupported block with a `fallback` block and lists the essential blocks that degraded, so the caller can prefer another rendition, such as the Reel variant.
    - A rendition that substituted blocks carries `rendition {of, sha256}`, which the client can verify.
    - A rendition of a valid stored revision is always valid, because the stored limits hold for the worst rendition.
 4. **Rendering.**
-   - The renderer parses each block defensively (`parseBlock`). When it cannot render a block, it shows `fallbackTextOf(block)`.
+   - The renderer parses each block defensively (`parseBlock`: structure, bounds and cheap checks, never a grid walk). When it cannot render a block, it shows `fallbackTextOf(block)`.
+   - Every evaluated point is guarded: when `outputsUsable` is false (a non-finite output at runtime), the renderer shows the block's fallback text instead of the view, never `NaN` or `Infinity`.
    - `gesture` drives gesture arbitration, and `REDUCED_MOTION` drives reduced motion.
    - `projectText` and `isGraphemeBoundary` handle text selection.
    - Simulations use `evaluateSimulation`, `sampleCurve`, `cardsScale`, `plotRange`, `renderTemplate`, `readoutBand` and `formatNumber`. An illustrative simulation always shows its "Illustrative" notice.
@@ -196,9 +197,9 @@ Deliberately absent: sources, claims, quotes, model, prompt, run, reviewer, coun
 
 Bars, areas and plot ranges are scaled by code from the grid (`cardsScale`, `plotRange`), so no model-written display number exists.
 
-**Proof over the whole grid.**
-- The product of all the parameters' grid sizes must be at most **10,000** points (`sim_grid_too_large`).
-- The validator evaluates every output at **every** grid point. Plot samples are grid values, so they are covered.
+**Proof over the whole grid (admission only).**
+- The product of all the parameters' grid sizes must be at most **10,000** points (`sim_grid_too_large`). This is a count, checked on both paths.
+- The admission validator evaluates every output at **every** grid point. Plot samples are grid values, so they are covered. The client path never does this (see *Limits and cost*).
 - It refuses any non-finite output, any output beyond ±1e15, and any negative bar or area.
 - Each formula is compiled once into a kernel over one `Float64Array`. The proof sweeps the grid a row at a time (the largest grids laid out along the row, up to 1,024 values) and re-evaluates only the outputs that depend on a parameter that changed. The same kernels evaluate a single point and a curve, so the proof checks exactly the arithmetic the renderer runs. Evaluation never throws; outside validation, a bad value becomes `null` and renders as "—".
 
@@ -238,6 +239,46 @@ Text primitives refuse:
 - text that is not NFC;
 - web addresses in reader text.
 
+## Limits and cost
+
+### Two validation paths (coordinator ruling on M1)
+
+The review of #254 (M1) asked what validation costs. The ruling: the full-grid finiteness proof (up to 10,000 grid points per simulation) must **not** run on the client's parse path. Hermes has no JIT, so the proof would cost tens to hundreds of milliseconds per Scroll on a phone (the coordinator's estimate; not measured here).
+
+| | Admission | Client |
+|---|---|---|
+| Who may call it | server, worker, producer | the device (a renderer) |
+| Document | `admitDocument`, `validateDocument(…, {purpose: 'stored'})` (the default), the producer's `validateDraft` and `compileDraft` | `parseDocument`, `validateDocument(…, {purpose: 'rendition'})` |
+| Block | `admitBlock` | `parseBlock` |
+| Envelope, depth, byte size, unknown types, schema | yes | yes |
+| Counted limits (blocks, interactive, media, parameters, visible text, worst-rendition growth) | yes | yes |
+| Per-block structure (tables, charts, diagrams, media) | yes | yes |
+| Simulation declarations (keys, ranges, references, views, grid size) | yes | yes |
+| **Full-grid proof (every output finite and within ±1e15, no negative bar or area, at every grid point)** | **yes** | **never** |
+| Reading measures and the integrity or rendition hash | always | only with `parseDocument(…, {verify: true})` |
+
+- **The client trusts admission, and guards each point.** A revision reached the client only after admission proved it. At runtime a single point is still guarded: `evaluateSimulation` returns `null` for a non-finite output (or one beyond ±1e15), and `outputsUsable(values)` (and `curveUsable(curve)` for a plot) is then false. The renderer shows `fallbackTextOf(block)` in place of the view, the readout and the bars. Number text is never `NaN` or `Infinity`: `formatNumber` renders `—`.
+- **The hash is opt-in on the client.** SHA-256 over up to 128 KiB is linear and cheap on a JIT but not on Hermes, so `parseDocument` leaves the measures and hash alone unless `{verify: true}`. The rendition's `of` link to the stored revision is always checked. The admission path always verifies. (An interpretation of "cheap checks only"; the coordinator may reverse it by making `verify` default to true.)
+- **The entry points name their path.** Each exported function's TSDoc says whether a client may call it (the `index.ts` header lists both sets). No client code may call an admission function; this table is the contract.
+
+### Budgets
+
+Measured in `performance.test.ts` on the CI runner as the median CPU time of the test process, after warm-up, on a fresh copy of the input (the runner shares its cores with other suites, so wall-clock time is printed beside it and is not asserted). The inputs are the largest the limits allow (`test-support/worst-case.ts`): the worst simulation is the largest grid (10,000 points) with six outputs that all depend on every parameter, five of them fractional powers, twelve constants and a cards view; the worst document holds four of them at the block, interactive-block, media and parameter limits.
+
+| Path | Input | Budget |
+|---|---|---|
+| Admission | worst-case simulation block (`admitBlock`) | < 10 ms |
+| Admission | worst-case stored document (`admitDocument`) | < 200 ms |
+| Client | worst-case simulation block (`parseBlock`) | < 1 ms |
+| Client | worst-case document (`parseDocument`) | < 20 ms |
+
+These replace the earlier single "< 5 ms" assertion, which measured the admission work on the client path and failed on the runner at about 7.4 ms. The device path now has a much tighter budget than before. The CI records are printed by the test; the informational records (`parseDocument` with `verify`, and `cardsScale` on the worst grid) have no budget.
+
+### What is not proved
+
+- Hermes timing and on-device rendering: all the numbers above are Node/V8 on a CI runner.
+- `cardsScale` and `plotRange` scale bars and axes from the grid, so each walks the whole grid when called. They are render-time helpers, not parse-time ones: call each once per block and keep the result. On a device that is the cost the ruling avoids at parse time. Storing a code-computed scale in the document at admission would remove it, but it is a schema change that the ruling did not make.
+
 ## Honesty (`./internal`, evidence stage)
 
 These checks are pure functions of a document and its provenance. They prove that every number a reader is shown or read is anchored to a claim. They cannot prove that the claim is true or that the prose says what the claim says; that is content review (blueprint §11).
@@ -252,7 +293,7 @@ These checks are pure functions of a document and its provenance. They prove tha
 3. **A simulation that is not illustrative binds every number it states.**
    - The numbers covered (`simulationNumbers`): parameter min, max, step and default; constants; every literal operand; power exponents; lookup breakpoints; and readout band thresholds.
    - Constants take a `constant` binding; every other number takes a `value` binding by path.
-   - Exempt: the structural numbers 0, ±1, 2 and 0.5.
+   - Exempt: the structural numbers 0, ±1, 2 and 0.5, except in a **constant**: a constant is a named, stated quantity (the number of Mars's moons is 2), so it is bound whatever its value.
    - Codes: `constant_unbound`, `simulation_number_unbound`. The simulation must also have at least one binding (`simulation_unbound`).
 4. **Not checked.** Diagram edge weights are stroke emphasis, not quantities a reader is shown. `format.decimals` is display precision.
 
@@ -271,16 +312,17 @@ Binding kinds (internal provenance; the draft uses `anchorText` in place of `sta
 
 Everything returns a typed outcome. Validators never throw on bad input. They report stable reason codes with paths (`REASON_CODES`), never the offending text.
 
-### `validateDocument(input, {purpose})`
+### `validateDocument(input, {purpose, verify})`
 
-Checks run in order:
+`purpose: 'stored'` (the default, also `admitDocument`) is admission; `purpose: 'rendition'` (also `parseDocument`) is the client path. Checks run in order:
 1. the envelope;
 2. nesting depth;
 3. canonical byte size;
 4. unknown block types;
 5. the schema;
 6. counted limits;
-7. per-block checks. Simulations are evaluated last, and only when every limit holds.
+7. per-block checks. On the admission path simulations are proven over their grid last, and only when every limit holds; the client path only checks their declarations;
+8. measures and the integrity (or rendition) hash, on the admission path and whenever `verify` is true.
 
 Outcomes:
 - `valid`;
@@ -291,7 +333,7 @@ Outcomes:
 
 | Function | Outcomes |
 |---|---|
-| `parseBlock(input)` | `block` · `unsupported {unknown-type \| unknown-version, envelope}` · `invalid {envelope, issues}`; the envelope keeps any valid id and fallback text |
+| `parseBlock(input)` (client), `admitBlock(input)` (admission) | `block` · `unsupported {unknown-type \| unknown-version, envelope}` · `invalid {envelope, issues}`; the envelope keeps any valid id and fallback text |
 | `negotiate(document, capabilities)` | `negotiated {document, substitutions, degradedEssential}` · `invalid-capabilities` · `unsupported-document` · `missing-baseline` (every client must render `fallback`, `paragraph` and `subheading`) |
 | `validateLocator(document, locator, {personalConsent})` | `valid {sectionId, sectionHeading, quote, block}` · `invalid {reason}` |
 | `buildBlockStateSnapshot(block, state, {includePersonal})` | `snapshot` · `stateless` · `invalid-state {problems}` · `too-large` |
@@ -397,7 +439,12 @@ Vitest with fast-check property tests, run in GitHub Actions only (D-010). They 
 - **Simulations:** the full-grid proof. An adversarial generator includes poles and negative bars, so the test fails if the proof is removed. Evaluation stays finite and bounded for any schema-valid input.
 - **Primitives:** typed outcomes for unknown versions, SHA-256 against Node's, canonical JSON, number tokens, lone surrogates.
 - **Personal values:** excluded from snapshots by default.
-- **Timing (`performance.test.ts`):** a worst-case stored document validates in under 200 ms, and a worst-case simulation `parseBlock` takes under 5 ms (six outputs that all depend on every parameter, five of them fractional powers, over 10,000 points). These are medians of the test process's CPU time on the runner, which shares its cores with other suites; the wall-clock medians are printed beside them.
+- **Two paths (`client-path.test.ts`):** a simulation with a pole that only the grid proof can see is valid on the client path and refused on the admission path; declarations are refused on both; the hash is verified only on request; a single evaluated point is guarded (`outputsUsable`, `curveUsable`) and number text is never `NaN` or `Infinity`.
+- **Timing (`performance.test.ts`):** the four budgets in *Limits and cost* (admission < 10 ms block and < 200 ms document; client < 1 ms block and < 20 ms document), as medians of the test process's CPU time on the runner; the wall-clock medians are printed beside them.
+- **Copy check (`producer/copy-check.test.ts`):** a copied nine-word run is refused in each kind of reader-facing text (header, headings, captions, labels, accessibility text, fallback text, alt text, transcripts, table cells, readouts, notes), and only a code body is exempt.
+- **Completeness of the text enumeration (`text-fields.test.ts`):** built from the block schema itself, it plants a marker in every free-text property of every block type and union branch and requires `textFields` to return it, so no text escapes the visible-text limit, the numeric check or the copy check.
+- **Locale (`locale.test.ts`):** formatting and every fixture's integrity hash are unchanged when the runtime's locale-sensitive built-ins are replaced, and the package's own code uses none.
+- **Rulings (`rulings.test.ts`):** no chart "inspect" interaction or glyph, one `explanationUnitId` with an optional series reference, no stored fallback text on text blocks.
 
 `review-254.test.ts` reproduces each of the reviewer's proof-of-concept inputs (p1–p11) as a regression test.
 
@@ -406,4 +453,5 @@ Vitest with fast-check property tests, run in GitHub Actions only (D-010). They 
 - **Block count.** D-012 counts "17 authored block types". The ruled list gives 16 authored types (figure and media are separate) plus `fallback`, which makes 17 in total.
 - **Added document fields:** `corrections[]` (the persistent "Corrected" note belongs to a revision), `limitsVersion`, the optional `series`, and the rendition-only `rendition`. Measures carry per-block weights, so the server's coverage is fixed per revision.
 - **Diagram interactions.** `toggle` is one labelled button per frame (2–8 frames). `steps` is Previous/Next.
+- **Per-block hashes (design note, review minor 12).** The integrity hash covers the whole document, so a client cannot check that the blocks `negotiate` did not substitute are those of the stored revision: `rendition.sha256` proves what it received and `rendition.of` names the revision, nothing more. Giving every block its own hash (and hashing the hashes) would let a client verify the untouched blocks of any rendition. v1 does not: it adds about 70 bytes to each of up to 80 blocks, changes the canonical form, and verification on a device is the cost the M1 ruling avoids. The `scroll-document.v1` hash method is versioned (`canonical-json-sha256.v1`), so a block-hash method can arrive as a new method name without changing the stored blocks.
 - **"Binds all its numbers".** For a non-illustrative simulation this means every number it states except the structural ones, plus at least one binding. The structural numbers are not bindable quantities.

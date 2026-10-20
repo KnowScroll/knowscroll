@@ -7,13 +7,29 @@ import { formulaReferences, gridPositions, isOnGrid, simulationGridPoints, sweep
 type CheckedSimulation = Pick<SimulationData, 'params' | 'constants' | 'outputs' | 'view' | 'readout'>;
 
 /**
- * Structural and computational checks of one simulation (`scroll-checks.v1`, computation stage).
- * Declarations are checked first. Only when they are sound is every output evaluated at **every**
- * point of the parameter grid (at most `LIMITS.simulationGridPoints`, so this is a proof over the
- * declared domain, not a sample; a plot's curve samples are grid values): any non-finite or
- * out-of-range output, and any negative bar or area, refuses the simulation.
+ * ADMISSION: structural and computational checks of one simulation (`scroll-checks.v1`,
+ * computation stage). Declarations are checked first (`simulationDeclarationIssues`). Only when
+ * they are sound is every output evaluated at **every** point of the parameter grid (at most
+ * `LIMITS.simulationGridPoints`, so this is a proof over the declared domain, not a sample; a
+ * plot's curve samples are grid values): any non-finite or out-of-range output, and any negative
+ * bar or area, refuses the simulation.
+ *
+ * Server, worker and producer only. A client must call `simulationDeclarationIssues` (or
+ * `parseBlock`, which does): the grid proof costs milliseconds on a JIT and tens to hundreds of
+ * milliseconds on Hermes, which has none (coordinator ruling on M1).
  */
 export function simulationIssues(data: CheckedSimulation, path: string): Issue[] {
+  const declarations = simulationDeclarationIssues(data, path);
+  if (declarations.length > 0) return declarations;
+  return gridIssues(data).map((code) => ({ code, path }));
+}
+
+/**
+ * CLIENT AND ADMISSION: the cheap checks of one simulation, linear in what the block declares
+ * (parameters, constants, outputs, their references, the view, the readout) and never in the size
+ * of the grid. The grid itself is only counted (`sim_grid_too_large`), not walked.
+ */
+export function simulationDeclarationIssues(data: CheckedSimulation, path: string): Issue[] {
   const codes = new Set<ReasonCode>();
   const params = new Map(data.params.map((param) => [param.key, param]));
   const outputs = new Set(data.outputs.map((output) => output.key));
@@ -76,7 +92,6 @@ export function simulationIssues(data: CheckedSimulation, path: string): Issue[]
     }
   }
 
-  if (codes.size === 0) for (const code of gridIssues(data)) codes.add(code);
   return [...codes].map((code) => ({ code, path }));
 }
 

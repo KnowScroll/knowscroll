@@ -385,7 +385,7 @@ function analyse(
     dek: draft.dek,
     sections: assembly.sections,
   };
-  const structural = [...assembly.issues, ...documentIssues(document)];
+  const structural = [...assembly.issues, ...documentIssues(document, { proof: true })];
   const structure = structural.filter((issue) => stageOf(issue.code) !== 'computation');
   if (structure.length > 0) return refused('structure', structure);
   const computation = structural.filter((issue) => stageOf(issue.code) === 'computation');

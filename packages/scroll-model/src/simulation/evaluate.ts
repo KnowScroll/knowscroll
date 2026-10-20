@@ -373,8 +373,25 @@ export interface SimulationValues {
 }
 
 /**
+ * CLIENT GUARD (coordinator ruling on M1). The client does not prove a simulation over its grid;
+ * the server did when the revision was admitted. At runtime every single-point evaluation is
+ * still guarded: a non-finite output (or one beyond ±1e15) comes back as `null`, and when any
+ * output is `null` the renderer shows the block's fallback text (`fallbackTextOf(block)`) in place
+ * of the view, the readout and the bars. Number text is never `NaN` or `Infinity`.
+ */
+export function outputsUsable(values: SimulationValues): boolean {
+  return Object.values(values.outputs).every((value) => value !== null);
+}
+
+/** CLIENT GUARD for a curve: false when any sampled `y` is `null` (the renderer shows the fallback text). */
+export function curveUsable(curve: ReadonlyArray<{ readonly y: number | null }>): boolean {
+  return curve.every((point) => point.y !== null);
+}
+
+/**
  * Evaluates every output in declaration order. Values for unknown keys are ignored; missing
- * parameters take their defaults; given values are snapped onto the grid.
+ * parameters take their defaults; given values are snapped onto the grid. One point: constant
+ * work per output, safe on the client; guard the result with `outputsUsable`.
  */
 export function evaluateSimulation(
   data: SimulationCore,
@@ -535,7 +552,10 @@ export function sweepGrid(data: SimulationCore, visit: (row: GridRow) => boolean
   }
 }
 
-/** Largest card value over the grid: the value that fills a bar (`cards` view). */
+/**
+ * Largest card value over the grid: the value that fills a bar (`cards` view). Walks the whole
+ * grid, so call it once per block and keep the result (it depends on the block only).
+ */
 export function cardsScale(data: SimulationCore & { view: SimulationView }): number {
   const view = data.view;
   if (view.kind !== 'cards') return 1;
@@ -551,7 +571,10 @@ export function cardsScale(data: SimulationCore & { view: SimulationView }): num
   return largest > 0 ? largest : 1;
 }
 
-/** The y range of a plot over its whole grid (curve samples included): `[min(0, lowest), highest]`. */
+/**
+ * The y range of a plot over its whole grid (curve samples included): `[min(0, lowest), highest]`.
+ * Walks the whole grid, so call it once per block and keep the result (it depends on the block only).
+ */
 export function plotRange(data: SimulationCore & { view: SimulationView }): readonly [number, number] {
   const view = data.view;
   if (view.kind !== 'plot') return [0, 1];

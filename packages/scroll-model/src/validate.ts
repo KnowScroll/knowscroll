@@ -14,11 +14,21 @@ import { FIELD_LIMITS, LIMITS } from './limits.js';
 import { computeMeasures } from './measures.js';
 import { LocalId } from './primitives.js';
 import { BASELINE_TYPES, deriveGesture, fallbackTextOf, isInteractiveBlock, visibleTexts } from './registry.js';
-import { simulationIssues } from './simulation/checks.js';
+import { simulationDeclarationIssues, simulationIssues } from './simulation/checks.js';
 
 /**
  * Validation of stored documents and client renditions (`scroll-checks.v1`). Every outcome is
  * typed; nothing throws on bad input.
+ *
+ * Two entry points, by who may call them (coordinator ruling on M1):
+ * - **Admission** (server, worker, producer): `admitDocument`, `validateDocument(…, {purpose:
+ *   'stored'})` and the producer's `validateDraft` / `compileDraft` run every check, including the
+ *   full-grid finiteness proof of each simulation (up to 10,000 grid points).
+ * - **Client** (the device): `parseDocument`, `validateDocument(…, {purpose: 'rendition'})` and
+ *   `parseBlock` run the structural, bounds and cheap checks only. They never walk a simulation's
+ *   grid: Hermes has no JIT, so the proof would cost tens to hundreds of milliseconds per Scroll
+ *   on a phone. The revision was proven when it was admitted; at runtime a single point stays
+ *   guarded (`outputsUsable`: a non-finite output renders the block's fallback text).
  */
 
 export type DocumentOutcome =
@@ -29,11 +39,32 @@ export type DocumentOutcome =
 
 export interface ValidateOptions {
   /**
-   * `stored` (default): a published revision; measures and integrity must match, and no
-   * `fallback` block or `rendition` member may appear. `rendition`: the output of `negotiate` for
-   * one client; when it substituted blocks it carries `rendition`, whose hash must match.
+   * `stored` (default) is ADMISSION: a revision being published or re-checked by the server.
+   * Measures and integrity must match, no `fallback` block or `rendition` member may appear, and
+   * every simulation is proven over its whole grid. Server, worker and producer only.
+   *
+   * `rendition` is the CLIENT path: the output of `negotiate` (or a stored revision) as a device
+   * receives it. When `negotiate` substituted blocks it carries `rendition`, whose hash must
+   * match. Every check except the full-grid proof runs.
    */
   readonly purpose?: 'stored' | 'rendition';
+  /**
+   * Recompute and compare the reading measures and the integrity (or rendition) hash. Default
+   * `true`; the admission path always verifies. The hash is linear in the size of the document
+   * (SHA-256 over up to 128 KiB), which is cheap on a JIT and not on Hermes, so `parseDocument`
+   * turns it off unless the caller asks. The `rendition.of` link to the stored revision is always
+   * checked.
+   */
+  readonly verify?: boolean;
+}
+
+/** What the per-block and per-document checks run. */
+export interface CheckOptions {
+  /**
+   * Run the full-grid finiteness proof of each simulation (admission). Off on the client path:
+   * the grid is neither walked nor evaluated, only counted.
+   */
+  readonly proof: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -80,10 +111,10 @@ function unknownBlockIssues(input: Record<string, unknown>): Issue[] {
 }
 
 /**
- * Checks of one block that need no document context. `evaluate: false` skips the full-grid
- * evaluation of simulations (used once a document has already failed a limit).
+ * Checks of one block that need no document context. `proof: false` skips the full-grid
+ * evaluation of simulations: the client path, and a document that has already failed a limit.
  */
-export function blockIssues(block: AnyBlock, path: string, options: { evaluate?: boolean } = {}): Issue[] {
+export function blockIssues(block: AnyBlock, path: string, options: CheckOptions): Issue[] {
   const issues: Issue[] = [];
   const add = (code: ReasonCode, at = path) => issues.push({ code, path: at });
   if (block.gesture !== deriveGesture(block)) add('gesture_mismatch', `${path}.gesture`);
@@ -126,7 +157,9 @@ export function blockIssues(block: AnyBlock, path: string, options: { evaluate?:
       issues.push(...chartIssues(block, data));
       break;
     case 'simulation':
-      if (options.evaluate !== false) issues.push(...simulationIssues(block.data, data));
+      issues.push(
+        ...(options.proof ? simulationIssues(block.data, data) : simulationDeclarationIssues(block.data, data)),
+      );
       break;
     case 'paragraph':
     case 'subheading':
@@ -298,8 +331,9 @@ export function worstGrowthBytes(block: AnyBlock): number {
  * Document-wide structure and limits, then every block's own checks. Limits are counted first and
  * cheaply; when one fails, simulations are not evaluated. The visible-text limit holds for the
  * worst rendition a client can be given, so `negotiate` never produces an invalid document.
+ * `options.proof` selects admission (full-grid proof) or the client path (no proof).
  */
-export function documentIssues(document: DocumentLike): Issue[] {
+export function documentIssues(document: DocumentLike, options: CheckOptions): Issue[] {
   const issues: Issue[] = [];
   const ids = new Set<string>();
   const claim = (id: string, path: string) => {
@@ -331,16 +365,19 @@ export function documentIssues(document: DocumentLike): Issue[] {
   if (params > LIMITS.paramsTotal) limits.push({ code: 'too_many_params', path: '$' });
   if (media > LIMITS.mediaBlocks) limits.push({ code: 'too_many_media', path: '$' });
   if (visibleChars > LIMITS.visibleChars) limits.push({ code: 'visible_text_too_long', path: '$' });
-  const evaluate = limits.length === 0;
-  for (const { block, path } of walkBlocks(document.sections)) issues.push(...blockIssues(block, path, { evaluate }));
+  const proof = options.proof && limits.length === 0;
+  for (const { block, path } of walkBlocks(document.sections)) issues.push(...blockIssues(block, path, { proof }));
   return [...limits, ...issues];
 }
 
 /**
  * Validates an untrusted value as a scroll-document.v1 revision (or a client rendition of one).
  * Order, cheapest first: shape of the envelope, nesting depth, canonical byte size, unknown block
- * types, the schema, counted limits, then per-block checks (simulations last, and only when every
- * limit holds).
+ * types, the schema, counted limits, then per-block checks (the full-grid proof of simulations
+ * last, and only on the admission path when every limit holds).
+ *
+ * `purpose: 'stored'` (the default) is the ADMISSION path and `purpose: 'rendition'` the CLIENT
+ * path; see `ValidateOptions`. Prefer `admitDocument` and `parseDocument`, which name the two.
  */
 export function validateDocument(input: unknown, options: ValidateOptions = {}): DocumentOutcome {
   if (!isRecord(input)) return { kind: 'invalid', issues: [{ code: 'document_not_object', path: '$' }] };
@@ -362,14 +399,16 @@ export function validateDocument(input: unknown, options: ValidateOptions = {}):
   const parsed = ScrollDocument.safeParse(input);
   if (!parsed.success) return { kind: 'invalid', issues: uniqueIssues(parsed.error.issues.map(issueFromSchema)) };
   const document = parsed.data;
-  const issues = documentIssues(document);
+  const admission = (options.purpose ?? 'stored') === 'stored';
+  const verify = admission || options.verify !== false;
+  const issues = documentIssues(document, { proof: admission });
   const rendition = document.rendition;
-  if ((options.purpose ?? 'stored') === 'stored' || rendition === undefined) {
+  if (admission || rendition === undefined) {
     if (rendition !== undefined) issues.push({ code: 'rendition_in_stored_document', path: 'rendition' });
     for (const visit of walkBlocks(document.sections)) {
       if (visit.block.type === 'fallback') issues.push({ code: 'fallback_in_stored_document', path: visit.path });
     }
-    if (issues.length === 0) {
+    if (verify && issues.length === 0) {
       if (canonicalJson(computeMeasures(document.sections)) !== canonicalJson(document.measures)) {
         issues.push({ code: 'measures_mismatch', path: 'measures' });
       }
@@ -377,7 +416,10 @@ export function validateDocument(input: unknown, options: ValidateOptions = {}):
         issues.push({ code: 'integrity_mismatch', path: 'integrity' });
       }
     }
-  } else if (rendition.of !== document.integrity.sha256 || computeIntegrity(document) !== rendition.sha256) {
+  } else if (
+    rendition.of !== document.integrity.sha256 ||
+    (verify && computeIntegrity(document) !== rendition.sha256)
+  ) {
     issues.push({ code: 'rendition_integrity_mismatch', path: 'rendition' });
   }
   const growth = document.sections.reduce(
@@ -386,6 +428,28 @@ export function validateDocument(input: unknown, options: ValidateOptions = {}):
   );
   if (size + growth > LIMITS.documentBytes) issues.push({ code: 'document_too_large', path: '$' });
   return issues.length === 0 ? { kind: 'valid', document } : { kind: 'invalid', issues: uniqueIssues(issues) };
+}
+
+/**
+ * ADMISSION: checks a revision before it is stored or served, including the full-grid finiteness
+ * proof of every simulation. Server, worker and producer only: a client must call `parseDocument`.
+ */
+export function admitDocument(input: unknown): DocumentOutcome {
+  return validateDocument(input, { purpose: 'stored' });
+}
+
+/**
+ * CLIENT: parses a document as a device receives it, a stored revision or a `negotiate` rendition.
+ * Structure, bounds, limits, text rules and the cheap per-block checks are checked; a simulation's
+ * grid is never walked (the revision was proven at admission). Safe to call on the device.
+ *
+ * The reading measures and the integrity (or rendition) hash are recomputed only with
+ * `{verify: true}`: the SHA-256 is linear in the document and costs tens of milliseconds on a
+ * device without a JIT, so a client that wants the proof of what it received asks for it
+ * deliberately, off the render path.
+ */
+export function parseDocument(input: unknown, options: { readonly verify?: boolean } = {}): DocumentOutcome {
+  return validateDocument(input, { purpose: 'rendition', verify: options.verify === true });
 }
 
 /** What a renderer can still use from a block it cannot render. */
@@ -427,26 +491,54 @@ export function readEnvelope(input: unknown): BlockEnvelopeView {
 }
 
 /**
- * Defensive parse of one block for a renderer: the renderer shows the block, or its fallback text
- * (with a diagnostic) when the type or version is unknown or the data is invalid. The rest of the
- * article still renders.
+ * CLIENT: defensive parse of one block for a renderer. The renderer shows the block, or its
+ * fallback text (with a diagnostic) when the type or version is unknown or the data is invalid.
+ * The rest of the article still renders.
+ *
+ * Structure, bounds and cheap checks only; a simulation's grid is never walked or evaluated, so
+ * the cost is linear in the size of the block and safe on a device without a JIT. A parsed
+ * simulation can still be non-finite at some point of its grid if it never went through
+ * admission: guard each evaluation with `outputsUsable`.
  */
 export function parseBlock(input: unknown): BlockOutcome {
-  const envelope = readEnvelope(input);
+  return checkBlock(input, { proof: false });
+}
+
+/**
+ * ADMISSION: parses one block like `parseBlock` and also proves a simulation over its whole grid.
+ * Server, worker and tooling only; never call it on a device.
+ */
+export function admitBlock(input: unknown): BlockOutcome {
+  return checkBlock(input, { proof: true });
+}
+
+function checkBlock(input: unknown, options: CheckOptions): BlockOutcome {
+  // The envelope (a second, defensive parse of the id, fallback text and accessibility text) is
+  // read only for an outcome that is not a block: a valid block pays for one parse, not two.
   if (nestsDeeperThan(input, FIELD_LIMITS.jsonDepth))
-    return { kind: 'invalid', envelope, issues: [{ code: 'document_too_deep', path: '$' }] };
-  if (envelope.type !== null && !isBlockType(envelope.type))
-    return { kind: 'unsupported', reason: 'unknown-type', envelope };
-  if (envelope.type !== null && isBlockType(envelope.type) && envelope.version !== BLOCK_VERSIONS[envelope.type]) {
-    return { kind: 'unsupported', reason: 'unknown-version', envelope };
+    return { kind: 'invalid', envelope: readEnvelope(input), issues: [{ code: 'document_too_deep', path: '$' }] };
+  const type = isRecord(input) && typeof input['type'] === 'string' ? input['type'] : null;
+  const rawVersion = isRecord(input) ? input['version'] : undefined;
+  const version = typeof rawVersion === 'number' && Number.isInteger(rawVersion) ? rawVersion : null;
+  if (type !== null && !isBlockType(type))
+    return { kind: 'unsupported', reason: 'unknown-type', envelope: readEnvelope(input) };
+  if (type !== null && isBlockType(type) && version !== BLOCK_VERSIONS[type]) {
+    return { kind: 'unsupported', reason: 'unknown-version', envelope: readEnvelope(input) };
   }
   const parsed = Block.safeParse(input);
-  if (!parsed.success)
-    return { kind: 'invalid', envelope, issues: uniqueIssues(parsed.error.issues.map(issueFromSchema)) };
-  const block = parsed.data;
-  const issues = blockIssues(block, '$');
-  if (block.type === 'disclosure') {
-    block.data.blocks.forEach((child, index) => issues.push(...blockIssues(child, `data.blocks.${index}`)));
+  if (!parsed.success) {
+    return {
+      kind: 'invalid',
+      envelope: readEnvelope(input),
+      issues: uniqueIssues(parsed.error.issues.map(issueFromSchema)),
+    };
   }
-  return issues.length === 0 ? { kind: 'block', block } : { kind: 'invalid', envelope, issues: uniqueIssues(issues) };
+  const block = parsed.data;
+  const issues = blockIssues(block, '$', options);
+  if (block.type === 'disclosure') {
+    block.data.blocks.forEach((child, index) => issues.push(...blockIssues(child, `data.blocks.${index}`, options)));
+  }
+  return issues.length === 0
+    ? { kind: 'block', block }
+    : { kind: 'invalid', envelope: readEnvelope(input), issues: uniqueIssues(issues) };
 }
