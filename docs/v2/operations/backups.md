@@ -117,18 +117,28 @@ As root on the server, with `w=dev` (or `stage`) and `d=/srv/knowscroll/backups/
 8. Check: `ks status` shows the world healthy, and `/health`'s `migration` is the dump's latest
    migration (the restore check records it). Drop the `_damaged_` copy once it is no longer needed.
 
-## Roll back a v2 deploy (code, then data)
+## Roll back a v2 deploy safely
 
-- A deploy that does not become healthy within 90 s is rolled back automatically to the release
-  before it, in whichever generation that was, with `current` and `previous` exactly as they were
-  ([environments.md](environments.md)).
-- By hand: `ks rollback <world>` (it takes the deploy lock) swaps `current` and `previous`, verifies
-  a v2 release again, and starts that release's generation; if it does not become healthy, the links
-  and what ran before are put back.
+- Every v2 activation requires the complete applied migration registry and checksums to exactly
+  match the validated target release's installed SQL. The newest migration or healthy commit/artifact
+  alone cannot prove that old code knows all current privacy/erasure obligations.
+- Every v2 deploy stops/disables its v2 target/API/worker before the pre-deploy dump and migration,
+  including equal-schema deployments. Old erasers cannot run or auto-restart while new DDL/backfills
+  create personal stores. Stop failure prevents dump/DDL; legacy v1 remains untouched until activation.
+- Failed migration/activation/health recovery rechecks the previous code. If its v2 schema is now
+  incompatible or unreadable, stop/disable unsafe v2 before restoring original links, report incomplete
+  recovery and require a reviewed forward recovery. Never claim the old release is healthy or restart
+  old erasers on newer personal tables. If stopping fails, links are not switched to unsafe old code.
+- By hand: `ks rollback <world>` takes the deploy lock and refuses an incompatible/unknown v2 target
+  **before** changing links or services. Equal-schema code rollback remains allowed. A failed
+  compatible rollback restores the original release only after the same schema check.
 - Migrations are never reversed automatically. **Rolling back a v2 migration = restoring the
   pre-migrate dump of that deploy** (`releases.log` names it: `predeployDump`) with the runbook
   above, `d=…/knowscroll_v2_$w/pre-deploy-<time>-<commit12>.dump`, then `ks rollback` to the release
   that matches it.
+- Prefer a reviewed forward recovery matching the actual schema. A pre-call backup restore can erase
+  post-backup paid-attempt/usage rows and privacy changes; preserve/reconcile those obligations and
+  the damaged database first. A restore never refunds external requests or permits an unknown resend.
 - Back to v1: `ks rollback` while `previous` is the v1 release, or a deploy of a v1 commit
   ([environments.md](environments.md)). v2 never wrote to the v1 database, so v1 resumes where it
   stopped.

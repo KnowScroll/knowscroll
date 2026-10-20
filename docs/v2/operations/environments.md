@@ -281,22 +281,44 @@ For a v2 release:
    (`ordered_by = <world>`, state `claimed`), or if that cannot be read — v1's generation worker
    must settle it first. Because the check and the switch happen under the deploy lock, and every
    order-claiming `ks run` takes the same lock, no claim can slip in between.
-5. **Pre-migrate dump:** `pg_dump -Fc` of `knowscroll_v2_<world>` to
+5. **Quiesce v2 before any dump/migrate:** explicitly stop and disable this world's v2 target,
+   API and worker on every v2 deployment, even when no new migration is expected. Brief downtime
+   is intentional: running old erasers or an automatic restart during a new backfill is unsafe.
+   A quiesce failure prevents the dump and DDL invocation; recovery still requires the old schema
+   to be established. Legacy v1 units stay untouched until normal accepted v2 activation because
+   their database is separate.
+   **Pre-migrate dump:** `pg_dump -Fc` of `knowscroll_v2_<world>` to
    `/srv/knowscroll/backups/knowscroll_v2_<world>/pre-deploy-<UTC time>-<commit12>.dump` (0700/0600,
    root), checked with `pg_restore --list`; if it fails, nothing is migrated (m10).
-6. Runs `migrate` from `release.json` as `ks-<world>` with the v2 settings and secret, with its own
+6. Runs `migrate` from `release.json` as `ks2-<world>` with the v2 settings and secret, with its own
    `statement_timeout` of 15 min set in the migrate session (connection `options`, also
    `PGOPTIONS`); the role's 30 s limit is not loosened. **No seed.**
-7. `current` → the new release; **`previous` is not touched yet** (m1).
+7. Before any v2 activation, compare the complete applied migration names/order and recorded
+   checksums with the validated target manifest and its verified installed SQL. Only exact equality
+   permits activation. Unknown/unreadable metadata, missing/deleted/reordered/duplicate migrations,
+   extra migrations or differing SQL hashes refuse; `/health` identity alone is insufficient.
+   The peer-authenticated read selects only this world's `knowscroll_v2_<world>` migration metadata,
+   with a five-second process bound and at most257 rows per table (more than256 refuses). It reads
+   no legacy/owner/pool database, secret file, application payload or provider data.
+   Then `current` → the new release; **`previous` is not touched yet** (m1).
 8. Stops whatever runs of v1 (`ks-world@<world>.target` and its four services) and disables its
    target; enables and restarts `ks2-world@<world>.target`; waits up to 90 s for `/health`.
 9. Healthy: now `previous` → the release that ran before (unless it was the same commit), logs to
    `releases.log` (with generation, artifact and the pre-migrate dump's name), then cleanup.
-   Not healthy: `current` and `previous` go back **exactly** as they were, and **that release's
-   generation** is started again (v2 → restart v2; v1 → stop v2, start v1; placeholder → stop
-   both). Migrations are never rolled back automatically: v2's database stays migrated; restoring
-   the pre-migrate dump undoes it ([backups.md](backups.md)). v1's database is untouched by any of
-   this.
+   Failed migration or health/activation check: recheck the old release against the actual database.
+   Compatible old v2 may restart; incompatible/unknown old v2 is stopped and its target disabled
+   **before** restoring the original links, preventing a systemd restart from choosing unsafe old
+   code. Incomplete recovery reports `forwardRecoveryRequired`, never that previous code is healthy.
+   If stopping itself fails, recovery remains incomplete and does not expose the old links to an
+   uncontrolled restart. V1 resumes using its separate database; a placeholder stops both generations.
+   Migrations are never reversed automatically. Prefer a reviewed forward recovery release matching
+   the migrated schema; a data restore is a separate manual decision ([backups.md](backups.md)).
+
+`ks rollback <world>` checks a v2 target's exact schema **before any link or service change**.
+An older target after new personal-schema DDL therefore refuses while preserving the current release.
+This protects erasure and other obligations that old code cannot know about. An unknown release
+manifest is refused, never guessed to be v1. Install the reviewed server-tool files separately
+before relying on this guard; deploying an application artifact does not update `/usr/local/lib/knowscroll-ops`.
 
 v1 releases deploy as before (pool migrations, migrate, seed, `ks-world@` target). What is new for
 them: the archive is listed and refused the same way before extraction, extraction uses root as
@@ -474,6 +496,8 @@ are skipped (they would not be read-only), so they appear only when applying.
 - The ks decisions, the release-tree reader (real folders, archives, `/proc/locks` under `flock`)
   and the backup scripts' rules are tested in the `integrity` job, and `build.mjs`/`smoke.mjs` run
   in the `release` job; the side-effecting flows of `system.ts` (deploy, rollback against systemd)
-  have no automated test: they are proved only by the first real runs on dev.
+  now use tested schema-before-mutation and failed-recovery seams plus source-protocol assertions.
+  Actual systemd/peer-auth/recovery operation still requires a separately reviewed host plan and
+  real operational evidence; these tests are not a server rollback rehearsal.
 - Whether Caddy's `file_server` follows a link out of `web/` was not tested; links under `web/` are
   refused, so it does not matter for v2 releases.
