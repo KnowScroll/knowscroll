@@ -158,3 +158,7 @@ park/capture ordering, action rollback, Saved correction/withdrawal and platform
 arbitration. The production-export browser fixture lane exercises actual Explore → navigation →
 browser Back and withdrawn Saved removal. These are CI fixture evidence; real dev J1/J5 and
 native encounter gestures still require the coordinator's connected runtime acceptance.
+
+The two encounter `.web.tsx` platform adapters are explicit app entries in `knip.json`: Expo
+selects them by platform suffix. They remain fully scanned; production-export browser fixtures
+exercise the actual stage and path dialog.
