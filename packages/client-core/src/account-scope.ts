@@ -145,11 +145,15 @@ export function fencedFetch(options: {
   };
 }
 
-function scopedStorage(store: KeyValueStore, prefix: string): ScopedStorage {
+function scopedStorage(store: KeyValueStore, prefix: string, ended: AbortSignal): ScopedStorage {
   return {
-    get: (key) => store.getItem(`${prefix}${key}`) ?? undefined,
-    set: (key, value) => store.setItem(`${prefix}${key}`, value),
-    remove: (key) => store.removeItem(`${prefix}${key}`),
+    get: (key) => (ended.aborted ? undefined : (store.getItem(`${prefix}${key}`) ?? undefined)),
+    set: (key, value) => {
+      if (!ended.aborted) store.setItem(`${prefix}${key}`, value);
+    },
+    remove: (key) => {
+      if (!ended.aborted) store.removeItem(`${prefix}${key}`);
+    },
   };
 }
 
@@ -197,7 +201,7 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
     account: options.account,
     queryClient,
     api,
-    storage: scopedStorage(options.store, prefix),
+    storage: scopedStorage(options.store, prefix, ended.signal),
     get active() {
       return !ended.signal.aborted;
     },

@@ -62,6 +62,26 @@ describe('an account scope', () => {
     await expect(scope.api.experience.listSaved({})).rejects.toThrow(ScopeEndedError);
   });
 
+  it('fences storage handles retained by late callbacks after a purge', async () => {
+    const store = memoryStore();
+    const scope = createAccountScope({
+      account: accountA,
+      baseUrl: 'https://app.scope.test',
+      fetch: deferredApi().fetch,
+      authorization: () => undefined,
+      store,
+    });
+    const retained = scope.storage;
+    retained.set('resume', 'top-block');
+    scope.end();
+    await Promise.resolve();
+    retained.set('resume', 'unmount-block');
+    retained.set('late-response', 'private-value');
+    retained.remove('resume');
+    expect(retained.get('resume')).toBeUndefined();
+    expect(store.keys()).toEqual([]);
+  });
+
   it('sends a command through the fence with its body, the scope bearer header and its scope claim', async () => {
     const seen: { method: string; authorization: string | null; scope: string | null; body: unknown }[] = [];
     const scope = createAccountScope({
