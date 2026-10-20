@@ -32,6 +32,9 @@ describe('public research boundary (CI fixture)', () => {
     '169.254.169.254',
     '172.16.1.1',
     '192.168.1.1',
+    '192.0.2.0',
+    '192.0.2.1',
+    '192.0.2.255',
     '100.64.0.1',
     '::1',
     'fc00::1',
@@ -39,6 +42,10 @@ describe('public research boundary (CI fixture)', () => {
     '::ffff:127.0.0.1',
     '2001:db8::1',
   ])('refuses nonpublic address %s', (ip) => expect(publicAddress(ip)).toBe(false));
+  it.each(['192.0.66.108', '192.2.0.1', '192.2.255.255'])(
+    'permits public addresses outside reserved192.0 ranges %s',
+    (ip) => expect(publicAddress(ip)).toBe(true),
+  );
   it('refuses a mixed public/private DNS answer', async () => {
     await expect(
       fetchResearchPage(

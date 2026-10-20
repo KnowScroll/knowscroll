@@ -6,6 +6,8 @@ import type { ClaimPackage } from './roles.js';
 import type { RoleReceipt } from './types.js';
 import { SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
 
+export type ProductionStage = 'research' | 'claims' | 'writer';
+
 export interface ProductionRow {
   readonly id: string;
   readonly topic: ScrollTopic;
@@ -70,12 +72,13 @@ export function productionStore(db: Kysely<Database>) {
     async finish(
       tx: Transaction<Database>,
       id: string,
+      expectedStage: ProductionStage,
       state: 'published' | 'rejected' | 'unknown',
       receipts: readonly RoleReceipt[],
       publication?: { readonly assetId: string; readonly revision: number },
       draft?: unknown,
     ): Promise<void> {
-      await sql`update content.scroll_production_runs set state=${state},outcomes=outcomes||${JSON.stringify(receipts)}::jsonb,writer_output=${draft === undefined ? null : JSON.stringify(draft)}::jsonb,asset_id=${publication?.assetId ?? null},asset_revision=${publication?.revision ?? null},completed_at=now() where id=${id} and state not in ('published','rejected','unknown')`.execute(
+      await sql`update content.scroll_production_runs set state=${state},outcomes=outcomes||${JSON.stringify(receipts)}::jsonb,writer_output=${draft === undefined ? null : JSON.stringify(draft)}::jsonb,asset_id=${publication?.assetId ?? null},asset_revision=${publication?.revision ?? null},completed_at=now() where id=${id} and state=${expectedStage}`.execute(
         tx,
       );
     },

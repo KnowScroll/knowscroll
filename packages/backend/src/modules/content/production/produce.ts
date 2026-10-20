@@ -16,7 +16,7 @@ import type {
 } from '../../../reasoning/public.js';
 import { inAdmissionTransaction, makeAdmissionStore } from '../adapters/postgres-store.js';
 import { type ClaimPackage, claimsRole, compileGeneratedDraft, generatedProvenance, writerRole } from './roles.js';
-import { productionStore, type ProductionRow } from './store.js';
+import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
 import type { ProduceScrollResult, RoleReceipt } from './types.js';
 import { REQUEST_BOUND_PER_TOPIC, SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
 
@@ -85,7 +85,8 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       store.create(productionTransactionOf(scope), topic, deps.authority.generation),
     );
     if (reserved.kind !== 'entered') return { outcome: 'scope_refused', requestBound: REQUEST_BOUND_PER_TOPIC };
-    const { row, created } = reserved.value;
+    const { created } = reserved.value;
+    let { row } = reserved.value;
     if (!created && (!resume || ['published', 'rejected', 'unknown'].includes(row.state))) return summary(row);
     if (row.scope_generation !== deps.authority.generation)
       return { outcome: 'scope_refused', requestBound: REQUEST_BOUND_PER_TOPIC, runId: row.id };
@@ -97,53 +98,67 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       policyVersion: SCROLL_PRODUCTION_VERSION,
     });
     const receipts: RoleReceipt[] = [];
+    const replayCurrent = async (): Promise<ProduceScrollResult> => {
+      const current = await deps.withScope(deps.authority, (scope) =>
+        store.lock(productionTransactionOf(scope), row.id),
+      );
+      return current.kind === 'entered'
+        ? summary(current.value)
+        : { outcome: 'scope_refused', requestBound: REQUEST_BOUND_PER_TOPIC, runId: row.id };
+    };
     const reject = async (
+      expectedStage: ProductionStage,
       state: 'rejected' | 'unknown',
       codes: readonly string[],
       runId?: string,
     ): Promise<ProduceScrollResult> => {
       const closed = await deps.withScope(deps.authority, async (scope) => {
+        const tx = productionTransactionOf(scope);
+        const current = await store.lock(tx, row.id);
+        // A delayed delivery owns only the stage it executed. Never close a run or reject a job
+        // that another delivery has already advanced, including while its writer is in flight.
+        if (current.state !== expectedStage) return summary(current);
         if (runId !== undefined && receipts[0] !== undefined) {
           const accounting = await deps.harness.readProductionRunAccounting(scope, runId);
           if (accounting.kind === 'accounted') receipts[0] = accountingReceipt(receipts[0], accounting.attempts);
         }
         if (runId !== undefined && state !== 'unknown')
           await deps.harness.closeProductionRun(scope, { runId, state: 'failed' });
-        await store.finish(productionTransactionOf(scope), row.id, state, [
+        await store.finish(tx, row.id, expectedStage, state, [
           ...receipts,
           ...codes.slice(0, 32).map((code) => ({ role: 'checks' as const, kind: state, code })),
         ]);
+        return { ...summary(await store.lock(tx, row.id)), codes };
       });
-      return {
-        outcome: closed.kind === 'entered' ? state : 'scope_refused',
-        requestBound: REQUEST_BOUND_PER_TOPIC,
-        runId: row.id,
-        codes,
-        attempts: receipts,
-      };
+      return closed.kind === 'entered'
+        ? closed.value
+        : { outcome: 'scope_refused', requestBound: REQUEST_BOUND_PER_TOPIC, runId: row.id };
     };
     let pages: readonly ResearchPage[] = row.research;
     if (row.state === 'research') {
       try {
         pages = await Promise.all(TOPICS[topic].pages.map((url) => (deps.research ?? fetchResearchPage)(url)));
       } catch (error) {
-        return reject('rejected', [error instanceof ResearchRefusal ? error.code : 'research_failed']);
+        return reject('research', 'rejected', [error instanceof ResearchRefusal ? error.code : 'research_failed']);
       }
       const frozen = await deps.withScope(deps.authority, async (scope) => {
         const tx = productionTransactionOf(scope);
         const current = await store.lock(tx, row.id);
-        if (current.state !== 'research') return current;
+        if (current.state !== 'research') return { row: current, advanced: true };
         await store.research(tx, row.id, pages);
-        return store.lock(tx, row.id);
+        return { row: await store.lock(tx, row.id), advanced: false };
       });
       if (frozen.kind !== 'entered')
         return { outcome: 'scope_refused', requestBound: REQUEST_BOUND_PER_TOPIC, runId: row.id };
-      pages = frozen.value.research;
+      if (frozen.value.advanced) return summary(frozen.value.row);
+      row = frozen.value.row;
+      pages = row.research;
     }
     let claimPackage: ClaimPackage;
 
     if (row.state === 'writer' && row.claims !== null) claimPackage = row.claims;
     else {
+      if (row.state !== 'claims') return summary(row);
       const claims = await deps.harness.proposeProduction(
         {
           run: run(row.claims_run_id, 'scroll-claims'),
@@ -164,28 +179,31 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
         signal,
       );
       receipts.push(receipt('claims', claims));
+      if (claims.kind === 'refused' && claims.reason === 'run_closed') return replayCurrent();
       if (claims.kind !== 'proposed')
-        return reject(claims.kind === 'unknown' ? 'unknown' : 'rejected', [claims.kind], row.claims_run_id);
+        return reject('claims', claims.kind === 'unknown' ? 'unknown' : 'rejected', [claims.kind], row.claims_run_id);
       const accepted = await deps.withScope(deps.authority, async (scope) => {
         const tx = productionTransactionOf(scope);
         const current = await store.lock(tx, row.id);
-        if (current.state !== 'claims') return false;
+        if (current.state !== 'claims') return { row: current, accepted: false };
+        const accounting = await deps.harness.readProductionRunAccounting(scope, row.claims_run_id);
+        if (accounting.kind !== 'accounted') return { row: current, accepted: false };
         if (
           (await deps.harness.closeProductionRun(scope, { runId: row.claims_run_id, state: 'completed' })) !== 'closed'
         )
-          return false;
-        const accounting = await deps.harness.readProductionRunAccounting(scope, row.claims_run_id);
-        if (accounting.kind !== 'accounted') return false;
+          return { row: current, accepted: false };
         await store.claims(
           tx,
           row.id,
           claims.output,
           accountingReceipt(receipt('claims', claims), accounting.attempts),
         );
-        return true;
+        return { row: await store.lock(tx, row.id), accepted: true };
       });
-      if (accepted.kind !== 'entered' || !accepted.value)
+      if (accepted.kind !== 'entered')
         return { outcome: 'scope_refused', requestBound: REQUEST_BOUND_PER_TOPIC, runId: row.id };
+      if (!accepted.value.accepted) return summary(accepted.value.row);
+      row = accepted.value.row;
       claimPackage = claims.output;
       receipts.length = 0;
     }
@@ -216,20 +234,21 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       signal,
     );
     receipts.push(receipt('writer', writer));
+    if (writer.kind === 'refused' && writer.reason === 'run_closed') return replayCurrent();
     if (writer.kind !== 'proposed')
-      return reject(writer.kind === 'unknown' ? 'unknown' : 'rejected', [writer.kind], row.writer_run_id);
+      return reject('writer', writer.kind === 'unknown' ? 'unknown' : 'rejected', [writer.kind], row.writer_run_id);
     const writerAccounting = await deps.withScope(deps.authority, (scope) =>
       deps.harness.readProductionRunAccounting(scope, row.writer_run_id),
     );
     if (writerAccounting.kind !== 'entered' || writerAccounting.value.kind !== 'accounted')
-      return reject('rejected', ['accounting_unavailable'], row.writer_run_id);
+      return reject('writer', 'rejected', ['accounting_unavailable'], row.writer_run_id);
     const writerAttempts = writerAccounting.value.attempts;
     receipts[0] = accountingReceipt(receipt('writer', writer), writerAttempts);
     const paidAttemptIds = writerAttempts
       .filter((attempt) => !['reserved', 'not_sent'].includes(attempt.state))
       .map((attempt) => attempt.attemptId);
     if (paidAttemptIds.length < 1 || paidAttemptIds.length > 2)
-      return reject('rejected', ['attempt_bound_exceeded'], row.writer_run_id);
+      return reject('writer', 'rejected', ['attempt_bound_exceeded'], row.writer_run_id);
     const compiled = compileGeneratedDraft(
       writer.output,
       {
@@ -246,6 +265,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     );
     if (compiled.kind === 'refused')
       return reject(
+        'writer',
         'rejected',
         compiled.issues.map((issue) => issue.code),
         row.writer_run_id,
@@ -262,7 +282,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
             (asset.assetKind !== 'scroll' || asset.status !== 'admitted' || asset.revision !== row.target_revision - 1))
         ) {
           await deps.harness.closeProductionRun(scope, { runId: row.writer_run_id, state: 'failed' });
-          await store.finish(tx, row.id, 'rejected', [
+          await store.finish(tx, row.id, 'writer', 'rejected', [
             ...receipts,
             { role: 'checks', kind: 'rejected', code: 'asset_conflict' },
           ]);
@@ -285,6 +305,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
         await store.finish(
           tx,
           row.id,
+          'writer',
           'published',
           receipts,
           { assetId: TOPICS[topic].assetId, revision: row.target_revision },

@@ -22,8 +22,9 @@ checks and exact quotations do not prove semantic entailment: human sampling is 
 No jobs are registered yet: the worker operator triggers this bounded sequence. Lock order:
 production root → production job row → asset advisory lock → asset rows. Short transactions freeze
 or apply data; HTTP/model waits never hold them. Each stage closes its harness run in the same
-transaction as its accepted domain effect. A concurrent/late result cannot apply after a terminal
-state. `--resume` explicitly continues the same frozen research, accepted claims and stable role
+transaction as its accepted domain effect. Every rejection and final write requires its exact expected stage under the root and job lock.
+A delayed research/closed-role delivery reports the advanced job instead of rejecting or invoking
+its next stage; a concurrent/late result cannot apply after a terminal state. `--resume` explicitly continues the same frozen research, accepted claims and stable role
 run IDs through the ledger after a crash; no new business run or hidden model retry is created.
 An unknown attempt stays unknown and is never resent. Ordinary reruns report existing state;
 terminal rejection stays rejected. A changed prompt, source list or policy requires a reviewed

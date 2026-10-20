@@ -8,10 +8,14 @@ import {
   postgresProductionHarnessPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import { ScrollDraft, normaliseDraftInput } from '@knowscroll/scroll-model/producer';
-import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
+import {
+  extractResearch,
+  ResearchRefusal,
+  type ResearchPage,
+} from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureModel, fixtureSettings, signal, silent } from '../support/fixture-model.js';
+import { fixtureModel, fixtureSettings, gate, signal, silent } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 
 // Every word below and every model answer is a labelled, authored CI fixture, never real provider evidence.
@@ -76,14 +80,17 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         settings: fixtureSettings,
       }),
     );
-    const produce = (selected: ProductionReasoningHarness = harness) =>
+    const produce = (
+      selected: ProductionReasoningHarness = harness,
+      research: (url: string) => Promise<ResearchPage> = () => Promise.resolve(page),
+    ) =>
       makeProduceScroll({
         db: database.db,
         authority: { scopeId: 'scroll-supply', generation: 1 },
         withScope,
         harness: selected,
         model: 'fixture-model-v1',
-        research: () => Promise.resolve(page),
+        research,
       });
     return { model, harness, produce };
   }
@@ -116,6 +123,37 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .where('asset_id', '=', first.assetId ?? '')
         .execute(),
     ).toHaveLength(1);
+  });
+  it('publishes at the four-request maximum with one exact-quote and one semantic writer repair', async () => {
+    const badClaims = structuredClone(claims);
+    if (badClaims.claims[0]) badClaims.claims[0].quote += ' Invented words.';
+    const badWriter = draft();
+    badWriter.bindings = [];
+    const p = setup((n) => answer(n === 1 ? badClaims : n === 2 ? claims : n === 3 ? badWriter : draft()));
+    const first = await p.produce()('greenhouse', false, signal());
+    expect(first).toMatchObject({ outcome: 'published', requestBound: 4 });
+    expect(p.model.calls).toHaveLength(4);
+    const receipts = first.attempts?.filter((item) => item.role !== 'checks') ?? [];
+    expect(receipts.map((item) => item.role)).toEqual(['claims', 'writer']);
+    for (const receipt of receipts) {
+      expect(receipt.attempts?.map((attempt) => attempt.step)).toEqual(['primary', 'repair']);
+      expect(receipt.inputTokens).toBe(80);
+      expect(receipt.outputTokens).toBe(24);
+    }
+    expect(receipts.reduce((sum, item) => sum + (item.inputTokens ?? 0), 0)).toBe(160);
+    expect(receipts.reduce((sum, item) => sum + (item.outputTokens ?? 0), 0)).toBe(48);
+    const provenance = await database.db
+      .selectFrom('content.asset_provenance')
+      .select('provenance')
+      .where('asset_id', '=', first.assetId ?? '')
+      .executeTakeFirstOrThrow();
+    expect(provenance.provenance).toMatchObject({
+      production: {
+        attemptIds: receipts.find((item) => item.role === 'writer')?.attempts?.map((attempt) => attempt.attemptId),
+      },
+    });
+    expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(first);
+    expect(p.model.calls).toHaveLength(4);
   });
   it('includes semantic refusal in the single writer repair and records terminal rejection without another retry', async () => {
     const p = setup((n) =>
@@ -173,6 +211,97 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       expect(p.model.calls).toHaveLength(2);
     },
   );
+  it.each(['success', 'refusal'] as const)(
+    'keeps an advanced writer alive when concurrent stale research finishes with %s',
+    async (outcome) => {
+      const researchEntered = gate();
+      const researchRelease = gate();
+      const writerEntered = gate();
+      const writerRelease = gate<FixtureScenario>();
+      const p = setup((n) => {
+        if (n === 1) return answer(claims);
+        writerEntered.open();
+        return { kind: 'hold', until: writerRelease.promise };
+      });
+      const stale = p.produce(p.harness, async () => {
+        researchEntered.open();
+        await researchRelease.promise;
+        if (outcome === 'refusal') throw new ResearchRefusal('network_failed');
+        return page;
+      })('greenhouse', false, signal());
+      await researchEntered.promise;
+      const active = p.produce()('greenhouse', false, signal(), true);
+      try {
+        await writerEntered.promise;
+        researchRelease.open();
+        const replay = await stale;
+        expect(replay.outcome).toBe('in_progress');
+        const current = await sql<{
+          state: string;
+          outcomes: { role: string; kind: string }[];
+        }>`select state,outcomes from content.scroll_production_runs where id=${replay.runId}`.execute(database.db);
+        expect(current.rows[0]?.state).toBe('writer');
+        expect(current.rows[0]?.outcomes.map((receipt) => receipt.role)).toEqual(['claims']);
+        expect(p.model.calls).toHaveLength(2);
+        const attempts = await database.db
+          .selectFrom('reasoning.production_attempts')
+          .select(['state', 'step'])
+          .orderBy('reserved_at')
+          .execute();
+        expect(attempts.map((attempt) => attempt.state)).toEqual(['succeeded', 'dispatched']);
+        writerRelease.open(answer(draft()));
+        expect((await active).outcome).toBe('published');
+        expect(p.model.calls).toHaveLength(2);
+      } finally {
+        researchRelease.open();
+        writerRelease.open(answer(draft()));
+        await Promise.allSettled([stale, active]);
+      }
+    },
+  );
+  it('replays the current job when a stale claims delivery finds its run closed during another writer', async () => {
+    const claimsEntered = gate();
+    const claimsRelease = gate();
+    const writerEntered = gate();
+    const writerRelease = gate<FixtureScenario>();
+    const p = setup((n) => {
+      if (n === 1) return answer(claims);
+      writerEntered.open();
+      return { kind: 'hold', until: writerRelease.promise };
+    });
+    const delayed: ProductionReasoningHarness = {
+      readProductionRunAccounting: (scope, runId) => p.harness.readProductionRunAccounting(scope, runId),
+      closeProductionRun: (scope, run) => p.harness.closeProductionRun(scope, run),
+      async proposeProduction(input, abort) {
+        if (input.role.id === 'content.scroll-claims') {
+          claimsEntered.open();
+          await claimsRelease.promise;
+        }
+        return p.harness.proposeProduction(input, abort);
+      },
+    };
+    const stale = p.produce(delayed)('greenhouse', false, signal());
+    await claimsEntered.promise;
+    const active = p.produce()('greenhouse', false, signal(), true);
+    try {
+      await writerEntered.promise;
+      claimsRelease.open();
+      const replay = await stale;
+      expect(replay.outcome).toBe('in_progress');
+      const current = await sql<{
+        state: string;
+      }>`select state from content.scroll_production_runs where id=${replay.runId}`.execute(database.db);
+      expect(current.rows[0]?.state).toBe('writer');
+      expect(p.model.calls).toHaveLength(2);
+      writerRelease.open(answer(draft()));
+      expect((await active).outcome).toBe('published');
+      expect(p.model.calls).toHaveLength(2);
+    } finally {
+      claimsRelease.open();
+      writerRelease.open(answer(draft()));
+      await Promise.allSettled([stale, active]);
+    }
+  });
   it('halts an unknown attempt and never resends it even with explicit resume', async () => {
     const p = setup(() => ({ kind: 'timeout_after_dispatch' }));
     expect((await p.produce()('tides', false, signal())).outcome).toBe('unknown');

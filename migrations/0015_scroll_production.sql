@@ -3,6 +3,9 @@
 -- Retention: kept for correction lineage, no account/universe data or erasure declaration.
 -- Corrections: a reviewed new policy version creates another job and immutable asset revision.
 -- Rollout: additive table; old workers do not read it. No production job is seeded/enabled here.
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
+
 CREATE TABLE content.scroll_production_runs (
   id uuid PRIMARY KEY,
   topic text NOT NULL CHECK (topic IN ('seasons', 'tides', 'greenhouse')),
