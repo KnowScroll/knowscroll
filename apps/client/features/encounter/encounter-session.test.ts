@@ -2,7 +2,8 @@ import { waitFor } from '@testing-library/react-native';
 import { scopeOutbox } from '@knowscroll/client-core';
 import type { OpenExposureRequest } from '@knowscroll/contracts';
 import type { EncounterSession } from './encounter-session';
-import { harness, offer } from './encounter-session.fixture';
+import { retainReelMuted } from './encounter-history';
+import { harness, id, offer } from './encounter-session.fixture';
 
 function waitForPhase(
   session: EncounterSession,
@@ -332,6 +333,97 @@ describe('actual encounter controller over CI transport fixtures', () => {
         expect.arrayContaining(['scroll-document.v1', 'reel-document.v1']),
       );
       expect(JSON.stringify(input)).not.toMatch(/positionMs|blockId|offsetWithinBlock/);
+    } finally {
+      h.scope.end();
+    }
+  });
+});
+
+describe('request overlay ownership', () => {
+  it('parks before opening, creates no encounter or observations, and Back restores paused sound/position', async () => {
+    const h = harness();
+    try {
+      const entry = await ready(h);
+      retainReelMuted(h.scope, entry, true);
+      const calls = h.calls.length;
+      const events = h.batches.length;
+      const order: string[] = [];
+      entry.surface = {
+        capture: () => {
+          order.push('capture');
+          return { kind: 'reel', positionMs: 12345, playing: true, muted: true };
+        },
+        pause: () => {
+          order.push('pause');
+        },
+      };
+      h.session.openRequest('scroll');
+      expect(order).toEqual(['capture', 'pause']);
+      expect(h.session.getState()).toMatchObject({ overlay: true, overlayOwner: 'request' });
+      expect(h.session.getState().entry).toBe(entry);
+      expect(h.session.getState().trail).toHaveLength(1);
+      expect(h.calls).toHaveLength(calls);
+      expect(h.batches).toHaveLength(events);
+      expect(h.session.requests.getState().source).toEqual({
+        exposureId: entry.exposureId,
+        assetId: entry.offer.assetId,
+        assetRevision: 2,
+        session: { sessionId: entry.sessionId, expectedIntentRevision: 1 },
+      });
+      h.session.setForeground(false);
+      expect(h.session.back()).toBe(true);
+      expect(h.session.getState().overlay).toBe(false);
+      expect(entry.restored).toBe(true);
+      expect(entry.position).toEqual({ kind: 'reel', positionMs: 12345, playing: true, muted: true });
+      expect(entry.kind === 'reel' && entry.muted).toBe(true);
+      expect(h.calls).toHaveLength(calls);
+    } finally {
+      h.scope.end();
+    }
+  });
+  it('changes path ownership to Ask without another history member and purges private draft on scope end', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      h.session.setOverlay(true);
+      h.session.openRequest();
+      h.session.requests.edit({ text: 'private draft' });
+      expect(h.session.getState()).toMatchObject({ overlay: true, overlayOwner: 'request' });
+      expect(h.session.getState().trail).toHaveLength(1);
+      h.scope.end();
+      expect(h.session.requests.getState().text).toBe('');
+      expect(h.session.requests.getState().source).toBeUndefined();
+      expect(h.session.getState().trail).toEqual([]);
+    } finally {
+      h.scope.end();
+    }
+  });
+  it('freezes latest intent for a parked member of the same session and refuses a different global session', async () => {
+    const h = harness();
+    try {
+      const first = await ready(h);
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'active');
+      h.session.back();
+      h.session.openRequest('scroll');
+      expect(h.session.requests.getState().source).toEqual({
+        exposureId: first.exposureId,
+        assetId: first.offer.assetId,
+        assetRevision: first.offer.assetRevision,
+        session: { sessionId: first.sessionId, expectedIntentRevision: 2 },
+      });
+      h.session.back();
+      h.setOutcome('pending');
+      h.setOutcomeSession(id(999));
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'pending');
+      h.session.resumeCurrent();
+      h.session.openRequest('scroll');
+      expect(h.session.requests.getState().source).toBeUndefined();
+      h.session.requests.submit();
+      expect(h.session.requests.getState().error).toBe('source');
+      expect(h.calls.filter((call) => call.path === '/v1/content/requests')).toEqual([]);
+      expect(h.session.getState().entry).toBe(first);
     } finally {
       h.scope.end();
     }

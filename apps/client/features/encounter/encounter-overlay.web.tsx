@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
-import { content } from '@knowscroll/design-tokens';
+import { content, overlay } from '@knowscroll/design-tokens';
 
 const candidates =
   'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -7,14 +7,20 @@ const candidates =
 export function EncounterOverlay({
   children,
   onClose,
+  label = 'Your path',
+  presentation = 'full',
 }: {
   readonly children: ReactNode;
+  readonly label?: string;
+  readonly presentation?: 'full' | 'sheet';
   readonly onClose: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const first = host.current?.querySelector<HTMLElement>(candidates);
+    const first =
+      host.current?.querySelector<HTMLElement>('textarea:not([disabled])') ??
+      host.current?.querySelector<HTMLElement>(candidates);
     (first ?? host.current)?.focus();
     return () => {
       if (previous?.isConnected) previous.focus();
@@ -25,9 +31,19 @@ export function EncounterOverlay({
       ref={host}
       role="dialog"
       aria-modal="true"
-      aria-label="Your path"
+      aria-label={label}
       tabIndex={-1}
-      style={{ position: 'fixed', inset: 0, background: content.paper, zIndex: 1000 }}
+      style={{
+        position: 'fixed',
+        display: 'flex',
+        flexDirection: 'column',
+        inset: 0,
+        background: presentation === 'sheet' ? overlay.scrim : content.paper,
+        zIndex: 1000,
+      }}
+      onClick={(event) => {
+        if (presentation === 'sheet' && event.target === event.currentTarget) onClose();
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();

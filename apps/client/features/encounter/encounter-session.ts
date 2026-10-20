@@ -13,6 +13,7 @@ import type {
   NavigationOutcome,
 } from '@knowscroll/contracts';
 import { parseDocument } from '@knowscroll/scroll-model';
+import { createRequestSession, type RequestMode } from '../requests/request-session';
 import type { EncounterGestureMove } from './gestures/arbitration';
 import { ENCOUNTER_CAPABILITIES } from './capabilities';
 import { createEncounterHistory, readResume, type EncounterEntry } from './encounter-history';
@@ -37,6 +38,7 @@ export interface EncounterState {
   readonly actionPending?: boolean;
   readonly actionFailed?: boolean;
   readonly overlay: boolean;
+  readonly overlayOwner?: 'path' | 'request';
   readonly surfaceRevision: number;
   readonly contextReady?: boolean;
 }
@@ -276,6 +278,49 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     });
     return true;
   };
+  const requestSource = () => {
+    const entry = history.current();
+    if (!valid() || !entry || state.phase !== 'active') return undefined;
+    const context = entry.context;
+    if (
+      context.exposureId !== entry.exposureId ||
+      context.assetId !== entry.offer.assetId ||
+      context.assetRevision !== entry.offer.assetRevision
+    )
+      return undefined;
+    if (
+      context.session &&
+      (context.session.sessionId !== entry.sessionId || latestSession?.sessionId !== entry.sessionId)
+    )
+      return undefined;
+    return {
+      exposureId: entry.exposureId,
+      assetId: entry.offer.assetId,
+      assetRevision: entry.offer.assetRevision,
+      ...(context.session
+        ? { session: { sessionId: entry.sessionId, expectedIntentRevision: latestSession!.intentRevision } }
+        : {}),
+    };
+  };
+  const requests = createRequestSession(scope, newId, requestSource, (target) => {
+    if (!foreground || state.overlayOwner !== 'request') return false;
+    if (!open(target)) return false;
+    setOverlay(false);
+    return true;
+  });
+  const setOverlay = (overlay: boolean, overlayOwner: 'path' | 'request' = 'path') => {
+    if (overlay) history.park();
+    else {
+      const entry = history.current();
+      if (entry) entry.restored = true;
+    }
+    requests.visible(overlay && overlayOwner === 'request' && foreground);
+    publish({
+      overlay,
+      overlayOwner: overlay ? overlayOwner : undefined,
+      surfaceRevision: state.surfaceRevision + (overlay ? 0 : 1),
+    });
+  };
   const navigate = (intent: Intent) => {
     const entry = history.current();
     if (
@@ -363,6 +408,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     },
     open,
     navigate,
+    requests,
+    openRequest(mode: RequestMode = 'topic') {
+      if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return;
+      if (requests.show(mode)) setOverlay(true, 'request');
+    },
     gesture(move: EncounterGestureMove) {
       const entry = history.current();
       if (!entry || state.phase !== 'active' || !foreground || state.overlay) return;
@@ -437,6 +487,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     setForeground(value: boolean) {
       const returning = value && !foreground;
       foreground = value;
+      requests.visible(value && state.overlayOwner === 'request' && state.overlay);
       if (returning) {
         const entry = history.current();
         if (entry?.started) entry.restored = true;
@@ -468,15 +519,16 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (!entry || history.current() === entry) history.park();
     },
     done() {
+      requests.visible(false);
       history.park();
-      publish({ phase: 'exhausted', outcome: undefined, overlay: false });
+      publish({ phase: 'exhausted', outcome: undefined, overlay: false, overlayOwner: undefined });
     },
     back() {
       if (!valid()) return false;
       if (state.overlay) {
         const entry = history.current();
         if (entry) entry.restored = true;
-        publish({ overlay: false, surfaceRevision: state.surfaceRevision + 1 });
+        setOverlay(false);
         return true;
       }
       if (work || busy) return false;
@@ -489,16 +541,10 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     restore(exposureId: string) {
       if (work || busy || !history.restore(exposureId)) return;
       contextSerial += 1;
-      publish({ phase: 'active', outcome: undefined, overlay: false });
+      requests.visible(false);
+      publish({ phase: 'active', outcome: undefined, overlay: false, overlayOwner: undefined });
     },
-    setOverlay(overlay: boolean) {
-      if (overlay) history.park();
-      else {
-        const entry = history.current();
-        if (entry) entry.restored = true;
-      }
-      publish({ overlay, surfaceRevision: state.surfaceRevision + (overlay ? 0 : 1) });
-    },
+    setOverlay,
     resumeCurrent() {
       if (!work && valid())
         publish({ phase: 'active', outcome: undefined, surfaceRevision: state.surfaceRevision + 1 });

@@ -171,3 +171,30 @@ native encounter gestures still require the coordinator's connected runtime acce
 The two encounter `.web.tsx` platform adapters are explicit app entries in `knip.json`: Expo
 selects them by platform suffix. They remain fully scanned; production-export browser fixtures
 exercise the actual stage and path dialog.
+
+## Private Ask and format requests (#239)
+
+Ask opens a local E04 overlay over the exact parked encounter. The same host owns the path menu
+and request composer. The composer uses a bounded bottom sheet with a grab, rounded top corners
+and a visible backdrop; wider screens center the same sheet. A desktop Ask-anchor position is
+not implemented. Exclusive format/context choices expose radio groups. Close, Esc and Back dismiss it first and preserve paused position and sound.
+Missing siblings remain unavailable in the format switch; the menu offers explicit Request Reel
+or Request Scroll actions. Existing ready siblings keep the normal navigation path.
+
+`features/requests/request-session.ts` owns one memory-only draft/request per AccountScope. It sends
+real `supply.create/read/cancel` HTTP commands with the existing encounter capabilities. Private text
+is bounded to 500 characters; the current backend closes free-text requests as unsupported. Three
+explicit catalogue suggestions send their selected canonical intent, without interpreting private
+prose or claiming inventory. About-this/variant submissions freeze the exact exposure, immutable
+asset revision and latest authorised matching session revision; changed sources require a new choice.
+
+A deliberate send/cancel gets a fresh command ID. Unknown transport outcomes freeze the entire
+command for exact retry; read refreshes never submit work. Immutable acceptance is separate from
+current availability, fenced by scope/epoch/request revision. Polling runs at most twelve five-second
+reads while the request panel is foreground, stops on terminal/close/scope end, and can be refreshed
+explicitly. Reopening reads current status. Ready never interrupts playback: Open rechecks status,
+then uses the existing exact-revision return/open/activation flow. Cancel affects only the caller's
+waiter according to server authority; closing is not cancellation. Scope end clears all draft,
+frozen command, source, receipt, status and timers. There is no durable request list or production
+retry endpoint in this bounded consumer. CI fixtures cover these boundaries; actual connected web
+and native request journeys remain coordinator-owned acceptance work.

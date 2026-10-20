@@ -28,6 +28,7 @@ export function offer(n: number): EncounterOffer {
 export function harness() {
   let next = 1000;
   let selected = 0;
+  let outcomeSessionId = id(1);
   let revision = 1;
   let openFailure = false;
   let activationFailure = false;
@@ -42,7 +43,7 @@ export function harness() {
   const store = memoryStore();
   const outcome = (commandId: string): NavigationOutcome => ({
     commandId,
-    sessionId: id(1),
+    sessionId: outcomeSessionId,
     intentRevision: revision,
     revision,
     decisionId: id(2),
@@ -188,6 +189,9 @@ export function harness() {
     },
     setSaved: (value: boolean) => {
       saved = value;
+    },
+    setOutcomeSession: (value: string) => {
+      outcomeSessionId = value;
     },
     setOutcome: (value: typeof outcomeStatus) => {
       outcomeStatus = value;
