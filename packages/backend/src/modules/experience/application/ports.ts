@@ -1,7 +1,8 @@
 import type { ApplyActionEvidencePayload } from '../../evidence/public.js';
 import type { PersonalAuthority, PersonalScopeTx, WithPersonalScope } from '../../identity/public.js';
-import type { FindAssetForAction } from '../../content/public.js';
+import type { FindAssetForAction, FindOpenableAsset, RenderScroll } from '../../content/public.js';
 import type { ActionKind, SavedState } from '../domain/actions.js';
+import type { Exposure, ExposureOrigin } from '../domain/exposures.js';
 
 /** JSON a command request or outcome may contain. */
 export type JsonValue = null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue };
@@ -86,4 +87,64 @@ export interface ListSavedPorts {
     | { readonly kind: 'read'; readonly revision: number; readonly items: readonly SavedItem[] }
     | { readonly kind: 'refused'; readonly reason: 'universe_unavailable' | 'epoch_changed' }
   >;
+}
+
+/** The receipt and scope capabilities every experience command shares. */
+export interface CommandPorts {
+  readonly withPersonalScope: WithPersonalScope;
+  readonly hashRequest: (operation: string, request: JsonValue) => string;
+  readonly findReceipt: (scope: PersonalScopeTx, key: CommandKey) => Promise<CommandLookup>;
+  readonly insertReceipt: (scope: PersonalScopeTx, key: CommandKey) => Promise<void>;
+  readonly completeReceipt: (
+    scope: PersonalScopeTx,
+    commandId: string,
+    outcome: { readonly [key: string]: JsonValue },
+  ) => Promise<void>;
+  readonly newId: () => string;
+  readonly now: () => Date;
+}
+
+/** One exposure to insert when a Scroll is opened. */
+export interface NewExposure {
+  readonly id: string;
+  readonly assetId: string;
+  readonly assetRevision: number;
+  readonly kind: 'scroll';
+  readonly origin: ExposureOrigin;
+  /** What the client said it can render; the document is negotiated for it. */
+  readonly capabilities: JsonValue;
+  readonly commandId: string;
+  readonly openedAt: Date;
+}
+
+export interface OpenExposurePorts extends CommandPorts {
+  readonly findOpenableAsset: FindOpenableAsset;
+  readonly insertExposure: (scope: PersonalScopeTx, exposure: NewExposure) => Promise<void>;
+}
+
+export interface ActivateExposurePorts extends CommandPorts {
+  /** One exposure of the scope's universe, read inside the locked scope. */
+  readonly readExposure: (scope: PersonalScopeTx, exposureId: string) => Promise<Exposure | undefined>;
+  readonly markActivated: (scope: PersonalScopeTx, exposureId: string, at: Date) => Promise<void>;
+}
+
+/** What rendering an exposure's document needs to know about it. */
+export interface ExposureForDocument {
+  readonly id: string;
+  readonly assetId: string;
+  readonly assetRevision: number;
+  /** The capabilities the client declared when it opened. */
+  readonly capabilities: unknown;
+}
+
+/** The read ports of `readExposureDocument`: rechecks authority (no lock) and reads one exposure. */
+export interface ReadExposureDocumentPorts {
+  readonly readExposure: (
+    authority: PersonalAuthority,
+    exposureId: string,
+  ) => Promise<
+    | { readonly kind: 'read'; readonly exposure: ExposureForDocument }
+    | { readonly kind: 'refused'; readonly reason: 'exposure_not_found' | 'universe_unavailable' | 'epoch_changed' }
+  >;
+  readonly renderScroll: RenderScroll;
 }

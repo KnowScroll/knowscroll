@@ -33,3 +33,40 @@ export const applyActionEvidenceQueue = defineQueue({
   },
   consumer: { localConcurrency: 2, pollingIntervalSeconds: 1 },
 });
+
+/**
+ * Payload of `evidence.project-scroll-reading`: schema version and IDs only (blueprint §19). The job
+ * reads the exposure's observations itself, so erased observations are never resurrected from a
+ * queue payload.
+ */
+export const ProjectScrollReadingPayloadSchema = z.object({
+  v: z.literal(1),
+  universeId: z.uuid(),
+  privacyEpoch: z.number().int().min(1),
+  exposureId: z.uuid(),
+});
+
+export type ProjectScrollReadingPayload = z.infer<typeof ProjectScrollReadingPayloadSchema>;
+
+/**
+ * Projects one exposure's observations into its reading summary and qualification, and commits an
+ * evidence revision. Enqueued in the same transaction as the observations it follows (pg-boss is the
+ * only outbox); idempotent per (exposure, input watermark, policy version), so a redelivery, or two
+ * jobs for one watermark, store one revision. The job always projects the exposure's *current*
+ * watermark, so a job that runs late still reflects every observation committed before it.
+ */
+export const projectScrollReadingQueue = defineQueue({
+  name: 'evidence.project-scroll-reading',
+  purpose: "Project an exposure's Scroll observations into a reading summary and an evidence revision.",
+  payload: ProjectScrollReadingPayloadSchema,
+  policy: {
+    expireInSeconds: 60,
+    retryLimit: 8,
+    retryDelaySeconds: 2,
+    retryBackoff: true,
+    retentionSeconds: 7 * 24 * 60 * 60,
+    deleteAfterSeconds: 2 * 24 * 60 * 60,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 2, pollingIntervalSeconds: 1 },
+});

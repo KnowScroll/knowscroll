@@ -123,6 +123,8 @@
     "db:types:verify": "kysely-codegen --config-file kysely-codegen.json --verify"
   },
   "dependencies": {
+    "@knowscroll/contracts": "workspace:*",
+    "@knowscroll/scroll-model": "workspace:*",
     "kysely": "catalog:",
     "pg": "catalog:",
     "pg-boss": "catalog:",

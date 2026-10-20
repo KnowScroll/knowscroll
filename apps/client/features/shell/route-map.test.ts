@@ -48,6 +48,7 @@ describe('route map', () => {
         '/recover',
         '/redeem',
         '/saved',
+        '/scroll/[assetId]',
         '/signin',
         '/signin/link',
         '/universe',

@@ -1,0 +1,232 @@
+{
+  "schemaVersion": "editorial-scroll.v1",
+  "assetId": "267de10e-070f-473f-b5d3-1128417cefd7",
+  "reference": "editorial-starter-sky-blue",
+  "publication": {
+    "language": "en",
+    "explanationUnitId": "eu-sky-blue-scattering",
+    "template": "poster",
+    "theme": { "family": "worlds" },
+    "kicker": "Explainer · Light and air",
+    "framing": { "kind": "factual" },
+    "corrections": [],
+    "targetMinutes": [3, 8]
+  },
+  "claims": [],
+  "sources": [],
+  "material": [],
+  "draft": {
+    "draftVersion": "scroll-draft.v1",
+    "title": "Why the sky is blue",
+    "dek": "Sunlight carries every colour at once. The air sorts it, and the sorting is what you see overhead.",
+    "sections": [
+      {
+        "id": "intro",
+        "heading": null,
+        "blocks": [
+          {
+            "id": "intro-look-up",
+            "type": "paragraph",
+            "data": {
+              "spans": "Look up on a clear afternoon and the sky is blue, almost wherever you stand. Glance towards the Sun, though never stare at it, and its light looks plain white. Both things are true at once, and the reason has nothing to do with paint, with the sea, or with the sky being a surface at all."
+            }
+          },
+          {
+            "id": "intro-short-version",
+            "type": "paragraph",
+            "essential": true,
+            "data": {
+              "spans": [
+                { "text": "The short version: " },
+                {
+                  "text": "sunlight holds every colour, and air scatters the short colours far more than the long ones.",
+                  "marks": ["strong"]
+                },
+                {
+                  "text": " What reaches your eye from the sides of the Sun is the scattered part. The rest of this Scroll takes that apart one step at a time."
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "sunlight",
+        "heading": "Sunlight is every colour",
+        "blocks": [
+          {
+            "id": "sunlight-prism",
+            "type": "paragraph",
+            "data": {
+              "spans": "A prism, a raindrop and the back of a disc held in the light all do the same trick. They spread white light into a band that runs from red through orange, yellow, green and blue to violet. Those colours were there all along. White is what your eyes report when all of them arrive together."
+            }
+          },
+          {
+            "id": "sunlight-wavelength",
+            "type": "callout",
+            "data": {
+              "kind": "note",
+              "title": "Colour is wavelength",
+              "spans": "Each colour is light whose wave repeats over a different distance, its wavelength. Red has the longest wavelength you can see, violet the shortest, and every other colour sits between them."
+            }
+          }
+        ]
+      },
+      {
+        "id": "air",
+        "heading": "Air is made of very small things",
+        "blocks": [
+          {
+            "id": "air-molecules",
+            "type": "paragraph",
+            "data": {
+              "spans": "The air around you is mostly nitrogen and oxygen molecules, with a little water vapour, dust and other gases mixed in. Every one of those molecules is far smaller than the wavelength of visible light. That difference in size decides what happens next."
+            }
+          },
+          {
+            "id": "air-scattering",
+            "type": "paragraph",
+            "data": {
+              "spans": [
+                {
+                  "text": "When a light wave meets something much smaller than itself, the particle does not block the light or bounce it away like a ball. It takes up a little of the light's energy and sends it out again in new directions. Physicists call this "
+                },
+                { "text": "Rayleigh scattering", "marks": ["em"] },
+                { "text": ", after the person who worked out its rule in the nineteenth century." }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "rule",
+        "heading": "Short waves scatter far more",
+        "blocks": [
+          {
+            "id": "rule-steep",
+            "type": "paragraph",
+            "essential": true,
+            "data": {
+              "spans": "The rule is steep. The shorter the wavelength, the more strongly it scatters: halve the wavelength and the scattering grows sixteen-fold. Blue light is scattered several times more strongly than red light, so on the way down through the atmosphere a great deal of the blue is knocked sideways while most of the red carries straight on."
+            }
+          },
+          {
+            "id": "rule-steps",
+            "type": "list",
+            "essential": true,
+            "data": {
+              "style": "number",
+              "items": [
+                "Sunlight enters the atmosphere carrying every colour.",
+                "Air molecules scatter blue and violet light in all directions.",
+                "Red, orange and yellow light mostly keeps travelling in a straight line.",
+                "Wherever you look in the sky, scattered light is reaching your eye from that direction."
+              ]
+            }
+          },
+          {
+            "id": "rule-pull",
+            "type": "quote",
+            "data": {
+              "kind": "pull",
+              "spans": "The sky is the Sun's own light, sorted by the air."
+            }
+          }
+        ]
+      },
+      {
+        "id": "violet",
+        "heading": "Why blue, and not violet",
+        "blocks": [
+          {
+            "id": "violet-why",
+            "type": "paragraph",
+            "data": {
+              "spans": "Violet has an even shorter wavelength than blue, so it should scatter even more. Two things shift the balance. The Sun puts out less violet than blue, and human eyes respond far more weakly to violet than to blue. Add up all the scattered colours the way your eyes receive them and the total looks blue, a slightly pale blue rather than a deep violet."
+            }
+          },
+          {
+            "id": "violet-eye",
+            "type": "disclosure",
+            "data": {
+              "summary": "How your eye mixes the scattered colours",
+              "blocks": [
+                {
+                  "id": "violet-eye-cones",
+                  "type": "paragraph",
+                  "data": {
+                    "spans": "The retina holds three kinds of cone cell, tuned roughly to long, medium and short wavelengths. Scattered sky light is rich in short wavelengths, so the short-wavelength cones respond most, the medium ones respond fairly well and the long ones least. Your brain reads that pattern as blue."
+                  }
+                }
+              ]
+            },
+            "a11y": { "label": "More detail: how your eye mixes the scattered colours" },
+            "fallbackText": "More detail: the retina has three kinds of cone cell, and scattered sky light excites the short-wavelength kind most, which the brain reads as blue."
+          }
+        ]
+      },
+      {
+        "id": "low-sun",
+        "heading": "Sunsets and the pale horizon",
+        "blocks": [
+          {
+            "id": "low-sun-path",
+            "type": "paragraph",
+            "data": {
+              "spans": "When the Sun is low, its light has to cross far more air to reach you. Over that long path the blue is scattered out of the beam again and again, until what remains is mostly orange and red. That is why a low Sun looks red and the sky around it glows with warm colours, while the sky straight overhead can still be blue. Dust and smoke can make the effect stronger."
+            }
+          },
+          {
+            "id": "low-sun-horizon-heading",
+            "type": "subheading",
+            "data": { "text": "The pale band at the horizon" }
+          },
+          {
+            "id": "low-sun-horizon",
+            "type": "paragraph",
+            "data": {
+              "spans": "The same idea explains why the sky is pale near the horizon in the middle of the day. Light from that direction has crossed so much air that it has been scattered many times, and repeated scattering mixes the colours back towards white."
+            }
+          },
+          {
+            "id": "low-sun-try",
+            "type": "callout",
+            "data": {
+              "kind": "try-it",
+              "title": "Try it",
+              "spans": "On a clear day, look at a patch of sky well away from the Sun, then slowly lower your gaze to the horizon. Notice how the blue thins out and turns pale. You are watching the light's path through the air get longer."
+            }
+          }
+        ]
+      },
+      {
+        "id": "limits",
+        "heading": "Three mix-ups to avoid",
+        "blocks": [
+          {
+            "id": "limits-list",
+            "type": "list",
+            "data": {
+              "style": "bullet",
+              "items": [
+                "The sky is not blue because it reflects the sea. The sea looks blue partly because it reflects the sky, and partly because water absorbs red light.",
+                "Clouds are white, not blue, because their droplets are large compared with the wavelength of light and scatter every colour almost equally.",
+                "Dust and smoke change the details of a sunset, but a clean atmosphere would still give a blue sky."
+              ]
+            }
+          },
+          {
+            "id": "limits-close",
+            "type": "callout",
+            "data": {
+              "kind": "key-idea",
+              "title": "The idea to keep",
+              "spans": "A sky belongs to an atmosphere as much as to the Sun. Change the gas, the thickness of the air or what is floating in it, and the colours change with it."
+            }
+          }
+        ]
+      }
+    ],
+    "bindings": []
+  }
+}

@@ -1,5 +1,6 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
+import { ClientCapabilities, LocalId, ScrollDocument } from './content.js';
 import { AssetIdSchema, CommandIdSchema, UuidSchema } from './ids.js';
 
 /**
@@ -65,3 +66,99 @@ export const listSavedContract = oc
   .route({ method: 'GET', path: '/v1/saved', successStatus: 200, tags: ['experience'] })
   .input(ListSavedRequestSchema)
   .output(ListSavedResponseSchema);
+
+/**
+ * `POST /v1/experience/open`: open an admitted Scroll for the signed-in person, which creates an
+ * **exposure**, the lineage root of this encounter: exposure ID, asset revision, origin and what
+ * the client can render. The origin says how the person arrived; `direct` is an address (the
+ * `/scroll/<assetId>` route). Opening is not consumption: nothing is evidence until the reading is
+ * observed and qualified. `commandId` is minted once per intent and reused on retry; the same ID
+ * with different content is `COMMAND_KEY_REUSED`. An asset that does not exist, is withdrawn, or
+ * is not a Scroll answers `ASSET_NOT_FOUND`; none of those writes a receipt.
+ */
+export const OpenExposureRequestSchema = z.object({
+  commandId: CommandIdSchema,
+  target: z.object({ kind: z.literal('scroll'), assetId: AssetIdSchema }),
+  origin: z.object({ kind: z.literal('direct') }),
+  /** What this client build can render; the document is negotiated for it (D-012). */
+  capabilities: ClientCapabilities,
+});
+
+export const OpenExposureResponseSchema = z.object({
+  commandId: CommandIdSchema,
+  exposureId: UuidSchema,
+  assetId: AssetIdSchema,
+  /** The immutable revision this exposure presents. */
+  assetRevision: z.number().int().min(1),
+  kind: z.literal('scroll'),
+  /** The universe revision after this command (it changes nothing a client reads, so unchanged). */
+  revision: z.number().int().min(0),
+  /** True when this response is the stored outcome of an earlier identical request. */
+  replayed: z.boolean(),
+});
+
+export type OpenExposureRequest = z.infer<typeof OpenExposureRequestSchema>;
+export type OpenExposureResponse = z.infer<typeof OpenExposureResponseSchema>;
+
+export const openExposureContract = oc
+  .route({ method: 'POST', path: '/v1/experience/open', successStatus: 200, tags: ['experience'] })
+  .input(OpenExposureRequestSchema)
+  .output(OpenExposureResponseSchema);
+
+/**
+ * `POST /v1/experience/activate`: the exposure's article became the active reading surface (it is
+ * rendered and in front). Activation is the lineage the recorder's observations require; it does
+ * not say anything was seen (visibility is observed separately). Idempotent: activating an active
+ * exposure answers its original activation time. `NOT_FOUND` for an exposure that is not the
+ * caller's (an unknown and a foreign exposure are indistinguishable).
+ */
+export const ActivateExposureRequestSchema = z.object({
+  commandId: CommandIdSchema,
+  exposureId: UuidSchema,
+});
+
+export const ActivateExposureResponseSchema = z.object({
+  commandId: CommandIdSchema,
+  exposureId: UuidSchema,
+  activatedAt: z.iso.datetime(),
+  revision: z.number().int().min(0),
+  replayed: z.boolean(),
+});
+
+export type ActivateExposureRequest = z.infer<typeof ActivateExposureRequestSchema>;
+export type ActivateExposureResponse = z.infer<typeof ActivateExposureResponseSchema>;
+
+export const activateExposureContract = oc
+  .route({ method: 'POST', path: '/v1/experience/activate', successStatus: 200, tags: ['experience'] })
+  .input(ActivateExposureRequestSchema)
+  .output(ActivateExposureResponseSchema);
+
+/**
+ * `GET /v1/experience/exposures/{exposureId}/document`: the consumer document the exposure
+ * presents, negotiated for the capabilities the client declared when it opened (D-012). Immutable
+ * per revision. It never carries claims, sources, production records or any other internal
+ * provenance. `degradedEssential` lists essential blocks the client will see only as fallback text,
+ * so it can say "this part needs an app update". `NOT_FOUND` for an exposure that is not the
+ * caller's.
+ */
+export const ExposureDocumentRequestSchema = z.object({ exposureId: UuidSchema });
+
+export const ExposureDocumentResponseSchema = z.object({
+  exposureId: UuidSchema,
+  assetId: AssetIdSchema,
+  assetRevision: z.number().int().min(1),
+  document: ScrollDocument,
+  degradedEssential: z.array(z.object({ blockId: LocalId, originalType: z.string() })).max(80),
+});
+
+export type ExposureDocumentResponse = z.infer<typeof ExposureDocumentResponseSchema>;
+
+export const exposureDocumentContract = oc
+  .route({
+    method: 'GET',
+    path: '/v1/experience/exposures/{exposureId}/document',
+    successStatus: 200,
+    tags: ['experience'],
+  })
+  .input(ExposureDocumentRequestSchema)
+  .output(ExposureDocumentResponseSchema);

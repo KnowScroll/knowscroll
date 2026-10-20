@@ -44,6 +44,31 @@ export {
 } from './auth-client';
 export { base64UrlOfBase64, base64UrlOfBytes } from './sign-in-binding';
 export {
+  OUTBOX_STORAGE_KEY,
+  RECORDER_INSTRUMENTATION_VERSION,
+  ReadingTracker,
+  createObservationOutbox,
+  createScrollRecorder,
+  deliverBatch,
+  outboxRetryDelay,
+  scopeOutbox,
+  type InteractionKind,
+  type Interval,
+  type ObservationOutbox,
+  type ObservationOutboxOptions,
+  type OutboxStatus,
+  type OutboxStorage,
+  type OutboxTimers,
+  type ReadingObserver,
+  type ReadingReport,
+  type RecordedExposure,
+  type RecorderClock,
+  type RecorderTimers,
+  type ScrollRecorder,
+  type ScrollRecorderOptions,
+  type SendOutcome,
+} from './recorder';
+export {
   createScopedBlockStateStore,
   type EarlierBlockState,
   type ScrollBlockKey,

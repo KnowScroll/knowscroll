@@ -17,6 +17,7 @@
     "@expo/metro-runtime": "catalog:",
     "@knowscroll/client-core": "workspace:*",
     "@knowscroll/design-tokens": "workspace:*",
+    "@knowscroll/scroll-model": "workspace:*",
     "@knowscroll/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "expo": "catalog:",

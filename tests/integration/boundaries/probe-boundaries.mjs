@@ -130,9 +130,10 @@ const probes = [
     file: 'apps/client/theme/zz-probe-scroll-name.ts',
     source:
       "import { compileDraft } from '@knowscroll/scroll-model/producer';\nimport { honestyIssues } from '@knowscroll/scroll-model/internal';\nimport internal from '../../../packages/scroll-model/fixtures/producer/weight-other-worlds.internal.json';\nexport const p = [compileDraft, honestyIssues, internal];\n",
+    // `apps/client` declares scroll-model (S1.6), so the specifiers resolve to its sources.
     expect: [
-      ['@knowscroll/scroll-model/producer', 'clients-never-import-scroll-internals'],
-      ['@knowscroll/scroll-model/internal', 'clients-never-import-scroll-internals'],
+      ['packages/scroll-model/src/producer/index.ts', 'clients-never-import-scroll-internals'],
+      ['packages/scroll-model/src/internal/index.ts', 'clients-never-import-scroll-internals'],
       [
         'packages/scroll-model/fixtures/producer/weight-other-worlds.internal.json',
         'clients-never-import-scroll-producer-fixtures',
@@ -151,12 +152,16 @@ const probes = [
   },
   {
     file: 'apps/client/theme/zz-probe-scroll-admission.ts',
+    source: "import { admitDocument } from '@knowscroll/scroll-model/admission';\nexport const p = admitDocument;\n",
+    // The app declares scroll-model now; package and relative imports both resolve to the source.
+    // Separate probe files prove each form independently instead of expecting duplicate graph edges.
+    expect: [['packages/scroll-model/src/admission/index.ts', 'clients-never-import-scroll-admission']],
+  },
+  {
+    file: 'apps/client/theme/zz-probe-scroll-admission-relative.ts',
     source:
-      "import { admitDocument } from '@knowscroll/scroll-model/admission';\nimport { admitBlock } from '../../../packages/scroll-model/src/admission/index.js';\nexport const p = [admitDocument, admitBlock];\n",
-    expect: [
-      ['@knowscroll/scroll-model/admission', 'clients-never-import-scroll-admission'],
-      ['packages/scroll-model/src/admission/index.ts', 'clients-never-import-scroll-admission'],
-    ],
+      "import { admitBlock } from '../../../packages/scroll-model/src/admission/index.js';\nexport const p = admitBlock;\n",
+    expect: [['packages/scroll-model/src/admission/index.ts', 'clients-never-import-scroll-admission']],
   },
   {
     file: 'packages/ui/src/zz-probe-admission.ts',
