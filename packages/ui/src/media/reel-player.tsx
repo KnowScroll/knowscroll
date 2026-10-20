@@ -64,6 +64,8 @@ export function ReelPlayer({
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [attempt, setAttempt] = useState(0);
+  const [sourceRevision, setSourceRevision] = useState(0);
+  const installedPosition = useRef(0);
 
   useEffect(
     () =>
@@ -122,7 +124,6 @@ export function ReelPlayer({
           return;
         }
         const time = Math.max(player.currentTime, resumePosition.current);
-        const resume = playbackIntent.current;
         replacing.current = true;
         pausePlayback(player);
         onDiscontinuity();
@@ -146,11 +147,13 @@ export function ReelPlayer({
         // every replacement is paused first, and only current explicit intent can resume it.
         pausePlayback(player);
         setPlaying(false);
-        seekPlayback(player, time);
+        installedPosition.current = time;
         replacing.current = false;
         loaded.current = true;
         needsRefresh.current = false;
-        if (resume && playbackIntent.current && activeRef.current && visible.current) player.play();
+        // VideoView renders player.src. Let React commit that source before imperative seek/play;
+        // otherwise its later src commit resets the HTML video after we have already resumed.
+        setSourceRevision((value) => value + 1);
         timer = setTimeout(
           () => {
             void refresh();
@@ -175,6 +178,13 @@ export function ReelPlayer({
       stop();
     };
   }, [player, loadSource, registerEnd, onDiscontinuity, attempt]);
+  useEffect(() => {
+    if (sourceRevision === 0) return;
+    seekPlayback(player, installedPosition.current);
+    resumePosition.current = installedPosition.current;
+    setPosition(installedPosition.current);
+    if (playbackIntent.current && activeRef.current && visible.current) player.play();
+  }, [player, sourceRevision]);
   useEffect(() => {
     const time = player.addListener('timeUpdate', (event) => {
       resumePosition.current = event.currentTime;

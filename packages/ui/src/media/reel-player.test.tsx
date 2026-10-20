@@ -1,5 +1,6 @@
+import { useLayoutEffect } from 'react';
 import { act, fireEvent, screen } from '@testing-library/react-native';
-import { useVideoPlayer, type VideoPlayer } from 'expo-video';
+import { useVideoPlayer, type VideoPlayer, type VideoSource } from 'expo-video';
 import { renderOn } from '../test-support/render';
 import { ReelPlayer, type ReelPlayerProps } from './reel-player';
 
@@ -232,5 +233,64 @@ describe('paused loaded-source Retry', () => {
     expect(replace).toHaveBeenCalledTimes(3);
     expect(play).not.toHaveBeenCalled();
     await rendered.unmount();
+  });
+});
+
+// Stand-in for VideoView committing its new src after replaceAsync has resolved.
+describe('source commit and resume ordering', () => {
+  it('resumes only after the rendered source commit that resets HTML playback', async () => {
+    jest.useFakeTimers();
+    const player = {
+      src: null as VideoSource,
+      currentTime: 7,
+      muted: false,
+      playing: false,
+      status: 'readyToPlay',
+      playbackRate: 1,
+      pause: () => {
+        player.playing = false;
+      },
+      play: () => {
+        player.playing = true;
+      },
+      replaceAsync: (source: VideoSource) => {
+        player.src = source;
+        return Promise.resolve();
+      },
+      addListener: () => ({ remove: () => undefined }),
+    };
+    function useStandInPlayer() {
+      const source = player.src;
+      useLayoutEffect(() => {
+        if (source) player.pause();
+      }, [source]);
+      return player as unknown as VideoPlayer;
+    }
+    jest.mocked(useVideoPlayer).mockImplementation(useStandInPlayer);
+    const rendered = await renderOn(
+      <ReelPlayer
+        title="Fixture"
+        durationMs={30000}
+        active
+        loadSource={() =>
+          Promise.resolve({
+            source: { uri: 'https://fixture.invalid/media/fixture' },
+            expiresAt: new Date(Date.now() + 60000).toISOString(),
+          })
+        }
+        onSample={() => undefined}
+        onDiscontinuity={() => undefined}
+        registerEnd={() => () => undefined}
+      />,
+    );
+    await act(async () => {
+      jest.advanceTimersByTime(45000);
+      await Promise.resolve();
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    expect(player.playing).toBe(true);
+    expect(player.currentTime).toBe(7);
+    await rendered.unmount();
+    jest.useRealTimers();
   });
 });
