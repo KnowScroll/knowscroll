@@ -1,8 +1,8 @@
-import { useLayoutEffect } from 'react';
+import { createRef, useLayoutEffect } from 'react';
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { useVideoPlayer, type VideoPlayer, type VideoSource } from 'expo-video';
 import { renderOn } from '../test-support/render';
-import { ReelPlayer, type ReelPlayerProps } from './reel-player';
+import { ReelPlayer, type ReelPlayerProps, type ReelPositionHandle } from './reel-player';
 
 // The native SDK is a recording stand-in here; real playback belongs to browser/emulator evidence.
 jest.mock('expo-video', () => ({ VideoView: 'VideoView', useVideoPlayer: jest.fn() }));
@@ -462,4 +462,229 @@ describe('source commit and resume ordering', () => {
     await rendered.unmount();
     jest.useRealTimers();
   });
+});
+
+// Private local position contract: SDK snapshots, not recorder samples or grants.
+describe('local Reel positions', () => {
+  afterEach(() => jest.useRealTimers());
+
+  function fixture() {
+    const listeners = new Map<string, (payload: unknown) => void>();
+    let seconds = 0;
+    let released = false;
+    const reads = jest.fn();
+    const seeks = jest.fn();
+    const player = {
+      get currentTime() {
+        reads();
+        if (released) throw new Error('Fixture SharedObject released');
+        return seconds;
+      },
+      set currentTime(value: number) {
+        seeks(value);
+        if (released) throw new Error('Fixture SharedObject released');
+        seconds = value;
+      },
+      muted: false,
+      playing: false,
+      status: 'readyToPlay' as VideoPlayer['status'],
+      playbackRate: 1,
+      pause: jest.fn(() => {
+        player.playing = false;
+      }),
+      play: jest.fn(() => {
+        player.playing = true;
+        listeners.get('playingChange')?.({ isPlaying: true });
+      }),
+      replaceAsync: jest.fn((_source: VideoSource) => {
+        // Replacing a real video resets its playhead and SDK58 web attempts autoplay.
+        seconds = 0;
+        player.playing = true;
+        return Promise.resolve();
+      }),
+      addListener: (kind: string, listener: (payload: unknown) => void) => {
+        listeners.set(kind, listener);
+        return {
+          remove: () => {
+            listeners.delete(kind);
+          },
+        };
+      },
+    };
+    jest.mocked(useVideoPlayer).mockReturnValue(player as unknown as VideoPlayer);
+    let scopeEnd: (() => void) | undefined;
+    const positionRef = createRef<ReelPositionHandle>();
+    const props: ReelPlayerProps = {
+      title: 'Local position fixture',
+      durationMs: 30000,
+      active: true,
+      positionRef,
+      loadSource: jest.fn(() =>
+        Promise.resolve({
+          source: { uri: 'https://fixture.invalid/media/local' },
+          expiresAt: new Date(Date.now() + 60000).toISOString(),
+        }),
+      ),
+      onSample: jest.fn(),
+      onDiscontinuity: jest.fn(),
+      registerEnd: (stop) => {
+        scopeEnd = stop;
+        return () => undefined;
+      },
+    };
+    return {
+      player,
+      props,
+      positionRef,
+      listeners,
+      reads,
+      seeks,
+      advanceSdk: (time: number) => {
+        seconds = time;
+      },
+      release: () => {
+        released = true;
+      },
+      endScope: () => scopeEnd?.(),
+    };
+  }
+
+  it('captures the current SDK time ahead of timeUpdate and parks without adding samples', async () => {
+    const f = fixture();
+    const rendered = await renderOn(<ReelPlayer {...f.props} initialPositionMs={4000} />);
+    await act(async () => {
+      f.listeners.get('timeUpdate')?.({ currentTime: 4 });
+      await Promise.resolve();
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    f.advanceSdk(4.1875); // no timeUpdate: parking must read the SDK synchronously.
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 4187.5, playing: true });
+    const samples = jest.mocked(f.props.onSample).mock.calls.length;
+    await act(() => {
+      f.positionRef.current?.pause();
+      f.positionRef.current?.pause();
+    });
+    expect(f.player.playing).toBe(false);
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 4187.5, playing: false });
+    expect(f.props.onSample).toHaveBeenCalledTimes(samples);
+    f.advanceSdk(35);
+    expect(f.positionRef.current?.capture()?.positionMs).toBe(30000);
+    f.advanceSdk(-1);
+    expect(f.positionRef.current?.capture()?.positionMs).toBe(0);
+    f.advanceSdk(NaN);
+    expect(f.positionRef.current?.capture()).toBeNull();
+    f.release();
+    expect(f.positionRef.current?.capture()).toBeNull();
+    await rendered.unmount();
+    expect(f.positionRef.current).toBeNull();
+  });
+
+  it.each([
+    [undefined, 0],
+    [NaN, 0],
+    [Infinity, 0],
+    [-Infinity, 0],
+    [-10, 0],
+    [45000, 30000],
+    [1234.5, 1234.5],
+  ])('validates initialPositionMs %s to %s and does not reapply changed props', async (initialPositionMs, expected) => {
+    const f = fixture();
+    const rendered = await renderOn(<ReelPlayer {...f.props} initialPositionMs={initialPositionMs} />);
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: expected, playing: false });
+    expect(f.player.play).not.toHaveBeenCalled();
+    f.advanceSdk(6.25);
+    await rendered.rerender(<ReelPlayer {...f.props} initialPositionMs={9000} />);
+    expect(f.positionRef.current?.capture()?.positionMs).toBe(6250);
+    await rendered.unmount();
+  });
+
+  it('waits for SDK readiness before restoring once, paused, after source commit', async () => {
+    const f = fixture();
+    f.player.status = 'loading';
+    const rendered = await renderOn(<ReelPlayer {...f.props} initialPositionMs={8125} />);
+    expect(f.seeks).not.toHaveBeenCalled();
+    expect(f.positionRef.current?.capture()).toBeNull();
+    await act(async () => {
+      f.player.status = 'readyToPlay';
+      f.listeners.get('statusChange')?.({ status: 'readyToPlay' });
+      await Promise.resolve();
+    });
+    expect(f.seeks).toHaveBeenCalledTimes(1);
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 8125, playing: false });
+    await act(async () => {
+      f.listeners.get('statusChange')?.({ status: 'readyToPlay' });
+      await Promise.resolve();
+    });
+    expect(f.seeks).toHaveBeenCalledTimes(1);
+    expect(f.player.play).not.toHaveBeenCalled();
+    await rendered.unmount();
+  });
+
+  it('renews and retries at the latest SDK position, including a backward move, rather than the initial position', async () => {
+    jest.useFakeTimers();
+    const f = fixture();
+    const rendered = await renderOn(<ReelPlayer {...f.props} initialPositionMs={4000} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    f.advanceSdk(14.125);
+    await act(async () => {
+      jest.advanceTimersByTime(40000);
+      await Promise.resolve();
+    });
+    expect(f.player.currentTime).toBe(14.125);
+    f.advanceSdk(9.25); // newer actual position is earlier; Math.max would lose this move.
+    await act(async () => {
+      f.player.status = 'error';
+      f.listeners.get('statusChange')?.({ status: 'error' });
+      await Promise.resolve();
+    });
+    f.player.status = 'readyToPlay';
+    const plays = f.player.play.mock.calls.length;
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+    expect(f.player.currentTime).toBe(9.25);
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 9250, playing: false });
+    expect(f.player.play).toHaveBeenCalledTimes(plays);
+    await rendered.unmount();
+  });
+
+  it.each(['scope', 'unmount'] as const)(
+    'clears the ref and fences retained methods and late replacement after %s disposal',
+    async (ending) => {
+      const f = fixture();
+      let settle: (() => void) | undefined;
+      f.player.replaceAsync.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            settle = resolve;
+          }),
+      );
+      const rendered = await renderOn(<ReelPlayer {...f.props} initialPositionMs={5000} />);
+      const handle = f.positionRef.current;
+      expect(handle).not.toBeNull();
+      expect(handle?.capture()).toBeNull();
+      if (ending === 'scope') await act(() => f.endScope());
+      else await rendered.unmount();
+      expect(f.positionRef.current).toBeNull();
+      const reads = f.reads.mock.calls.length;
+      const pauses = f.player.pause.mock.calls.length;
+      const seeks = f.seeks.mock.calls.length;
+      f.release();
+      await act(() => {
+        handle?.pause();
+      });
+      expect(handle?.capture()).toBeNull();
+      await act(async () => {
+        settle?.();
+        await Promise.resolve();
+      });
+      expect(f.reads).toHaveBeenCalledTimes(reads);
+      expect(f.player.pause).toHaveBeenCalledTimes(pauses);
+      expect(f.seeks).toHaveBeenCalledTimes(seeks);
+      expect(f.player.play).not.toHaveBeenCalled();
+      if (ending === 'scope') {
+        await rendered.rerender(<ReelPlayer {...f.props} active={false} initialPositionMs={12000} />);
+        expect(f.positionRef.current).toBeNull();
+        await rendered.unmount();
+      }
+    },
+  );
 });

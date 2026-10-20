@@ -159,3 +159,24 @@ Play (buffered media remains paused). SDK58 web replacement internally tries aut
 around replacement and paused immediately in the same JavaScript turn as well as after settlement;
 only current visible foreground Play intent may resume. Internal autoplay never records evidence. Playback failure requires Retry; teardown cancels renewal and clears the
 source. Native playback is still a separate emulator/device verification requirement.
+
+### Private local Reel positions (#234 prerequisite)
+
+`ReelPlayer` accepts mount-only `initialPositionMs` (default zero; non-finite values become zero,
+finite values clamp to `[0, durationMs]`) and `positionRef: Ref<ReelPositionHandle>`. The same public
+seam works on native and web. `capture()` synchronously reads the actual SDK playhead and returns
+`ReelLocalPosition { positionMs, playing }`, including progress since the last recorder time update.
+It returns `null` while the source is unavailable, replacing, awaiting readiness, or released; it
+never substitutes a recorder sample. Call `capture()` **before** `pause()` and before unmounting to
+park the current position and prior play state. `pause()` immediately clears playback intent and
+pauses without emitting a sample. Repeated calls keep playback paused.
+
+The consumer binds the position to the same activated encounter's asset and immutable revision,
+stores it only within AccountScope, and purges it when that scope ends. No grant, source URL,
+exposure activation, telemetry, upload or wire persistence belongs in this local position. The ref
+clears synchronously on unmount or ScopeEnd; retained methods cannot operate on the ended player.
+Restore waits for the source commit and SDK readiness and remains paused until explicit Play.
+Changing `initialPositionMs` on a mounted player does not seek; remount for another restore intent.
+Grant renewal and Retry preserve the newest actual playhead instead of reapplying the initial offset.
+This is a player prerequisite only: navigation/Back integration and real native/browser acceptance
+remain separate work. Share overlay playback restoration is not implemented by this seam.
