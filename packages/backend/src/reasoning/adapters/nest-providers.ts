@@ -2,13 +2,20 @@ import type { Kysely } from 'kysely';
 import type { ReasoningSettings } from '../../infrastructure/config/index.js';
 import { uuidv7 } from '../../infrastructure/ids/index.js';
 import type { LogEvent } from '../../infrastructure/observability/index.js';
-import { makeAuthorityHolds, type Database } from '../../infrastructure/postgres/index.js';
+import {
+  makeAuthorityHolds,
+  makeWithProductionScope,
+  makeProductionAuthorityHolds,
+  type Database,
+} from '../../infrastructure/postgres/index.js';
 import type { WithPersonalScope } from '../../modules/identity/public.js';
 import { makeReasoningOperator } from '../application/operator.js';
-import type { HarnessPorts, HarnessSettings, ModelPort } from '../application/ports.js';
-import { makeReasoningHarness } from '../application/propose.js';
+import type { HarnessPorts, HarnessSettings, ModelPort, ExecutionPorts } from '../application/ports.js';
+import { makeReasoningHarness, makeScopedReasoningHarness } from '../application/propose.js';
 import {
   PURGE_EXPIRED_REQUESTS,
+  PRODUCTION_REASONING_HARNESS,
+  WITH_PRODUCTION_SCOPE,
   REASONING_HARNESS,
   SWEEP_DISPATCHED_ATTEMPTS,
   type PurgeExpiredRequests,
@@ -17,6 +24,15 @@ import {
 import { guardedModelPort } from './guarded-model.js';
 import { makeMiniMaxModelPort } from './minimax/minimax-model.js';
 import { makeAttemptLedger } from './postgres-ledger.js';
+import { makeProductionAttemptLedger } from './postgres-production-ledger.js';
+import { readProductionRunAccounting } from './production-accounting.js';
+import type {
+  ReadProductionRunAccounting,
+  ProductionAuthority,
+  ProductionReasoningHarness,
+  ProductionScopeTx,
+  WithProductionScope,
+} from '../application/production.js';
 import { redactRecorded, sha256Hex } from './recording.js';
 
 /**
@@ -46,6 +62,7 @@ export {
 export { guardedModelPort } from './guarded-model.js';
 export { makeMiniMaxModelPort, type MiniMaxSettings } from './minimax/minimax-model.js';
 export { makeAttemptLedger } from './postgres-ledger.js';
+export { makeProductionAttemptLedger } from './postgres-production-ledger.js';
 
 /** Fifteen minutes between opportunistic purges of expired protected requests. */
 const PURGE_INTERVAL_MS = 15 * 60 * 1000;
@@ -115,6 +132,48 @@ export function postgresHarnessPorts(options: {
   };
 }
 
+/** Production execution ports plus one deliberately payload-free accounting read. */
+type ProductionHarnessPorts = ExecutionPorts<ProductionAuthority, ProductionScopeTx> & {
+  readonly readProductionRunAccounting: ReadProductionRunAccounting;
+};
+
+/** Concrete production wiring; no provider or storage selection is available to role modules. */
+export function postgresProductionHarnessPorts(options: {
+  readonly db: Kysely<Database>;
+  readonly withProductionScope: WithProductionScope;
+  readonly enabled: boolean;
+  readonly model: ModelPort | undefined;
+  readonly logEvent: LogEvent;
+  readonly settings: HarnessSettings;
+  readonly overrides?: Partial<ExecutionPorts<ProductionAuthority, ProductionScopeTx>>;
+}): ProductionHarnessPorts {
+  return {
+    readProductionRunAccounting,
+    withScope: options.withProductionScope,
+    authorityHolds: makeProductionAuthorityHolds(options.db, options.enabled),
+    scopeId: (authority) => authority.scopeId,
+    generation: (authority) => authority.generation,
+    model: options.model === undefined ? undefined : guardedModelPort(options.model),
+    ledger: makeProductionAttemptLedger(options.db),
+    hashBytes: sha256Hex,
+    redactRecorded,
+    newId: () => uuidv7(),
+    now: () => Date.now(),
+    logEvent: options.logEvent,
+    settings: options.settings,
+    ...options.overrides,
+  };
+}
+
+export function makeProductionReasoningHarness(ports: ProductionHarnessPorts): ProductionReasoningHarness {
+  const engine = makeScopedReasoningHarness(ports);
+  return {
+    readProductionRunAccounting: ports.readProductionRunAccounting,
+    proposeProduction: (input, signal) => engine.propose(input, signal),
+    closeProductionRun: (scope, run) => engine.closeRun(scope, run),
+  };
+}
+
 /**
  * Nest wiring of the scheduled crash-recovery sweep (`reasoning.sweep-dispatched-attempts`, every
  * 5 minutes) for the worker composition root.
@@ -144,7 +203,37 @@ export function reasoningSweepProviders(tokens: {
 
 /** The operator actions (write-off, unknown list, sweep, purge) over one database. */
 export function reasoningOperatorFor(db: Kysely<Database>, logEvent: LogEvent) {
-  return makeReasoningOperator({ ledger: makeAttemptLedger(db), logEvent });
+  const personal = makeAttemptLedger(db);
+  const production = makeProductionAttemptLedger(db);
+  return makeReasoningOperator({
+    ledger: {
+      ...personal,
+      async writeOff(attemptId, reason, source) {
+        const result = await personal.writeOff(attemptId, reason, source);
+        return result.kind === 'missing' ? production.writeOff(attemptId, reason, source) : result;
+      },
+      async listUnknown(limit) {
+        const rows = [...(await personal.listUnknown(limit)), ...(await production.listUnknown(limit))];
+        return rows
+          .sort(
+            (a, b) =>
+              (a.dispatchedAt?.getTime() ?? 0) - (b.dispatchedAt?.getTime() ?? 0) ||
+              a.attemptId.localeCompare(b.attemptId),
+          )
+          .slice(0, limit);
+      },
+      async purgeExpiredRequests(limit) {
+        return (await personal.purgeExpiredRequests(limit)) + (await production.purgeExpiredRequests(limit));
+      },
+      async sweepStaleDispatched(seconds, limit) {
+        return (
+          (await personal.sweepStaleDispatched(seconds, limit)) +
+          (await production.sweepStaleDispatched(seconds, limit))
+        );
+      },
+    },
+    logEvent,
+  });
 }
 
 /**
@@ -172,6 +261,7 @@ export function reasoningPurgeProviders(tokens: { readonly database: symbol; rea
 export function reasoningProviders(
   tokens: { readonly database: symbol; readonly withPersonalScope: symbol; readonly logEvent: symbol },
   settings: ReasoningSettings,
+  scopeLockTimeoutMs = 5_000,
 ) {
   return [
     {
@@ -193,6 +283,30 @@ export function reasoningProviders(
           }),
         );
       },
+    },
+    {
+      provide: WITH_PRODUCTION_SCOPE,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>): WithProductionScope =>
+        makeWithProductionScope(db, {
+          enabled: settings.productionEnabled,
+          lockTimeoutMs: scopeLockTimeoutMs,
+        }),
+    },
+    {
+      provide: PRODUCTION_REASONING_HARNESS,
+      inject: [tokens.database, WITH_PRODUCTION_SCOPE, tokens.logEvent],
+      useFactory: (db: Kysely<Database>, withProductionScope: WithProductionScope, logEvent: LogEvent) =>
+        makeProductionReasoningHarness(
+          postgresProductionHarnessPorts({
+            db,
+            withProductionScope,
+            enabled: settings.productionEnabled,
+            model: configuredModelPort(settings),
+            logEvent,
+            settings: harnessSettings(settings, `worker:${process.pid}`),
+          }),
+        ),
     },
   ];
 }

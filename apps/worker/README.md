@@ -22,3 +22,8 @@ artifact access group. No Cutroom/provider POST exists. `--fixture` additionally
 a disposable `ks_it_*`/`knowscroll_fixture_*` DB, and marks content visibly. Operator output is one
 sanitised result line; external errors never log URLs/paths/response text. Failed copy/probe/admission
 can leave an unreferenced object; never delete referenced bytes during rollback.
+
+The composition root binds `PRODUCTION_REASONING_HARNESS` and `WITH_PRODUCTION_SCOPE` separately
+from the personal harness. Nonpersonal Scroll supply requires explicit worker configuration and
+the database root enabled/generation gate; both default disabled. Shared sweep/purge/operator
+maintenance still records and resolves production liabilities while production is disabled.

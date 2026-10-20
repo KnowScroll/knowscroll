@@ -36,6 +36,7 @@ export class WorkerModule {
         ...reasoningProviders(
           { database: DATABASE, withPersonalScope: WITH_PERSONAL_SCOPE, logEvent: LOG_EVENT },
           resources.config.reasoning,
+          resources.config.scopeLockTimeoutMs,
         ),
         ...jobWiring,
       ],

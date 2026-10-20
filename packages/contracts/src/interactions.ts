@@ -21,7 +21,7 @@ import { AssetIdSchema, UuidSchema } from './ids.js';
  */
 export const INTERACTION_SCHEMA_VERSION = 'interaction.v1';
 
-/** The observation kinds a Scroll reader emits (`scroll.*`); the server refuses any other kind. */
+/** The supported reader/player observation kinds; the server refuses every other kind. */
 export const OBSERVATION_KINDS = [
   'scroll.block_coverage',
   'scroll.active_dwell',

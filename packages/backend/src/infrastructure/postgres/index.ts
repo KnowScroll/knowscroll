@@ -30,3 +30,5 @@ export {
   assertOutsideTransaction,
   insideTransaction,
 } from './transaction-marker.js';
+
+export { makeWithProductionScope, makeProductionAuthorityHolds, productionTransactionOf } from './production-scope.js';

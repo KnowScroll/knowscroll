@@ -128,7 +128,8 @@ export const MAX_STORED_OUTPUT_BYTES = 65_536;
  * answers `run_closed`).
  */
 export interface AttemptRow {
-  readonly runPrivacyEpoch: number;
+  /** Privacy epoch for personal work; production generation for nonpersonal work. */
+  readonly runGeneration: number;
   readonly runState: string;
   readonly id: string;
   readonly step: string;
@@ -193,9 +194,9 @@ export interface SettlementDetails {
   readonly quota?: QuotaObservation;
 }
 
-/** Identifies an attempt for ledger bookkeeping: its universe and its own ID, nothing else. */
+/** Identifies an attempt for ledger bookkeeping: its storage scope and its own ID, nothing else. */
 export interface AttemptRef {
-  readonly universeId: string;
+  readonly scopeId: string;
   readonly attemptId: string;
 }
 
@@ -224,27 +225,29 @@ export type WriteOffResult =
  * `not_sent` (nothing reached the provider): their steps are `primary`, `primary.2`, … The reads
  * return the latest attempt of the logical step.
  */
-export interface AttemptLedger {
+export interface AttemptLedger<S = PersonalScopeTx> {
   /** Ledger read, no authority: the latest attempt of a logical run step, if any. */
-  readonly find: (universeId: string, runId: string, step: string) => Promise<AttemptRow | undefined>;
+  readonly find: (scopeId: string, runId: string, step: string) => Promise<AttemptRow | undefined>;
   /** Admits the run (insert-or-compare) under the personal lock. */
-  readonly admitRun: (scope: PersonalScopeTx, run: RunDescriptor) => Promise<RunAdmission>;
+  readonly admitRun: (scope: S, run: RunDescriptor) => Promise<RunAdmission>;
   /** The latest attempt of a logical run step, read under the personal lock. */
-  readonly findLocked: (scope: PersonalScopeTx, runId: string, step: string) => Promise<AttemptRow | undefined>;
+  readonly findLocked: (scope: S, runId: string, step: string) => Promise<AttemptRow | undefined>;
   /**
    * Today's spend in the three budget dimensions. Takes the budget lock (a transaction advisory
    * lock after the personal root, always in that order) so concurrent reservations in different
    * universes serialise on the global and role counts until this transaction ends.
    */
-  readonly budgetUsage: (scope: PersonalScopeTx, roleId: string) => Promise<BudgetUsage>;
+  readonly budgetUsage: (scope: S, roleId: string) => Promise<BudgetUsage>;
+  /** Under the budget advisory lock, bound unresolved and conclusive-failed new role/day runs. */
+  readonly canStartRun: (scope: S, roleId: string) => Promise<boolean>;
   /** Writes the attempt (`reserved`), its protected request bytes and its usage receipt. */
-  readonly reserve: (scope: PersonalScopeTx, reservation: Reservation) => Promise<void>;
+  readonly reserve: (scope: S, reservation: Reservation) => Promise<void>;
   /**
    * `reserved → dispatched` under personal authority, recording the quota observation and a new
    * dispatch identity; `false` when the attempt was not reserved any more.
    */
   readonly commitDispatch: (
-    scope: PersonalScopeTx,
+    scope: S,
     attemptId: string,
     dispatch: { readonly dispatchId: string; readonly dispatchedBy: string; readonly quota: QuotaObservation },
   ) => Promise<boolean>;
@@ -269,7 +272,7 @@ export interface AttemptLedger {
    * leaves the run open.
    */
   readonly closeRun: (
-    scope: PersonalScopeTx,
+    scope: S,
     run: { readonly runId: string; readonly state: 'completed' | 'failed' | 'cancelled' },
   ) => Promise<'closed' | 'not_open'>;
   /**
@@ -330,4 +333,19 @@ export interface HarnessPorts {
   readonly now: () => number;
   readonly logEvent: LogEvent;
   readonly settings: HarnessSettings;
+}
+
+/** Internal shared execution machinery: the two concrete boundaries supply their own authority protocol. */
+export interface ExecutionPorts<A, S> extends Omit<HarnessPorts, 'withPersonalScope' | 'authorityHolds' | 'ledger'> {
+  readonly withScope: <T>(
+    authority: A,
+    work: (scope: S) => Promise<T>,
+  ) => Promise<
+    | { readonly kind: 'entered'; readonly value: T }
+    | { readonly kind: 'refused'; readonly refusal: { readonly kind: string } }
+  >;
+  readonly authorityHolds: (authority: A) => Promise<boolean>;
+  readonly scopeId: (authority: A) => string;
+  readonly generation: (authority: A) => number;
+  readonly ledger: AttemptLedger<S>;
 }
