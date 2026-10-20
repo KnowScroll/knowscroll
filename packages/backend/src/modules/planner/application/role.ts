@@ -40,13 +40,21 @@ export function plannerRole(context: FrozenContext): ReasoningRole<PlannerPropos
     safeCustomIssues: SAFE_HINTS,
   };
 }
+/** JSONB may reorder object keys. Frozen prompt bytes must be identical on every delivery. */
+function preparedJson(value: unknown): string {
+  return JSON.stringify(value, (_key, node: unknown) => {
+    if (node !== null && typeof node === 'object' && !Array.isArray(node))
+      return Object.fromEntries(Object.entries(node).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+    return node;
+  });
+}
 /** Split fixed prepared data into small items; the harness frames these as data, never instructions. */
 export function plannerContextItems(c: FrozenContext): readonly ContextItem[] {
   const items: ContextItem[] = [
     {
       ref: 'planner:policy',
       kind: 'prepared',
-      text: JSON.stringify({
+      text: preparedJson({
         version: c.version,
         evaluatedAt: c.evaluatedAt,
         contextRevision: c.contextRevision,
@@ -64,7 +72,7 @@ export function plannerContextItems(c: FrozenContext): readonly ContextItem[] {
     ['evidence', c.facts.evidence],
   ] as const) {
     for (let i = 0; i < values.length; i += 5)
-      items.push({ ref: `planner:${kind}:${i}`, kind, text: JSON.stringify(values.slice(i, i + 5)) });
+      items.push({ ref: `planner:${kind}:${i}`, kind, text: preparedJson(values.slice(i, i + 5)) });
   }
   const framedBytes = items.reduce(
     (sum, i) =>

@@ -48,6 +48,7 @@ describe('Planner deterministic proposal boundary (authored CI fixtures)', () =>
     expect(opportunityIssue({ ...candidate(), topicIds: ['b'] }, facts)).toBe('evidence_authority');
     expect(opportunityIssue({ ...candidate(), topicIds: ['foreign'] }, facts)).toBe('unknown_topic');
     expect(opportunityIssue({ ...candidate(), explanationUnitId: 'model-invented' }, facts)).toBe('target_authority');
+    expect(opportunityIssue({ ...candidate(), explanationUnitId: 'unit-b' }, facts)).toBe('target_authority');
     expect(opportunityIssue({ ...candidate(), formats: ['scroll', 'scroll'] }, facts)).toBe('duplicate_reference');
   });
   it('requires a future expiry within seven days and exact eligible current asset authority', () => {

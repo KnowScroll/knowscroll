@@ -180,8 +180,19 @@ describe('Personal Planner role evaluation (synthetic context, CI model, real le
       },
     };
     const items = plannerContextItems(expanded);
+    const reordered = JSON.parse(
+      JSON.stringify(expanded, (_key, value: unknown) =>
+        value !== null && typeof value === 'object' && !Array.isArray(value)
+          ? Object.fromEntries(Object.entries(value).reverse())
+          : value,
+      ),
+    ) as FrozenContext;
+    expect(plannerContextItems(reordered)).toEqual(items);
     expect(items.length).toBeLessThanOrEqual(64);
     expect(items.every((i) => i.text.length <= 32768)).toBe(true);
     expect(JSON.stringify(items).length).toBeLessThan(262144);
+    expect(() => plannerContextItems({ ...c, currentPlan: Array(1000).fill(proposal().opportunities[0]!) })).toThrow(
+      'PLANNER_CONTEXT_TOO_LARGE',
+    );
   });
 });

@@ -100,7 +100,12 @@ export function opportunityIssue(x: Opportunity, f: ValidationFacts): PlannerIss
   }
   if (
     x.target.kind === 'missing_supply' &&
-    ![...f.evidence, ...f.inventory].some((r) => r.explanationUnitId === x.explanationUnitId)
+    x.topicIds.some(
+      (topicId) =>
+        ![...f.evidence, ...f.inventory].some(
+          (r) => r.explanationUnitId === x.explanationUnitId && r.topicIds.includes(topicId),
+        ),
+    )
   )
     return 'target_authority';
   return undefined;

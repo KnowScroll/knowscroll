@@ -12,7 +12,7 @@ import {
   erasureRegistry,
 } from '@knowscroll/backend/infrastructure/erasure';
 import { defineQueue } from '@knowscroll/backend/infrastructure/jobs';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { makeWithPersonalScope, transactionOf, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { releaseQueues } from '@knowscroll/backend/job-queues';
 import { makeAttemptLedger } from '@knowscroll/backend/reasoning/nest-providers';
 import { z } from 'zod';
@@ -258,6 +258,38 @@ describe('the erasure registry (real database)', () => {
         const runId = randomUUID();
         await ledger.admitRun(scope, fixtureRunDescriptor(runId));
         await ledger.reserve(scope, fixtureReservation(randomUUID(), runId, 'a'));
+        // Authored erasure-only fixture rows, never provider output or runtime planning evidence.
+        const plannerRunId = randomUUID(),
+          tx = transactionOf(scope);
+        await tx
+          .insertInto('planner.runs')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            id: plannerRunId,
+            revision: 1,
+            status: 'accepted',
+            context_version: 'planner-context.v0',
+            context: { fixture: 'Authored erasure fixture; not a provider result' },
+          })
+          .execute();
+        await tx
+          .insertInto('planner.state')
+          .values({ universe_id: person.universeId, privacy_epoch: 1, desired_revision: 1, accepted_revision: 1 })
+          .execute();
+        await tx
+          .insertInto('planner.revisions')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            revision: 1,
+            run_id: plannerRunId,
+            context_revision: 1,
+            attempt_id: randomUUID(),
+            policy_version: 'personal-planner.v0',
+            opportunities: [],
+          })
+          .execute();
       });
     };
     try {

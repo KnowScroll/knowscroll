@@ -177,7 +177,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       r = runner(p),
       commandId = randomUUID();
     const outcomes = await Promise.all(Array.from({ length: 6 }, () => request(p.authority, { commandId })));
-    expect(new Set(outcomes.map((x) => JSON.stringify(x))).size).toBe(1);
+    expect(outcomes).toEqual(Array(6).fill(outcomes[0]));
     expect((await state(p)).desired_revision).toBe(1);
     expect(await request(p.authority, { commandId, intent: { language: 'fr', topicIds: [] } })).toEqual({
       kind: 'refused',
@@ -385,6 +385,56 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
         .execute(),
     ).toHaveLength(1);
     expect(r.model.calls).toHaveLength(1);
+  });
+  it('rechecks exact inventory authority after the model finishes and rejects a withdrawn asset', async () => {
+    const p = await seedPerson(database.db);
+    await qualify(p);
+    let release!: (s: FixtureScenario) => void, started!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const held = new Promise<FixtureScenario>((resolve) => {
+      release = resolve;
+    });
+    const r = runner(p, () => {
+      started();
+      return { kind: 'hold', until: held };
+    });
+    const s = await state(p),
+      running = r.run(job(p, s.active_run_id!), signal());
+    await entered;
+    const context = await frozen(p),
+      target = context.facts.inventory.find((a) => a.assetId === asset.assetId)!;
+    const proposed = answer(context),
+      candidate = {
+        ...proposed.opportunities[0]!,
+        explanationUnitId: target.explanationUnitId,
+        target: {
+          kind: 'existing' as const,
+          assetId: target.assetId,
+          assetRevision: target.assetRevision,
+          catalogWatermark: target.catalogWatermark,
+        },
+      };
+    await database.db
+      .updateTable('content.assets')
+      .set({ status: 'withdrawn' })
+      .where('id', '=', asset.assetId)
+      .execute();
+    try {
+      release({ kind: 'success', text: JSON.stringify({ ...proposed, opportunities: [candidate] }) });
+      expect(await running).toMatchObject({ kind: 'entered', value: { kind: 'rejected' } });
+      expect(
+        await database.db.selectFrom('planner.revisions').selectAll().where('universe_id', '=', p.universeId).execute(),
+      ).toHaveLength(0);
+      expect(r.model.calls).toHaveLength(1);
+    } finally {
+      await database.db
+        .updateTable('content.assets')
+        .set({ status: 'admitted' })
+        .where('id', '=', asset.assetId)
+        .execute();
+    }
   });
   it('rolls plan acceptance and harness closure back together, then reuses the kept response after claim expiry', async () => {
     const p = await seedPerson(database.db);

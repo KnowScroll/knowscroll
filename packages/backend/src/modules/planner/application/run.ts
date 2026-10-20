@@ -34,10 +34,14 @@ async function currentFacts(
   });
   const inventory: ValidationFacts['inventory'][number][] = [];
   for (const x of opportunities) {
-    if (x.target.kind !== 'existing') continue;
+    const target =
+      x.target.kind === 'existing'
+        ? x.target
+        : c.facts.inventory.find((a) => a.explanationUnitId === x.explanationUnitId);
+    if (!target) continue;
     const a = await p.readExact(scope, {
-      assetId: x.target.assetId,
-      assetRevision: x.target.assetRevision,
+      assetId: target.assetId,
+      assetRevision: target.assetRevision,
       capabilities: p.capabilities,
     });
     if (a) inventory.push({ ...a, topicIds: a.topics.filter((t) => t.role !== 'incidental').map((t) => t.topicId) });
@@ -155,14 +159,10 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
         return { kind: outcome.kind };
       }
       // Admission refusals have no completion; require explicit same-ID resume after policy/config changes.
-      if (
-        outcome?.kind === 'budget_exhausted' ||
-        (outcome?.kind === 'refused' &&
-          ['provider_unavailable', 'failure_brake', 'dispatch_lost'].includes(outcome.reason))
-      ) {
+      if (outcome?.kind === 'budget_exhausted' || outcome?.kind === 'refused') {
         await p.store.writeRun(scope, {
           ...released,
-          status: 'blocked',
+          status: current.status === 'unknown' ? 'unknown' : 'blocked',
           outcome: outcome.kind === 'refused' ? outcome.reason : outcome.kind,
         });
         return { kind: 'blocked' };

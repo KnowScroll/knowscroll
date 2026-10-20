@@ -39,7 +39,7 @@ await requestPlanner(authority, { commandId: newCommandId, resumeRunId: blockedR
 Resume preserves frozen intent/context and existing attempt identity; an unknown attempt remains
 unknown and never resends. A disabled run that never prepared context freezes the latest desired
 revision on its first enabled delivery. There is no automatic timer/requeue that evades a disabled,
-budget, quota or failure-brake refusal, and no direct paid operator bypass in this slice. Operator
+budget, quota, harness mismatch or failure-brake refusal, and no direct paid operator bypass in this slice. Operator
 inspection uses the protected `planner.state`, `planner.runs` and `planner.revisions` rows; no private
 context or model output is emitted to ordinary logs. Existing reasoning operator capabilities own
 attempt reconciliation/write-off; a write-off is not remote completion or retry permission.
@@ -64,7 +64,7 @@ The `planner.run` queue contains only version/universe/epoch/run IDs. It uses lo
 1000s expiry, three retries with30s exponential backoff, seven-day queued retention, two-day result
 retention and the common14-day dead-letter retention. A950s claim token fences concurrent deliveries;
 a live claim returns `already_running`. A crashed delivery resumes its frozen business run after
-claim expiry. The expiry exceeds two attempts at maximum300s transport +10s quota + two maximum60s
+claim expiry. Prepared JSON sorts object keys so JSONB storage cannot change request bytes on replay. The expiry exceeds two attempts at maximum300s transport +10s quota + two maximum60s
 scope locks per attempt plus margin. Claim tokens cannot override the harness's external-attempt
 ledger. A duplicate unknown delivery never sends/repairs another attempt.
 
