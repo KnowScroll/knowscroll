@@ -1,8 +1,22 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ScrollDraft, normaliseDraftInput } from '@knowscroll/scroll-model/producer';
+import {
+  type DraftProvenance,
+  ScrollDraft,
+  blockCatalogueText,
+  normaliseDraftInput,
+} from '@knowscroll/scroll-model/producer';
 import { extractResearch } from '../../../infrastructure/research/public-pages.js';
-import { claimsRole, compileGeneratedDraft, generatedProvenance, writerRole } from './roles.js';
+import { MAX_INSTRUCTION_CHARS } from '../../../reasoning/public.js';
+import {
+  claimsRole,
+  compileGeneratedDraft,
+  generatedProvenance,
+  writerRole,
+  CLAIMS_ROLE_VERSION,
+  WRITER_PROMPT_VERSION,
+} from './roles.js';
+import { writerDraftExampleJson } from './writer-example.js';
 
 const sourceWords =
   'A deliberately labelled fixture evidence passage describes the private research boundary and provides enough stable original language for checking verbatim quotations without representing any real generation.';
@@ -63,6 +77,67 @@ describe('Scroll production roles (labelled CI fixture)', () => {
     for (const hidden of ['claims', 'sources', 'bindings', 'production'])
       expect(compiled.document).not.toHaveProperty(hidden);
     expect(compiled.explanationUnitId).toBe('legacy-cutroom-greenhouse');
+  });
+  it('embeds one valid fictional JSON draft that compiles only with synthetic example evidence', () => {
+    const json = writerDraftExampleJson();
+    const example: unknown = JSON.parse(json);
+    expect(ScrollDraft.safeParse(example).success).toBe(true);
+    const synthetic: DraftProvenance = {
+      ...provenance,
+      publication: {
+        ...provenance.publication,
+        assetId: 'example-only-asset',
+        explanationUnitId: 'example-only-explanation',
+        targetMinutes: [1, 1],
+      },
+      claims: [
+        {
+          claimId: 'example-only-claim',
+          sourceId: 'example-only-source',
+          statement: 'Assume an invented switch whose selected state controls whether a drawn connection exists.',
+          quote:
+            'This authored test stipulates a fictional connection that can be shown or hidden by selecting a state.',
+          truthState: 'fictional',
+        },
+      ],
+      sources: [
+        {
+          sourceId: 'example-only-source',
+          title: 'Authored fictional syntax fixture',
+          url: 'https://fixture.invalid/writer-example',
+          snapshotSha256: '0'.repeat(64),
+          retrievedAt: '2026-10-20T00:00:00.000Z',
+        },
+      ],
+      material: [],
+      production: { kind: 'fixture', label: 'Authored fictional JSON syntax example; not generated product content' },
+    };
+    expect(compileGeneratedDraft(example, synthetic, true).kind).toBe('compiled');
+    // Actual production evidence cannot authorize the example, even though its JSON/DSL is valid.
+    expect(writerRole(provenance, true).outputSchema.safeParse(example).success).toBe(false);
+    const invalidOfferedId = structuredClone(claims);
+    if (invalidOfferedId.claims[0]) invalidOfferedId.claims[0].claimId = 'example-only-claim';
+    expect(claimsRole([page]).outputSchema.safeParse(invalidOfferedId).success).toBe(false);
+  });
+  it('separates reference grammar from one real JSON exemplar within the unchanged token and prompt ceilings', () => {
+    const role = writerRole(provenance, true);
+    const json = writerDraftExampleJson();
+    expect(role.instructions.split(json)).toHaveLength(2);
+    expect(role.instructions).toContain(blockCatalogueText());
+    expect(role.instructions.indexOf('SCHEMA REFERENCE GRAMMAR ONLY')).toBeLessThan(
+      role.instructions.indexOf(blockCatalogueText()),
+    );
+    expect(role.instructions.indexOf('</schema-reference-grammar>')).toBeLessThan(role.instructions.indexOf(json));
+    expect(role.instructions).toContain('No comments, trailing commas, ellipses');
+    expect(role.instructions).toContain('NOT valid JSON to copy');
+    expect(role.instructions).toContain('Do not copy its prose, IDs or claim ID');
+    expect(role.instructions.length).toBeLessThanOrEqual(MAX_INSTRUCTION_CHARS);
+    expect(Buffer.byteLength(role.instructions)).toBeLessThan(20_000);
+    expect(role.maxOutputTokens).toBe(12_000);
+    expect(claimsRole([page]).maxOutputTokens).toBe(4_000);
+    expect(role.version).toBe(WRITER_PROMPT_VERSION);
+    expect(claimsRole([page]).version).toBe(CLAIMS_ROLE_VERSION);
+    expect(provenance.production).toMatchObject({ promptVersion: role.version });
   });
   it('puts copy, number, source-name and binding failures inside the same writer schema repair boundary', () => {
     const role = writerRole(provenance, false);

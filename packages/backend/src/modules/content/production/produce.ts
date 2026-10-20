@@ -15,7 +15,14 @@ import type {
   WithProductionScope,
 } from '../../../reasoning/public.js';
 import { inAdmissionTransaction, makeAdmissionStore } from '../adapters/postgres-store.js';
-import { type ClaimPackage, claimsRole, compileGeneratedDraft, generatedProvenance, writerRole } from './roles.js';
+import {
+  type ClaimPackage,
+  claimsRole,
+  compileGeneratedDraft,
+  generatedProvenance,
+  writerRole,
+  WRITER_PROMPT_VERSION,
+} from './roles.js';
 import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
 import type { ProduceScrollResult, RoleReceipt } from './types.js';
 import { REQUEST_BOUND_PER_TOPIC, SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
@@ -258,7 +265,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           runId: row.writer_run_id,
           attemptIds: paidAttemptIds,
           model: deps.model,
-          promptVersion: SCROLL_PRODUCTION_VERSION,
+          promptVersion: WRITER_PROMPT_VERSION,
         },
       },
       topic !== 'greenhouse',

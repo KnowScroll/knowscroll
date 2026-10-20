@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -154,6 +155,63 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     });
     expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(first);
     expect(p.model.calls).toHaveLength(4);
+  });
+  it('keeps the rejected v1 job immutable while v2 creates distinct runs with explicit role versions', async () => {
+    const oldId = randomUUID();
+    const oldClaimsRun = randomUUID();
+    const oldWriterRun = randomUUID();
+    await sql`insert into content.scroll_production_runs (id, topic, policy_version, target_revision, scope_generation, state, claims_run_id, writer_run_id, outcomes, completed_at) values (${oldId},'greenhouse','scroll-production.v1',1,1,'rejected',${oldClaimsRun},${oldWriterRun},'[{"role":"checks","kind":"rejected","code":"ci_prior_invalid_json"}]'::jsonb,now())`.execute(
+      database.db,
+    );
+    const before = await database.db
+      .selectFrom('content.scroll_production_runs')
+      .selectAll()
+      .where('id', '=', oldId)
+      .executeTakeFirstOrThrow();
+    const p = setup((n) => answer(n === 1 ? claims : draft()));
+    const result = await p.produce()('greenhouse', false, signal());
+    expect(result.outcome).toBe('published');
+    expect(result.runId).not.toBe(oldId);
+    expect(
+      await database.db
+        .selectFrom('content.scroll_production_runs')
+        .selectAll()
+        .where('id', '=', oldId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual(before);
+    const current = await database.db
+      .selectFrom('content.scroll_production_runs')
+      .select(['policy_version', 'claims_run_id', 'writer_run_id'])
+      .where('id', '=', result.runId ?? '')
+      .executeTakeFirstOrThrow();
+    expect(current.policy_version).toBe('scroll-production.v2');
+    expect(current.claims_run_id).not.toBe(oldClaimsRun);
+    expect(current.writer_run_id).not.toBe(oldWriterRun);
+    expect(p.model.calls[0]?.request.system).toContain('version scroll-claims.v1,');
+    expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v2,');
+    const provenance = await database.db
+      .selectFrom('content.asset_provenance')
+      .select('provenance')
+      .where('asset_id', '=', result.assetId ?? '')
+      .executeTakeFirstOrThrow();
+    expect(provenance.provenance).toMatchObject({ production: { promptVersion: 'scroll-writer.v2' } });
+    expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(result);
+    expect(p.model.calls).toHaveLength(2);
+  });
+  it('still refuses reference grammar as invalid JSON through only one writer repair', async () => {
+    const p = setup((n) =>
+      n === 1 ? answer(claims) : { kind: 'success', text: '{"draftVersion":"scroll-draft.v1","title":4–240 chars}' },
+    );
+    const result = await p.produce()('greenhouse', false, signal());
+    expect(result.outcome).toBe('rejected');
+    expect(p.model.calls).toHaveLength(3);
+    expect(result.attempts?.find((item) => item.role === 'writer')).toMatchObject({
+      kind: 'invalid_output',
+      code: 'OUTPUT_NOT_ONE_JSON_OBJECT',
+    });
+    expect(await database.db.selectFrom('content.asset_revisions').select('asset_id').execute()).toHaveLength(0);
+    expect((await p.produce()('greenhouse', false, signal(), true)).outcome).toBe('rejected');
+    expect(p.model.calls).toHaveLength(3);
   });
   it('includes semantic refusal in the single writer repair and records terminal rejection without another retry', async () => {
     const p = setup((n) =>

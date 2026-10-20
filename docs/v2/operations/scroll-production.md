@@ -44,3 +44,11 @@ browser/emulator/physical-device and dev/stage deployment evidence separately. T
 model-generated Scrolls, at least two interactive, still require actual publication and reading
 through the connected app. A fixture publication or green CI cannot establish this. Human quality
 notes must cover accuracy, clarity, interactivity, unsupported inference and analogy limitations.
+
+The current recipe is `scroll-production.v2`, with explicit `scroll-claims.v1` and
+`scroll-writer.v2` stage versions; the latter is recorded as publication `promptVersion`.
+Version v2 clarifies strict JSON output and supplies a fictional syntax example after the canonical
+reference grammar. It does not change the research policy, parser, schemas, request bound or token
+ceilings. Rejected v1 jobs and attempts remain immutable. Invoking the reviewed new version is a
+new allocated business run, never an automatic retry of the rejected version. `--resume` applies
+only to an unfinished job of the current recipe.

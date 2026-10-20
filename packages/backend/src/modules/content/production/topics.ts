@@ -1,5 +1,5 @@
-/** Code-selected public briefs, never model-selected URLs. Bump version for any changed source or policy. */
-export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v1';
+/** Reviewed production recipe, including role prompt changes; new versions never resume old jobs. */
+export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v2';
 export const REQUEST_BOUND_PER_TOPIC = 4;
 export const TOPICS = {
   seasons: {

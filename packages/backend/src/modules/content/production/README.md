@@ -34,3 +34,26 @@ Topic explanation identities are `legacy-cutroom-seasons-v5`, `legacy-cutroom-ti
 `legacy-cutroom-greenhouse`, exactly matching the approved Reel import. The frozen v1 scripts are
 continuity references only. No v1 Scroll or authored example is presented as generated content.
 Neither private research nor provenance is reachable through content's client-facing read ports.
+
+## Prompt repair and version boundaries
+
+A real local v1 run completed its claims request, then both writer attempts were refused with
+`OUTPUT_NOT_ONE_JSON_OBJECT`; no asset was published. The invalid reply text was not retained,
+so its syntax cause is unknown. The catalogue contains reference grammar rather than literal
+JSON; v2 makes that distinction explicit and adds one `JSON.stringify`-generated fictional syntax
+example. This is a bounded prompt correction, not evidence that the earlier model copied grammar
+or that the revised prompt will succeed. Parsing, schemas, admission and repair limits are unchanged.
+
+| Identity | v1 | Current |
+|---|---|---|
+| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` |
+| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (explicit stage name; instructions/schema unchanged) |
+| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` |
+| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged |
+
+The rejected v1 job, its stable run IDs and attempts stay untouched. A reviewed v2 invocation
+creates a different job and role runs; it is not a resend or resume of v1. It still needs an explicit
+coordinator allocation and costs at most four requests, with the same 4,000/12,000 role ceilings.
+The synthetic example uses `example-only-claim`, outside the claims role's accepted `claim-`
+namespace; it cannot be authorized by real offered claims. CI checks its JSON/schema/compilation
+with fictional fixture evidence and its refusal under production evidence. It is not library content.
