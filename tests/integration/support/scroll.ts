@@ -12,8 +12,25 @@ import {
   READ_PREPARED_ACTIVITY,
   type ProjectEncounterActivity,
   type ReconcileEncounterActivity,
+  type ActivityDerivedEffect,
 } from '@knowscroll/backend/modules/evidence';
 import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
+import {
+  personalContextProviders,
+  activityContextEffect,
+} from '@knowscroll/backend/modules/personal-context/nest-providers';
+import {
+  ACTIVITY_CONTEXT_EFFECT,
+  READ_EXPLORATION_SNAPSHOT,
+  type ReadExplorationSnapshot,
+  type ReadRecentContextTopics,
+  READ_RECENT_CONTEXT_TOPICS,
+} from '@knowscroll/backend/modules/personal-context';
+import {
+  READ_ACTIVITY_STATISTICS,
+  READ_OBSERVATION_TAIL,
+  READ_RECENT_TOPIC_IDS,
+} from '@knowscroll/backend/modules/evidence';
 import type { ReadPreparedEvidenceInput } from '@knowscroll/backend/modules/composer';
 import type {
   NavigateEncounter,
@@ -94,6 +111,7 @@ export async function scrollUseCases(
     readonly wrapEnqueue?: (enqueue: EnqueueJob) => EnqueueJob;
     readonly wrapScope?: (scope: WithPersonalScope) => WithPersonalScope;
     readonly activityNow?: () => Date;
+    readonly activityDerived?: ActivityDerivedEffect;
   } = {},
 ): Promise<{
   readonly navigate: NavigateEncounter;
@@ -104,6 +122,8 @@ export async function scrollUseCases(
   readonly projectActivity: ProjectEncounterActivity;
   readonly reconcileActivity: ReconcileEncounterActivity;
   readonly readPrepared: ReadPreparedEvidenceInput;
+  readonly readExploration: ReadExplorationSnapshot;
+  readonly readRecentTopics: ReadRecentContextTopics;
   readonly importScroll: ImportEditorialScroll;
   readonly openExposure: OpenExposure;
   readonly activateExposure: ActivateExposure;
@@ -123,6 +143,7 @@ export async function scrollUseCases(
     [DATABASE, database.db],
     [SCOPE, options.wrapScope ? options.wrapScope(scope) : scope],
     [ENQUEUE, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],
+    [ACTIVITY_CONTEXT_EFFECT, options.activityDerived ?? activityContextEffect],
     ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...experienceEvidenceReadProviders().map((provider) => [provider.provide, provider.useValue] as const),
   ]);
@@ -130,7 +151,8 @@ export async function scrollUseCases(
   const composer = composerProviders({ isOperator: () => false });
   for (const p of composer) values.set(p.provide, p.useValue);
   const providers = [
-    ...activityProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
+    ...personalContextProviders(),
+    ...activityProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE, derivedProjection: ACTIVITY_CONTEXT_EFFECT }),
     ...navigationProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
     ...experienceProviders({ database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
     ...evidenceIntakeProviders({ database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
@@ -143,6 +165,9 @@ export async function scrollUseCases(
     options.activityNow ? { ...(activityPorts as object), now: options.activityNow } : activityPorts,
   );
   values.set(READ_PREPARED_ACTIVITY, build(READ_PREPARED_ACTIVITY));
+  values.set(READ_ACTIVITY_STATISTICS, build(READ_ACTIVITY_STATISTICS));
+  values.set(READ_OBSERVATION_TAIL, build(READ_OBSERVATION_TAIL));
+  values.set(READ_RECENT_TOPIC_IDS, build(READ_RECENT_TOPIC_IDS));
   values.set(NAVIGATION_PORTS, build(NAVIGATION_PORTS));
   return {
     navigate: build(NAVIGATE_ENCOUNTER) as NavigateEncounter,
@@ -153,6 +178,8 @@ export async function scrollUseCases(
     projectActivity: build(PROJECT_ENCOUNTER_ACTIVITY) as ProjectEncounterActivity,
     reconcileActivity: build(RECONCILE_ENCOUNTER_ACTIVITY) as ReconcileEncounterActivity,
     readPrepared: values.get(READ_PREPARED_ACTIVITY) as ReadPreparedEvidenceInput,
+    readExploration: build(READ_EXPLORATION_SNAPSHOT) as ReadExplorationSnapshot,
+    readRecentTopics: build(READ_RECENT_CONTEXT_TOPICS) as ReadRecentContextTopics,
     importScroll: importEditorialScrollUseCase(database.db),
     openExposure: build(OPEN_EXPOSURE) as OpenExposure,
     activateExposure: build(ACTIVATE_EXPOSURE) as ActivateExposure,

@@ -35,3 +35,15 @@ export type {
 export const PROJECT_ENCOUNTER_ACTIVITY = Symbol('evidence.projectEncounterActivity');
 export const RECONCILE_ENCOUNTER_ACTIVITY = Symbol('evidence.reconcileEncounterActivity');
 export const READ_PREPARED_ACTIVITY = Symbol('evidence.readPreparedActivity');
+export type {
+  ActivityDerivedInput,
+  ActivityDerivedEffect,
+  ActivityStatistics,
+  ReadActivityStatistics,
+  ReadObservationTail,
+  ReadRecentTopicIds,
+} from './application/context-ports.js';
+export const READ_ACTIVITY_STATISTICS = Symbol('evidence.readActivityStatistics');
+export const READ_OBSERVATION_TAIL = Symbol('evidence.readObservationTail');
+
+export const READ_RECENT_TOPIC_IDS = Symbol('evidence.readRecentTopicIds');

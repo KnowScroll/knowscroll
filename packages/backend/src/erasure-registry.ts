@@ -1,6 +1,7 @@
 import { erasureRegistry } from './infrastructure/erasure/registry.js';
 import { composerErasure } from './modules/composer/adapters/erasure.js';
 import { evidenceErasure } from './modules/evidence/adapters/erasure.js';
+import { personalContextErasure } from './modules/personal-context/adapters/erasure.js';
 import { experienceErasure } from './modules/experience/adapters/erasure.js';
 import { identityErasure } from './modules/identity/adapters/erasure.js';
 import { reasoningErasure } from './reasoning/adapters/erasure.js';
@@ -17,6 +18,7 @@ import { receiptsErasure } from './infrastructure/receipts/erasure.js';
  * lifecycle) and `content.assets` (shared content).
  */
 export const personalStores = erasureRegistry([
+  personalContextErasure,
   evidenceErasure,
   experienceErasure,
   composerErasure,

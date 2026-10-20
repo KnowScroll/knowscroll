@@ -1,4 +1,5 @@
 import type { ActivityProjectionResult } from './activity-contracts.js';
+import type { ActivityDerivedEffect } from './context-ports.js';
 import type { PreparedEvidenceInput } from '../../composer/public.js';
 import { z } from 'zod';
 import { activity, ACTIVITY_POLICY, type ActivityChannels } from '../domain/activity.js';
@@ -34,6 +35,8 @@ export interface ActivityProjection {
   readonly evaluatedAt: string;
 }
 export interface ActivityPorts {
+  /** Required by shipped composition once personal context is installed; isolated fixtures may omit it. */
+  readonly derived?: ActivityDerivedEffect;
   readonly withPersonalScope: WithPersonalScope;
   readonly readExposure: ReadExposureForEvidence;
   readonly readLineage: ReadActivityLineage;
@@ -42,7 +45,10 @@ export interface ActivityPorts {
   readonly readHistory: ReadRoutingHistory;
   readonly readReconcilePage: ReadActivityReconcilePage;
   readonly readQualification: (scope: PersonalScopeTx, id: string) => Promise<QualificationInput | undefined>;
-  readonly currentHash: (scope: PersonalScopeTx, id: string) => Promise<string | undefined>;
+  readonly currentActivity: (
+    scope: PersonalScopeTx,
+    id: string,
+  ) => Promise<{ readonly inputHash: string; readonly activityId: string } | undefined>;
   readonly persist: (scope: PersonalScopeTx, projection: ActivityProjection) => Promise<void>;
   readonly readTopicContext: (
     scope: PersonalScopeTx,
@@ -115,12 +121,15 @@ export function makeProjectEncounterActivity(p: ActivityPorts) {
       async (scope): Promise<ActivityProjectionResult> => {
         const x = await inputs(p, scope, payload.exposureId, p.now().toISOString());
         if (!x) return { kind: 'skipped', reason: 'metadata_missing' };
-        if ((await p.currentHash(scope, payload.exposureId)) === x.inputHash)
-          return { kind: 'skipped', reason: 'already_applied' };
-        await p.persist(scope, x);
+        const current = await p.currentActivity(scope, payload.exposureId);
+        const activityChanged = current?.inputHash !== x.inputHash;
+        if (activityChanged) await p.persist(scope, x);
+        const derivedChanged = (await p.derived?.apply(scope, x)) ?? false;
+        if (!activityChanged && !derivedChanged) return { kind: 'skipped', reason: 'already_applied' };
         const revision = await p.advance(scope);
-        await p.notify(scope, { revision, eventId: x.id });
-        return { kind: 'applied', activityId: x.id, revision };
+        const activityId = activityChanged ? x.id : current.activityId;
+        await p.notify(scope, { revision, eventId: activityId });
+        return { kind: 'applied', activityId, revision };
       },
     );
     return entered.kind === 'entered'
@@ -188,7 +197,11 @@ export function makeReconcileEncounterActivity(p: ActivityPorts) {
           gaps++;
           continue;
         }
-        if ((await p.currentHash(scope, id)) === x.inputHash) continue;
+        if (
+          (await p.currentActivity(scope, id))?.inputHash === x.inputHash &&
+          (!p.derived || (await p.derived.isCurrent(scope, x)))
+        )
+          continue;
         if (await p.pending(scope, id)) {
           pending++;
           continue;

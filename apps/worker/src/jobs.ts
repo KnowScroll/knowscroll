@@ -34,6 +34,8 @@ import {
 } from '@knowscroll/backend/reasoning';
 import { reasoningPurgeProviders, reasoningSweepProviders } from '@knowscroll/backend/reasoning/nest-providers';
 import { ENQUEUE_JOB, DATABASE, JOB_CONSUMERS, LOG_EVENT, WITH_PERSONAL_SCOPE, WORKER_CONFIG } from './tokens.js';
+import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
+import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-context';
 
 /**
  * The worker's explicit consumer registry: every queue this process claims work from and the use
@@ -42,8 +44,13 @@ import { ENQUEUE_JOB, DATABASE, JOB_CONSUMERS, LOG_EVENT, WITH_PERSONAL_SCOPE, W
 export const jobWiring: Provider[] = [
   ...experienceEvidenceReadProviders(),
   ...contentProviders(),
+  ...personalContextProviders(),
   ...evidenceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
-  ...activityProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
+  ...activityProviders({
+    withPersonalScope: WITH_PERSONAL_SCOPE,
+    enqueueJob: ENQUEUE_JOB,
+    derivedProjection: ACTIVITY_CONTEXT_EFFECT,
+  }),
   ...identitySweepProviders({ database: DATABASE }),
   ...reasoningPurgeProviders({ database: DATABASE, logEvent: LOG_EVENT }),
   ...reasoningSweepProviders({ database: DATABASE, logEvent: LOG_EVENT, workerConfig: WORKER_CONFIG }),
