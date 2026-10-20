@@ -444,3 +444,23 @@ capabilities throw, foreign/missing runs return `not_found`, and an oversized le
 reason is selected. Content can retain both primary and repair identities and print honest usage
 without reaching reasoning SQL or its private payload stores. Usage comes from the retained receipt,
 including late usage reported after write-off; the attempt's state and identity remain unchanged.
+
+## Cutroom contract prerequisite (#240)
+
+`CutroomExecution` declares a future closed cents execution boundary; it is not implemented,
+registered or enabled. Reasoning owns its protected bytes, attempts and uncertain dispatch;
+Content owns the commission business run, script/research, approval and publication/remote chain.
+`decideCutroomDelivery` and `canTransitionCutroomAttempt` reuse the existing attempt rules without
+changing any model role, scope, token budget, ledger or generation. They are pure ledger advice,
+not permission to send. An accepted POST is distinct from completed remote production.
+
+`CutroomOwnerCapability` has no public constructor. Parsed approval references cannot manufacture
+it: a later trusted owner-verification boundary must bind exact script/request hashes and run,
+recheck the grant and live fal preflight, and confirm the actual pool claim before durable intent.
+D018 permits <=200c new v2 liability and <=75c per Reel; this declaration allocates neither.
+The shared pool is the sole money record and is in another database: world/pool writes need durable
+reconciliation, not a claimed atomic transaction. Unknown liability stays held; even lookup404 plus
+ready=true cannot justify a resend. Original request identity survives engine auto-resume observations.
+Caller resume remains outside this seam. Unverified chain cost semantics block final settlement;
+actual cost is never clamped to an estimate or ceiling. Future capability/ports require implementation,
+persistence, authority and provider-specific conformance review before any consumer or paid use.
