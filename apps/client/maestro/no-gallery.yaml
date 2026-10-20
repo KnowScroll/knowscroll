@@ -5,13 +5,7 @@ name: No developer gallery in a build without it
 tags:
   - no-gallery
 ---
-- launchApp:
-    clearState: true
-    stopApp: true
-- extendedWaitUntil:
-    visible:
-      id: destination-explore
-    timeout: 120000
+- runFlow: start-app.yaml
 - openLink: knowscroll://gallery
 - extendedWaitUntil:
     visible: This page isn.t here

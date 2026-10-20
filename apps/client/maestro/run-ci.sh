@@ -105,6 +105,7 @@ find "$KS_OUT/maestro" -type f -name '*.png' -path '*takeScreenshot*' -print0 |
 kill "$logcat_pid" 2>/dev/null || true
 crash=0
 if grep -E "FATAL EXCEPTION" -A 3 "$KS_OUT/logcat.txt" | grep -q "Process: $app_id"; then crash=1; fi
+if grep -qE "ANR in $app_id" "$KS_OUT/logcat.txt"; then crash=1; fi
 if grep -qE ">>> $app_id <<<" "$KS_OUT/logcat.txt"; then crash=1; fi
 
 {
@@ -117,13 +118,13 @@ if grep -qE ">>> $app_id <<<" "$KS_OUT/logcat.txt"; then crash=1; fi
   printf '%s\n' "${results[@]}"
   echo
   echo "- screenshots: $(find "$KS_OUT/screenshots" -type f -name '*.png' | wc -l | tr -d ' ')"
-  echo "- app crash in logcat: $([ "$crash" -eq 1 ] && echo YES || echo none)"
+  echo "- app crash or ANR in logcat: $([ "$crash" -eq 1 ] && echo YES || echo none)"
 } | tee -a "$summary"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then cat "$summary" >> "$GITHUB_STEP_SUMMARY"; fi
 
 if [ "$crash" -eq 1 ]; then
-  echo "The app crashed while the flows ran (see logcat.txt):"
-  grep -E "FATAL EXCEPTION|>>> $app_id <<<" -A 6 "$KS_OUT/logcat.txt" | head -n 40
+  echo "The app crashed or stopped responding while the flows ran (see logcat.txt):"
+  grep -E "FATAL EXCEPTION|>>> $app_id <<<|ANR in $app_id" -A 6 "$KS_OUT/logcat.txt" | head -n 40
   exit 1
 fi
 exit "$failed"

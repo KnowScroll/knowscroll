@@ -17,6 +17,9 @@ Android builds and the emulator run only here, never on a developer's Mac.
 | Add the label **`run-native`** to a pull request | Always available. The lane runs on the label being added and on every later push to that PR (`opened`, `reopened`, `synchronize`, `labeled`); adding some other label to a labelled PR starts nothing. Pull requests build against the dev origin (`https://app.dev.knowscroll.space`) with the developer gallery. |
 | `gh workflow run native.yml --ref <branch> [-f api_origin=<https origin>] [-f gallery=true\|false]` | Only once `native.yml` is on `dev`, the default branch (GitHub lists a dispatchable workflow only from the default branch). `api_origin` is baked into the build (HTTPS only); `gallery=false` builds without the developer gallery and skips the gallery flows. |
 
+A run takes about 15 minutes of wall time: `apk` 8 to 11 minutes (Gradle with a warm cache is about 6; a cold cache is
+slower), `emulator` about 6 (boot, 4 to 5 flows). Hosted-runner minutes are free on this public repository.
+
 Follow a run with `gh run watch <id>`, and fetch the evidence with `gh run download <id> -D <folder>`
 (artifacts below). A newer push to the same ref cancels the older run; a pull-request event that does not
 run the lane (no label) never cancels one.
@@ -32,7 +35,8 @@ run the lane (no label) never cancels one.
    bundle (`expo export:embed` through the React Native Gradle plugin), so there is no Metro at run time, and
    it is signed with the template's debug keystore. `EXPO_PUBLIC_KS_API_ORIGIN` is the `api_origin`;
    `EXPO_PUBLIC_KS_GALLERY=1` when the gallery is on. The step summary records the APK's package, size, SHA-256,
-   embedded bundle, signer and whether the gallery marker is in the bundle. Caches: pnpm store (setup-node)
+   embedded bundle, signer and the gallery marker and API origin found in the bundle; the step fails if the marker
+   is missing from a gallery build or present in one made without the gallery, or if the origin is not baked in. Caches: pnpm store (setup-node)
    and Gradle (`gradle/actions/setup-gradle`, writable from pull requests).
 2. **`emulator`** (`ubuntu-latest` with KVM, at most 45 minutes). Takes the APK, installs the pinned Maestro CLI
    (checksum verified), boots an **API 35, google_apis, x86_64, pixel_6** emulator (software GPU
@@ -61,7 +65,14 @@ All flows start with `launchApp` and `clearState: true`, so each one is a cold s
 | `shell.yaml` | Cold start reaches the four-tab shell (Explore, Universe, Talk, Keep by testID and by label) on Explore's honest empty state, with the account avatar | `shell-01-cold-start` |
 | `tabs-and-back.yaml` | Each tab opens its screen; from Keep the avatar pushes the account screen (signed out, "Back to Keep"); the **system Back** returns to Keep, not to the start tab; the on-screen Back does the same | `tabs-01…04`, `back-01`, `back-02` |
 | `gallery.yaml` (gallery builds) | `knowscroll://gallery` opens the developer gallery (marker `ks-component-gallery`), it scrolls to its last section, the system Back closes the bottom sheet without leaving the gallery, and a second Back returns to the shell. The API-health panel asks the baked-in origin; the flow does not depend on the answer, but the screenshot shows what the dev API reported | `gallery-01…06` (with `04b`, `04c`) |
+| `no-gallery.yaml` (builds without the gallery, i.e. `gallery=false`) | Runs instead of the two gallery flows: `knowscroll://gallery` reaches the not-found screen, not the gallery; its "Go to Explore" returns to the shell. With the APK step's bundle check this is the native counterpart of the client job's "the production export carries no developer gallery" | `no-gallery-01`, `no-gallery-02` |
 | `scroll-blocks.yaml` (gallery builds) | Placeholder. When the gallery has an element with testID **`gallery-scroll-blocks`** it opens it and takes a screenshot. Until the Scroll renderers (#230 part 2) add it, the flow logs a `KS-LANE-SKIP` line and checks nothing; `run-ci.sh` then reports it as **skipped**, never as passed | `scroll-blocks-01-section` |
+
+Every flow begins with `runFlow: start-app.yaml` (a shared subflow, never run on its own): a cold start of the signed-out
+app and a wait for the shell. It also dismisses an Android "Pixel Launcher isn't responding" dialog if one appears: the
+software-rendered emulator starts under load, and while that dialog is up the app is not in the view hierarchy, so
+every wait times out (seen once in a probe run, with the app already drawn behind the dialog). A dialog about KnowScroll
+itself is never dismissed, and `run-ci.sh` also fails on an `ANR in com.knowscroll.client` line in logcat.
 
 Adding a flow: put `<name>.yaml` in `apps/client/maestro/` (selectors are testIDs, which React Native exposes as the
 Android resource id, or visible text) and add a `run_flow` line to `run-ci.sh`. Keep names of screenshots unique
