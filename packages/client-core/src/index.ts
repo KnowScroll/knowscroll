@@ -68,3 +68,9 @@ export {
   type ScrollRecorderOptions,
   type SendOutcome,
 } from './recorder';
+export {
+  createScopedBlockStateStore,
+  type EarlierBlockState,
+  type ScrollBlockKey,
+  type ScrollBlockStateStore,
+} from './scroll-state';

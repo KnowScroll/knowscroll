@@ -15,6 +15,8 @@ const shared = {
   moduleNameMapper: {
     '^@knowscroll/contracts$': '<rootDir>/../../packages/contracts/src/index.ts',
     '^@knowscroll/scroll-model$': '<rootDir>/../../packages/scroll-model/src/index.ts',
+    // The native gesture module does not exist in Jest (the Scroll blocks import it): a stand-in.
+    '^react-native-gesture-handler$': '<rootDir>/../../packages/ui/src/test-support/gesture-handler.mock.tsx',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transform: { '\\.mjs$': babelTransform },

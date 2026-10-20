@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '../zod.js';
 import { AUTHORED_DATA_SCHEMAS, disclosureData } from '../blocks/catalog.js';
 import { BlockA11y, FallbackText } from '../blocks/envelope.js';
 import { Correction, Framing, SeriesRef, TEMPLATES, THEME_FAMILIES } from '../document.js';

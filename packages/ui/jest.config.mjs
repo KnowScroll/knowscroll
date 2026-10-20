@@ -2,21 +2,36 @@
  * Two projects: the native preset (iOS platform files, React Native host components) for the
  * component tests, and the web preset (jsdom, `.web.ts` platform files, React Native Web) for the
  * web-only modules: link and ARIA semantics, the `:focus-visible` stylesheet and overlay history.
+ *
+ * `@knowscroll/scroll-model` resolves to its TypeScript sources (tests never need a build; its
+ * `.js` import specifiers name `.ts` files), like Vitest and tsc do through `@knowscroll/source`.
+ * `react-native-gesture-handler` resolves to a stand-in (`src/test-support/gesture-handler.mock.tsx`):
+ * its native module is not there, and tests read the pans blocks ask for instead.
  */
+const shared = {
+  rootDir: '.',
+  moduleNameMapper: {
+    '^@knowscroll/scroll-model$': '<rootDir>/../scroll-model/src/index.ts',
+    // The native gesture module does not exist in Jest; blocks are tested against a recording stand-in.
+    '^react-native-gesture-handler$': '<rootDir>/src/test-support/gesture-handler.mock.tsx',
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
+};
+
 export default {
   projects: [
     {
+      ...shared,
       displayName: 'native',
       preset: 'jest-expo',
-      rootDir: '.',
       testMatch: ['<rootDir>/src/**/*.test.ts', '<rootDir>/src/**/*.test.tsx'],
       testPathIgnorePatterns: ['/node_modules/', '\\.web\\.test\\.tsx?$'],
       setupFiles: ['<rootDir>/jest.setup.js'],
     },
     {
+      ...shared,
       displayName: 'web',
       preset: 'jest-expo/web',
-      rootDir: '.',
       testMatch: ['<rootDir>/src/**/*.web.test.ts', '<rootDir>/src/**/*.web.test.tsx'],
     },
   ],

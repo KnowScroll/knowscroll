@@ -24,7 +24,11 @@ export default defineConfig({
       testMatch: ['web-smoke.spec.ts', 'auth-smoke.spec.ts', 'security-smoke.spec.ts'],
       use: { baseURL: `http://127.0.0.1:${production}` },
     },
-    { name: 'gallery', testMatch: 'gallery-smoke.spec.ts', use: { baseURL: `http://127.0.0.1:${gallery}` } },
+    {
+      name: 'gallery',
+      testMatch: ['gallery-smoke.spec.ts', 'scroll-gallery.spec.ts', 'scroll-blocks.spec.ts'],
+      use: { baseURL: `http://127.0.0.1:${gallery}` },
+    },
   ],
   webServer: [
     {

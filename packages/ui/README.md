@@ -47,6 +47,52 @@ tests); without either, components get the current window at 100 % text and moti
 | `Spinner`, `PendingStripe` | Busy arc (still under reduced motion); the 135° preparing stripe | Decorative |
 | `DisplayRoot`, `DisplayProvider`, `useDisplay` | Width → breakpoint, system text size, reduced motion, read once at the root (see above); pinnable for the gallery and tests | — |
 
+## Scroll renderer (`src/scroll`, S2.1 part 2, #230)
+
+Renders a consumer `scroll-document.v1` from `@knowscroll/scroll-model` (the client path only: `parseDocument`,
+`parseBlock`; the admission path, with its full-grid proof, never runs on a device, and a test scans the sources for
+it). The route (#229) owns chrome and navigation; `ScrollArticle` owns reading.
+
+| Piece | What it does |
+|---|---|
+| `prepareScrollDocument(input, {verify?})` | The client's way in: `parseDocument` and a typed outcome (`ready · unsupported-version · invalid`). The hash is checked only with `verify` (it costs on Hermes). |
+| `ScrollArticle` | A vertical `ScrollView`: the template's opening (poster card or editorial essay), the persistent framing (Hypothetical, perspective) and correction notes, every section and block through the registry, the end mark. Props: `document`, `observer?`, `diagnostics?`, `store?`, `anchorBlockId?`, `paused?`, `contentInset?`, `readingInset?`, `afterHeader?`, `endSlot?`. Keyed by `(assetId, revision)`. |
+| Registry (`blocks/registry.tsx`) | Block type → component, in an exhaustive `switch` (a new block type does not compile until decided). `SCROLL_RENDERER_CAPABILITIES` is exactly what the build renders (every type of v1, equal to `FULL_V1_CAPABILITIES`); a type marked unimplemented would not be advertised, so the server's `negotiate` would replace it with a `fallback` block, and a document that still carried one shows its own text. |
+| Text blocks | Paragraph (marks; runs concatenated with nothing between them, so the text is the passage projection; on the web every run carries `data-ks-block` and `data-ks-offset`), subheading (a real level-3 heading; section headings are level 2; the title is level 1), list, quote, callout, disclosure (state `{expanded}` kept by revision and block), code (horizontal scroll inside the frame, focusable on the web, Copy through `expo-clipboard`). The editorial opening has a drop cap: `::first-letter` on the web, an enlarged first letter on native (no float); the paragraph text is whole either way. |
+| Fallback (`blocks/fallback.tsx`) | E02 "Diagram couldn't load · text version": the block's own text under a one-line label, never blank. `Retry` only where retrying can help (a block that threw while rendering, caught by `BlockBoundary`); a block the build cannot draw says "Needs an app update · text version" (one mono line at 390 px; the DSL doc's longer "This part needs an app update" wrapped). Every case calls `diagnostics.onRenderFallback` (internal; never shown to the reader). |
+| Anchors (`anchors.ts`) | `#block` is a block id (`parseBlockAnchor`, `formatBlockAnchor`); `anchorBlockId` scrolls to the block and flashes it on `content.highlight`; a block inside a disclosure opens it first. |
+| Observer (`observer.ts`) | The three-event interface the recorder (#229, `client-core`) implements: `onBlockVisibility`, `onBlockInteraction`, `onActivity`. The article measures (web: IntersectionObserver rooted in the article, with per-block thresholds rebuilt on resize; native: layout and scroll offset) and reports by one rule (`reading/visibility.ts`): visible height / min(block height, reading height); a change of ≥ 0.1, a crossing of 0, 0.5 or 1, mount or unmount. Replacement observers receive current visibility and activity. Activity: `AppState` / `visibilitychange`, plus `paused` for an open overlay. |
+| Block state (`state.ts`) | `ScrollBlockStateStore`: `get · set · clear · earlier` by `(assetId, revision, blockId)`, values only the package's `BlockState`. In-memory by default; the AccountScope-scoped persistent one is `createScopedBlockStateStore` in `@knowscroll/client-core` (purged when the scope ends). |
+| `fixtures/` (`@knowscroll/ui/scroll-fixtures`) | Original, labelled fixture documents for tests and the developer gallery (`/gallery-scroll`); never product content, never imported by production code. |
+
+Reading measure: full width on phones, 500 px on tablets, 680 px on desktops (880 for code and interactive blocks).
+Code is shown in DM Mono 13/21 (the token set has no code role yet, D-006 p).
+
+### Interactive and visual blocks (PR B)
+
+Every block says whether it captures a gesture (`block.gesture`, derived by the package: `none`, `horizontal`, `two-axis`),
+has an accessible alternative, shows its notices and keeps its state by (revision, block id). Nothing animates: states change
+at once, so reduced motion needs no variant (figures and clips ask the media slot for the poster, never autoplay).
+
+| Block | What it draws | Accessible alternative · state · interactions |
+|---|---|---|
+| `table` | Caption, header row with units, aligned cells, grouped numbers (`DataTable`: `table`/`row`/`columnheader`/`cell`) | Is its own text version |
+| `figure`, `media` | `renderMedia` slot (S2.4), else a placeholder with the alt text in plain sight; a clip's transcript is always shown; no control until media exists | Alt text · transcript |
+| `comparison`, `timeline` | Columns (three stack on a phone) · a rail of events in document order | Labelled groups, lists |
+| `sequence` | Stepper: "Step 2 of 5", Previous / Next / Reset, step figure | Text version lists every step · `{step}` · `step`, `control` |
+| `diagram` | SVG: layouts `flow-lr`, `flow-tb`, `layers`, `radial`, `cycle`, `grid` computed by `layout.ts` (no model coordinates); frames hide, point at and re-weight; static, steps, toggle or drag-to-target | "Describe this diagram" and the article text version (nodes and connections); targets as buttons beside the drag; Reset · `{frame}` · `step`, `drag`, `control`, `text_version` |
+| `chart` | SVG bar (vertical, horizontal, log), line, scatter, heatmap from the data; scales derived by `scales.ts`; series told apart by colour, dash and marker | The data as a generated table ("Show data as a table", or the article text version) · `text_version` · no "inspect", no comparison glyph (v1) |
+| `simulation` | Controls bound to declared keys (slider, stepper, typed number), one of four views (`readout`, `cards`, `plot`, `area`) scaled by the display the package stored at admission (`displayFraction`, `displayRange`: read, never computed), the readout sentence and band, the model note and the **Illustrative** notice | Slider: role `slider`, value text, arrows, Page Up/Down, Home/End, increment/decrement actions; stepper twin and the outputs in words under the text version · `{params}` · `control`, `drag` · a non-finite output shows the block's own text in place of the view (controls stay) |
+
+Gestures (blueprint §18, `gestures/arbitration.ts`): vertical reading comes first. A horizontal capture (the slider) is
+given to the block only after the horizontal axis locks and is owned until release; a two-axis capture (the diagram token)
+owns the touch from the first movement; a block that declares `none` never takes a drag. One rule, two implementations:
+native hands `react-native-gesture-handler` `activeOffsetX` and `failOffsetY` of ±10 px (`usePanGesture`, callbacks on the
+JS thread), and the web applies `classifyMove` to pointer events on a track that says `touch-action: pan-y` (the token says
+`none`). The article carries its own `GestureHandlerRootView` on native. "Text version of diagrams" is one switch for the whole
+article (E03-4). When a revision changes what a block's state means the block starts over and says so (`ResetNotice`), unless
+the caller declares it unchanged (`carryOverBlockIds`, from the package's anchor map).
+
 ## Platform files
 
 Only where behaviour differs (blueprint §18):
@@ -68,7 +114,7 @@ so Ask never looks like Talk), `more`, `send`, `shareMoment`, `fullScreen`, `pla
 `hypothetical` (branch), `corrected` (pencil), `lock`, `shield`, `plus`, `minus`, `search`,
 `link`, `list`. Composed for this package: `person` (signed-out account glyph, from the Members
 icon's geometry). Icons the export draws but no primitive needs yet (members, volume, eye, flag,
-block, trash, pin, branch map, captions, copy) are added with the surfaces that use them.
+block, trash, pin, branch map, captions) are added with the surfaces that use them; `copy` came with the Scroll code block.
 
 ## Not built here (later surfaces)
 

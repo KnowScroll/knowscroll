@@ -44,6 +44,7 @@ describe('route map', () => {
         '/conversations',
         '/explore',
         '/gallery',
+        '/gallery-scroll',
         '/recover',
         '/redeem',
         '/saved',

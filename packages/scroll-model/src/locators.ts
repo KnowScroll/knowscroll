@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from './zod.js';
 import type { AnyBlock } from './blocks/catalog.js';
 import { canonicalJson, canonicalSize } from './canonical.js';
 import { findBlock, walkBlocks, type ScrollDocument } from './document.js';

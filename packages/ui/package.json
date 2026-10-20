@@ -5,7 +5,8 @@
   "description": "Accessible UI primitives of the v2.1 design for React Native and React Native Web.",
   "license": "UNLICENSED",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./scroll-fixtures": "./src/scroll/fixtures/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -13,15 +14,20 @@
   },
   "dependencies": {
     "@knowscroll/design-tokens": "workspace:*",
+    "@knowscroll/scroll-model": "workspace:*",
+    "expo-clipboard": "catalog:",
     "react": "catalog:",
     "react-native": "catalog:",
+    "react-native-gesture-handler": "catalog:",
     "react-native-safe-area-context": "catalog:",
-    "react-native-svg": "catalog:"
+    "react-native-svg": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@react-native/jest-preset": "catalog:",
     "@testing-library/react-native": "catalog:",
     "@types/jest": "catalog:",
+    "@types/node": "catalog:",
     "@types/react": "catalog:",
     "expo": "catalog:",
     "jest": "catalog:",
