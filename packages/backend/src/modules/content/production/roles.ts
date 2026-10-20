@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { admitDocument, textFields, walkBlocks } from '@knowscroll/scroll-model';
-import { type DraftProvenance, ScrollDraft, blockCatalogueText, compileDraft } from '@knowscroll/scroll-model/producer';
+import {
+  type DraftProvenance,
+  ScrollDraft,
+  blockCatalogueText,
+  compileDraft,
+  REPAIR_HINTS,
+} from '@knowscroll/scroll-model/producer';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import { readingFactsOf } from '../adapters/scroll-compiler.js';
@@ -14,9 +20,18 @@ import {
   type ClaimPackage,
 } from './quote-candidates.js';
 
-/** Stage versions are distinct from the job policy; v4 preserves claims v2 and changes writer v3. */
+/** v5 changes only writer semantic repair feedback; the claims recipe stays v2. */
 export const CLAIMS_ROLE_VERSION = 'scroll-claims.v2';
-export const WRITER_PROMPT_VERSION = 'scroll-writer.v3';
+export const WRITER_PROMPT_VERSION = 'scroll-writer.v4';
+
+/** Static module-owned feedback only; no draft, source or provider text enters this catalogue. */
+const WRITER_SAFE_ISSUES = Object.freeze({
+  ...REPAIR_HINTS,
+  reader_block_unbound: 'Bind every reader block except subheadings to an offered claim, including nested blocks.',
+  reader_source_or_url: 'Remove source/publisher names and web addresses from all reader-facing text.',
+  interactive_required:
+    'Include a useful interactive diagram or simulation with canonical controls and accessible fallback.',
+});
 
 const Selection = z.strictObject({
   candidateIds: z
@@ -159,6 +174,7 @@ export function writerRole(provenance: DraftProvenance, interactive: boolean): R
   return {
     id: 'content.scroll-writer',
     version: WRITER_PROMPT_VERSION,
+    safeCustomIssues: WRITER_SAFE_ISSUES,
     maxOutputTokens: 12000,
     instructions: [
       'RETURN FORMAT: exactly one complete, syntactically valid JSON object for scroll-draft.v1. The first non-whitespace character must be { and the last must be }. Return no explanation, reasoning, Markdown fence, XML tag or text outside that object.',
@@ -187,7 +203,8 @@ export function writerRole(provenance: DraftProvenance, interactive: boolean): R
           ctx.addIssue({
             code: 'custom',
             path: issue.path.split('.').map((part) => (/^\d+$/u.test(part) ? Number(part) : part)),
-            message: issue.code,
+            message: 'Writer semantic validation refused.',
+            ...(Object.hasOwn(WRITER_SAFE_ISSUES, issue.code) ? { params: { safeCode: issue.code } } : {}),
           });
     }),
   };

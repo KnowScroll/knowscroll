@@ -45,8 +45,8 @@ model-generated Scrolls, at least two interactive, still require actual publicat
 through the connected app. A fixture publication or green CI cannot establish this. Human quality
 notes must cover accuracy, clarity, interactivity, unsupported inference and analogy limitations.
 
-The current recipe is `scroll-production.v4`, with unchanged `scroll-claims.v2` and
-`scroll-writer.v3` stage versions; the writer version is recorded as publication `promptVersion`.
+The current recipe is `scroll-production.v5`, with unchanged `scroll-claims.v2` and
+`scroll-writer.v4` stage versions; the writer version is recorded as publication `promptVersion`.
 Claims now select four to eight immutable offered evidence IDs. Code verifies source hashes,
 complete original 40–600-character quote spans, offsets and membership, then hydrates statement
 and quote to the same source text. `documented` labels a direct quotation, not proven truth or
@@ -54,7 +54,7 @@ verified entailment. The pool has at most 32 candidates; insufficient, corrupt, 
 unpartitionable pools refuse before provider admission. No source text is silently clipped.
 
 The harness retains raw selections for exact same-run replay; writer resume also verifies privately
-stored hydrated claims. This narrower role cannot author synthesis or interpretation. Writer v3 requests a finished 2–3 minute article using a smaller canonical recipe and one
+stored hydrated claims. This narrower role cannot author synthesis or interpretation. The writer requests a finished 2–3 minute article using a smaller canonical recipe and one
 mode-matched fictional syntax example. Comparison points explicitly contain span arrays. The
 writer wire requires canonical arrays directly; global compiler normalization is unchanged.
 The full catalogue, computed 2–8 minute admission contract, strict parser, research policy, reader
@@ -62,6 +62,15 @@ copy/honesty/number checks, admission, request bound and token ceilings remain u
 rejected v1/v2/v3 jobs and eleven attempts remain immutable. Invoking the reviewed new version is a new allocated business run,
 never an automatic retry of a rejected version. `--resume` applies only to an unfinished job of the
 current recipe. New exact-head CI/review and coordinator allocation are required before generation.
+
+v5 changes only writer semantic repair feedback: code-owned producer hints and three fixed content
+codes now reach the same one repair through the role's explicit safe catalogue. Arbitrary custom
+messages, draft/source values and unknown path names stay suppressed; no failed raw reply is kept.
+The real v4 dev greenhouse job's masked custom failures do not reveal its exact failed rule. All
+terminal v1–v4 jobs stay immutable. This version change records the feedback behavior delta; it
+does not reset generation, the stable-role daily failure brake, attempt/spend ledger or external
+allowance. It authorizes no call. Coordinator operator profiles must pin the reviewed v5/v4 source
+and preserve their separately reviewed generation and remaining allowance.
 
 New publications project the three reviewed topic IDs only after same-transaction writer closure,
 exact job publication, provenance and attempt checks. A normal fixture transport/model stays
