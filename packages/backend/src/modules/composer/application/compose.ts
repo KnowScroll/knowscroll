@@ -110,6 +110,19 @@ export function validateSnapshot(s: ComposerSnapshot): void {
         )
       )
         fail();
+    if (e.established) {
+      if (new Set(e.established.units.map((u) => u.explanationUnitId)).size !== e.established.units.length) fail();
+      for (const unit of e.established.units) {
+        const matches = s.candidates.filter((c) => c.encounter.explanationUnitId === unit.explanationUnitId);
+        const facets = new Set(matches.flatMap((c) => c.encounter.facets));
+        if (
+          !matches.length ||
+          new Set(unit.facets.map((f) => f.facetId)).size !== unit.facets.length ||
+          unit.facets.some((f) => !facets.has(f.facetId))
+        )
+          fail();
+      }
+    }
     for (const r of e.recent)
       if (
         !Number.isFinite(Date.parse(r.activatedAt)) ||

@@ -32,6 +32,32 @@ export function features(snapshot: ComposerSnapshot, candidate: ComposerSnapshot
     recent.length === 0
       ? 0
       : Math.max(...recent.map((r) => (r.explanationUnitId === c.explanationUnitId ? 1 : overlap(r.facets, c.facets))));
+  const established = snapshot.evidence?.established?.units.find((u) => u.explanationUnitId === c.explanationUnitId);
+  // A candidate-relevant history probe can establish unseen; absent history cannot.
+  const establishedRepetition =
+    established === undefined
+      ? 0.5
+      : established.encountered
+        ? 1
+        : c.facets.length === 0
+          ? 0
+          : c.facets.reduce((sum, facet) => {
+              const known = established.facets.find((f) => f.facetId === facet);
+              return sum + (known === undefined ? 0.5 : known.encountered ? 1 : 0);
+            }, 0) / c.facets.length;
+  const knownRecentRepetition =
+    recent.length === 0
+      ? 0
+      : Math.max(
+          ...recent.map((r) =>
+            r.explanationUnitId === c.explanationUnitId
+              ? 1
+              : r.facets.length && c.facets.length
+                ? overlap(r.facets, c.facets)
+                : 0,
+          ),
+        );
+  const novelty = 1 - Math.max(establishedRepetition, knownRecentRepetition);
   const match =
     snapshot.intent.topicIds.length === 0 || relevant.length === 0
       ? 0.5
@@ -48,7 +74,7 @@ export function features(snapshot: ComposerSnapshot, candidate: ComposerSnapshot
       const f = snapshot.evidence?.topics.find((t) => t.topicId === topicId)?.formats.find((f) => f.kind === c.kind);
       return f === undefined ? 0.5 : (1 + f.qualified) / (2 + f.measured);
     }),
-    novelty: 1 - repetition,
+    novelty,
     semanticFit: overlap(
       tokens(snapshot.intent.text),
       tokens(`${c.metadata.title} ${c.metadata.summary} ${c.facets.join(' ')}`),

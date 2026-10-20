@@ -4,7 +4,12 @@ export type ComposeEncounter = (snapshot: ComposerSnapshot) => ComposerDecision;
 /** Implemented by the later evidence projector. Absence is explicit; never manufactures history. */
 export type ReadPreparedEvidenceInput = (
   scope: PersonalScopeTx,
-  query: { readonly evaluatedAt: string; readonly topicIds: readonly string[] },
+  query: {
+    readonly evaluatedAt: string;
+    readonly topicIds: readonly string[];
+    /** At most100 candidate units with at most16 real admitted facets each. */
+    readonly candidates: readonly { readonly explanationUnitId: string; readonly facets: readonly string[] }[];
+  },
 ) => Promise<PreparedEvidenceInput | undefined>;
 export interface DecisionBinding {
   readonly decisionId: string;

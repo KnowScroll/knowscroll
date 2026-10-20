@@ -76,6 +76,7 @@ describe('Composer v0 pure policy (labelled CI input fixtures)', () => {
       semanticFit: 0.5,
       continuity: 0.5,
       recentRepetition: 0,
+      novelty: 0.5,
     });
     expect(d.fallbackVersion).toBe('lexical-admitted.v0');
   });
@@ -149,6 +150,65 @@ describe('Composer v0 pure policy (labelled CI input fixtures)', () => {
       },
     });
     expect(old.evaluations[0]?.features.recentRepetition).toBe(0);
+  });
+  it('separates established novelty from24hour repetition and treats missing history neutrally', () => {
+    const s = withEvidence(fixture(1));
+    const c = s.candidates[0]!.encounter;
+    const known = {
+      policyVersion: 'ci-retained-history.v1',
+      watermark: 'ci-actual-history-1',
+      units: [{ explanationUnitId: c.explanationUnitId, encountered: true, facets: [] }],
+    };
+    const old = {
+      exposureId: 'ci-old-actual',
+      activatedAt: '2026-10-18T11:00:00Z',
+      explanationUnitId: c.explanationUnitId,
+      facets: c.facets,
+    };
+    const d = composeEncounter({ ...s, evidence: { ...s.evidence!, recent: [old], established: known } });
+    expect(d.evaluations[0]?.features).toMatchObject({ recentRepetition: 0, novelty: 0 });
+    expect(composeEncounter(s).evaluations[0]?.features.novelty).toBe(0.5);
+    const unseen = {
+      ...known,
+      units: [
+        {
+          explanationUnitId: c.explanationUnitId,
+          encountered: false,
+          facets: c.facets.map((facetId) => ({ facetId, encountered: false })),
+        },
+      ],
+    };
+    expect(
+      composeEncounter({ ...s, evidence: { ...s.evidence!, established: unseen } }).evaluations[0]?.features.novelty,
+    ).toBe(1);
+    const seenFacet = {
+      ...unseen,
+      units: [{ ...unseen.units[0]!, facets: c.facets.map((facetId) => ({ facetId, encountered: true })) }],
+    };
+    expect(
+      composeEncounter({ ...s, evidence: { ...s.evidence!, established: seenFacet } }).evaluations[0]?.features.novelty,
+    ).toBe(0);
+    expect(() =>
+      composeEncounter({
+        ...s,
+        evidence: {
+          ...s.evidence!,
+          established: { ...known, units: [{ ...known.units[0]!, explanationUnitId: 'foreign-unit' }] },
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      composeEncounter({
+        ...s,
+        evidence: {
+          ...s.evidence!,
+          established: {
+            ...known,
+            units: [{ ...known.units[0]!, facets: [{ facetId: 'invented-facet', encountered: true }] }],
+          },
+        },
+      }),
+    ).toThrow();
   });
   it('MMR reduces redundant explanations and uses deterministic lexical ties', () => {
     const s = fixture(4);

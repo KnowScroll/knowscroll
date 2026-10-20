@@ -95,6 +95,21 @@ export const ComposerSnapshotSchema: z.ZodType<ComposerSnapshot> = z.strictObjec
       recent: z
         .array(z.strictObject({ exposureId: Id, activatedAt: z.iso.datetime(), explanationUnitId: Id, facets: Facets }))
         .max(20),
+      established: z
+        .strictObject({
+          policyVersion: Id,
+          watermark: z.string().min(1).max(240),
+          units: z
+            .array(
+              z.strictObject({
+                explanationUnitId: Id,
+                encountered: z.boolean(),
+                facets: z.array(z.strictObject({ facetId: Id, encountered: z.boolean() })).max(16),
+              }),
+            )
+            .max(100),
+        })
+        .optional(),
       hiddenAssetIds: z.array(Id).max(1000),
     })
     .optional(),

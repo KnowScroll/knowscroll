@@ -46,6 +46,16 @@ export interface PreparedEvidenceInput {
     readonly explanationUnitId: string;
     readonly facets: readonly string[];
   }[];
+  /** Candidate-relevant actual retained encounter/facet history, not a learning or identity claim. */
+  readonly established?: {
+    readonly policyVersion: string;
+    readonly watermark: string;
+    readonly units: readonly {
+      readonly explanationUnitId: string;
+      readonly encountered: boolean;
+      readonly facets: readonly { readonly facetId: string; readonly encountered: boolean }[];
+    }[];
+  };
   readonly hiddenAssetIds: readonly string[];
 }
 export interface ComposerSnapshot {
