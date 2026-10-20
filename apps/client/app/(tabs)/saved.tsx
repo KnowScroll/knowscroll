@@ -1,5 +1,5 @@
-import { EmptyKeepScreen } from '../../features/saved/empty-keep-screen';
+import { SavedScreen } from '../../features/saved/saved-screen';
 
 export default function Saved() {
-  return <EmptyKeepScreen />;
+  return <SavedScreen />;
 }

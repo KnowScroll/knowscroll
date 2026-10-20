@@ -314,12 +314,11 @@ export function validateV2Manifest(
       reason: 'release.json web must be "web" (Caddy serves current/web)',
     };
   if (
-    !Array.isArray(manifest.migrations) ||
-    !manifest.migrations.every((m) => typeof m === 'string')
+    !knownMigrationNames(manifest.migrations)
   )
     return {
       ok: false,
-      reason: 'release.json migrations must be a list of names',
+      reason: 'release.json migrations must be bounded, unique names in ascending order',
     };
   return {
     ok: true,
@@ -431,8 +430,8 @@ export type Slot = { commit: string; generation: Generation } | null;
 
 /**
  * After a deploy did not become healthy: `current` goes back to what it was. If that was a release
- * (of either generation), that generation is started again; before a world's first good release
- * (the placeholder) both generations are stopped.
+ * (of either generation), it is the recovery candidate; v2 must still pass the exact schema guard
+ * before it starts. Before a world's first good release (the placeholder) both generations stop.
  */
 export function afterFailedDeploy(
   world: World,
@@ -488,6 +487,75 @@ export function healthMatches(
   if (body.commit !== expect.commit || body.world !== expect.world)
     return false;
   return expect.artifact === undefined || body.artifact === expect.artifact;
+}
+
+/** #250: a schema is known only as a complete ordered registry, never just its newest name. */
+export const MAX_SCHEMA_MIGRATIONS = 256;
+export type MigrationIdentity = { name: string; sha256: string };
+
+function knownMigrationNames(names: unknown): names is string[] {
+  return Array.isArray(names) && names.length <= MAX_SCHEMA_MIGRATIONS &&
+    names.every((name: unknown, index) => typeof name === 'string' &&
+      /^[0-9]{4}_[a-z0-9_]{1,120}$/.test(name) &&
+      (index === 0 || names[index - 1] < name));
+}
+
+/** Exact-schema activation deliberately refuses backward/forward compatibility guesses. The
+ * target hashes come from SQL in the already verified release, not from executing its code. */
+export function v2SchemaCompatibility(
+  target: readonly MigrationIdentity[],
+  observed: unknown,
+): Checked<true> {
+  const refused: Checked<true> = { ok: false, reason: 'v2 schema is unknown or does not match the target release; forward recovery required' };
+  if (!knownMigrationNames(target.map((row) => row.name)) ||
+      target.some((row) => !/^[0-9a-f]{64}$/.test(row.sha256)) ||
+      !isRecord(observed) || !knownMigrationNames(observed.migrations) ||
+      !Array.isArray(observed.checksums) || observed.checksums.length !== target.length ||
+      observed.migrations.length !== target.length) return refused;
+  for (const [index, expected] of target.entries()) {
+    const actual: unknown = observed.checksums[index];
+    if (observed.migrations[index] !== expected.name || !isRecord(actual) ||
+        actual.name !== expected.name || actual.sha256 !== expected.sha256) return refused;
+  }
+  return { ok: true, value: true };
+}
+
+/** Actual activation's mutation seam: a refusal cannot move links or start/stop services. V1
+ * uses its separate legacy database and must never consult the v2 metadata reader. */
+export async function activateAfterSchemaCheck(
+  generation: Generation,
+  actions: { checkV2Schema(): void; pointCurrent(): void; start(): Promise<boolean> },
+): Promise<boolean> {
+  if (generation === 'v2') actions.checkV2Schema();
+  actions.pointCurrent();
+  return actions.start();
+}
+
+/** No old v2 eraser may run during forward DDL/backfills. A failed stop/disable prevents even
+ * the dump/migration invocation; recovery must independently establish the old schema again. */
+export function prepareV2Deployment<T>(actions: {
+  quiesce(): void; dump(): T; migrate(): void;
+}): T {
+  actions.quiesce();
+  const dump = actions.dump();
+  actions.migrate();
+  return dump;
+}
+
+/** A failed/unknown old-v2 activation must stop its units, not leave newer or incompatible code
+ * running against a database whose schema cannot be established. No data restore is attempted. */
+export async function recoverFailedActivation(
+  generation: Generation,
+  actions: { activate(): Promise<boolean>; stopV2(): void; restoreLinks(): void },
+): Promise<boolean> {
+  try {
+    if (await actions.activate()) return true;
+  } catch {
+    // Unknown compatibility/verification is a failed recovery too.
+  }
+  if (generation === 'v2') actions.stopV2();
+  actions.restoreLinks();
+  return false;
 }
 
 // ---------------------------------------------------------------------------------------------

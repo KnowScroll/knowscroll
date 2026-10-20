@@ -1,5 +1,5 @@
-import { FirstArrivalScreen } from '../../features/explore/first-arrival-screen';
+import { ExploreScreen } from '../../features/explore/explore-screen';
 
 export default function Explore() {
-  return <FirstArrivalScreen />;
+  return <ExploreScreen />;
 }
