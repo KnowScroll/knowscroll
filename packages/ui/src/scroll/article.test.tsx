@@ -67,14 +67,19 @@ afterAll(() => {
   configure({ defaultIncludeHiddenElements: false });
 });
 
+const appState = AppState as unknown as { currentState: unknown };
+let originalState: unknown;
+
 beforeEach(() => {
   copyText.mockClear();
   scrollTo.mockClear();
-  // The jest preset's AppState has no current state: the app is in the foreground.
-  jest.replaceProperty(AppState, 'currentState', 'active');
+  // The jest preset's AppState has no current state: here the app is in the foreground.
+  originalState = appState.currentState;
+  appState.currentState = 'active';
 });
 
 afterEach(() => {
+  appState.currentState = originalState;
   jest.restoreAllMocks();
 });
 
@@ -531,10 +536,13 @@ describe('whether the article is being read', () => {
 
   it('is inactive while the app is in the background', async () => {
     const handlers: ((state: string) => void)[] = [];
-    const listen = jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, handler) => {
-      handlers.push(handler as (state: string) => void);
-      return { remove: jest.fn() };
-    });
+    // The preset's AppState is a bare mock: capture the listener the article registers.
+    (AppState.addEventListener as unknown as jest.Mock).mockImplementationOnce(
+      (_type: string, handler: (state: string) => void) => {
+        handlers.push(handler);
+        return { remove: jest.fn() };
+      },
+    );
     const watcher = observer();
     await show(<ScrollArticle document={ready(bridgesPoster())} observer={watcher} />);
     expect(watcher.onActivity).toHaveBeenLastCalledWith({ active: true, at: anyNumber });
@@ -544,6 +552,5 @@ describe('whether the article is being read', () => {
 
     handlers.forEach((handler) => handler('active'));
     expect(watcher.onActivity).toHaveBeenLastCalledWith({ active: true, at: anyNumber });
-    listen.mockRestore();
   });
 });

@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ScrollView,
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import { borderWidth, content, overlay, radius, space, spacing } from '@knowscroll/design-tokens';
 import type { BlockOfType } from '@knowscroll/scroll-model';
 import { Button } from '../../actions/button';
@@ -48,6 +55,7 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
     },
     [],
   );
+  const [metrics, setMetrics] = useState({ offset: 0, content: 0, view: 0 });
   const highlighted = new Set(block.data.highlightLines);
   const lines = block.data.code.split('\n');
   const language = LANGUAGE_LABELS[block.data.language];
@@ -66,6 +74,14 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
     setOutcome(next);
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => setOutcome('idle'), COPIED_MS);
+  };
+
+  const overflowing = metrics.content > metrics.view + 1 && metrics.view > 0;
+  const trackRatio = overflowing ? metrics.view / metrics.content : 1;
+  const trackStart = overflowing ? metrics.offset / metrics.content : 0;
+  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    setMetrics({ offset: contentOffset.x, content: contentSize.width, view: layoutMeasurement.width });
   };
 
   return (
@@ -92,6 +108,12 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
           // Keyboard focus on the web, so the arrow keys can scroll the code.
           tabIndex={0}
           contentContainerStyle={styles.code}
+          scrollEventThrottle={32}
+          onScroll={onScroll}
+          onLayout={(event: LayoutChangeEvent) =>
+            setMetrics((previous) => ({ ...previous, view: event.nativeEvent.layout.width }))
+          }
+          onContentSizeChange={(width) => setMetrics((previous) => ({ ...previous, content: width }))}
         >
           <View {...blockAttributes(block.id)}>
             {lines.map((line, index) => (
@@ -107,6 +129,12 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
             ))}
           </View>
         </ScrollView>
+        {overflowing ? (
+          // Decorative: where the code is scrolled to. The scroller itself is the control.
+          <View accessible={false} aria-hidden importantForAccessibility="no-hide-descendants" style={styles.track}>
+            <View style={[styles.thumb, { width: `${trackRatio * 100}%`, marginLeft: `${trackStart * 100}%` }]} />
+          </View>
+        ) : null}
       </View>
       {block.data.caption === undefined ? null : (
         <Text variant="meta" color={content.ink2}>
@@ -146,6 +174,15 @@ const styles = StyleSheet.create({
   code: { paddingVertical: spacing['3.5'], minWidth: '100%' },
   line: { paddingHorizontal: spacing['3.5'] },
   highlighted: { backgroundColor: space.s2 },
+  track: {
+    height: spacing[1],
+    marginHorizontal: spacing['3.5'],
+    marginBottom: spacing[3],
+    borderRadius: radius.xs,
+    backgroundColor: overlay.onMediaTrack,
+    overflow: 'hidden',
+  },
+  thumb: { height: spacing[1], borderRadius: radius.xs, backgroundColor: overlay.onDarkMuted },
   // Present for assistive technology only when something was said; takes no room otherwise.
   status: { height: 0, overflow: 'hidden' },
 });
