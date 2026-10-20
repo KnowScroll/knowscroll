@@ -254,13 +254,16 @@ describe('sentence breaks (re-review of #254, MA-2)', () => {
       'It computes np.exp of the score',
       'Use Node.js for this',
       'Pi is 3.14159 or so... and then more',
-      'Ask at the U.S. embassy',
     ]) {
       const parts = sentences(text);
-      // Only the abbreviation "U.S. embassy" and the ellipsis "... and" (space after) may split.
+      // Only the ellipsis "... and" (a space after it) may split.
       expect(parts.join(' ').replace(/\s+/gu, ' ')).toBe(text);
-      if (!text.includes('...') && !text.includes('U.S.')) expect(parts, text).toEqual([text]);
+      if (!text.includes('...')) expect(parts, text).toEqual([text]);
     }
+  });
+
+  it('splits an abbreviation written with capitals, which only ever asks for another anchor', () => {
+    expect(sentences('Ask at the U.S. embassy')).toEqual(['Ask at the U.', 'S.', 'embassy']);
   });
 
   it('finds the same ranges however the text is chunked: ranges are ordered, disjoint and inside the text', () => {

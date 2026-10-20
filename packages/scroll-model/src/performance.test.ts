@@ -129,15 +129,15 @@ describe('hostile text costs time linear in its length (MA-1)', () => {
   type Loose = Record<string, unknown>;
 
   it('refuses an 85 KB document whose title is a long dotted string, on both paths, within the budgets', () => {
-    const document = { ...weight.document, title: dotted(80_000) };
+    const document = { ...weight.document, title: dotted(81_000) };
     expect(JSON.stringify(document).length).toBeGreaterThan(85_000);
     for (const outcome of [parseDocument(document), admitDocument(document)])
       expect(outcome).toMatchObject({ kind: 'invalid', issues: [{ code: 'schema_too_big', path: 'title' }] });
     const client = measure(document, parseDocument, 5);
-    record('client 85 KB document with a dotted 80,000-character title', client);
+    record('client 85 KB document with a dotted 81,000-character title', client);
     expect(client.cpu).toBeLessThan(20);
     const admission = measure(document, admitDocument, 5);
-    record('admission 85 KB document with a dotted 80,000-character title', admission);
+    record('admission 85 KB document with a dotted 81,000-character title', admission);
     expect(admission.cpu).toBeLessThan(200);
   });
 

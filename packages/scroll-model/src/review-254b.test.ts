@@ -101,9 +101,45 @@ describe('re-review MA-3: a text block’s accessibility text is derived by code
   it('accepts the derived label of every text block in the fixtures', () => {
     const blocks = [weight, attention, fixture('spring-neap-tides')].flatMap((item) => textBlocks(item.document));
     expect(blocks.length).toBeGreaterThan(10);
-    expect(new Set(blocks.map(({ block }) => block.type)).size).toBeGreaterThanOrEqual(3);
+    expect(new Set(blocks.map(({ block }) => block.type)).size).toBeGreaterThanOrEqual(2);
     for (const item of [weight, attention, fixture('spring-neap-tides')])
       expect(admitDocument(item.document).kind).toBe('valid');
+  });
+
+  it('derives the label of every text block type, and refuses a forged one', () => {
+    const blocks = [
+      make('paragraph', { spans: [{ text: 'A plain paragraph.' }] }),
+      make('subheading', { text: 'A heading inside a section' }),
+      make('list', { style: 'number', items: [[{ text: 'First item.' }], [{ text: 'Second item.' }]] }),
+      make('list', { style: 'bullet', items: [[{ text: 'First item.' }], [{ text: 'Second item.' }]] }),
+      make('quote', { kind: 'pull', spans: [{ text: 'A line pulled out of the text.' }] }),
+      make('quote', { kind: 'quotation', spans: [{ text: 'Someone said this.' }], attribution: 'Someone' }),
+      make('callout', { kind: 'limit', spans: [{ text: 'What this leaves out.' }] }),
+      make('callout', {
+        kind: 'note',
+        title: 'A title that is quite long indeed and then some more',
+        spans: [{ text: 'Body.' }],
+      }),
+    ].map((block, index) => ({ ...block, id: `text-${'abcdefgh'.charAt(index)}` }));
+    const document = seal([{ id: 'only', heading: null, blocks }]);
+    expect(admitDocument(document).kind).toBe('valid');
+    expect(blocks.map((block) => block.a11y.label)).toEqual([
+      'Paragraph',
+      'A heading inside a section',
+      'Numbered list',
+      'List',
+      'Pull quote',
+      'Quotation',
+      'Limits',
+      expect.stringMatching(/^Note: A title that is quite long indeed/u),
+    ]);
+    blocks.forEach((block, index) => {
+      const forged = tamper(document, `sections.0.blocks.${index}`, (a11y) => void (a11y['label'] = 'Something else'));
+      expect(admitDocument(forged), block.type).toMatchObject({
+        kind: 'invalid',
+        issues: [{ code: 'a11y_label_mismatch', path: `sections.0.blocks.${index}.a11y.label` }],
+      });
+    });
   });
 
   it('refuses an arbitrary label on any text block, on admission and on the client path', () => {
