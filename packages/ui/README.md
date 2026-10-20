@@ -180,3 +180,12 @@ Changing `initialPositionMs` on a mounted player does not seek; remount for anot
 Grant renewal and Retry preserve the newest actual playhead instead of reapplying the initial offset.
 This is a player prerequisite only: navigation/Back integration and real native/browser acceptance
 remain separate work. Share overlay playback restoration is not implemented by this seam.
+
+
+`ReelPlayer.renderStage` optionally wraps only the video and noninteractive poster in an app-owned
+navigation surface. Its returned element must fill the supplied stage. Play/Retry and seek controls
+remain outside that wrapper, so encounter navigation never has to inspect private button nodes or
+capture their gestures. The default keeps the existing direct-player layout. This hook adds no player,
+source, grant, position or recorder lifecycle; the app owns axis/edge/child arbitration. SDK stand-in
+CI verifies the stage/control boundary and source/playhead continuity across wrapper rerenders;
+actual full-stage gestures and decoding require consumer browser/native evidence.

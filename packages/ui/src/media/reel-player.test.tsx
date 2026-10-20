@@ -1,5 +1,6 @@
+import { View } from 'react-native';
 import { createRef, useLayoutEffect } from 'react';
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen, within } from '@testing-library/react-native';
 import { useVideoPlayer, type VideoPlayer, type VideoSource } from 'expo-video';
 import { renderOn } from '../test-support/render';
 import { DisplayProvider } from '../display/display';
@@ -718,4 +719,60 @@ describe('local Reel positions', () => {
       }
     },
   );
+});
+
+describe('Reel noninteractive stage wrapper', () => {
+  it('wraps video and poster while keeping controls outside and retaining the same player/source on rerender', async () => {
+    const play = jest.fn();
+    const replaceAsync = jest.fn(() => Promise.resolve());
+    const player = {
+      currentTime: 0,
+      playing: false,
+      status: 'readyToPlay',
+      playbackRate: 1,
+      play,
+      pause: jest.fn(),
+      replaceAsync,
+      addListener: () => ({ remove: () => undefined }),
+    } as unknown as VideoPlayer;
+    jest.mocked(useVideoPlayer).mockReturnValue(player);
+    const positionRef = createRef<ReelPositionHandle>();
+    const loadSource = jest.fn(() =>
+      Promise.resolve({
+        source: { uri: 'https://fixture.invalid/media/stage-fixture' },
+        expiresAt: new Date(Date.now() + 120000).toISOString(),
+      }),
+    );
+    const props: ReelPlayerProps = {
+      title: 'Stage fixture Reel',
+      durationMs: 30000,
+      active: true,
+      positionRef,
+      loadSource,
+      onSample: jest.fn(),
+      onDiscontinuity: jest.fn(),
+      registerEnd: () => () => undefined,
+    };
+    const rendered = await renderOn(
+      <ReelPlayer {...props} renderStage={(stage) => <View testID="fixture-stage-wrapper">{stage}</View>} />,
+    );
+    const stage = screen.getByTestId('fixture-stage-wrapper');
+    expect(within(stage).getByLabelText('Stage fixture Reel')).toBeTruthy();
+    expect(within(stage).queryByRole('button')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Back 10s' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Forward 10s' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    expect(play).toHaveBeenCalledTimes(1);
+    player.currentTime = 3.25;
+    expect(positionRef.current?.capture()?.positionMs).toBe(3250);
+    await rendered.rerender(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ReelPlayer {...props} renderStage={(children) => <View testID="fixture-stage-wrapper">{children}</View>} />
+      </DisplayProvider>,
+    );
+    expect(loadSource).toHaveBeenCalledTimes(1);
+    expect(replaceAsync).toHaveBeenCalledTimes(1);
+    expect(positionRef.current?.capture()?.positionMs).toBe(3250);
+    await rendered.unmount();
+  });
 });
