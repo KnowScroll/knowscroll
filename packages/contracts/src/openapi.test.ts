@@ -20,6 +20,7 @@ describe('the API contract', () => {
 
     const routes = [
       apiContract.health,
+      apiContract.media.grant,
       apiContract.identity.requestSignIn,
       apiContract.identity.peekSignIn,
       apiContract.identity.redeemSignIn,

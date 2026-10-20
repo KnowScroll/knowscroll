@@ -12,7 +12,13 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |
 | `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) and `ClientCapabilities` from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
 | `src/experience.ts` | `POST /v1/actions`, `GET /v1/saved`, and the exposure routes: `POST /v1/experience/open`, `POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document` |
-| `src/interactions.ts` | `interaction.v1`: the observation envelope and the three `scroll.*` payloads, `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
+| `src/interactions.ts` | `interaction.v1`: the observation envelope, three `scroll.*` payloads and bounded paired `reel.playback` intervals; `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
+| `src/media.ts` | `reel-document.v1` and `POST /v1/media/grants`: a session-scoped short-lived playback grant for an existing exposure |
+
+Reel contracts precede their implementation (#233). Declaring a Reel target or playback payload
+does not admit media, mint a grant or create evidence. Existing Scroll-only adapters refuse Reel
+requests until the media consumer change lands. A playback grant is kept in memory only; its URL
+must never enter logs, persistent storage, caches or diagnostics.
 
 Rules:
 

@@ -78,7 +78,7 @@ export const listSavedContract = oc
  */
 export const OpenExposureRequestSchema = z.object({
   commandId: CommandIdSchema,
-  target: z.object({ kind: z.literal('scroll'), assetId: AssetIdSchema }),
+  target: z.object({ kind: z.enum(['scroll', 'reel']), assetId: AssetIdSchema }),
   origin: z.object({ kind: z.literal('direct') }),
   /** What this client build can render; the document is negotiated for it (D-012). */
   capabilities: ClientCapabilities,
@@ -90,7 +90,7 @@ export const OpenExposureResponseSchema = z.object({
   assetId: AssetIdSchema,
   /** The immutable revision this exposure presents. */
   assetRevision: z.number().int().min(1),
-  kind: z.literal('scroll'),
+  kind: z.enum(['scroll', 'reel']),
   /** The universe revision after this command (it changes nothing a client reads, so unchanged). */
   revision: z.number().int().min(0),
   /** True when this response is the stored outcome of an earlier identical request. */

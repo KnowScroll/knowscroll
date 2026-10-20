@@ -15,6 +15,7 @@ export interface IngestObservationsCommand {
 export type IngestObservationsRefusal = 'batch_too_large' | 'epoch_changed' | 'universe_unavailable';
 
 type EventResult = ObservationBatchResponse['results'][number];
+type ScrollInteractionEvent = Exclude<InteractionEvent, { readonly kind: 'reel.playback' }>;
 
 export type IngestObservationsResult =
   | {
@@ -90,6 +91,13 @@ export function makeIngestObservations(ports: IngestObservationsPorts) {
       let duplicates = 0;
       let rejected = 0;
       for (const event of command.events) {
+        // The Reel wire contract lands before its recorder/lineage adapter. Refuse that kind
+        // until the media implementation supplies its own facts and paired-interval bounds.
+        if (event.kind === 'reel.playback') {
+          results.push({ eventId: event.eventId, status: 'rejected', reason: 'lineage_mismatch' });
+          rejected += 1;
+          continue;
+        }
         const state = await stateOf(event.exposureId);
         const refusal = refusalOf(event, state, receivedAt);
         if (refusal !== undefined || state === undefined || state.exposure.activatedAt === undefined) {
@@ -161,7 +169,7 @@ export type IngestObservations = ReturnType<typeof makeIngestObservations>;
  * block ID the event names exists in that immutable revision.
  */
 function refusalOf(
-  event: InteractionEvent,
+  event: ScrollInteractionEvent,
   state: ExposureState | undefined,
   receivedAt: Date,
 ): Extract<EventResult, { status: 'rejected' }>['reason'] | undefined {
@@ -190,7 +198,7 @@ function refusalOf(
  * offsets beyond it are clipped, never trusted. The stored payload is the bounded one.
  */
 function boundPayload(
-  event: InteractionEvent,
+  event: ScrollInteractionEvent,
   capMs: number,
 ): { readonly payload: { readonly [key: string]: unknown }; readonly bounded: boolean } {
   switch (event.kind) {

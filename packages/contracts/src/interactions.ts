@@ -21,8 +21,13 @@ import { AssetIdSchema, UuidSchema } from './ids.js';
  */
 export const INTERACTION_SCHEMA_VERSION = 'interaction.v1';
 
-/** The observation kinds a Scroll reader emits (`scroll.*`); the server refuses any other kind. */
-export const OBSERVATION_KINDS = ['scroll.block_coverage', 'scroll.active_dwell', 'scroll.block_interaction'] as const;
+/** The supported reader/player observation kinds; the server refuses every other kind. */
+export const OBSERVATION_KINDS = [
+  'scroll.block_coverage',
+  'scroll.active_dwell',
+  'scroll.block_interaction',
+  'reel.playback',
+] as const;
 
 /**
  * Deliberate block interactions a reader reports, by kind of gesture, never by value:
@@ -95,6 +100,25 @@ export const BlockInteractionPayloadSchema = z.strictObject({
   atMs: Millis,
 });
 
+/** Continuous, visible, foreground playback samples; seeks, buffering and loop jumps emit none. */
+export const ReelPlaybackPayloadSchema = z.strictObject({
+  samples: z
+    .array(
+      z
+        .strictObject({
+          activeMs: IntervalSchema,
+          mediaMs: z
+            .tuple([z.number().int().min(0).max(60_000), z.number().int().min(0).max(60_000)])
+            .refine(([from, to]) => to > from),
+        })
+        .refine(
+          ({ activeMs, mediaMs }) =>
+            activeMs[1] - activeMs[0] <= 1500 && mediaMs[1] - mediaMs[0] <= activeMs[1] - activeMs[0] + 100,
+        ),
+    )
+    .max(64),
+});
+
 const envelope = {
   schemaVersion: z.literal(INTERACTION_SCHEMA_VERSION),
   /** The client's event ID: the idempotency key, reused on every retry. */
@@ -110,6 +134,7 @@ const envelope = {
 };
 
 export const InteractionEventSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ ...envelope, kind: z.literal('reel.playback'), payload: ReelPlaybackPayloadSchema }),
   z.strictObject({ ...envelope, kind: z.literal('scroll.block_coverage'), payload: BlockCoveragePayloadSchema }),
   z.strictObject({ ...envelope, kind: z.literal('scroll.active_dwell'), payload: ActiveDwellPayloadSchema }),
   z.strictObject({ ...envelope, kind: z.literal('scroll.block_interaction'), payload: BlockInteractionPayloadSchema }),

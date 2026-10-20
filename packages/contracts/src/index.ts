@@ -10,3 +10,5 @@ export * from './interactions.js';
 export * from './problems.js';
 export * from './router.js';
 export * from './socket.js';
+
+export * from './media.js';
