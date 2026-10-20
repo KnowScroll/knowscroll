@@ -29,6 +29,7 @@ describe('the API contract', () => {
       apiContract.experience.applyAction,
       apiContract.experience.listSaved,
       apiContract.experience.openExposure,
+      apiContract.experience.navigate,
       apiContract.experience.activateExposure,
       apiContract.experience.exposureDocument,
       apiContract.observations.submit,
@@ -45,6 +46,31 @@ describe('the API contract', () => {
       type: 'object',
       required: expect.arrayContaining(['type', 'title', 'status', 'code']) as unknown,
     });
+  });
+
+  it('describes direct and Composer shapes through one open and one activate route', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [new ZodToJsonSchemaConverter()] });
+    const document = await generator.generate(apiContract, { info: { title: 'KnowScroll API', version: '1' } });
+    const open = JSON.stringify(document.paths?.['/v1/experience/open']);
+    const activate = JSON.stringify(document.paths?.['/v1/experience/activate']);
+    const navigate = JSON.stringify(document.paths?.['/v1/experience/navigate']);
+    for (const field of [
+      'discover',
+      'capabilities',
+      'expectedIntentRevision',
+      'exposureId',
+      'ready',
+      'pending',
+      'exhausted',
+    ])
+      expect(open).toContain(field);
+    for (const field of ['offerId', 'sessionId', 'expectedIntentRevision', 'exposureId'])
+      expect(activate).toContain(field);
+    for (const mode of ['vertical', 'series', 'related', 'variant', 'return']) expect(navigate).toContain(mode);
+    for (const privateField of ['playheadMs', 'blockOffset', 'sources', 'provenance', 'score', 'peerPlayback']) {
+      expect(open).not.toContain(`"${privateField}"`);
+      expect(navigate).not.toContain(`"${privateField}"`);
+    }
   });
 
   it('names a scope by account and privacy epoch, refused with a 409 problem', () => {

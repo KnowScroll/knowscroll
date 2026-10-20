@@ -193,6 +193,7 @@ describe('the thin journey through the built API, worker and operator command', 
       origin: { kind: 'direct' },
       capabilities,
     });
+    if (opened.status !== undefined) throw new Error('Direct Scroll open returned a Composer outcome');
     expect(opened).toMatchObject({ assetId, assetRevision: 1, kind: 'scroll', replayed: false });
     expect(
       await client.experience.openExposure({
@@ -334,6 +335,7 @@ describe('the thin journey through the built API, worker and operator command', 
       origin: { kind: 'direct' },
       capabilities,
     });
+    if (opened.status !== undefined) throw new Error('Direct Scroll open returned a Composer outcome');
     /** The status and stable code of a problem answer, over plain `fetch` (the API answers RFC 9457). */
     const refusal = async (method: 'GET' | 'POST', path: string, account: FixturePerson, body?: unknown) => {
       const response = await fetch(`${baseUrl}${path}`, {

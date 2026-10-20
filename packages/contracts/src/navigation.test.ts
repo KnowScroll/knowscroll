@@ -1,0 +1,242 @@
+import { describe, expect, it } from 'vitest';
+import {
+  ActivateExposureRequestSchema,
+  ActivateExposureResponseSchema,
+  ApplyActionRequestSchema,
+  ApplyActionResponseSchema,
+  EncounterOfferSchema,
+  ListSavedResponseSchema,
+  NavigateExperienceRequestSchema,
+  NavigationOutcomeSchema,
+  OpenExposureRequestSchema,
+  OpenExposureResponseSchema,
+} from './index.js';
+
+// Wire-only fixtures: neither admitted content nor product activity.
+const id = '0199f0a0-0000-7000-8000-000000000001';
+const otherId = '0199f0a0-0000-7000-8000-000000000002';
+const capabilities = { documentSchemas: ['scroll-document.v1'], blocks: { fallback: [1] } };
+const directOpen = { commandId: id, target: { kind: 'scroll', assetId: id }, origin: { kind: 'direct' }, capabilities };
+const directOpened = {
+  commandId: id,
+  exposureId: id,
+  assetId: id,
+  assetRevision: 1,
+  kind: 'scroll',
+  revision: 0,
+  replayed: false,
+};
+const directActivate = { commandId: id, exposureId: id };
+const activated = { ...directActivate, activatedAt: '2026-10-20T10:00:00.000Z', revision: 0, replayed: false };
+const discover = { commandId: id, target: { kind: 'discover' }, capabilities };
+const offerTarget = { kind: 'offer', sessionId: id, offerId: id, expectedIntentRevision: 0 };
+const metadata = { kind: 'scroll', title: 'Wire fixture', summary: 'Fixture metadata only.', language: 'en' };
+const offer = {
+  offerId: id,
+  decisionId: id,
+  assetId: id,
+  assetRevision: 1,
+  explanationUnitId: 'fixture-explanation',
+  metadata,
+  relation: { kind: 'discovery' },
+  variants: [{ kind: 'reel', status: 'unavailable' }],
+};
+const outcome = { commandId: id, sessionId: id, intentRevision: 1, revision: 0, decisionId: id, replayed: false };
+const navigate = {
+  commandId: id,
+  sessionId: id,
+  expectedIntentRevision: 0,
+  from: { offerId: id, exposureId: id },
+  intent: { mode: 'related' },
+};
+
+describe('Explore prerequisite wire contracts', () => {
+  it('preserves the documented direct open/activate and save/unsave wire, including other unknown-field stripping', () => {
+    expect(OpenExposureRequestSchema.parse({ ...directOpen, futureLegacyField: 'ignored' })).toEqual(directOpen);
+    expect(OpenExposureResponseSchema.parse({ ...directOpened, futureLegacyField: true })).toEqual(directOpened);
+    expect(ActivateExposureRequestSchema.parse({ ...directActivate, futureLegacyField: true })).toEqual(directActivate);
+    expect(ActivateExposureResponseSchema.parse({ ...activated, futureLegacyField: true })).toEqual(activated);
+    for (const kind of ['save', 'unsave']) {
+      const action = { commandId: id, kind, target: { assetId: id, assetRevision: 1 } };
+      expect(ApplyActionRequestSchema.parse({ ...action, futureLegacyField: true })).toEqual(action);
+      const savedResult = {
+        commandId: id,
+        assetId: id,
+        assetRevision: 1,
+        actionId: id,
+        kind,
+        saved: kind === 'save',
+        changed: true,
+        revision: 0,
+        replayed: false,
+      };
+      expect(ApplyActionResponseSchema.parse(savedResult)).toEqual(savedResult);
+    }
+  });
+
+  it('opens initial discovery or resumes with both session ID and expected intent revision', () => {
+    expect(OpenExposureRequestSchema.parse(discover)).toEqual(discover);
+    const session = { sessionId: id, expectedIntentRevision: 0 };
+    expect(OpenExposureRequestSchema.parse({ ...discover, session })).toEqual({ ...discover, session });
+    for (const invalid of [
+      { ...discover, session: { sessionId: id } },
+      { ...discover, session: { expectedIntentRevision: 0 } },
+      { ...discover, session: { ...session, expectedIntentRevision: -1 } },
+      { ...discover, ownerId: id },
+      { ...discover, session: { ...session, playheadMs: 12000 } },
+    ])
+      expect(OpenExposureRequestSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  it('requires a current session, offer, activated exposure and expected revision for each semantic move', () => {
+    for (const intent of [
+      { mode: 'vertical', direction: 'next' },
+      { mode: 'vertical', direction: 'previous' },
+      { mode: 'series', direction: 'next' },
+      { mode: 'series', direction: 'previous' },
+      { mode: 'related' },
+      { mode: 'variant', to: 'scroll' },
+      { mode: 'variant', to: 'reel' },
+      { mode: 'return', target: { assetId: id, assetRevision: 2 } },
+    ])
+      expect(NavigateExperienceRequestSchema.safeParse({ ...navigate, intent }).success).toBe(true);
+    for (const invalid of [
+      { ...navigate, commandId: undefined },
+      { ...navigate, sessionId: undefined },
+      { ...navigate, expectedIntentRevision: undefined },
+      { ...navigate, expectedIntentRevision: -1 },
+      { ...navigate, from: { offerId: id } },
+      { ...navigate, from: { exposureId: id } },
+      { ...navigate, intent: { mode: 'back' } },
+      { ...navigate, intent: { mode: 'related', part: 2 } },
+      { ...navigate, intent: { mode: 'variant', to: 'scroll', generate: true } },
+      { ...navigate, intent: { mode: 'return', target: { assetId: id, assetRevision: 1, playheadMs: 31000 } } },
+      { ...navigate, from: { offerId: id, exposureId: id, blockOffset: 40 } },
+      { ...navigate, peerPlayback: { accountId: otherId, position: 12 } },
+    ])
+      expect(NavigateExperienceRequestSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  it('keeps ready, durable pending and natural exhaustion distinct without phantom exposure or offer fields', () => {
+    const ready = { ...outcome, status: 'ready', offer, bufferedOffers: [] };
+    const pending = { ...outcome, status: 'pending', reason: 'requested_supply_pending', requestId: id };
+    const exhausted = { ...outcome, status: 'exhausted', reason: 'series_boundary' };
+    for (const valid of [ready, pending, exhausted, { ...outcome, status: 'pending', reason: 'buffer_preparing' }]) {
+      expect(NavigationOutcomeSchema.parse(valid)).toEqual(valid);
+      expect(OpenExposureResponseSchema.parse(valid)).toEqual(valid);
+      expect(JSON.parse(JSON.stringify(valid))).toEqual(valid);
+    }
+    for (const invalid of [
+      { ...ready, exposureId: id },
+      { ...pending, offer },
+      { ...exhausted, offer },
+      { ...pending, requestId: undefined },
+      { ...pending, reason: 'buffer_preparing' },
+      { ...pending, percentage: 95 },
+      { ...exhausted, nextPart: 4 },
+      { ...directOpened, status: 'pending' },
+    ])
+      expect(OpenExposureResponseSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  it('bounds and deduplicates offers by explanation across format variants, with no source/score/provenance leak', () => {
+    expect(EncounterOfferSchema.safeParse(offer).success).toBe(true);
+    for (const relation of [
+      { kind: 'series_step', seriesId: 'fixture-series', seriesRevision: 1, part: 2 },
+      { kind: 'related_move', label: 'Another angle' },
+      { kind: 'format_variant' },
+      { kind: 'return' },
+    ])
+      expect(EncounterOfferSchema.safeParse({ ...offer, relation }).success).toBe(true);
+    for (const invalid of [
+      { ...offer, metadata: { ...metadata, sources: ['private'] } },
+      { ...offer, score: 0.8 },
+      { ...offer, provenance: { runId: id } },
+      { ...offer, relation: { kind: 'related_move', label: 'Another angle', part: 2 } },
+      { ...offer, variants: [{ kind: 'reel', status: 'ready' }] },
+      { ...offer, variants: [{ kind: 'reel', status: 'pending' }] },
+      {
+        ...offer,
+        variants: [
+          { kind: 'reel', status: 'pending', requestId: id },
+          { kind: 'reel', status: 'unavailable' },
+        ],
+      },
+    ])
+      expect(EncounterOfferSchema.safeParse(invalid).success).toBe(false);
+    const ready = { ...outcome, status: 'ready', offer, bufferedOffers: [] };
+    expect(NavigationOutcomeSchema.safeParse({ ...ready, bufferedOffers: [offer] }).success).toBe(false);
+    expect(
+      NavigationOutcomeSchema.safeParse({
+        ...ready,
+        bufferedOffers: [{ ...offer, offerId: otherId, metadata: { ...metadata, kind: 'reel' } }],
+      }).success,
+    ).toBe(false);
+    const distinct = { ...offer, offerId: otherId, explanationUnitId: 'fixture-other' };
+    expect(NavigationOutcomeSchema.safeParse({ ...ready, bufferedOffers: [distinct] }).success).toBe(true);
+    expect(
+      NavigationOutcomeSchema.safeParse({ ...ready, bufferedOffers: [distinct, distinct, distinct] }).success,
+    ).toBe(false);
+  });
+
+  it('reserves the new activation discriminator so malformed or mixed offers cannot downgrade into direct activation', () => {
+    const activate = { commandId: id, target: offerTarget };
+    expect(ActivateExposureRequestSchema.parse(activate)).toEqual(activate);
+    for (const invalid of [
+      { ...directActivate, target: offerTarget },
+      { ...directActivate, target: { kind: 'offer' } },
+      { ...directActivate, target: { ...offerTarget, expectedIntentRevision: -1 } },
+      { ...activate, target: { ...offerTarget, playheadMs: 31000 } },
+      { ...activate, target: { ...offerTarget, offerId: undefined } },
+      { ...activated, sessionId: id },
+    ]) {
+      const schema = 'activatedAt' in invalid ? ActivateExposureResponseSchema : ActivateExposureRequestSchema;
+      expect(schema.safeParse(invalid).success).toBe(false);
+    }
+    const response = {
+      ...activated,
+      sessionId: id,
+      offerId: id,
+      intentRevision: 1,
+      assetId: id,
+      assetRevision: 1,
+      kind: 'scroll',
+    };
+    expect(ActivateExposureResponseSchema.parse(response)).toEqual(response);
+  });
+
+  it('adds Like/Unlike/Hide without changing the old saved response semantics', () => {
+    for (const kind of ['like', 'unlike', 'hide']) {
+      expect(
+        ApplyActionRequestSchema.safeParse({ commandId: id, kind, target: { assetId: id, assetRevision: 1 } }).success,
+      ).toBe(true);
+      const result = {
+        commandId: id,
+        actionId: id,
+        kind,
+        assetId: id,
+        assetRevision: 1,
+        liked: kind === 'like',
+        hidden: kind === 'hide',
+        changed: true,
+        revision: 1,
+        replayed: false,
+      };
+      expect(ApplyActionResponseSchema.parse(result)).toEqual(result);
+      expect(ApplyActionResponseSchema.safeParse({ ...result, saved: true }).success).toBe(false);
+    }
+  });
+
+  it('allows only consumer Saved metadata while the interim ID-only list remains compatible', () => {
+    const item = { assetId: id, assetRevision: 1, savedAt: '2026-10-20T10:00:00.000Z' };
+    const legacy = { revision: 0, items: [item] };
+    expect(ListSavedResponseSchema.parse(legacy)).toEqual(legacy);
+    const current = { revision: 0, items: [{ ...item, metadata, availability: 'corrected', currentAssetRevision: 2 }] };
+    expect(ListSavedResponseSchema.parse(current)).toEqual(current);
+    for (const extra of [{ sources: [] }, { provenance: {} }, { peerPlayheadMs: 10 }, { modelReasoning: 'private' }])
+      expect(
+        ListSavedResponseSchema.safeParse({ revision: 0, items: [{ ...item, metadata: { ...metadata, ...extra } }] })
+          .success,
+      ).toBe(false);
+  });
+});

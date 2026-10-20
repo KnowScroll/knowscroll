@@ -28,8 +28,14 @@ sign-in link for a disposable test account, D-007; `content import-editorial --f
 
 Routes: `GET /health` (release identity and relay state), `POST /auth/sign-in`, `POST /auth/redeem`,
 `GET /auth/session`, `POST /auth/sign-out`, `POST /v1/actions`, `GET /v1/saved`, `POST /v1/experience/open`,
-`POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document`, `POST /v1/observations/batch`
+`POST /v1/experience/activate`, `POST /v1/experience/navigate`, `GET /v1/experience/exposures/{id}/document`, `POST /v1/observations/batch`
 and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` (404 outside `dev`, `stage`, `ci`, `local`). Request pipeline:
 request context → `Cache-Control: no-store` under `/auth` → origin guard (403) → JSON-only bodies
 (415 otherwise) → size-limited JSON parser (413) → body error handler → Nest routes → oRPC handler
 → problem encoder.
+
+Explore's #234 shared contracts are prerequisites: discovery open, navigate, offer activation and
+Like/Unlike/Hide currently answer `EXPERIENCE_COMMAND_UNSUPPORTED` (422) before legacy use cases.
+The direct open/activate and Save/Unsave paths keep their existing behavior. These refusal guards
+are replaced by the later Composer/action consumer, not by silently treating new commands as old
+ones. Contract declaration is not runtime acceptance of Explore navigation.

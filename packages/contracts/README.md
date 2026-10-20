@@ -12,6 +12,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |
 | `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) and `ClientCapabilities` from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
 | `src/experience.ts` | `POST /v1/actions`, `GET /v1/saved`, and the exposure routes: `POST /v1/experience/open`, `POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document` |
+| `src/navigation.ts` | Composer session discovery, `POST /v1/experience/navigate`, semantic intents, prepared public offers, ready/pending/exhausted receipt outcomes and offer activation |
 | `src/interactions.ts` | `interaction.v1`: the observation envelope, three `scroll.*` payloads and bounded paired `reel.playback` intervals; `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
 | `src/media.ts` | `reel-document.v1` and `POST /v1/media/grants`: a session-scoped short-lived playback grant for an existing exposure |
 
@@ -20,6 +21,42 @@ does not admit media, mint a grant or create evidence. Existing Scroll-only adap
 requests until the media consumer change lands. A playback grant is kept in memory only; its URL
 must never enter logs, persistent storage, caches or diagnostics.
 
+Explore contracts precede their consumers (#234). The existing `/v1/experience/open` accepts the
+original direct `{target: {kind: scroll|reel, assetId}, origin: {kind: direct}}` command or a new
+`{target: {kind: discover}, capabilities, session?}` command. Initial discovery omits `session`;
+resuming supplies both `sessionId` and `expectedIntentRevision`. Direct open still returns its
+original exposure object. Discovery and navigate return `status: ready|pending|exhausted`, a
+Composer session ID and intent revision; a prepared offer is **not** an exposure. Offer activation
+uses the same `/activate` route with `target: {kind: offer, sessionId, offerId,
+expectedIntentRevision}` and must independently recheck authority and eligibility. Session IDs in
+these shapes identify Composer sessions, not authentication sessions. Receipts remain immutable:
+a pending replay is pending; a new, authorised session read/open intent can obtain current supply.
+
+Compatibility: legacy objects keep their existing unknown-field stripping, with three narrowly
+reserved new discriminator fields: `target` on direct activation input, `status` on direct-open
+output, and `sessionId` on direct-activation output. Their presence must satisfy the new branch;
+malformed or mixed new shapes cannot downgrade to legacy effects. Other unknown legacy fields
+still strip. New navigation/offer objects are strict. Save/Unsave keep their original `saved`
+response; Like/Unlike/Hide have separate `liked`/`hidden` state. Saved metadata is optional for the
+interim ID-only adapter and allowlists only kind/title/summary/language and availability/revision.
+No internal source, provenance, model or ranking data is a consumer field. Decision IDs are opaque
+ops correlation only.
+
+The prerequisite API explicitly refuses discovery, navigate, offer activation and Like/Unlike/Hide
+with `EXPERIENCE_COMMAND_UNSUPPORTED` before legacy use-case effects. The direct client rejects a
+Composer outcome as a controlled session error. These declarations do not implement Composer,
+new action/evidence state, Saved metadata hydration or any Explore UI. No #234 runtime acceptance
+is claimed. Existing Scroll-only behavior and Reel refusal remain until their consumer PRs land.
+
+Vertical discovery, declared series next/previous, admitted related moves, existing format variants
+and explicit new revisits are distinct intents. A missing variant is unavailable unless a real
+existing content request makes it pending; navigation starts no production. Ready buffers hold at
+most three distinct explanations, including the current offer, so another format cannot duplicate
+a buffer slot. Natural exhaustion contains no phantom next part. Parked Back restoration is local
+AccountScope state: exact Scroll block + offset, Reel playhead and paused return state remain
+private there. It sends no navigation/activation command and earns no fresh return contribution.
+An explicit revisit may create new lineage but still requires actual qualified observations.
+
 Rules:
 
 - A problem code never changes meaning; a new meaning gets a new code. Codes double as
@@ -27,7 +64,9 @@ Rules:
 - Job payloads, model outputs and internal projections are backend-local and never live here.
 - Allowed imports: `zod`, `@orpc/contract` and the public entry of `@knowscroll/scroll-model`
   only (enforced by dependency-cruiser, `contracts-are-wire-only`).
-- `src/openapi.test.ts` proves the contract generates an OpenAPI document with RFC 9457 errors.
+- `src/openapi.test.ts` covers every route, direct/Composer unions and RFC 9457 errors.
+- `src/navigation.test.ts` covers compatibility, intent fencing, bounded public metadata, distinct
+  pending/exhausted states and downgrade refusal. Automated suites run in GitHub Actions only.
 
 Build: `tsc -p tsconfig.build.json` → `dist/`. Inside the workspace, TypeScript, Vitest and
 dependency-cruiser read the sources through the `@knowscroll/source` export condition
