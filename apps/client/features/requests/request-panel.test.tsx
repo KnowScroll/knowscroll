@@ -26,6 +26,9 @@ describe('E04 request panel', () => {
     try {
       expect(screen.getByLabelText('Ask for something')).toHaveProp('role', 'dialog');
       expect(screen.getByLabelText('Ask for something')).toHaveProp('accessibilityViewIsModal', true);
+      expect(screen.getByLabelText('Ask for something')).toHaveProp('aria-modal', true);
+      expect(screen.getByLabelText('Requested format')).toHaveProp('role', 'radiogroup');
+      expect(screen.getByLabelText('Request context')).toHaveProp('role', 'radiogroup');
       const input = screen.getByLabelText('What would you like now?');
       expect(input).toHaveProp('maxLength', 500);
       expect(screen.getByRole('button', { name: 'Send request' })).toBeDisabled();
