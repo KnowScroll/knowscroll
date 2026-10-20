@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createReelRecorder, type AccountScope, type PlaybackSample } from '@knowscroll/client-core';
-import type { ReelDocument } from '@knowscroll/contracts';
+import { createReelRecorder, type AccountScope } from '@knowscroll/client-core';
+import type { ApplyActionRequest, ReelDocument } from '@knowscroll/contracts';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
-import { ActionRail, Banner, FormatSwitch, IconButton, ReelPlayer, Skeleton, StateBlock, Text } from '@knowscroll/ui';
+import { ActionRail, Banner, FormatSwitch, IconButton, Skeleton, StateBlock, Text } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { SCROLL_CAPABILITIES } from '../scroll/capabilities';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
+import { ActivatedReelView } from './activated-reel-view';
 
 function OpenReel({ scope, assetId }: { scope: AccountScope; assetId: string }) {
   const [opened, setOpened] = useState<{ exposureId: string; document: ReelDocument }>();
@@ -61,6 +62,7 @@ function ReadyReel({
   const [active, setActive] = useState(AppState.currentState === 'active');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const saveIntent = useRef<ApplyActionRequest | undefined>(undefined);
   const [saveFailed, setSaveFailed] = useState(false);
   useDocumentTitle(document.title);
   const recorder = useMemo(
@@ -100,26 +102,23 @@ function ReadyReel({
       };
     }, [recorder]),
   );
-  const source = useCallback(async () => {
-    const grant = await scope.api.media.grant({ exposureId });
-    if (!scope.mediaSource) throw new Error('media_adapter_unavailable');
-    return { source: { ...scope.mediaSource(grant.path), useCaching: false }, expiresAt: grant.expiresAt };
-  }, [scope, exposureId]);
-  const registerEnd = useCallback((stop: () => void) => scope.onEnd?.(stop) ?? (() => undefined), [scope]);
-  const sample = useCallback((value: PlaybackSample) => recorder.sample(value), [recorder]);
-  const discontinuity = useCallback(() => recorder.discontinuity(), [recorder]);
   const save = async () => {
     if (saving || !scope.active) return;
     setSaving(true);
     setSaveFailed(false);
     try {
-      const result = await scope.api.experience.applyAction({
+      saveIntent.current ??= {
         commandId: newCommandId(),
         kind: saved ? 'unsave' : 'save',
         target: { assetId: document.assetId, assetRevision: document.revision },
-      });
+        exposureId,
+      };
+      const result = await scope.api.experience.applyAction(saveIntent.current);
       if (result.kind !== 'save' && result.kind !== 'unsave') throw new Error('unexpected_save_result');
-      if (scope.active) setSaved(result.saved);
+      if (scope.active) {
+        setSaved(result.saved);
+        saveIntent.current = undefined;
+      }
     } catch {
       if (scope.active) setSaveFailed(true);
     } finally {
@@ -136,15 +135,12 @@ function ReadyReel({
         />
         <FormatSwitch selected="reel" availability={{ scroll: 'unavailable' }} onSelect={() => undefined} />
       </View>
-      {document.fixture ? <Banner kind="info" lead="Fixture video" message="Local or CI demonstration media." /> : null}
-      <ReelPlayer
-        title={document.title}
-        durationMs={document.durationMs}
-        active={active && scope.active}
-        loadSource={source}
-        onSample={sample}
-        onDiscontinuity={discontinuity}
-        registerEnd={registerEnd}
+      <ActivatedReelView
+        scope={scope}
+        exposureId={exposureId}
+        document={document}
+        recorder={recorder}
+        active={active}
       />
       <View style={styles.caption}>
         <View style={styles.copy}>

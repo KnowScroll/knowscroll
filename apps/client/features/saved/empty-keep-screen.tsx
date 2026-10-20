@@ -27,7 +27,7 @@ export function EmptyKeepScreen() {
             <Text variant="body" color={content.ink} style={styles.emphasis}>
               Save
             </Text>{' '}
-            on any Reel or Scroll and it lands here, with your place kept. Requests you make show up here too.
+            on any Reel or Scroll and it lands here, with your place kept.
           </>
         }
         actions={[
