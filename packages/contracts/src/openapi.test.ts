@@ -27,6 +27,11 @@ describe('the API contract', () => {
       apiContract.identity.signOut,
       apiContract.experience.applyAction,
       apiContract.experience.listSaved,
+      apiContract.experience.openExposure,
+      apiContract.experience.activateExposure,
+      apiContract.experience.exposureDocument,
+      apiContract.observations.submit,
+      apiContract.diagnostics.evidence,
     ].map((procedure) => procedure['~orpc'].route);
     for (const route of routes) {
       const method = (route.method ?? 'POST').toLowerCase() as 'get' | 'post';

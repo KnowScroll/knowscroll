@@ -45,6 +45,12 @@ export interface ScrollRecorderOptions {
 export interface ScrollRecorder {
   /** Hand this to the article: it satisfies the renderer's `ScrollReadingObserver`. */
   readonly observer: ReadingObserver;
+  /**
+   * Starts the periodic report (every `flushIntervalMs` while there is something to say). May be
+   * called again after `end()` (a development double-mount re-runs the screen's effect); events the
+   * observer receives before `start()` are kept and reported by the first flush.
+   */
+  start(): void;
   /** Reports what happened since the last flush now (the article transitions, backgrounds, unloads). */
   flush(): void;
   /** The reading is over (the route unmounts): reports the final time and stops the timer. */
@@ -66,6 +72,23 @@ const defaultTimers: RecorderTimers = {
 /** One outbox per account scope, shared by every recorder of that scope (and gone with it). */
 const scopeOutboxes = new WeakMap<object, ObservationOutbox>();
 
+/** Problems that mean the scope is no longer this client's: stop sending and never write again. */
+const SCOPE_ENDED_PROBLEMS: ReadonlySet<string> = new Set([
+  'SCOPE_MISMATCH',
+  'PRIVACY_EPOCH_CHANGED',
+  'UNAUTHENTICATED',
+  'UNIVERSE_UNAVAILABLE',
+]);
+
+/** Problems a retry cannot fix: the batch was malformed or too large, or nothing here can take it. */
+const DROPPED_PROBLEMS: ReadonlySet<string> = new Set([
+  'INVALID_REQUEST',
+  'PAYLOAD_TOO_LARGE',
+  'UNPROCESSABLE_REQUEST',
+  'UNSUPPORTED_MEDIA_TYPE',
+  'NOT_FOUND',
+]);
+
 /**
  * Delivers one batch through the scope's API and classifies the outcome (blueprint §19): a stored
  * batch is `delivered` whatever each event's final status; network failures, 5xx, 429 and lock
@@ -82,21 +105,9 @@ export function deliverBatch(api: ApiClient): (batch: ObservationBatchRequest) =
       if (error instanceof ScopeEndedError) return { kind: 'scope_ended' };
       const problem = apiProblem(error);
       if (problem === undefined) return { kind: 'retry' };
-      switch (problem.code) {
-        case 'SCOPE_MISMATCH':
-        case 'PRIVACY_EPOCH_CHANGED':
-        case 'UNAUTHENTICATED':
-        case 'UNIVERSE_UNAVAILABLE':
-          return { kind: 'scope_ended' };
-        case 'INVALID_REQUEST':
-        case 'PAYLOAD_TOO_LARGE':
-        case 'UNPROCESSABLE_REQUEST':
-        case 'UNSUPPORTED_MEDIA_TYPE':
-        case 'NOT_FOUND':
-          return { kind: 'drop' };
-        default:
-          return problem.status >= 500 || problem.status === 429 ? { kind: 'retry' } : { kind: 'drop' };
-      }
+      if (SCOPE_ENDED_PROBLEMS.has(problem.code)) return { kind: 'scope_ended' };
+      if (DROPPED_PROBLEMS.has(problem.code)) return { kind: 'drop' };
+      return problem.status >= 500 || problem.status === 429 ? { kind: 'retry' } : { kind: 'drop' };
     }
   };
 }
@@ -204,13 +215,15 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
     }
   };
 
-  const handle = timers.setInterval(() => {
+  let handle: unknown;
+  const tick = (): void => {
     if (!options.scope.active) {
-      timers.clearInterval(handle);
+      if (handle !== undefined) timers.clearInterval(handle);
+      handle = undefined;
       return;
     }
     if (tracker.hasContent()) flush();
-  }, options.flushIntervalMs ?? 15_000);
+  };
 
   const observer: ReadingObserver = {
     onBlockVisibility: (event) => tracker.visibility(event),
@@ -225,11 +238,16 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
   return {
     observer,
     sessionId,
+    start() {
+      ended = false;
+      handle ??= timers.setInterval(tick, options.flushIntervalMs ?? 15_000);
+    },
     flush,
     end() {
       if (ended) return;
       ended = true;
-      timers.clearInterval(handle);
+      if (handle !== undefined) timers.clearInterval(handle);
+      handle = undefined;
       flush();
     },
   };
