@@ -63,7 +63,7 @@ tags:
 
 - scrollUntilVisible:
     element: Text version of diagrams
-    direction: DOWN
+    direction: UP
     centerElement: true
     timeout: 90000
 - tapOn: Text version of diagrams
