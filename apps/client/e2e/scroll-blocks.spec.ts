@@ -190,3 +190,16 @@ test('a three-column comparison stacks on a phone: its columns sit one under ano
     .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().top));
   expect(new Set(columns.map(Math.round)).size).toBe(columns.length);
 });
+
+test('the text-version switch supports Space and Enter without changing the chosen values', async ({ page }) => {
+  const toggle = page.getByRole('switch', { name: 'Text version of diagrams' });
+  await toggle.press('Space');
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('slider')).toHaveCount(0);
+  await toggle.press('Enter');
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  await expect(page.getByRole('slider', { name: 'String length', exact: true })).toHaveAttribute(
+    'aria-valuetext',
+    '1.00 m',
+  );
+});
