@@ -93,7 +93,7 @@ export async function readStoredScrollDocument(
 
 const admissions = new WeakMap<AdmissionTx, Transaction<Database>>();
 
-function admissionTransaction(tx: AdmissionTx): Transaction<Database> {
+export function admissionTransaction(tx: AdmissionTx): Transaction<Database> {
   const trx = admissions.get(tx);
   if (trx === undefined) throw new Error('Admission transaction used after it ended');
   return trx;

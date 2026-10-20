@@ -4,8 +4,8 @@
  * implemented by `adapters/` and bound by the composition roots through
  * `adapters/nest-providers.ts`.
  *
- * Content is shared, not personal: no port here takes a person's data, and none writes. The
- * write paths (editorial admission and generated production) belong to operator commands.
+ * Content is shared, not personal. Reads use the caller transaction; admission writes require
+ * an operator-owned admission capability and never record who consumed content.
  */
 import { INTERACTION_KINDS, type ScrollDocument } from '@knowscroll/scroll-model';
 import type { PersonalScopeTx } from '../identity/public.js';
@@ -104,3 +104,59 @@ export function isReadingInteractionAllowed(blockType: string, interactionKind: 
 export { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from './production/topics.js';
 export type { ScrollTopic } from './production/topics.js';
 export type { ProduceScrollResult } from './production/types.js';
+export {
+  validateTopics,
+  type EncounterRef,
+  type EncounterSnapshot,
+  type EncounterQuery,
+  type TopicAttribution,
+  type ContinuityLink,
+  type ContinuityAdmission,
+} from './domain/discovery.js';
+import type {
+  EncounterRef,
+  EncounterSnapshot,
+  EncounterQuery,
+  TopicAttribution,
+  ContinuityLink,
+  ContinuityAdmission,
+} from './domain/discovery.js';
+import type { AdmissionTx } from './application/ports.js';
+export type ReadDiscoveryCandidates = (
+  scope: PersonalScopeTx,
+  query: EncounterQuery,
+) => Promise<readonly EncounterSnapshot[]>;
+export type ReadExactEncounter = (
+  scope: PersonalScopeTx,
+  request: EncounterRef & { readonly capabilities: unknown },
+) => Promise<EncounterSnapshot | undefined>;
+export type ReadContinuations = (scope: PersonalScopeTx, source: EncounterRef) => Promise<readonly ContinuityLink[]>;
+export type ResolveContinuityLink = (
+  scope: PersonalScopeTx,
+  expected: {
+    readonly linkId: string;
+    readonly source: EncounterRef;
+    readonly target: EncounterRef;
+    readonly revision?: number;
+  },
+) => Promise<ContinuityLink | undefined>;
+export type ReadEncounterTopics = (scope: PersonalScopeTx, ref: EncounterRef) => Promise<readonly TopicAttribution[]>;
+export type ReadSavedMetadata = (
+  scope: PersonalScopeTx,
+  refs: readonly EncounterRef[],
+) => Promise<
+  readonly {
+    readonly ref: EncounterRef;
+    readonly metadata?: EncounterSnapshot['metadata'];
+    readonly availability: 'available' | 'corrected' | 'withdrawn';
+    readonly currentAssetRevision?: number;
+  }[]
+>;
+/** Admission composition only. Caller supplies real authorized facts; no title inference. */
+export type AdmitContinuity = (tx: AdmissionTx, admission: ContinuityAdmission) => Promise<void>;
+export const READ_DISCOVERY_CANDIDATES = Symbol('content.readDiscoveryCandidates');
+export const READ_EXACT_ENCOUNTER = Symbol('content.readExactEncounter');
+export const READ_CONTINUATIONS = Symbol('content.readContinuations');
+export const RESOLVE_CONTINUITY_LINK = Symbol('content.resolveContinuityLink');
+export const READ_ENCOUNTER_TOPICS = Symbol('content.readEncounterTopics');
+export const READ_SAVED_METADATA = Symbol('content.readSavedMetadata');

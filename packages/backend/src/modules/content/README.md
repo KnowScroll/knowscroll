@@ -59,7 +59,11 @@ siblings. GET-only loopback reads use the actual pinned upstream parsers, compil
 no commissioning, resume, cancel, model, quota, money or provider adapter exists here.
 
 Import validates terminal/run/request identities, every chosen/used engine check and shot/degradation
-coverage, then opens a contained regular engine artifact, stream-stages, hashes, ffprobes H264/AAC
+coverage. Cutroom places up to three pictures; other shots can be text-to-video and need no chosen
+picture. Wire v1's `used` flag attests inclusion in the completed render; it exposes neither take mode
+nor a take-to-picture relation. Result stills must still join chosen pictures by picture and shot ID,
+and each chosen picture's shot must have a used take or degradation. Import then opens a contained
+regular engine artifact, stream-stages, hashes, ffprobes H264/AAC
 portrait 24fps 48kHz stereo/20–60s/faststart, installs bytes, and commits an immutable revision with
 internal provenance in one short admission transaction. No network, media copy or probe is inside that
 transaction. Nonfixture imports must match the frozen approved SHA-256 and size; a repeated run is
@@ -87,3 +91,63 @@ and model waits happen outside it. The same version reruns idempotently; explici
 frozen stages after a crash. See [production/README.md](production/README.md) and the
 [operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
 provider/browser evidence are separate requirements; no authored starter is labelled generated.
+## Admitted discovery and continuity (#234 first backend slice)
+
+Implemented backend capabilities, without navigation/API consumers: `ReadDiscoveryCandidates`,
+`ReadExactEncounter`, `ReadContinuations`, `ResolveContinuityLink`, `ReadEncounterTopics` and
+`ReadSavedMetadata`. They run in the caller's already authorized personal transaction and read
+shared admission only; they create no personal activity. Existing Scroll/media ports are preserved.
+The present access model is shared admitted assets; no private-content access policy is invented.
+
+| Table (`0016`) | Purpose, query, indexes | Growth, retention, erasure |
+|---|---|---|
+| `content.discovery_revisions` | Admission-derived summary/facets, attribution version and indexed text; keyed exact asset/revision. GIN text/facet indexes plus language/current-status/kind and explanation indexes on existing tables support bounded retrieval. | One bounded metadata row/revision; summary<=2000 characters, <=16 facets. Shared retained projection, no personal erasure. |
+| `content.encounter_topics` | Real primary/supporting/incidental attribution. Revision FK and topic/revision index; <=16 unique topics, positive weights sum<=1 enforced by SQL and domain validation. | At most16 rows/revision. Shared retained facts; no personal erasure. |
+| `content.series_units` | Explicit versioned series/part -> immutable revision, primary series+revision+part and unique member constraint; asset/revision index supports exact metadata. No inferred total. | <=99 units/series revision; bounded admission batch<=100 units. Retained shared authority; no personal erasure. |
+| `content.continuity_links` | Versioned explicit previous/next series step or related move, exact source/target revisions, strength and private authority reference. Unique active source+direction index; UUID lookup. | <=3 active links/source revision. Replacements require a new ID and increasing link revision; older immutable facts remain inactive. Retained shared authority; no personal erasure. |
+
+Revision insertion projects consumer-derived summary/text without altering document/provenance
+bytes. Existing real revisions are backfilled. Topic authority `admitted-brief-taxonomy.v0` maps
+only the actual approved seasons-v5/tides-v4/greenhouse concepts to `earth.seasons`, `earth.tides`,
+`earth.greenhouse-effect`, one primary weight 1. It requires completed `reel_imports` facts matching
+the frozen approved **run ID, script, media digest and size**, exact revision and import provenance.
+The import-completion trigger runs after its import row exists in the same admission transaction;
+a failed import leaves no projection. Synthetic imports and arbitrary editorial explanation-ID
+lookalikes stay unknown. Generated Scroll attribution is explicitly **unknown/deferred** until the
+producer's real published-job/revision authority (`0015`) is integrated and wired. No title-derived
+concepts, Part 2/related edges, invented semantic variety or personal-activity-derived topics exist.
+
+Discovery retrieves an indexed union of topic matches (max 40), text matches (max 30) and general
+eligible inventory (max 100), deduplicates to<=100 current admitted candidates before scoring and
+applies declared languages/formats plus exact Scroll capability negotiation/Reel document support.
+It has no history traversal, embeddings or provider wait. Unknown-attribution inventory remains
+eligible for unconstrained discovery. The exact read negotiates the specified stored revision and
+checks current admission; it never substitutes the asset's current revision. Snapshot watermarks
+hash immutable bytes plus bounded attribution/sibling/series facts. Current eligibility must be
+rechecked by future activation; a read does not reserve publication or grant activation authority.
+
+Existing format siblings use real explanation identity and current admitted revision, distinct
+from explicit series/related links. Sibling references and continuity facts alone are not
+rendering/activation authority: the consumer must exact-read the target with capabilities. A
+continuity read returns at most 3 active exact links and omits withdrawn endpoints. Expected link,
+source, target and optional link revision must all still match on resolution.
+
+`admitContinuity` is an operator/admission capability requiring the existing `AdmissionTx`; no
+consumer input invokes it. A single shared metadata advisory lock serializes bounded batches,
+with no personal root acquisition or external wait. It validates real supplied authority refs,
+exact admitted revisions, unique units/slots and declared adjacent parts within the same series
+revision. A series revision is a complete immutable unit manifest: replay cannot extend/reduce it,
+and one immutable asset revision cannot acquire conflicting series identities. Historical
+versions remain retained; only explicit active links authorize continuation, never ordinal inference. Related edges cannot masquerade as series, format twins cannot masquerade as another
+explanation, and contradictory immutable link replay refuses. There are no runtime relationship
+fixtures. Missing authorized facts remain unknown/unavailable.
+
+Saved metadata joins<=100 exact references in one batch, preserves original revisions and reports
+available/corrected/withdrawn. Only corrected includes a different current revision; withdrawn or
+missing content exposes no title or replacement. This is hydration, not a Saved mutation/API.
+
+Migration rollout is additive; existing processes ignore the projection. The three existing-table
+indexes use the transactional migrator with 5-second lock/60-second statement timeouts against the
+small admitted inventory; larger rollout requires a separately reviewed concurrent-index plan.
+No previously registered SQL/hash changes. `0015` must be reconciled before deploying 16+ to dev.
+CI fixtures exercise metadata/authority facts, not actual approved media bytes or runtime journeys.

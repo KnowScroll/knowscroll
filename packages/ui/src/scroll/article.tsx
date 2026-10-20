@@ -1,9 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
-import { walkBlocks, type ScrollDocument } from './model';
+import { findBlock, walkBlocks, type ScrollDocument } from './model';
 import { useDisplay } from '../display/display';
 import { Text } from '../text/text';
+import type { ScrollLocalPosition, ScrollPositionHandle } from './reading/local-position';
+export type { ScrollLocalPosition, ScrollPositionHandle } from './reading/local-position';
 import { resolveAnchor, type AnchorTarget } from './anchors';
 import { BlockHost } from './blocks/host';
 import { renderNestedBlock } from './blocks/host';
@@ -33,6 +45,12 @@ export interface ScrollArticleProps {
   readonly carryOverBlockIds?: ReadonlySet<string>;
   /** The block to restore to (`#block`): the article scrolls to it and flashes it. */
   readonly anchorBlockId?: string;
+  /** Private local resume, applied once on mount only for this exact asset revision. */
+  readonly initialPosition?: ScrollLocalPosition;
+  /** Synchronous freeze before parking/unmounting. The caller owns AccountScope fencing. */
+  readonly positionRef?: React.Ref<ScrollPositionHandle>;
+  /** Local geometry changes from real scrolling; never sent to the reading observer. */
+  readonly onPositionChange?: (position: ScrollLocalPosition) => void;
   /** An overlay holds the reader (a sheet is open): the article reports itself inactive. */
   readonly paused?: boolean;
   /** Room for the screen's own chrome around the article. */
@@ -95,6 +113,9 @@ function ScrollArticleBody({
   store: givenStore,
   carryOverBlockIds,
   anchorBlockId,
+  initialPosition,
+  positionRef,
+  onPositionChange,
   paused = false,
   contentInset = DEFAULT_INSET,
   readingInset = NO_INSET,
@@ -118,9 +139,58 @@ function ScrollArticleBody({
   const viewport = useReadingViewport(observer, readingInset);
   useArticleActivity(observer, paused);
 
+  const [resume] = useState(() => {
+    if (
+      initialPosition === undefined ||
+      initialPosition.assetId !== document.assetId ||
+      initialPosition.revision !== document.revision ||
+      !Number.isFinite(initialPosition.offsetWithinBlock)
+    )
+      return null;
+    const resolved = resolveAnchor(document, initialPosition.blockId);
+    // Nested children have no independent viewport box. Use the legacy anchor fallback,
+    // never reinterpret their offset in the parent's coordinate space.
+    return resolved === null || findBlock(document, initialPosition.blockId)?.parent !== null ? null : initialPosition;
+  });
+  const capture = useCallback((): ScrollLocalPosition | null => {
+    const position = viewport.capturePosition();
+    return position === null ? null : { assetId: document.assetId, revision: document.revision, ...position };
+  }, [viewport, document.assetId, document.revision]);
+  useImperativeHandle(positionRef, () => ({ capture }), [capture]);
+  useLayoutEffect(() => {
+    viewport.bindPosition({
+      initial: resume,
+      scrollTo: (y) => scrollRef.current?.scrollTo({ y, animated: false }),
+      changed: () => {
+        if (paused) return;
+        const position = capture();
+        if (position !== null) onPositionChange?.(position);
+      },
+    });
+    return () => viewport.disposePosition();
+  }, [viewport, resume, capture, paused, onPositionChange]);
+
   // A block inside a disclosure opens its disclosure before anything draws, so the anchor shows it.
   const [target] = useState<AnchorTarget | null>(() => {
-    const resolved = anchorBlockId === undefined ? null : resolveAnchor(document, anchorBlockId);
+    const compatibleNested =
+      initialPosition?.assetId === document.assetId &&
+      initialPosition.revision === document.revision &&
+      Number.isFinite(initialPosition.offsetWithinBlock)
+        ? initialPosition.blockId
+        : undefined;
+    const blockId = resume?.blockId ?? anchorBlockId ?? compatibleNested;
+    const resolved = blockId === undefined ? null : resolveAnchor(document, blockId);
+    // A captured disclosure position may point into its expanded children.
+    if (resume !== null) {
+      for (const { block } of walkBlocks(document.sections)) {
+        if (block.id === resume.blockId && block.type === 'disclosure') {
+          store.set(
+            { assetId: document.assetId, revision: document.revision, blockId: block.id },
+            { type: 'disclosure', expanded: true },
+          );
+        }
+      }
+    }
     if (resolved !== null && resolved.openDisclosureId !== null) {
       store.set(
         { assetId: document.assetId, revision: document.revision, blockId: resolved.openDisclosureId },
@@ -129,7 +199,7 @@ function ScrollArticleBody({
     }
     return resolved;
   });
-  const { flash, onPlaced } = useAnchorRestore(target, scrollRef);
+  const { flash, onPlaced } = useAnchorRestore(resume === null ? target : null, scrollRef);
 
   const report = useCallback<ScrollRenderContext['report']>((blockId, blockType, kind) => {
     // The generic signature proved that `kind` belongs to `blockType`; the union needs the cast.

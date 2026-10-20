@@ -60,3 +60,14 @@ export { makeMediaAccess } from './media-access.js';
 
 /** Composition-only factory for the worker's bounded, nonpersonal Scroll operator. */
 export { makeProduceScroll as produceScrollUseCase } from '../production/produce.js';
+/** Bounded shared retrieval capabilities; no feature consumers are installed by this slice. */
+export {
+  readDiscoveryCandidates,
+  readExactEncounter,
+  readContinuations,
+  resolveContinuityLink,
+  readEncounterTopics,
+  readSavedMetadata,
+} from './discovery-store.js';
+export { admitContinuity } from './continuity-admission.js';
+export { makeAdmissionStore } from './postgres-store.js';

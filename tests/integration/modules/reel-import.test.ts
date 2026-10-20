@@ -48,6 +48,16 @@ describe('read-only Cutroom reuse (real database + generated fixture MP4)', () =
     fixture.record.takes[0]!.checks[0]!.outcome = 'fail';
     expect(await importer()(command)).toMatchObject({ kind: 'refused', reason: 'record' });
     fixture.record.takes[0]!.checks[0]!.outcome = 'accept';
+    // The unpictured shot still needs all of its own accepting checks.
+    const unpictured = fixture.record.takes[1]!;
+    const gate5 = unpictured.checks.pop()!;
+    expect(await importer()(command)).toMatchObject({ kind: 'refused', reason: 'record' });
+    unpictured.checks.push(gate5);
+    const originalPictureId = fixture.result.stills[0]!.pictureId;
+    fixture.result.stills[0]!.pictureId = 'wrong-picture';
+    expect(await importer()(command)).toMatchObject({ kind: 'refused', reason: 'record' });
+    fixture.result.stills[0]!.pictureId = originalPictureId;
+    expect((await sql`select * from content.reel_imports`.execute(database.db)).rows).toHaveLength(0);
     fixture.status.requestId = 'wrong';
     expect(await importer()(command)).toMatchObject({ kind: 'refused', reason: 'record' });
     fixture.status.requestId = fixture.result.requestId;
@@ -78,6 +88,8 @@ describe('read-only Cutroom reuse (real database + generated fixture MP4)', () =
     await copyFile(backup, original);
   });
   it('atomically admits immutable fixture media with engine-attested provenance and is run-idempotent', async () => {
+    expect(fixture.record.pictures.filter((picture) => picture.chosen)).toHaveLength(3);
+    expect(fixture.record.takes.filter((take) => take.used)).toHaveLength(6);
     const first = await importer()(command);
     expect(first).toMatchObject({ kind: 'created', revision: 1 });
     const again = await importer()(command);
