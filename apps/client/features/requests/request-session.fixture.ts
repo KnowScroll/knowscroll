@@ -48,7 +48,7 @@ export function requestHarness() {
         return json({
           version: 'content-request-cancel-receipt.v1',
           commandId: body!.commandId,
-          requestId: id(10),
+          requestId: status.requestId,
           recordedAt: createdAt,
           privacyEpoch: 1,
           revision: 4,
@@ -62,7 +62,7 @@ export function requestHarness() {
         return json({
           version: 'content-request-receipt.v1',
           commandId: body!.commandId,
-          requestId: id(10),
+          requestId: status.requestId,
           recordedAt: createdAt,
           privacyEpoch: 1,
           revision: 2,

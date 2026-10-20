@@ -195,4 +195,48 @@ describe('request consumer over actual scoped HTTP fixture transport', () => {
       jest.useRealTimers();
     }
   });
+  it('fences an old request read after a deliberate fresh request', async () => {
+    const h = requestHarness();
+    let release = () => {};
+    try {
+      ask(h);
+      await waitFor(() => expect(h.session.getState().status).toBeDefined());
+      h.setStatus(ready(h));
+      await h.session.refresh();
+      h.setReadGate(
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      );
+      const late = h.session.refresh();
+      await waitFor(() => expect(h.calls.filter((call) => call.method === 'GET')).toHaveLength(3));
+      h.session.startAgain();
+      h.setStatus({ ...h.fields, requestId: id(11), status: 'preparing', phase: 'requested' });
+      h.setReadGate(undefined);
+      ask(h);
+      await waitFor(() => expect(h.session.getState().status?.requestId).toBe(id(11)));
+      release();
+      await late;
+      expect(h.session.getState().receipt?.requestId).toBe(id(11));
+      expect(h.session.getState().status).toMatchObject({ requestId: id(11), status: 'preparing' });
+      expect(h.opens).toEqual([]);
+    } finally {
+      release();
+      h.scope.end();
+    }
+  });
+  it('stops after twelve automatic reads without creating another command', async () => {
+    jest.useFakeTimers();
+    const h = requestHarness();
+    try {
+      ask(h);
+      await jest.advanceTimersByTimeAsync(0);
+      await jest.advanceTimersByTimeAsync(120000);
+      expect(h.calls.filter((call) => call.method === 'GET')).toHaveLength(13);
+      expect(posts(h)).toHaveLength(1);
+    } finally {
+      h.scope.end();
+      jest.useRealTimers();
+    }
+  });
 });

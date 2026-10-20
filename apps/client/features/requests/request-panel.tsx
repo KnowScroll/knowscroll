@@ -1,8 +1,20 @@
 import { useState, useSyncExternalStore } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { borderWidth, content, layout, radius, space, spacing, target } from '@knowscroll/design-tokens';
+import {
+  borderWidth,
+  content,
+  dimension,
+  layout,
+  opacity,
+  radius,
+  space,
+  spacing,
+  target,
+} from '@knowscroll/design-tokens';
 import { Button, IconButton, RequestStatusChip, Text, useTypeStyle } from '@knowscroll/ui';
 import type { ContentRequestStatus } from '@knowscroll/contracts';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { RequestChoices } from './request-choices';
 import { suggestions, type RequestSession } from './request-session';
 
 const reasons: Record<Extract<ContentRequestStatus, { status: 'unavailable' }>['reason'], string> = {
@@ -18,12 +30,27 @@ const reasons: Record<Extract<ContentRequestStatus, { status: 'unavailable' }>['
 export function RequestPanel({ session, onClose }: { readonly session: RequestSession; readonly onClose: () => void }) {
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   const type = useTypeStyle('body');
+  const insets = useSafeAreaInsets();
   const [focused, setFocused] = useState(false);
   const editing = state.phase === 'draft';
   const status = state.status;
   return (
-    <KeyboardAvoidingView style={styles.host} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheet}>
+    <KeyboardAvoidingView
+      style={styles.host}
+      pointerEvents="box-none"
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        style={styles.viewport}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[styles.sheet, { paddingBottom: spacing[7] + insets.bottom }]}
+      >
+        <View
+          style={styles.grab}
+          aria-hidden
+          importantForAccessibility="no-hide-descendants"
+          accessibilityElementsHidden
+        />
         <View style={styles.heading}>
           <Text variant="displayL" heading={2}>
             Ask for something
@@ -82,32 +109,28 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
               <Text variant="meta">Your selected topic will be sent. The text above is not included.</Text>
             ) : null}
             <Text variant="uiS">As a</Text>
-            <View style={styles.options} accessibilityLabel="Requested format">
-              {(['reel', 'scroll', 'either'] as const).map((format) => (
-                <Button
-                  key={format}
-                  label={format === 'reel' ? 'Reel' : format === 'scroll' ? 'Scroll' : 'Either'}
-                  toggled={state.format === format}
-                  disabled={!editing}
-                  onPress={() => session.edit({ format })}
-                />
-              ))}
-            </View>
+            <RequestChoices
+              label="Requested format"
+              options={[
+                { value: 'reel', label: 'Reel' },
+                { value: 'scroll', label: 'Scroll' },
+                { value: 'either', label: 'Either' },
+              ]}
+              value={state.format}
+              disabled={!editing}
+              onSelect={(format) => session.edit({ format })}
+            />
             <Text variant="uiS">This is</Text>
-            <View style={styles.options} accessibilityLabel="Request context">
-              <Button
-                label="Something new"
-                toggled={!state.about}
-                disabled={!editing}
-                onPress={() => session.edit({ about: false })}
-              />
-              <Button
-                label="About this encounter"
-                toggled={state.about}
-                disabled={!editing || !state.source}
-                onPress={() => session.edit({ about: true })}
-              />
-            </View>
+            <RequestChoices
+              label="Request context"
+              options={[
+                { value: 'new', label: 'Something new' },
+                { value: 'about', label: 'About this encounter' },
+              ]}
+              value={state.about ? 'about' : 'new'}
+              disabled={!editing || !state.source}
+              onSelect={(value) => session.edit({ about: value === 'about' })}
+            />
           </>
         ) : (
           <Text variant="body">
@@ -201,14 +224,34 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
   );
 }
 const styles = StyleSheet.create({
-  host: { flex: 1, backgroundColor: content.paper },
+  host: { flex: 1, justifyContent: 'flex-end' },
+  viewport: {
+    flexGrow: 0,
+    maxHeight: '94%',
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+    backgroundColor: content.paper,
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+  },
+  grab: {
+    alignSelf: 'center',
+    width: dimension.grabHandle.width,
+    height: dimension.grabHandle.height,
+    borderRadius: dimension.grabHandle.radius,
+    backgroundColor: content.ink,
+    opacity: opacity.grabHandle,
+  },
   notice: { gap: spacing[2], paddingHorizontal: layout.gutter, paddingVertical: spacing[2], alignItems: 'flex-start' },
   sheet: {
     flexGrow: 1,
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
-    paddingTop: spacing[9],
+    paddingTop: spacing[3],
     paddingHorizontal: layout.gutter,
     paddingBottom: spacing[24],
     gap: spacing[3],

@@ -175,7 +175,9 @@ exercise the actual stage and path dialog.
 ## Private Ask and format requests (#239)
 
 Ask opens a local E04 overlay over the exact parked encounter. The same host owns the path menu
-and request composer; Close, Esc and Back dismiss it first and preserve paused position and sound.
+and request composer. The composer uses a bounded bottom sheet with a grab, rounded top corners
+and a visible backdrop; wider screens center the same sheet. A desktop Ask-anchor position is
+not implemented. Exclusive format/context choices expose radio groups. Close, Esc and Back dismiss it first and preserve paused position and sound.
 Missing siblings remain unavailable in the format switch; the menu offers explicit Request Reel
 or Request Scroll actions. Existing ready siblings keep the normal navigation path.
 

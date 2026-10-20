@@ -110,6 +110,7 @@ export function EncounterMenu({
   return (
     <EncounterOverlay
       label={state.overlayOwner === 'request' ? 'Ask for something' : 'Your path'}
+      presentation={state.overlayOwner === 'request' ? 'sheet' : 'full'}
       onClose={() => {
         session.back();
       }}
