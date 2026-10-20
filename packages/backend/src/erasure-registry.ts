@@ -1,3 +1,4 @@
+import { supplyErasure } from './modules/supply/adapters/erasure.js';
 import { plannerErasure } from './modules/planner/adapters/erasure.js';
 import { erasureRegistry } from './infrastructure/erasure/registry.js';
 import { composerErasure } from './modules/composer/adapters/erasure.js';
@@ -19,6 +20,7 @@ import { receiptsErasure } from './infrastructure/receipts/erasure.js';
  * lifecycle) and `content.assets` (shared content).
  */
 export const personalStores = erasureRegistry([
+  supplyErasure,
   plannerErasure,
   personalContextErasure,
   evidenceErasure,

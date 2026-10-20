@@ -1,3 +1,10 @@
+import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { COVERAGE_POLICY, CONCEPT_CATALOGUE_VERSION, type CoverageCommand } from '@knowscroll/backend/modules/content';
+import {
+  makeAdmitCoverage,
+  makeCoverageAdmissionPorts,
+  coverageCatalogue,
+} from '@knowscroll/backend/modules/content/nest-providers';
 import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -165,6 +172,57 @@ describe('the erasure registry (real database)', () => {
         weight: 1,
       })
       .execute();
+    // Exact synthetic semantic approval ONLY for this erasure fixture. The real reading pipeline
+    // below must populate ALL new personal stores; production approval registry stays empty.
+    const coverageSource = await database.db
+      .selectFrom('content.asset_revisions')
+      .select(['document_sha256', 'explanation_unit_id', 'reading_facts'])
+      .where('asset_id', '=', starter.assetId)
+      .where('revision', '=', starter.revision)
+      .executeTakeFirstOrThrow();
+    const coverageProvenance = await database.db
+      .selectFrom('content.asset_provenance')
+      .select('provenance')
+      .where('asset_id', '=', starter.assetId)
+      .where('revision', '=', starter.revision)
+      .executeTakeFirstOrThrow();
+    const coverageCommand: CoverageCommand = {
+      version: 'content-coverage-command.v1',
+      assetId: starter.assetId,
+      assetRevision: starter.revision,
+      expectedHeadRevision: 0,
+      semanticReviewReference: 'ci-erasure-only-not-live-semantic-approval',
+      change: {
+        kind: 'admit',
+        mapping: {
+          version: COVERAGE_POLICY,
+          documentSha256: coverageSource.document_sha256,
+          provenanceSha256: canonicalSha256(coverageProvenance.provenance),
+          explanationUnitId: coverageSource.explanation_unit_id,
+          framing: 'factual',
+          framingSha256: canonicalSha256({ kind: 'factual' }),
+          readingFactsVersion: 2,
+          readingFactsSha256: canonicalSha256(coverageSource.reading_facts),
+          catalogueVersion: CONCEPT_CATALOGUE_VERSION,
+          catalogueSha256: coverageCatalogue.sha256,
+          bindings: [
+            {
+              topicId: 'earth.seasons',
+              facetId: 'earth.seasons.axial-tilt',
+              meaningSha256: coverageCatalogue.meaningSha256('earth.seasons', 'earth.seasons.axial-tilt')!,
+              requiredBlockIds: ['intro-look-up'],
+            },
+          ],
+        },
+      },
+    };
+    await makeAdmitCoverage(
+      makeCoverageAdmissionPorts(
+        database.db,
+        (digest, reference) =>
+          digest === canonicalSha256(coverageCommand) && reference === coverageCommand.semanticReviewReference,
+      ),
+    )(coverageCommand);
     const applyEvidence = evidenceUseCase(database);
     const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
     const ledger = makeAttemptLedger(database.db);
@@ -261,6 +319,22 @@ describe('the erasure registry (real database)', () => {
         // Authored erasure-only fixture rows, never provider output or runtime planning evidence.
         const plannerRunId = randomUUID(),
           tx = transactionOf(scope);
+        await tx
+          .insertInto('supply.requests')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            id: randomUUID(),
+            command: { version: 'content-request.v1', fixture: 'Authored erasure-only private ask' },
+            state: 'unavailable',
+            request_revision: 1,
+            revision: 1,
+            decision: 'refuse',
+            reason: 'unsupported_request',
+            created_at: new Date(),
+            updated_at: new Date(),
+          })
+          .execute();
         await tx
           .insertInto('planner.runs')
           .values({

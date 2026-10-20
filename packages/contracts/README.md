@@ -13,6 +13,8 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) and `ClientCapabilities` from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
 | `src/experience.ts` | `POST /v1/actions`, `GET /v1/saved`, and the exposure routes: `POST /v1/experience/open`, `POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document` |
 | `src/navigation.ts` | Composer session discovery, `POST /v1/experience/navigate`, semantic intents, prepared public offers, ready/pending/exhausted receipt outcomes and offer activation |
+| `src/supply.ts` | Declaration-only topic/format-variant requests, immutable acceptance/cancel receipts and current private request status; not routed by `apiContract` (#239 prerequisite) |
+| `src/geography.ts` | Declaration-only established geography pages, retained routes/aliases and typed applied universe deltas; not routed by `apiContract` (#237/#238 prerequisite) |
 | `src/interactions.ts` | `interaction.v1`: the observation envelope, three `scroll.*` payloads and bounded paired `reel.playback` intervals; `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
 | `src/media.ts` | `reel-document.v1` and `POST /v1/media/grants`: a session-scoped short-lived playback grant for an existing exposure |
 
@@ -91,6 +93,119 @@ navigate revisit names its current offer/exposure. Both create fresh lineage onl
 and still require actual qualified observations; neither overrides withdrawal or changes the saved
 immutable revision.
 
+Supply prerequisite (#239): `CreateContentRequestSchema` declares a fresh deliberate topic ask or
+format-variant request, with one command ID retained unchanged on transport retries. Topic asks
+have bounded nonblank text (at most 500 UTF-16 code units) or a `content-concepts.v1` topic/facet
+reference; catalogue syntax is not membership, meaning or permission. Topic `format` permits
+Reel/Scroll/Either; variant `to` permits only Reel/Scroll, without a second format assertion.
+`language` and canonical `ClientCapabilities` travel with either branch. Optional topic `context`
+means About this; omission means Something new. Variant `source` is mandatory. Either source
+names the exact immutable asset revision and owned activated exposure; optional Composer session
+linkage must match that exposure and the latest intent revision. The consumer must independently
+recheck authority, epoch, admission, rights, topic/facet membership and variant explanation identity.
+Neither a source reference nor an ask creates consumption evidence or grants paid permission.
+
+`ContentRequestReceiptSchema` is immutable acceptance, containing a real committed private request
+ID, original recorded time, epoch and personal catch-up watermark. Demand, receipt and required
+pg-boss work commit together; retryable authority/stale-input refusals write no receipt. Terminal
+unavailability can live on an accepted durable request's current status. An identical replay
+retains the original acceptance, epoch and watermark (only the transport `replayed` marker differs),
+even if supply is now ready. Reusing the command ID with different input is a conflict. Current
+authority is rechecked before any replay; an old epoch cannot reveal an old private result.
+
+`ReadContentRequestSchema` and `ContentRequestStatusSchema` describe the separate current private
+resource read: preparing (`requested` or `preparing` phase), ready, unavailable or cancelled.
+Every snapshot has a version, current epoch, request revision, timestamps and personal revision
+for catch-up. A ready snapshot contains only an admitted immutable content reference, explanation
+identity and existing allowlisted encounter metadata. It grants no exposure or rendering authority,
+never switches the encounter and still needs explicit subsequent open/activation. Withdrawal can
+change ready to unavailable at a newer request revision. Preparing requires a real authorized
+durable request; unavailable carries only a fixed coarse reason, never provider error text.
+Polling, reconnect, opening the request sheet and navigation create no production or paid attempt.
+Clients fence responses by AccountScope, keep the highest personal watermark, refetch after scope
+hints/reconnect, and refuse to overwrite a newer request revision with an older snapshot. Offline
+UI must mark a retained snapshot as potentially stale; no percentages or ETAs are declared.
+
+`CancelContentRequestSchema` has its own command ID and private request ID.
+`CancelContentRequestReceiptSchema` keeps the original `cancelled`, `already_cancelled` or
+`already_closed` outcome after commit; ready/unavailable requests are already closed. Cancellation
+removes only this person's waiter. It does not recall dispatched paid attempts, promise refunds,
+delete admitted content or cancel other waiters/shared work. Current status remains a separate
+read, and cancel replay has the same authority, epoch and canonical-input protections as creation.
+
+Supply owns no public sharing keys, grants, model parameters, prompts, sources/provenance panels,
+private evidence/scores, provider outputs/errors, balances or other waiter identities. Owner and
+epoch are derived from authenticated AccountScope rather than accepted from request bodies.
+Freeform text and source context remain private: the backend must construct and admit a public
+canonical brief before any shareable key, with rights, current authority and budget checks.
+No private thread/scenario inputs are declared here. Strictness applies to these new owned objects;
+canonical capabilities, session and metadata schemas are reused with their existing semantics,
+without changing legacy navigation/experience parsing or reserved discriminators.
+
+These schemas are **not routed or implemented** and do not complete #239. Series-next/related
+commissioning needs a separate Content-owned admitted future-slot/move declaration and usable
+consumer-facing revision; current links point to admitted assets, so no future Part or pending
+target is invented here. E07's bounded private request list and explicit retry on the same request
+ID need separate future declarations. Such retry must use a fresh retry command ID and recheck
+authority, budget, fences and attempt ledger; replay/poll never implicitly retries production.
+There is no Supply/Planner/Cartographer paid allowance in this prerequisite; D-024's #232 allowance
+and owner-only Reel script approvals are unchanged. No backend, UI, queue or runtime acceptance is
+claimed by these declarations.
+
+## Geography wire prerequisite (#237/#238)
+
+`ReadGeographySchema` and `GeographySnapshotSchema` declare authorised **own-universe** reads of
+established systems, organising stars, subtopic planets and finer regions. Systems parent to the
+universe; stars and planets parent to a system; regions parent to a planet. UUID identities and
+immutable `originTransitionId` belong to geography, independently of scene descriptors, visual
+families, generators, layouts, seeds and detail levels. Labels do not encode mastery or beliefs.
+`factual`/`hypothetical` status is explicit; an alias cannot silently turn hypothetical meaning into
+a fact. Activity is a coarse server-supplied `active`/`quiet` display state or explicitly unavailable,
+never a score. Quiet activity does not remove established structure.
+
+Each snapshot carries the authorised universe/epoch, current personal-root watermark and geography
+revision. Structure/activity revisions are the latest geography commit that changed each component,
+not counts or Personal Context revisions. Consumers fence by AccountScope, universe and epoch,
+then reject regressions in either personal watermark or geography revision. These stamps do not
+claim complete historical evidence, qualification or learning. Backend formation must use the
+current separate trusted PC coverage capability under the same live personal scope; the legacy
+global covered-facets snapshot remains unavailable and no numeric formation policy is frozen here.
+
+`empty` means no established objects in the selected universe/system. `loading` requires actual
+initial projection work; `lagging` retains a valid established page while real pending work catches
+up. `unavailable` distinguishes temporary failure, expired snapshot and result-limit refusal.
+None of these states invents dust, planets, social activity, evidence counts or future rewards.
+Pages allow at most100 objects,100 routes and100 retained aliases. A continuation binds universe,
+epoch, selection, geography revision and last object ID; the server validates it, pages in stable
+ID order, and refuses an expired revision. Endpoints may name objects on other pages. A relationship
+overflow must fail with `limit`, never silently truncate relationships or assert completeness.
+No cursor or public ID grants permission. Friend/visitor projections require later sharing contracts.
+
+`UniverseDeltaSchema` declares one atomic **already applied public effect**, with base/current
+revisions, immutable transition ID and at most32 typed operations: `create_system`, `establish_star`,
+`form_planet`, `add_region`, `connect_route`, `revise_label`, `set_activity`, `withdraw_relation`.
+Effect revisions equal the commit revision; new identities retain that transition as their origin.
+Label/activity updates cannot replace origin identity. Relation withdrawal retains its ID/endpoints
+in subsequent snapshots; aliases retain old identities after a reviewed correction. Merge/split
+proposal and alias-creation mechanics remain backend-local and need a future typed delta extension
+before incremental alias updates; clients refetch snapshots rather than inventing such operations.
+There is no arbitrary JSON patch, client formation command, eligibility override, model proposal,
+private evidence, source, score, prompt, provider or validation-receipt payload on this wire.
+
+`ReadUniverseDeltasSchema` and `UniverseDeltasSchema` declare read-only catch-up, at most10 deltas
+per page. Available results are contiguous, unique and scope fenced; unavailable retained history
+requires a full snapshot. Consumers apply a whole delta against the exact base or refetch. Repeated
+delivery and scene rebuilds preserve the same transition ID. U05's once-per-transition presentation
+can key on that ID per account/epoch; durable cross-device shown/skipped acknowledgement still needs
+its own consumer implementation. Reads must never enqueue work or dispatch a provider attempt.
+
+These declarations are **not routed or implemented**. They do not establish formation authority,
+real maps/coverage, a Cartographer run, scene generation, UI/native/browser behaviour or deployment
+acceptance. The geography backend still owns bounded proposals, evidence references, formation
+policy, current-authority checks, atomic apply, correction/erasure and required pg-boss work. Scenes
+still need canonical `scene-core` descriptors, chunk manifests and independent projection revisions.
+`geography.test.ts` contains synthetic wire-validation fixtures only; automated suites run in Actions.
+
 Rules:
 
 - A problem code never changes meaning; a new meaning gets a new code. Codes double as
@@ -101,6 +216,9 @@ Rules:
 - `src/openapi.test.ts` covers every route, direct/Composer unions and RFC 9457 errors.
 - `src/navigation.test.ts` covers compatibility, intent fencing, bounded public metadata, distinct
   pending/exhausted states and downgrade refusal. Automated suites run in GitHub Actions only.
+- `src/supply.test.ts` covers topic/variant branches, bounded input, real-reference shapes, immutable
+  receipts versus current status, cancellation and strict refusal of private/internal fields. It
+  establishes wire validation only, never actual admission or database authority.
 
 Build: `tsc -p tsconfig.build.json` → `dist/`. Inside the workspace, TypeScript, Vitest and
 dependency-cruiser read the sources through the `@knowscroll/source` export condition

@@ -1,3 +1,5 @@
+import { lockCurrentEncounters } from './current-encounters.js';
+import { LOCK_CURRENT_ENCOUNTERS } from '../public.js';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { makeImportEditorialScroll } from '../application/import-editorial-scroll.js';
@@ -37,6 +39,7 @@ import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './c
  */
 export function contentProviders() {
   return [
+    { provide: LOCK_CURRENT_ENCOUNTERS, useValue: lockCurrentEncounters },
     { provide: READ_DISCOVERY_CANDIDATES, useValue: readDiscoveryCandidates },
     { provide: READ_EXACT_ENCOUNTER, useValue: readExactEncounter },
     { provide: READ_CONTINUATIONS, useValue: readContinuations },
@@ -102,3 +105,5 @@ export {
   lockCurrentCoverageAuthorities,
 } from './coverage-store.js';
 export { makeAdmitCoverage } from '../application/admit-coverage.js';
+
+export { lockCurrentEncounters } from './current-encounters.js';

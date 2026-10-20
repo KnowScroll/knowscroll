@@ -1,3 +1,5 @@
+import type { PrepareObservedCoverage } from './coverage-ports.js';
+import type { ObservedCoverage } from '../domain/coverage.js';
 import type { ActivityProjectionResult } from './activity-contracts.js';
 import type { ActivityDerivedEffect } from './context-ports.js';
 import type { PreparedEvidenceInput } from '../../composer/public.js';
@@ -23,6 +25,7 @@ export interface QualificationInput {
   readonly assetRevision: number;
 }
 export interface ActivityProjection {
+  readonly coverage?: ObservedCoverage;
   readonly id: string;
   readonly exposure: ActivityLineage;
   readonly metadata: EncounterAttribution;
@@ -35,6 +38,7 @@ export interface ActivityProjection {
   readonly evaluatedAt: string;
 }
 export interface ActivityPorts {
+  readonly prepareCoverage?: PrepareObservedCoverage;
   /** Required by shipped composition once personal context is installed; isolated fixtures may omit it. */
   readonly derived?: ActivityDerivedEffect;
   readonly materialChange?: (scope: PersonalScopeTx, input: { readonly sourceRevision: number }) => Promise<void>;
@@ -99,6 +103,18 @@ async function inputs(
     R: lineage.returned,
   };
   return {
+    ...(p.prepareCoverage
+      ? {
+          coverage: await p.prepareCoverage(scope, {
+            exposureId: id,
+            assetId: exposure.assetId,
+            assetRevision: exposure.assetRevision,
+            activatedAt: exposure.activatedAt.toISOString(),
+            kind: lineage.kind,
+            explanationUnitId: metadata.explanationUnitId,
+          }),
+        }
+      : {}),
     id: p.newId(),
     exposure: lineage,
     metadata,
@@ -125,11 +141,11 @@ export function makeProjectEncounterActivity(p: ActivityPorts) {
         const current = await p.currentActivity(scope, payload.exposureId);
         const activityChanged = current?.inputHash !== x.inputHash;
         if (activityChanged) await p.persist(scope, x);
-        const derivedChanged = (await p.derived?.apply(scope, x)) ?? false;
+        const activityId = activityChanged ? x.id : current.activityId;
+        const derivedChanged = (await p.derived?.apply(scope, { ...x, id: activityId })) ?? false;
         if (!activityChanged && !derivedChanged) return { kind: 'skipped', reason: 'already_applied' };
         const revision = await p.advance(scope);
         await p.materialChange?.(scope, { sourceRevision: revision });
-        const activityId = activityChanged ? x.id : current.activityId;
         await p.notify(scope, { revision, eventId: activityId });
         return { kind: 'applied', activityId, revision };
       },
@@ -199,9 +215,10 @@ export function makeReconcileEncounterActivity(p: ActivityPorts) {
           gaps++;
           continue;
         }
+        const current = await p.currentActivity(scope, id);
         if (
-          (await p.currentActivity(scope, id))?.inputHash === x.inputHash &&
-          (!p.derived || (await p.derived.isCurrent(scope, x)))
+          current?.inputHash === x.inputHash &&
+          (!p.derived || (await p.derived.isCurrent(scope, { ...x, id: current.activityId })))
         )
           continue;
         if (await p.pending(scope, id)) {

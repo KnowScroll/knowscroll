@@ -1,3 +1,6 @@
+import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
+import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
+import { resolveSupplyQueue, RESOLVE_CONTENT_REQUEST, type ResolveRequest } from '@knowscroll/backend/modules/supply';
 import { plannerRequestProviders, plannerWorkerProviders } from '@knowscroll/backend/modules/planner/nest-providers';
 import {
   PLANNER_MATERIAL_CHANGE,
@@ -49,6 +52,8 @@ import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-co
  * case that handles it. Nothing is discovered by decorators or scanning.
  */
 export const jobWiring: Provider[] = [
+  ...identityScopeOwnerProviders(),
+  ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...plannerRequestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...plannerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   ...experienceEvidenceReadProviders(),
@@ -68,6 +73,7 @@ export const jobWiring: Provider[] = [
   {
     provide: JOB_CONSUMERS,
     inject: [
+      RESOLVE_CONTENT_REQUEST,
       RUN_PLANNER,
       APPLY_ACTION_EVIDENCE,
       PROJECT_SCROLL_READING,
@@ -78,6 +84,7 @@ export const jobWiring: Provider[] = [
       LOG_EVENT,
     ],
     useFactory: (
+      resolveRequest: ResolveRequest,
       runPlanner: RunPlanner,
       applyActionEvidence: ApplyActionEvidence,
       projectScrollReading: ProjectScrollReading,
@@ -87,6 +94,9 @@ export const jobWiring: Provider[] = [
       sweepDispatchedAttempts: SweepDispatchedAttempts,
       logEvent: LogEvent,
     ): readonly JobConsumer<unknown>[] => [
+      jobConsumer(resolveSupplyQueue, async (payload) => {
+        await resolveRequest(payload);
+      }),
       jobConsumer(plannerQueue, async (payload, delivery) => {
         await runPlanner(payload, delivery.signal);
       }),

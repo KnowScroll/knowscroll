@@ -185,3 +185,21 @@ export type ReadEncounterAttribution = (
   ref: EncounterRef,
 ) => Promise<EncounterAttribution | undefined>;
 export const READ_ENCOUNTER_ATTRIBUTION = Symbol('content.readEncounterAttribution');
+
+/** Current-head authority for one-time Supply binding, separate from legacy historical reads.
+ * Personal root first; locks all existing asset rows SHARE in UUID order and holds them to commit.
+ * Missing/withdrawn/corrected/unsupported references have no encounter. Counters are Content-owned
+ * and increase on actual status/current revision changes, including withdrawal/re-admission.
+ */
+export type LockCurrentEncounters = (
+  scope: PersonalScopeTx,
+  query: { readonly refs: readonly EncounterRef[]; readonly capabilities: unknown },
+) => Promise<
+  readonly {
+    readonly ref: EncounterRef;
+    readonly availabilityRevision: number;
+    readonly changedAt: string;
+    readonly encounter?: EncounterSnapshot;
+  }[]
+>;
+export const LOCK_CURRENT_ENCOUNTERS = Symbol('content.lockCurrentEncounters');

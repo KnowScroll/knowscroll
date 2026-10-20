@@ -60,6 +60,8 @@ export interface ContentAssetRevisions {
 }
 
 export interface ContentAssets {
+  availability_changed_at: Generated<Timestamp>;
+  availability_revision: Generated<number>;
   created_at: Generated<Timestamp>;
   id: string;
   kind: string;
@@ -455,6 +457,37 @@ export interface PersonalContextContributions {
   universe_id: string;
 }
 
+export interface PersonalContextCoverageContributions {
+  activity_id: string;
+  exposure_id: string;
+  input_sha256: string;
+  payload: Json;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
+export interface PersonalContextCoverageReferences {
+  explanation_unit_id: string;
+  exposure_id: string;
+  facet_id: string;
+  meaning_sha256: string;
+  privacy_epoch: number;
+  topic_id: string;
+  truth_sha256: string;
+  universe_id: string;
+}
+
+export interface PersonalContextCoverageSupports {
+  explanation_unit_id: string;
+  facet_id: string;
+  meaning_sha256: string;
+  privacy_epoch: number;
+  reference_count: number;
+  topic_id: string;
+  truth_sha256: string;
+  universe_id: string;
+}
+
 export interface PersonalContextState {
   policy_version: string;
   privacy_epoch: number;
@@ -697,6 +730,34 @@ export interface ReceiptsSharedCommands {
   scope_kind: string;
 }
 
+export interface SupplyRequests {
+  brief: Json | null;
+  command: Json;
+  content: Json | null;
+  content_availability_revision: number | null;
+  created_at: Timestamp;
+  decision: string;
+  id: string;
+  privacy_epoch: number;
+  reason: string | null;
+  request_revision: number;
+  revision: number;
+  source_availability_revision: number | null;
+  state: string;
+  universe_id: string;
+  updated_at: Timestamp;
+  work_id: string | null;
+}
+
+export interface SupplyWork {
+  active: Generated<boolean>;
+  brief: Json;
+  canonical_key: string;
+  closed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  id: string;
+}
+
 export interface DB {
   "composer.decisions": ComposerDecisions;
   "content.asset_provenance": ContentAssetProvenance;
@@ -736,6 +797,9 @@ export interface DB {
   "identity.universes": IdentityUniverses;
   "ops.operator_sign_ins": OpsOperatorSignIns;
   "personal_context.contributions": PersonalContextContributions;
+  "personal_context.coverage_contributions": PersonalContextCoverageContributions;
+  "personal_context.coverage_references": PersonalContextCoverageReferences;
+  "personal_context.coverage_supports": PersonalContextCoverageSupports;
   "personal_context.state": PersonalContextState;
   "personal_context.supports": PersonalContextSupports;
   "personal_context.topics": PersonalContextTopics;
@@ -752,4 +816,6 @@ export interface DB {
   "reasoning.usage_receipts": ReasoningUsageReceipts;
   "receipts.personal_commands": ReceiptsPersonalCommands;
   "receipts.shared_commands": ReceiptsSharedCommands;
+  "supply.requests": SupplyRequests;
+  "supply.work": SupplyWork;
 }

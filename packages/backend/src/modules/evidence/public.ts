@@ -47,3 +47,8 @@ export const READ_ACTIVITY_STATISTICS = Symbol('evidence.readActivityStatistics'
 export const READ_OBSERVATION_TAIL = Symbol('evidence.readObservationTail');
 
 export const READ_RECENT_TOPIC_IDS = Symbol('evidence.readRecentTopicIds');
+
+export { OBSERVED_COVERAGE_POLICY, ObservedCoverageSchema } from './domain/coverage.js';
+export type { ObservedCoverage } from './domain/coverage.js';
+export type { CheckCoverageEvidence } from './application/coverage-ports.js';
+export const CHECK_COVERAGE_EVIDENCE = Symbol('evidence.checkCoverageEvidence');

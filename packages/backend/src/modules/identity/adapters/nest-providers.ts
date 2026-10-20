@@ -1,3 +1,5 @@
+import { CHECK_PERSONAL_OWNER_ACTIVE } from '../public.js';
+import { checkPersonalOwnerActive } from './scope-owner.js';
 import type { Kysely } from 'kysely';
 import type { IdentitySettings } from '../../../infrastructure/config/index.js';
 import type { LogEvent } from '../../../infrastructure/observability/index.js';
@@ -229,4 +231,9 @@ export function identitySweepProviders(tokens: { readonly database: symbol }) {
       useFactory: (db: Kysely<Database>): SweepSignInRecords => identitySweepUseCase(db),
     },
   ];
+}
+
+/** Explicit worker/API scope read; adds no actor impersonation or auth-route behaviour. */
+export function identityScopeOwnerProviders() {
+  return [{ provide: CHECK_PERSONAL_OWNER_ACTIVE, useValue: checkPersonalOwnerActive }];
 }

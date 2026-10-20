@@ -1,3 +1,5 @@
+import { checkRequestSource } from './request-source.js';
+import { CHECK_REQUEST_SOURCE } from '../public.js';
 import type { Kysely } from 'kysely';
 import {
   READ_SAVED_METADATA,
@@ -185,6 +187,7 @@ function commandPorts(withPersonalScope: WithPersonalScope) {
  */
 export function experienceEvidenceReadProviders() {
   return [
+    { provide: CHECK_REQUEST_SOURCE, useValue: checkRequestSource },
     { provide: READ_ACTIVITY_LINEAGE, useValue: readActivityLineage },
     { provide: ENSURE_ACTIVITY_LINEAGE, useValue: ensureActivityLineage },
     { provide: READ_ROUTING_HISTORY, useValue: readRoutingHistory },
@@ -202,3 +205,5 @@ export {
   ACTIVATE_OFFER,
   READ_EXPOSURE_CONTEXT,
 } from './navigation-providers.js';
+
+export { checkRequestSource } from './request-source.js';

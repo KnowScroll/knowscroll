@@ -311,3 +311,10 @@ export const RESOLVE_SESSION = Symbol('identity.resolveSession');
 export const SESSION_VALID = Symbol('identity.sessionValid');
 export const SIGN_OUT = Symbol('identity.signOut');
 export const SWEEP_SIGN_IN_RECORDS = Symbol('identity.sweepSignInRecords');
+
+/** Current owning account status inside an already locked personal root, including for system
+ * workers. Identity status mutations lock owning roots first. This observes account suspension,
+ * not session/device sign-out; epoch/universe fencing remains with withPersonalScope.
+ */
+export type CheckPersonalOwnerActive = (scope: PersonalScopeTx) => Promise<boolean>;
+export const CHECK_PERSONAL_OWNER_ACTIVE = Symbol('identity.checkPersonalOwnerActive');

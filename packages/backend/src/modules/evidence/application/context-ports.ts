@@ -1,6 +1,10 @@
+import type { ObservedCoverage } from '../domain/coverage.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 /** Minimal projection event contract, independent of Experience's implementation types. */
 export interface ActivityDerivedInput {
+  /** Actual current Evidence activity audit identity; unchanged activity reuses its ID. */
+  readonly id?: string;
+  readonly coverage?: ObservedCoverage;
   readonly exposure: {
     readonly exposureId: string;
     readonly assetId: string;
