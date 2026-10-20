@@ -151,3 +151,34 @@ Planner material-change callback (#236): after an actual activity/PC change and 
 advance, shipped API and worker composition invoke the Planner request facility in that same
 transaction. Deduplicated unchanged projection invokes nothing. A callback/job failure rolls
 Evidence, PC and revision back; the callback supplies no harness and writes no evidence.
+
+## Observed static coverage (#237,0023 consumer)
+
+The shipped activity composition prepares a separate `observed-static-coverage.v1` certificate,
+without changing qualification policy, q, scalar/channel/Q/O arithmetic or activity input hashes.
+Only the exact latest owned qualified Scroll revision under the personal root is considered:
+accepted summary-v1 seen block IDs (the existing500ms active-visible intersection/peak0.5 policy),
+qualification-policy lineage, immutable Content facts v2 and the reviewed current exact mapping.
+Each binding requires ALL mapped static top-level paragraph/quote/callout IDs in the persisted seen
+set. Partial qualified reading cannot credit unseen facets. Heading, disclosure descendants,
+interactive states, arbitrary topic tags/prefixes, social/supply and unviewed assets confer none.
+Reel certificates explicitly remain unsupported; aggregate media time cannot locate a facet.
+These are observed coverage facts, never learning, understanding, belief or identity claims.
+
+Certificates bind universe/epoch/activation, exact asset/document/provenance/explanation/framing,
+Evidence ID/revision/watermark/policy/summary digest, facts v2 digest, current mapping head/digest and
+catalogue/meaning identities. Max16 bindings/80 seen IDs and16KiB serialized certificate; unsupported,
+missing, malformed or unapproved content remains unavailable. Content's shipped semantic approval
+list remains empty. No source/map is admitted by this consumer.
+
+The required PC effect applies both projections in the existing activity transaction. Even if the
+activity hash is unchanged, independent coverage currency is compared: map-only correction is
+reconciled by the existing explicit<=100 exposure page and same ordinary queue. Current real
+activity ID is reused, no extra activity revision is fabricated, and unchanged combined state
+advances no revision/hint. Failed coverage work rolls back the combined transaction. Positive apply
+holds Content current-head SHARE authority and rechecks latest Evidence after lock waits. No new
+queue, Content-personal fanout, network/provider wait or swipe-time history reconstruction exists.
+Evidence's `CheckCoverageEvidence` capability batch-checks<=1000 exact current certificates using
+indexed latest-row probes; other owners never read Evidence tables directly. PC's live trusted
+proof read additionally revalidates/locks Content authority until caller commit. Stored reference
+counts alone never authorize geography after a correction/retraction/withdrawal.

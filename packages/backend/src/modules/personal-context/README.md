@@ -113,3 +113,49 @@ consumer; neither provisional references nor qualified structural/facet support 
 The adapter performs no writes, advances no revision and adds no stores/erasure entries. Both shipped
 API and worker instantiate it. Navigation requires its explicit token; legacy Evidence readers are
 available only through an opt-in compatibility-fixture provider, with no production fallback.
+
+## Separate trusted observed-coverage proofs (#237,0023)
+
+The legacy global `coveredFacets` array remains EMPTY and its snapshot's coverageAvailability stays
+unavailable; Composer's inputs, provisional routing and all interest/format arithmetic are unchanged.
+The new backend-only `ReadTrustedCoverage` capability serves exact topic/facet/explanation-unit
+probes separately. It returns current observed factual witnesses, not a formation decision or a
+knowledge claim. Any future trusted snapshot/Cartographer must use this capability under the SAME
+personal scope through apply, never the legacy unit counters or raw retained support counts.
+
+Evidence supplies a bounded versioned independent certificate. The combined required effect writes
+PC-owned current coverage contribution, per-exposure topic-bound witness references and support
+reference counts by topic/facet/meaning/canonical unit/factual framing digest. No facet is crossed
+into another attributed topic. Repeated encounters/variants retain separate witnesses but one unit
+key; one unit's different exposures can prove different facets. Only affected old/new<=16 keys are
+replaced. Unqualification, map correction A→B→A, retraction or withdrawal removes unsupported keys;
+last reference removes support. Existing PC state advances once if either projection changes.
+Coverage-only correction references the actual current Evidence activity ID and appends no activity
+audit; replay of unchanged combined input changes neither revision nor hint.
+
+`ReadTrustedCoverage(scope,{probes})` accepts1–100 unique exact triples, <=64KiB query. One indexed
+bounded probe query retains<=1000 reference rows and refuses on its overflow sentinel. It validates
+stored hashes/epoch, batch-checks exact latest Evidence, rechecks current Content maps and locks
+<=100 canonical asset/head authorities, then repeats Evidence checks AFTER lock waits. All locks
+survive caller commit. Corrected/retracted/withdrawn authority excludes old certificates even before
+another reading or reconciliation job. Output<=128KiB; overflow returns typed unavailable/limit and
+`completeness:not_asserted`, never a truncated completeness claim. No current observed witness returns unavailable/not_observed; this is not proof that all
+historical reading was projected. Each canonical topic/facet/meaning/unit/truth `supports` key appears once in deterministic order and
+references at least one current revalidated witness exposure. Separate exposure-level witnesses
+remain audit provenance; their row count never measures variety, and future formation must still
+distinct canonical units across multiple facet keys. Last current reference removes the support.
+Returned exact certificate IDs/digests and witnesses
+make unit/facet support inspectable without raw observations or provenance text.
+
+Migration0023 adds `coverage_contributions` (current certificate<=16KiB plus real activity FK),
+`coverage_references` (<=16 exact binding witnesses/exposure, indexed by requested topic/facet/unit),
+and `coverage_supports` (unit-bound reference counts). Counts are incremental projection state,
+not current authority until the live read revalidates. Retention is personal; erasure deletes
+references/supports/certificates across all epochs BEFORE legacy PC, Evidence and exposure roots.
+No extra queue, scheduler, cache, provider payload or outbox exists. Admission never acquires a
+personal root; this consumer acquires personal first, then Content canonical SHARE authority.
+
+Rollout requires ordered0001–0023, reviewed API/worker composition, separately admitted exact real
+semantic maps and explicit bounded existing reconciliation. Empty Content approvals remain empty.
+CI fixtures use synthetic semantic approvals only; no live map, observed dev coverage, provider,
+geography, planet, native/browser journey or deployment acceptance is established by source/CI.

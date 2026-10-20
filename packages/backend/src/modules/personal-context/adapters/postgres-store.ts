@@ -51,9 +51,7 @@ export const applyProjectedEncounter: ApplyProjectedEncounter = async (scope, in
   await sql`insert into personal_context.contributions(universe_id,privacy_epoch,exposure_id,explanation_unit_id,qualified,input_sha256,payload_version,payload) values(${u}::uuid,${e},${next.exposureId}::uuid,${next.explanationUnitId},${next.qualified},${digest},${next.version},${JSON.stringify(next)}::jsonb) on conflict(universe_id,exposure_id) do update set privacy_epoch=excluded.privacy_epoch,explanation_unit_id=excluded.explanation_unit_id,qualified=excluded.qualified,input_sha256=excluded.input_sha256,payload_version=excluded.payload_version,payload=excluded.payload,projected_at=now()`.execute(
     db,
   );
-  await sql`insert into personal_context.state(universe_id,privacy_epoch,revision,projected_scope_revision,policy_version) values(${u}::uuid,${e},1,${scope.revisionAtEntry + 1},${CONTEXT_POLICY}) on conflict(universe_id,privacy_epoch) do update set revision=personal_context.state.revision+1,projected_scope_revision=excluded.projected_scope_revision,policy_version=excluded.policy_version`.execute(
-    db,
-  );
+  await advanceContextState(scope);
   return true;
 };
 export const readContextRevision: ContextPorts['readRevision'] = async (scope) => {
@@ -114,3 +112,10 @@ export const readStructure: ContextPorts['readStructure'] = async (scope, q) => 
     supportingEvidence: proofs,
   };
 };
+
+/** One PC revision for a changed combined projection; the producer owns the scope hint. */
+export async function advanceContextState(scope: Parameters<ApplyProjectedEncounter>[0]) {
+  await sql`insert into personal_context.state(universe_id,privacy_epoch,revision,projected_scope_revision,policy_version) values(${scope.authority.universeId}::uuid,${scope.authority.privacyEpoch},1,${scope.revisionAtEntry + 1},${CONTEXT_POLICY}) on conflict(universe_id,privacy_epoch) do update set revision=personal_context.state.revision+1,projected_scope_revision=excluded.projected_scope_revision,policy_version=excluded.policy_version`.execute(
+    transactionOf(scope),
+  );
+}
