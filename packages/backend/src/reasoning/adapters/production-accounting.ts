@@ -27,22 +27,25 @@ export const readProductionRunAccounting: ReadProductionRunAccounting = async (s
     .executeTakeFirst();
   if (run === undefined) return { kind: 'not_found' };
   const rows = await tx
-    .selectFrom('reasoning.production_attempts')
+    .selectFrom('reasoning.production_attempts as attempt')
+    // The retained receipt also owns usage reported after a write-off. The attempt remains
+    // immutable in that case, so reading its token columns would under-report current usage.
+    .leftJoin('reasoning.usage_receipts as receipt', 'receipt.attempt_id', 'attempt.id')
     .select([
-      'id',
-      'step',
-      'state',
-      'provider',
-      'model',
-      'input_tokens',
-      'output_tokens',
-      'reasoning_tokens',
-      'cached_tokens',
+      'attempt.id',
+      'attempt.step',
+      'attempt.state',
+      'attempt.provider',
+      'attempt.model',
+      'receipt.input_tokens',
+      'receipt.output_tokens',
+      'receipt.reasoning_tokens',
+      'receipt.cached_tokens',
     ])
-    .where('scope_id', '=', scope.authority.scopeId)
-    .where('run_id', '=', runId)
-    .orderBy('reserved_at')
-    .orderBy('id')
+    .where('attempt.scope_id', '=', scope.authority.scopeId)
+    .where('attempt.run_id', '=', runId)
+    .orderBy('attempt.reserved_at')
+    .orderBy('attempt.id')
     .limit(33)
     .execute();
   if (rows.length > 32) return { kind: 'refused', reason: 'accounting_limit' };

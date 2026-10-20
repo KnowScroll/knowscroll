@@ -336,6 +336,19 @@ describe('nonpersonal production execution and shared failure brake', () => {
       cachedTokens: null,
       reasoningTokens: null,
     });
+    expect(await scope()(authority, (tx) => p.harness.readProductionRunAccounting(tx, r.id))).toMatchObject({
+      kind: 'entered',
+      value: {
+        kind: 'accounted',
+        attempts: [
+          {
+            attemptId,
+            state: 'written_off',
+            usage: { inputTokens: 7, outputTokens: 3, cachedTokens: null, reasoningTokens: null },
+          },
+        ],
+      },
+    });
     expect(await slots('fixture.production-crash')).toBe(1);
     await operator.purgeExpired();
     expect(
