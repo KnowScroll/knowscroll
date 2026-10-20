@@ -1,0 +1,151 @@
+import { useRouter } from 'expo-router';
+import { useAccountInitial } from '../../providers/account-scope';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+  AccountButton,
+  ActionStrip,
+  Banner,
+  Button,
+  FormatSwitch,
+  IconButton,
+  Text,
+  type FormatAvailability,
+} from '@knowscroll/ui';
+import { content, layout, spacing } from '@knowscroll/design-tokens';
+import type { EncounterState, EncounterSession } from './encounter-session';
+import { ContinuationControls } from './continuation-controls';
+
+export function EncounterChrome({
+  state,
+  session,
+  back,
+}: {
+  readonly state: EncounterState;
+  readonly session: EncounterSession;
+  readonly back: () => void;
+}) {
+  const router = useRouter();
+  const initial = useAccountInitial();
+  const entry = state.entry;
+  if (!entry) return null;
+  const availability: Record<'reel' | 'scroll', FormatAvailability> = { reel: 'unavailable', scroll: 'unavailable' };
+  for (const variant of entry.context.variants)
+    availability[variant.kind] = variant.status === 'ready' ? 'ready' : 'unavailable';
+  const pending = entry.context.variants.find((variant) => variant.status === 'pending');
+  return (
+    <View style={styles.top}>
+      <IconButton icon="back" label="Back" onPress={back} />
+      <View style={styles.center}>
+        <FormatSwitch
+          selected={entry.kind}
+          availability={availability}
+          onSelect={(to) => {
+            if (entry.context.variants.some((variant) => variant.kind === to && variant.status === 'ready'))
+              session.navigate({ mode: 'variant', to });
+          }}
+        />
+        {entry.context.series ? <Text variant="meta">Part {entry.context.series.part}</Text> : null}
+        {pending ? (
+          <Text variant="meta">Your {pending.kind === 'reel' ? 'Reel' : 'Scroll'} request is still preparing.</Text>
+        ) : null}
+      </View>
+      <AccountButton initial={initial} surface="light" href="/account" onPress={() => router.navigate('/account')} />
+      <IconButton icon="more" label="More options" onPress={() => session.setOverlay(true)} />
+    </View>
+  );
+}
+
+export function EncounterActions({
+  state,
+  session,
+}: {
+  readonly state: EncounterState;
+  readonly session: EncounterSession;
+}) {
+  const entry = state.entry;
+  if (!entry) return null;
+  return (
+    <View>
+      <ActionStrip
+        available={['like', 'save']}
+        liked={entry.context.actions.liked}
+        saved={entry.context.actions.saved}
+        saving={state.actionPending}
+        onAction={(action) => {
+          if (state.actionPending || state.actionFailed) return;
+          if (action === 'save') session.act(entry.context.actions.saved ? 'unsave' : 'save');
+          if (action === 'like') session.act(entry.context.actions.liked ? 'unlike' : 'like');
+        }}
+      />
+      {state.actionFailed ? (
+        <View style={styles.message}>
+          <Text variant="bodyS">That change wasn't confirmed. Your previous state is shown.</Text>
+          <Button label="Retry change" size="sm" onPress={() => session.retryAction()} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** The menu is a local overlay, never an encounter/history member. Back and Esc close it first. */
+export function EncounterMenu({
+  state,
+  session,
+}: {
+  readonly state: EncounterState;
+  readonly session: EncounterSession;
+}) {
+  if (!state.overlay || !state.entry) return null;
+  return (
+    <View style={styles.overlay} accessibilityViewIsModal>
+      <ScrollView contentContainerStyle={styles.menu}>
+        <View style={styles.top}>
+          <Text variant="title" heading={2}>
+            Your path
+          </Text>
+          <IconButton icon="close" label="Close" onPress={() => session.setOverlay(false)} />
+        </View>
+        <Text variant="meta">Visited · only your own path</Text>
+        {state.trail.map((entry) => (
+          <Button
+            key={entry.exposureId}
+            label={`${entry.kind === 'reel' ? 'Reel' : 'Scroll'} · ${entry.offer.metadata.title}`}
+            variant="ghost"
+            disabled={entry.exposureId === state.entry?.exposureId}
+            onPress={() => session.restore(entry.exposureId)}
+          />
+        ))}
+        <ContinuationControls entry={state.entry} session={session} />
+        <Button
+          label="Hide this encounter"
+          variant="ghost"
+          disabled={state.actionPending || state.actionFailed}
+          onPress={() => {
+            session.setOverlay(false);
+            session.act('hide');
+          }}
+        />
+        <Banner
+          kind="info"
+          lead="Share and Ask aren't available yet."
+          message="There is no request to prepare another format from here yet."
+        />
+      </ScrollView>
+    </View>
+  );
+}
+const styles = StyleSheet.create({
+  top: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing[2],
+    paddingHorizontal: layout.gutter,
+    paddingVertical: spacing[2],
+    backgroundColor: content.paper,
+  },
+  center: { flex: 1, gap: spacing[1], alignItems: 'center' },
+  message: { gap: spacing[2], padding: spacing[3] },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: content.paper, zIndex: 10 },
+  menu: { paddingTop: spacing[9], paddingHorizontal: layout.gutter, paddingBottom: spacing[24], gap: spacing[3] },
+});

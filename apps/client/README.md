@@ -9,10 +9,10 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 | Route | File | Shows | Page title (web) |
 |---|---|---|---|
 | `/` | `app/index.tsx` | Redirects to `/explore` | — |
-| `/explore` | `app/(tabs)/explore.tsx` | A03 first arrival: the "How to move around" hint (for once a Reel plays) and an honest "Nothing is ready to play yet" (no starter content exists before the thin journey) | Explore |
+| `/explore` | `app/(tabs)/explore.tsx` | Signed in: actual discover → offer activation → Scroll/Reel, current context, actions, real continuations and a private retained path. Signed out: first-arrival hint and the existing email sign-in route. | Explore |
 | `/universe` | `app/(tabs)/universe.tsx` | U01 empty universe | Universe |
 | `/conversations` | `app/(tabs)/conversations.tsx` | C01 empty Talk ("Talk" is the label) | Talk |
-| `/saved` | `app/(tabs)/saved.tsx` | S01 empty Keep ("Keep" is the label) | Keep |
+| `/saved` | `app/(tabs)/saved.tsx` | S01/S02 Keep: scoped bounded saved list, real metadata/status, filters, remove/retry and explicit immutable original/updated-version revisit choices. | Keep |
 | `/account` | `app/(tabs)/account/` | The account stack, reached from the avatar on every tab (D-006 c): signed in, the address with "Sign out" and "Sign out on every device"; signed out, "Sign in"; API unreachable, "Try again". Back names where it goes ("Back to Keep") | Account |
 | `/welcome` | `app/(auth)/welcome.tsx` | A01 sign in: "Continue with email", "I have a sign-in link" (S1.3 #226) | Welcome |
 | `/signin` | `app/(auth)/signin/index.tsx` | The email form (labelled field; invalid · sending · too many links · can't reach) | Sign in |
@@ -108,3 +108,51 @@ new encounter. Browser cookies authenticate video GETs; native source headers co
 The interim direct Scroll session accepts only direct-open exposure lineage. A Composer
 ready/pending/exhausted response produces the existing controlled error state; the new Explore
 consumer will own those outcomes (#234). This compatibility guard adds no navigation UI.
+
+
+## Encounter navigation (#234)
+
+`features/encounter/encounter-session.ts` owns typed discover/revisit, semantic navigation,
+offer activation and current authorized exposure context. Each intent keeps its command IDs
+through unknown-outcome retries. Stale intent refreshes current context and requires a fresh
+choice; ready offers activate only while Explore is foreground. The session belongs to the
+AccountScope, survives tab/component detours and ends when the scope ends.
+
+`encounter-history.ts` retains at most 20 entries in memory, including the same recorder and
+monotonic timebase. Park synchronously captures the actual article block/offset or SDK playhead,
+then pauses and suspends. Local Back restores a retained entry, paused, with no open/navigation/
+activation command. The latest server intent is independent of a parked entry. Eviction and
+scope end terminate retained handles. Only exact asset/revision private resume records go to
+scoped storage; grants, URLs, tokens and the navigation tree never do. A returning surface
+remounts for fresh visibility/layout/playback; parent layout setup re-arms its retained recorder
+before child passive activity setup, including StrictMode.
+
+`activated-scroll-view.tsx` and `activated-reel-view.tsx` are shared by the direct routes and
+Explore. Supplied activated exposures never direct-open or activate again. Live media grants
+are retained only in memory, fenced and cleared with their entry; expiry renews authorization
+for the same exposure. Local restoration itself contributes no new H/R bonus.
+
+Only admitted ready variants/continuations become navigation controls. A Part is a declared
+series position; Related uses a dashed treatment. The local trail says Visited. Real pending
+work stays distinct from exhaustion; neither fabricates a future Part or changes format by
+itself. Share, Ask, snippets and missing-variant requests remain unavailable until their own
+issues; the complete J1 storyboard therefore remains incomplete.
+
+Navigation gestures have a dedicated surface, so article/slider/chart/code pointers stay with
+the child. Axis ownership locks until release; native starts inside the 24 px system-Back edge
+stay with the platform. Vertical Scroll gestures never navigate, including end momentum. Every
+move has a named button; normal keyboard activation works without claiming article reading keys.
+Android Back, browser Back and the toolbar use the same local path, overlay first. Browser state
+holds one transient same-address sentinel rather than an encounter navigation tree.
+
+Saved uses `GET /v1/saved?limit=100`; a full bounded list is explicitly labelled, not described as
+complete pagination. Metadata is allowlisted server output. Withdrawn items stay removable;
+corrected items keep their saved revision and offer a separate updated-version choice. Remove
+retains its unsave ID on unknown failure and rolls the optimistic list change back. Revisit
+opens the exact chosen revision then activates, restoring only a matching private local position.
+
+CI fixtures cover typed command retry/fencing, retained history, recorder identity/timebase,
+park/capture ordering, action rollback, Saved correction/withdrawal and platform Back/gesture
+arbitration. The production-export browser fixture lane exercises actual Explore → navigation →
+browser Back and withdrawn Saved removal. These are CI fixture evidence; real dev J1/J5 and
+native encounter gestures still require the coordinator's connected runtime acceptance.

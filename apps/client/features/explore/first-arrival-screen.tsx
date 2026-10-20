@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, elevation, radius, space, spacing } from '@knowscroll/design-tokens';
 import { Button, Icon, Text, useDisplay, type IconName } from '@knowscroll/ui';
@@ -26,6 +27,7 @@ function HintLine({ icon, children }: { icon: IconName; children: string }) {
  * instead of floating at y≈470 over it as drawn.
  */
 export function FirstArrivalScreen() {
+  const router = useRouter();
   const [hintVisible, setHintVisible] = useState(true);
   const { breakpoint } = useDisplay();
   return (
@@ -54,9 +56,16 @@ export function FirstArrivalScreen() {
             Nothing is ready to play yet.
           </Text>
           <Text variant="body" color={space.label2}>
-            Reels and Scrolls play here. There are no questions to answer first.
+            Sign in to discover Reels and Scrolls. There are no questions to answer first.
           </Text>
         </View>
+        <Button
+          label="Sign in"
+          role="link"
+          href="/welcome"
+          variant="space"
+          onPress={() => router.navigate('/welcome')}
+        />
       </View>
     </ScreenFrame>
   );
