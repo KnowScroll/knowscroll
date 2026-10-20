@@ -74,6 +74,12 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
       .set({ opened_at: new Date(encounterTime.getTime() - 60000), activated_at: encounterTime })
       .where('id', '=', exposure.exposureId)
       .execute();
+    await database.db
+      .updateTable('experience.encounter_lineage')
+      .set({ activated_at: encounterTime })
+      .where('universe_id', '=', p.universeId)
+      .where('exposure_id', '=', exposure.exposureId)
+      .execute();
     await c.projectActivity(job(p, exposure.exposureId));
     const events = [event(exposure, coverage(blocks, 4000)), event(exposure, dwell([0, 68000]))];
     await c.ingestObservations(p.authority, { instrumentationVersion: 1, events });
@@ -92,7 +98,18 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     const pending = await snapshot(p);
     expect(pending.provisional).toMatchObject({ purpose: 'routing_only', hasMore: false });
     expect(pending.provisional.entries.map((e) => e.eventId).sort()).toEqual(r.events.map((e) => e.eventId).sort());
-    expect(pending.topics[0]).toMatchObject({ qualifiedExplanationUnits: 0, coveredFacets: 0 });
+    expect(pending.topics[0]).toMatchObject({
+      qualifiedExplanationUnits: 0,
+      coveredFacets: 0,
+      activity: 0,
+      statisticsAvailability: 'available',
+    });
+    expect(pending.topics[1]).toMatchObject({
+      topicId: topicB,
+      statisticsAvailability: 'not_observed',
+      activity: 0,
+      interest: 0,
+    });
     await qualify(p, r.exposure.exposureId);
     const s = await snapshot(p);
     expect(s).toMatchObject({
@@ -147,7 +164,11 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     await c.projectActivity(job(p, a.exposure.exposureId));
     await c.projectActivity(job(p, b.exposure.exposureId));
     const corrected = await snapshot(p);
-    expect(corrected.topics[0]).toMatchObject({ qualifiedExplanationUnits: 0, activity: 0 });
+    expect(corrected.topics[0]).toMatchObject({
+      qualifiedExplanationUnits: 0,
+      activity: 0,
+      statisticsAvailability: 'available',
+    });
     expect(corrected.topics[1]).toMatchObject({
       qualifiedExplanationUnits: 1,
       formats: [{ measured: 0 }, { measured: 2, qualified: 2 }],

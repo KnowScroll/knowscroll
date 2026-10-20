@@ -5,6 +5,8 @@ import type { Contribution, ContextQuery, CONTEXT_POLICY } from '../domain/conte
 
 export interface TopicStatistics {
   readonly topicId: string;
+  /** Actual Evidence-owned row presence, independent of whether its corrected values are zero. */
+  readonly statisticsAvailability: 'available' | 'not_observed';
   readonly activity: number;
   readonly interest: number;
   readonly channels: Readonly<Record<'q' | 'L' | 'B' | 'S' | 'H' | 'R', number>>;

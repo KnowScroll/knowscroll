@@ -25,6 +25,7 @@ export function makeReadExplorationSnapshot(p: ContextPorts): ReadExplorationSna
       coverageAvailability: 'unavailable',
       topics: q.topicIds.map((topicId) => ({
         topicId,
+        statisticsAvailability: 'not_observed' as const,
         activity: 0,
         interest: 0,
         channels: { q: 0, L: 0, B: 0, S: 0, H: 0, R: 0 },

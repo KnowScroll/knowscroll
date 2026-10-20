@@ -41,6 +41,7 @@ export function personalContextProviders() {
           readTopics: async (scope, topicIds, evaluatedAt) =>
             (await readStatistics(scope, { topicIds, evaluatedAt })).map((t) => ({
               ...t,
+              statisticsAvailability: 'available' as const,
               interest: interest(t.activity),
               formats: t.formats.map((f) => ({ ...f, fit: formatFit(f.qualified, f.measured) })),
             })),

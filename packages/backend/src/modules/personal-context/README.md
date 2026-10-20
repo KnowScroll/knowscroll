@@ -51,6 +51,12 @@ times. Callers union these IDs with actual plan/inventory/candidate topics under
 bound; the statistics read evaluates every selected A/channel at one explicit time. Global top-K
 interest ranking is not implemented. No lifetime scan is performed to discover topics.
 
+Every topic entry includes `statisticsAvailability: available | not_observed`, determined by actual
+Evidence row presence. A retained corrected row with A=0/O=0 remains available; a requested topic
+with no row is not_observed. Default I=0/F=.5 is mathematical initial state, not evidence of dislike.
+Composer adapters must preserve their neutral missing-history policy using this marker rather than
+conflating absence with a measured zero.
+
 The IDs-only provisional tail is explicitly `routing_only`. It excludes observation sequences
 already covered by an evidence watermark. It is never merged into A/Q/O, qualification, unit counts,
 facet counts or supporting evidence. A missing item outside the bounded tail is not proof of absence.
@@ -82,6 +88,9 @@ lifetime reconstruction is allowed. Removing the PC consumer leaves its factual 
 never rewrite migrations0001–0019 or reconstruct erased interest from saved items.
 
 Verification: pure source fixtures and real PostgreSQL integration fixtures run in GitHub Actions
-only. Local schema generation/typecheck are not runtime acceptance. #235 remains open until the
+only. The exact A→B→A fixture pins both exposure and routing-lineage activation times, so its
+contributions have identical decay weights. Arbitrary distinct-time IEEE754 arithmetic may retain
+approximately1e-16 residue; this is not a claim of exact cancellation for every timestamp, and the
+Evidence arithmetic/policy remains unchanged. Local schema generation/typecheck are not runtime acceptance. #235 remains open until the
 coordinator integrates the deliberately reviewed Composer adapter, deploys and inspects the context
 after actual reading on a disposable dev account.
