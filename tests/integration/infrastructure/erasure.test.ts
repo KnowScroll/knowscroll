@@ -1,6 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { composeEncounter } from '@knowscroll/backend/modules/composer';
+import { makeComposerStore } from '@knowscroll/backend/modules/composer/nest-providers';
+import { fixtureComposerSnapshot } from '../support/composer.js';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import {
   checkErasureInventory,
@@ -173,6 +176,13 @@ describe('the erasure registry (real database)', () => {
       if (projected.kind !== 'applied') throw new Error('fixture projection skipped');
     };
     const seed = async (person: FixturePerson) => {
+      await withPersonalScope(person.authority, (scope) =>
+        makeComposerStore({ isOperator: () => true }).persistComposerDecision(
+          scope,
+          { decisionId: randomUUID(), commandId: randomUUID() },
+          composeEncounter(fixtureComposerSnapshot(person.authority)),
+        ),
+      );
       await seedReading(person);
       const saved = await useCases.applyAction(person.authority, {
         commandId: randomUUID(),

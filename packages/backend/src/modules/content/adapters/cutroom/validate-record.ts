@@ -28,8 +28,9 @@ export function validateEngineRecord(status: RunStatus, result: VideoResult, rec
         return false;
   }
   for (const take of used) {
-    if (take.keptFrom !== undefined || !accepted(take.checks) || !chosen.some((p) => p.shotId === take.shotId))
-      return false;
+    // Pinned Cutroom permits unpictured, text-to-video shots (D-027, S-150).
+    // `used` attests inclusion in the completed render; wire v1 exposes no take mode or picture join.
+    if (take.keptFrom !== undefined || !accepted(take.checks)) return false;
     for (const gate of ['2', '3', '4', '5'])
       if (!take.checks.some((check) => check.gate === gate && check.outcome !== 'fail')) return false;
   }
