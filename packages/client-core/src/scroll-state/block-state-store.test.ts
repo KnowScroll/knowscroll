@@ -116,6 +116,22 @@ describe('the scoped block-state store', () => {
     expect(createScopedBlockStateStore(next.storage).get(key(2))).toBeNull();
   });
 
+  it('fences late block-state writes after purge, including a queued callback', async () => {
+    const { scope, store } = scopeOver();
+    const states = createScopedBlockStateStore(scope.storage);
+    states.set(key(1), sim(60));
+    const late = Promise.resolve().then(() => {
+      states.set(key(2), sim(99));
+      states.clear(key(1));
+    });
+    scope.end();
+    states.set(key(3), sim(100));
+    await late;
+    expect(store.keys()).toEqual([]);
+    expect(states.get(key(1))).toBeNull();
+    expect(states.earlier(key(4))).toBeNull();
+  });
+
   it('keeps personal values on the device: it only ever reads and writes its own storage', () => {
     const { scope, store } = scopeOver();
     const states = createScopedBlockStateStore(scope.storage);
