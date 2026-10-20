@@ -21,7 +21,17 @@ import {
 } from '../../../packages/backend/src/modules/content/production/quote-candidates.js';
 import { writerDraftExampleJson } from '../../../packages/backend/src/modules/content/production/writer-example.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
-import { claimsRole } from '../../../packages/backend/src/modules/content/production/roles.js';
+import {
+  claimsRole,
+  generatedProvenance,
+  writerRole,
+} from '../../../packages/backend/src/modules/content/production/roles.js';
+import {
+  MAX_ISSUES,
+  validateOutput,
+  validSafeCustomIssues,
+} from '../../../packages/backend/src/reasoning/domain/output.js';
+import { buildPrompt } from '../../../packages/backend/src/reasoning/domain/prompt.js';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureModel, fixtureSettings, gate, signal, silent } from '../support/fixture-model.js';
@@ -72,6 +82,108 @@ function draft(interactive = false) {
   return value;
 }
 const answer = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });
+// Cross-module harness assertions belong in integration, outside content's public-only module boundary.
+describe('writer semantic feedback contract (authored CI fixture; no provider network)', () => {
+  const sourceWords = passage;
+  const fixtureDraft = () => draft();
+  const provenance = generatedProvenance({
+    topic: 'greenhouse',
+    runId: 'fixture-writer-run',
+    attemptIds: ['fixture-attempt'],
+    model: 'CI-fixture-only',
+    claims,
+    pages: [page],
+  });
+  it('declares a bounded static writer catalogue admitted by the shared role contract; claims stay opted out', () => {
+    const role = writerRole(provenance, false);
+    expect(role.safeCustomIssues).toBeDefined();
+    expect(validSafeCustomIssues(role.safeCustomIssues ?? {})).toBe(true);
+    expect(role.safeCustomIssues).toMatchObject(REPAIR_HINTS);
+    expect(Object.keys(role.safeCustomIssues ?? {}).length).toBe(Object.keys(REPAIR_HINTS).length + 3);
+    expect(Object.isFrozen(role.safeCustomIssues)).toBe(true);
+    expect(role.safeCustomIssues).not.toHaveProperty('admission_refused');
+    expect(claimsRole([page]).safeCustomIssues).toBeUndefined();
+    expect(claimsRole([page]).id).toBe('content.scroll-claims');
+    expect(claimsRole([page]).version).toBe('scroll-claims.v2');
+    expect(role.id).toBe('content.scroll-writer');
+    expect(role.version).toBe('scroll-writer.v4');
+  });
+
+  it.each([
+    ['copied_passage', sourceWords],
+    ['number_unbound', 'An unexplained count is 99 today.'],
+    ['reader_source_or_url', 'A publisher called NASA said this.'],
+  ])('carries an actual writer %s refusal through masked fixed feedback into repair context', (code, text) => {
+    const role = writerRole(provenance, false);
+    const bad = fixtureDraft();
+    const paragraph = bad.sections[0]?.blocks.find((block) => block.type === 'paragraph');
+    if (paragraph?.type !== 'paragraph') throw new Error('CI_PARAGRAPH_MISSING');
+    paragraph.data.spans = [{ text }];
+    const result = validateOutput(role.outputSchema, bad, role.safeCustomIssues);
+    expect(result.valid).toBe(false);
+    if (result.valid) return;
+    expect(result.reason).toBe('OUTPUT_SCHEMA_MISMATCH');
+    expect(result.issues).toContainEqual(expect.objectContaining({ code, detail: role.safeCustomIssues?.[code] }));
+    expect(result.issues.length).toBeLessThanOrEqual(MAX_ISSUES + 1);
+    const repair = buildPrompt({
+      roleId: role.id,
+      roleVersion: role.version,
+      instructions: role.instructions,
+      bundleRef: 'ci-fixture-semantic-feedback',
+      items: [],
+      feedback: result.issues,
+    });
+    expect(repair.system).toContain(`${code} (${role.safeCustomIssues?.[code]})`);
+    expect(repair.system).not.toContain(text);
+    expect(JSON.stringify(result.issues)).not.toContain(text);
+    expect(JSON.stringify(result.issues)).not.toContain(page.url);
+    if (code === 'copied_passage' || code === 'number_unbound')
+      expect(result.issues.some((issue) => issue.path.includes('?'))).toBe(true);
+    // The same actual writer schema still suppresses semantic metadata without the explicit catalogue.
+    const optedOut = validateOutput(role.outputSchema, bad);
+    expect(optedOut.valid).toBe(false);
+    if (!optedOut.valid)
+      expect(optedOut.issues.every((issue) => issue.code === 'custom' && issue.detail === undefined)).toBe(true);
+  });
+
+  it('offers fixed feedback for production support and interactive requirements without accepting invalid drafts', () => {
+    const missing = fixtureDraft();
+    missing.bindings = [];
+    for (const [role, value, code] of [
+      [writerRole(provenance, false), missing, 'reader_block_unbound'],
+      [writerRole(provenance, true), fixtureDraft(), 'interactive_required'],
+    ] as const) {
+      const verdict = validateOutput(role.outputSchema, value, role.safeCustomIssues);
+      expect(verdict.valid).toBe(false);
+      if (!verdict.valid)
+        expect(verdict.issues).toContainEqual(expect.objectContaining({ code, detail: role.safeCustomIssues?.[code] }));
+    }
+  });
+
+  it('keeps undeclared custom codes, reply-chosen paths and arbitrary messages out of writer feedback', () => {
+    const role = writerRole(provenance, false);
+    const privateText = 'WRITER-PRIVATE-UNDECLARED https://private.invalid/?Signature=fixture';
+    const schema = role.outputSchema.superRefine((_draft, ctx) => {
+      for (let index = 0; index < MAX_ISSUES + 2; index += 1)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['sections', 0, privateText],
+          message: privateText,
+          params: { safeCode: privateText },
+        });
+    });
+    const verdict = validateOutput(schema, fixtureDraft(), role.safeCustomIssues);
+    expect(verdict.valid).toBe(false);
+    if (verdict.valid) return;
+    expect(verdict.issues).toHaveLength(MAX_ISSUES + 1);
+    expect(verdict.issues.slice(0, MAX_ISSUES)).toEqual(
+      Array.from({ length: MAX_ISSUES }, () => ({ path: 'sections[0].?', code: 'custom' })),
+    );
+    expect(verdict.issues.at(-1)).toEqual({ path: '(root)', code: 'more', detail: '2 more' });
+    expect(JSON.stringify(verdict.issues)).not.toContain(privateText);
+  });
+});
+
 describe('Scroll production (CI fixture + real PostgreSQL; no provider network)', () => {
   let database: TestDatabase<Database>;
   beforeEach(async () => {
