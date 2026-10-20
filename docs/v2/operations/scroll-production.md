@@ -45,8 +45,14 @@ model-generated Scrolls, at least two interactive, still require actual publicat
 through the connected app. A fixture publication or green CI cannot establish this. Human quality
 notes must cover accuracy, clarity, interactivity, unsupported inference and analogy limitations.
 
-The current recipe is `scroll-production.v5`, with unchanged `scroll-claims.v2` and
-`scroll-writer.v4` stage versions; the writer version is recorded as publication `promptVersion`.
+The current source recipe is `scroll-production.v6`, with `scroll-claims.v3` and
+`scroll-writer.v5` stage versions; the writer version is recorded as publication `promptVersion`.
+Both roles opt into the reviewed M3 single native-object data carrier with documented auto-only
+tool choice, no execution or forced/schema-decoder guarantee. The writer requests original prose
+and corresponding repair anchors; every existing check and max-four request bound stays in force.
+This is source configuration, not runtime/provider acceptance or permission to call. New jobs keep
+stable role IDs and generation; all terminal v1–v5 jobs, attempts, receipts and failed-draft privacy
+remain unchanged. See [the production contract](../../../packages/backend/src/modules/content/production/README.md#native-object-carrier-and-original-prose-in-v6).
 Claims now select four to eight immutable offered evidence IDs. Code verifies source hashes,
 complete original 40–600-character quote spans, offsets and membership, then hydrates statement
 and quote to the same source text. `documented` labels a direct quotation, not proven truth or
