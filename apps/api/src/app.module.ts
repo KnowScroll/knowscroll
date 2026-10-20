@@ -21,6 +21,7 @@ import { selectCallers } from './http/callers.js';
 import { orpcModuleConfig } from './http/orpc.js';
 import { ProblemExceptionFilter } from './http/problems.js';
 import { contentWiring } from './modules/content.js';
+import { evidenceWiring } from './modules/evidence.js';
 import { experienceWiring } from './modules/experience.js';
 import { identityWiring } from './modules/identity.js';
 import { ScopeGateway } from './realtime/scope.gateway.js';
@@ -93,6 +94,7 @@ export class AppModule {
         }),
         ...contentWiring,
         ...experienceWiring,
+        ...evidenceWiring,
         ScopeGateway,
       ],
     };
