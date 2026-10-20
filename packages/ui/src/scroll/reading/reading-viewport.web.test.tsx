@@ -182,18 +182,47 @@ describe('private web resume geometry', () => {
     // Text above the block grows, then this block shrinks below the stored offset.
     blockTop = 500;
     height = 700;
+    // A browser adjustment can precede the ResizeObserver delivery.
+    scroller.scrollTop = 1200;
+    scroller.dispatchEvent(new Event('scroll'));
+    expect(changed).not.toHaveBeenCalled();
     FakeResizeObserver.instance.emit(element);
     expect(scrollTo).toHaveBeenLastCalledWith(1200);
     Object.defineProperty(scroller, 'scrollHeight', { value: 1700, configurable: true });
+    scroller.scrollTop = 880;
+    scroller.dispatchEvent(new Event('scroll'));
+    expect(changed).not.toHaveBeenCalled();
     FakeResizeObserver.instance.emit(scroller);
     expect(scrollTo).toHaveBeenLastCalledWith(880);
-    scroller.dispatchEvent(new Event('wheel'));
+    scroller.dispatchEvent(new Event('scroll'));
+    expect(changed).not.toHaveBeenCalled();
+    // Accessibility/browser scrolls can arrive without wheel, key or pointer input.
     scroller.scrollTop = 600;
     scroller.dispatchEvent(new Event('scroll'));
     expect(changed).toHaveBeenCalledTimes(1);
+    expect(viewport.capturePosition()).toEqual({ blockId: 'chart-1', offsetWithinBlock: 100 });
     const calls = scrollTo.mock.calls.length;
+    blockTop = 550;
+    height = 1000;
     FakeResizeObserver.instance.emit(element);
     expect(scrollTo).toHaveBeenCalledTimes(calls);
+    expect(scroller.scrollTop).toBe(600);
+    // A subsequent chrome/inset render must not reclaim ownership either.
+    act(() =>
+      root.render(
+        <Probe
+          bottom={40}
+          onProps={(next) => {
+            props = next;
+          }}
+          onViewport={(next) => {
+            viewport = next;
+          }}
+        />,
+      ),
+    );
+    expect(scrollTo).toHaveBeenCalledTimes(calls);
+    expect(scroller.scrollTop).toBe(600);
     viewport.disposePosition();
     scroller.dispatchEvent(new Event('scroll'));
     expect(changed).toHaveBeenCalledTimes(1);

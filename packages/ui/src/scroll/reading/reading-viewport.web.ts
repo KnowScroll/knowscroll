@@ -42,6 +42,7 @@ class WebReadingViewport implements ReadingViewport {
   private resizer: ResizeObserver | null = null;
   private binding: PositionBinding | null = null;
   private restoring = true;
+  private commandedOffset: number | null = null;
   private roots = new Map<EventTarget, () => void>();
 
   bindPosition(binding: PositionBinding): void {
@@ -81,12 +82,30 @@ class WebReadingViewport implements ReadingViewport {
     const geometry = this.geometry();
     const box = geometry.boxes.get(initial.blockId);
     if (box === undefined || box.height <= 0) return;
-    this.binding?.scrollTo(restoreBlockPosition(box, initial.offsetWithinBlock, this.insets.top, geometry.maximum));
+    const offset = restoreBlockPosition(box, initial.offsetWithinBlock, this.insets.top, geometry.maximum);
+    // Set before calling scrollTo: a platform may deliver its completion synchronously.
+    this.commandedOffset = offset;
+    this.binding?.scrollTo(offset);
   }
   private listen(root: Element | null): void {
     const source = root ?? window;
     if (this.roots.has(source)) return;
     const changed = () => {
+      if (this.restoring && this.commandedOffset !== null) {
+        const geometry = this.geometry();
+        const initial = this.binding?.initial;
+        const box = initial === null || initial === undefined ? undefined : geometry.boxes.get(initial.blockId);
+        // Bounds can shrink before ResizeObserver runs; browser scroll anchoring can also
+        // move the block and offset together. Neither is reader takeover.
+        const expected = Math.min(this.commandedOffset, geometry.maximum);
+        const anchored =
+          box === undefined || initial === null || initial === undefined
+            ? expected
+            : restoreBlockPosition(box, initial.offsetWithinBlock, this.insets.top, geometry.maximum);
+        if (Math.abs(geometry.scrollTop - expected) > 1 && Math.abs(geometry.scrollTop - anchored) > 1) {
+          this.restoring = false;
+        }
+      }
       if (!this.restoring || this.binding?.initial === null) this.binding?.changed();
     };
     const interrupt = () => {

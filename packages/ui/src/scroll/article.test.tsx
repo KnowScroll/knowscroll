@@ -611,13 +611,12 @@ describe('exact local Scroll resume', () => {
     });
     expect(changed).not.toHaveBeenCalled();
     // Accessibility may scroll without emitting onScrollBeginDrag.
-
-    await fireEvent.scroll(reader, { nativeEvent: { contentOffset: { y: 800 }, layoutMeasurement: { height: 800 } } });
-    expect(positionRef.current?.capture()?.offsetWithinBlock).toBe(400);
+    await fireEvent.scroll(reader, { nativeEvent: { contentOffset: { y: 600 }, layoutMeasurement: { height: 800 } } });
+    expect(positionRef.current?.capture()?.offsetWithinBlock).toBe(200);
     expect(changed).toHaveBeenCalledTimes(1);
     await view.rerender(wrap(<ScrollArticle {...props} paused />));
     await fireEvent.scroll(screen.getByTestId('resume-reader'), {
-      nativeEvent: { contentOffset: { y: 900 }, layoutMeasurement: { height: 800 } },
+      nativeEvent: { contentOffset: { y: 650 }, layoutMeasurement: { height: 800 } },
     });
     expect(changed).toHaveBeenCalledTimes(1);
     await view.unmount();
