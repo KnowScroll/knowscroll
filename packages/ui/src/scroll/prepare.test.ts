@@ -59,7 +59,38 @@ function sourcesOf(directory: string, withFixtures = false): string[] {
 
 describe('the renderer on the device', () => {
   it("never calls the admission path (the full-grid proof is the server's)", () => {
-    const forbidden = /\b(admitDocument|admitBlock)\b|purpose:\s*'stored'|sweepGrid|validateDraft|compileDraft/;
+    const clientEntries = new Set([
+      'BLOCK_TYPES',
+      'BLOCK_VERSIONS',
+      'INTEGRITY_METHOD',
+      'SCROLL_DOCUMENT_SCHEMA_VERSION',
+      'SCROLL_LIMITS_VERSION',
+      'blockStateProblems',
+      'canonicalJson',
+      'computeIntegrity',
+      'computeMeasures',
+      'defaultBlockState',
+      'fallbackTextOf',
+      'findBlock',
+      'isGraphemeBoundary',
+      'isInteractiveBlock',
+      'negotiate',
+      'parseBlock',
+      'parseDocument',
+      'walkBlocks',
+    ]);
+    const model = readFileSync(join(__dirname, 'model.ts'), 'utf8');
+    const runtimeExports = [...model.matchAll(/export\s*\{([^}]+)\}\s*from/g)].flatMap((match) =>
+      (match[1] ?? '')
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean),
+    );
+    expect(runtimeExports.length).toBeGreaterThan(0);
+    expect(runtimeExports.filter((name) => !clientEntries.has(name))).toEqual([]);
+    expect(model).not.toMatch(/export\s*\*/);
+    const forbidden =
+      /\b(admitDocument|admitBlock|validateDocument|validateBlock|sweepGrid|validateDraft|compileDraft)\b|purpose:\s*'stored'/;
     const offenders = sourcesOf(__dirname).filter((path) => forbidden.test(readFileSync(path, 'utf8')));
     expect(offenders).toEqual([]);
   });

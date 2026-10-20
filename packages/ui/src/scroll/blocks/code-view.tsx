@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { setStringAsync as SetString } from 'expo-clipboard';
 import {
+  AccessibilityInfo,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -65,7 +67,6 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
   const title = block.data.title === undefined ? language : `${language} · ${block.data.title}`;
 
   const copy = async () => {
-    context.report(block.id, 'copy');
     let next: 'copied' | 'failed' = 'copied';
     try {
       // Loaded when it is needed: no native clipboard module is touched until a reader copies.
@@ -75,7 +76,13 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
     } catch {
       next = 'failed';
     }
+    // A deliberate copy is evidence only once the clipboard accepted it.
+    if (next === 'copied') context.report(block.id, 'code', 'copied');
     setOutcome(next);
+    // VoiceOver ignores the polite live region below; Android and the web read it.
+    if (Platform.OS === 'ios') {
+      AccessibilityInfo.announceForAccessibility(next === 'copied' ? 'Code copied' : 'Could not copy the code');
+    }
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => setOutcome('idle'), COPIED_MS);
   };
@@ -86,6 +93,18 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     setMetrics({ offset: contentOffset.x, content: contentSize.width, view: layoutMeasurement.width });
+  };
+  // One `scrolled-horizontally` per horizontal drag that moved the code, never one per scroll event.
+  const dragStart = useRef<number | null>(null);
+  const onDragBegin = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    dragStart.current = event.nativeEvent.contentOffset.x;
+  };
+  const onDragEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const from = dragStart.current;
+    dragStart.current = null;
+    if (from !== null && Math.abs(event.nativeEvent.contentOffset.x - from) >= 1) {
+      context.report(block.id, 'code', 'scrolled-horizontally');
+    }
   };
 
   return (
@@ -107,6 +126,8 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
         </View>
         <ScrollView
           horizontal
+          // A named region: ARIA does not let a role-less element carry a name.
+          role="region"
           accessibilityLabel="Code example, scrolls horizontally"
           showsHorizontalScrollIndicator
           // Keyboard focus on the web, so the arrow keys can scroll the code; the ring is the design's
@@ -117,12 +138,14 @@ export function CodeView({ block }: { readonly block: BlockOfType<'code'> }) {
           contentContainerStyle={styles.code}
           scrollEventThrottle={32}
           onScroll={onScroll}
+          onScrollBeginDrag={onDragBegin}
+          onScrollEndDrag={onDragEnd}
           onLayout={(event: LayoutChangeEvent) =>
             setMetrics((previous) => ({ ...previous, view: event.nativeEvent.layout.width }))
           }
           onContentSizeChange={(width) => setMetrics((previous) => ({ ...previous, content: width }))}
         >
-          <View {...blockAttributes(block.id)}>
+          <View {...blockAttributes(block.id)} style={styles.lines}>
             {lines.map((line, index) => (
               <View
                 key={index}
@@ -179,6 +202,8 @@ const styles = StyleSheet.create({
   },
   title: { flex: 1 },
   code: { paddingVertical: spacing['3.5'], minWidth: '100%' },
+  // The lines fill the frame, so a highlighted line is a full-width band however short its text.
+  lines: { flexGrow: 1 },
   line: { paddingHorizontal: spacing['3.5'] },
   highlighted: { backgroundColor: space.s2 },
   track: {

@@ -10,8 +10,9 @@ describe('visibleFractionOf', () => {
     expect(visibleFractionOf(1000, 100, 0, 800)).toBe(0);
   });
 
-  it('counts a block taller than the viewport by its own area', () => {
-    expect(visibleFractionOf(0, 1000, 0, 500)).toBe(0.5);
+  it('counts a tall block relative to the most the viewport can show', () => {
+    expect(visibleFractionOf(0, 2000, 0, 800)).toBe(1);
+    expect(visibleFractionOf(400, 2000, 0, 800)).toBe(0.5);
   });
 
   it('treats a block or viewport with no size as not visible', () => {
@@ -93,6 +94,15 @@ describe('the visibility tracker', () => {
 
     expect(events[1]?.visibleFraction).toBe(1);
     expect(events.map((event) => event.at)).toEqual([10, 20]);
+  });
+
+  it('replays the latest measurement, including changes below the reporting threshold', () => {
+    const { events, tracker } = recorder();
+    tracker.mounted('tall', 0);
+    tracker.measured('tall', visibleFractionOf(400, 2000, 0, 800));
+    tracker.measured('tall', 0.54);
+    tracker.replay();
+    expect(events.map((event) => event.visibleFraction)).toEqual([0, 0.5, 0.54]);
   });
 
   it('is silent without an observer', () => {

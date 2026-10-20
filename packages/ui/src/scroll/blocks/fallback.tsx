@@ -38,8 +38,8 @@ export interface FallbackViewProps {
  */
 export function FallbackView({ blockType, text, cause, onRetry, testID }: FallbackViewProps) {
   const noun = blockType === null ? 'This part' : (NOUNS[blockType] ?? 'This part');
-  const label =
-    cause === 'update' ? 'This part needs an app update · text version' : `${noun} couldn't load · text version`;
+  // One line at 390 px (the design's is "DIAGRAM COULDN'T LOAD · TEXT VERSION", 36 characters).
+  const label = cause === 'update' ? 'Needs an app update · text version' : `${noun} couldn't load · text version`;
   return (
     <View testID={testID} style={styles.frame}>
       <Text variant="label" color={content.ink2}>

@@ -11,7 +11,7 @@ import { useArticleActivity } from './use-activity';
 
 const anyNumber = expect.any(Number) as number;
 
-function Probe({ observer, paused }: { observer: ScrollReadingObserver; paused: boolean }) {
+function Probe({ observer, paused }: { observer?: ScrollReadingObserver; paused: boolean }) {
   useArticleActivity(observer, paused);
   return null;
 }
@@ -76,6 +76,17 @@ describe('the web article activity', () => {
     changeVisibility('visible');
 
     expect(watcher.onActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts a late observer and ends the old observer when replaced', () => {
+    const first = observerDouble();
+    const next = observerDouble();
+    act(() => root.render(<Probe paused={false} />));
+    act(() => root.render(<Probe observer={first} paused={false} />));
+    expect(first.onActivity).toHaveBeenLastCalledWith({ active: true, at: anyNumber });
+    act(() => root.render(<Probe observer={next} paused={false} />));
+    expect(first.onActivity).toHaveBeenLastCalledWith({ active: false, at: anyNumber });
+    expect(next.onActivity).toHaveBeenLastCalledWith({ active: true, at: anyNumber });
   });
 
   it('reports inactive when the article unmounts', () => {

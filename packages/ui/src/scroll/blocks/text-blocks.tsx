@@ -147,7 +147,7 @@ export function DisclosureView({ block }: { readonly block: BlockOfType<'disclos
   const expanded = handle.state?.type === 'disclosure' && handle.state.expanded;
   const toggle = () => {
     handle.setState({ type: 'disclosure', expanded: !expanded });
-    context.report(block.id, 'disclosure');
+    context.report(block.id, 'disclosure', expanded ? 'collapsed' : 'expanded');
   };
   return (
     <BlockFrame style={styles.disclosure}>

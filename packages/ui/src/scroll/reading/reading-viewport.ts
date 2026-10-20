@@ -39,8 +39,10 @@ class NativeReadingViewport implements ReadingViewport {
 
   /** The latest observer and insets (set after every render, read when events arrive). */
   configure(observer: ScrollReadingObserver | undefined, insets: ReadingInsets): void {
+    const replaced = this.observer !== observer;
     this.observer = observer;
     this.insets = insets;
+    if (replaced) this.tracker.replay();
   }
 
   private fractionOf(box: BlockBox): number {
