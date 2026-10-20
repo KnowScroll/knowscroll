@@ -219,3 +219,20 @@ real topic/facet attribution and metadata watermark/version, including retained 
 It returns no document, provenance or render authority. Missing metadata remains unknown. New
 offers and activations must separately use current `ReadExactEncounter` capability/admission checks;
 this historical read never authorises opening withdrawn content.
+
+## Current-head request binding (#239)
+
+`LOCK_CURRENT_ENCOUNTERS` is a separate public authority port; existing historical
+`ReadExactEncounter` and discovery/open semantics remain unchanged. Inside a caller's already
+locked personal scope it locks at most 101 exact references' asset rows SHARE in UUID order,
+then checks current head, admission and capabilities. Missing/withdrawn/corrected/unsupported
+references provide no encounter. Locks remain to commit, so Supply cannot bind a stale ready
+head while withdrawal passes it. Content admission never acquires a personal root.
+
+Migration `0024` adds Content-owned `availability_revision` and `availability_changed_at` to
+`assets`, with a trigger increment only for actual status/current-revision changes. The existing
+asset revision cannot distinguish withdrawal then re-admission of identical bytes. The positive
+integer counter fails closed on overflow; no-op/counter-only edits preserve both fields. The port
+returns these public availability facts so readonly Supply status can monotonically invalidate
+and restore its exact one-time binding. It writes no personal state/hint; global changes require
+fresh resource reads. No new rights class is inferred beyond the existing shared admitted model.

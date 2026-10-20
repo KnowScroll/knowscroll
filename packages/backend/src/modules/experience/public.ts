@@ -118,3 +118,17 @@ export const ENSURE_ACTIVITY_LINEAGE = Symbol('experience.ensureActivityLineage'
 export const READ_ACTIVITY_RECONCILE_PAGE = Symbol('experience.readActivityReconcilePage');
 
 export type { ApplyEncounterAction } from './application/encounter-action.js';
+
+/** Own activated exact source; optional session must own this exposure and name its latest intent.
+ * Reads under the caller personal root. Does not itself grant current Content eligibility.
+ */
+export type CheckRequestSource = (
+  scope: PersonalScopeTx,
+  source: {
+    readonly exposureId: string;
+    readonly assetId: string;
+    readonly assetRevision: number;
+    readonly session?: { readonly sessionId: string; readonly expectedIntentRevision: number };
+  },
+) => Promise<boolean>;
+export const CHECK_REQUEST_SOURCE = Symbol('experience.checkRequestSource');

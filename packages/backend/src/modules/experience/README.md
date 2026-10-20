@@ -103,3 +103,10 @@ is copied into the private Composer decision's context binding. The read changes
 revision. Tx2's authority/epoch/intent/admission/Hide/continuity rechecks remain unchanged. A missing
 PC provider fails DI; no Evidence preparation fallback exists in shipped navigation. No raw context,
 scores, structural support or provisional observations are added to the public navigation wire.
+
+`CHECK_REQUEST_SOURCE` (#239) is an owned, activated, exact-revision/epoch lineage read inside an
+already locked personal scope. An optional Composer session must contain that activated exposure
+and name the session's latest intent revision. Omission preserves direct-encounter use. It grants
+no Content eligibility or consumption evidence; Supply separately rechecks current Content after
+its SHARE wait. The deliberate submission's session fence does not make later ordinary navigation
+revoke an accepted request. Existing experience/navigation/open reads retain their semantics.

@@ -33,3 +33,8 @@ Tests: unit tests sit next to the code (`*.test.ts`, Vitest); real-PostgreSQL te
 Personal Planner (`modules/planner`, #236) owns backend-only coalesced role work and accepted future
 opportunities. Its execution gate defaults off; see its README for bounded prepared context,
 transactional triggers, explicit same-run resume, erasure and the separate paid-allowance requirement.
+
+Supply (`modules/supply`, #239) owns private requests, immutable receipts, current status and
+waiter cancellation plus an actual bounded IDs-only resolver. Canonical matching work contains
+only admitted public catalogue/lineage facts. No HTTP route or paid production bridge is installed;
+see its README for current Content fencing, erasure and remaining runtime acceptance.

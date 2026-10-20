@@ -320,6 +320,22 @@ describe('the erasure registry (real database)', () => {
         const plannerRunId = randomUUID(),
           tx = transactionOf(scope);
         await tx
+          .insertInto('supply.requests')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            id: randomUUID(),
+            command: { version: 'content-request.v1', fixture: 'Authored erasure-only private ask' },
+            state: 'unavailable',
+            request_revision: 1,
+            revision: 1,
+            decision: 'refuse',
+            reason: 'unsupported_request',
+            created_at: new Date(),
+            updated_at: new Date(),
+          })
+          .execute();
+        await tx
           .insertInto('planner.runs')
           .values({
             universe_id: person.universeId,
