@@ -531,6 +531,17 @@ export async function activateAfterSchemaCheck(
   return actions.start();
 }
 
+/** No old v2 eraser may run during forward DDL/backfills. A failed stop/disable prevents even
+ * the dump/migration invocation; recovery must independently establish the old schema again. */
+export function prepareV2Deployment<T>(actions: {
+  quiesce(): void; dump(): T; migrate(): void;
+}): T {
+  actions.quiesce();
+  const dump = actions.dump();
+  actions.migrate();
+  return dump;
+}
+
 /** A failed/unknown old-v2 activation must stop its units, not leave newer or incompatible code
  * running against a database whose schema cannot be established. No data restore is attempted. */
 export async function recoverFailedActivation(

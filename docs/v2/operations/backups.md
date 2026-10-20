@@ -122,6 +122,9 @@ As root on the server, with `w=dev` (or `stage`) and `d=/srv/knowscroll/backups/
 - Every v2 activation requires the complete applied migration registry and checksums to exactly
   match the validated target release's installed SQL. The newest migration or healthy commit/artifact
   alone cannot prove that old code knows all current privacy/erasure obligations.
+- Every v2 deploy stops/disables its v2 target/API/worker before the pre-deploy dump and migration,
+  including equal-schema deployments. Old erasers cannot run or auto-restart while new DDL/backfills
+  create personal stores. Stop failure prevents dump/DDL; legacy v1 remains untouched until activation.
 - Failed migration/activation/health recovery rechecks the previous code. If its v2 schema is now
   incompatible or unreadable, stop/disable unsafe v2 before restoring original links, report incomplete
   recovery and require a reviewed forward recovery. Never claim the old release is healthy or restart

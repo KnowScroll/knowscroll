@@ -281,7 +281,13 @@ For a v2 release:
    (`ordered_by = <world>`, state `claimed`), or if that cannot be read — v1's generation worker
    must settle it first. Because the check and the switch happen under the deploy lock, and every
    order-claiming `ks run` takes the same lock, no claim can slip in between.
-5. **Pre-migrate dump:** `pg_dump -Fc` of `knowscroll_v2_<world>` to
+5. **Quiesce v2 before any dump/migrate:** explicitly stop and disable this world's v2 target,
+   API and worker on every v2 deployment, even when no new migration is expected. Brief downtime
+   is intentional: running old erasers or an automatic restart during a new backfill is unsafe.
+   A quiesce failure prevents the dump and DDL invocation; recovery still requires the old schema
+   to be established. Legacy v1 units stay untouched until normal accepted v2 activation because
+   their database is separate.
+   **Pre-migrate dump:** `pg_dump -Fc` of `knowscroll_v2_<world>` to
    `/srv/knowscroll/backups/knowscroll_v2_<world>/pre-deploy-<UTC time>-<commit12>.dump` (0700/0600,
    root), checked with `pg_restore --list`; if it fails, nothing is migrated (m10).
 6. Runs `migrate` from `release.json` as `ks2-<world>` with the v2 settings and secret, with its own

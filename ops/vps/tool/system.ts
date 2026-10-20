@@ -61,6 +61,7 @@ import {
   type MigrationIdentity,
   parseEnvFile,
   predeployDumpName,
+  prepareV2Deployment,
   type ReleaseLink,
   releaseGeneration,
   recoverFailedActivation,
@@ -708,6 +709,14 @@ function stopUnits(units: { target: string; services: string[] }): void {
   if (enabled(units.target)) systemctl('disable', units.target);
 }
 
+/** #250: explicit stop suppresses Restart=on-failure; disable every v2 unit before any dump/DDL.
+ * Never touches legacy v1, whose database remains separate until normal accepted activation. */
+function quiesceV2(world: World): void {
+  const units = worldUnits(world, 'v2');
+  systemctl('stop', units.target, ...units.services);
+  systemctl('disable', units.target, ...units.services);
+}
+
 /** Runs one generation in a world: the other generation stops first (they share the port). A
  * systemctl failure counts as unhealthy, so a deploy still falls back to the previous release. */
 async function activate(
@@ -753,11 +762,7 @@ async function restoreRunning(world: World, before: Slot, restoreLinks: () => vo
     const restored = await recoverFailedActivation(next.generation, {
       activate: () => activate(next.generation,
         expectationOf(world, { commit: next.commit, generation: next.generation }), restoreLinks),
-      stopV2: () => {
-        const units = worldUnits(world, 'v2');
-        systemctl('stop', units.target, ...units.services);
-        if (enabled(units.target)) systemctl('disable', units.target);
-      },
+      stopV2: () => quiesceV2(world),
       restoreLinks,
     });
     if (!restored) say({ event: 'restore-incomplete', world,
@@ -850,13 +855,16 @@ export async function deploy(
     if (w !== 'live') runAsWorld(w, release, 'seed');
   } else {
     try {
-      dump = predeployDump(w, commit);
-      migrateV2(w, release, manifest as V2Manifest);
+      dump = prepareV2Deployment({
+        quiesce: () => quiesceV2(w),
+        dump: () => predeployDump(w, commit),
+        migrate: () => migrateV2(w, release, manifest as V2Manifest),
+      });
     } catch {
       // Even a failed migrate may have changed metadata/DDL. Only an actual schema read can
       // authorize restarting the old v2 release; never infer rollback from the command's exit.
       migrationFailed = true;
-      say({ event: 'v2-migration-failed', world: w, commit });
+      say({ event: 'v2-preparation-failed', world: w, commit });
     }
   }
 

@@ -10,6 +10,12 @@ refuses. Incompatible old v2 is stopped before old links return; recovery remain
 V1 uses its separate legacy database. No schema mutation, automatic data restore or cleanup bypass
 is part of this guard.
 
+Every v2 deployment first stops/disables its v2 target, API and worker before any dump/migration,
+even with an unchanged schema. Stop failure prevents DDL. This intentional brief downtime prevents
+old erasers and automatic restarts from running during new backfills. Legacy v1 stays untouched until
+normal accepted activation. The root Knip workspace declares only `psql` and `journalctl` as external
+host binaries; neither is an npm dependency, and no broad dependency/check exclusion is added.
+
 `integrity` exercises pure policy, the actual activation/recovery ordering seams and their wiring to
 host branches. Suites run only in Actions. Those fixtures do not prove host peer authentication,
 systemd recovery or an actual rollback. No test suite runs on the VPS.

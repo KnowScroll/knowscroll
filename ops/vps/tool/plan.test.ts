@@ -39,6 +39,7 @@ import {
   parseEnvFile,
   parseSha256List,
   predeployDumpName,
+  prepareV2Deployment,
   releaseGeneration,
   recoverFailedActivation,
   releasesInUse,
@@ -166,6 +167,51 @@ test('#250 v1 activation/recovery never reads the separate v2 database', async (
   assert.deepEqual(calls, ['links', 'v1-start']);
 });
 
+test('#250 v2 deployment quiesces before dump/DDL and guards before links/start', async () => {
+  const calls: string[] = [];
+  const dump = prepareV2Deployment({
+    quiesce: () => { calls.push('quiesce-v2'); },
+    dump: () => { calls.push('dump'); return 'fixture.dump'; },
+    migrate: () => { calls.push('migrate'); },
+  });
+  assert.equal(dump, 'fixture.dump');
+  assert.equal(await activateAfterSchemaCheck('v2', {
+    checkV2Schema: () => { calls.push('schema'); },
+    pointCurrent: () => { calls.push('links'); },
+    start: () => { calls.push('start'); return Promise.resolve(true); },
+  }), true);
+  assert.deepEqual(calls, ['quiesce-v2', 'dump', 'migrate', 'schema', 'links', 'start']);
+  const blocked: string[] = [];
+  assert.throws(() => prepareV2Deployment({
+    quiesce: () => { blocked.push('stop-failed'); throw new Error('fixture: stop failed'); },
+    dump: () => { blocked.push('dump'); },
+    migrate: () => { blocked.push('DDL'); },
+  }), /stop failed/);
+  assert.deepEqual(blocked, ['stop-failed'], 'stop/disable refusal prevents dump, DDL and activation');
+});
+
+test('#250 failed forward DDL keeps old v2 stopped until compatible recovery exists', async () => {
+  const calls: string[] = [];
+  assert.throws(() => prepareV2Deployment({
+    quiesce: () => { calls.push('quiesce-v2'); },
+    dump: () => { calls.push('dump'); },
+    migrate: () => { calls.push('DDL-failed'); throw new Error('fixture: DDL failed'); },
+  }), /DDL failed/);
+  assert.equal(await recoverFailedActivation('v2', {
+    activate: () => activateAfterSchemaCheck('v2', {
+      checkV2Schema: () => {
+        const match = v2SchemaCompatibility(SCHEMA.slice(0, 1), schemaSnapshot());
+        if (!match.ok) throw new Error(match.reason);
+      },
+      pointCurrent: () => { calls.push('unsafe-old-links'); },
+      start: () => { calls.push('unsafe-old-start'); return Promise.resolve(true); },
+    }),
+    stopV2: () => { calls.push('keep-v2-stopped'); },
+    restoreLinks: () => { calls.push('original-links-after-stop'); },
+  }), false);
+  assert.deepEqual(calls, ['quiesce-v2', 'dump', 'DDL-failed', 'keep-v2-stopped', 'original-links-after-stop']);
+});
+
 test('#250 the actual system branches use the tested gate and conservative recovery seam', () => {
   const source = readFileSync(new URL('./system.ts', import.meta.url), 'utf8');
   const activation = source.slice(source.indexOf('async function activate('), source.indexOf('async function restoreRunning('));
@@ -173,13 +219,19 @@ test('#250 the actual system branches use the tested gate and conservative recov
   assert.match(activation, /checkV2Schema: \(\) => requireMatchingV2Schema/);
   const recovery = source.slice(source.indexOf('async function restoreRunning('), source.indexOf('function cleanupAfterDeploy('));
   assert.match(recovery, /recoverFailedActivation\(next.generation,/);
-  assert.match(recovery, /systemctl\('stop', units.target, \.\.\.units.services\)/);
+  assert.match(recovery, /stopV2: \(\) => quiesceV2\(world\)/);
+  const quiesce = source.slice(source.indexOf('function quiesceV2('), source.indexOf('async function activate('));
+  assert.match(quiesce, /worldUnits\(world, 'v2'\)/);
+  assert.match(quiesce, /systemctl\('stop', units.target, \.\.\.units.services\)/);
+  assert.match(quiesce, /systemctl\('disable', units.target, \.\.\.units.services\)/);
+  assert.doesNotMatch(quiesce, /worldUnits\(world, 'v1'\)/);
   const manual = source.slice(source.indexOf('export async function rollback('), source.indexOf('/** #228: every'));
   assert.ok(manual.indexOf('requireMatchingV2Schema(w, back.commit)') >= 0);
   assert.ok(manual.indexOf('requireMatchingV2Schema(w, back.commit)') < manual.indexOf('await activate('));
   assert.match(manual, /await activate\(back.generation, expect,\s*\(\) => applyLinks/);
   const deployment = source.slice(source.indexOf('export async function deploy('), source.indexOf('export async function rollback('));
   assert.match(deployment, /migrationFailed = true/);
+  assert.match(deployment, /dump = prepareV2Deployment\(\{\s*quiesce: \(\) => quiesceV2\(w\),\s*dump: \(\) => predeployDump\(w, commit\),\s*migrate: \(\) => migrateV2/);
   assert.match(deployment, /!migrationFailed && await activate/);
   assert.match(deployment, /restoreRunning\(w, beforeSlot,\s*\(\) => applyLinks/);
   assert.match(deployment, /failed-recovery-incomplete/);

@@ -2,7 +2,8 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "project": ["*.{js,cjs}"]
+      "project": ["*.{js,cjs}"],
+      "ignoreBinaries": ["psql", "journalctl"]
     },
     "apps/api": {
       "entry": ["src/main.ts", "src/migrate.ts", "src/operator.ts"],
