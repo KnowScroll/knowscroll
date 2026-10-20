@@ -435,9 +435,10 @@ export function ReelPlayer({
           {Math.floor(position)} / {Math.round(durationMs / 1000)} s · Captions in video
         </Text>
         <View style={styles.buttons}>
-          <Button label="Back 10s" size="sm" variant="default" onPress={() => seek(-10)} />
+          <Button label="Back 10s" size="sm" variant="default" surface="dark" onPress={() => seek(-10)} />
           <Button
             size="sm"
+            surface="dark"
             label={status === 'error' ? 'Retry' : playing ? 'Pause' : 'Play'}
             onPress={() => {
               if (ended.current) return;
@@ -457,12 +458,13 @@ export function ReelPlayer({
               }
             }}
           />
-          <Button label="Forward 10s" size="sm" variant="default" onPress={() => seek(10)} />
+          <Button label="Forward 10s" size="sm" variant="default" surface="dark" onPress={() => seek(10)} />
           <Button
             label={muted ? 'Unmute' : 'Mute'}
             toggled={muted}
             size="sm"
             variant="default"
+            surface="dark"
             onPress={() => {
               if (ended.current) return;
               const next = !muteIntent.current;

@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import { createRef, useLayoutEffect } from 'react';
 import { act, fireEvent, screen, within } from '@testing-library/react-native';
 import { useVideoPlayer, type VideoPlayer, type VideoSource } from 'expo-video';
+import { focusRing } from '@knowscroll/design-tokens';
 import { expectPressed, renderOn } from '../test-support/render';
 import { DisplayProvider } from '../display/display';
 import { ReelPlayer, type ReelPlayerProps, type ReelPositionHandle } from './reel-player';
@@ -861,6 +862,13 @@ describe('explicit Reel sound controls', () => {
     const app = await renderOn(<ReelPlayer {...f.props} />, { width: 320, textScale: 2 });
     const sources = f.player.replaceAsync.mock.calls.length;
     const discontinuities = jest.mocked(f.props.onDiscontinuity).mock.calls.length;
+    for (const label of ['Back 10s', 'Play', 'Forward 10s', 'Mute']) {
+      const control = screen.getByRole(label === 'Mute' ? 'togglebutton' : 'button', { name: label });
+      await fireEvent(control, 'focus');
+      expect(control).toHaveStyle({ outlineColor: focusRing.onDark.color });
+      await fireEvent(control, 'blur');
+      expect(control).not.toHaveStyle({ outlineColor: focusRing.onDark.color });
+    }
     expectPressed(screen.getByRole('togglebutton', { name: 'Mute' }), false);
     await fireEvent.press(screen.getByRole('togglebutton', { name: 'Mute' }));
     expectPressed(screen.getByRole('togglebutton', { name: 'Unmute' }), true);
