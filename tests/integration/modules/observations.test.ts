@@ -130,8 +130,8 @@ describe('observation intake (real database)', () => {
     expect(result).toMatchObject({ accepted: 1, rejected: 2 });
     if (result.kind === 'ingested')
       expect(result.results.slice(1)).toEqual([
-        { eventId: expect.any(String), status: 'rejected', reason: 'interaction_kind_invalid' },
-        { eventId: expect.any(String), status: 'rejected', reason: 'interaction_kind_invalid' },
+        { eventId: expect.any(String) as unknown, status: 'rejected', reason: 'interaction_kind_invalid' },
+        { eventId: expect.any(String) as unknown, status: 'rejected', reason: 'interaction_kind_invalid' },
       ]);
   });
 

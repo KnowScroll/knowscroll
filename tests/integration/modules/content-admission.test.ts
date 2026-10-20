@@ -137,7 +137,7 @@ describe('content admission of the authored starter Scroll (real database)', () 
       .executeTakeFirstOrThrow();
     expect(stored.reading_facts).toMatchObject({
       v: 2,
-      blocks: expect.arrayContaining([{ id: 'violet-eye', weight: expect.any(Number), type: 'disclosure' }]),
+      blocks: expect.arrayContaining([{ id: 'violet-eye', weight: expect.any(Number) as unknown, type: 'disclosure' }]) as unknown,
     });
     expect(await useCases.importScroll(source)).toMatchObject({ kind: 'imported', outcome: 'unchanged', revision: 1 });
   });
