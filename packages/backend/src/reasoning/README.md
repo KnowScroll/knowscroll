@@ -312,3 +312,5 @@ project `role-evaluation` (`tests/integration/evaluation/`), labelled synthetic 
 (insufficient evidence, malicious retrieved text, duplicate delivery, rejected and good proposals,
 source correction, privacy reset) run through the real harness with the fixture model; it asserts
 harness behaviour, not content quality. CI never calls a provider.
+
+Primary attempts stopped before dispatch (for example unavailable quota) must recheck the role brake before a new primary reservation. Reusing reserved work or replaying a settled answer remains possible; the single admitted repair remains bounded by its run. This prevents staging unlimited quota-stopped runs and bypassing the brake after quota recovers.

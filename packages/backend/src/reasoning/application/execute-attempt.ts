@@ -329,8 +329,9 @@ export function makeExecuteAttempt<A, S>(ports: ExecutionPorts<A, S>) {
         if (locked === undefined) throw new Error('unreachable: a first attempt always has a step name');
         return { kind: 'exhausted_sequences', row: locked };
       }
-      // Existing attempts/repairs remain recoverable. Only a new primary run needs a brake slot.
-      if (plan.step === 'primary' && locked === undefined && !(await ledger.canStartRun(scope, plan.roleId)))
+      // Reusing reserved/settled work returned above. Every new primary reservation needs a slot,
+      // including a replacement whose earlier quota preflight stopped it before dispatch.
+      if (plan.step === 'primary' && !(await ledger.canStartRun(scope, plan.roleId)))
         return { kind: 'refused', reason: 'failure_brake' };
       const usage = await ledger.budgetUsage(scope, plan.roleId);
       const decision = decideReservation(plan.caps, usage, plan.reservedTokens);

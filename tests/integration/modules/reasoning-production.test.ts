@@ -423,6 +423,36 @@ describe('nonpersonal production execution and shared failure brake', () => {
     expect(await propose(production(model), run(), selected)).toEqual({ kind: 'refused', reason: 'failure_brake' });
   });
 
+  it('rechecks the failure brake before replacing quota-stopped primary attempts', async () => {
+    const selected = role('replacement-brake');
+    let quotaAvailable = false;
+    const model = fixtureModel(() => ({ kind: 'rate_limited' }), {
+      quota: () => ({
+        verdict: quotaAvailable ? 'not_applicable' : 'unavailable',
+        intervalRemainingPercent: null,
+        weeklyRemainingPercent: null,
+      }),
+    });
+    const runs = Array.from({ length: 6 }, () => run());
+    for (const pendingRun of runs)
+      expect(await propose(production(model), pendingRun, selected)).toMatchObject({ kind: 'quota_unavailable' });
+    expect(await slots(selected.id)).toBe(0);
+    expect(model.calls).toHaveLength(0);
+
+    quotaAvailable = true;
+    for (const pendingRun of runs.slice(0, 5))
+      expect(await propose(production(model), pendingRun, selected)).toMatchObject({ kind: 'failed' });
+    expect(await slots(selected.id)).toBe(5);
+    const blocked = runs[5];
+    const settled = runs[0];
+    if (blocked === undefined || settled === undefined) throw new Error('fixture run missing');
+    expect(await propose(production(model), blocked, selected)).toEqual({ kind: 'refused', reason: 'failure_brake' });
+    expect((await productionRows(blocked.id)).map((row) => row.state)).toEqual(['not_sent']);
+    // An already settled answer still replays without spending or requiring a new brake slot.
+    expect(await propose(production(model), settled, selected)).toMatchObject({ kind: 'failed' });
+    expect(model.calls).toHaveLength(5);
+  });
+
   it('counts only one slot through invalid-primary repair, and none for replaced not-sent attempts', async () => {
     const selected = role('repair-slots');
     const entered = gate();
