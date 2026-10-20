@@ -32,7 +32,10 @@ export const CutroomCommissionScriptSchema = z.strictObject({
           url: z
             .url()
             .max(2048)
-            .refine((url) => url.startsWith('https://')),
+            .refine((url) => {
+              const parsed = new URL(url);
+              return parsed.protocol === 'https:' && parsed.username === '' && parsed.password === '';
+            }),
           retrievedAt: z.iso.datetime(),
           excerpt: text(8000),
           excerptSha256: digest,

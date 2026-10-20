@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 import {
   CUTROOM_COMMISSION_POLICY,
   lintCutroomCommission,
@@ -62,12 +63,16 @@ function prepare(value: CutroomCommissionScript) {
 }
 
 describe('Cutroom commission prerequisite (authored CI fixtures only)', () => {
-  it('freezes exact UTF-8 wire bytes/hash and sends labels, never internal evidence or claim text', () => {
+  it('freezes exact UTF-8 wire bytes/hash and sends labels, never internal evidence or claim text', async () => {
     const value = script();
     value.narration[0]!.text = 'An imaginary café object appears.';
     const prepared = prepare(value);
     expect(prepared.kind).toBe('prepared');
     if (prepared.kind !== 'prepared') throw new Error('fixture refused');
+    // Test-only use of the actual immutable upstream schema, not a duplicate of its contract.
+    const wireUrl = new URL('../adapters/cutroom/wire-v1/request.ts', import.meta.url).href;
+    const { SubmitRequest } = (await import(wireUrl)) as { SubmitRequest: z.ZodType };
+    expect(SubmitRequest.safeParse(JSON.parse(prepared.requestUtf8)).success).toBe(true);
     expect(Object.isFrozen(prepared)).toBe(true);
     expect(prepared.requestId).toBe(`ks-reel-${prepared.scriptSha256.slice(0, 32)}-1`);
     expect(prepared.requestSha256).toBe(sha(prepared.requestUtf8));
@@ -148,6 +153,18 @@ describe('Cutroom commission prerequisite (authored CI fixtures only)', () => {
     const criterion = script();
     criterion.criteria.mustNotShow.push({ id: 'no-event', type: 'event', text: 'A hidden event' });
     expect(lintCutroomCommission(criterion)).toEqual({ kind: 'refused', code: 'criterion_binding' });
+  });
+
+  it('refuses credentials in public-source URLs without treating URL parsing as source review', () => {
+    for (const url of [
+      'https://user@example.invalid/evidence',
+      'https://user:password@example.invalid/evidence',
+      'https://:password@example.invalid/evidence',
+    ]) {
+      const value = script();
+      value.evidence.sources[0]!.url = url;
+      expect(lintCutroomCommission(value)).toEqual({ kind: 'refused', code: 'structure' });
+    }
   });
 
   it('refuses aggregate evidence overflow and extra approval authority fields', () => {

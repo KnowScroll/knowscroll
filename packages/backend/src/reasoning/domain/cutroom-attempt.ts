@@ -46,7 +46,12 @@ export function canTransitionCutroomAttempt(from: AttemptState, to: AttemptState
   return canTransition(from, to);
 }
 
-/** HTTP acceptance is not remote completion, publication, or proof of the final chain cost. */
+/**
+ * HTTP acceptance is not remote completion, publication, or proof of the final chain cost.
+ * A refused/conflict response describes this response only: it cannot establish that the original
+ * request was never accepted or charged. Unknown original liability remains held; neither this
+ * response nor its code authorizes pool release, another POST or a new paid attempt.
+ */
 export type CutroomDispatchOutcome =
   | { readonly kind: 'accepted'; readonly requestId: string; readonly remoteRunId: string }
   | { readonly kind: 'not_sent'; readonly code: 'cancelled_before_intent' | 'preflight_refused' }

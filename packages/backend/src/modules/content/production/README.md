@@ -297,8 +297,8 @@ not implemented runtime capabilities.
 
 `cutroom-commission.v1` freezes bounded original script + immutable public evidence excerpts,
 retrieval timestamps, hashes and explicit claim/support bindings. It can ground a new original
-script without claiming an old admitted Scroll/claimSources identity or semantic coverage. Structural
-support is not entailment, rights or truth review. Human exact-script/evidence review remains required.
+script without claiming an old admitted Scroll/claimSources identity or semantic coverage. Embedded username/password URL credentials are refused. URL parsing does not prove public access;
+actual source review remains separate. Structural support is not entailment, rights or truth review. Human exact-script/evidence review remains required.
 Approval reference parsing and matching digest are data checks only; they grant no owner authority.
 The opaque future verified owner capability must be separately admitted before any execution.
 

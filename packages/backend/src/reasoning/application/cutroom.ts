@@ -23,6 +23,8 @@ export interface CutroomOwnerCapability {
  * The implementation must reverify capability, live fal balance, <=75c Reel and <=200c v2 grant,
  * and the actual pool claim before committing intent. Pool/world writes are not one transaction.
  * Lost commit acknowledgement stops dispatch; later deliveries consult the SAME attempt.
+ * HTTP refusal/conflict alone cannot clear original unknown liability, release its pool claim,
+ * prove zero charge or authorize another POST/new attempt; reconcile the original identity.
  * No caller-resume POST is admitted by this seam. Engine auto-resumes are observations only.
  */
 export interface CutroomExecution {

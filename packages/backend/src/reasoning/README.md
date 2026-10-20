@@ -461,6 +461,8 @@ D018 permits <=200c new v2 liability and <=75c per Reel; this declaration alloca
 The shared pool is the sole money record and is in another database: world/pool writes need durable
 reconciliation, not a claimed atomic transaction. Unknown liability stays held; even lookup404 plus
 ready=true cannot justify a resend. Original request identity survives engine auto-resume observations.
-Caller resume remains outside this seam. Unverified chain cost semantics block final settlement;
+An HTTP refused/conflict response alone cannot prove the original request was never accepted or
+charged. It cannot release an unknown original claim or authorize another POST/new attempt; the
+original liability remains held pending conclusive reconciliation. Caller resume remains outside this seam. Unverified chain cost semantics block final settlement;
 actual cost is never clamped to an estimate or ceiling. Future capability/ports require implementation,
 persistence, authority and provider-specific conformance review before any consumer or paid use.
