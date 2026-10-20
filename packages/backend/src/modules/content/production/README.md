@@ -285,3 +285,39 @@ reasoning attestation read before any such capability can exist. All four actual
 are rejected, so no known generated publication is omitted. CI uses explicitly labelled transport
 identity stand-ins for positives and fault injection for authority negatives; none is real provider
 or discovery journey evidence. The publication projection itself needs no SQL change; v8 extends only the closed recipe-key constraint in forward migration 0026.
+
+## Cutroom commission contract prerequisite (#240)
+
+`commission-contracts.ts` is a backend-internal, pure prerequisite. It installs no service, job,
+route, persistence, transport, grant or publication path. It leaves the three approved single-run
+imports and their strict validator unchanged. The business run belongs to Content; external attempts,
+protected requests and dispatch uncertainty belong to the shared Reasoning cents seam, with no model
+role/token allocation reused. `CutroomExecution` and `ValidateCutroomRemoteChain` are declarations,
+not implemented runtime capabilities.
+
+`cutroom-commission.v1` freezes bounded original script + immutable public evidence excerpts,
+retrieval timestamps, hashes and explicit claim/support bindings. It can ground a new original
+script without claiming an old admitted Scroll/claimSources identity or semantic coverage. Embedded username/password URL credentials are refused. URL parsing does not prove public access;
+actual source review remains separate. Structural support is not entailment, rights or truth review. Human exact-script/evidence review remains required.
+Approval reference parsing and matching digest are data checks only; they grant no owner authority.
+The opaque future verified owner capability must be separately admitted before any execution.
+
+Lint requires 6–12 complete narration sentences, explicit listed claims, consistent criterion types,
+exact excerpt hashes, no ending Sun, and a <=9-second per-sentence planning estimate at2.5words/s.
+Exactly six is preferred. This heuristic cannot establish real TTS duration, merged-shot length or
+witness-media conformance: a later actual plan/media gate must refuse oversized shots. Canonical
+schema-parsed UTF-8 script JSON (including evidence and policy) defines the immutable script digest.
+Request identity is `ks-reel-<first32 script SHA>-<take1..999>` under this named policy; the future
+shared pool allocates each take. This function allocates nothing. A once-compiled v1 wire string
+binds exact request/world/ceiling, omits internal sources/claim text,
+and supplies SHA-256/byte count for protected storage. Never log or enqueue the string. A changed
+script, evidence, policy or request identity changes its binding; redelivery uses stored bytes.
+
+The future chain validator must bound16 unique remote runs, preserve the original request ID and
+fresh parent/child status links, match result/record, verify keptFrom ancestry and selected/used gates,
+and preserve engine labels. Engine auto-resume observations are not new caller POST attempts. A
+failed parent does not prove finality. Pinned upstream cost fields do not yet establish all chain
+aggregation semantics; cost remains explicitly unverified until reviewed accounting evidence exists.
+No automatic sum/settlement or new<=75c allowance per child follows. Publication, corpus fingerprint,
+source/framing/rights/media gates, exact-script owner approval, live fal balance and pool reconciliation
+remain separate future requirements. No content/evidence/coverage/encounter is admitted here.

@@ -203,3 +203,19 @@ export type LockCurrentEncounters = (
   }[]
 >;
 export const LOCK_CURRENT_ENCOUNTERS = Symbol('content.lockCurrentEncounters');
+
+/** Backend-internal Cutroom prerequisite; pure preparation, no commissioned content or permission. */
+export {
+  CUTROOM_COMMISSION_POLICY,
+  CutroomCommissionScriptSchema,
+  CutroomApprovalReferenceSchema,
+  lintCutroomCommission,
+  prepareCutroomCommission,
+} from './production/commission-contracts.js';
+export type {
+  CutroomCommissionScript,
+  CutroomCommissionRefusal,
+  CutroomCommissionRun,
+  CutroomObservedRun,
+  ValidateCutroomRemoteChain,
+} from './production/commission-contracts.js';

@@ -63,3 +63,15 @@ export type {
 /** Worker-only injection tokens. Configuration and the database root default to disabled. */
 export const PRODUCTION_REASONING_HARNESS = Symbol('reasoning.production-harness');
 export const WITH_PRODUCTION_SCOPE = Symbol('reasoning.with-production-scope');
+
+/** Closed Cutroom prerequisite: pure advice and future cents capability; no runtime binding. */
+export { decideCutroomDelivery, canTransitionCutroomAttempt } from './domain/cutroom-attempt.js';
+export type {
+  CutroomAttemptIdentity,
+  CutroomProtectedRequest,
+  CutroomCentsReservation,
+  CutroomAttemptSnapshot,
+  CutroomDispatchOutcome,
+  CutroomCentsReceipt,
+} from './domain/cutroom-attempt.js';
+export type { CutroomOwnerCapability, CutroomExecution } from './application/cutroom.js';
