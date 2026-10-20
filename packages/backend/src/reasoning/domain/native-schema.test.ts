@@ -20,9 +20,13 @@ describe('advisory native input schema (CI source fixtures only)', () => {
     const schema = deriveNativeInputSchema(input);
     expect(schema).toEqual({
       type: 'object',
-      properties: { candidateIds: { type: 'array', items: { type: 'string' }, minItems: 4, maxItems: 8 } },
+      properties: { candidateIds: { $ref: '#/definitions/__schema0' } },
       required: ['candidateIds'],
       additionalProperties: false,
+      definitions: {
+        __schema0: { type: 'array', items: { $ref: '#/definitions/__schema1' }, minItems: 4, maxItems: 8 },
+        __schema1: { type: 'string' },
+      },
     });
     expect(transforms).toBe(0);
     expect(refinements).toBe(0);
@@ -54,9 +58,10 @@ describe('advisory native input schema (CI source fixtures only)', () => {
       .meta({ id: 'https://private.invalid/schema', custom: 'PRIVATE-ROOT' });
     expect(deriveNativeInputSchema(schema)).toEqual({
       type: 'object',
-      properties: { title: { type: 'string' } },
+      properties: { title: { $ref: '#/definitions/__schema0' } },
       required: ['title'],
       additionalProperties: false,
+      definitions: { __schema0: { type: 'string' } },
     });
   });
 
