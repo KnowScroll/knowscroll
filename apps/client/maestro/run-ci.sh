@@ -37,6 +37,21 @@ adb wait-for-device
   echo "maestro=$(maestro --version 2>/dev/null | tail -n 1)"
 } | tee "$KS_OUT/device.txt"
 
+# A hung background process (the launcher, while the Google apps of the image sync right after boot) is
+# killed silently instead of covering the app with an "isn't responding" dialog that hides it from Maestro.
+# An ANR of the app itself still fails the run: it is read from logcat below.
+adb shell settings put global hide_error_dialogs 1 || true
+
+# Let the system finish its post-boot work before the first flow: the 1-minute load average of the
+# (3-core) guest, at most 3 minutes. The result is recorded, never a reason to fail.
+settled="no"
+for _ in $(seq 1 60); do
+  load=$(adb shell cat /proc/loadavg | tr -d '\r' | cut -d' ' -f1)
+  if awk -v l="$load" 'BEGIN { exit !(l < 2.0) }'; then settled="yes"; break; fi
+  sleep 3
+done
+echo "load average after waiting for the system to settle: $load (settled: $settled)" | tee -a "$KS_OUT/device.txt"
+
 echo "Installing $KS_APK"
 adb install -r -t "$KS_APK" || { echo "adb install failed"; exit 1; }
 adb shell pm list packages "$app_id" | grep -q "package:$app_id" || { echo "$app_id is not installed"; exit 1; }

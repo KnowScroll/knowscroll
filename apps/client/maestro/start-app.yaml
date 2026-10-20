@@ -1,10 +1,11 @@
 # Shared start of every flow (run with `runFlow: start-app.yaml`, never on its own): a cold start of the signed-out
 # app, then a wait for the shell.
 #
-# The emulator is software-rendered and starts under load, so Android sometimes shows "Pixel Launcher isn't
+# The emulator is software-rendered and starts under load, so Android can show "Pixel Launcher isn't
 # responding" (or "System UI ...") over the app. While it is up, the app is not in the view hierarchy and
-# every wait times out, so the dialog is dismissed with Wait. A dialog about the app itself is never dismissed:
-# an ANR of KnowScroll must fail the flow.
+# every wait times out. run-ci.sh turns such dialogs off; if one still appears, "Close app" ends the hung process
+# (Wait only postpones the dialog). A dialog about the app itself is never dismissed: an ANR of KnowScroll must
+# fail the flow.
 appId: com.knowscroll.client
 ---
 - launchApp:
@@ -20,7 +21,7 @@ appId: com.knowscroll.client
           when:
             visible: (?!KnowScroll)[A-Za-z ]* isn.t responding
           commands:
-            - tapOn: Wait
+            - tapOn: Close app
       - assertVisible:
           id: destination-explore
           optional: true
