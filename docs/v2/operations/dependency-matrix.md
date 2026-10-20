@@ -81,6 +81,7 @@ published on 2026-10-19 and is not adopted the same day).
 | expo-router | 58.0.23 | 2026-10-16 | MIT |
 | expo-font | 58.0.8 | 2026-10-13 | MIT |
 | expo-clipboard | 58.0.3 | 2026-10-01 | MIT (S2.1 part 2, #230: the Scroll code block's Copy through `setStringAsync`, the async clipboard API on the web; the version in `bundledNativeModules.json`; peers `expo`, `react`, `react-native`; mocked in the UI package's tests) |
+| react-native-gesture-handler | 3.3.0 | 2026-09-11 | MIT | S2.1 part 2b (#230): the Scroll slider and diagram token on native (`usePanGesture` with `runOnJS`, so callbacks run on the JS thread and need no Babel plugin or worklets; `GestureHandlerRootView` inside the article). The version in `bundledNativeModules.json` (`~3.3.0`); peers `react`, `react-native` only. The web uses pointer events instead (`.web` files). `react-native-reanimated` (4.7.1) and `react-native-worklets` (0.13.0) are the bundled versions but are **not** added: nothing in v1 animates on the UI thread, and Reanimated would bring a Babel plugin and the peers `@babel/core` and `@react-native/metro-config` under `strictPeerDependencies`. Jest resolves the library to a recording stand-in (`ui/src/test-support/gesture-handler.mock.tsx`) |
 | expo-constants | 58.0.12 | 2026-10-14 | MIT |
 | expo-linking | 58.0.13 | 2026-10-14 | MIT |
 | expo-status-bar | 58.0.3 | 2026-10-01 | MIT |

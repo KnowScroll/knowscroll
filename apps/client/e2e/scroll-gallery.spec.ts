@@ -33,7 +33,8 @@ test.describe('phone', () => {
 
     await expect(page).toHaveTitle('Scroll gallery · KnowScroll');
     await expect(page.getByRole('heading', { level: 1, name: 'Why bridges stay up' })).toBeVisible();
-    await expect(page.getByText('A Scroll · 2 min', { exact: false })).toBeVisible();
+    // The poster fixture's reading time from its measures (it grew a minute when part 2b added blocks).
+    await expect(page.getByText('A Scroll · 3 min', { exact: false })).toBeVisible();
   });
 
   test('has real h1, h2 and h3 headings for rotor and landmark navigation', async ({ page }) => {
@@ -125,8 +126,11 @@ test.describe('phone', () => {
     expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
-  test('a block this build cannot draw shows its own words, with no Retry and a diagnostic', async ({ page }) => {
-    await open(page);
+  test('a block the server replaced with a fallback shows its own words, with no Retry and a diagnostic', async ({
+    page,
+  }) => {
+    // The negotiated rendition of the poster for a client without `diagram` (this build draws every v1 type).
+    await open(page, '?doc=fallback');
 
     await expect(page.getByText('This part needs an app update · text version')).toBeVisible();
     await expect(page.getByText('The deck passes its load to the cables')).toBeVisible();
