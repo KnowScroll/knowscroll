@@ -1,4 +1,10 @@
-import { applyActionContract, listSavedContract } from './experience.js';
+import {
+  activateExposureContract,
+  applyActionContract,
+  exposureDocumentContract,
+  listSavedContract,
+  openExposureContract,
+} from './experience.js';
 import { healthContract } from './health.js';
 import {
   peekSignInContract,
@@ -7,6 +13,7 @@ import {
   sessionContract,
   signOutContract,
 } from './identity.js';
+import { evidenceDiagnosticsContract, submitObservationsContract } from './interactions.js';
 
 /** The complete HTTP contract of the KnowScroll API. Every route the API serves is listed here. */
 export const apiContract = {
@@ -21,6 +28,15 @@ export const apiContract = {
   experience: {
     applyAction: applyActionContract,
     listSaved: listSavedContract,
+    openExposure: openExposureContract,
+    activateExposure: activateExposureContract,
+    exposureDocument: exposureDocumentContract,
+  },
+  observations: {
+    submit: submitObservationsContract,
+  },
+  diagnostics: {
+    evidence: evidenceDiagnosticsContract,
   },
 };
 
