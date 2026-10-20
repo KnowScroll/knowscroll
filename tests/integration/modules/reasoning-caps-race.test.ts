@@ -136,8 +136,9 @@ describe('the daily caps hold under concurrent proposals (real database, fixture
     expect(requests.calls).toHaveLength(4);
 
     const tokenRole: ReasoningRole<unknown> = { ...echoRole, id: 'fixture.race-tokens' };
-    // The role's id is part of the request, so its reservation is measured with the role itself.
-    const reserved = await reservation(tokenRole);
+    // The role's id is part of the request, so the reservation is measured with a role whose id has
+    // the same length (the probe's own usage must not count against the role under test).
+    const reserved = await reservation({ ...echoRole, id: 'fixture.race-probes' });
     const tokenLimited: ReasoningRole<unknown> = {
       ...tokenRole,
       budget: { requestsPerDay: 1_000_000, tokensPerDay: reserved * 2 + 10 },
