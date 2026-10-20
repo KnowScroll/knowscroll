@@ -5,11 +5,15 @@
  *
  * `@knowscroll/scroll-model` resolves to its TypeScript sources (tests never need a build; its
  * `.js` import specifiers name `.ts` files), like Vitest and tsc do through `@knowscroll/source`.
+ * `react-native-gesture-handler` resolves to a stand-in (`src/test-support/gesture-handler.mock.tsx`):
+ * its native module is not there, and tests read the pans blocks ask for instead.
  */
 const shared = {
   rootDir: '.',
   moduleNameMapper: {
     '^@knowscroll/scroll-model$': '<rootDir>/../scroll-model/src/index.ts',
+    // The native gesture module does not exist in Jest; blocks are tested against a recording stand-in.
+    '^react-native-gesture-handler$': '<rootDir>/src/test-support/gesture-handler.mock.tsx',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
 };
