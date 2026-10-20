@@ -23,6 +23,7 @@ import {
   writerRole,
   WRITER_PROMPT_VERSION,
 } from './roles.js';
+import { completeWriterPublication } from './publication-topic.js';
 import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
 import {
   quoteCandidates,
@@ -323,29 +324,25 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           ]);
           return false;
         }
-        if (
-          (await deps.harness.closeProductionRun(scope, { runId: row.writer_run_id, state: 'completed' })) !== 'closed'
-        )
-          return false;
-        await admission.storeRevision(admissionTx, {
-          assetId: TOPICS[topic].assetId,
-          revision: row.target_revision,
-          provenanceKind: 'generated',
-          compiled,
-          createsAsset: asset.kind === 'absent',
+        return completeWriterPublication(scope, deps.harness, row.id, row.writer_run_id, async () => {
+          await admission.storeRevision(admissionTx, {
+            assetId: TOPICS[topic].assetId,
+            revision: row.target_revision,
+            provenanceKind: 'generated',
+            compiled,
+            createsAsset: asset.kind === 'absent',
+          });
+          await store.finish(
+            tx,
+            row.id,
+            'writer',
+            'published',
+            receipts,
+            { assetId: TOPICS[topic].assetId, revision: row.target_revision },
+            writer.output,
+          );
         });
-        return true;
       });
-      if (stored)
-        await store.finish(
-          tx,
-          row.id,
-          'writer',
-          'published',
-          receipts,
-          { assetId: TOPICS[topic].assetId, revision: row.target_revision },
-          writer.output,
-        );
       return stored;
     });
     if (applied.kind !== 'entered')

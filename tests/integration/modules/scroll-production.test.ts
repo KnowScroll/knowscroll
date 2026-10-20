@@ -7,6 +7,7 @@ import type { ProductionReasoningHarness } from '@knowscroll/backend/reasoning';
 import {
   makeProductionReasoningHarness,
   postgresProductionHarnessPorts,
+  guardedModelPort,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import { ScrollDraft, normaliseDraftInput } from '@knowscroll/scroll-model/producer';
 import {
@@ -18,6 +19,8 @@ import {
   hydrateSelectedClaims,
   quoteCandidates,
 } from '../../../packages/backend/src/modules/content/production/quote-candidates.js';
+import { writerDraftExampleJson } from '../../../packages/backend/src/modules/content/production/writer-example.js';
+import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { claimsRole } from '../../../packages/backend/src/modules/content/production/roles.js';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -35,7 +38,7 @@ const page = extractResearch(
 const candidates = quoteCandidates([page]);
 const selection = { candidateIds: candidates.slice(0, 4).map(({ id }) => id) };
 const claims = hydrateSelectedClaims([page], candidates, selection.candidateIds);
-function draft() {
+function draft(interactive = false) {
   const starter = JSON.parse(
     readFileSync(
       new URL(
@@ -54,6 +57,12 @@ function draft() {
         for (const child of block.data.blocks)
           value.bindings.push({ kind: 'block', blockId: child.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
     }
+  if (interactive) {
+    const diagram = ScrollDraft.parse(JSON.parse(writerDraftExampleJson(true))).sections[0]?.blocks[1];
+    if (diagram === undefined) throw new Error('CI_DIAGRAM_MISSING');
+    value.sections[0]?.blocks.push(diagram);
+    value.bindings.push({ kind: 'block', blockId: diagram.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
+  }
   return value;
 }
 const answer = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });
@@ -66,8 +75,14 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
   afterEach(async () => {
     await database.drop();
   });
-  function setup(script: Parameters<typeof fixtureModel>[0]) {
-    const model = fixtureModel(script, { label: 'scroll-production-CI-fixture' });
+  function setup(script: Parameters<typeof fixtureModel>[0], admittedProviderIdentity = false) {
+    // No transport/network is real: this explicit identity stand-in exercises production attribution.
+    const fixture = fixtureModel(script, { label: 'scroll-production-CI-fixture' });
+    const model = guardedModelPort({
+      ...fixture,
+      provider: admittedProviderIdentity ? 'minimax' : fixture.provider,
+      model: admittedProviderIdentity ? 'MiniMax-M3' : fixture.model,
+    });
     const withScope = makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
     const harness = makeProductionReasoningHarness(
       postgresProductionHarnessPorts({
@@ -88,7 +103,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         authority: { scopeId: 'scroll-supply', generation: 1 },
         withScope,
         harness: selected,
-        model: 'fixture-model-v1',
+        model: model.model,
         research,
       });
     return { model, harness, produce };
@@ -122,6 +137,163 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .where('asset_id', '=', first.assetId ?? '')
         .execute(),
     ).toHaveLength(1);
+  });
+  it.each(['greenhouse', 'seasons', 'tides'] as const)(
+    'attributes only a newly completed exact %s publication (CI transport identity stand-in)',
+    async (topic) => {
+      const p = setup((n) => answer(n === 1 ? selection : draft(topic !== 'greenhouse')), true);
+      const result = await p.produce()(topic, false, signal());
+      expect(result.outcome).toBe('published');
+      expect(p.model.calls).toHaveLength(2);
+      expect(p.model.calls.every((call) => call.request.fixture === 'scroll-production-CI-fixture')).toBe(true);
+      const projected = await database.db
+        .selectFrom('content.discovery_revisions')
+        .select(['facets', 'attribution_version'])
+        .where('asset_id', '=', result.assetId ?? '')
+        .executeTakeFirstOrThrow();
+      expect(projected).toEqual({
+        facets: [TOPICS[topic].topicId],
+        attribution_version: 'published-scroll-brief-taxonomy.v1',
+      });
+      expect(
+        await database.db
+          .selectFrom('content.encounter_topics')
+          .select(['topic_id', 'role', 'weight'])
+          .where('asset_id', '=', result.assetId ?? '')
+          .execute(),
+      ).toEqual([{ topic_id: TOPICS[topic].topicId, role: 'primary', weight: 1 }]);
+      const bytes = () =>
+        sql<{
+          document: string;
+          provenance: string;
+        }>`select row_to_json(r)::text as document,row_to_json(p)::text as provenance from content.asset_revisions r join content.asset_provenance p using(asset_id,revision) where r.asset_id=${result.assetId}::uuid`.execute(
+          database.db,
+        );
+      const before = (await bytes()).rows;
+      expect(await p.produce()(topic, false, signal(), true)).toEqual(result);
+      expect((await bytes()).rows).toEqual(before);
+      expect(p.model.calls).toHaveLength(2);
+      expect(await database.db.selectFrom('identity.universes').select('id').execute()).toHaveLength(0);
+    },
+  );
+  it('keeps normal fixture-generated lookalikes unknown despite model-kind provenance and a matching explanation ID', async () => {
+    const p = setup((n) => answer(n === 1 ? selection : draft()));
+    const result = await p.produce()('greenhouse', false, signal());
+    expect(result.outcome).toBe('published');
+    expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toHaveLength(0);
+    expect(
+      await database.db.selectFrom('content.discovery_revisions').select('facets').executeTakeFirstOrThrow(),
+    ).toEqual({ facets: [] });
+  });
+  it.each([
+    'no_job',
+    'not_published',
+    'foreign_asset',
+    'wrong_writer_run',
+    'wrong_prompt_version',
+    'wrong_document_version',
+    'wrong_provenance_version',
+    'foreign_provenance_run',
+    'foreign_receipt',
+    'fixture_provenance',
+    'foreign_attempt',
+    'foreign_model',
+    'wrong_job_version',
+    'incomplete',
+    'mismatched_revision',
+    'no_baseline',
+    'conflicting_topic',
+    'withdrawn',
+  ])('leaves attribution unknown for %s authority (CI fault injection after job publication)', async (fault) => {
+    // The test-only trigger runs in the REAL publication transaction before the private hook.
+    // It is deliberately corrupt fixture state, never a migration or available runtime capability.
+    await sql`create function content.ci_publication_fault() returns trigger language plpgsql as $$
+      begin
+        case tg_argv[0]
+          when 'no_job' then delete from content.scroll_production_runs where id=new.id;
+          when 'not_published' then update content.scroll_production_runs set state='writer',asset_id=null,asset_revision=null,completed_at=null where id=new.id;
+          when 'foreign_asset' then update content.scroll_production_runs set asset_id=gen_random_uuid() where id=new.id;
+          when 'wrong_writer_run' then update content.scroll_production_runs set writer_run_id=gen_random_uuid() where id=new.id;
+          when 'wrong_prompt_version' then update content.asset_provenance set provenance=jsonb_set(provenance,'{production,promptVersion}','"scroll-writer.foreign"') where asset_id=new.asset_id;
+          when 'wrong_document_version' then update content.asset_revisions set document_version='scroll-document.foreign' where asset_id=new.asset_id;
+          when 'wrong_provenance_version' then update content.asset_provenance set provenance_version='scroll-provenance.foreign' where asset_id=new.asset_id;
+          when 'foreign_provenance_run' then update content.asset_provenance set provenance=jsonb_set(provenance,'{production,runId}',to_jsonb(gen_random_uuid()::text)) where asset_id=new.asset_id;
+          when 'foreign_receipt' then update content.scroll_production_runs set outcomes=jsonb_set(outcomes,'{1,attemptId}',to_jsonb(gen_random_uuid()::text)) where id=new.id;
+          when 'fixture_provenance' then update content.asset_provenance set provenance=jsonb_set(provenance,'{production}','{"kind":"fixture","label":"CI fixture authority must stay unknown"}') where asset_id=new.asset_id;
+          when 'foreign_attempt' then update content.asset_provenance set provenance=jsonb_set(provenance,'{production,attemptIds}',jsonb_build_array(gen_random_uuid()::text)) where asset_id=new.asset_id;
+          when 'foreign_model' then update content.asset_provenance set provenance=jsonb_set(provenance,'{production,model}','"foreign-model"') where asset_id=new.asset_id;
+          when 'wrong_job_version' then update content.scroll_production_runs set policy_version='scroll-production.foreign' where id=new.id;
+          when 'incomplete' then update content.scroll_production_runs set writer_output=null where id=new.id;
+          when 'mismatched_revision' then update content.scroll_production_runs set target_revision=target_revision+1 where id=new.id;
+          when 'no_baseline' then delete from content.discovery_revisions where asset_id=new.asset_id;
+          when 'conflicting_topic' then insert into content.encounter_topics values(new.asset_id,new.asset_revision,'ci.foreign-topic','primary',1);
+          when 'withdrawn' then update content.assets set status='withdrawn' where id=new.asset_id;
+          else raise exception 'CI_UNKNOWN_FAULT';
+        end case;
+        return new;
+      end $$`.execute(database.db);
+    await sql`create trigger ci_publication_fault after update of state on content.scroll_production_runs for each row when (new.state='published' and old.state<>'published') execute function content.ci_publication_fault(${sql.lit(fault)})`.execute(
+      database.db,
+    );
+    const p = setup((n) => answer(n === 1 ? selection : draft()), true);
+    await p.produce()('greenhouse', false, signal());
+    expect(p.model.calls).toHaveLength(2);
+    expect(
+      await database.db
+        .selectFrom('content.encounter_topics')
+        .select('topic_id')
+        .where('topic_id', '=', TOPICS.greenhouse.topicId)
+        .execute(),
+    ).toHaveLength(0);
+    expect(
+      await database.db
+        .selectFrom('content.discovery_revisions')
+        .select('asset_id')
+        .where('attribution_version', '=', 'published-scroll-brief-taxonomy.v1')
+        .execute(),
+    ).toHaveLength(0);
+  });
+  it('cannot publish or attribute when the same-scope writer closure does not succeed', async () => {
+    const p = setup((n) => answer(n === 1 ? selection : draft()), true);
+    let closes = 0;
+    const denied: ProductionReasoningHarness = {
+      proposeProduction: (input, abort) => p.harness.proposeProduction(input, abort),
+      readProductionRunAccounting: (scope, runId) => p.harness.readProductionRunAccounting(scope, runId),
+      closeProductionRun: (scope, run) =>
+        ++closes === 1 ? p.harness.closeProductionRun(scope, run) : Promise.resolve('not_open'),
+    };
+    expect((await p.produce(denied)('greenhouse', false, signal())).outcome).toBe('in_progress');
+    expect(p.model.calls).toHaveLength(2);
+    expect(await database.db.selectFrom('content.asset_revisions').select('asset_id').execute()).toHaveLength(0);
+    expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toHaveLength(0);
+  });
+  it('rolls back closure/publication if topic projection fails, then resumes the same paid writer without resend', async () => {
+    await sql`create function content.ci_fail_topic() returns trigger language plpgsql as $$ begin raise exception 'CI_TOPIC_PROJECTION_FAILURE'; end $$`.execute(
+      database.db,
+    );
+    await sql`create trigger ci_fail_topic before insert on content.encounter_topics for each row execute function content.ci_fail_topic()`.execute(
+      database.db,
+    );
+    const p = setup((n) => answer(n === 1 ? selection : draft()), true);
+    await expect(p.produce()('greenhouse', false, signal())).rejects.toThrow('CI_TOPIC_PROJECTION_FAILURE');
+    expect(p.model.calls).toHaveLength(2);
+    expect(await database.db.selectFrom('content.asset_revisions').select('asset_id').execute()).toHaveLength(0);
+    expect(
+      await database.db.selectFrom('content.scroll_production_runs').select('state').executeTakeFirstOrThrow(),
+    ).toEqual({ state: 'writer' });
+    expect(
+      await database.db
+        .selectFrom('reasoning.production_runs')
+        .select('state')
+        .where('role_id', '=', 'content.scroll-writer')
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ state: 'admitted' });
+    await sql`drop trigger ci_fail_topic on content.encounter_topics`.execute(database.db);
+    expect((await p.produce()('greenhouse', false, signal(), true)).outcome).toBe('published');
+    expect(p.model.calls).toHaveLength(2);
+    expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([
+      { topic_id: TOPICS.greenhouse.topicId },
+    ]);
   });
   it('publishes at the four-request maximum with one foreign-candidate and one semantic writer repair', async () => {
     const badSelection = { candidateIds: [...selection.candidateIds.slice(0, 3), `q-${'0'.repeat(48)}`] };

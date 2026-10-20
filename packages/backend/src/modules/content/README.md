@@ -113,8 +113,10 @@ only the actual approved seasons-v5/tides-v4/greenhouse concepts to `earth.seaso
 the frozen approved **run ID, script, media digest and size**, exact revision and import provenance.
 The import-completion trigger runs after its import row exists in the same admission transaction;
 a failed import leaves no projection. Synthetic imports and arbitrary editorial explanation-ID
-lookalikes stay unknown. Generated Scroll attribution is explicitly **unknown/deferred** until the
-producer's real published-job/revision authority (`0015`) is integrated and wired. No title-derived
+lookalikes stay unknown. New generated Scroll attribution uses the private producer completion hook (`0015` + `0016`):
+it requires actual same-scope writer closure/accounting and the exact published job, admitted
+revision and matching model provenance. Fixture/foreign/incomplete authority stays unknown.
+Historical reconciliation remains deferred until a separate completed-run attestation port exists. No title-derived
 concepts, Part 2/related edges, invented semantic variety or personal-activity-derived topics exist.
 
 Discovery retrieves an indexed union of topic matches (max 40), text matches (max 30) and general

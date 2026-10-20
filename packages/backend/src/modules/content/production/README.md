@@ -110,3 +110,31 @@ and strict JSON extraction remain unchanged. Copy-nine, binding, numeric, honest
 interactive and admission checks still use the same one repair. Role identity and failure brake are
 unchanged; writer provenance records `scroll-writer.v3`. CI preserves synthetic historical terminal
 job/attempt bytes and tests both valid modes, malformed arrays and unchanged refusals.
+
+## New-publication topic authority
+
+`completeWriterPublication` is private to production and has no consumer/composition attribution
+port. It requires the current live production scope, the locked writer-stage job and actual
+successful `closeProductionRun`. After its publication callback stores the immutable revision and
+marks the exact job published, an unexported helper matches the current policy, target asset and
+revision, explanation identity, admitted Scroll status, document/provenance hashes, model
+production run and writer prompt version, successful primary/repair accounting identities and
+the job's exact writer receipt. Provider/model must be the configured real MiniMax family; a
+normal fixture transport/model, arbitrary editorial/model-kind or explanation-ID lookalike,
+missing job, foreign lineage, incomplete job or contradictory metadata does not gain authority.
+The helper reads no reasoning SQL, request bytes, raw answers or research text. Actual closure
+and bounded accounting come through the existing harness within the same production transaction.
+
+The `0016` trigger already creates the exact revision's baseline discovery row. Only then does
+this hook project one code-owned primary topic with weight 1 and a single facet:
+`earth.seasons`, `earth.tides`, or `earth.greenhouse-effect`, under
+`published-scroll-brief-taxonomy.v1`. Existing aggregate weight guards remain active. No immutable
+document/provenance bytes, personal encounters, activity, growth, series or relationships change.
+Projection failure rolls back writer closure, publication and metadata together; same-run ledger
+replay can recover without resending a paid answer. Missing authority remains unknown.
+
+Historical-published reconciliation is **unavailable**: completed old runs need a separately named
+reasoning attestation read before any such capability can exist. All four actual historical jobs
+are rejected, so no known generated publication is omitted. CI uses explicitly labelled transport
+identity stand-ins for positives and fault injection for authority negatives; none is real provider
+or discovery journey evidence. No additional SQL migration or existing migration edit is needed.

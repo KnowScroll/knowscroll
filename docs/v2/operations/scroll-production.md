@@ -62,3 +62,10 @@ copy/honesty/number checks, admission, request bound and token ceilings remain u
 rejected v1/v2/v3 jobs and eleven attempts remain immutable. Invoking the reviewed new version is a new allocated business run,
 never an automatic retry of a rejected version. `--resume` applies only to an unfinished job of the
 current recipe. New exact-head CI/review and coordinator allocation are required before generation.
+
+New publications project the three reviewed topic IDs only after same-transaction writer closure,
+exact job publication, provenance and attempt checks. A normal fixture transport/model stays
+unattributed. Projection uses the existing 0016 baseline and weight guard; it creates no personal
+evidence. Historical reconciliation is unavailable until a separately reviewed completed-run
+attestation port exists; no actual historical generated publication currently needs it. Deploy
+requires the actual ordered schema through 0017, including 0015, and a matching reviewed build.
