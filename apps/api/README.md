@@ -121,3 +121,30 @@ full canonical admission and the existing200ms CPU admission assertion remain un
 A client mount requires separate inspection and approval of actual latency records. This source
 mount does not establish a deployed endpoint, device journey or selective privacy clear.
 Legacy asset-keyed Unsave still has its separate ABA limitation.
+
+### Exact Saved membership removal (#246)
+
+`POST /v1/experience/keep/remove` now mounts the shared `keep-remove.v1`
+declaration through a dedicated controller/use-case provider. JSON names an actual
+Saved UUID plus immutable asset/ref and one command ID, never an asset-only Remove,
+position/CAS/force/Undo override. Existing Origin/session/AccountScope guards and
+root-held Identity own-account fence apply. Current authority precedes receipts;
+identical valid historical replay precedes the membership that removal deleted.
+A later resave is independent: replay of A acknowledges A without deleting B;
+a fresh wrong/missing membership is fixed404 without replacement metadata.
+Corrected/withdrawn saved refs can be removed without Content admission/playback.
+
+Every successful acknowledgement is historical and position-free. The existing
+Unsave action/link/state/contribution/jobs, membership/place cascade, receipt and
+root watermark commit together. New effects stop at the root counter limit.
+Removal has a separate closed14-code direct RFC9457 family with seven fixed
+schema-owned/masked issue tokens, including preparse/size/media-type/Origin/auth/
+scope failures. Responses are `private, no-store`; no details, received values,
+current position/CAS/replacement identity or arbitrary error data are emitted.
+The old Keep Read/Set problem family and legacy action endpoints stay unchanged.
+
+Actual installed Nest+disposable-PG CI fixtures exercise the mounted path and its
+refusals/ABA/receipt/account/epoch/root races; these are source/fixture evidence,
+not rollout, native/client or real two-device acceptance. The app's legacy
+asset-keyed Unsave still requires its separate consumer migration. No Remove/Undo
+UX, selective privacy completion or owner-history operation is claimed here.

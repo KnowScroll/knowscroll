@@ -1,3 +1,4 @@
+import { KeepRemoveController } from './http/keep-remove.controller.js';
 import { KeepController } from './http/keep.controller.js';
 import { ScenesController } from './http/scenes.controller.js';
 import { SupplyController } from './http/supply.controller.js';
@@ -22,4 +23,5 @@ export const apiControllers = [
   GeographyController,
   ScenesController,
   KeepController,
+  KeepRemoveController,
 ];

@@ -1,3 +1,4 @@
+import type { makeRemoveKeepEntry } from './application/keep-remove.js';
 import type { makeReadKeepEntry, makeSetKeepPlace } from './application/keep-place.js';
 import type { ActivityLineage, RoutingHistory } from './application/navigation-ports.js';
 import type { EncounterAttribution } from '../content/public.js';
@@ -141,3 +142,8 @@ export interface KeepPlaceUseCases {
   readonly setPlace: ReturnType<typeof makeSetKeepPlace>;
 }
 export const KEEP_PLACE_USE_CASES = Symbol('experience.keepPlaceUseCases');
+
+export { KEEP_REMOVAL_OPERATION, KEEP_REMOVAL_OUTCOME_VERSION } from './application/keep-remove.js';
+export type { KeepRemovalResult } from './application/keep-remove.js';
+export type KeepRemovalUseCase = ReturnType<typeof makeRemoveKeepEntry>;
+export const KEEP_REMOVAL_USE_CASE = Symbol('experience.keepRemovalUseCase');

@@ -178,3 +178,35 @@ They establish neither production percentiles nor an accepted client response/lo
 Content/membership races, rollback after receipt/place/hint, strict JSON, actual
 resume units, counter limits and all-epoch erasure. The thin API source mounts read/set without a worker or new business authority. No client
 journey, privacy completion, runtime rollout or full #246 acceptance is claimed.
+
+## Exact Saved membership removal (#246)
+
+`KEEP_REMOVAL_USE_CASE` / `keepRemovalUseCase` is a separate `keep-remove.v1`
+command mounted by the API. It strictly hashes the original command under
+`experience.keep-entry-remove`, outcomeVersion1. One real personal root and the
+actual Identity own-account UPDATE/fresh-authority fence precede receipt access.
+A valid immutable historical acknowledgement replays BEFORE looking for the
+membership the command already removed. A replay of A leaves a later Save's B
+and place untouched; a new command naming missing/replaced A returns the same
+fixed `KEEP_ENTRY_UNAVAILABLE`, with no B identity or current-absence claim.
+Changed keys/bodies/old epochs/retired outcomes refuse; newer or corrupt stored
+acceptances never become a fresh action.
+
+A fresh command must match the actual Saved UUID and immutable asset/revision.
+No Content admission, canonical document or playback grant is needed to remove
+a withdrawn/corrected saved ref. Existing `readChannels` and `makeCommitAction`
+perform the Unsave under that SAME scope: action/link/state and credited-origin
+correction, Saved/place cascade, required pg-boss work, pending/completed receipt,
+one root increment and disposable notice commit atomically. Root integer capacity
+is checked before new writes. No nested public action call, isolated Saved delete,
+new consumption/exposure/observation or independent outbox is introduced. Old
+Read/Set and legacy Save/Unsave implementations remain unchanged.
+
+Actions-only real PG/pg-boss and installed HTTP fixtures cover replay after deletion,
+ABA/resave, corrected/withdrawn refs, current owner/account/epoch waits, duplicate
+commands, removal/Set ordering, receipt corruption/version refusal, post-write
+rollback and actual saved-channel correction retaining Like. No local suite,
+provider or owner-data operation is implied. The closed14-code removal HTTP family
+contains only seven schema-owned issue tokens; no position/CAS/replacement metadata.
+This source endpoint does not migrate the app's legacy Unsave, supply Undo, complete
+selective privacy or establish real two-device/runtime acceptance.
