@@ -44,7 +44,7 @@ JSON; v2 makes that distinction explicit and adds one `JSON.stringify`-generated
 example. This is a bounded prompt correction, not evidence that the earlier model copied grammar
 or that the revised prompt will succeed. Parsing, schemas, admission and repair limits are unchanged.
 
-| Identity | v1 | v2 | v3 | v4 | v5 | v6 | v7 | Current v8 |
+| Identity | v1 | v2 | v3 | v4 | v5 | v6 | v7 | v8 |
 |---|---|---|---|---|---|---|---|---|
 | Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` | `scroll-production.v5` | `scroll-production.v6` | `scroll-production.v7` | `scroll-production.v8` |
 | Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged | Unchanged | `scroll-claims.v3` (native object carrier) | `scroll-claims.v4` (advisory input shape) | Unchanged |
@@ -321,3 +321,33 @@ aggregation semantics; cost remains explicitly unverified until reviewed account
 No automatic sum/settlement or new<=75c allowance per child follows. Publication, corpus fingerprint,
 source/framing/rights/media gates, exact-script owner approval, live fal balance and pool reconciliation
 remain separate future requirements. No content/evidence/coverage/encounter is admitted here.
+
+
+## Bounded writer feedback in v9
+
+Policy `scroll-production.v9` and writer/provenance `scroll-writer.v7` record a real instruction and
+feedback change. Claims remain `scroll-claims.v4`; the fixed native carrier, hp4 framing and
+canonical structural ScrollDraft input remain unchanged. Every primary/repair requests the complete
+required object with native `sections`/`bindings` arrays. The writer distinguishes its strict span
+arrays from compiler convenience notation and states combined canonical text limits and whole-text
+trimming without changing those checks.
+
+The writer opts into only the two new core-owned intrinsic RichText codes, `rich_text_too_long` and
+`rich_text_not_trimmed`, with fixed module-owned hints. They distinguish combined-length overflow
+from empty/outer-whitespace concatenated text. Unknown/custom issue messages and values remain
+hidden; shared schema-path diagnostics retain later union branches under fixed privacy/work bounds.
+This improves future feedback. The real rejected v8 radiation answer is unavailable: its masked
+nested fields and exact RichText cause are not reconstructed or retrospectively classified.
+
+CI uses authored native HTTP objects through the real M3 encoder/parser and disposable PostgreSQL:
+nested optional-object and RichText refusal → one complete valid repair, terminal non-array repair,
+null failed outputs, no third writer attempt, no fifth total request and no replay dispatch. Existing
+historical v1–v7 snapshots and new terminal v8 issue/request snapshots stay byte-identical. Both
+interactive/noninteractive modes retain strict arrays, min-four claims, copy-nine, number/support,
+honesty, privacy, interaction and admitted stored-document checks.
+
+All recipe keys/briefs/pages/asset+explanation identities, stable role IDs, generation, cumulative
+failure brakes, token/request/output ceilings and unknown-liability ledgers remain unchanged.
+A new policy is not a cap reset or a retry grant. No SQL, operator activation, allocation, reservation,
+provider request, default or runtime permission changes here; a later operation needs separately
+reviewed exact source/release/profile and budget authority. Fixtures do not prove provider success.

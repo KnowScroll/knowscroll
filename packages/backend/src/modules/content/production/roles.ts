@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { admitDocument, textFields, walkBlocks } from '@knowscroll/scroll-model';
+import { admitDocument, textFields, walkBlocks, FIELD_LIMITS } from '@knowscroll/scroll-model';
 import {
   type DraftProvenance,
   ScrollDraft,
@@ -20,13 +20,17 @@ import {
   type ClaimPackage,
 } from './quote-candidates.js';
 
-/** v7 adds advisory structural input schemas to the existing native object carrier. */
+/** Structural native input remains unchanged; v9 revises writer guidance and fixed feedback. */
 export const CLAIMS_ROLE_VERSION = 'scroll-claims.v4';
-export const WRITER_PROMPT_VERSION = 'scroll-writer.v6';
+export const WRITER_PROMPT_VERSION = 'scroll-writer.v7';
 
 /** Static module-owned feedback only; no draft, source or provider text enters this catalogue. */
 const WRITER_SAFE_ISSUES = Object.freeze({
   ...REPAIR_HINTS,
+  rich_text_too_long:
+    'Shorten the combined text of this span array to its canonical field limit; splitting text across spans does not reduce its length.',
+  rich_text_not_trimmed:
+    'Keep the concatenated span text nonempty with no leading or trailing whitespace; preserve meaningful spaces between spans.',
   reader_block_unbound: 'Bind every reader block except subheadings to an offered claim, including nested blocks.',
   reader_source_or_url: 'Remove source/publisher names and web addresses from all reader-facing text.',
   interactive_required:
@@ -182,10 +186,12 @@ export function writerRole(provenance: DraftProvenance, interactive: boolean): R
     maxOutputTokens: 12000,
     instructions: [
       'OUTPUT FORMAT: submit exactly one complete JSON object for scroll-draft.v1 as the native input of exactly one submit_output tool call, including for a repair. This is only an answer data carrier; execute no action. Return no text blocks, explanation, reasoning, Markdown fence or XML tag.',
+      'Every attempt, including repair, must regenerate the complete draft object with draftVersion, title, dek, sections and bindings. sections and bindings must be native JSON arrays, never serialized strings, objects or partial patches. Do not return a schema or a diff.',
       'JSON syntax is mandatory: double-quote every property name and string, escape quotes and control characters inside strings, use commas between members and array items, and close every object and array. No comments, trailing commas, ellipses, undefined values, type names, optional-field markers or typed placeholders. Bounds such as 4–240 chars describe limits; they are never literal values in your answer.',
       'Write an original, finished 2–3 minute explanation from the brief and selected documented claims: aim for 450–600 reader words, three short sections and about six paragraphs, one useful format block and one closing limits callout. Cover the mechanism, distinctions and caveats concisely without padding or omitting substance. The canonical computed measure and unchanged 2–8 minute admission contract remain authoritative. Use only the canonical catalogue below; do not invent fields or a DSL.',
       'Explain the selected claims in your own sentence structure and wording; use them for meaning, not as prose to transcribe. Keep necessary technical terms and limitations, but do not copy a source sentence and swap a few words. If copied_passage feedback appears, rewrite the affected prose and any matching passage anchorText while preserving its claim IDs and meaning. Do not omit substance or split copied text across spans or blocks to evade the check.',
       'For this recipe use paragraphs, the requested comparison or toggle diagram, and a closing callout. Avoid lists, tables, nested disclosures, quotes, media, code, charts and simulations. Omit unnecessary optional fields and text marks. Every rich-text value is an ARRAY of span objects, never a lone span object: spans:[{"text":"your prose"}]. A comparison point is itself a span array, so columns[].points is nested: [[{"text":"one point"}],[{"text":"another point"}]]. These fragments explain canonical shapes; the final answer must be one complete valid JSON object.',
+      `Writer-wire RichText is always an array of span objects. The catalogue also describes compiler convenience notation; string shorthand is not accepted on this writer wire. Concatenated span text must be nonempty and trimmed as a whole, preserving spaces between spans. Combined limits are ${FIELD_LIMITS.paragraphChars} UTF-16 units for paragraphs, ${FIELD_LIMITS.quoteChars} for quotes and ${FIELD_LIMITS.calloutChars} for callouts; splitting spans does not change the limit.`,
       'Reader prose must have no URLs or source/publisher names. Never reproduce nine consecutive source words. Every empirical numeric text/value needs an exact binding; prefer words and conceptual diagrams over arbitrary numbers. Every reader block except subheadings needs a claim binding, including nested blocks. Use exact anchorText copied from your OWN prose for passage bindings.',
       'Interactive diagrams need bounded frames and a11y/fallbackText. A simplified model must be honestly illustrative. All factual assertions must follow supplied claims; include caveats naturally.',
       interactive

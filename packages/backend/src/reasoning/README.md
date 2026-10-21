@@ -25,6 +25,18 @@ const outcome = await harness.propose({ run, role, context, limits }, signal);
   remain `custom` without detail. Paths still use only schema-declared names, numeric positions and
   placeholders. Roles without a catalogue keep the existing behavior. Feedback changes require a
   role version change; existing ledger issues and exact historical repair bytes are not rewritten.
+
+Safe diagnostic paths retain every bounded schema candidate across union/intersection prefixes;
+no rejected value or discriminant chooses a branch. Only declared field names and nonnegative safe
+integer positions positively established by an array/tuple schema are printed; unknown names
+and unresolved numeric segments remain `?`, while known record/map keys remain `[key]`. A numeric
+Map key is caller-chosen data, never a fallback array index, including after budget/getter failure.
+Ambiguous object/record paths use the masked form. Limits are ten path segments, 256 rendered
+characters, 64 pending/candidate branches, 16 schema-wrapper/branch levels and 512 visits per
+issue path. Exhaustion or an unreadable schema masks the remaining path conservatively; it never
+changes validation. The eight-issue plus `more` bound stays unchanged. Old stored issues are replayed
+as recorded, so improved diagnostics do not rewrite historic repair requests.
+
 - `context` (D-021, blueprint §26 minimisation): `{ bundleRef, items: [{ ref, kind, text }] }`. The
   module freezes **prepared, bounded context** (topic/unit references and authorised excerpts),
   never a raw observation stream, another person's private data or a secret. The harness enforces

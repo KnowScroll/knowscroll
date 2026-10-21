@@ -251,69 +251,99 @@ interface Step {
   readonly next: unknown;
 }
 
-/**
- * Resolves one path segment against a schema. Only names the SCHEMA declares are ever returned as
- * names (object shape keys); array and tuple positions are numeric indexes; the keys of a record
- * or map are chosen by the model, so they become the fixed placeholder `[key]`. Anything the walk
- * cannot resolve returns `undefined` (the caller prints `?`).
- */
-function stepInto(schema: unknown, segment: PropertyKey, first: boolean, depth = 0): Step | undefined {
-  let current = schema;
-  for (let unwrap = 0; unwrap < 8; unwrap += 1) {
-    const def = defOf(current);
-    if (def === undefined) return undefined;
-    if (def.type !== undefined && transparent.has(def.type)) current = def.innerType;
-    else if (def.type === 'pipe') current = def.in;
-    else if (def.type === 'lazy' && def.getter !== undefined) current = def.getter();
-    else break;
-  }
-  const def = defOf(current);
-  if (def === undefined || depth > 4) return undefined;
-  switch (def.type ?? '') {
-    case 'object':
-      return typeof segment === 'string' &&
-        safeSegment.test(segment) &&
-        def.shape !== undefined &&
-        Object.prototype.hasOwnProperty.call(def.shape, segment)
-        ? { label: first ? segment : `.${segment}`, next: def.shape[segment] }
-        : undefined;
-    case 'array':
-      return typeof segment === 'number' ? { label: `[${segment}]`, next: def.element } : undefined;
-    case 'tuple':
-      return typeof segment === 'number'
-        ? { label: `[${segment}]`, next: def.items?.[segment] ?? def.rest }
-        : undefined;
-    case 'record':
-    case 'map':
-      return { label: '[key]', next: def.valueType };
-    case 'union':
-      for (const option of def.options ?? []) {
-        const step = stepInto(option, segment, first, depth + 1);
-        if (step !== undefined) return step;
+/** Fixed diagnostic work bounds; exhaustion masks the remaining path, never widens validation. */
+const PATH_LIMITS = { segments: 10, chars: 256, candidates: 64, depth: 16, visits: 512 } as const;
+interface PathBudget {
+  visits: number;
+  exhausted: boolean;
+}
+const indexSegment = (segment: PropertyKey): segment is number =>
+  typeof segment === 'number' && Number.isSafeInteger(segment) && segment >= 0;
+
+/** Keep every schema branch through shared prefixes. Never inspect the rejected value/discriminant. */
+function stepsInto(
+  candidates: readonly unknown[],
+  segment: PropertyKey,
+  first: boolean,
+  budget: PathBudget,
+): readonly Step[] {
+  const pending = candidates.map((schema) => ({ schema, depth: 0 }));
+  const seen = new Set<unknown>();
+  const steps: Step[] = [];
+  const push = (schema: unknown, depth: number) => {
+    if (pending.length >= PATH_LIMITS.candidates || depth > PATH_LIMITS.depth) budget.exhausted = true;
+    else pending.push({ schema, depth });
+  };
+  while (pending.length > 0 && !budget.exhausted) {
+    const frame = pending.pop();
+    if (frame === undefined || seen.has(frame.schema)) continue;
+    seen.add(frame.schema);
+    if (++budget.visits > PATH_LIMITS.visits) {
+      budget.exhausted = true;
+      break;
+    }
+    const def = defOf(frame.schema);
+    if (def === undefined) continue;
+    const nextDepth = frame.depth + 1;
+    if (def.type !== undefined && transparent.has(def.type)) push(def.innerType, nextDepth);
+    else if (def.type === 'pipe') push(def.in, nextDepth);
+    else if (def.type === 'lazy' && def.getter !== undefined) push(def.getter(), nextDepth);
+    else
+      switch (def.type ?? '') {
+        case 'object':
+          if (
+            typeof segment === 'string' &&
+            safeSegment.test(segment) &&
+            def.shape !== undefined &&
+            Object.prototype.hasOwnProperty.call(def.shape, segment)
+          )
+            steps.push({ label: first ? segment : `.${segment}`, next: def.shape[segment] });
+          break;
+        case 'array':
+          if (indexSegment(segment)) steps.push({ label: `[${segment}]`, next: def.element });
+          break;
+        case 'tuple':
+          if (indexSegment(segment)) steps.push({ label: `[${segment}]`, next: def.items?.[segment] ?? def.rest });
+          break;
+        case 'record':
+        case 'map':
+          steps.push({ label: '[key]', next: def.valueType });
+          break;
+        case 'union':
+          if ((def.options?.length ?? 0) > PATH_LIMITS.candidates) budget.exhausted = true;
+          else for (const option of def.options ?? []) push(option, nextDepth);
+          break;
+        case 'intersection':
+          push(def.left, nextDepth);
+          push(def.right, nextDepth);
+          break;
       }
-      return undefined;
-    case 'intersection':
-      return stepInto(def.left, segment, first, depth + 1) ?? stepInto(def.right, segment, first, depth + 1);
-    default:
-      return undefined;
+    if (steps.length > PATH_LIMITS.candidates) budget.exhausted = true;
   }
+  return budget.exhausted ? [] : steps;
 }
 
-/**
- * The path of an issue in the summary: `(root)`, schema-declared key names joined by `.`,
- * numeric indexes as `[n]`, and `[key]` for a record's model-chosen keys. No string that came from
- * the answer is ever part of it: an unknown key (or one below something the walk cannot resolve)
- * is `?`. Without a schema every name is `?`.
- */
+/** Schema-owned names only; unknown names and record/map keys stay masked under bounded traversal. */
 function pathOf(path: readonly PropertyKey[], schema?: unknown): string {
   if (path.length === 0) return '(root)';
-  let current = schema;
+  let candidates: readonly unknown[] = schema === undefined ? [] : [schema];
+  const budget: PathBudget = { visits: 0, exhausted: false };
   let text = '';
-  path.slice(0, 6).forEach((segment, index) => {
-    const step = current === undefined ? undefined : stepInto(current, segment, index === 0);
-    current = step?.next;
-    text += step?.label ?? (typeof segment === 'number' ? `[${segment}]` : index === 0 ? '?' : '.?');
-  });
+  for (const [index, segment] of path.slice(0, PATH_LIMITS.segments).entries()) {
+    let steps: readonly Step[] = [];
+    try {
+      steps = stepsInto(candidates, segment, index === 0, budget);
+    } catch {
+      budget.exhausted = true;
+    }
+    const labels = new Set(steps.map((step) => step.label));
+    const label = labels.size === 1 ? steps[0]?.label : labels.has('[key]') ? '[key]' : undefined;
+    // A number can be a model-chosen Map key. Only a proven array/tuple Step may print [n].
+    const rendered = label ?? (index === 0 ? '?' : '.?');
+    if (text.length + rendered.length > PATH_LIMITS.chars) break;
+    text += rendered;
+    candidates = budget.exhausted ? [] : [...new Set(steps.map((step) => step.next))];
+  }
   return text;
 }
 
