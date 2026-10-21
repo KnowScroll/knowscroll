@@ -10,6 +10,9 @@ import {
   KeepEntrySnapshotSchema,
   KeepPlaceAcceptanceSchema,
   KeepPlaceProblemSchema,
+  RegionEncounterOpenRequestSchema,
+  RegionEncounterOpenResponseSchema,
+  RegionEncounterProblemSchema,
   apiContract,
   problemCatalogue,
   scopeClaimOf,
@@ -56,6 +59,7 @@ describe('the API contract', () => {
       apiContract.experience.applyAction,
       apiContract.experience.listSaved,
       apiContract.experience.openExposure,
+      apiContract.experience.openRegionEncounter,
       apiContract.experience.navigate,
       apiContract.experience.activateExposure,
       apiContract.experience.exposureDocument,
@@ -471,5 +475,104 @@ describe('Keep declaration OpenAPI metadata', () => {
       if (code === 'KEEP_PLACE_REVISION_STALE')
         expect(schema).toMatchObject({ required: expect.arrayContaining(['currentPlaceRevision']) as unknown });
     }
+  });
+});
+
+describe('RegionEncounterOpen declaration OpenAPI metadata', () => {
+  it('describes one strict private command and exact direct catalogue problems without mounting a consumer', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const errors = apiContract.experience.openRegionEncounter['~orpc'].errorMap;
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas: {
+        RegionEncounterOpenRequest: { schema: RegionEncounterOpenRequestSchema },
+        RegionEncounterOpenResponse: { schema: RegionEncounterOpenResponseSchema },
+        RegionEncounterProblem: { schema: RegionEncounterProblemSchema },
+        ...Object.fromEntries(
+          Object.entries(errors).map(([code, definition]) => [
+            `RegionEncounterProblem_${code}`,
+            { schema: definition.data },
+          ]),
+        ),
+      },
+    });
+    const path = document.paths?.['/v1/experience/region/open'];
+    expect(Object.keys(path ?? {})).toEqual(['post']);
+    const operation = path?.post;
+    expect(operation?.parameters ?? []).toEqual([]);
+    expect(operation?.requestBody).toEqual({
+      required: true,
+      content: { 'application/json': { schema: { $ref: '#/components/schemas/RegionEncounterOpenRequest' } } },
+    });
+    expect(operation?.responses?.['200']).toMatchObject({
+      content: { 'application/json': { schema: { $ref: '#/components/schemas/RegionEncounterOpenResponse' } } },
+    });
+    expect(Object.keys(operation?.responses ?? {}).sort()).toEqual([
+      '200',
+      '400',
+      '401',
+      '403',
+      '404',
+      '409',
+      '413',
+      '415',
+      '422',
+      '500',
+      '503',
+    ]);
+    for (const status of ['400', '401', '403', '404', '409', '413', '415', '422', '500', '503']) {
+      const response = operation?.responses?.[status];
+      expect(response && !('$ref' in response) && response.content).toEqual({
+        'application/problem+json': {
+          schema: {
+            oneOf: Object.entries(errors)
+              .filter(([, definition]) => String(definition.status) === status)
+              .map(([code]) => ({ $ref: `#/components/schemas/RegionEncounterProblem_${code}` })),
+          },
+        },
+      });
+    }
+    const schemas = document.components?.schemas;
+    expect(schemas?.['RegionEncounterOpenRequest']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: ['version', 'commandId', 'target', 'capabilities'],
+      properties: {
+        version: { const: 'region-encounter-open.v1' },
+        target: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['kind', 'regionId', 'expectedObjectRevision', 'expectedGeographyRevision'],
+          properties: {
+            kind: { const: 'region' },
+            expectedObjectRevision: { minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+          },
+        },
+      },
+    });
+    expect(schemas?.['RegionEncounterOpenResponse']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: ['version', 'universeId', 'privacyEpoch', 'target', 'outcome'],
+    });
+    expect(schemas?.['RegionEncounterProblem']).toBeDefined();
+    for (const [code, definition] of Object.entries(errors)) {
+      const schema = schemas?.[`RegionEncounterProblem_${code}`];
+      expect(schema).toMatchObject({
+        type: 'object',
+        additionalProperties: false,
+        required: expect.arrayContaining(['type', 'title', 'status', 'code']) as unknown,
+        properties: {
+          code: { const: code },
+          status: { const: definition.status },
+          title: { const: problemCatalogue[code as keyof typeof problemCatalogue].title },
+        },
+      });
+      const encoded = JSON.stringify(schema);
+      for (const forbidden of ['defined', 'message', 'detail', 'instance', 'universeId'])
+        expect(encoded).not.toContain(`"${forbidden}"`);
+      expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty('regionId');
+    }
+    // Refinements still require the actual canonical parser; metadata grants no target authority.
   });
 });

@@ -14,6 +14,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) and `ClientCapabilities` from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
 | `src/experience.ts` | `POST /v1/actions`, `GET /v1/saved`, and the exposure routes: `POST /v1/experience/open`, `POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document` |
 | `src/navigation.ts` | Composer session discovery, `POST /v1/experience/navigate`, semantic intents, prepared public offers, ready/pending/exhausted receipt outcomes and offer activation |
+| `src/region-encounter.ts` | U04 declaration-only exact own-region Composer preparation command, scoped offer outcome and closed problems |
 | `src/supply.ts` | Declaration-only topic/format-variant requests, immutable acceptance/cancel receipts and current private request status; topic/variant HTTP declarations in `apiContract.supply` (#239 prerequisite; adapters pending) |
 | `src/geography.ts` | Declaration-only established geography pages, retained routes/aliases and typed applied universe deltas; not routed by `apiContract` (#237/#238 prerequisite) |
 | `src/interactions.ts` | `interaction.v1`: the observation envelope, three `scroll.*` payloads and bounded paired `reel.playback` intervals; `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
@@ -522,3 +523,68 @@ proof. Strict cross-field membership equality and exact counter increments are
 parser invariants beyond structural OpenAPI metadata. Synthetic wire/OpenAPI
 fixtures run only in GitHub Actions; no complete Keep journey or runtime privacy
 acceptance is claimed.
+
+
+## Region encounter preparation prerequisite (#238 / U04)
+
+`apiContract.experience.openRegionEncounter` declares POST
+`/v1/experience/region/open` with strict `region-encounter-open.v1` JSON input.
+This is an explicit idempotent Composer preparation **command**, not a read,
+activation or map observation. The selected target is an exact Geography region
+UUID with expected object/Geography revisions; an optional existing Composer
+session carries its latest expected intent. ClientCapabilities are canonical.
+Owner/epoch come from the authenticated scope, never the input. No Scene identity,
+meaning/label/topic assertion, asset override, camera or playhead is accepted.
+Future HTTP adapters require first-party Origin, current session and `X-KS-Scope`
+guards, private/no-store responses and body/output ceilings. Private IDs stay in
+the JSON body, never paths, general logs, cursors or diagnostic payloads.
+
+The strict response binds the authorised universe/epoch and exact target echo to
+an existing NavigationOutcome. Ready offers retain discovery relations and the
+same decision identity, bounded chosen+two buffers and unique explanation units.
+Exhaustion means no eligible content, leaving the region intact. Pending still
+requires actual durable authorised work; this declaration creates none. Replay
+preserves its original status. Root, Geography, object and session intent stamps
+remain separate domains. Consumers must compare target/scope/command echoes and
+fence stale or late responses; schemas cannot compare an initiating request for
+them or establish current backend authority.
+
+No controller, Composer consumer, metadata lookup, job, SQL or UI is installed.
+Before implementation, Geography must resolve the actual own region/parents and
+canonical topic+facet under the current personal root and active-owner fence,
+refusing stale/foreign/unsupported/ambiguous targets and alias redirection.
+Content must retrieve by admitted non-incidental parent topic AND exact facet
+before its bounded limit, then independently recheck each immutable candidate.
+Existing general discovery's global-prefix lanes are not that authority.
+Experience must retain this actual region binding through its existing Tx1 →
+pure Composer → Tx2 receipt/session/decision/offers lifecycle, repeating scope,
+latest intent, region, Content/capability/Hide checks after waits. No network wait
+belongs in a transaction or HTTP path. Same command/body retries once; another
+body under its key conflicts. Live authority precedes receipt replay. A hash,
+scene ID, descriptor or label never substitutes for these checks.
+
+Offer preparation/metadata creates no exposure or Evidence. Open into the actual
+foreground encounter uses the existing explicit offer activation and its current
+scope/intent/TTL/Content checks. Only actual playback/reading observations supply
+consumption evidence. Local selection, Close, camera travel and Back send no new
+command or return contribution. Future “More in region” must explicitly retain
+the constrained session intent; current navigation does not supply that seam.
+Absent content, unsupported commands and offline states must remain honest; no
+read enqueue, generation, supply request, bootstrap, visit growth or placeholder
+encounter is implied. U04's authored content is design data, not a fixture to ship.
+
+`RegionEncounterProblemSchema` is a finite strict RFC9457 union using existing
+catalogue codes and fixed metadata. Its bounded issues accept only declared field
+tokens or `unknown`; dynamic capability keys, numeric segments and rejected values
+must be masked, never echoed. No arbitrary detail/instance is permitted. The route
+spec hook describes converter-produced error data directly as
+`application/problem+json`; it is OpenAPI metadata, not an HTTP error serializer.
+Global ProblemDetails and legacy open/activation stripping remain unchanged.
+
+Wire/refinement and actual OpenAPI-generation fixtures run in GitHub Actions only.
+They prove no established region, current target binding, runtime endpoint,
+provider compatibility, browser/native journey or #238 completion. A later client
+must preserve AccountScope disposal and its local exact camera/selection return,
+accessible dialog/focus/keyboard and truthful unavailable states. U05 durable
+per-account shown/skipped acknowledgement remains a separate missing prerequisite;
+origin IDs, this command receipt and local memory cannot replace it.
