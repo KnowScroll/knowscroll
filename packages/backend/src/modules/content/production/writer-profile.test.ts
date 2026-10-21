@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FIELD_LIMITS, LIMITS } from '@knowscroll/scroll-model';
-import { DraftBlock, DraftSection, ScrollDraft } from '@knowscroll/scroll-model/producer';
+import { DraftBinding, DraftBlock, DraftSection, ScrollDraft } from '@knowscroll/scroll-model/producer';
 import { onlyCanonicalOption, writerDraftProfile } from './writer-profile.js';
 import { writerDraftExampleJson } from './writer-example.js';
 
@@ -42,6 +42,44 @@ describe('canonical production writer profiles (CI fixtures)', () => {
       const example = JSON.parse(writerDraftExampleJson(interactive)) as unknown;
       expect(profile.safeParse(example).success).toBe(true);
       expect(ScrollDraft.safeParse(example).success).toBe(true);
+    },
+  );
+
+  it.each([false, true])(
+    'narrows passage fields to canonical prose text and retains the other binding nodes, interactive=%s',
+    (interactive) => {
+      const profile = writerDraftProfile(interactive);
+      const example = JSON.parse(writerDraftExampleJson(interactive)) as Record<string, unknown>;
+      const options = profile.shape.bindings.element.options;
+      for (const kind of ['header', 'heading', 'block'])
+        expect(options.find((option) => option.shape.kind.value === kind)).toBe(
+          DraftBinding.options.find((option) => option.shape.kind.value === kind),
+        );
+      const passage = {
+        kind: 'passage',
+        blockId: 'example-paragraph',
+        claimId: 'example-only-claim',
+        anchorText: 'Imagine a device with a switch between an input and an output.',
+      };
+      for (const binding of [passage, { ...passage, field: 'text' }]) {
+        const value = { ...example, bindings: [binding] };
+        expect(profile.safeParse(value).success).toBe(true);
+        expect(ScrollDraft.safeParse(value).success).toBe(true);
+      }
+      for (const field of ['data.spans', 'data.spans.0.text', 'spans', 'data.text', 'text.0', 'fallbackText']) {
+        const value = { ...example, bindings: [{ ...passage, field }] };
+        // This producer is narrower; the general canonical DSL remains unchanged.
+        expect(ScrollDraft.safeParse(value).success).toBe(true);
+        const result = profile.safeParse(value);
+        expect(result.success).toBe(false);
+        if (!result.success)
+          expect(result.error.issues).toContainEqual(
+            expect.objectContaining({ code: 'invalid_value', path: ['bindings', 0, 'field'] }),
+          );
+      }
+      expect(profile.safeParse({ ...example, bindings: [{ ...passage, field: 'text', extra: true }] }).success).toBe(
+        false,
+      );
     },
   );
 
