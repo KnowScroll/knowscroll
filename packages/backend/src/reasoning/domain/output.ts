@@ -338,7 +338,8 @@ function pathOf(path: readonly PropertyKey[], schema?: unknown): string {
     }
     const labels = new Set(steps.map((step) => step.label));
     const label = labels.size === 1 ? steps[0]?.label : labels.has('[key]') ? '[key]' : undefined;
-    const rendered = label ?? (indexSegment(segment) ? `[${segment}]` : index === 0 ? '?' : '.?');
+    // A number can be a model-chosen Map key. Only a proven array/tuple Step may print [n].
+    const rendered = label ?? (index === 0 ? '?' : '.?');
     if (text.length + rendered.length > PATH_LIMITS.chars) break;
     text += rendered;
     candidates = budget.exhausted ? [] : [...new Set(steps.map((step) => step.next))];

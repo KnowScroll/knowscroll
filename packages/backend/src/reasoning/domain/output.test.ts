@@ -446,6 +446,59 @@ describe('the validator summary', () => {
       ]);
     });
 
+    it('never echoes numeric Map keys after exhaustion, unreadable schemas or later unknown segments', () => {
+      const privateKey = 982736451;
+      const map = () => z.map(z.number(), z.object({ value: z.number() }));
+      const schema = z.object({ m: map() });
+      // Real Zod Map value issues prefix the value path with the caller-chosen key, even a number.
+      const parsed = schema.safeParse({ m: new Map([[privateKey, { value: 'bad' }]]) });
+      if (parsed.success) throw new Error('Expected authored Map fixture to be refused');
+      expect(summariseIssues(parsed.error.issues, undefined, schema)).toEqual([
+        { path: 'm[key].value', code: 'invalid_type', detail: 'expected number' },
+      ]);
+      let deep: z.ZodType = map();
+      for (let n = 0; n < 17; n++) deep = deep.optional();
+      const wide = z.union(Array.from({ length: 65 }, map));
+      const work = z.union(
+        Array.from({ length: 64 }, () => {
+          let node: z.ZodType = map();
+          for (let n = 0; n < 9; n++) node = node.optional();
+          return node;
+        }),
+      );
+      const unreadable = z.lazy(() => {
+        throw new Error('PRIVATE-MAP-SCHEMA');
+      });
+      for (const hidden of [deep, wide, work, unreadable, z.string()]) {
+        const summary = summariseIssues(parsed.error.issues, undefined, z.object({ m: hidden }));
+        expect(summary).toEqual([{ path: 'm.?.?', code: 'invalid_type', detail: 'expected number' }]);
+        expect(JSON.stringify(summary)).not.toContain(String(privateKey));
+        expect(JSON.stringify(summary)).not.toContain('PRIVATE-MAP-SCHEMA');
+      }
+      expect(summariseIssues(parsed.error.issues)).toEqual([
+        { path: '?.?.?', code: 'invalid_type', detail: 'expected number' },
+      ]);
+      const later = parsed.error.issues.map((issue) => ({ ...issue, path: [...issue.path, privateKey] }));
+      expect(summariseIssues(later, undefined, schema)).toEqual([
+        { path: 'm[key].value.?', code: 'invalid_type', detail: 'expected number' },
+      ]);
+      const missingBranch = z.object({ m: z.union([z.object({ data: z.string() }), z.object({ other: z.number() })]) });
+      expect(
+        summariseIssues(
+          [
+            {
+              code: 'invalid_type',
+              message: 'PRIVATE-MAP-SCHEMA',
+              expected: 'number',
+              path: ['m', 'unknown', privateKey],
+            },
+          ],
+          undefined,
+          missingBranch,
+        ),
+      ).toEqual([{ path: 'm.?.?', code: 'invalid_type', detail: 'expected number' }]);
+    });
+
     it('prints ? for every name when no schema is available', () => {
       const parsed = z.object({ a: z.number() }).safeParse({ a: 'x' });
       if (parsed.success) throw new Error('expected a failure');
