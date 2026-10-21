@@ -5,6 +5,7 @@ import { readGeographyContract, readUniverseDeltasContract } from './geography.j
 import { mediaGrantContract } from './media.js';
 import { cancelContentRequestContract, createContentRequestContract, readContentRequestContract } from './supply.js';
 import { exposureContextContract, navigateExperienceContract } from './navigation.js';
+import { openRegionEncounterContract } from './region-encounter.js';
 import {
   activateExposureContract,
   applyActionContract,
@@ -43,6 +44,7 @@ export const apiContract = {
     signOut: signOutContract,
   },
   experience: {
+    openRegionEncounter: openRegionEncounterContract,
     applyAction: applyActionContract,
     listSaved: listSavedContract,
     openExposure: openExposureContract,

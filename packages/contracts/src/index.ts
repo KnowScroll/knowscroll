@@ -24,3 +24,4 @@ export * from './scenes.js';
 export * from './sharing.js';
 
 export * from './keep.js';
+export * from './region-encounter.js';
