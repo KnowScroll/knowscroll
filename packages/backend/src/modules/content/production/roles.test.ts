@@ -155,7 +155,7 @@ describe('Scroll production roles (labelled CI fixture)', () => {
       expect(role.instructions.split(json)).toHaveLength(2);
       expect(role.instructions).not.toContain(blockCatalogueText());
       expect(role.instructions).toContain('SELECTED SCHEMA:');
-      expect(role.instructions).toContain('input_schema is the structural reference');
+      expect(role.instructions).toContain('INNER JSON GRAMMAR is the structural reference');
       expect(role.instructions).not.toContain('compiler convenience notation');
       expect(role.instructions).not.toContain('formula (closed kinds');
       expect(role.instructions).toContain('No comments, trailing commas, ellipses');
@@ -171,9 +171,9 @@ describe('Scroll production roles (labelled CI fixture)', () => {
       expect(role.maxOutputTokens).toBe(12_000);
       expect(claimsRole([page]).maxOutputTokens).toBe(4_000);
       expect(role.version).toBe(WRITER_PROMPT_VERSION);
-      expect(role.outputFormat).toBe('single-tool-object');
-      expect(role.nativeOutputSchema).toBe('zod-structural.v1');
-      expect(role.instructions).toContain('native input of exactly one submit_output tool call');
+      expect(role.outputFormat).toBe('single-tool-json-string.v1');
+      expect(role.nativeOutputSchema).toBe('zod-structural-json-string.v1');
+      expect(role.instructions).toContain('exactly one submit_json_output_v1 tool call');
       expect(role.instructions).toContain('your own sentence structure and wording');
       expect(role.instructions).toContain('matching passage anchorText');
       expect(role.instructions).toContain('Never reproduce nine consecutive source words');
@@ -242,9 +242,11 @@ describe('Scroll production roles (labelled CI fixture)', () => {
   it('clarifies complete native arrays and aggregate text bounds while keeping canonical schemas strict', () => {
     for (const interactive of [false, true]) {
       const role = writerRole(provenance, interactive);
-      expect(role.version).toBe('scroll-writer.v8');
-      expect(role.instructions).toContain('sections and bindings must be native JSON arrays');
+      expect(role.version).toBe('scroll-writer.v9');
+      expect(role.instructions).toContain('sections and bindings must be JSON arrays');
       expect(role.instructions).toContain('including repair, must regenerate the complete draft object');
+      expect(role.instructions).toContain('Serialize only the complete object once');
+      expect(role.instructions).not.toContain('submit_output input_schema');
       expect(role.instructions).toContain('String shorthand is not accepted');
       expect(role.instructions).toContain('1200 UTF-16 units for paragraphs and 600 for callouts');
       expect(role.safeCustomIssues).toHaveProperty('rich_text_too_long');
@@ -363,7 +365,7 @@ describe('code-owned explanation recipes (source declarations, not generated sem
   it('declares three independent same-subtopic units and two required interactive explanations', () => {
     const keys = ['greenhouse-radiation', 'greenhouse-balance', 'greenhouse-limits'] as const;
     const units = keys.map((key) => TOPICS[key]);
-    expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v10');
+    expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v11');
     expect(units.map(({ interactive }) => interactive)).toEqual([true, true, false]);
     expect(units.every(({ topicId }) => topicId === 'earth.greenhouse-effect')).toBe(true);
     expect(new Set(Object.values(TOPICS).map(({ assetId }) => assetId)).size).toBe(6);
