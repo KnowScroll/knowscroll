@@ -267,3 +267,15 @@ export type {
 /** Default-disabled snapshot preapproval only. No live corpus/approval registry or normal binding. */
 export { makeCommissionPreparation } from './production/commission-review.js';
 export type { CommissionPreparationStore } from './production/commission-review-ports.js';
+
+/** Pure pinned chain metadata only; no remote, settlement or publication authority. */
+export { validatePinnedCutroomChain } from './production/commission-chain.js';
+export { CUTROOM_CHAIN_UPSTREAM_REVISION, CUTROOM_CHAIN_LIMITS } from './production/commission-contracts.js';
+export type {
+  CutroomChainInput,
+  CutroomChainStatusSnapshot,
+  CutroomChainResultSnapshot,
+  CutroomChainRecordSnapshot,
+  CutroomChainReport,
+  CutroomChainLabel,
+} from './production/commission-contracts.js';

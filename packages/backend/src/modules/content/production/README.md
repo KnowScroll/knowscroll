@@ -425,3 +425,44 @@ Actions fixtures label completeness and human attestations fictional, prove actu
 write refusal, separate capability/lifetime/markers, exact zero effects and stale snapshot
 refusals. Actual complete corpus mapping, per-script human evidence, fal/pool/sole-writer
 preflight, dispatch, media publication and Supply completion require separate accepted work.
+
+## Pure pinned Cutroom chain metadata (#240)
+
+`validatePinnedCutroomChain` is a pure, unmounted data validator for the exact upstream revision
+`94ee04a1c48069c293203de326d4801360ca6158` and wire1. It accepts at most an original and one
+engine-created child. The general A16-run declaration, once-compiled request and three old single-run
+imports remain unchanged. A supplied revision/hash/time is data, never proof of a running engine,
+sole writer, human approval, provider invoice or permission to settle a pool order.
+
+The internal input carries expected attempt/request metadata, explicit validation time, and opening,
+result, record and closing observations with explicit times. Each document is a serialized sanitized
+projection, bounded to262144UTF8bytes before JSON parsing, then depth12/12000nodes before deep schema
+validation/hashing. The eight-document total is at most2097152B; record limits are1000 pictures and
+1000 takes,32checks per piece. All observations fit a30s collection window; closing follows the
+result and record, with unchanged terminal identity/topology/sequence. Unknown or incomplete data
+holds. The expected request ID must match A's script/take identity, but the HTTP wire cannot itself
+attest the protected body digest/world/script. C2 must bind those facts separately.
+
+These projections are NOT new HTTP fields. Future C2 must parse the full immutable wire union,
+including failed-parent results, then apply CF10 before serialization. Projection drops free-form
+messages, paths, headers and raw degradation reasons (which become reasonSha256). Record has no
+requestId. Canonical projection hashes are not raw-response hashes. The old GET reader deliberately
+accepts only completed video and cannot serve as this future full-terminal collector.
+
+Membership of a chain needs fresh reciprocal resumes/resumedBy, one original and one optional tip;
+caller-created resumes are outside this engine-only profile, so a child requires a failed parent.
+Every copied picture/take must match its immediate parent's immutable fields and checks; only chosen
+and used may differ. Validate all retained pieces, not just selected ones. Selected video metadata
+requires actual picture steps1technical/text/witness/reconcile and used-take gates2/3/4/5, no selected
+failure, matching stills/degradations and honest held-shot coverage. Unpictured used takes remain valid.
+Accept-with-label stays labelled and all attestation remains engine-attested, not independent.
+
+Complete engine accounting is distinct from video eligibility. Sum each distinct run's OWN safe cost
+once, including a failed original; copied pieces and estimates add nothing. Report overage without
+clamping or granting another75c; unsafe sums hold. A terminal failed chain can have complete reported
+cost with no video candidate. Outputs contain closed codes, digests/counts, costs and finite label
+outcomes, never raw identifiers/provider strings/URLs. They mint no receipt, accounting/human
+capability, media/publication eligibility, Supply completion or retry/new-take authority. Actual
+funds/pool/profile/corpus/approval/transport/media gates remain separately allocated work. Authored
+unit fixtures run only in Actions; no real resumed chain, provider billing or deployed journey is
+claimed by this prerequisite.
