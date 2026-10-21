@@ -365,6 +365,10 @@ describe('scope-owned readonly Universe session (authored CI fixtures)', () => {
       });
       const s = h.make(caps);
       s.start();
+      if (status === 'loading')
+        await vi.waitFor(() =>
+          expect(s.getState().pendingProjection).toEqual({ geographyRevision: 3, personalRevision: 40 }),
+        );
       const state = await settled(s, status === 'unsupported_version' ? 'unsupported' : status);
       expect(state.pendingProjection !== undefined).toBe(status === 'loading' || status === 'lagging');
       expect(state.snapshot !== undefined).toBe(status === 'lagging');
@@ -1024,3 +1028,26 @@ describe('atomic contiguous Geography catch-up (authored CI deltas)', () => {
     expect(s.getState().geography?.geography.revision).toBe(3);
   });
 });
+
+it.each(['manifest', 'chunk'])(
+  'clears an existing view on a foreign %s envelope even when reference refinements also fail',
+  async (kind) => {
+    let foreign = false;
+    const h = harness(world(), (c, fallback) => {
+      const value = fallback();
+      if (foreign && c.path.endsWith(kind === 'manifest' ? '/manifest/read' : '/chunks/read')) {
+        const reply = value as { scope: Record<string, unknown> };
+        return { ...reply, scope: { ...reply.scope, privacyEpoch: 2 } };
+      }
+      return value;
+    });
+    const s = h.make();
+    s.start();
+    await settled(s);
+    foreign = true;
+    await s.refresh();
+    expect(s.getState()).toMatchObject({ status: 'unavailable', reason: 'authority' });
+    expect(s.getState().snapshot).toBeUndefined();
+    expect(s.getState().geography).toBeUndefined();
+  },
+);

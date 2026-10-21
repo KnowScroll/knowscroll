@@ -380,6 +380,20 @@ export function createUniverseSceneSession(options: {
   const checkScope = (u: string, e: number) => {
     if (u !== scope.account.universeId || e !== scope.account.privacyEpoch) fail('authority');
   };
+  // Fence a recognizable foreign envelope even when a later cross-field refinement fails.
+  // Inspect own data properties only: this is refusal, never partial payload admission.
+  const checkEnvelopeScope = (raw: unknown, nested = false) => {
+    const data = (value: unknown, key: string): unknown => {
+      if (value === null || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype)
+        return undefined;
+      const property = Object.getOwnPropertyDescriptor(value, key);
+      return property && 'value' in property ? property.value : undefined;
+    };
+    const envelope = nested ? data(raw, 'scope') : raw;
+    const universeId = data(envelope, 'universeId'),
+      epoch = data(envelope, 'privacyEpoch');
+    if (typeof universeId === 'string' && typeof epoch === 'number') checkScope(universeId, epoch);
+  };
   const checkBudget = (g: UniverseGeography, data?: unknown) => {
     // Count both displayed and candidate canonical data, even when some references are shared.
     if (
@@ -404,6 +418,7 @@ export function createUniverseSceneSession(options: {
         ),
       );
       live();
+      checkEnvelopeScope(raw);
       const parsed = GeographySnapshotSchema.safeParse(raw);
       if (!parsed.success) fail();
       const read = parsed.data;
@@ -469,6 +484,7 @@ export function createUniverseSceneSession(options: {
         scope.api.geography.deltas({ afterGeographyRevision: next.geography.revision, limit: 10 }, { signal }),
       );
       live();
+      checkEnvelopeScope(raw);
       const parsed = UniverseDeltasSchema.safeParse(raw);
       if (!parsed.success) fail('refresh_required');
       const read = parsed.data;
@@ -510,6 +526,7 @@ export function createUniverseSceneSession(options: {
       live();
       const raw = await abortable(signal, () => scope.api.scenes.manifest(query, { signal }));
       live();
+      checkEnvelopeScope(raw, true);
       const parsed = SceneManifestReadSchema.safeParse(raw);
       if (!parsed.success) fail();
       const read = parsed.data;
@@ -553,6 +570,7 @@ export function createUniverseSceneSession(options: {
             );
             live();
             if (controller.signal.aborted) return;
+            checkEnvelopeScope(rawChunk, true);
             const parsedChunk = SceneChunkReadSchema.safeParse(rawChunk);
             if (!parsedChunk.success) fail();
             const reply = parsedChunk.data;
