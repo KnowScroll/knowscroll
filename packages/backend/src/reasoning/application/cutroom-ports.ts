@@ -45,6 +45,7 @@ export interface CutroomCandidate extends CutroomPoolIdentity {
 }
 /** Trusted composition data, never a caller capability. Empty by default. */
 export type CutroomOwnerApproval = Omit<CutroomCandidate, 'requestUtf8' | 'byteLength' | 'contractVersion'>;
+/** Server UTC timestamps with exactly six fractional digits; never rounded through Date. */
 export interface CutroomPoolReceipt {
   readonly bindingId: string;
   readonly claimedAt: string;

@@ -40,10 +40,12 @@ const orderSchema = z.object({
   state: z.enum(['claimed', 'released', 'settled']),
   claimed_at: z.string(),
 });
-const time = (v: unknown) => {
-  if (!(v instanceof Date) && typeof v !== 'string') throw new Error('CUTROOM_POOL_TIME_INVALID');
-  return new Date(v).toISOString();
-};
+// PostgreSQL receipts retain all six fractional digits; JS Date would erase the last three.
+const time = (v: unknown) =>
+  z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/)
+    .parse(v);
 /** All connections, identity reads and mutations are outside the marked world transaction.
  * Dedicated session login/OID/world and complete immutable tuple are checked; no legacy helpers.
  * Routine pool0003 has NO release privilege. This adapter installs no role or ACL.
@@ -108,10 +110,14 @@ export function makeCutroomPool(connect: () => Promise<pg.PoolClient>): CutroomP
     const result = await client.query<{
       order_row: unknown;
       binding_id: unknown;
+      claimed_at: unknown;
       bound_at: unknown;
       pending_evidence: unknown;
     }>(
-      `select to_jsonb(r.order_row) as order_row,r.binding_id,r.bound_at,r.pending_evidence from public.pool_v2_read_order($1,${tuple}) r`,
+      `select to_jsonb(r.order_row) as order_row,r.binding_id,
+        to_char((r.order_row).claimed_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as claimed_at,
+        to_char(r.bound_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as bound_at,
+        r.pending_evidence from public.pool_v2_read_order($1,${tuple}) r`,
       args(i),
     );
     if (result.rows.length !== 1) return denied('identity');
@@ -137,7 +143,7 @@ export function makeCutroomPool(connect: () => Promise<pg.PoolClient>): CutroomP
     if (o.state === 'settled') return denied('needs_operator');
     const receipt: CutroomPoolReceipt = {
       bindingId: r.binding_id as string,
-      claimedAt: time(o.claimed_at),
+      claimedAt: time(r.claimed_at),
       boundAt: time(r.bound_at),
     };
     return { kind: 'exact', state: o.state, receipt };

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withTransaction } from '@knowscroll/backend/infrastructure/postgres';
 import {
@@ -53,6 +54,81 @@ describe('Cutroom B durable handoff/recovery (real separate PG databases and gen
     expect((await row(a.attemptId)).binding_id).toBe(stored.binding_id);
     expect(await orderCount()).toBe(before + 1);
   });
+  it.each(['claimed_at', 'bound_at'] as const)(
+    'preserves exact server microseconds for %s and holds same-millisecond receipt changes without replacement or release',
+    async (field) => {
+      const a = await reserve(`microseconds-${field}`),
+        bindingId = randomUUID(),
+        expected = { claimed_at: '2026-10-21T01:02:03.123456Z', bound_at: '2026-10-21T01:02:03.654321Z' },
+        changed = { claimed_at: '2026-10-21T01:02:03.123457Z', bound_at: '2026-10-21T01:02:03.654322Z' };
+      // Authored initial disposable pool rows. No trigger is disabled or existing immutable value edited.
+      await f.owner.query(
+        `insert into public.pool_order(request_id,script_digest,take,until,body_sha256,ordered_by,ceiling_cents,approval_ref,claimed_at)
+         values($1,$2,1,'video',$3,'dev',1,$4,$5::timestamptz)`,
+        [
+          a.prepared.requestId,
+          a.prepared.scriptSha256,
+          a.prepared.requestSha256,
+          a.prepared.approvalRef,
+          expected.claimed_at,
+        ],
+      );
+      await f.owner.query(
+        `insert into public.pool_v2_order(request_id,grant_id,binding_id,bound_at) values($1,'knowscroll-v2-d018',$2,$3::timestamptz)`,
+        [a.prepared.requestId, bindingId, expected.bound_at],
+      );
+      // The real genuine-login adapter claims the exact pre-existing order and reads its actual receipt.
+      expect(await a.b.claim(authority, a.attemptId)).toMatchObject({ kind: 'pending', poolState: 'claimed' });
+      const pinned = async () =>
+        (
+          await sql<{ claimed_at: string; bound_at: string }>`select
+          to_char(claimed_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as claimed_at,
+          to_char(bound_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as bound_at
+          from reasoning.cutroom_attempts where id=${a.attemptId}::uuid`.execute(f.world.db)
+        ).rows[0];
+      expect(await pinned()).toEqual(expected);
+      expect(await a.b.reconcile(authority, a.attemptId)).toMatchObject({ kind: 'pending', poolState: 'claimed' });
+      expect(await pinned()).toEqual(expected);
+      expect(new Date(expected[field]).getTime()).toBe(new Date(changed[field]).getTime());
+      let releases = 0;
+      const adapter = makeCutroomPool(async () => {
+        const client = await f.pool.connect();
+        return new Proxy(client, {
+          get(_target, key) {
+            if (key === 'then') return undefined;
+            if (key === 'release') return () => client.release();
+            if (key === 'query')
+              return async (text: string, values?: unknown[]) => {
+                if (text.includes('pool_v2_release_not_sent')) releases++;
+                const result = await client.query<Record<string, unknown>>(text, values);
+                if (text.includes('pool_v2_read_order')) {
+                  expect(result.rows[0]?.[field]).toBe(expected[field]);
+                  result.rows[0]![field] = changed[field]; // Adversarial receipt after a real session read.
+                }
+                return result;
+              };
+            throw new Error('CI unexpected pool-client access');
+          },
+        });
+      });
+      const bad = f.service({ pool: adapter });
+      expect(await bad.reconcile(authority, a.attemptId)).toEqual({ kind: 'held', code: 'needs_operator' });
+      expect(await pinned()).toEqual(expected);
+      expect((await row(a.attemptId)).binding_id).toBe(bindingId);
+      await a.b.reconcile(authority, a.attemptId);
+      await a.b.cancel(authority, a.attemptId);
+      expect(await bad.releaseNotSent(authority, a.attemptId)).toMatchObject({ kind: 'held' });
+      expect(releases).toBe(0);
+      expect(await pinned()).toEqual(expected);
+      expect(
+        (
+          await f.owner.query<{ state: string }>('select state from public.pool_order where request_id=$1', [
+            a.prepared.requestId,
+          ])
+        ).rows[0]!.state,
+      ).toBe('claimed');
+    },
+  );
   it('lost world COMMIT acknowledgement stops external action and retains the exact in-flight operation', async () => {
     const a = await reserve('world-ack'),
       base = f.ports().withScope,

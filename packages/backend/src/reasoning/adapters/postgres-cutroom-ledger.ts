@@ -48,6 +48,7 @@ const rowSchema = z.object({
   pool_state: z.enum(['pending', 'claimed', 'released', 'held']),
   binding_id: z.uuid().nullable(),
 });
+const receiptTime = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/);
 const iso = (v: unknown): string => {
   if (!(v instanceof Date) && typeof v !== 'string') throw new Error('CUTROOM_TIME_INVALID');
   return new Date(v).toISOString();
@@ -57,7 +58,11 @@ function record(input: Record<string, unknown>): CutroomAttemptRecord {
   const receipt: CutroomPoolReceipt | null =
     r.binding_id === null
       ? null
-      : { bindingId: r.binding_id, claimedAt: iso(input['claimed_at']), boundAt: iso(input['bound_at']) };
+      : {
+          bindingId: r.binding_id,
+          claimedAt: receiptTime.parse(input['claimed_at']),
+          boundAt: receiptTime.parse(input['bound_at']),
+        };
   return {
     attemptId: r.id,
     candidate: {
@@ -104,9 +109,10 @@ export function postgresCutroomLedger(enqueue: EnqueueCutroom, now: () => Date =
     scope: CutroomScopeTx,
     predicate: ReturnType<typeof sql>,
   ): Promise<CutroomAttemptRecord | undefined> {
-    const rows = await sql<
-      Record<string, unknown>
-    >`select a.*,r.request_utf8 from reasoning.cutroom_attempts a join reasoning.cutroom_requests r on r.attempt_id=a.id
+    const rows = await sql<Record<string, unknown>>`select a.*,r.request_utf8,
+   to_char(a.claimed_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as claimed_at,
+   to_char(a.bound_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as bound_at
+   from reasoning.cutroom_attempts a join reasoning.cutroom_requests r on r.attempt_id=a.id
    where a.world_id=${scope.authority.worldId} and ${predicate} for update of a`.execute(cutroomTransactionOf(scope));
     return rows.rows[0] ? record(rows.rows[0]) : undefined;
   }
