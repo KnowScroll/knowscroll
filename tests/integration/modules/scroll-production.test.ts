@@ -114,7 +114,7 @@ describe('writer semantic feedback contract (authored CI fixture; no provider ne
     expect(role.safeCustomIssues).toBeDefined();
     expect(validSafeCustomIssues(role.safeCustomIssues ?? {})).toBe(true);
     expect(role.safeCustomIssues).toMatchObject(REPAIR_HINTS);
-    expect(Object.keys(role.safeCustomIssues ?? {}).length).toBe(Object.keys(REPAIR_HINTS).length + 3);
+    expect(Object.keys(role.safeCustomIssues ?? {}).length).toBe(Object.keys(REPAIR_HINTS).length + 5);
     expect(Object.isFrozen(role.safeCustomIssues)).toBe(true);
     expect(role.safeCustomIssues).not.toHaveProperty('admission_refused');
     expect(claimsRole([page]).safeCustomIssues).toBeUndefined();
@@ -122,7 +122,7 @@ describe('writer semantic feedback contract (authored CI fixture; no provider ne
     expect(claimsRole([page]).version).toBe('scroll-claims.v4');
     expect(claimsRole([page]).nativeOutputSchema).toBe('zod-structural.v1');
     expect(role.id).toBe('content.scroll-writer');
-    expect(role.version).toBe('scroll-writer.v6');
+    expect(role.version).toBe('scroll-writer.v7');
     expect(role.nativeOutputSchema).toBe('zod-structural.v1');
   });
 
@@ -164,6 +164,33 @@ describe('writer semantic feedback contract (authored CI fixture; no provider ne
     if (!optedOut.valid)
       expect(optedOut.issues.every((issue) => issue.code === 'custom' && issue.detail === undefined)).toBe(true);
   });
+
+  it.each([
+    ['rich_text_not_trimmed', [{ text: ' leading' }]],
+    ['rich_text_too_long', [{ text: 'a'.repeat(700) }, { text: 'b'.repeat(501) }]],
+  ] as const)(
+    'opts into only the fixed intrinsic %s hint while preserving the canonical input schema',
+    (code, spans) => {
+      const role = writerRole(provenance, false),
+        value = fixtureDraft();
+      const paragraph = value.sections[0]?.blocks.find((b) => b.type === 'paragraph');
+      if (paragraph?.type !== 'paragraph') throw new Error('CI_PARAGRAPH_MISSING');
+      paragraph.data.spans = spans.map((span) => ({ ...span }));
+      const result = validateOutput(role.outputSchema, value, role.safeCustomIssues);
+      expect(result.valid).toBe(false);
+      if (!result.valid)
+        expect(result.issues).toContainEqual({
+          path: 'sections[0].blocks[0].data.spans',
+          code,
+          detail: role.safeCustomIssues?.[code],
+        });
+      const masked = validateOutput(role.outputSchema, value);
+      expect(masked.valid).toBe(false);
+      if (!masked.valid)
+        expect(masked.issues.every((issue) => issue.code === 'custom' && issue.detail === undefined)).toBe(true);
+      expect(deriveNativeInputSchema(role.outputSchema)).toEqual(deriveNativeInputSchema(ScrollDraft));
+    },
+  );
 
   it('offers fixed feedback for production support and interactive requirements without accepting invalid drafts', () => {
     const missing = fixtureDraft();
@@ -513,7 +540,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         })}\n`,
       );
       expect(wires.slice(0, 2).every((wire) => wire.system.includes('version scroll-claims.v4,'))).toBe(true);
-      expect(wires.slice(2).every((wire) => wire.system.includes('version scroll-writer.v6,'))).toBe(true);
+      expect(wires.slice(2).every((wire) => wire.system.includes('version scroll-writer.v7,'))).toBe(true);
       expect(wires[1]?.system).toContain('candidateIds: too_small (at least 4 items)');
       expect(wires[3]?.system).toContain(`copied_passage (${REPAIR_HINTS.copied_passage})`);
       expect(wires[3]?.system).not.toContain(passage);
@@ -529,8 +556,8 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       ).toEqual([
         ['content.scroll-claims', 'scroll-claims.v4', 'primary', 'hp4-tool-schema', 'OUTPUT_SCHEMA_MISMATCH'],
         ['content.scroll-claims', 'scroll-claims.v4', 'repair', 'hp4-tool-schema', 'SUCCEEDED'],
-        ['content.scroll-writer', 'scroll-writer.v6', 'primary', 'hp4-tool-schema', 'OUTPUT_SCHEMA_MISMATCH'],
-        ['content.scroll-writer', 'scroll-writer.v6', 'repair', 'hp4-tool-schema', 'SUCCEEDED'],
+        ['content.scroll-writer', 'scroll-writer.v7', 'primary', 'hp4-tool-schema', 'OUTPUT_SCHEMA_MISMATCH'],
+        ['content.scroll-writer', 'scroll-writer.v7', 'repair', 'hp4-tool-schema', 'SUCCEEDED'],
       ]);
       expect(attempts[0]?.output).toBeNull();
       expect(attempts[2]?.output).toBeNull();
@@ -563,7 +590,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .select(['policy_version', 'generation'])
         .execute();
       expect(runs).toHaveLength(2);
-      expect(runs.every((run) => run.policy_version === 'scroll-production.v8' && run.generation === 1)).toBe(true);
+      expect(runs.every((run) => run.policy_version === 'scroll-production.v9' && run.generation === 1)).toBe(true);
       for (const receipt of first.attempts?.filter((item) => item.role !== 'checks') ?? []) {
         expect(receipt).toMatchObject({ repaired: true, inputTokens: 40, outputTokens: 10 });
         expect(receipt.attempts?.map((item) => item.step)).toEqual(['primary', 'repair']);
@@ -575,7 +602,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .executeTakeFirstOrThrow();
       expect(provenance.provenance).toMatchObject({
         production: {
-          promptVersion: 'scroll-writer.v6',
+          promptVersion: 'scroll-writer.v7',
           model: 'MiniMax-M3',
           attemptIds: attempts.slice(2).map((attempt) => attempt.id),
         },
@@ -583,6 +610,98 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       expect(await p.produce(topic, false, signal(), true)).toEqual(first);
       expect(p.calls).toHaveLength(4);
       expect(p.quotaChecks()).toBe(4);
+    },
+  );
+
+  it.each(['complete', 'nonarray'] as const)(
+    'gives precise bounded native feedback and permits only one %s repair (authored PG fixture)',
+    async (repairKind) => {
+      // Authored mistakes exercise retained safe diagnostics; these are not reconstructed provider answers.
+      const bad = draft(true),
+        diagramIndex = bad.sections[0]?.blocks.findIndex((b) => b.type === 'diagram') ?? -1;
+      const diagram = bad.sections[0]?.blocks[diagramIndex],
+        paragraph = bad.sections[0]?.blocks[0];
+      if (diagram?.type !== 'diagram' || paragraph?.type !== 'paragraph' || !diagram.data.nodes[0])
+        throw new Error('CI_NATIVE_SHAPE_MISSING');
+      diagram.data.interaction = null as never;
+      diagram.data.nodes[0].cell = null as never;
+      paragraph.data.spans = [{ text: ' PRIVATE-AUTHORED-REPLY-CANARY' }];
+      const good = draft(true);
+      const repair = repairKind === 'complete' ? good : { ...good, sections: {}, bindings: 'not an array' };
+      const inputs = [{ candidateIds: selection.candidateIds.slice(0, 3) }, selection, bad, repair];
+      const p = setupNative((n) => {
+        if (n > 4) throw new Error('CI_UNEXPECTED_FIFTH_ATTEMPT');
+        return { input: inputs[n - 1] };
+      });
+      const result = await p.produce('seasons', false, signal());
+      expect(result.outcome).toBe(repairKind === 'complete' ? 'published' : 'rejected');
+      expect(p.calls).toHaveLength(4);
+      expect(p.quotaChecks()).toBe(4);
+      const rows = await database.db
+        .selectFrom('reasoning.production_attempts')
+        .selectAll()
+        .orderBy('reserved_at')
+        .orderBy('id')
+        .execute();
+      const writers = rows.filter((r) => r.role_id === 'content.scroll-writer');
+      expect(writers).toHaveLength(2);
+      expect(writers.map((r) => r.step)).toEqual(['primary', 'repair']);
+      expect(writers[1]?.causation_attempt_id).toBe(writers[0]?.id);
+      expect(rows[1]?.causation_attempt_id).toBe(rows[0]?.id);
+      expect(
+        writers.every(
+          (r) =>
+            r.role_version === 'scroll-writer.v7' &&
+            r.prompt_version === 'hp4-tool-schema' &&
+            r.max_output_tokens === 12000,
+        ),
+      ).toBe(true);
+      expect(writers[0]?.output).toBeNull();
+      expect(writers[0]?.output_issues).toMatchObject({
+        reason: 'OUTPUT_SCHEMA_MISMATCH',
+        issues: expect.arrayContaining([
+          {
+            code: 'invalid_type',
+            path: `sections[0].blocks[${diagramIndex}].data.nodes[0].cell`,
+            detail: 'expected object',
+          },
+          {
+            code: 'invalid_type',
+            path: `sections[0].blocks[${diagramIndex}].data.interaction`,
+            detail: 'expected object',
+          },
+          expect.objectContaining({ code: 'rich_text_not_trimmed', path: 'sections[0].blocks[0].data.spans' }),
+        ]) as unknown,
+      });
+      const wire = JSON.parse(new TextDecoder().decode(p.calls[3])) as { system: string; tools: unknown };
+      expect(wire.system).toContain('rich_text_not_trimmed (Keep the concatenated span text');
+      expect(wire.system).toContain('sections and bindings must be native JSON arrays');
+      expect(wire.system).not.toContain('PRIVATE-AUTHORED-REPLY-CANARY');
+      expect(JSON.stringify(rows)).not.toContain('PRIVATE-AUTHORED-REPLY-CANARY');
+      for (const bytes of p.calls) expect(bytes.length).toBeLessThanOrEqual(100000);
+      if (repairKind === 'nonarray') {
+        expect(writers[1]?.output).toBeNull();
+        expect(writers[1]?.output_issues).toMatchObject({
+          issues: [
+            { code: 'invalid_type', path: 'sections', detail: 'expected array' },
+            { code: 'invalid_type', path: 'bindings', detail: 'expected array' },
+          ],
+        });
+        expect(await database.db.selectFrom('content.asset_revisions').select('asset_id').execute()).toHaveLength(0);
+      }
+      const { codes, ...persisted } = result;
+      if (repairKind === 'complete') expect(codes).toBeUndefined();
+      else expect(codes).toEqual(['invalid_output']);
+      expect(await p.produce('seasons', false, signal(), true)).toEqual(persisted);
+      expect(p.calls).toHaveLength(4);
+      expect(
+        await database.db
+          .selectFrom('reasoning.production_attempts')
+          .selectAll()
+          .orderBy('reserved_at')
+          .orderBy('id')
+          .execute(),
+      ).toEqual(rows);
     },
   );
 
@@ -666,7 +785,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
               id: randomUUID(),
               ownerModule: 'content',
               purpose: 'fixture-unsupported',
-              policyVersion: 'scroll-production.v8',
+              policyVersion: 'scroll-production.v9',
               authority: { scopeId: 'scroll-supply', generation: 1 },
             },
             role,
@@ -731,14 +850,14 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .executeTakeFirstOrThrow();
       expect(result.assetId).toBe(TOPICS[topic].assetId);
       expect(exactRevision.explanation_unit_id).toBe(explanationUnitFor(topic));
-      expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v6,');
+      expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v7,');
       expect(
         await database.db
           .selectFrom('content.scroll_production_runs')
           .select('policy_version')
           .where('id', '=', result.runId ?? '')
           .executeTakeFirstOrThrow(),
-      ).toEqual({ policy_version: 'scroll-production.v8' });
+      ).toEqual({ policy_version: 'scroll-production.v9' });
       expect(
         await database.db
           .selectFrom('content.asset_provenance')
@@ -746,7 +865,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
           .where('asset_id', '=', result.assetId ?? '')
           .executeTakeFirstOrThrow(),
       ).toMatchObject({
-        provenance: { production: { promptVersion: 'scroll-writer.v6' } },
+        provenance: { production: { promptVersion: 'scroll-writer.v7' } },
       });
       expect(p.model.calls.every((call) => call.request.fixture === 'scroll-production-CI-fixture')).toBe(true);
       const projected = await database.db
@@ -969,7 +1088,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(first);
     expect(p.model.calls).toHaveLength(4);
   });
-  it('preserves historical v1–v7 jobs, attempts and native request bytes while v8 creates distinct runs', async () => {
+  it('preserves historical v1–v7 jobs, attempts and native request bytes while v9 creates distinct runs', async () => {
     // Historical SHAPES only: synthetic IDs/receipts, never imported real research or provider output.
     const old = [
       { policy: 'scroll-production.v1', topic: 'seasons', counts: [1, 2] },
@@ -1151,20 +1270,88 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       .select(['policy_version', 'claims_run_id', 'writer_run_id'])
       .where('id', '=', result.runId ?? '')
       .executeTakeFirstOrThrow();
-    expect(current.policy_version).toBe('scroll-production.v8');
+    expect(current.policy_version).toBe('scroll-production.v9');
     expect(ids).not.toContain(current.claims_run_id);
     expect(ids).not.toContain(current.writer_run_id);
     expect(p.model.calls[0]?.request.system).toContain('version scroll-claims.v4,');
-    expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v6,');
+    expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v7,');
     const provenance = await database.db
       .selectFrom('content.asset_provenance')
       .select('provenance')
       .where('asset_id', '=', result.assetId ?? '')
       .executeTakeFirstOrThrow();
-    expect(provenance.provenance).toMatchObject({ production: { promptVersion: 'scroll-writer.v6' } });
+    expect(provenance.provenance).toMatchObject({ production: { promptVersion: 'scroll-writer.v7' } });
     expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(result);
     expect(p.model.calls).toHaveLength(2);
     expect(await previousBytes()).toEqual(before);
+  });
+  it('preserves a terminal v8 job, stored issues and protected bytes across policy9 publication and replay', async () => {
+    const jobId = randomUUID(),
+      claimsId = randomUUID(),
+      writerId = randomUUID();
+    await sql`insert into content.scroll_production_runs(id,topic,policy_version,target_revision,scope_generation,state,claims_run_id,writer_run_id,outcomes,completed_at) values(${jobId},'greenhouse-radiation','scroll-production.v8',1,1,'rejected',${claimsId},${writerId},'[]'::jsonb,now())`.execute(
+      database.db,
+    );
+    for (const [runId, role, version, count] of [
+      [claimsId, 'claims', 'scroll-claims.v4', 1],
+      [writerId, 'writer', 'scroll-writer.v6', 2],
+    ] as const) {
+      await sql`insert into reasoning.production_runs(scope_id,id,owner_module,purpose,generation,role_id,role_version,policy_version,provider,model,state,closed_at) values('scroll-supply',${runId},'content',${`scroll-${role}`},1,${`content.scroll-${role}`},${version},'scroll-production.v8','fixture','historical-CI-fixture','failed',now())`.execute(
+        database.db,
+      );
+      for (let n = 0; n < count; n++) {
+        const id = randomUUID(),
+          body = Buffer.from(
+            JSON.stringify({
+              label: 'authored historical v8 bytes',
+              version,
+              step: n,
+              feedback: n ? [{ code: 'custom', path: 'sections[2].blocks[1].data.spans' }] : [],
+            }),
+          );
+        const hash = createHash('sha256').update(body).digest('hex');
+        await sql`insert into reasoning.production_attempts(scope_id,id,run_id,step,provider,model,role_id,role_version,prompt_version,request_hash,state,dispatch_id,dispatched_at,settled_at,outcome_code,output_issues) values('scroll-supply',${id},${runId},${n ? 'repair' : 'primary'},'fixture','historical-CI-fixture',${`content.scroll-${role}`},${version},'hp4-tool-schema',${hash},'failed',${randomUUID()},now(),now(),'CI_HISTORICAL_REFUSAL','{"v":1,"reason":"OUTPUT_SCHEMA_MISMATCH","issues":[{"code":"custom","path":"sections[2].blocks[1].data.spans"}]}'::jsonb)`.execute(
+          database.db,
+        );
+        await database.db
+          .insertInto('reasoning.production_requests')
+          .values({
+            scope_id: 'scroll-supply',
+            attempt_id: id,
+            body,
+            body_sha256: hash,
+            erasure_class: 'nonpersonal_production',
+            expires_at: new Date(Date.now() + 3600000),
+          })
+          .execute();
+      }
+    }
+    const snapshot = async () => {
+      const result: Record<string, unknown> = {};
+      for (const table of ['production_runs', 'production_attempts', 'production_requests']) {
+        result[table] = (
+          await sql`select row_to_json(r)::text as bytes from ${sql.table('reasoning.' + table)} r where ${table === 'production_runs' ? sql`id=any(${[claimsId, writerId]}::uuid[])` : table === 'production_attempts' ? sql`run_id=any(${[claimsId, writerId]}::uuid[])` : sql`attempt_id in(select id from reasoning.production_attempts where run_id=any(${[claimsId, writerId]}::uuid[]))`} order by ${sql.ref(table === 'production_requests' ? 'attempt_id' : 'id')}`.execute(
+            database.db,
+          )
+        ).rows;
+      }
+      result['job'] = (
+        await sql`select row_to_json(r)::text as bytes from content.scroll_production_runs r where id=${jobId}::uuid`.execute(
+          database.db,
+        )
+      ).rows;
+      return result;
+    };
+    const before = await snapshot();
+    expect(before['production_attempts']).toHaveLength(3);
+    expect(before['production_requests']).toHaveLength(3);
+    const p = setupNative((n) => ({ input: n === 1 ? selection : draft() }));
+    const result = await p.produce('greenhouse', false, signal());
+    expect(result.outcome).toBe('published');
+    expect(await snapshot()).toEqual(before);
+    expect(await p.produce('greenhouse', false, signal(), true)).toEqual(result);
+    expect(p.calls).toHaveLength(2);
+    expect(await snapshot()).toEqual(before);
   });
   it('repairs a lone span object once with schema-declared field paths, without loosening the canonical array contract', async () => {
     const bad = JSON.parse(JSON.stringify(draft())) as { sections: { blocks: { data: { spans: unknown } }[] }[] };
@@ -1323,11 +1510,11 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     };
     await expect(p.produce(stopBeforeWriter)('greenhouse', false, signal())).rejects.toThrow('CI_STOP_BEFORE_WRITER');
     if (changed === 'claims')
-      await sql`update content.scroll_production_runs set claims=jsonb_set(claims,'{claims,0,quote}','"tampered CI quote"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v8'`.execute(
+      await sql`update content.scroll_production_runs set claims=jsonb_set(claims,'{claims,0,quote}','"tampered CI quote"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v9'`.execute(
         database.db,
       );
     else
-      await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v8'`.execute(
+      await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v9'`.execute(
         database.db,
       );
     const resumed = await p.produce()('greenhouse', false, signal(), true);

@@ -233,6 +233,33 @@ describe('Scroll production roles (labelled CI fixture)', () => {
       if (format?.type === 'diagram') expect(format.data.interaction.kind).toBe('toggle');
     },
   );
+  it('clarifies complete native arrays and aggregate text bounds while keeping canonical schemas strict', () => {
+    for (const interactive of [false, true]) {
+      const role = writerRole(provenance, interactive);
+      expect(role.version).toBe('scroll-writer.v7');
+      expect(role.instructions).toContain('sections and bindings must be native JSON arrays');
+      expect(role.instructions).toContain('including repair, must regenerate the complete draft object');
+      expect(role.instructions).toContain('compiler convenience notation');
+      expect(role.instructions).toContain('1200 UTF-16 units for paragraphs, 400 for quotes and 600 for callouts');
+      expect(role.safeCustomIssues).toHaveProperty('rich_text_too_long');
+      expect(role.safeCustomIssues).toHaveProperty('rich_text_not_trimmed');
+      const bad = fixtureDraft();
+      const block = bad.sections[0]?.blocks.find((b) => b.type === 'paragraph');
+      if (block?.type !== 'paragraph') throw new Error('CI_PARAGRAPH_MISSING');
+      block.data.spans = [{ text: ' leading' }];
+      const parsed = role.outputSchema.safeParse(bad);
+      expect(parsed.success).toBe(false);
+      if (!parsed.success)
+        expect(parsed.error.issues).toContainEqual(
+          expect.objectContaining({
+            code: 'custom',
+            params: { safeCode: 'rich_text_not_trimmed' },
+          }),
+        );
+      expect(claimsRole([page]).version).toBe('scroll-claims.v4');
+      expect(role.maxOutputTokens).toBe(12000);
+    }
+  });
   it('requires canonical rich-text arrays on the writer wire while leaving compiler normalization unchanged', () => {
     const single = fixtureDraft();
     const first = single.sections[0]?.blocks[0];
@@ -314,7 +341,7 @@ describe('code-owned explanation recipes (source declarations, not generated sem
   it('declares three independent same-subtopic units and two required interactive explanations', () => {
     const keys = ['greenhouse-radiation', 'greenhouse-balance', 'greenhouse-limits'] as const;
     const units = keys.map((key) => TOPICS[key]);
-    expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v8');
+    expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v9');
     expect(units.map(({ interactive }) => interactive)).toEqual([true, true, false]);
     expect(units.every(({ topicId }) => topicId === 'earth.greenhouse-effect')).toBe(true);
     expect(new Set(Object.values(TOPICS).map(({ assetId }) => assetId)).size).toBe(6);

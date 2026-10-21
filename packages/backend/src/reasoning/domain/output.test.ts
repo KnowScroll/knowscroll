@@ -344,6 +344,108 @@ describe('the validator summary', () => {
       );
     });
 
+    it('keeps later discriminated branches through shared data, optional fields and nested arrays', () => {
+      const block = z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('paragraph'), data: z.object({ spans: z.array(z.string()) }) }),
+        z.object({
+          kind: z.literal('diagram'),
+          data: z.object({
+            nodes: z.array(z.object({ cell: z.object({ row: z.number() }).optional() })),
+            interaction: z.object({ kind: z.literal('toggle') }).nullable(),
+          }),
+        }),
+      ]);
+      const schema = z.object({ sections: z.array(z.object({ blocks: z.array(block) })) });
+      const result = validateOutput(schema, {
+        sections: [
+          {
+            blocks: [
+              {
+                kind: 'diagram',
+                data: {
+                  nodes: [{ cell: null }],
+                  interaction: 3,
+                },
+              },
+            ],
+          },
+        ],
+      });
+      expect(result.valid).toBe(false);
+      if (!result.valid)
+        expect(result.issues).toEqual([
+          { path: 'sections[0].blocks[0].data.nodes[0].cell', code: 'invalid_type', detail: 'expected object' },
+          { path: 'sections[0].blocks[0].data.interaction', code: 'invalid_type', detail: 'expected object' },
+        ]);
+    });
+
+    it('carries both intersection branches and conservatively masks map/object ambiguity', () => {
+      const schema = z.intersection(
+        z.object({ data: z.object({ left: z.number() }) }),
+        z.object({ data: z.object({ right: z.number() }) }),
+      );
+      const result = validateOutput(schema, { data: { left: 'bad', right: 'bad' } });
+      expect(result.valid).toBe(false);
+      if (!result.valid) expect(result.issues.map((i) => i.path)).toEqual(['data.left', 'data.right']);
+      const ambiguous = z.union([z.object({ chosen: z.number() }), z.record(z.string(), z.number())]);
+      expect(
+        summariseIssues(
+          [{ code: 'invalid_type', message: 'PRIVATE-ISSUE-MESSAGE', expected: 'number', path: ['chosen'] }],
+          undefined,
+          ambiguous,
+        ),
+      ).toEqual([{ path: '[key]', code: 'invalid_type', detail: 'expected number' }]);
+    });
+
+    it('bounds candidate, wrapper depth, total visits and rendered path without printing unknown names', () => {
+      const issue = [
+        {
+          code: 'invalid_type' as const,
+          message: 'PRIVATE-ISSUE-MESSAGE',
+          expected: 'object' as const,
+          path: ['data', 'private-canary'],
+        },
+      ];
+      const branch = () => z.object({ data: z.object({ leaf: z.number() }) });
+      const tooWide = z.union(Array.from({ length: 65 }, branch));
+      let tooDeep: z.ZodType = branch();
+      for (let n = 0; n < 17; n++) tooDeep = tooDeep.optional();
+      const tooMuchWork = z.union(
+        Array.from({ length: 64 }, () => {
+          let candidate: z.ZodType = branch();
+          for (let n = 0; n < 9; n++) candidate = candidate.optional();
+          return candidate;
+        }),
+      );
+      for (const schema of [tooWide, tooDeep, tooMuchWork])
+        expect(summariseIssues(issue, undefined, schema)).toEqual([
+          { path: '?.?', code: 'invalid_type', detail: 'expected object' },
+        ]);
+      const key = 'a'.repeat(32);
+      let long: z.ZodType = z.number();
+      for (let n = 0; n < 12; n++) long = z.object({ [key]: long });
+      const summary = summariseIssues(
+        [
+          {
+            code: 'invalid_type',
+            message: 'PRIVATE-ISSUE-MESSAGE',
+            expected: 'number',
+            path: Array.from({ length: 12 }, () => key),
+          },
+        ],
+        undefined,
+        long,
+      );
+      expect(summary[0]?.path.length).toBeLessThanOrEqual(256);
+      expect(summary[0]?.path.split('.').length).toBeLessThanOrEqual(10);
+      const throws = z.lazy(() => {
+        throw new Error('PRIVATE-SCHEMA-CANARY');
+      });
+      expect(summariseIssues(issue, undefined, throws)).toEqual([
+        { path: '?.?', code: 'invalid_type', detail: 'expected object' },
+      ]);
+    });
+
     it('prints ? for every name when no schema is available', () => {
       const parsed = z.object({ a: z.number() }).safeParse({ a: 'x' });
       if (parsed.success) throw new Error('expected a failure');
