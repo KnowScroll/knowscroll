@@ -379,3 +379,7 @@ schema decoding. Claims4/hp4, every recipe/source/asset/explanation identity, st
 generation, token/request/quota/brake bounds and max-four/one-repair limits remain unchanged.
 Historical v1–v9 jobs, attempts, issues and protected request bytes remain immutable. This source
 version supplies no operator profile, rollout, allocation, reservation or permission to call again.
+
+## Durable Reel commission B prerequisite (#240)
+
+Content owns immutable public script/evidence/policy/package and original command hashes in reel_commissions, plus one Reasoning attempt reference. The unmounted makeCommission factory uses the real shared Cutroom root transaction, locks the business, and asks Reasoning public reservation ports; a trusted empty-by-default owner registry must match before any effect. Exact business replay checks the stored command and reads the existing attempt before compilation, so expired protected bytes are never reconstructed or replaced. New business, protected request, immutable pool intention and IDs-only job commit together. No take-increment loop, caller approval mint, provider dispatch, remote chain validation, publication, Supply binding or normal app/worker/HTTP consumer is implemented. Shared public business/attempt/accounting survives personal clear/erasure; private/personal inputs are rejected. All existing308 pure compiler and import semantics remain unchanged.

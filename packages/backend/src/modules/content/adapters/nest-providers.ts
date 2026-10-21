@@ -1,3 +1,5 @@
+import type { CutroomBusinessLock } from '../../../reasoning/public.js';
+import { postgresCommissionStore } from './postgres-commission-store.js';
 import { lockKeepPositionTarget } from './keep-position-target.js';
 import { LOCK_KEEP_POSITION_TARGET } from '../public.js';
 import { lockCurrentEncounters } from './current-encounters.js';
@@ -112,3 +114,9 @@ export { makeAdmitCoverage } from '../application/admit-coverage.js';
 export { lockCurrentEncounters } from './current-encounters.js';
 
 export { lockKeepPositionTarget } from './keep-position-target.js';
+
+export { makeCommission } from '../production/commission.js';
+export { postgresCommissionStore };
+/** Optional public-business lock adapter, used only by explicit Cutroom B composition. */
+export const lockCommissionBusiness: CutroomBusinessLock = async (scope, id) =>
+  (await postgresCommissionStore.lock(scope, id)) !== undefined;

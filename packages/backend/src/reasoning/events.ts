@@ -59,3 +59,27 @@ export const sweepDispatchedAttemptsQueue = defineQueue({
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
   schedule: { cron: '*/5 * * * *', payload: { v: 1 } },
 });
+
+/** B declares recoverable IDs-only work; no consumer/schedule is mounted. */
+export const CutroomPoolWorkSchema = z.strictObject({
+  v: z.literal(1),
+  worldId: z.enum(['dev', 'stage']),
+  generation: z.number().int().positive(),
+  attemptId: z.uuid(),
+  operationId: z.uuid(),
+});
+export const cutroomPoolQueue = defineQueue({
+  name: 'reasoning.cutroom-pool',
+  purpose: 'Reconcile an immutable Cutroom pool intention; no provider dispatch.',
+  payload: CutroomPoolWorkSchema,
+  policy: {
+    expireInSeconds: 300,
+    retryLimit: 0,
+    retryDelaySeconds: 60,
+    retryBackoff: false,
+    retentionSeconds: 86400,
+    deleteAfterSeconds: 86400,
+    deadLetter: false,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
+});

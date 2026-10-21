@@ -1,3 +1,12 @@
+import { createHash } from 'node:crypto';
+import type pg from 'pg';
+import type { PgBoss } from 'pg-boss';
+import { makeWithCutroomScope } from '../../infrastructure/postgres/cutroom-scope.js';
+import { makeEnqueueCutroom } from '../../infrastructure/jobs/enqueue-cutroom.js';
+import { makeCutroomB } from '../application/cutroom.js';
+import { postgresCutroomLedger } from './postgres-cutroom-ledger.js';
+import { makeCutroomPool } from './cutroom-pool.js';
+import type { CutroomB, CutroomOwnerApproval, CutroomBusinessLock, WithCutroomScope } from '../public.js';
 import type { Kysely } from 'kysely';
 import type { ReasoningSettings } from '../../infrastructure/config/index.js';
 import { uuidv7 } from '../../infrastructure/ids/index.js';
@@ -310,3 +319,47 @@ export function reasoningProviders(
     },
   ];
 }
+
+/** B prerequisite ONLY; no normal process binding/root seed/approval/principal/transport.
+ * connectPool must acquire a separate bounded dedicated session; never a world transaction.
+ */
+export function cutroomBFor(
+  db: Kysely<Database>,
+  boss: PgBoss,
+  options: {
+    readonly enabled?: boolean;
+    readonly approvals?: readonly CutroomOwnerApproval[];
+    readonly lockBusiness?: CutroomBusinessLock;
+    readonly connectPool?: () => Promise<pg.PoolClient>;
+    readonly now?: () => Date;
+    readonly withScope?: WithCutroomScope;
+  } = {},
+): CutroomB {
+  const enabled = options.enabled ?? false;
+  const pool = options.connectPool
+    ? makeCutroomPool(options.connectPool)
+    : {
+        claim: () => Promise.resolve({ kind: 'held', reason: 'needs_operator' } as const),
+        read: () => Promise.resolve({ kind: 'held', reason: 'needs_operator' } as const),
+        release: () => Promise.resolve({ kind: 'held', reason: 'needs_operator' } as const),
+      };
+  return makeCutroomB({
+    withScope: options.withScope ?? makeWithCutroomScope(db, { enabled, lockTimeoutMs: 5000 }),
+    ledger: postgresCutroomLedger(makeEnqueueCutroom(boss), options.now),
+    pool,
+    lockBusiness: options.lockBusiness ?? (() => Promise.resolve(false)),
+    approvals: options.approvals ?? [],
+    enabled,
+    now: options.now ?? (() => new Date()),
+    sha256: (text) => createHash('sha256').update(text, 'utf8').digest('hex'),
+    byteLength: (text) => Buffer.byteLength(text, 'utf8'),
+  });
+}
+export { makeWithCutroomScope, makeEnqueueCutroom, postgresCutroomLedger, makeCutroomPool, makeCutroomB };
+export type {
+  CutroomBPorts,
+  CutroomLedger,
+  CutroomPool,
+  CutroomNotSent,
+  CutroomPoolOperation,
+} from '../application/cutroom-ports.js';

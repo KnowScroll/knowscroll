@@ -142,7 +142,11 @@ module.exports = {
       severity: 'error',
       from: {
         path: '^packages/backend/src/infrastructure/',
-        pathNot: '^packages/backend/src/infrastructure/postgres/production-scope\\.ts$',
+        pathNot: [
+          '^packages/backend/src/infrastructure/postgres/production-scope\\.ts$',
+          '^packages/backend/src/infrastructure/postgres/cutroom-scope\\.ts$',
+          '^packages/backend/src/infrastructure/jobs/enqueue-cutroom\\.ts$',
+        ],
       },
       to: { path: '^packages/backend/src/reasoning/public\\.ts$' },
     },

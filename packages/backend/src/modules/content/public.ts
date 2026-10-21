@@ -1,3 +1,4 @@
+import type { makeCommission } from './production/commission.js';
 /**
  * Content's public surface for other modules and the apps: the read ports experience and evidence
  * use, and the admission use case's types. Everything here is framework-free; the ports are
@@ -238,3 +239,7 @@ export type LockKeepPositionTarget = (
   ref: unknown,
 ) => Promise<KeepPositionTarget | undefined>;
 export const LOCK_KEEP_POSITION_TARGET = Symbol('content.lockKeepPositionTarget');
+
+/** Optional unmounted B business prerequisite; no dispatch/publication/Supply binding. */
+export type { CommissionBusiness, CommissionStore, CommissionPorts } from './production/commission-ports.js';
+export type CommissionCutroom = ReturnType<typeof makeCommission>;

@@ -131,6 +131,24 @@ export interface ContentMediaObjects {
   size_bytes: number;
 }
 
+export interface ContentReelCommissions {
+  approval_ref: string;
+  attempt_id: string | null;
+  business_run_id: string;
+  ceiling_cents: number;
+  command_sha256: string;
+  evidence_sha256: string;
+  generation: number;
+  package_sha256: string;
+  package_utf8: string;
+  policy_version: string;
+  request_id: string;
+  request_sha256: string;
+  script_sha256: string;
+  take: number;
+  world_id: string;
+}
+
 export interface ContentReelImports {
   asset_id: string;
   asset_revision: number;
@@ -638,6 +656,61 @@ export interface ReasoningBusinessRuns {
   updated_at: Generated<Timestamp>;
 }
 
+export interface ReasoningCutroomAttempts {
+  approval_ref: string;
+  binding_id: string | null;
+  bound_at: Timestamp | null;
+  business_run_id: string;
+  ceiling_cents: number;
+  claimed_at: Timestamp | null;
+  contract_version: number;
+  dispatch_intent_at: Timestamp | null;
+  evidence_sha256: string;
+  expires_at: Timestamp;
+  fence: Generated<number>;
+  generation: number;
+  grant_ref: string;
+  id: string;
+  policy_version: string;
+  pool_state: Generated<string>;
+  principal_name: string;
+  principal_oid: string;
+  request_bytes: number;
+  request_id: string;
+  request_sha256: string;
+  script_sha256: string;
+  state: Generated<string>;
+  take: number;
+  until: string;
+  world_id: string;
+}
+
+export interface ReasoningCutroomPoolOperations {
+  attempt_id: string;
+  fence: number;
+  id: string;
+  kind: string;
+  operation_version: number;
+  state: Generated<string>;
+}
+
+export interface ReasoningCutroomRequests {
+  attempt_id: string;
+  byte_length: number;
+  contract_version: number;
+  created_at: Timestamp;
+  expires_at: Timestamp;
+  purged_at: Timestamp | null;
+  request_sha256: string;
+  request_utf8: string | null;
+}
+
+export interface ReasoningCutroomScopes {
+  enabled: Generated<boolean>;
+  generation: number;
+  world_id: string;
+}
+
 export interface ReasoningExternalAttempts {
   budget_window: Timestamp | null;
   cached_tokens: number | null;
@@ -915,6 +988,7 @@ export interface DB {
   "content.discovery_revisions": ContentDiscoveryRevisions;
   "content.encounter_topics": ContentEncounterTopics;
   "content.media_objects": ContentMediaObjects;
+  "content.reel_commissions": ContentReelCommissions;
   "content.reel_imports": ContentReelImports;
   "content.scroll_production_runs": ContentScrollProductionRuns;
   "content.series_units": ContentSeriesUnits;
@@ -959,6 +1033,10 @@ export interface DB {
   "planner.runs": PlannerRuns;
   "planner.state": PlannerState;
   "reasoning.business_runs": ReasoningBusinessRuns;
+  "reasoning.cutroom_attempts": ReasoningCutroomAttempts;
+  "reasoning.cutroom_pool_operations": ReasoningCutroomPoolOperations;
+  "reasoning.cutroom_requests": ReasoningCutroomRequests;
+  "reasoning.cutroom_scopes": ReasoningCutroomScopes;
   "reasoning.external_attempts": ReasoningExternalAttempts;
   "reasoning.production_attempts": ReasoningProductionAttempts;
   "reasoning.production_requests": ReasoningProductionRequests;

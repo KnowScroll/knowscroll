@@ -9,7 +9,7 @@ import {
   projectEncounterActivityQueue,
 } from './modules/evidence/public.js';
 import { sweepSignInRecordsQueue } from './modules/identity/public.js';
-import { purgeExpiredRequestsQueue, sweepDispatchedAttemptsQueue } from './reasoning/events.js';
+import { cutroomPoolQueue, purgeExpiredRequestsQueue, sweepDispatchedAttemptsQueue } from './reasoning/events.js';
 
 /**
  * Every durable queue this release declares. `migrate.js` creates them and applies their
@@ -17,6 +17,7 @@ import { purgeExpiredRequestsQueue, sweepDispatchedAttemptsQueue } from './reaso
  * erasure inventory checks that every queue carrying `universeId` has an eraser.
  */
 export const releaseQueues = queueRegistry([
+  cutroomPoolQueue,
   projectSceneQueue,
   cartographyQueue,
   publishDeltaQueue,

@@ -204,7 +204,10 @@ describe('durable private Keep places (real PostgreSQL)', () => {
       { onIdleClientError: () => undefined },
     );
     try {
-      const all = loadMigrations();
+      const migrations = loadMigrations();
+      const index = migrations.findIndex((m) => m.name === '0029_keep_places');
+      expect(index).toBe(28);
+      const all = migrations.slice(0, index + 1);
       expect(all.at(-1)?.name).toBe('0029_keep_places');
       expect((await migrateToLatest(handle.db, all.slice(0, -1))).kind).toBe('migrated');
       const typed = handle.db as unknown as Kysely<Database>;
