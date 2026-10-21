@@ -440,3 +440,85 @@ allowlist and denial/revocation tests remain mandatory before consumers ship.
 `sharing.test.ts` and focused real OpenAPI-generation assertions are synthetic
 wire fixtures, run only in GitHub Actions. They establish no actual friendship,
 expiry, transaction/replay safety, privacy completion or #241 acceptance.
+
+## Private Keep place prerequisite (#246)
+
+`keep-place.v1` declares `apiContract.keep.read` (POST `/v1/experience/keep/read`)
+and `setPlace` (POST `/v1/experience/keep/place`). Both take strict JSON bodies;
+private IDs and positions never enter URLs. These declarations install no HTTP
+route, storage, client persistence or privacy operation. Future adapters must
+apply first-party Origin, session and `X-KS-Scope` guards, private/no-store
+responses and current account/epoch authority. No observation, exposure,
+activation, media grant, Evidence job, provider work or consumption is created.
+This is a narrow private Keep position wire exception, not a new field on
+observations, navigation, public content or Social.
+
+A read targets an exact immutable asset revision. The future backend binds the
+actual `saved_items` reference and a separately minted `savedEntryId` for that
+membership. Same Save preserves it; Unsave deletes membership/place; resave mints
+a different identity. Do not derive it from legacy Save's no-op receipt: that
+receipt can echo the requested revision while the retained Saved ref is older.
+A different requested revision returns `not_saved`, without redirect/inheritance.
+`saved_unavailable` retains only the exact entry reference; withdrawal, correction
+and other current ineligibility expose no position, metadata, replacement revision
+or timestamp. Only `available` has place `none` at revision0 or `set` at a positive
+revision. Scope/target echoes and entry equality fence responses on the client.
+
+Positions preserve fractional milliseconds for Reel and fractional logical pixels
+inside a canonical top-level Scroll `LocalId` block. Finite nonnegative values up
+to `Number.MAX_SAFE_INTEGER` are a **transport representation bound only**.
+Future validation uses the actual immutable media port/duration (the current Reel
+document validator permits20–60seconds); a future codec must not inherit a copied
+60second universal limit. The renderer clamps Scroll offset after layout to its
+actual measured block/viewport. Server code cannot invent geometry from private
+font/viewport assumptions or reinterpret a nested child offset as a parent offset.
+
+Set uses one command ID and exact body across retries, current membership identity
+and a nonnegative expected place revision. Every new accepted Set increments once,
+even for equal positions; counter exhaustion refuses without effects. Current
+scope, exact entry/reference and current content eligibility must be checked
+**before** looking up an immutable receipt. An authorised identical replay precedes
+checking its old CAS revision; changed canonical input is `COMMAND_KEY_REUSED`.
+Acceptance contains the committed entry and base/accepted revisions, never position
+or a current snapshot; `recordedAt` is receipt time, not encounter time. Old
+acceptance grants no access. Unsave/resave, withdrawal/correction, scope/epoch
+change and suspension must fence old commands and replay. Two devices get one CAS
+winner; only authorised staleness reveals current revision, never current position.
+No wall-clock winner or blind overwrite/retry loop is implied.
+
+Future storage follows own personal-root then existing Identity authority gate,
+exact membership/place and reviewed Content eligibility locking; receipt, place
+and required catch-up/hint effects commit atomically. No peer root or competing
+fence is introduced. Clients retain the highest current revision only within the
+initiating AccountScope and membership. Legacy asset-keyed Unsave still has an ABA
+limitation and is outside this contract slice. A future local transfer must first
+read the current entry and revision0, then issue a fresh command; bulk import or
+overwrite of a server place is not authorised. Park/explicit-exit coalescing and
+bounded retries belong to a later client adapter, separate from lossy observations.
+D025 local Back restoration grants no fresh activation/contribution. Scope end
+stops callbacks, discards late responses and purges scoped local positions; retained
+server Keep requires a fresh authorised read. Existing all-data erasure still
+deletes Saved; this prerequisite changes no deletion/preservation behaviour.
+Identity309 is an authority gate and account-table inventory is not a deletion
+executor. The later storage/API/client/erasure work remains separate.
+
+`KeepPlaceProblemSchema` is a finite strict RFC9457 union with fixed catalogue
+code/type/title/status. Only `KEEP_PLACE_REVISION_STALE` requires a current place
+revision. No arbitrary detail/instance, rejected key/value, entry or position is
+allowed. Bounded validation issues use only static schema-owned field tokens
+(or `unknown`), no numeric segments; unknown keys must map to an empty root path
+or the fixed mask, never be copied. Global `ProblemDetailsSchema` is unchanged.
+
+The real oRPC generator normally wraps error `data` in an RPC document. Keep's
+supported `route.spec` callback instead selects the converter-produced defined
+error data schemas per status and describes them directly as
+`application/problem+json`; unexpected generator structure fails closed. This is
+OpenAPI metadata, not an HTTP exception serializer. The actual generator tests
+register `ReadKeepEntry`, `SetKeepPlace`, `KeepEntrySnapshot`,
+`KeepPlaceAcceptance`, `KeepPlaceProblem` and each route error's exact data schema
+as named common components, proving status-specific response bodies without a
+second hand-authored schema. Future server error handling still needs independent
+proof. Strict cross-field membership equality and exact counter increments are
+parser invariants beyond structural OpenAPI metadata. Synthetic wire/OpenAPI
+fixtures run only in GitHub Actions; no complete Keep journey or runtime privacy
+acceptance is claimed.
