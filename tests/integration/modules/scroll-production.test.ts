@@ -1716,6 +1716,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     ['scroll-production.v8', 'scroll-writer.v6'],
     ['scroll-production.v9', 'scroll-writer.v7'],
     ['scroll-production.v10', 'scroll-writer.v8'],
+    ['scroll-production.v11', 'scroll-writer.v9'],
   ] as const)(
     'preserves terminal %s issues and protected bytes across policy12 publication and replay',
     async (policy, historicalWriter) => {
