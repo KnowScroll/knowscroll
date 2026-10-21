@@ -324,9 +324,16 @@ describe('durable sanitized chain evidence and atomic C1 pending handoff (real P
       v = envelope(c);
     await db()
       .updateTable('reasoning.cutroom_requests')
-      .set({ request_utf8: null })
+      .set({ request_utf8: null, purged_at: new Date() })
       .where('attempt_id', '=', c.target.attemptId)
       .execute();
+    const purged = await db()
+      .selectFrom('reasoning.cutroom_requests')
+      .select(['request_utf8', 'purged_at'])
+      .where('attempt_id', '=', c.target.attemptId)
+      .executeTakeFirstOrThrow();
+    expect(purged.request_utf8).toBeNull();
+    expect(purged.purged_at).toBeInstanceOf(Date);
     await db()
       .updateTable('reasoning.cutroom_scopes')
       .set({ enabled: false, generation: 2 })
