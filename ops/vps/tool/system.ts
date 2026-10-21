@@ -11,8 +11,8 @@
  * with the command its release.json names (as the world's user, with the world's v2 settings,
  * never seeded), and run by ks2-world@<world>.target. Switching a world between generations stops
  * the other generation's units first; `previous` changes only once the new release is healthy, and
- * a failed switch restores both links, but only restarts old v2 code when its complete schema
- * still matches. Otherwise v2 stops and a reviewed forward recovery is required.
+ * a failed switch restores both links, but only restarts old v2 code after acknowledged
+ * preparation and an exact schema match. Failed/unknown preparation leaves v2 stopped for review.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -747,9 +747,14 @@ async function activate(
   }
 }
 
-/** Restore only compatible code. Stop unsafe v2 BEFORE restoring old links: an automatic systemd
- * restart must not pick old code while its schema check is pending. Never throws. */
-async function restoreRunning(world: World, before: Slot, restoreLinks: () => void): Promise<boolean> {
+/** Failed preparation keeps prior v2 stopped; other recovery restores only compatible code.
+ * Stop unsafe v2 BEFORE restoring old links. Never throws. */
+async function restoreRunning(
+  world: World,
+  before: Slot,
+  restoreLinks: () => void,
+  context: { preparationFailed: boolean } = { preparationFailed: false },
+): Promise<boolean> {
   const next = afterFailedDeploy(world, before);
   try {
     if (next.action === 'stop') {
@@ -764,7 +769,7 @@ async function restoreRunning(world: World, before: Slot, restoreLinks: () => vo
         expectationOf(world, { commit: next.commit, generation: next.generation }), restoreLinks),
       stopV2: () => quiesceV2(world),
       restoreLinks,
-    });
+    }, context);
     if (!restored) say({ event: 'restore-incomplete', world,
       ...(next.generation === 'v2' ? { forwardRecoveryRequired: true } : {}) });
     return restored;
@@ -861,8 +866,8 @@ export async function deploy(
         migrate: () => migrateV2(w, release, manifest as V2Manifest),
       });
     } catch {
-      // Even a failed migrate may have changed metadata/DDL. Only an actual schema read can
-      // authorize restarting the old v2 release; never infer rollback from the command's exit.
+      // A failed/unknown migrate may still have an in-flight COMMIT. Do not use a transient
+      // old-schema snapshot to authorize automatic old-v2 activation.
       migrationFailed = true;
       say({ event: 'v2-preparation-failed', world: w, commit });
     }
@@ -896,7 +901,8 @@ export async function deploy(
   say({ event: 'deploy-unhealthy', world: w, commit });
   // Stop incompatible v2 before restoring old links, including systemd's restart path.
   const restored = await restoreRunning(w, beforeSlot,
-    () => applyLinks(worldRoot, linksAfterDeploy(before, release, commit, false)));
+    () => applyLinks(worldRoot, linksAfterDeploy(before, release, commit, false)),
+    { preparationFailed: migrationFailed });
   say({
     event: restored ? 'rolled-back' : 'recovery-incomplete',
     world: w,

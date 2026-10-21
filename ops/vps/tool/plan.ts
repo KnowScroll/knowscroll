@@ -542,16 +542,20 @@ export function prepareV2Deployment<T>(actions: {
   return dump;
 }
 
-/** A failed/unknown old-v2 activation must stop its units, not leave newer or incompatible code
- * running against a database whose schema cannot be established. No data restore is attempted. */
+/** Failed/unknown v2 preparation cannot establish that its migration COMMIT has finished:
+ * even matching old metadata may be a transient snapshot. Skip activation in that case.
+ * Other recovery still uses the activation schema guard. No data restore is attempted. */
 export async function recoverFailedActivation(
   generation: Generation,
   actions: { activate(): Promise<boolean>; stopV2(): void; restoreLinks(): void },
+  context: { preparationFailed: boolean } = { preparationFailed: false },
 ): Promise<boolean> {
-  try {
-    if (await actions.activate()) return true;
-  } catch {
-    // Unknown compatibility/verification is a failed recovery too.
+  if (!(generation === 'v2' && context.preparationFailed)) {
+    try {
+      if (await actions.activate()) return true;
+    } catch {
+      // Unknown compatibility/verification is a failed recovery too.
+    }
   }
   if (generation === 'v2') actions.stopV2();
   actions.restoreLinks();

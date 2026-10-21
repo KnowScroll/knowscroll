@@ -125,15 +125,25 @@ As root on the server, with `w=dev` (or `stage`) and `d=/srv/knowscroll/backups/
 - Every v2 deploy stops/disables its v2 target/API/worker before the pre-deploy dump and migration,
   including equal-schema deployments. Old erasers cannot run or auto-restart while new DDL/backfills
   create personal stores. Stop failure prevents dump/DDL; legacy v1 remains untouched until activation.
-- Failed migration/activation/health recovery rechecks the previous code. If its v2 schema is now
-  incompatible or unreadable, stop/disable unsafe v2 before restoring original links, report incomplete
+- Failed or unknown v2 preparation (stop/disable, dump or migrate) never automatically activates
+  the prior v2 release. Even exact old migration metadata may be a transient snapshot before an
+  uncertain COMMIT finishes. Stop/disable v2 before restoring original links, report incomplete
+  recovery and review the conclusive migration outcome before a separate manual recovery.
+  A failed stop prevents restoring links. This also applies when preparation probably changed nothing.
+- After acknowledged successful preparation, activation/health recovery rechecks the previous code.
+  If its v2 schema is now incompatible or unreadable, stop/disable unsafe v2 before restoring original links, report incomplete
   recovery and require a reviewed forward recovery. Never claim the old release is healthy or restart
   old erasers on newer personal tables. If stopping fails, links are not switched to unsafe old code.
 - By hand: `ks rollback <world>` takes the deploy lock and refuses an incompatible/unknown v2 target
   **before** changing links or services. Equal-schema code rollback remains allowed. A failed
   compatible rollback restores the original release only after the same schema check.
-- Migrations are never reversed automatically. **Rolling back a v2 migration = restoring the
-  pre-migrate dump of that deploy** (`releases.log` names it: `predeployDump`) with the runbook
+- The whole pending world SQL batch, including Saved identity backfill and migration/checksum
+  rows, runs in one transaction. An acknowledged SQL-error rollback leaves none of that batch
+  applied; no dump restore is needed to undo uncommitted DDL. A process exit or timeout does not
+  prove that rollback occurred. Exact compatible code recovery after a conclusively established
+  rollback remains a separately reviewed option, not an automatic retry of preparation.
+- Committed migrations are never reversed automatically. **Rolling back a committed v2 migration =
+  restoring the pre-migrate dump of that deploy** (`releases.log` names it: `predeployDump`) with the runbook
   above, `d=…/knowscroll_v2_$w/pre-deploy-<time>-<commit12>.dump`, then `ks rollback` to the release
   that matches it.
 - Prefer a reviewed forward recovery matching the actual schema. A pre-call backup restore can erase
