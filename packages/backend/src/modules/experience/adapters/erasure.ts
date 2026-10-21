@@ -10,6 +10,7 @@ const tables = [
   'sessions',
   'encounter_activity_inputs',
   'encounter_lineage',
+  'saved_places',
   'saved_items',
   'actions',
   'exposures',

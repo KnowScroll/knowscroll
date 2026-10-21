@@ -207,3 +207,5 @@ export {
 } from './navigation-providers.js';
 
 export { checkRequestSource } from './request-source.js';
+
+export { keepPlaceUseCases, keepPlaceProviders, keepStore, type KeepPorts, type KeepStore } from './keep-providers.js';

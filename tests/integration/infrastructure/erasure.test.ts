@@ -365,6 +365,23 @@ describe('the erasure registry (real database)', () => {
         target: { assetId: asset.assetId, assetRevision: 1 },
       });
       if (saved.kind !== 'applied') throw new Error('fixture save refused');
+      // Actual retained membership with a latest private place: every registered store remains covered.
+      const membership = await database.db
+        .selectFrom('experience.saved_items')
+        .select('saved_entry_id')
+        .where('universe_id', '=', person.universeId)
+        .where('asset_id', '=', asset.assetId)
+        .executeTakeFirstOrThrow();
+      await database.db
+        .insertInto('experience.saved_places')
+        .values({
+          universe_id: person.universeId,
+          saved_entry_id: membership.saved_entry_id,
+          place_revision: '2',
+          position: JSON.stringify({ kind: 'reel', positionMs: 1234.5 }),
+        })
+        .execute();
+
       await applyEvidence({ v: 1, universeId: person.universeId, privacyEpoch: 1, actionId: saved.outcome.actionId });
       await withPersonalScope(person.authority, async (scope) => {
         const runId = randomUUID();

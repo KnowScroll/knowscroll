@@ -110,3 +110,67 @@ and name the session's latest intent revision. Omission preserves direct-encount
 no Content eligibility or consumption evidence; Supply separately rechecks current Content after
 its SHARE wait. The deliberate submission's session fence does not make later ordinary navigation
 revoke an accepted request. Existing experience/navigation/open reads retain their semantics.
+
+## Durable Keep place prerequisite (#246, migration0029)
+
+Experience owns a private immutable Saved membership UUID and latest
+`experience.saved_places`. Existing real Saved rows receive identities only;
+no position/encounter is invented. New Save uses UUIDv7; a compatibility SQL
+default supports older inserts. Same Save retains the actual stored ref/time/ID;
+conflicting inserts do nothing. A database trigger refuses membership rewrites.
+Unsave cascades its place; resave creates a different identity. Legacy Save-noop
+receipts still echo the requested revision and must not construct a Keep entry.
+Legacy asset-keyed Unsave still has an ABA gap; it is not membership-fenced here.
+
+`keepPlaceUseCases`/`keepPlaceProviders` are explicit opt-in factories, mounted
+nowhere by this source slice. They implement the accepted strict `keep-place.v1`
+Read/Set schemas. Order is READ COMMITTED own root → actual Identity
+`FENCE_OWN_ACCOUNT` UPDATE gate/fresh authority → exact Saved membership → Content
+SHARE/canonical target. Plain AccountAccess does not prove lock ownership.
+Unavailable reads omit position and metadata; wrong requested stored revision is
+not_saved. Current membership/eligibility precede every receipt/CAS access, so
+withdrawal, correction, Unsave/resave, suspension and old scope cannot replay
+private results. UUID comparisons use relational identity; read target echoes
+preserve the initiating UUID spelling. There is no redirect to another revision.
+
+Set hashes the full original validated command under internal receipt operation
+`experience.keep-place-set`, outcomeVersion1, before contextual clamping. An
+identical authorised replay returns immutable acceptance before testing its old
+expected revision. Stored acceptance is strictly parsed and bound to command,
+entry, scope, epoch and original expected revision; impossible current place
+regression/corruption fails closed. Changed body/operation or retired/old-epoch
+receipt refuses key reuse; a newer outcome version is unavailable. No legacy
+receipt is reinterpreted. Acceptance contains no position/current snapshot.
+
+Each new Set increments place revision exactly once even for equal positions;
+two devices have one CAS winner. Only authorised staleness returns current
+revision. Place counters are safe bigint values; existing root integer capacity
+is checked before new effects. Reel clamps to the canonical immutable duration
+and preserves fractions; Scroll validates the actual top-level anchor and stores
+finite logical pixels without inventing server geometry. Later renderer layout
+clamps actual measured blocks. No copied universal60second policy exists.
+Pending receipt, CAS place, position-free acceptance, one root increment and
+transactional disposable hint commit atomically. No action, exposure, Evidence,
+job, external I/O or provider work is created. No automatic stale overwrite.
+
+The SQL constraints close both position branches with guarded numeric casts and
+safe bounds. Migration29 backfills/validates/indexes under the migrator's one
+transaction, with bounded lock/statement timeouts and documented narrow SQL-lint
+exceptions: actual rollout requires reviewed stopped-service/backup handling,
+not an online-maintenance promise. Existing0001..0028 and pool SQL are immutable.
+Codegen uses a fresh owned full ordered schema, never manual generated-type edits.
+
+All-data erasure explicitly deletes places before Saved across every retained
+scope version; existing receipts/jobs erasers remove old epochs too. Current
+eraseUniverse still deletes Keep. Exploration-clear preserving Keep, inactive
+account deletion, backups and local position purge require later explicit
+lifecycle/client work; Identity309 and registry inventory do not execute it.
+There is no Keep worker/job. Old-scope generic work is refused at the scope gate.
+
+Canonical Content318 stored admission remains unchanged, including bounded CPU
+proof work while the transaction is held. Worst-case valid-document transaction
+and HTTP latency must be measured before a later mounted consumer; these fixtures
+claim no measured performance. Actions fixtures cover real-PG CAS/receipt/identity/
+Content/membership races, rollback after receipt/place/hint, strict JSON, actual
+resume units, counter limits and all-epoch erasure. No served Keep route, client
+journey, privacy completion, runtime rollout or full #246 acceptance is claimed.

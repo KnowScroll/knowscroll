@@ -1,3 +1,4 @@
+import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import type { Kysely } from 'kysely';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
@@ -32,12 +33,9 @@ export async function writeSavedState(
         asset_id: change.assetId,
         asset_revision: change.assetRevision,
         saved_at: change.at,
+        saved_entry_id: uuidv7(),
       })
-      .onConflict((conflict) =>
-        conflict
-          .columns(['universe_id', 'asset_id'])
-          .doUpdateSet({ asset_revision: change.assetRevision, saved_at: change.at }),
-      )
+      .onConflict((conflict) => conflict.columns(['universe_id', 'asset_id']).doNothing())
       .execute();
   } else {
     await trx
