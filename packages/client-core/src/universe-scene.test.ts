@@ -1051,3 +1051,21 @@ it.each(['manifest', 'chunk'])(
     expect(s.getState().geography).toBeUndefined();
   },
 );
+
+it('refuses an oversized retained envelope before scheduling chunk reads (not a transport allocation claim)', async () => {
+  const h = harness(world(), (c, fallback) =>
+    c.path.endsWith('/manifest/read')
+      ? {
+          ...manifest(h.w, c.body as Query),
+          // ISO permits arbitrary fractional precision; server output uses milliseconds. This is an
+          // authored valid-but-oversized envelope, independent of canonical per-Scene-document bounds.
+          recordedAt: `2026-10-21T00:00:00.${'0'.repeat(UNIVERSE_SCENE_LIMITS.retainedBytes)}Z`,
+        }
+      : fallback(),
+  );
+  const s = h.make();
+  s.start();
+  expect((await settled(s, 'unavailable')).reason).toBe('limit');
+  expect(s.getState().snapshot).toBeUndefined();
+  expect(h.calls.filter((c) => c.path.endsWith('/chunks/read'))).toEqual([]);
+});

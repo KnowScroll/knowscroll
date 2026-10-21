@@ -547,6 +547,7 @@ export function createUniverseSceneSession(options: {
         return { status: 'loading', active, geography: g, snapshot, pendingProjection: read.pendingProjection };
       const canonicalRead = { ...read, manifest: SceneManifestSchema.parse(read.manifest) };
       const chunks: SceneChunk[] = [];
+      checkBudget(g, { read: canonicalRead, chunks });
       let at = 0;
       const controller = new AbortController();
       const cancel = () => controller.abort();
