@@ -543,3 +543,11 @@ Actions fixtures use separate disposable world/pool databases, real pg-boss and
 unmixed LOGIN roles. The optional legacy ACL role is fixture-renamed to prevent
 parallel old tests sharing role ownership; v2 SQL is unchanged. Fixtures are not
 live billing, commissioning, human approval or runtime proof.
+
+## Cutroom C1 execution/review foundation (#240)
+
+This unmounted, disabled-by-default slice adds immutable dispatch-intent and allowlisted remote-observation metadata, plus pending accounting work. It uses the existing attempt state machine and B ledger; no transport, fal balance adapter, verified chain/cost validator, pool settlement, worker consumer, human-approval mint, publication or Supply completion exists here. A trusted composition must provide an exact fresh preflight registry and Content's live human/corpus review callback. Neither references nor stored rows prove those operational facts. No normal application supplies them.
+
+The dispatch path locks root, exact Content business, then retained attempt/request. Current generation, review, receipt and protected bytes must agree. Intent, reserved-to-dispatched transition and IDs-only follow job commit together. The ephemeral single-use permit exists only after COMMIT acknowledgement and expires with the preflight. Lost acknowledgement returns no permit; later delivery uses unchanged decideOnDelivery to mark unknown, never resend. C1 has no permit consumer that sends a request.
+
+A separate opaque accounting capability locks the current root, exact business and retained attempt, including disabled roots/old generations. Its private live-map transaction expires with the callback and cannot be used by B's byte/claim/dispatch adapters. It exposes only immutable pool identity and fences, never protected request bytes. Strict allowlisted observations remain unvalidated, and their immutable pending intent plus fixed accounting-queue job commit in that same transaction. They provide no cost attestation or permission to release/settle money. Forged, closed or mismatched scopes refuse. All future pool/network access must remain outside marked transactions; pool is the sole cents authority. Personal erasure does not erase these public business/liability records. Migration0031 seeds no root, approval, corpus or role.

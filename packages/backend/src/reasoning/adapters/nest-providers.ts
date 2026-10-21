@@ -363,3 +363,43 @@ export type {
   CutroomNotSent,
   CutroomPoolOperation,
 } from '../application/cutroom-ports.js';
+
+import { makeWithCutroomAccountingScope } from '../../infrastructure/postgres/cutroom-scope.js';
+import { makeEnqueueCutroomAccounting } from '../../infrastructure/jobs/enqueue-cutroom.js';
+import { makeCutroomExecutionFoundation, consumeCutroomDispatchPermit } from '../application/cutroom-execution.js';
+import { postgresCutroomExecution } from './postgres-cutroom-execution.js';
+import { cutroomAccountingQueue } from '../events.js';
+import type { CutroomDispatchPreflight, CutroomReviewRecheck } from '../application/cutroom-execution-ports.js';
+/** C1 unmounted composition seam. No provider/HTTP/fal/pool action, approval mint, root seed or dispatcher. */
+export function cutroomExecutionFor(
+  db: Kysely<Database>,
+  boss: PgBoss,
+  options: {
+    readonly enabled?: boolean;
+    readonly recheckReview?: CutroomReviewRecheck;
+    readonly preflights?: readonly CutroomDispatchPreflight[];
+    readonly now?: () => Date;
+  } = {},
+) {
+  const enabled = options.enabled ?? false;
+  return makeCutroomExecutionFoundation({
+    enabled,
+    withScope: makeWithCutroomScope(db, { enabled, lockTimeoutMs: 5000 }),
+    withAccountingScope: makeWithCutroomAccountingScope(db, { enabled, lockTimeoutMs: 5000 }),
+    store: postgresCutroomExecution(
+      makeEnqueueCutroom(boss),
+      makeEnqueueCutroomAccounting(boss, cutroomAccountingQueue),
+      options.now,
+    ),
+    recheckReview: options.recheckReview ?? (() => Promise.resolve(undefined)),
+    preflights: options.preflights ?? [],
+    now: options.now ?? (() => new Date()),
+  });
+}
+export {
+  makeWithCutroomAccountingScope,
+  makeEnqueueCutroomAccounting,
+  makeCutroomExecutionFoundation,
+  consumeCutroomDispatchPermit,
+  postgresCutroomExecution,
+};

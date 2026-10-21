@@ -292,3 +292,674 @@ describe('Content public commission B (real world PG/pg-boss; fictional script, 
     expect((await f.owner.query('select to_jsonb(o) from public.pool_order o')).rows).toEqual(orders);
   });
 });
+
+import { readFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+import {
+  prepareCommissionReview,
+  reelFingerprint,
+  normalizeReelNarration,
+  checkReelCorpus,
+  type ReelCorpusRecord,
+  type CommissionReviewDraft,
+} from '@knowscroll/backend/modules/content';
+import { makeCommissionReview, postgresCommissionReview } from '@knowscroll/backend/modules/content/nest-providers';
+import { fixtureReview, fixtureCorpusManifest, fictionalScript } from '../support/commission-fixture.js';
+import type { KyselyPlugin } from 'kysely';
+import { makeWithCutroomScope } from '@knowscroll/backend/reasoning/nest-providers';
+const legacyBriefFixture = z.object({
+  worldId: z.string(),
+  narration: z.array(z.object({ text: z.string(), claimIds: z.array(z.string()) })),
+  claims: z.array(z.object({ role: z.enum(['main', 'supporting']) })),
+  claimSources: z.array(z.object({ assetId: z.string(), assetRevision: z.number() })),
+  criteria: z.object({
+    mustShow: z.array(z.object({ type: z.enum(['presence', 'event']) })),
+    mustNotShow: z.array(z.object({ type: z.enum(['presence', 'event']) })),
+    depictionPolicyVersion: z.string(),
+  }),
+  style: z.object({ id: z.string(), version: z.number() }),
+  planVaryOn: z.enum(['shotCount', 'order', 'canonicalSubject', 'angle']).optional(),
+});
+function legacyDescriptors(raw: unknown) {
+  const b = legacyBriefFixture.parse(raw);
+  return {
+    template: {
+      narrationClaimCounts: b.narration.map((n) => n.claimIds.length),
+      claimRoles: b.claims.map((c) => c.role).sort(),
+      mustShowTypes: b.criteria.mustShow.map((c) => c.type).sort(),
+      mustNotShowTypes: b.criteria.mustNotShow.map((c) => c.type).sort(),
+      depictionPolicyVersion: b.criteria.depictionPolicyVersion,
+      styleId: b.style.id,
+      styleVersion: b.style.version,
+      planVaryOn: b.planVaryOn ?? null,
+    },
+    argument: {
+      worldId: b.worldId,
+      sources: [...new Set(b.claimSources.map((s) => `${s.assetId}@${s.assetRevision}`))].sort(),
+      narrationText: b.narration.map((n) => n.text.trim().replace(/\s+/g, ' ').toLowerCase()).sort(),
+    },
+  };
+}
+function corpusRow(packet: CommissionReviewDraft, id = 'fictional-old'): ReelCorpusRecord {
+  const argument = {
+    worldId: 'old-topic-not-ordering-world',
+    sources: ['20000000-0000-4000-8000-000000000017@1'],
+    narrationText: [...packet.bridge.narrationText],
+  };
+  return {
+    sourceNamespace: 'fixture',
+    generatedReelId: id,
+    sourceSnapshotRevision: 'snapshot1',
+    originalTemplateSha256: packet.templateSha256,
+    originalArgumentSha256: reelFingerprint(argument),
+    briefSha256: hash('fixture-oldbrief'),
+    descriptorSourceRef: 'fixture-descriptor',
+    algorithmEvidenceRef: 'legacy-gates-reviewed',
+    template: packet.template,
+    argument,
+    bridgeSha256: packet.bridgeSha256,
+  };
+}
+function proposedScript(script = fictionalScript('review')) {
+  return {
+    businessRunId: randomUUID(),
+    worldId: 'dev',
+    generation: 1,
+    take: 1,
+    ceilingCents: 1,
+    rightsReviewRef: 'fixture-rights',
+    framingReviewRef: 'fixture-framing',
+    targetReviewRef: 'fixture-target',
+    script,
+  };
+}
+function draftOf(input: unknown) {
+  const r = prepareCommissionReview(input);
+  if (r.kind !== 'draft') throw new Error('CI review invalid');
+  return r.draft;
+}
+
+describe('C1 CF63 exact legacy projections and conservative narration bridge (source fixtures, no semantic novelty claim)', () => {
+  it('retains canonical sorting, whitespace/case normalization and duplicate multiplicity without policy salt', () => {
+    expect(reelFingerprint({ b: 2, a: 1 })).toBe(hash('{"a":1,"b":2}'));
+    expect(normalizeReelNarration('  Café\n BLUE\tobject. ')).toBe('café blue object.');
+    expect(reelFingerprint({ narrationText: ['x', 'x'] })).not.toBe(reelFingerprint({ narrationText: ['x'] }));
+    expect(reelFingerprint({ narrationText: ['é'] })).not.toBe(reelFingerprint({ narrationText: ['e\u0301'] }));
+  });
+  it('ID/JSON order/criterion order/style-text changes cannot evade exact projections', () => {
+    const input = proposedScript(),
+      base = draftOf(input),
+      script = structuredClone(input.script);
+    script.claims[0]!.id = 'renamed';
+    script.narration = script.narration.map((n) => ({ ...n, claimIds: ['renamed'] }));
+    script.criteria.mustShow[0]!.claimId = 'renamed';
+    script.style.text = 'Different cosmetic words';
+    const other = draftOf({ ...input, script });
+    expect(other.scriptSha256).not.toBe(base.scriptSha256);
+    expect(other.templateSha256).toBe(base.templateSha256);
+    expect(other.bridgeSha256).toBe(base.bridgeSha256);
+    const record = corpusRow(base);
+    expect(checkReelCorpus([record], fixtureCorpusManifest([record]), other)).toBe('repetition');
+  });
+  it('style ID/version, evidence/source permutation, narration order/case/whitespace and policy changes still hit the mandatory bridge', () => {
+    const input = proposedScript(),
+      base = draftOf(input),
+      record = corpusRow(base),
+      script = structuredClone(input.script);
+    script.style.id = 'different';
+    script.style.version = 3;
+    script.criteria.depictionPolicyVersion = 'policy-new';
+    script.evidence.sources.reverse();
+    script.narration.reverse();
+    script.narration = script.narration.map((n) => ({ ...n, text: `  ${n.text.toUpperCase().replace(/ /g, ' \t ')}` }));
+    const p = draftOf({ ...input, script });
+    expect(p.templateSha256).not.toBe(base.templateSha256);
+    expect(p.bridgeSha256).toBe(base.bridgeSha256);
+    expect(checkReelCorpus([record], fixtureCorpusManifest([record]), p)).toBe('repetition');
+    const trailing = structuredClone(script);
+    trailing.narration[0]!.text += '  ';
+    expect(prepareCommissionReview({ ...input, script: trailing })).toEqual({ kind: 'refused', code: 'invalid' });
+  });
+  it('ordered claim-count changes can alter template but never clear equal narration', () => {
+    const input = proposedScript(),
+      base = draftOf(input),
+      record = corpusRow(base),
+      script = structuredClone(input.script);
+    script.claims.push({ ...script.claims[0]!, id: 'claim2', role: 'supporting' });
+    script.narration[0]!.claimIds.push('claim2');
+    const p = draftOf({ ...input, script });
+    expect(p.templateSha256).not.toBe(base.templateSha256);
+    expect(p.bridgeSha256).toBe(base.bridgeSha256);
+    expect(checkReelCorpus([record], fixtureCorpusManifest([record]), p)).toBe('repetition');
+  });
+  it('vetoes the verified compatible template when the original template stamp is null, without inventing a stamp', () => {
+    const packet = draftOf(proposedScript()),
+      old = corpusRow(packet, 'partial-original-template');
+    const argument = {
+      ...old.argument,
+      narrationText: ['A different historical argument.'].map(normalizeReelNarration),
+    };
+    const partial: ReelCorpusRecord = {
+      ...old,
+      originalTemplateSha256: null,
+      argument,
+      originalArgumentSha256: reelFingerprint(argument),
+      bridgeSha256: reelFingerprint({ narrationText: argument.narrationText }),
+    };
+    expect(partial.bridgeSha256).not.toBe(packet.bridgeSha256);
+    expect(partial.originalArgumentSha256).not.toBe(old.originalArgumentSha256);
+    expect(partial.originalTemplateSha256).toBeNull();
+    expect(checkReelCorpus([partial], fixtureCorpusManifest([partial]), packet)).toBe('repetition');
+    expect(partial.originalTemplateSha256).toBeNull();
+  });
+  it('absence, partial inventory, unknown projection/version, old hash mismatch and missing bridge fail closed', () => {
+    const p = draftOf(proposedScript()),
+      r = corpusRow(p),
+      m = fixtureCorpusManifest([r]);
+    expect(checkReelCorpus([], m, p)).toBe('corpus_unavailable');
+    expect(checkReelCorpus([{ ...r, originalTemplateSha256: hash('wrong') }], m, p)).toBe('corpus_unavailable');
+    expect(checkReelCorpus([{ ...r, bridgeSha256: hash('wrong') }], m, p)).toBe('corpus_unavailable');
+    expect(
+      checkReelCorpus(
+        [r],
+        {
+          ...m,
+          requiredProjectionIds: ['new-template', 'legacy-argument-v1', 'narration-bridge-v1'],
+        } as unknown as typeof m,
+        p,
+      ),
+    ).toBe('corpus_unavailable');
+    expect(checkReelCorpus([{ ...r, algorithmVersion: 'reset-v2' }], m, p)).toBe('corpus_unavailable');
+  });
+  it('reads all fourteen retained source INPUTS, including four/five-unit scripts; these are not actual stamped DB rows or only the three imports', async () => {
+    const names = [
+      'greenhouse',
+      'seasons',
+      'seasons-v2',
+      'seasons-v3',
+      'seasons-v4',
+      'seasons-v5',
+      'sunburn',
+      'sunburn-v2',
+      'sunburn-v3',
+      'sunburn-v4',
+      'tides',
+      'tides-v2',
+      'tides-v3',
+      'tides-v4',
+    ];
+    const counts: number[] = [];
+    for (const name of names) {
+      const raw: unknown = JSON.parse(
+        await readFile(new URL(`../../../content/reel-scripts/${name}.json`, import.meta.url), 'utf8'),
+      );
+      const envelope = z.object({ brief: legacyBriefFixture }).parse(raw),
+        d = legacyDescriptors(envelope.brief);
+      counts.push(d.template.narrationClaimCounts.length);
+      // A hand-written direct legacy payload has no schema/version/domain salt or ordering-world substitution.
+      const templateHash = reelFingerprint(d.template),
+        argumentHash = reelFingerprint(d.argument),
+        bridgeHash = reelFingerprint({ narrationText: d.argument.narrationText });
+      const record: ReelCorpusRecord = {
+        sourceNamespace: 'fixture',
+        generatedReelId: `retained-${name}`,
+        sourceSnapshotRevision: 'snapshot1',
+        originalTemplateSha256: templateHash,
+        originalArgumentSha256: argumentHash,
+        briefSha256: hash(JSON.stringify(envelope.brief)),
+        descriptorSourceRef: 'retained-source-input-only',
+        algorithmEvidenceRef: 'legacy-gates-reviewed',
+        template: d.template,
+        argument: d.argument,
+        bridgeSha256: bridgeHash,
+      };
+      expect(checkReelCorpus([record], fixtureCorpusManifest([record]), draftOf(proposedScript()))).toBe('clear');
+      expect(d.argument.worldId).not.toBe('dev');
+      expect(templateHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(argumentHash).not.toBe(bridgeHash);
+    }
+    expect(counts).toHaveLength(14);
+    expect(counts).toContain(4);
+    expect(counts).toContain(5);
+  });
+});
+
+describe('C1 trusted review admission and all-status corpus serialization (real PG; fictional approvals)', () => {
+  let f: CommissionFixture;
+  beforeAll(async () => {
+    f = await commissionFixture('review');
+  });
+  afterAll(async () => {
+    await f.close();
+  });
+  it('source packet is concrete but never approval; empty registry/completeness/ref spoof create no review', async () => {
+    const c = f.command('unapproved'),
+      r = await fixtureReview(f, c.input),
+      b = f.service();
+    expect(await f.commission(b)(c.input)).toMatchObject({ kind: 'pending' });
+    expect(r.packet.script).toEqual(c.input.script);
+    expect(r.packet.requestSha256).toBe(c.prepared.requestSha256);
+    expect(r.packet.byteLength).toBe(c.prepared.byteLength);
+    for (const options of [
+      {},
+      { enabled: true },
+      { enabled: true, approvals: [r.human] },
+      { enabled: true, approvals: [{ ...r.human, reviewSha256: hash('spoof') }], manifests: [fixtureCorpusManifest()] },
+    ]) {
+      const review = makeCommissionReview(postgresCommissionReview, options);
+      const result = await b.withScope(c.input.authority, 'admit', (scope) => review.admit(scope, r.packet));
+      expect(result).toMatchObject({ kind: 'entered', value: { kind: 'refused' } });
+    }
+    expect(await f.world.db.selectFrom('content.cutroom_reviews').selectAll().execute()).toEqual([]);
+  });
+  it('serializes concurrent duplicate-template businesses, permits only exact self replay, and refuses revoked review/current generation', async () => {
+    const a = f.command('race1'),
+      b = f.command('race2');
+    const ar = await fixtureReview(f, a.input),
+      br = await fixtureReview(f, b.input),
+      review = makeCommissionReview(postgresCommissionReview, {
+        enabled: true,
+        approvals: [ar.human, br.human],
+        manifests: [fixtureCorpusManifest()],
+      });
+    expect(await f.commission()(a.input)).toMatchObject({ kind: 'pending' });
+    expect(await f.commission()(b.input)).toMatchObject({ kind: 'pending' });
+    const admit = (c: typeof a, r: typeof ar) =>
+      f.service().withScope(c.input.authority, 'admit', (scope) => review.admit(scope, r.packet));
+    const results = await Promise.all([admit(a, ar), admit(b, br)]);
+    expect(results.filter((r) => r.kind === 'entered' && r.value.kind === 'reviewed')).toHaveLength(1);
+    expect(
+      results.filter((r) => r.kind === 'entered' && r.value.kind === 'refused' && r.value.code === 'repetition'),
+    ).toHaveLength(1);
+    const winner =
+      results[0].kind === 'entered' && results[0].value.kind === 'reviewed' ? ([a, ar] as const) : ([b, br] as const);
+    expect(await admit(winner[0], winner[1])).toMatchObject({ kind: 'entered', value: { kind: 'reviewed' } });
+    await f.world.db
+      .updateTable('content.cutroom_reviews')
+      .set({ revoked_at: new Date() })
+      .where('business_run_id', '=', winner[0].input.businessRunId)
+      .execute();
+    expect(
+      await f
+        .service()
+        .withScope(winner[0].input.authority, 'admit', (scope) => review.recheck(scope, winner[0].input.businessRunId)),
+    ).toEqual({ kind: 'entered', value: undefined });
+    await expect(f.world.db.deleteFrom('content.cutroom_reviews').execute()).rejects.toThrow(
+      'cutroom_review_immutable',
+    );
+  });
+  it('keeps duplicate historical fingerprints as distinct immutable rows and requires complete unchanged corpus, independent of availability', async () => {
+    const c = f.command('after-corpus', 1, true),
+      review = await fixtureReview(f, c.input);
+    const p = draftOf(proposedScript()),
+      r = corpusRow(p, 'history1'),
+      r2 = { ...r, generatedReelId: 'history2' }; // Includes a refused/withdrawn historical collision; no availability column filters it.
+    for (const record of [r, r2]) {
+      const utf8 = JSON.stringify(record);
+      await f.world.db
+        .insertInto('content.cutroom_corpus')
+        .values({
+          source_namespace: record.sourceNamespace,
+          generated_reel_id: record.generatedReelId,
+          record_utf8: utf8,
+          record_sha256: hash(utf8),
+          original_template_sha256: record.originalTemplateSha256,
+          original_argument_sha256: record.originalArgumentSha256,
+          bridge_sha256: record.bridgeSha256,
+        })
+        .execute();
+    }
+    expect(await f.world.db.selectFrom('content.cutroom_corpus').selectAll().execute()).toHaveLength(2);
+    expect(checkReelCorpus([r, r2], fixtureCorpusManifest([r, r2]), p)).toBe('repetition');
+    await expect(f.world.db.deleteFrom('content.cutroom_corpus').execute()).rejects.toThrow(
+      'cutroom_execution_immutable',
+    );
+    expect(await f.commission()(c.input)).toMatchObject({ kind: 'pending' });
+    const service = makeCommissionReview(postgresCommissionReview, {
+      enabled: true,
+      approvals: [review.human],
+      manifests: [fixtureCorpusManifest()],
+    });
+    expect(
+      await f.service().withScope(c.input.authority, 'admit', (scope) => service.admit(scope, review.packet)),
+    ).toMatchObject({ kind: 'entered', value: { kind: 'refused', code: 'corpus_unavailable' } });
+  });
+});
+
+import type { CommissionInput } from '../support/commission-fixture.js';
+function proposalFor(input: CommissionInput) {
+  return {
+    ...proposedScript(input.script),
+    businessRunId: input.businessRunId,
+    worldId: input.authority.worldId,
+    generation: input.authority.generation,
+    take: input.take,
+    ceilingCents: input.ceilingCents,
+  };
+}
+async function insertCorpusFixture(f: CommissionFixture, r: ReelCorpusRecord) {
+  const utf8 = JSON.stringify(r);
+  await f.world.db
+    .insertInto('content.cutroom_corpus')
+    .values({
+      source_namespace: r.sourceNamespace,
+      generated_reel_id: r.generatedReelId,
+      record_utf8: utf8,
+      record_sha256: hash(utf8),
+      original_template_sha256: r.originalTemplateSha256,
+      original_argument_sha256: r.originalArgumentSha256,
+      bridge_sha256: r.bridgeSha256,
+    })
+    .execute();
+}
+
+describe('C1 complete trusted preapproval snapshots (real PG; fictional human/completeness attestations)', () => {
+  it('seals a clear snapshot before ANY business/attempt/pool intent exists; a supplied hash/clear flag cannot prepare', async () => {
+    const f = await commissionFixture('preapproval');
+    try {
+      const c = f.command('unadmitted', 1, true),
+        draft = prepareCommissionReview(proposalFor(c.input));
+      expect(draft.kind).toBe('draft');
+      expect(draft).not.toHaveProperty('packet');
+      expect(draft).not.toHaveProperty('corpusGate');
+      const before = (
+        await sql`select (select count(*) from content.reel_commissions) b,(select count(*) from reasoning.cutroom_attempts) a,(select count(*) from reasoning.cutroom_requests) r,(select count(*) from reasoning.cutroom_pool_operations) p,(select count(*) from content.cutroom_reviews) v,(select count(*) from pgboss.job) j`.execute(
+          f.world.db,
+        )
+      ).rows[0];
+      const service = makeCommissionReview(postgresCommissionReview, {
+        enabled: true,
+        manifests: [fixtureCorpusManifest()],
+      });
+      expect(
+        await f.service().withScope(c.input.authority, 'admit', (scope) =>
+          service.prepare(scope, {
+            ...proposalFor(c.input),
+            corpusSnapshotSha256: hash('caller-hash'),
+            corpusGate: 'clear',
+          }),
+        ),
+      ).toEqual({ kind: 'entered', value: { kind: 'refused', code: 'invalid' } });
+      const r = await fixtureReview(f, c.input);
+      expect(r.packet.corpusGate).toBe('clear');
+      expect(r.packet.corpusSnapshotSha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(
+        (
+          await sql`select (select count(*) from content.reel_commissions) b,(select count(*) from reasoning.cutroom_attempts) a,(select count(*) from reasoning.cutroom_requests) r,(select count(*) from reasoning.cutroom_pool_operations) p,(select count(*) from content.cutroom_reviews) v,(select count(*) from pgboss.job) j`.execute(
+            f.world.db,
+          )
+        ).rows[0],
+      ).toEqual(before);
+      expect((await f.owner.query('select * from public.pool_order')).rows).toEqual([]);
+    } finally {
+      await f.close();
+    }
+  });
+  it.each(['unknown_version', 'malformed', 'column_mismatch'] as const)(
+    'ANY %s retained row refuses before novelty filtering, even when its hash columns do not match the candidate',
+    async (variant) => {
+      const f = await commissionFixture(variant);
+      try {
+        const c = f.command('bad-history', 1, true),
+          r = await fixtureReview(f, c.input);
+        expect(await f.commission()(c.input)).toMatchObject({ kind: 'pending' });
+        const payload =
+          variant === 'unknown_version'
+            ? JSON.stringify({ ...r.packet, version: 'cutroom-review.v2' })
+            : variant === 'malformed'
+              ? 'not-json'
+              : JSON.stringify(r.packet);
+        await f.world.db
+          .insertInto('content.cutroom_reviews')
+          .values({
+            world_id: 'dev',
+            business_run_id: c.input.businessRunId,
+            packet_utf8: payload,
+            review_sha256: r.packet.reviewSha256,
+            corpus_sha256: r.packet.corpusSnapshotSha256,
+            template_sha256: variant === 'column_mismatch' ? hash('mismatched-column') : r.packet.templateSha256,
+            bridge_sha256: r.packet.bridgeSha256,
+            human_evidence_ref: r.human.humanEvidenceRef,
+          })
+          .execute();
+        const next = f.command('nonmatching-probe', 1, true),
+          service = makeCommissionReview(postgresCommissionReview, {
+            enabled: true,
+            manifests: [fixtureCorpusManifest()],
+          });
+        expect(next.input.script.style.id).not.toBe(c.input.script.style.id);
+        expect(
+          await f
+            .service()
+            .withScope(next.input.authority, 'admit', (scope) => service.prepare(scope, proposalFor(next.input))),
+        ).toEqual({ kind: 'entered', value: { kind: 'refused', code: 'corpus_unavailable' } });
+        expect(
+          await f.world.db
+            .selectFrom('content.reel_commissions')
+            .selectAll()
+            .where('business_run_id', '=', next.input.businessRunId)
+            .execute(),
+        ).toEqual([]);
+        expect((await f.owner.query('select * from public.pool_order')).rows).toEqual([]);
+      } finally {
+        await f.close();
+      }
+    },
+  );
+  it('bounds malformed business request IDs in both own-business and all-history SQL projections without truncating or omitting the row', async () => {
+    const f = await commissionFixture('oversized-business-id');
+    try {
+      const seed = f.command('seed', 1, true),
+        bad = f.command('malformed-business', 1, true),
+        next = f.command('next', 1, true),
+        review = await fixtureReview(f, bad.input);
+      expect(await f.commission()(seed.input)).toMatchObject({ kind: 'pending' });
+      const source = await f.world.db
+        .selectFrom('content.reel_commissions')
+        .selectAll()
+        .where('business_run_id', '=', seed.input.businessRunId)
+        .executeTakeFirstOrThrow();
+      // 0030 permits this malformed initial business row. Do not bypass its immutable trigger.
+      const oversized = 'é'.repeat(65);
+      expect(oversized.length).toBe(65);
+      expect(Buffer.byteLength(oversized, 'utf8')).toBe(130);
+      await f.world.db
+        .insertInto('content.reel_commissions')
+        .values({ ...source, business_run_id: bad.input.businessRunId, request_id: oversized, attempt_id: null })
+        .execute();
+      await f.world.db
+        .insertInto('content.cutroom_reviews')
+        .values({
+          world_id: 'dev',
+          business_run_id: bad.input.businessRunId,
+          packet_utf8: JSON.stringify(review.packet),
+          review_sha256: review.packet.reviewSha256,
+          corpus_sha256: review.packet.corpusSnapshotSha256,
+          template_sha256: review.packet.templateSha256,
+          bridge_sha256: review.packet.bridgeSha256,
+          human_evidence_ref: review.human.humanEvidenceRef,
+        })
+        .execute();
+      const ownProjection: unknown[] = [],
+        historyProjection: unknown[] = [];
+      const inspect: KyselyPlugin = {
+        transformQuery: ({ node }) => node,
+        transformResult({ result }) {
+          for (const row of result.rows) {
+            if ('package_utf8' in row && 'request_id' in row) ownProjection.push(row['request_id']);
+            if ('business_request_id' in row) historyProjection.push(row['business_request_id']);
+            expect(Object.values(row)).not.toContain(oversized);
+          }
+          return Promise.resolve(result);
+        },
+      };
+      const b = f.service({
+        withScope: makeWithCutroomScope(f.world.db.withPlugin(inspect), { enabled: true, lockTimeoutMs: 5000 }),
+      });
+      const service = makeCommissionReview(postgresCommissionReview, {
+        enabled: true,
+        approvals: [review.human],
+        manifests: [fixtureCorpusManifest()],
+      });
+      expect(
+        await b.withScope(bad.input.authority, 'admit', (scope) => service.prepare(scope, review.proposal)),
+      ).toEqual({ kind: 'entered', value: { kind: 'refused', code: 'identity' } });
+      expect(await b.withScope(bad.input.authority, 'admit', (scope) => service.admit(scope, review.packet))).toEqual({
+        kind: 'entered',
+        value: { kind: 'refused', code: 'identity' },
+      });
+      expect(
+        await b.withScope(bad.input.authority, 'admit', (scope) => service.recheck(scope, bad.input.businessRunId)),
+      ).toEqual({ kind: 'entered', value: undefined });
+      expect(ownProjection).toEqual([null, null, null]);
+      expect(
+        await b.withScope(next.input.authority, 'admit', (scope) => service.prepare(scope, proposalFor(next.input))),
+      ).toEqual({ kind: 'entered', value: { kind: 'refused', code: 'corpus_unavailable' } });
+      expect(historyProjection).toEqual([null]);
+      expect(
+        await f.world.db
+          .selectFrom('content.reel_commissions')
+          .select('request_id')
+          .where('business_run_id', '=', bad.input.businessRunId)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ request_id: oversized });
+      expect(
+        await f.world.db
+          .selectFrom('content.reel_commissions')
+          .select('business_run_id')
+          .where('business_run_id', '=', next.input.businessRunId)
+          .execute(),
+      ).toEqual([]);
+      expect((await f.owner.query('select * from public.pool_order')).rows).toEqual([]);
+    } finally {
+      await f.close();
+    }
+  });
+  it('real PG partial-null historical template vetoes its verified descriptor without writing a manufactured original stamp', async () => {
+    const f = await commissionFixture('partial-null');
+    try {
+      const c = f.command('candidate'),
+        d = draftOf(proposalFor(c.input)),
+        old = corpusRow(d, 'partial-mapped');
+      const argument = { ...old.argument, narrationText: ['different historical narration.'] };
+      const partial: ReelCorpusRecord = {
+        ...old,
+        originalTemplateSha256: null,
+        argument,
+        originalArgumentSha256: reelFingerprint(argument),
+        bridgeSha256: reelFingerprint({ narrationText: argument.narrationText }),
+      };
+      await insertCorpusFixture(f, partial);
+      const service = makeCommissionReview(postgresCommissionReview, {
+        enabled: true,
+        manifests: [fixtureCorpusManifest([partial])],
+      });
+      expect(
+        await f
+          .service()
+          .withScope(c.input.authority, 'admit', (scope) => service.prepare(scope, proposalFor(c.input))),
+      ).toEqual({ kind: 'entered', value: { kind: 'refused', code: 'repetition' } });
+      expect(
+        (await f.world.db.selectFrom('content.cutroom_corpus').selectAll().executeTakeFirstOrThrow())
+          .original_template_sha256,
+      ).toBeNull();
+      expect(await f.world.db.selectFrom('content.reel_commissions').selectAll().execute()).toEqual([]);
+    } finally {
+      await f.close();
+    }
+  });
+  it('new admission advances the snapshot: stale human approval refuses, exact self replay is stable, and purged existing business never refreshes/replaces', async () => {
+    const f = await commissionFixture('snapshot-advance');
+    try {
+      const a = f.command('stale-a', 1, true),
+        b = f.command('stable-b', 1, true),
+        c = f.command('later-c', 1, true);
+      const ar = await fixtureReview(f, a.input),
+        br = await fixtureReview(f, b.input),
+        crBefore = await fixtureReview(f, c.input);
+      expect(ar.packet.corpusSnapshotSha256).toBe(br.packet.corpusSnapshotSha256);
+      for (const item of [a, b]) expect(await f.commission()(item.input)).toMatchObject({ kind: 'pending' });
+      const service = makeCommissionReview(postgresCommissionReview, {
+        enabled: true,
+        approvals: [ar.human, br.human],
+        manifests: [fixtureCorpusManifest()],
+      });
+      const admit = (input: typeof a.input, packet: typeof ar.packet) =>
+        f.service().withScope(input.authority, 'admit', (scope) => service.admit(scope, packet));
+      expect(await admit(b.input, br.packet)).toMatchObject({ kind: 'entered', value: { kind: 'reviewed' } });
+      expect(await admit(b.input, br.packet)).toMatchObject({ kind: 'entered', value: { kind: 'reviewed' } });
+      expect(await admit(a.input, ar.packet)).toEqual({
+        kind: 'entered',
+        value: { kind: 'refused', code: 'stale_snapshot' },
+      });
+      expect(
+        await f.service().withScope(a.input.authority, 'admit', (scope) => service.prepare(scope, ar.proposal)),
+      ).toEqual({ kind: 'entered', value: { kind: 'refused', code: 'identity' } });
+      const oldB = await f.world.db
+        .selectFrom('content.reel_commissions')
+        .selectAll()
+        .where('business_run_id', '=', b.input.businessRunId)
+        .executeTakeFirstOrThrow();
+      await f.world.db
+        .updateTable('reasoning.cutroom_requests')
+        .set({ request_utf8: null, purged_at: new Date() })
+        .where('attempt_id', '=', oldB.attempt_id!)
+        .execute();
+      expect(
+        await f.service().withScope(b.input.authority, 'admit', (scope) => service.prepare(scope, br.proposal)),
+      ).toEqual({ kind: 'entered', value: { kind: 'prepared', packet: br.packet } });
+      const crAfter = await fixtureReview(f, c.input);
+      expect(crAfter.packet.corpusSnapshotSha256).not.toBe(crBefore.packet.corpusSnapshotSha256);
+      expect(crAfter.packet.reviewSha256).not.toBe(crBefore.packet.reviewSha256);
+      expect(await f.commission()(c.input)).toMatchObject({ kind: 'pending' });
+      const next = makeCommissionReview(postgresCommissionReview, {
+        enabled: true,
+        approvals: [crAfter.human],
+        manifests: [fixtureCorpusManifest()],
+      });
+      expect(
+        await f.service().withScope(c.input.authority, 'admit', (scope) => next.admit(scope, crAfter.packet)),
+      ).toMatchObject({ kind: 'entered', value: { kind: 'reviewed' } });
+      expect(
+        await f
+          .service()
+          .withScope(b.input.authority, 'admit', (scope) => service.recheck(scope, b.input.businessRunId)),
+      ).toEqual({ kind: 'entered', value: undefined });
+      expect(await admit(b.input, br.packet)).toEqual({
+        kind: 'entered',
+        value: { kind: 'refused', code: 'stale_snapshot' },
+      });
+      expect(
+        await f.service().withScope(b.input.authority, 'admit', (scope) => service.prepare(scope, br.proposal)),
+      ).toEqual({ kind: 'entered', value: { kind: 'refused', code: 'stale_snapshot' } });
+      expect(
+        (
+          await f.world.db
+            .selectFrom('reasoning.cutroom_requests')
+            .selectAll()
+            .where('attempt_id', '=', oldB.attempt_id!)
+            .executeTakeFirstOrThrow()
+        ).request_utf8,
+      ).toBeNull();
+      expect(
+        (
+          await f.world.db
+            .selectFrom('content.cutroom_reviews')
+            .selectAll()
+            .where('business_run_id', '=', b.input.businessRunId)
+            .executeTakeFirstOrThrow()
+        ).review_sha256,
+      ).toBe(br.packet.reviewSha256);
+      expect(
+        await f.world.db
+          .selectFrom('reasoning.cutroom_attempts')
+          .select('id')
+          .where('business_run_id', '=', b.input.businessRunId)
+          .execute(),
+      ).toHaveLength(1);
+    } finally {
+      await f.close();
+    }
+  });
+});

@@ -102,6 +102,28 @@ export interface ContentCoverageRevisions {
   status: string;
 }
 
+export interface ContentCutroomCorpus {
+  bridge_sha256: string;
+  generated_reel_id: string;
+  original_argument_sha256: string | null;
+  original_template_sha256: string | null;
+  record_sha256: string;
+  record_utf8: string;
+  source_namespace: string;
+}
+
+export interface ContentCutroomReviews {
+  bridge_sha256: string;
+  business_run_id: string;
+  corpus_sha256: string;
+  human_evidence_ref: string;
+  packet_utf8: string;
+  review_sha256: string;
+  revoked_at: Timestamp | null;
+  template_sha256: string;
+  world_id: string;
+}
+
 export interface ContentDiscoveryRevisions {
   asset_id: string;
   asset_revision: number;
@@ -656,6 +678,12 @@ export interface ReasoningBusinessRuns {
   updated_at: Generated<Timestamp>;
 }
 
+export interface ReasoningCutroomAccountingIntents {
+  attempt_id: string;
+  observation_id: string;
+  state: Generated<string>;
+}
+
 export interface ReasoningCutroomAttempts {
   approval_ref: string;
   binding_id: string | null;
@@ -683,6 +711,39 @@ export interface ReasoningCutroomAttempts {
   take: number;
   until: string;
   world_id: string;
+}
+
+export interface ReasoningCutroomExecution {
+  attempt_id: string;
+  available_cents: number;
+  binding_id: string;
+  bound_at: Timestamp;
+  business_run_id: string;
+  claimed_at: Timestamp;
+  corpus_sha256: string;
+  dispatch_id: string;
+  fence: number;
+  follow_until: Timestamp;
+  funds_evidence_sha256: string;
+  human_evidence_ref: string;
+  preflight_expires_at: Timestamp;
+  preflight_observed_at: Timestamp;
+  profile_sha256: string;
+  request_sha256: string;
+  review_sha256: string;
+  sole_writer_evidence_sha256: string;
+  world_id: string;
+}
+
+export interface ReasoningCutroomObservations {
+  attempt_id: string;
+  evidence_sha256: string;
+  id: string;
+  observed_generation: number;
+  outcome: string;
+  projection_sha256: string;
+  request_id: string;
+  run_id: string | null;
 }
 
 export interface ReasoningCutroomPoolOperations {
@@ -985,6 +1046,8 @@ export interface DB {
   "content.continuity_links": ContentContinuityLinks;
   "content.coverage_heads": ContentCoverageHeads;
   "content.coverage_revisions": ContentCoverageRevisions;
+  "content.cutroom_corpus": ContentCutroomCorpus;
+  "content.cutroom_reviews": ContentCutroomReviews;
   "content.discovery_revisions": ContentDiscoveryRevisions;
   "content.encounter_topics": ContentEncounterTopics;
   "content.media_objects": ContentMediaObjects;
@@ -1033,7 +1096,10 @@ export interface DB {
   "planner.runs": PlannerRuns;
   "planner.state": PlannerState;
   "reasoning.business_runs": ReasoningBusinessRuns;
+  "reasoning.cutroom_accounting_intents": ReasoningCutroomAccountingIntents;
   "reasoning.cutroom_attempts": ReasoningCutroomAttempts;
+  "reasoning.cutroom_execution": ReasoningCutroomExecution;
+  "reasoning.cutroom_observations": ReasoningCutroomObservations;
   "reasoning.cutroom_pool_operations": ReasoningCutroomPoolOperations;
   "reasoning.cutroom_requests": ReasoningCutroomRequests;
   "reasoning.cutroom_scopes": ReasoningCutroomScopes;

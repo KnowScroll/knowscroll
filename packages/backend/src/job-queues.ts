@@ -9,7 +9,13 @@ import {
   projectEncounterActivityQueue,
 } from './modules/evidence/public.js';
 import { sweepSignInRecordsQueue } from './modules/identity/public.js';
-import { cutroomPoolQueue, purgeExpiredRequestsQueue, sweepDispatchedAttemptsQueue } from './reasoning/events.js';
+import {
+  cutroomAccountingQueue,
+  cutroomFollowQueue,
+  cutroomPoolQueue,
+  purgeExpiredRequestsQueue,
+  sweepDispatchedAttemptsQueue,
+} from './reasoning/events.js';
 
 /**
  * Every durable queue this release declares. `migrate.js` creates them and applies their
@@ -18,6 +24,8 @@ import { cutroomPoolQueue, purgeExpiredRequestsQueue, sweepDispatchedAttemptsQue
  */
 export const releaseQueues = queueRegistry([
   cutroomPoolQueue,
+  cutroomAccountingQueue,
+  cutroomFollowQueue,
   projectSceneQueue,
   cartographyQueue,
   publishDeltaQueue,
