@@ -273,3 +273,151 @@ export interface ValidateCutroomRemoteChain {
     | { readonly kind: 'refused'; readonly code: 'bounds' | 'identity' | 'chain' | 'record' | 'gates' | 'incomplete' }
   >;
 }
+
+/** Internal sanitized snapshots, NOT extra Cutroom HTTP fields or a deployment attestation. */
+export const CUTROOM_CHAIN_UPSTREAM_REVISION = '94ee04a1c48069c293203de326d4801360ca6158';
+export const CUTROOM_CHAIN_LIMITS = Object.freeze({
+  runs: 2,
+  documentBytes: 262144,
+  totalBytes: 2097152,
+  depth: 12,
+  nodesPerDocument: 12000,
+  piecesPerKind: 1000,
+  checksPerPiece: 32,
+  freshnessMs: 30000,
+});
+const chainCounter = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const chainPositive = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
+const chainId = id.refine((s) => Buffer.byteLength(s, 'utf8') <= 128);
+const chainShot = z.string().regex(/^shot-(0|[1-9][0-9]{0,8})$/);
+const chainOutcome = z.enum(['accept', 'accept_with_label', 'fail']);
+const chainStep = z.enum(['technical', 'text', 'witness', 'reconcile']);
+export const CutroomChainStatusSnapshotSchema = z.strictObject({
+  contractVersion: z.literal(1),
+  runId: chainId,
+  requestId: chainId,
+  state: z.enum(['running', 'finished']),
+  lastSeq: chainCounter,
+  resumes: chainId.optional(),
+  resumedBy: chainId.optional(),
+});
+/** CF10 projection hashes reason text; never copy free text, paths, headers or error detail here. */
+const chainDegradation = z.strictObject({ shotId: chainShot, reasonSha256: digest });
+const chainStill = z.strictObject({ pictureId: chainId, shotId: chainShot });
+const chainResultBase = { contractVersion: z.literal(1), runId: chainId, requestId: chainId, costCents: chainCounter };
+export const CutroomChainResultSnapshotSchema = z.union([
+  z.strictObject({ ...chainResultBase, status: z.literal('completed'), until: z.literal('plan') }),
+  z.strictObject({
+    ...chainResultBase,
+    status: z.literal('completed'),
+    until: z.enum(['stills', 'video']),
+    stills: z.array(chainStill).max(CUTROOM_CHAIN_LIMITS.piecesPerKind),
+    degradations: z.array(chainDegradation).max(CUTROOM_CHAIN_LIMITS.piecesPerKind),
+  }),
+  z.strictObject({ ...chainResultBase, status: z.enum(['refused', 'stopped', 'failed', 'cancelled']) }),
+]);
+const pictureCheck = z
+  .strictObject({ gate: z.enum(['1', '1S']), step: chainStep.optional(), outcome: chainOutcome })
+  .refine((c) => (c.gate === '1' ? c.step !== undefined : c.step === undefined));
+const takeCheck = z.strictObject({ gate: z.enum(['2', '3', '4', '5']), outcome: chainOutcome });
+export const CutroomChainRecordSnapshotSchema = z.strictObject({
+  contractVersion: z.literal(1),
+  runId: chainId,
+  pictures: z
+    .array(
+      z.strictObject({
+        pictureId: chainId,
+        shotId: chainShot,
+        chosen: z.boolean(),
+        keptFrom: chainId.optional(),
+        observationId: chainId.optional(),
+        reconciliationId: chainId.optional(),
+        checks: z.array(pictureCheck).max(CUTROOM_CHAIN_LIMITS.checksPerPiece),
+      }),
+    )
+    .max(CUTROOM_CHAIN_LIMITS.piecesPerKind),
+  takes: z
+    .array(
+      z.strictObject({
+        takeId: chainId,
+        shotId: chainShot,
+        number: chainPositive,
+        used: z.boolean(),
+        keptFrom: chainId.optional(),
+        observationId: chainId.optional(),
+        reconciliationId: chainId.optional(),
+        checks: z.array(takeCheck).max(CUTROOM_CHAIN_LIMITS.checksPerPiece),
+      }),
+    )
+    .max(CUTROOM_CHAIN_LIMITS.piecesPerKind),
+  degradations: z.array(chainDegradation).max(CUTROOM_CHAIN_LIMITS.piecesPerKind),
+});
+const snapshotUtf8 = z.string().max(CUTROOM_CHAIN_LIMITS.documentBytes);
+/** Serialized projections allow the byte bound BEFORE JSON.parse/deep schema traversal. */
+export const CutroomChainInputSchema = z.strictObject({
+  upstreamRevision: z.string().max(40),
+  validationTimeMs: chainCounter,
+  expected: z.strictObject({
+    attemptId: chainId,
+    businessRunId: chainId,
+    requestId: chainId,
+    worldId: z.enum(['dev', 'stage']),
+    scriptSha256: digest,
+    requestSha256: digest,
+    contractVersion: z.literal(1),
+    take: z.number().int().min(1).max(999),
+    ceilingCents: z.number().int().min(1).max(75),
+  }),
+  runs: z
+    .array(
+      z.strictObject({
+        statusUtf8: snapshotUtf8,
+        resultUtf8: snapshotUtf8,
+        recordUtf8: snapshotUtf8,
+        closingStatusUtf8: snapshotUtf8,
+        openedAtMs: chainCounter,
+        resultAtMs: chainCounter,
+        recordAtMs: chainCounter,
+        closedAtMs: chainCounter,
+      }),
+    )
+    .min(1)
+    .max(CUTROOM_CHAIN_LIMITS.runs),
+});
+export type CutroomChainInput = z.infer<typeof CutroomChainInputSchema>;
+export type CutroomChainRecordSnapshot = z.infer<typeof CutroomChainRecordSnapshotSchema>;
+export type CutroomChainResultSnapshot = z.infer<typeof CutroomChainResultSnapshotSchema>;
+export type CutroomChainStatusSnapshot = z.infer<typeof CutroomChainStatusSnapshotSchema>;
+export type CutroomChainLabel = {
+  readonly pieceSha256: string;
+  readonly gate: '1' | '1S' | '2' | '3' | '4' | '5';
+  readonly step?: 'technical' | 'text' | 'witness' | 'reconcile';
+  readonly outcome: 'accept_with_label';
+};
+export type CutroomChainReport =
+  | {
+      readonly kind: 'held';
+      readonly code: 'bounds' | 'shape' | 'profile' | 'identity' | 'chain' | 'incomplete' | 'record' | 'cost';
+    }
+  | {
+      readonly kind: 'complete';
+      readonly requiredUpstreamRevision: typeof CUTROOM_CHAIN_UPSTREAM_REVISION;
+      readonly chainSha256: string;
+      readonly attemptSha256: string;
+      readonly runs: readonly {
+        readonly runSha256: string;
+        readonly status: 'completed' | 'refused' | 'stopped' | 'failed' | 'cancelled';
+        readonly ownCostCents: number;
+        readonly resultSha256: string;
+        readonly recordSha256: string;
+      }[];
+      readonly cost: {
+        readonly kind: 'complete_engine_reported';
+        readonly actualCents: number;
+        readonly overCeiling: boolean;
+      };
+      readonly video:
+        | { readonly kind: 'candidate'; readonly runSha256: string; readonly labels: readonly CutroomChainLabel[] }
+        | { readonly kind: 'unavailable'; readonly code: 'not_video' | 'record' | 'gates' };
+      readonly attestation: 'engine-attested-not-independent; cost-not-provider-invoice';
+    };
