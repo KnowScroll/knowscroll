@@ -17,6 +17,7 @@ it('Back closes the panel before restoring a camera and unregisters; history car
     focusId: 'private-fixture-id',
     overlay: null,
     detail: 'full',
+    reducedMotion: true,
     historyDepth: 0,
   };
   const listeners = new Set<() => void>();

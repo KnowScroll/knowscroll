@@ -69,6 +69,11 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
             }}
           />
         ) : null}
+        {state.notice ? (
+          <Text variant="body" color={space.label}>
+            That place is no longer available in this map. Choose a place from the outline.
+          </Text>
+        ) : null}
         {place ? (
           <>
             <Text variant="displayL" heading={2} color={space.label}>
@@ -127,7 +132,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
             }}
           />
         </View>
-        {routes.map((route) => {
+        {routes.slice(0, 64).map((route) => {
           const target = places.find(
             (p) => p.id === (route.fromObjectId === state.focusId ? route.toObjectId : route.fromObjectId),
           );
@@ -140,6 +145,11 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
             />
           ) : null;
         })}
+        {routes.length > 64 ? (
+          <Text variant="body" color={space.label}>
+            Use List view to choose another place.
+          </Text>
+        ) : null}
       </View>
       {state.overlay === 'outline' ? <UniverseOutline session={session} /> : null}
       {state.overlay === 'place' ? <UniversePlaceCard session={session} /> : null}

@@ -174,7 +174,9 @@ export function UniverseMap({ session, state }: { session: UniverseViewSession; 
         <Button
           label={state.detail === 'full' ? 'Use low detail' : 'Use full detail'}
           variant="space"
-          onPress={() => session.configure({ detail: state.detail === 'full' ? 'low' : 'full', reducedMotion: true })}
+          onPress={() =>
+            session.configure({ detail: state.detail === 'full' ? 'low' : 'full', reducedMotion: state.reducedMotion })
+          }
         />
       </View>
     </View>

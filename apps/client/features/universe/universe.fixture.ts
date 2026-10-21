@@ -94,6 +94,7 @@ export function sceneFixture(count = 5) {
     });
   return {
     descriptors,
+    chunks,
     reply(path: string, body: Record<string, unknown>) {
       const selection = { kind: 'universe' as const };
       if (path.endsWith('/geography/read')) {

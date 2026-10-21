@@ -30,6 +30,8 @@ export interface UniverseViewState extends CameraEntry {
   readonly read: UniverseSceneState;
   readonly overlay: 'outline' | 'place' | null;
   readonly detail: 'full' | 'low';
+  readonly reducedMotion: boolean;
+  readonly notice?: 'place_unavailable';
   readonly historyDepth: number;
 }
 export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean): SceneClientCapabilities {
@@ -60,6 +62,7 @@ export function createUniverseViewSession(scope: AccountScope) {
     focusId: null,
     overlay: null,
     detail,
+    reducedMotion,
     historyDepth: 0,
   };
   const live = () => !ended && scope.active;
@@ -89,13 +92,32 @@ export function createUniverseViewSession(scope: AccountScope) {
       })) ?? []
     );
   };
+  const validCamera = (entry: CameraEntry) => {
+    if (!entry.focusId) return true;
+    if (!places().some((p) => p.id === entry.focusId)) return false;
+    return (
+      !entry.locator ||
+      Boolean(
+        state.read.snapshot?.chunks.some(
+          (c) => c.chunkId === entry.locator!.chunkId && c.objects.some((o) => o.objectId === entry.focusId),
+        ),
+      )
+    );
+  };
   const readChanged = () => {
     const read = core.getState(),
       hadSnapshot = Boolean(state.read.snapshot);
     if (read.status === 'ended' || read.reason === 'authority') {
       history = [];
       cache.clear();
-      publish({ read, frame: { ...INITIAL_FRAME }, focusId: null, locator: undefined, overlay: null });
+      publish({
+        read,
+        frame: { ...INITIAL_FRAME },
+        focusId: null,
+        locator: undefined,
+        overlay: null,
+        notice: undefined,
+      });
       return;
     }
     publish({
@@ -104,9 +126,9 @@ export function createUniverseViewSession(scope: AccountScope) {
         ? { frame: fitFrame(read.snapshot.chunks.flatMap((c) => c.objects).filter((o) => o.kind === 'system')) }
         : {}),
     });
-    if (state.focusId && (read.snapshot || read.geography) && !places().some((p) => p.id === state.focusId)) {
+    if (state.focusId && (read.snapshot || read.geography) && !validCamera(state)) {
       history = [];
-      publish({ focusId: null, locator: undefined, overlay: null });
+      publish({ focusId: null, locator: undefined, overlay: null, notice: 'place_unavailable' });
     }
   };
   let unsubscribe = core.subscribe(readChanged);
@@ -120,6 +142,7 @@ export function createUniverseViewSession(scope: AccountScope) {
     core.dispose();
     publish({
       read: { status: 'ended', active: false },
+      notice: undefined,
       frame: { ...INITIAL_FRAME },
       focusId: null,
       locator: undefined,
@@ -138,6 +161,7 @@ export function createUniverseViewSession(scope: AccountScope) {
     const frame = object ? fitFrame(all.filter((o) => o.objectId === id || o.parentId === id)) : state.frame;
     publish({
       focusId: id,
+      notice: undefined,
       frame,
       overlay: null,
       locator: chunk ? returnLocator(chunk.chunkId, id, frame) : undefined,
@@ -152,10 +176,16 @@ export function createUniverseViewSession(scope: AccountScope) {
     }
     const entry = history.pop();
     if (!entry) return false;
-    if (entry.focusId && !places().some((p) => p.id === entry.focusId)) {
+    if (!validCamera(entry)) {
       history = [];
-      publish({ focusId: null, frame: { ...INITIAL_FRAME }, locator: undefined, overlay: null });
-    } else publish({ ...entry, overlay: null });
+      publish({
+        focusId: null,
+        frame: { ...INITIAL_FRAME },
+        locator: undefined,
+        overlay: null,
+        notice: 'place_unavailable',
+      });
+    } else publish({ ...entry, overlay: null, notice: undefined });
     return true;
   };
   return {
@@ -187,7 +217,7 @@ export function createUniverseViewSession(scope: AccountScope) {
       cache.clear();
       core = createUniverseSceneSession({ scope, capabilities: sceneCapabilities(detail, reducedMotion) });
       unsubscribe = core.subscribe(readChanged);
-      publish({ detail, read: core.getState(), overlay: null });
+      publish({ detail, reducedMotion, read: core.getState(), overlay: null });
       if (foreground) core.start();
     },
     showOverlay(overlay: UniverseViewState['overlay']) {
@@ -222,7 +252,10 @@ export function createUniverseViewSession(scope: AccountScope) {
       return focus(route.fromObjectId === state.focusId ? route.toObjectId : route.fromObjectId);
     },
     geometry(object: SceneDescriptor, low = false) {
-      if (!live()) return undefined;
+      // A retained render callback is not authority: accept only the current generation's
+      // parsed descriptor reference while this screen is foregrounded. This also fences
+      // descriptors held across authority refusal and capability-session replacement.
+      if (!live() || !foreground || !descriptors().includes(object)) return undefined;
       const options = { detail: low ? ('low' as const) : detail, reducedMotion },
         key = JSON.stringify([object, options]),
         previous = cache.get(object.objectId);

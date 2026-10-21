@@ -32,7 +32,8 @@ it('retains stale own labels, then clears every private resource on authority re
   s.setForeground(true);
   await ready(s);
   s.focus(fixtureId(12));
-  s.geometry(h.world.descriptors[0]!);
+  const retained = s.descriptors()[0]!;
+  s.geometry(retained);
   expect(s.cacheSize()).toBe(1);
   h.network(true);
   await s.refresh();
@@ -44,6 +45,8 @@ it('retains stale own labels, then clears every private resource on authority re
   expect(s.getState().read.reason).toBe('authority');
   expect(s.places()).toEqual([]);
   expect(s.getState().historyDepth).toBe(0);
+  expect(s.cacheSize()).toBe(0);
+  expect(s.geometry(retained)).toBeUndefined();
   expect(s.cacheSize()).toBe(0);
   h.scope.end();
   const next = universeHarness();
@@ -78,7 +81,7 @@ it('accepts complete1000-place snapshots while bounding history and geometry, an
   s.setForeground(true);
   await ready(s);
   expect(s.places()).toHaveLength(1000);
-  for (const p of h.world.descriptors) s.geometry(p);
+  for (const p of s.descriptors()) s.geometry(p);
   expect(s.cacheSize()).toBe(128);
   for (let n = 0; n < 50; n++) s.focus(fixtureId(12));
   expect(s.getState().historyDepth).toBe(32);
@@ -90,4 +93,41 @@ it('accepts complete1000-place snapshots while bounding history and geometry, an
   await waitFor(() => expect(empty.getState().read.status).toBe('empty'));
   expect(empty.places()).toEqual([]);
   e.scope.end();
+});
+it('does not reuse a private return locator when the selected immutable chunk handle changes', async () => {
+  const h = universeHarness(),
+    s = createUniverseViewSession(h.scope);
+  s.setForeground(true);
+  await ready(s);
+  s.focus(fixtureId(12));
+  const locator = s.getState().locator!;
+  expect(locator.chunkId).toBe(h.world.chunks[0]!.chunkId);
+  h.world.chunks[0]!.chunkId = fixtureId(20000); // adversarial but structurally valid protocol fixture, never product maintenance
+  await s.refresh();
+  expect(s.getState().read.status).toBe('ready');
+  expect(s.getState().focusId).toBeNull();
+  expect(s.getState().historyDepth).toBe(0);
+  expect(s.getState().notice).toBe('place_unavailable');
+  h.scope.end();
+});
+
+it('refuses retained geometry across pause and capability generations, even after replacement becomes ready', async () => {
+  const h = universeHarness(),
+    s = createUniverseViewSession(h.scope);
+  s.setForeground(true);
+  await ready(s);
+  const retained = s.descriptors()[0]!;
+  expect(s.geometry(retained)).toBeDefined();
+  s.setForeground(false);
+  expect(s.geometry(retained)).toBeUndefined();
+  s.configure({ detail: 'low', reducedMotion: false });
+  expect(s.cacheSize()).toBe(0);
+  expect(s.geometry(retained)).toBeUndefined();
+  s.setForeground(true);
+  await ready(s);
+  expect(s.geometry(retained)).toBeUndefined();
+  expect(s.cacheSize()).toBe(0);
+  expect(s.geometry(s.descriptors()[0]!)).toBeDefined();
+  expect(s.cacheSize()).toBe(1);
+  h.scope.end();
 });

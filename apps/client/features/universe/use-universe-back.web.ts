@@ -33,6 +33,7 @@ export function useUniverseBack(
       const key = (event: KeyboardEvent) => {
         if (event.key === 'Escape' && session.getState().overlay) {
           event.preventDefault();
+          event.stopImmediatePropagation();
           session.back();
         }
       };
