@@ -33,7 +33,7 @@ function afterPopState(action: () => void): Promise<void> {
       action();
     } catch (error) {
       cleanup();
-      reject(error);
+      reject(error instanceof Error ? error : new Error('History action failed'));
     }
   });
 }
