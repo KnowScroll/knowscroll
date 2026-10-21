@@ -761,7 +761,9 @@ describe('C1 complete trusted preapproval snapshots (real PG; fictional human/co
         .where('business_run_id', '=', seed.input.businessRunId)
         .executeTakeFirstOrThrow();
       // 0030 permits this malformed initial business row. Do not bypass its immutable trigger.
-      const oversized = 'x'.repeat(1024 * 1024);
+      const oversized = 'é'.repeat(65);
+      expect(oversized.length).toBe(65);
+      expect(Buffer.byteLength(oversized, 'utf8')).toBe(130);
       await f.world.db
         .insertInto('content.reel_commissions')
         .values({ ...source, business_run_id: bad.input.businessRunId, request_id: oversized, attempt_id: null })

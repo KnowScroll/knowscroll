@@ -224,7 +224,9 @@ describe('Cutroom C1 inert execution/accounting foundation (real PG/pg-boss; no 
         .where('business_run_id', '=', c.input.businessRunId)
         .executeTakeFirstOrThrow();
       const businessRunId = randomUUID(),
-        oversized = 'x'.repeat(1024 * 1024);
+        oversized = 'é'.repeat(65);
+      expect(oversized.length).toBe(65);
+      expect(Buffer.byteLength(oversized, 'utf8')).toBe(130);
       // Authored malformed initial row is allowed by immutable 0030. No trigger is disabled.
       await isolated.world.db
         .insertInto('content.reel_commissions')
