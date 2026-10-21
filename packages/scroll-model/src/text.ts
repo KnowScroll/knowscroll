@@ -35,13 +35,16 @@ export function richText(maxChars: number) {
     .array(Span)
     .min(1)
     .max(FIELD_LIMITS.spansPerText)
-    .refine((spans) => richTextPlain(spans).length <= maxChars, { message: 'text_too_long' })
+    .refine((spans) => richTextPlain(spans).length <= maxChars, {
+      message: 'text_too_long',
+      params: { safeCode: 'rich_text_too_long' },
+    })
     .refine(
       (spans) => {
         const text = richTextPlain(spans);
         return text.length > 0 && text === text.trim();
       },
-      { message: 'text_not_plain' },
+      { message: 'text_not_plain', params: { safeCode: 'rich_text_not_trimmed' } },
     );
 }
 

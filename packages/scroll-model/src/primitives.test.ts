@@ -4,7 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { canonicalJson, canonicalSha256, sha256Hex, utf8ByteLength } from './index.js';
 import { codeText, mentionsWebAddress, plainText, spanText } from './primitives.js';
 import { fastestMs } from './test-support/timing.js';
+import { FIELD_LIMITS } from './limits.js';
+import { z } from './zod.js';
 import {
+  Span,
+  richText,
   countWords,
   isGraphemeBoundary,
   isUnitExponent,
@@ -18,6 +22,74 @@ import {
 const anyUnits = fc.string({
   unit: fc.integer({ min: 0, max: 0xffff }).map((unit) => String.fromCharCode(unit)),
   maxLength: 300,
+});
+
+describe('RichText fixed refinement metadata', () => {
+  it('identifies combined-length overflow without changing the limit or original issue message', () => {
+    const schema = richText(10);
+    const exact = [{ text: 'abcde' }, { text: 'fghij' }];
+    expect(schema.parse(exact)).toEqual(exact);
+    const result = schema.safeParse([{ text: 'abcde' }, { text: 'fghijk' }]);
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error('Expected authored over-limit fixture to be refused');
+    expect(result.error.issues).toEqual([
+      { code: 'custom', path: [], message: 'text_too_long', params: { safeCode: 'rich_text_too_long' } },
+    ]);
+  });
+
+  it.each([' leading', 'trailing ', ' '])('identifies whole-text trimming for %j without normalizing it', (text) => {
+    const result = richText(20).safeParse([{ text }]);
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error('Expected authored untrimmed fixture to be refused');
+    expect(result.error.issues).toEqual([
+      { code: 'custom', path: [], message: 'text_not_plain', params: { safeCode: 'rich_text_not_trimmed' } },
+    ]);
+  });
+
+  it('preserves golden accepted values, including meaningful spaces between differently marked spans', () => {
+    for (const spans of [
+      [{ text: 'Exact text.' }],
+      [{ text: 'A ' }, { text: 'marked', marks: ['strong'] }, { text: ' phrase.' }],
+      [{ text: 'Café 🌍' }],
+    ])
+      expect(richText(40).parse(spans)).toEqual(spans);
+  });
+
+  it('keeps malformed shapes and existing span-level refusals outside the new aggregate codes', () => {
+    for (const value of [
+      null,
+      'text',
+      { text: 'text' },
+      [{ text: 'two\nlines' }],
+      [{ text: 'Cafe\u0301' }],
+      [{ text: 'https://fixture.invalid' }],
+    ]) {
+      const result = richText(100).safeParse(value);
+      expect(result.success).toBe(false);
+      if (result.success) throw new Error('Expected authored invalid fixture to be refused');
+      expect(result.error.issues).not.toEqual([]);
+      for (const issue of result.error.issues) expect(issue).not.toHaveProperty('params.safeCode');
+    }
+  });
+
+  it('leaves the advisory input schema identical to the existing structural array shape', () => {
+    // Native schema conversion omits semantic refinements; fixed diagnostic params add no wire vocabulary.
+    const options = {
+      target: 'draft-07' as const,
+      io: 'input' as const,
+      unrepresentable: 'throw' as const,
+      cycles: 'throw' as const,
+      reused: 'ref' as const,
+    };
+    const current = z.toJSONSchema(z.strictObject({ spans: richText(10) }), options);
+    const structural = z.toJSONSchema(
+      z.strictObject({ spans: z.array(Span).min(1).max(FIELD_LIMITS.spansPerText) }),
+      options,
+    );
+    expect(current).toEqual(structural);
+    expect(JSON.stringify(current)).not.toContain('safeCode');
+    expect(JSON.stringify(current)).not.toContain('rich_text_');
+  });
 });
 
 describe('sha256Hex', () => {
