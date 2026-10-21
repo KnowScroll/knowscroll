@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { problemDetails, type HealthResponse } from '@knowscroll/contracts';
 import { apiProblem, createApiClient, resolveApiOrigin } from './api-client';
+import { createAccountScope, memoryStore } from './account-scope';
 
 const health: HealthResponse = {
   status: 'ok',
@@ -143,4 +144,64 @@ describe('createApiClient', () => {
     expect(apiProblem(new TypeError('Network request failed'))).toBeUndefined();
     expect(apiProblem(undefined)).toBeUndefined();
   });
+});
+
+it('sends the four Universe reads through the actual typed scoped client as read-only POSTs', async () => {
+  const uuid = '0199a000-0000-7000-8000-000000000001';
+  const selection = { kind: 'universe' as const };
+  const capabilities = {
+    version: 'scene-client.v1' as const,
+    descriptors: ['scene-descriptor.v1'],
+    chunks: ['scene-chunk.v1'],
+    manifests: ['scene-manifest.v1'],
+    generators: ['silhouette.v1'],
+    families: ['terraced.v1', 'ridged.v1', 'archipelago.v1'],
+    detail: 'low' as const,
+    reducedMotion: true,
+  };
+  const reference = {
+    universeId: uuid,
+    privacyEpoch: 1,
+    manifestSceneRevision: 7,
+    chunkId: uuid,
+    chunkSceneRevision: 6,
+  };
+  const calls: { path: string; method: string; scope: string | null; authorization: string | null; body: unknown }[] =
+    [];
+  const scope = createAccountScope({
+    account: { accountId: uuid, universeId: uuid, privacyEpoch: 1, email: 'fixture@scene.test' },
+    baseUrl: 'https://scene.fixture.test',
+    store: memoryStore(),
+    authorization: () => 'Bearer fixture-scope-only',
+    fetch: async (request) => {
+      calls.push({
+        path: new URL(request.url).pathname,
+        method: request.method,
+        scope: request.headers.get('x-ks-scope'),
+        authorization: request.headers.get('authorization'),
+        body: await request.json(),
+      });
+      // The API's existing private/no-store response policy, never an HTTP cache or new wire route.
+      return Response.json({ fixture: true }, { headers: { 'cache-control': 'private, no-store' } });
+    },
+  });
+  try {
+    await scope.api.geography.read({ selection, limit: 100 });
+    await scope.api.geography.deltas({ afterGeographyRevision: 3, limit: 10 });
+    await scope.api.scenes.manifest({ selection, capabilities });
+    await scope.api.scenes.chunk({ selection, capabilities, reference });
+    expect(calls).toEqual(
+      [
+        { path: '/v1/universe/geography/read', body: { selection, limit: 100 } },
+        { path: '/v1/universe/geography/deltas/read', body: { afterGeographyRevision: 3, limit: 10 } },
+        { path: '/v1/universe/scenes/manifest/read', body: { selection, capabilities } },
+        { path: '/v1/universe/scenes/chunks/read', body: { selection, capabilities, reference } },
+      ].map((call) => ({ ...call, method: 'POST', scope: `${uuid}:1`, authorization: 'Bearer fixture-scope-only' })),
+    );
+    scope.end();
+    await expect(scope.api.scenes.manifest({ selection, capabilities })).rejects.toMatchObject({ code: 'SCOPE_ENDED' });
+    expect(calls).toHaveLength(4);
+  } finally {
+    scope.end();
+  }
 });

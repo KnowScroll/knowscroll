@@ -62,3 +62,51 @@ Handles/timebases are in-memory only. After eviction or process restart, do not 
 recorder at elapsed zero for a previously activated exposure. A fresh revisit must open a new
 exposure through the authorized encounter flow. Durable outbox batches already formed keep their
 original event IDs and retry behavior across parking; suspension does not dispose the scope outbox.
+
+## Readonly Universe session (#238)
+
+`createUniverseSceneSession({ scope, capabilities, selection? })` owns a complete global Geography
+and a complete selected Scene in memory. Supply the actual AccountScope and an explicit bounded
+capability declaration; no new wire method or credential handle is needed. Construction requires
+synchronous `scope.onEnd`, otherwise the session refuses before any work. `start()`/`resume()` attach
+one QueryObserver under `scope.queryKey(...)`; the existing hint socket invalidates that prefix.
+`pause()` aborts/unsubscribes without polling, `refresh()` explicitly reads again, `select()` drops
+the previous selection before fetching another, and `dispose()` is final. Scope end synchronously
+purges data, callbacks, selection and owned query markers, with generation/active checks fencing
+late or abort-ignoring replies. Two scope objects with the same account/epoch remain independent.
+
+Only the four existing authenticated read-only POSTs run, through `scope.api`. Their API responses
+are private/no-store. The session never persists or logs a body, cursor, identity, seed or error;
+no geometry, evidence, observation, formation acknowledgement, job, provider or region offer is
+created. Queries cache only completion markers. State data is frozen. Consumers must keep
+`geography` (current committed meaning) separate from `snapshot.read.manifest.revisions`
+(projection inputs); do not paint new labels/activity onto a last valid older Scene.
+
+All replies pass their actual contract schemas and Scene payloads pass the canonical parsers
+reexported by contracts. Snapshot paging is complete, stable and global: ten 100-object pages,
+identical repeated relations deduplicated, conflicting/expired/looping pages refused. Global
+limits are 1000 objects and 1000 routes/aliases. Deltas apply a whole validated batch against the
+exact base and component stamps; a gap, unknown effect or four batches still reporting `hasMore`
+requires a fresh bounded snapshot. No partial model or convenient subset becomes current.
+
+A Scene generation uses only the selected current manifest's closed chunk references, at most four
+concurrent readers. IDs, hierarchy and route endpoints bind across chunks to Geography. Unchanged
+older chunk revisions remain valid; a chunk cannot claim newer inputs than its manifest. One stale
+manifest reread is allowed; continued churn gets a bounded fresh-snapshot recovery and then a coarse
+refusal. The old complete same-selection Scene survives ordinary network/temporary failures and
+lag, visibly stale, while authority/epoch refusals clear it. Initial network loading is distinct from
+backend loading/lagging with actual `pendingProjection`; empty, unsupported and resource-limit
+states never masquerade as one another. An independent validated Geography outline can remain
+available when the Scene cannot render.
+
+`UNIVERSE_SCENE_LIMITS` additionally bounds 128 chunks and 8 MiB of canonical serialized data across
+the displayed and candidate versions (at most two snapshots). Canonical per-document limits remain
+unchanged (262144 bytes, depth12, 12000 nodes, 100 objects/routes per chunk). Generic oRPC decodes JSON
+before canonical validation: these are accepted/retained-data bounds, **not a pre-decode transport
+allocation guarantee**. Full/low/reduced-motion flags do not reduce wire cardinality or permit
+repeated oversized downloads.
+
+Tests are labelled authored protocol fixtures and run only in Actions. This prerequisite mounts no
+Universe UI or backend worker consumer; it does not establish populated-device performance, actual
+formation, a region-to-Composer seam or durable cross-device shown/skipped acknowledgement. Existing
+empty Universe UI and the accepted later layered react-native-svg direction remain separate work.
