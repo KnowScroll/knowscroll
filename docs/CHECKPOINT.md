@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-21 21:36 UTC · **Phase:** 2 real dev generation / 3–4 implementation · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-21 22:16 UTC · **Phase:** 2 real dev generation / 3–4 implementation · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,23 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current frozen32 status —21Oct
+## Current source and rollout status — 21 Oct, 22:16 UTC
+
+Integration source is **96ec6aa3eb0afd0a91767ea810fe1b510bf4b54d/tree df8d422653175373341abbeb6d94ab22a2681666/schema33** after reviewed PR340, PR342 and PR341. These later changes do not replace frozen rollout candidate **87237ac63d7817f51845918352966190f66c9760/schema32/archive3d2aa0bb**. Actual accepted dev remains d10f4040/schema30/archive6481aa58; stage remains legacy8982391f. No schema32 deployment has been issued.
+
+[PR340](https://github.com/KnowScroll/knowscroll/pull/340) merged as1ae42789 after Root reviewed all19 sources, corrected replay-column correspondence and strict profile projection, exact source/PR all-six checks, full114 logs, complete archives/SQL/compiled provenance. Integration [39681237734](https://github.com/KnowScroll/knowscroll/actions/runs/39681237734) passed all six; full archive1ea4a856/19225 hashes/all33SQL/29smoke and compiled output verified. This remains disabled Cutroom persistence, without commission, settlement or publication authority.
+
+[PR342](https://github.com/KnowScroll/knowscroll/pull/342) merged as18c8bc04 after Root independently verified its one-file change, exact source39682916361/PR39682941253 all-six, full114 logs and complete archivesa7afce25/096bb497. The unchanged five-case MP4 fixture now has a suite-scoped60s watchdog accommodating its existing30s generator and15s probe; product bounds/assertions remain exact. Earlier docs84 PUSH39680204872 failed the positive fixture's default5s watchdog; full112 logs are retained and no rerun was issued. Its nested timeout stage remains unknown.
+
+[PR341](https://github.com/KnowScroll/knowscroll/pull/341) merged as96ec6aa3 after Root full15-path/source/test review, exact source39681255651/PR39681286745 all-six/full114 logs/complete archives8826b979+3b3e0ab5/allSQL/42 owned compiled outputs. Root verified the current union differs from the tested PR only by342's test watchdog. Current account/epoch precede historical receipt replay; fresh removal names exact SavedUUID/ref and reuses the existing Unsave action/contribution/receipt/root/required pg-boss transaction. Actions fixtures prove ABA, rollback, account/epoch waits, private errors and real installed HTTP behavior. Client Remove/Undo, automatic Save/park and legacy asset-keyed Unsave adoption remain pending. New integrated checks are pending verification.
+
+Frozen872 native [39677076592](https://github.com/KnowScroll/knowscroll/actions/runs/39677076592) is now accepted for signed-out shell/gallery only: both APK/emulator jobs actually succeeded, full39 logs, three official artifact digests, embedded bundle/APK identity, four JUnit suites and all22 screenshots/logcat reviewed. APK SHAba40ff8e; source/native acceptance4daf863d. No authenticated Keep or physical-device/full-product acceptance follows.
+
+Genuine read-only B1/B2 captures21:50 and separate ninth host metadata21:58 preserved all73 full-column domains, Saved5/place, all22 attempts/receipts/role versions/day spend, disabled scope, normal privileges/tools/backups/media/pool/legacy and closed operators. Root/different-author accepted them as observations. Their original900s freshness expired before dispatch review completed; old intent0bd83371 remained unissued, with no attempt. Immutable expiry recordbffbc082 records this HOLD. No replay or timestamp extension is allowed. All dispatch/postflight source and design review now finishes before a new unique finite capture round. A concrete post-controller finding requires comparison of all ten expected data objects to NEW actual B1/B2, beyond changing four witness labels; corrected disabled source is under review. No host mutation or paid call occurred.
+
+Ledger6b948d88 remains **33 used/0 reserved/0 unknown of43**, development11/12 anddev22/31. The owner's broader #232 allowance persists; each next request still needs an explicit finite recorded ceiling/allocation and unchanged token/day/brake guards. V12 greenhouse plan is source preparation only, sequential max4 jobs and stop on first failure; current day limits do not promise three same-day jobs. Zero real generated Scroll assets. **All five final programme requirements remain OPEN.** Next: finish disabled control review, genuinely fresh preservation and one reviewed explicit872 dev rollout/postflight; continue privacy/client/social/Cutroom/connected acceptance, D002 dev PR/mergeback and artifact-identical stage. No main/production/owner-data action.
+
+## Earlier 21:36 frozen32 checkpoint —21Oct
 
 Root froze **87237ac63d7817f51845918352966190f66c9760/tree710daa0c39068c1cf0776741f3ac9429ddf57fb1/schema32** for rollout review only. Exact integration [PUSH39676908543](https://github.com/KnowScroll/knowscroll/actions/runs/39676908543) passed all six. Root inspected complete official114 logs, artifact12381233236/ZIP digest379160cc, full73482240B archive **3d2aa0bbd458bf170937c153db270103df29810281f6a9408665b9a41a083349**, all19200 manifest entries/all32SQL/29smoke. All8805 compiled/web entries match accepted338 PR plus52 privacy outputs (add0aec6). Electionc60f3bc5 binds claims4/writer10/policy12 and preserves olddev/workflow/financial joins. It grants no dispatch, reservation or model call; later branch updates do not replace frozen32.
 
@@ -155,9 +171,9 @@ The old local PG/API/worker processes no longer run after disconnect; only the t
 
 | Agent | Issue / PR | SSD worktree / evidence | Status |
 |---|---|---|---|
-| dev_scroll_v9_prepare | #250 schema32 readers | codex-250-schema32-readers-source / materialization-plan | Corrected disabled sources accepted; known-only literal/controller preparation active, no host/clock/ready action |
-| scene_projection_238 | #240 PR340 / independent #250 review | 240-cutroom-chain-store / review-250-schema32-readers-source | Final96b source+PR all-six; artifact review active. Corrected four-reader source independently accepted |
-| geography_contracts_237 | #246 Keep Remove backend/API | 246-keep-remove-backend | Allocated15 paths/base872, implementation active; no SQL/app/runtime changes |
+| dev_scroll_v9_prepare | #250 controls / #232 preparation | schema32 post controller / refresh02 | Corrected disabled post/new refresh control source review; no new clock or host action |
+| scene_projection_238 | independent #250 review | schema32 control review evidence | PR340 merged; disabled post/refresh controls under independent review |
+| geography_contracts_237 | #246 durable Clear plan | codex-246-clear-durable-plan | PR341/342 merged; next privacy core slice plan only |
 | coordinator | tracker222 / all phases | v2-release | Frozen32 artifact/native verification, Root reviews, integration, deployments and complete journeys |
 
 The current frozen32 section above defines the next actions. Historical writer328 and deployment records below do not override it.
