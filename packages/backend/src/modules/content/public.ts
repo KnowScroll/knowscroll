@@ -263,3 +263,7 @@ export type {
   CommissionReviewVerdict,
   CommissionReviewStore,
 } from './production/commission-review-ports.js';
+
+/** Default-disabled snapshot preapproval only. No live corpus/approval registry or normal binding. */
+export { makeCommissionPreparation } from './production/commission-review.js';
+export type { CommissionPreparationStore } from './production/commission-review-ports.js';

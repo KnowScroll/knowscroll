@@ -549,3 +549,215 @@ describe('Cutroom C1 inert execution/accounting foundation (real PG/pg-boss; no 
     expect(await counts()).toEqual(before);
   });
 });
+
+import { makeWithCutroomPreparationScope } from '@knowscroll/backend/reasoning/nest-providers';
+import type { CutroomPreparationScopeTx } from '@knowscroll/backend/reasoning';
+import {
+  assertOutsideTransaction,
+  insideTransaction,
+  transactionOf,
+} from '@knowscroll/backend/infrastructure/postgres';
+import {
+  cutroomPreparationTransactionOf,
+  cutroomTransactionOf,
+  cutroomAccountingTransactionOf,
+} from '../../../packages/backend/src/infrastructure/postgres/cutroom-scope.js';
+
+describe('D1 separate read-only preparation capability (real PG; no provider or approval)', () => {
+  async function isolated(label: string, work: (f: CommissionFixture) => Promise<void>) {
+    const f = await commissionFixture(`prep-${label}`);
+    try {
+      await f.world.db
+        .updateTable('reasoning.cutroom_scopes')
+        .set({ enabled: false })
+        .where('world_id', '=', 'dev')
+        .execute();
+      await work(f);
+    } finally {
+      await f.close();
+    }
+  }
+  it('defaults disabled; missing/stale/foreign/extra-field authority refuses without creating a root', async () => {
+    await isolated('deny', async (f) => {
+      const a = { worldId: 'dev' as const, generation: 1 };
+      let calls = 0;
+      const work = () => {
+        calls++;
+        return Promise.resolve(true);
+      };
+      expect(await makeWithCutroomPreparationScope(f.world.db)(a, work)).toEqual({ kind: 'refused', code: 'disabled' });
+      const read = makeWithCutroomPreparationScope(f.world.db, { enabled: true });
+      expect(await read({ ...a, generation: 2 }, work)).toEqual({ kind: 'refused', code: 'generation' });
+      for (const authority of [
+        { ...a, worldId: 'live' },
+        { ...a, generation: 0 },
+        { ...a, privateContext: 'canary' },
+      ])
+        expect(await read(authority as never, work)).toEqual({ kind: 'refused', code: 'identity' });
+      await f.world.db.deleteFrom('reasoning.cutroom_scopes').where('world_id', '=', 'dev').execute();
+      expect(await read(a, work)).toEqual({ kind: 'refused', code: 'identity' });
+      expect(calls).toBe(0);
+      expect(await f.world.db.selectFrom('reasoning.cutroom_scopes').selectAll().execute()).toEqual([]);
+      expect((await f.owner.query('select * from public.pool_order')).rows).toEqual([]);
+    });
+  });
+  it('actual server read-only repeatable-read rejects protected writes and read-write escalation', async () => {
+    await isolated('readonly', async (f) => {
+      const read = makeWithCutroomPreparationScope(f.world.db, { enabled: true }),
+        a = { worldId: 'dev' as const, generation: 1 };
+      expect(
+        await read(a, async (scope) => {
+          expect(insideTransaction()).toBe(true);
+          expect(scope.rootEnabledAtSnapshot).toBe(false);
+          expect(Object.isFrozen(scope)).toBe(true);
+          expect(Object.isFrozen(scope.authority)).toBe(true);
+          expect(Object.keys(scope)).toEqual(['authority', 'rootEnabledAtSnapshot']);
+          const result = await sql<{
+            isolation: string;
+            readonly: string;
+            timeout: string;
+          }>`select current_setting('transaction_isolation') isolation,current_setting('transaction_read_only') readonly,current_setting('statement_timeout') timeout`.execute(
+            cutroomPreparationTransactionOf(scope),
+          );
+          return result.rows[0];
+        }),
+      ).toEqual({ kind: 'entered', value: { isolation: 'repeatable read', readonly: 'on', timeout: '5s' } });
+      await expect(
+        read(a, async (scope) => {
+          await cutroomPreparationTransactionOf(scope)
+            .updateTable('reasoning.cutroom_scopes')
+            .set({ enabled: true })
+            .where('world_id', '=', 'dev')
+            .execute();
+        }),
+      ).rejects.toMatchObject({ code: '25006' });
+      await expect(
+        read(a, async (scope) => {
+          await sql`set transaction read write`.execute(cutroomPreparationTransactionOf(scope));
+        }),
+      ).rejects.toMatchObject({ code: '25001' });
+      expect(
+        await f.world.db
+          .selectFrom('reasoning.cutroom_scopes')
+          .select(['enabled', 'generation'])
+          .where('world_id', '=', 'dev')
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ enabled: false, generation: 1 });
+      expect(insideTransaction()).toBe(false);
+    });
+  });
+  it('live/forged/closed preparation scopes cannot enter B/accounting/personal/request/intent or either enqueue', async () => {
+    await isolated('disjoint', async (f) => {
+      const read = makeWithCutroomPreparationScope(f.world.db, { enabled: true });
+      let closed: CutroomPreparationScopeTx | undefined;
+      const before =
+        await sql`select (select count(*) from reasoning.cutroom_attempts) a,(select count(*) from reasoning.cutroom_execution) e,(select count(*) from reasoning.cutroom_pool_operations) p,(select count(*) from pgboss.job) j`.execute(
+          f.world.db,
+        );
+      const execution = postgresCutroomExecution(
+        makeEnqueueCutroom(f.boss),
+        makeEnqueueCutroomAccounting(f.boss, cutroomAccountingQueue),
+      );
+      await read({ worldId: 'dev', generation: 1 }, async (scope) => {
+        closed = scope;
+        for (const value of [scope, { ...scope }]) {
+          expect(() => cutroomTransactionOf(value as never)).toThrow('forged or closed');
+          expect(() => cutroomAccountingTransactionOf(value as never)).toThrow('forged or closed');
+          expect(() => transactionOf(value as never)).toThrow();
+          await expect(execution.identify(value as never, randomUUID())).rejects.toMatchObject({
+            code: 'SCOPE_CLOSED',
+          });
+          await expect(execution.intent(value as never, randomUUID(), {} as never, {} as never)).rejects.toMatchObject({
+            code: 'SCOPE_CLOSED',
+          });
+          await expect(
+            makeEnqueueCutroom(f.boss)(value as never, cutroomFollowQueue, {
+              v: 1,
+              worldId: 'dev',
+              attemptId: randomUUID(),
+              businessRunId: randomUUID(),
+              dispatchId: randomUUID(),
+            }),
+          ).rejects.toMatchObject({ code: 'SCOPE_CLOSED' });
+          await expect(
+            makeEnqueueCutroomAccounting(f.boss, cutroomAccountingQueue)(value as never, {
+              v: 1,
+              worldId: 'dev',
+              attemptId: randomUUID(),
+              businessRunId: randomUUID(),
+              observationId: randomUUID(),
+            }),
+          ).rejects.toMatchObject({ code: 'SCOPE_CLOSED' });
+        }
+        expect(() => cutroomPreparationTransactionOf({ ...scope })).toThrow('forged or closed');
+      });
+      if (!closed) throw new Error('CI scope callback missing');
+      const finished = closed;
+      expect(() => cutroomPreparationTransactionOf(finished)).toThrow('forged or closed');
+      const after =
+        await sql`select (select count(*) from reasoning.cutroom_attempts) a,(select count(*) from reasoning.cutroom_execution) e,(select count(*) from reasoning.cutroom_pool_operations) p,(select count(*) from pgboss.job) j`.execute(
+          f.world.db,
+        );
+      expect(after.rows).toEqual(before.rows);
+      expect((await f.owner.query('select * from public.pool_order')).rows).toEqual([]);
+    });
+  });
+  it('marks the real snapshot transaction and refuses nested B/accounting scopes and network work', async () => {
+    await isolated('marker', async (f) => {
+      await makeWithCutroomPreparationScope(f.world.db, { enabled: true })(
+        { worldId: 'dev', generation: 1 },
+        async () => {
+          expect(() => assertOutsideTransaction('fixture no actual network')).toThrow('inside a database transaction');
+          await expect(
+            makeWithCutroomScope(f.world.db, { enabled: true, lockTimeoutMs: 5000 })(
+              { worldId: 'dev', generation: 1 },
+              'recover',
+              () => Promise.resolve(true),
+            ),
+          ).rejects.toMatchObject({ code: 'NESTED_TRANSACTION' });
+          await expect(
+            makeWithCutroomAccountingScope(f.world.db, { enabled: true, lockTimeoutMs: 5000 })(
+              { worldId: 'dev', businessRunId: randomUUID(), attemptId: randomUUID() },
+              () => Promise.resolve(true),
+            ),
+          ).rejects.toMatchObject({ code: 'NESTED_TRANSACTION' });
+        },
+      );
+      expect(insideTransaction()).toBe(false);
+    });
+  });
+  it('takes no root row lock; a concurrent root change leaves an honestly old consistent snapshot and fresh admission refuses', async () => {
+    await isolated('root-snapshot', async (f) => {
+      const entered = gate(),
+        release = gate(),
+        read = makeWithCutroomPreparationScope(f.world.db, { enabled: true });
+      const snapshot = read({ worldId: 'dev', generation: 1 }, async (scope) => {
+        entered.open();
+        await release.promise;
+        return cutroomPreparationTransactionOf(scope)
+          .selectFrom('reasoning.cutroom_scopes')
+          .select(['enabled', 'generation'])
+          .where('world_id', '=', 'dev')
+          .executeTakeFirstOrThrow();
+      });
+      await entered.promise;
+      try {
+        await f.world.db
+          .updateTable('reasoning.cutroom_scopes')
+          .set({ enabled: true, generation: 2 })
+          .where('world_id', '=', 'dev')
+          .execute();
+      } finally {
+        release.open();
+      }
+      expect(await snapshot).toEqual({ kind: 'entered', value: { enabled: false, generation: 1 } });
+      expect(await read({ worldId: 'dev', generation: 1 }, () => Promise.resolve(true))).toEqual({
+        kind: 'refused',
+        code: 'generation',
+      });
+      expect(
+        await f.service().withScope({ worldId: 'dev', generation: 1 }, 'admit', () => Promise.resolve(true)),
+      ).toEqual({ kind: 'refused', code: 'generation' });
+    });
+  });
+});

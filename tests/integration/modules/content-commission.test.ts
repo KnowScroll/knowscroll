@@ -963,3 +963,480 @@ describe('C1 complete trusted preapproval snapshots (real PG; fictional human/co
     }
   });
 });
+
+import { makeCommissionPreparation, type ReelCorpusManifest } from '@knowscroll/backend/modules/content';
+import { makeWithCutroomPreparationScope } from '@knowscroll/backend/reasoning/nest-providers';
+import { PostgresQueryCompiler } from 'kysely';
+
+describe('D1 disabled-root consistent metadata preapproval (real PG; fictional corpus/human only)', () => {
+  async function isolated(label: string, work: (f: CommissionFixture) => Promise<void>) {
+    const f = await commissionFixture(`ro-${label}`);
+    try {
+      await work(f);
+    } finally {
+      await f.close();
+    }
+  }
+  async function sharedState(f: CommissionFixture) {
+    const tables = [
+      'reasoning.cutroom_scopes',
+      'content.reel_commissions',
+      'content.cutroom_corpus',
+      'content.cutroom_reviews',
+      'reasoning.cutroom_attempts',
+      'reasoning.cutroom_requests',
+      'reasoning.cutroom_pool_operations',
+      'reasoning.cutroom_execution',
+      'reasoning.cutroom_observations',
+      'reasoning.cutroom_accounting_intents',
+    ] as const;
+    const result: Record<string, string> = {};
+    for (const table of tables)
+      result[table] = hash(
+        JSON.stringify((await f.world.db.selectFrom(table).selectAll().execute()).map((r) => JSON.stringify(r)).sort()),
+      );
+    result['jobs'] = hash(
+      JSON.stringify(
+        (await sql`select * from pgboss.job`.execute(f.world.db)).rows.map((r) => JSON.stringify(r)).sort(),
+      ),
+    );
+    result['pool'] = hash(JSON.stringify((await f.owner.query('select * from public.pool_order')).rows));
+    return result;
+  }
+  const preparation = (f: CommissionFixture, manifests: readonly ReelCorpusManifest[] = [fixtureCorpusManifest()]) =>
+    makeCommissionPreparation(
+      postgresCommissionReview,
+      makeWithCutroomPreparationScope(f.world.db, { enabled: true }),
+      { enabled: true, manifests },
+    );
+  it('prepares before ANY business/attempt with a disabled existing root, no mutable locks/request reads and exact zero shared/pool effects', async () => {
+    await isolated('before-business', async (f) => {
+      const c = f.command('public-script', 1, true);
+      await f.world.db
+        .updateTable('reasoning.cutroom_scopes')
+        .set({ enabled: false })
+        .where('world_id', '=', 'dev')
+        .execute();
+      const before = await sharedState(f),
+        compiler = new PostgresQueryCompiler();
+      const observed: KyselyPlugin = {
+        transformQuery({ node, queryId }) {
+          const text = compiler.compileQuery(node, queryId).sql;
+          expect(text).not.toMatch(/for (?:update|share|no key update)|pg_advisory|"reasoning"\."cutroom_requests"/i);
+          return node;
+        },
+        transformResult: ({ result }) => Promise.resolve(result),
+      };
+      const service = makeCommissionPreparation(
+        postgresCommissionReview,
+        makeWithCutroomPreparationScope(f.world.db.withPlugin(observed), { enabled: true }),
+        { enabled: true, manifests: [fixtureCorpusManifest()] },
+      );
+      const result = await service.prepare(c.input.authority, proposalFor(c.input));
+      expect(result).toMatchObject({
+        kind: 'prepared',
+        packet: {
+          corpusGate: 'clear',
+          generation: 1,
+          requestSha256: c.prepared.requestSha256,
+          byteLength: c.prepared.byteLength,
+        },
+      });
+      expect(Object.keys(service)).toEqual(['prepare']);
+      if (result.kind !== 'prepared') throw new Error('CI prepared metadata missing');
+      for (const key of ['requestUtf8', 'permit', 'attemptId', 'dispatchId', 'poolReceipt', 'humanEvidenceRef'])
+        expect(result.packet).not.toHaveProperty(key);
+      expect(result).not.toHaveProperty('requestUtf8');
+      expect(result).not.toHaveProperty('permit');
+      expect(await f.commission()(c.input)).toEqual({ kind: 'refused', code: 'disabled' });
+      expect(
+        await service.prepare(c.input.authority, {
+          ...proposalFor(c.input),
+          corpusGate: 'clear',
+          corpusSnapshotSha256: hash('caller'),
+        }),
+      ).toEqual({ kind: 'refused', code: 'invalid' });
+      expect(await sharedState(f)).toEqual(before);
+    });
+  });
+  it('both defaults and absent/unproven completeness fail closed; preparation never enables or seeds the root', async () => {
+    await isolated('defaults', async (f) => {
+      const c = f.command('closed', 1, true);
+      await f.world.db
+        .updateTable('reasoning.cutroom_scopes')
+        .set({ enabled: false })
+        .where('world_id', '=', 'dev')
+        .execute();
+      const before = await sharedState(f),
+        withScope = makeWithCutroomPreparationScope(f.world.db, { enabled: true });
+      for (const options of [{}, { enabled: true }])
+        expect(
+          await makeCommissionPreparation(postgresCommissionReview, withScope, options).prepare(
+            c.input.authority,
+            proposalFor(c.input),
+          ),
+        ).toEqual({ kind: 'refused', code: 'corpus_unavailable' });
+      expect(
+        await makeCommissionPreparation(postgresCommissionReview, makeWithCutroomPreparationScope(f.world.db), {
+          enabled: true,
+          manifests: [fixtureCorpusManifest()],
+        }).prepare(c.input.authority, proposalFor(c.input)),
+      ).toEqual({ kind: 'refused', code: 'identity' });
+      expect(await sharedState(f)).toEqual(before);
+      await f.world.db.deleteFrom('reasoning.cutroom_scopes').where('world_id', '=', 'dev').execute();
+      expect(await preparation(f).prepare(c.input.authority, proposalFor(c.input))).toEqual({
+        kind: 'refused',
+        code: 'identity',
+      });
+      expect(await f.world.db.selectFrom('reasoning.cutroom_scopes').selectAll().execute()).toEqual([]);
+    });
+  });
+  it.each(['unknown_version', 'malformed', 'column_mismatch', 'revoked'] as const)(
+    'validates EVERY other %s retained row in read-only mode before novelty filtering',
+    async (variant) => {
+      await isolated(variant, async (f) => {
+        const old = f.command('old', 1, true),
+          r = await fixtureReview(f, old.input);
+        expect(await f.commission()(old.input)).toMatchObject({ kind: 'pending' });
+        await f.world.db
+          .insertInto('content.cutroom_reviews')
+          .values({
+            world_id: 'dev',
+            business_run_id: old.input.businessRunId,
+            packet_utf8:
+              variant === 'unknown_version'
+                ? JSON.stringify({ ...r.packet, version: 'cutroom-review.v2' })
+                : variant === 'malformed'
+                  ? 'not-json'
+                  : JSON.stringify(r.packet),
+            review_sha256: r.packet.reviewSha256,
+            corpus_sha256: r.packet.corpusSnapshotSha256,
+            template_sha256: variant === 'column_mismatch' ? hash('bad-column') : r.packet.templateSha256,
+            bridge_sha256: r.packet.bridgeSha256,
+            human_evidence_ref: r.human.humanEvidenceRef,
+            revoked_at: variant === 'revoked' ? new Date() : null,
+          })
+          .execute();
+        await f.world.db
+          .updateTable('reasoning.cutroom_scopes')
+          .set({ enabled: false })
+          .where('world_id', '=', 'dev')
+          .execute();
+        const next = f.command('other', 1, true),
+          before = await sharedState(f),
+          result = await preparation(f).prepare(next.input.authority, proposalFor(next.input));
+        if (variant === 'revoked') {
+          expect(result.kind).toBe('prepared');
+          if (result.kind !== 'prepared') throw new Error('CI prepared snapshot missing');
+          // Revoked history still vetoes repetition through its validated canonical template.
+          expect(
+            await preparation(f).prepare(old.input.authority, { ...proposalFor(next.input), script: old.input.script }),
+          ).toEqual({ kind: 'refused', code: 'repetition' });
+        } else expect(result).toEqual({ kind: 'refused', code: 'corpus_unavailable' });
+        expect(await sharedState(f)).toEqual(before);
+      });
+    },
+  );
+  it('shares exact partial-null template veto and 1000+1 complete-corpus overflow refusal without inventing original stamps', async () => {
+    await isolated('legacy-bounds', async (f) => {
+      const c = f.command('candidate', 1, true),
+        draft = prepareCommissionReview(proposalFor(c.input));
+      if (draft.kind !== 'draft') throw new Error('CI draft');
+      const row = corpusRow(draft.draft, 'partial-template-null');
+      const argument = { ...row.argument, narrationText: ['different historical narration'] };
+      const partial = {
+        ...row,
+        originalTemplateSha256: null,
+        argument,
+        originalArgumentSha256: reelFingerprint(argument),
+        bridgeSha256: reelFingerprint({ narrationText: argument.narrationText }),
+      };
+      await insertCorpusFixture(f, partial);
+      await f.world.db
+        .updateTable('reasoning.cutroom_scopes')
+        .set({ enabled: false })
+        .where('world_id', '=', 'dev')
+        .execute();
+      expect(
+        await preparation(f, [fixtureCorpusManifest([partial])]).prepare(c.input.authority, proposalFor(c.input)),
+      ).toEqual({ kind: 'refused', code: 'repetition' });
+      expect(
+        (
+          await f.world.db
+            .selectFrom('content.cutroom_corpus')
+            .select('original_template_sha256')
+            .executeTakeFirstOrThrow()
+        ).original_template_sha256,
+      ).toBeNull();
+      const records = Array.from({ length: 1000 }, (_, i) => ({ ...partial, generatedReelId: `extra-${i}` }));
+      await f.world.db
+        .insertInto('content.cutroom_corpus')
+        .values(
+          records.map((record) => {
+            const text = JSON.stringify(record);
+            return {
+              source_namespace: record.sourceNamespace,
+              generated_reel_id: record.generatedReelId,
+              record_utf8: text,
+              record_sha256: hash(text),
+              original_template_sha256: record.originalTemplateSha256,
+              original_argument_sha256: record.originalArgumentSha256,
+              bridge_sha256: record.bridgeSha256,
+            };
+          }),
+        )
+        .execute();
+      const before = await sharedState(f);
+      expect(
+        await preparation(f, [fixtureCorpusManifest([partial, ...records.slice(0, 999)])]).prepare(
+          c.input.authority,
+          proposalFor(c.input),
+        ),
+      ).toEqual({ kind: 'refused', code: 'corpus_unavailable' });
+      expect(await sharedState(f)).toEqual(before);
+    });
+  });
+  it('reuses only exact retained review metadata after protected-byte purge; missing prior review refuses without regeneration', async () => {
+    await isolated('purged', async (f) => {
+      const c = f.command('reviewed', 1, true),
+        r = await fixtureReview(f, c.input);
+      expect(await f.commission()(c.input)).toMatchObject({ kind: 'pending' });
+      const review = makeCommissionReview(postgresCommissionReview, {
+        enabled: true,
+        approvals: [r.human],
+        manifests: [fixtureCorpusManifest()],
+      });
+      expect(await f.service().withScope(c.input.authority, 'admit', (s) => review.admit(s, r.packet))).toMatchObject({
+        kind: 'entered',
+        value: { kind: 'reviewed' },
+      });
+      const unreviewed = f.command('no-review', 1, true);
+      expect(await f.commission()(unreviewed.input)).toMatchObject({ kind: 'pending' });
+      await f.world.db
+        .updateTable('reasoning.cutroom_requests')
+        .set({ request_utf8: null, purged_at: new Date() })
+        .execute();
+      await f.world.db
+        .updateTable('reasoning.cutroom_scopes')
+        .set({ enabled: false })
+        .where('world_id', '=', 'dev')
+        .execute();
+      const before = await sharedState(f),
+        compiler = new PostgresQueryCompiler();
+      const noBytes: KyselyPlugin = {
+        transformQuery({ node, queryId }) {
+          expect(compiler.compileQuery(node, queryId).sql).not.toContain('"reasoning"."cutroom_requests"');
+          return node;
+        },
+        transformResult: ({ result }) => Promise.resolve(result),
+      };
+      const service = makeCommissionPreparation(
+        postgresCommissionReview,
+        makeWithCutroomPreparationScope(f.world.db.withPlugin(noBytes), { enabled: true }),
+        { enabled: true, manifests: [fixtureCorpusManifest()] },
+      );
+      expect(await service.prepare(c.input.authority, proposalFor(c.input))).toEqual({
+        kind: 'prepared',
+        packet: r.packet,
+      });
+      expect(await service.prepare(unreviewed.input.authority, proposalFor(unreviewed.input))).toEqual({
+        kind: 'refused',
+        code: 'identity',
+      });
+      expect(await sharedState(f)).toEqual(before);
+    });
+  });
+  it('read-only own/global business projections mask an oversized UTF8 ID before materialization and refuse the retained row', async () => {
+    await isolated('bounded-business', async (f) => {
+      const seed = f.command('seed', 1, true),
+        bad = f.command('bad', 1, true),
+        r = await fixtureReview(f, bad.input);
+      expect(await f.commission()(seed.input)).toMatchObject({ kind: 'pending' });
+      const original = await f.world.db
+          .selectFrom('content.reel_commissions')
+          .selectAll()
+          .where('business_run_id', '=', seed.input.businessRunId)
+          .executeTakeFirstOrThrow(),
+        oversized = 'é'.repeat(65);
+      await f.world.db
+        .insertInto('content.reel_commissions')
+        .values({ ...original, business_run_id: bad.input.businessRunId, request_id: oversized, attempt_id: null })
+        .execute();
+      await f.world.db
+        .insertInto('content.cutroom_reviews')
+        .values({
+          world_id: 'dev',
+          business_run_id: bad.input.businessRunId,
+          packet_utf8: JSON.stringify(r.packet),
+          review_sha256: r.packet.reviewSha256,
+          corpus_sha256: r.packet.corpusSnapshotSha256,
+          template_sha256: r.packet.templateSha256,
+          bridge_sha256: r.packet.bridgeSha256,
+          human_evidence_ref: r.human.humanEvidenceRef,
+        })
+        .execute();
+      await f.world.db
+        .updateTable('reasoning.cutroom_scopes')
+        .set({ enabled: false })
+        .where('world_id', '=', 'dev')
+        .execute();
+      const own: unknown[] = [],
+        all: unknown[] = [],
+        before = await sharedState(f);
+      const inspect: KyselyPlugin = {
+        transformQuery: ({ node }) => node,
+        transformResult({ result }) {
+          for (const row of result.rows) {
+            if ('package_utf8' in row && 'request_id' in row) own.push(row['request_id']);
+            if ('business_request_id' in row) all.push(row['business_request_id']);
+            expect(Object.values(row)).not.toContain(oversized);
+          }
+          return Promise.resolve(result);
+        },
+      };
+      const service = makeCommissionPreparation(
+        postgresCommissionReview,
+        makeWithCutroomPreparationScope(f.world.db.withPlugin(inspect), { enabled: true }),
+        { enabled: true, manifests: [fixtureCorpusManifest()] },
+      );
+      expect(await service.prepare(bad.input.authority, proposalFor(bad.input))).toEqual({
+        kind: 'refused',
+        code: 'identity',
+      });
+      const next = f.command('next', 1, true);
+      expect(await service.prepare(next.input.authority, proposalFor(next.input))).toEqual({
+        kind: 'refused',
+        code: 'corpus_unavailable',
+      });
+      expect(own).toEqual([null]);
+      expect(all).toContain(null);
+      expect(await sharedState(f)).toEqual(before);
+    });
+  });
+  it('a concurrent admitted review advances the digest while the readonly snapshot stays old; final human packet refuses without refresh', async () => {
+    await isolated('stale', async (f) => {
+      const a = f.command('future', 1, true),
+        b = f.command('intervening', 1, true);
+      await f.world.db
+        .updateTable('reasoning.cutroom_scopes')
+        .set({ enabled: false })
+        .where('world_id', '=', 'dev')
+        .execute();
+      const entered = gate(),
+        release = gate();
+      const inFlight = makeWithCutroomPreparationScope(f.world.db, { enabled: true })(
+        a.input.authority,
+        async (scope) => {
+          entered.open();
+          await release.promise;
+          return postgresCommissionReview.prepareReadOnly(scope, proposalFor(a.input), [fixtureCorpusManifest()]);
+        },
+      );
+      await entered.promise;
+      try {
+        await f.world.db
+          .updateTable('reasoning.cutroom_scopes')
+          .set({ enabled: true })
+          .where('world_id', '=', 'dev')
+          .execute();
+        const br = await fixtureReview(f, b.input);
+        expect(await f.commission()(b.input)).toMatchObject({ kind: 'pending' });
+        const intervening = makeCommissionReview(postgresCommissionReview, {
+          enabled: true,
+          approvals: [br.human],
+          manifests: [fixtureCorpusManifest()],
+        });
+        expect(
+          await f.service().withScope(b.input.authority, 'admit', (s) => intervening.admit(s, br.packet)),
+        ).toMatchObject({ kind: 'entered', value: { kind: 'reviewed' } });
+      } finally {
+        release.open();
+      }
+      const outcome = await inFlight;
+      if (outcome.kind !== 'entered' || outcome.value.kind !== 'prepared') throw new Error('CI readonly prepare');
+      const prepared = outcome.value;
+      const oldHuman = {
+        businessRunId: a.input.businessRunId,
+        worldId: 'dev' as const,
+        generation: 1,
+        reviewSha256: prepared.packet.reviewSha256,
+        scriptSha256: prepared.packet.scriptSha256,
+        evidenceSha256: prepared.packet.evidenceSha256,
+        requestSha256: prepared.packet.requestSha256,
+        ceilingCents: 1,
+        humanEvidenceRef: 'fixture-human-not-actual',
+      };
+      const review = makeCommissionReview(postgresCommissionReview, {
+        enabled: true,
+        approvals: [oldHuman],
+        manifests: [fixtureCorpusManifest()],
+      });
+      expect(await f.commission()(a.input)).toMatchObject({ kind: 'pending' });
+      const before = await sharedState(f);
+      expect(await f.service().withScope(a.input.authority, 'admit', (s) => review.admit(s, prepared.packet))).toEqual({
+        kind: 'entered',
+        value: { kind: 'refused', code: 'stale_snapshot' },
+      });
+      expect(await preparation(f).prepare(a.input.authority, proposalFor(a.input))).toEqual({
+        kind: 'refused',
+        code: 'identity',
+      });
+      expect(await sharedState(f)).toEqual(before);
+    });
+  });
+  it('concurrent revocation commits during an open read-only snapshot; old packet stays old and the final locked gate refuses', async () => {
+    await isolated('revoke-snapshot', async (f) => {
+      const c = f.command('old', 1, true),
+        r = await fixtureReview(f, c.input);
+      expect(await f.commission()(c.input)).toMatchObject({ kind: 'pending' });
+      const review = makeCommissionReview(postgresCommissionReview, {
+        enabled: true,
+        approvals: [r.human],
+        manifests: [fixtureCorpusManifest()],
+      });
+      expect(await f.service().withScope(c.input.authority, 'admit', (s) => review.admit(s, r.packet))).toMatchObject({
+        kind: 'entered',
+        value: { kind: 'reviewed' },
+      });
+      await f.world.db
+        .updateTable('reasoning.cutroom_scopes')
+        .set({ enabled: false })
+        .where('world_id', '=', 'dev')
+        .execute();
+      const entered = gate(),
+        release = gate();
+      const inFlight = makeWithCutroomPreparationScope(f.world.db, { enabled: true })(
+        c.input.authority,
+        async (scope) => {
+          entered.open();
+          await release.promise;
+          return postgresCommissionReview.prepareReadOnly(scope, proposalFor(c.input), [fixtureCorpusManifest()]);
+        },
+      );
+      await entered.promise;
+      try {
+        await f.world.db
+          .updateTable('content.cutroom_reviews')
+          .set({ revoked_at: new Date() })
+          .where('business_run_id', '=', c.input.businessRunId)
+          .execute();
+      } finally {
+        release.open();
+      }
+      expect(await inFlight).toEqual({ kind: 'entered', value: { kind: 'prepared', packet: r.packet } });
+      expect(await preparation(f).prepare(c.input.authority, proposalFor(c.input))).toEqual({
+        kind: 'refused',
+        code: 'identity',
+      });
+      await f.world.db
+        .updateTable('reasoning.cutroom_scopes')
+        .set({ enabled: true })
+        .where('world_id', '=', 'dev')
+        .execute();
+      expect(await f.service().withScope(c.input.authority, 'admit', (s) => review.admit(s, r.packet))).toEqual({
+        kind: 'entered',
+        value: { kind: 'refused', code: 'revoked' },
+      });
+    });
+  });
+});

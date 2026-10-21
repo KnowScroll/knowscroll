@@ -403,3 +403,6 @@ export {
   consumeCutroomDispatchPermit,
   postgresCutroomExecution,
 };
+
+/** Unmounted/default-disabled metadata preparation; separate from B/accounting factories. */
+export { makeWithCutroomPreparationScope } from '../../infrastructure/postgres/cutroom-scope.js';

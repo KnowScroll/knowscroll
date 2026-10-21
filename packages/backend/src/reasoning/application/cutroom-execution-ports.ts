@@ -132,3 +132,19 @@ export interface CutroomExecutionFoundation {
     | { readonly kind: 'refused'; readonly code: 'disabled' | 'identity' | 'invalid' }
   >;
 }
+
+declare const preparationScope: unique symbol;
+/** Consistent public metadata snapshot only. Never a B/accounting/dispatch capability. */
+export interface CutroomPreparationScopeTx {
+  readonly [preparationScope]: true;
+  readonly authority: CutroomAuthority;
+  readonly rootEnabledAtSnapshot: boolean;
+}
+/** Preparation may inspect an existing disabled root; absence/generation mismatch still refuse. */
+export type WithCutroomPreparationScope = <T>(
+  authority: CutroomAuthority,
+  work: (scope: CutroomPreparationScopeTx) => Promise<T>,
+) => Promise<
+  | { readonly kind: 'entered'; readonly value: T }
+  | { readonly kind: 'refused'; readonly code: 'disabled' | 'identity' | 'generation' }
+>;
