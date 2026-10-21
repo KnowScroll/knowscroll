@@ -18,6 +18,21 @@ import type {
  */
 export const BUDGET_LOCK_KEY = 2_231_001;
 
+/** Closed code-owned accounting categories retained after personal payload erasure. */
+export const PRIVACY_ACCOUNTING_CODES = [
+  'OUTCOME_NOT_RECORDED',
+  'TRANSPORT_OUTCOME_UNKNOWN',
+  'AUTHORITY_REFUSED',
+  'QUOTA_UNAVAILABLE',
+  'SUCCEEDED',
+  'REJECTED',
+  'REQUEST_EXPIRED',
+] as const;
+
+export function privacyOutcome(code: string | null | undefined): string | null {
+  return PRIVACY_ACCOUNTING_CODES.some((allowed) => allowed === code) ? (code ?? null) : null;
+}
+
 /** The UTC day a reservation counts against (computed by the database, never by a JS Date). */
 export const today = sql<string>`(now() at time zone 'UTC')::date`;
 
@@ -43,6 +58,8 @@ export const productionAttemptColumns = [
 ] as const;
 
 interface AttemptSelection {
+  /** Personal ledger only; production's existing projection deliberately omits this field. */
+  privacy_erased?: boolean;
   run_generation: number;
   run_state: string;
   id: string;
@@ -60,6 +77,7 @@ interface AttemptSelection {
 
 export function toRow(row: AttemptSelection): AttemptRow {
   return {
+    ...(row.privacy_erased === undefined ? {} : { privacyErased: row.privacy_erased }),
     runGeneration: row.run_generation,
     runState: row.run_state,
     id: row.id,

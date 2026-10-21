@@ -217,6 +217,7 @@ export function makeExecuteAttempt<A, S>(ports: ExecutionPorts<A, S>) {
 
     /** What a recorded attempt means for this delivery. */
     async function fromLedger(row: AttemptRow): Promise<AttemptResult> {
+      if (row.privacyErased === true) return { kind: 'ineligible', attemptId: row.id };
       switch (row.state) {
         case 'succeeded':
         case 'reconciled':
@@ -450,24 +451,18 @@ export function makeExecuteAttempt<A, S>(ports: ExecutionPorts<A, S>) {
     const settlement = 'reply' in sent ? settlementForReply(sent.reply, judgeSafely(judge, sent.reply)) : sent.failure;
 
     // 6. Ledger settlement.
-    const settledAs = (state: AttemptState): AttemptRow => ({
-      runGeneration: ports.generation(authority),
-      runState: 'admitted',
-      id: attemptId,
-      step: admission.step,
-      state,
-      requestHash: plan.requestHash,
-      outcomeCode: settlement.details.outcomeCode ?? null,
-      output: settlement.details.output ?? null,
-      issues: settlement.details.issues ?? null,
-      usage: settlement.details.usage ?? NO_USAGE,
-    });
+    // The eraser may have marked/deleted the personal row while this transport was in flight.
+    // Never synthesize an eligible answer from the still-private local settlement details.
+    async function committedSettlement(): Promise<AttemptResult> {
+      const current = await ledger.find(ports.scopeId(authority), run.id, plan.step);
+      return current === undefined ? { kind: 'ineligible', attemptId } : fromLedger(current);
+    }
     if (await ledger.settle(ref(attemptId), 'dispatched', settlement.to, settlement.details)) {
       logSettled(attemptId, settlement.to, settlement.details.outcomeCode, {
         durationMs,
         ...(settlement.details.usage === undefined ? {} : { usage: settlement.details.usage }),
       });
-      return fromLedger(settledAs(settlement.to));
+      return committedSettlement();
     }
     // A concurrent delivery decided this attempt was lost and marked it `unknown`. A conclusive
     // answer is the evidence reconciliation needs; anything else leaves it `unknown`.
@@ -477,12 +472,13 @@ export function makeExecuteAttempt<A, S>(ports: ExecutionPorts<A, S>) {
         durationMs,
         ...(settlement.details.usage === undefined ? {} : { usage: settlement.details.usage }),
       });
-      return fromLedger(settledAs('reconciled'));
+      return committedSettlement();
     }
     // Written off meanwhile: the late answer is not applied, but its usage settles the receipt.
+    // A privacy cleanup can already have deleted the written-off personal attempt. Its minimal
+    // receipt remains; the receipt-only WHERE written_off guard makes this safe and idempotent.
+    if (settlement.details.usage !== undefined) await ledger.recordLateUsage(attemptId, settlement.details.usage);
     const current = await ledger.find(ports.scopeId(authority), run.id, plan.step);
-    if (current?.state === 'written_off' && settlement.details.usage !== undefined)
-      await ledger.recordLateUsage(attemptId, settlement.details.usage);
     return current === undefined ? { kind: 'unknown', attemptId } : fromLedger(current);
   };
 }

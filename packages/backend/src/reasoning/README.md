@@ -240,8 +240,8 @@ enforce the new brake; enforce the policy only after all reasoning workers run t
 
 | Table | Migration | Holds | Erasure |
 |---|---|---|---|
-| `reasoning.business_runs` | `0006`, `0009` | One row per module run: owner module, purpose, privacy epoch, role id/version, policy version, provider, model, context bundle ref and item refs, `state`, `fence` | Erased with the universe once it has no attempts left |
-| `reasoning.external_attempts` | `0006`, `0009` | One row per external call attempt: step, state, request hash, dispatch identity, remote id, usage, quota observation, outcome code, the validated output or validator issues, write-off reason and `cli:<name>` | Settled attempts are erased with the universe; `dispatched`/`unknown` ones stay as unresolved liability and the eraser reports `pending` until the sweep and an operator resolve them |
+| `reasoning.business_runs` | `0006`, `0009`, `0032` | One row per module run: owner module, purpose, privacy epoch, role id/version, policy version, provider, model, context bundle ref and item refs, `state`, `fence` | Erased with the universe once it has no attempts left |
+| `reasoning.external_attempts` | `0006`, `0009`, `0032` | One row per external call attempt: step, state, request hash, dispatch identity, remote id, usage, quota observation, outcome code, the validated output or validator issues, write-off reason and `cli:<name>` | Settled attempts are erased with the universe; `dispatched`/`unknown` and unproved reserved ones stay marked/redacted as unresolved liability; erasure reports `pending` until legitimate accounting resolves them |
 | `reasoning.protected_requests` | `0009` | The exact request bytes (`bytea`, 1 B – 256 KiB), their SHA-256 (the database checks it equals the bytes' hash), `erasure_class`, `expires_at` (default 48 h) | Expires and is purged; erased with the universe even for an open attempt |
 | `reasoning.usage_receipts` | `0009` | The minimal accounting identity per attempt: role, provider, model, UTC day, reserved and reported tokens, state. **No universe, purpose, context or output** | Not personal; kept so global and per-role budgets and late usage stay honest |
 
@@ -252,6 +252,48 @@ request to its attempt, by composite foreign keys that reference `identity.unive
 has a dispatch identity and time. The erasure declaration is `adapters/erasure.ts`; it also
 declares the non-row store `minimax/request-copies`: MiniMax keeps copies of what it was sent under
 its own retention, which no eraser of ours can reach (the privacy copy must say so, D-021).
+
+### Personal payload erasure and late accounting (#246, migration0032)
+
+Erasure locks the existing personal root, then run IDs and attempt IDs in order, before deleting
+protected requests or changing receipts. Retained runs/attempts receive an immutable
+`privacy_erased_at` marker. Run purpose becomes the fixed `privacy-erased` sentinel; context
+bundle/item refs are NULL. Attempt output, issues, quota and dispatch actor are NULL; freeform
+write-off reason/actor become fixed sentinels. Only bounded safe message IDs and exactly seven
+code-owned outcome categories can survive: OUTCOME_NOT_RECORDED, TRANSPORT_OUTCOME_UNKNOWN,
+AUTHORITY_REFUSED, QUOTA_UNAVAILABLE, SUCCEEDED, REJECTED and REQUEST_EXPIRED. Any other outcome
+code is NULL. SQL CHECKs reject private writes and marker triggers reject clearing/re-timing a
+marker. No production/Cutroom table or public authority is changed.
+
+The marker serializes with ledger settlement on the attempt lock. Settlement classifies receipt
+state and the role-failure bit from the original evidence BEFORE discarding private payload;
+usage/state/reservation/day/dispatch identity remain honest. Personal scope charges read the
+retained receipts through their attempt IDs, so deleting payload cannot refund a no-usage answer.
+A retained current-day personal attempt without the matching minimal receipt (attempt ID, role
+ID/version, provider/model, budget window and reserved tokens) refuses budget admission with a
+fixed accounting error. No missing/mismatched receipt is fabricated or treated as zero spend;
+legitimate state/usage differences are not an immutable-identity mismatch.
+Global/role receipts and brakes survive eventual personal deletion. Existing eventual terminal
+row deletion still resets the documented per-scope allowance; changing that policy belongs to the
+later selective-clear design, not this prerequisite.
+
+Only a freshly locked reserved row with NULL dispatch ID/time and its exact held receipt may
+atomically become not_sent/released under the root fence. Missing/inconsistent proof stays pending
+and redacted. A dispatched intent means possibly sent, even before send starts: privacy, timeout,
+404 or absent payload never releases it or authorizes a resend. An already running process may
+still hold bytes; this cannot recall provider/backup copies. No eraser invokes a provider.
+
+Admission/dispatch/protected replay refuse marked work. Every committed answer is re-read from
+the ledger before return, never synthesized from local private settlement details. A missing or
+marked personal answer is ineligible. Written-off receipts can receive idempotent late usage even
+after their personal attempt was deleted; late output is never restored or applied. A later
+authorized retry may remove the exact old terminal rows; a future selective-clear coordinator
+must not repeat a universe-wide cleanup against fresh post-clear data.
+
+This is a payload/accounting prerequisite, not the complete privacy operation: epoch/barrier,
+durable operation progress, client purge, selective Keep/Social preservation and completion copy
+remain separate. Drain old personal Reasoning workers before using this schema/eraser; a CHECK
+refusal from an incompatible old writer is not a successful financial-settlement rollout.
 
 ### Storage at rest, backups and retention
 

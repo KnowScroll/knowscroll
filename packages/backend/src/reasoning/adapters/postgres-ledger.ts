@@ -13,9 +13,9 @@ import {
   receiptState,
   usageColumns,
   receiptSpend,
-  attemptSpend,
   spendOf,
   canStartRoleRun,
+  privacyOutcome,
 } from './ledger-values.js';
 
 /**
@@ -34,6 +34,9 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
           join.onRef('run.universe_id', '=', 'attempt.universe_id').onRef('run.id', '=', 'attempt.run_id'),
         )
         .select(attemptColumns)
+        .select(
+          sql<boolean>`attempt.privacy_erased_at is not null or run.privacy_erased_at is not null`.as('privacy_erased'),
+        )
         .where('attempt.universe_id', '=', universeId)
         .where('attempt.run_id', '=', runId)
         .where((eb) => eb.or([eb('attempt.step', '=', step), eb('attempt.step', 'like', `${step}.%`)]))
@@ -79,10 +82,13 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
           'privacy_epoch',
           'state',
           'fence',
+          'privacy_erased_at',
         ])
         .where('universe_id', '=', universeId)
         .where('id', '=', run.id)
         .executeTakeFirstOrThrow();
+      if (row.privacy_epoch !== scope.authority.privacyEpoch) return { kind: 'mismatch' };
+      if (row.privacy_erased_at !== null) return { kind: 'closed' };
       const same =
         row.owner_module === run.ownerModule &&
         row.purpose === run.purpose &&
@@ -106,6 +112,9 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
           join.onRef('run.universe_id', '=', 'attempt.universe_id').onRef('run.id', '=', 'attempt.run_id'),
         )
         .select(attemptColumns)
+        .select(
+          sql<boolean>`attempt.privacy_erased_at is not null or run.privacy_erased_at is not null`.as('privacy_erased'),
+        )
         .where('attempt.universe_id', '=', scope.authority.universeId)
         .where('attempt.run_id', '=', runId)
         .where((eb) => eb.or([eb('attempt.step', '=', step), eb('attempt.step', 'like', `${step}.%`)]))
@@ -119,15 +128,31 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
     async budgetUsage(scope, roleId) {
       const trx = transactionOf(scope);
       await sql`select pg_advisory_xact_lock(${BUDGET_LOCK_KEY}::bigint)`.execute(trx);
+      const integrity = await sql<{ valid: boolean }>`select not exists (
+        select 1 from reasoning.external_attempts attempt
+        left join reasoning.usage_receipts receipt on receipt.attempt_id = attempt.id
+        where attempt.universe_id = ${scope.authority.universeId} and attempt.budget_window = ${today}
+          and (receipt.attempt_id is null or
+            (receipt.role_id, receipt.role_version, receipt.provider, receipt.model,
+             receipt.budget_window, receipt.reserved_tokens) is distinct from
+            (attempt.role_id, attempt.role_version, attempt.provider, attempt.model,
+             attempt.budget_window, attempt.reserved_tokens))
+      ) as valid`.execute(trx);
+      if (integrity.rows[0]?.valid !== true) throw new Error('Reasoning accounting receipt unavailable');
       const global = await sql<{ requests: string; tokens: string }>`
         select ${receiptSpend} from reasoning.usage_receipts where budget_window = ${today}`.execute(trx);
       const role = await sql<{ requests: string; tokens: string }>`
         select ${receiptSpend} from reasoning.usage_receipts where budget_window = ${today} and role_id = ${roleId}`.execute(
         trx,
       );
+      // Charge comes from the receipt, never from whether erased output/issues still exist.
+      // Existing eventual deletion of personal attempt IDs still resets that scope allowance.
       const personal = await sql<{ requests: string; tokens: string }>`
-        select ${attemptSpend} from reasoning.external_attempts
-        where universe_id = ${scope.authority.universeId} and budget_window = ${today}`.execute(trx);
+        select ${receiptSpend} from reasoning.usage_receipts
+        where budget_window = ${today} and attempt_id in (
+          select id from reasoning.external_attempts
+          where universe_id = ${scope.authority.universeId} and budget_window = ${today}
+        )`.execute(trx);
       return { global: spendOf(global.rows[0]), role: spendOf(role.rows[0]), scope: spendOf(personal.rows[0]) };
     },
 
@@ -138,6 +163,14 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
     async reserve(scope, reservation) {
       const trx = transactionOf(scope);
       const universeId = scope.authority.universeId;
+      const run = await trx
+        .selectFrom('reasoning.business_runs')
+        .select('privacy_erased_at')
+        .where('universe_id', '=', universeId)
+        .where('id', '=', reservation.runId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (run === undefined || run.privacy_erased_at !== null) throw new Error('Reasoning run is unavailable');
       await trx
         .insertInto('reasoning.external_attempts')
         .values({
@@ -195,6 +228,12 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
         .where('universe_id', '=', scope.authority.universeId)
         .where('id', '=', attemptId)
         .where('state', '=', 'reserved')
+        .where('privacy_erased_at', 'is', null)
+        .where(
+          sql<boolean>`exists (select 1 from reasoning.business_runs run
+          where run.universe_id = ${scope.authority.universeId}
+            and run.id = reasoning.external_attempts.run_id and run.privacy_erased_at is null)`,
+        )
         .executeTakeFirst();
       return result.numUpdatedRows === 1n;
     },
@@ -202,16 +241,47 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
     async settle(attempt, from, to, details = {}) {
       if (!canTransition(from, to)) throw new Error(`Attempt transition ${from} → ${to} is not allowed`);
       return withTransaction(db, 'attempt-ledger', async (trx) => {
+        const row = await trx
+          .selectFrom('reasoning.external_attempts')
+          .select(['state', 'privacy_erased_at', 'outcome_code'])
+          .where('universe_id', '=', attempt.scopeId)
+          .where('id', '=', attempt.attemptId)
+          .forUpdate()
+          .executeTakeFirst();
+        if (row === undefined || row.state !== from) return false;
+        const erased = row.privacy_erased_at !== null;
+        // Classify ORIGINAL evidence before stripping payload. Redaction is never a refund.
+        const receipt = receiptState(to, details);
+        const conclusiveFailure =
+          to === 'failed' || (to === 'reconciled' && details.output === undefined && details.issues === undefined);
         const result = await trx
           .updateTable('reasoning.external_attempts')
           .set({
             state: to,
             ...(isSettled(to) ? { settled_at: sql<Date>`now()` } : {}),
-            ...(details.remoteId === undefined ? {} : { remote_id: details.remoteId }),
-            ...(details.outcomeCode === undefined ? {} : { outcome_code: details.outcomeCode }),
-            ...(details.output === undefined ? {} : { output: JSON.stringify(details.output) }),
-            ...(details.issues === undefined ? {} : { output_issues: JSON.stringify(details.issues) }),
-            ...(details.quota === undefined ? {} : { quota_observation: quotaJson(details.quota) }),
+            ...(erased
+              ? {
+                  output: null,
+                  output_issues: null,
+                  outcome_code: privacyOutcome(details.outcomeCode ?? row.outcome_code),
+                  quota_observation: null,
+                  dispatched_by: null,
+                  ...(details.remoteId === undefined
+                    ? {}
+                    : {
+                        remote_id:
+                          /^[A-Za-z0-9_.:-]{1,128}$/.exec(details.remoteId)?.[0] === details.remoteId
+                            ? details.remoteId
+                            : null,
+                      }),
+                }
+              : {
+                  ...(details.remoteId === undefined ? {} : { remote_id: details.remoteId }),
+                  ...(details.outcomeCode === undefined ? {} : { outcome_code: details.outcomeCode }),
+                  ...(details.output === undefined ? {} : { output: JSON.stringify(details.output) }),
+                  ...(details.issues === undefined ? {} : { output_issues: JSON.stringify(details.issues) }),
+                  ...(details.quota === undefined ? {} : { quota_observation: quotaJson(details.quota) }),
+                }),
             ...usageColumns(details.usage),
           })
           .where('universe_id', '=', attempt.scopeId)
@@ -222,9 +292,8 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
         await trx
           .updateTable('reasoning.usage_receipts')
           .set({
-            state: receiptState(to, details),
-            conclusive_failure:
-              to === 'failed' || (to === 'reconciled' && details.output === undefined && details.issues === undefined),
+            state: receipt,
+            conclusive_failure: conclusiveFailure,
             ...(isSettled(to) ? { settled_at: sql<Date>`now()` } : {}),
             ...usageColumns(details.usage),
           })
@@ -253,10 +322,18 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
 
     async readProtectedRequest(attempt) {
       const row = await db
-        .selectFrom('reasoning.protected_requests')
-        .select(['body'])
-        .where('universe_id', '=', attempt.scopeId)
-        .where('attempt_id', '=', attempt.attemptId)
+        .selectFrom('reasoning.protected_requests as request')
+        .innerJoin('reasoning.external_attempts as attempt', (join) =>
+          join.onRef('attempt.universe_id', '=', 'request.universe_id').onRef('attempt.id', '=', 'request.attempt_id'),
+        )
+        .innerJoin('reasoning.business_runs as run', (join) =>
+          join.onRef('run.universe_id', '=', 'attempt.universe_id').onRef('run.id', '=', 'attempt.run_id'),
+        )
+        .select(['request.body'])
+        .where('request.universe_id', '=', attempt.scopeId)
+        .where('request.attempt_id', '=', attempt.attemptId)
+        .where('attempt.privacy_erased_at', 'is', null)
+        .where('run.privacy_erased_at', 'is', null)
         .where('expires_at', '>', sql<Date>`now()`)
         .executeTakeFirst();
       return row === undefined ? undefined : new Uint8Array(row.body);
@@ -274,6 +351,7 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
         .where('universe_id', '=', scope.authority.universeId)
         .where('id', '=', run.runId)
         .where('state', '=', 'admitted')
+        .where('privacy_erased_at', 'is', null)
         .executeTakeFirst();
       return result.numUpdatedRows === 1n ? 'closed' : 'not_open';
     },
@@ -282,7 +360,7 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
       return withTransaction(db, 'attempt-ledger', async (trx) => {
         const row = await trx
           .selectFrom('reasoning.external_attempts')
-          .select(['universe_id', 'state'])
+          .select(['universe_id', 'state', 'privacy_erased_at'])
           .where('id', '=', attemptId)
           .forUpdate()
           .executeTakeFirst();
@@ -295,8 +373,8 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
             state: 'written_off',
             settled_at: sql<Date>`now()`,
             written_off_at: sql<Date>`now()`,
-            written_off_reason: reason,
-            written_off_by: source,
+            written_off_reason: row.privacy_erased_at === null ? reason : 'privacy-erased',
+            written_off_by: row.privacy_erased_at === null ? source : 'privacy-erased',
           })
           .where('universe_id', '=', row.universe_id)
           .where('id', '=', attemptId)

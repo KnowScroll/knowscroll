@@ -669,6 +669,7 @@ export interface ReasoningBusinessRuns {
   owner_module: string;
   policy_version: string | null;
   privacy_epoch: number;
+  privacy_erased_at: Timestamp | null;
   provider: string | null;
   purpose: string;
   role_id: string | null;
@@ -787,6 +788,7 @@ export interface ReasoningExternalAttempts {
   output: Json | null;
   output_issues: Json | null;
   output_tokens: number | null;
+  privacy_erased_at: Timestamp | null;
   prompt_version: string | null;
   provider: string;
   quota_observation: Json | null;
