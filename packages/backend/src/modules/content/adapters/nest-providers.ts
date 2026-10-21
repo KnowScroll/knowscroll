@@ -1,3 +1,5 @@
+import { lockKeepPositionTarget } from './keep-position-target.js';
+import { LOCK_KEEP_POSITION_TARGET } from '../public.js';
 import { lockCurrentEncounters } from './current-encounters.js';
 import { LOCK_CURRENT_ENCOUNTERS } from '../public.js';
 import type { Kysely } from 'kysely';
@@ -39,6 +41,7 @@ import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './c
  */
 export function contentProviders() {
   return [
+    { provide: LOCK_KEEP_POSITION_TARGET, useValue: lockKeepPositionTarget },
     { provide: LOCK_CURRENT_ENCOUNTERS, useValue: lockCurrentEncounters },
     { provide: READ_DISCOVERY_CANDIDATES, useValue: readDiscoveryCandidates },
     { provide: READ_EXACT_ENCOUNTER, useValue: readExactEncounter },
@@ -107,3 +110,5 @@ export {
 export { makeAdmitCoverage } from '../application/admit-coverage.js';
 
 export { lockCurrentEncounters } from './current-encounters.js';
+
+export { lockKeepPositionTarget } from './keep-position-target.js';

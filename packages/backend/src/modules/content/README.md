@@ -236,3 +236,38 @@ integer counter fails closed on overflow; no-op/counter-only edits preserve both
 returns these public availability facts so readonly Supply status can monotonically invalidate
 and restore its exact one-time binding. It writes no personal state/hint; global changes require
 fresh resource reads. No new rights class is inferred beyond the existing shared admitted model.
+
+## Keep position target prerequisite (#246)
+
+`LOCK_KEEP_POSITION_TARGET(scope, owner, ref)` is a minimized Content read inside
+an already open own `PersonalScopeTx`. The production caller must first acquire
+Identity's actual same-transaction `FENCE_OWN_ACCOUNT` and check exact Saved
+membership, in that order. `owner` is its fresh `AccountAccess` result: plain
+context **does not certify a held lock**, and must never be copied/cached as an
+authorization capability. This port checks the account actor and exact owner
+account/universe/epoch binding and uses `transactionOf(scope)` to reject closed
+transactions. Identity/account-gate enforcement and membership remain the owning
+consumer's responsibilities; no new fence, lifecycle or ownership bypass exists.
+
+After validating the existing strict `KeepAssetRefSchema`, Content takes SHARE
+on the one asset and separately re-reads current head/status after any wait.
+The lock remains held until transaction end. Missing, withdrawn, corrected,
+missing revision, unsupported or malformed documents all return `undefined`.
+The exact stored Scroll is parsed by canonical stored admission validation,
+including integrity/measures/bounds; its asset/revision and stored digest must
+match. Only canonical **top-level** block IDs leave the adapter; disclosure
+children never become parent anchors. Canonical document limits bound the list.
+Reel uses the same exact immutable document/media-key binding as the existing
+media-access port and canonical `ReelDocumentSchema`; only that document's actual
+validated `durationMs` leaves, never derived reading estimates. Existing codec
+limits are inherited from its validator, with no copied universal60second policy.
+No media existence/probe/byte-read claim follows from this database-only port.
+
+Output is only `{kind:'scroll', topLevelBlockIds}` or `{kind:'reel', durationMs}`.
+No document, metadata, provenance, media key/URL, source, topics, exposure,
+capabilities or private position are returned. No external I/O, jobs, Evidence,
+mutation or rendering grant occurs. This implements no Keep storage/HTTP/client
+or selective privacy clearing. Existing Content readers/mutators are unchanged.
+`keep-position-target.test.ts` uses synthetic real-PostgreSQL fixtures in Actions
+for both SHARE/mutation orderings, post-wait refusal, minimized canonical facts,
+bindings, unsupported data and rollback; no live Keep journey is claimed.
