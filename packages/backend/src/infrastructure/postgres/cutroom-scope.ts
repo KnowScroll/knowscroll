@@ -79,7 +79,18 @@ export function makeWithCutroomAccountingScope(
       if (!root) return { kind: 'refused', code: 'identity' } as const;
       const c = await trx
         .selectFrom('content.reel_commissions')
-        .selectAll()
+        .select([
+          'attempt_id',
+          'generation',
+          'script_sha256',
+          'evidence_sha256',
+          'request_sha256',
+          'take',
+          'ceiling_cents',
+          'approval_ref',
+          'policy_version',
+          sql<string | null>`case when octet_length(request_id) <= 128 then request_id else null end`.as('request_id'),
+        ])
         .where('world_id', '=', t.worldId)
         .where('business_run_id', '=', t.businessRunId)
         .forUpdate()

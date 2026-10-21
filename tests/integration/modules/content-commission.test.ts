@@ -306,6 +306,8 @@ import {
 } from '@knowscroll/backend/modules/content';
 import { makeCommissionReview, postgresCommissionReview } from '@knowscroll/backend/modules/content/nest-providers';
 import { fixtureReview, fixtureCorpusManifest, fictionalScript } from '../support/commission-fixture.js';
+import type { KyselyPlugin } from 'kysely';
+import { makeWithCutroomScope } from '@knowscroll/backend/reasoning/nest-providers';
 const legacyBriefFixture = z.object({
   worldId: z.string(),
   narration: z.array(z.object({ text: z.string(), claimIds: z.array(z.string()) })),
@@ -745,6 +747,93 @@ describe('C1 complete trusted preapproval snapshots (real PG; fictional human/co
       }
     },
   );
+  it('bounds malformed business request IDs in both own-business and all-history SQL projections without truncating or omitting the row', async () => {
+    const f = await commissionFixture('oversized-business-id');
+    try {
+      const seed = f.command('seed', 1, true),
+        bad = f.command('malformed-business', 1, true),
+        next = f.command('next', 1, true),
+        review = await fixtureReview(f, bad.input);
+      expect(await f.commission()(seed.input)).toMatchObject({ kind: 'pending' });
+      const source = await f.world.db
+        .selectFrom('content.reel_commissions')
+        .selectAll()
+        .where('business_run_id', '=', seed.input.businessRunId)
+        .executeTakeFirstOrThrow();
+      // 0030 permits this malformed initial business row. Do not bypass its immutable trigger.
+      const oversized = 'x'.repeat(1024 * 1024);
+      await f.world.db
+        .insertInto('content.reel_commissions')
+        .values({ ...source, business_run_id: bad.input.businessRunId, request_id: oversized, attempt_id: null })
+        .execute();
+      await f.world.db
+        .insertInto('content.cutroom_reviews')
+        .values({
+          world_id: 'dev',
+          business_run_id: bad.input.businessRunId,
+          packet_utf8: JSON.stringify(review.packet),
+          review_sha256: review.packet.reviewSha256,
+          corpus_sha256: review.packet.corpusSnapshotSha256,
+          template_sha256: review.packet.templateSha256,
+          bridge_sha256: review.packet.bridgeSha256,
+          human_evidence_ref: review.human.humanEvidenceRef,
+        })
+        .execute();
+      const ownProjection: unknown[] = [],
+        historyProjection: unknown[] = [];
+      const inspect: KyselyPlugin = {
+        transformQuery: ({ node }) => node,
+        transformResult({ result }) {
+          for (const row of result.rows) {
+            if ('package_utf8' in row && 'request_id' in row) ownProjection.push(row['request_id']);
+            if ('business_request_id' in row) historyProjection.push(row['business_request_id']);
+            expect(Object.values(row)).not.toContain(oversized);
+          }
+          return Promise.resolve(result);
+        },
+      };
+      const b = f.service({
+        withScope: makeWithCutroomScope(f.world.db.withPlugin(inspect), { enabled: true, lockTimeoutMs: 5000 }),
+      });
+      const service = makeCommissionReview(postgresCommissionReview, {
+        enabled: true,
+        approvals: [review.human],
+        manifests: [fixtureCorpusManifest()],
+      });
+      expect(
+        await b.withScope(bad.input.authority, 'admit', (scope) => service.prepare(scope, review.proposal)),
+      ).toEqual({ kind: 'entered', value: { kind: 'refused', code: 'identity' } });
+      expect(await b.withScope(bad.input.authority, 'admit', (scope) => service.admit(scope, review.packet))).toEqual({
+        kind: 'entered',
+        value: { kind: 'refused', code: 'identity' },
+      });
+      expect(
+        await b.withScope(bad.input.authority, 'admit', (scope) => service.recheck(scope, bad.input.businessRunId)),
+      ).toEqual({ kind: 'entered', value: undefined });
+      expect(ownProjection).toEqual([null, null, null]);
+      expect(
+        await b.withScope(next.input.authority, 'admit', (scope) => service.prepare(scope, proposalFor(next.input))),
+      ).toEqual({ kind: 'entered', value: { kind: 'refused', code: 'corpus_unavailable' } });
+      expect(historyProjection).toEqual([null]);
+      expect(
+        await f.world.db
+          .selectFrom('content.reel_commissions')
+          .select('request_id')
+          .where('business_run_id', '=', bad.input.businessRunId)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ request_id: oversized });
+      expect(
+        await f.world.db
+          .selectFrom('content.reel_commissions')
+          .select('business_run_id')
+          .where('business_run_id', '=', next.input.businessRunId)
+          .execute(),
+      ).toEqual([]);
+      expect((await f.owner.query('select * from public.pool_order')).rows).toEqual([]);
+    } finally {
+      await f.close();
+    }
+  });
   it('real PG partial-null historical template vetoes its verified descriptor without writing a manufactured original stamp', async () => {
     const f = await commissionFixture('partial-null');
     try {

@@ -22,7 +22,17 @@ const hash = (v: string) => createHash('sha256').update(v, 'utf8').digest('hex')
 async function lockBusiness(scope: CutroomScopeTx, id: string) {
   return cutroomTransactionOf(scope)
     .selectFrom('content.reel_commissions')
-    .selectAll()
+    .select([
+      'attempt_id',
+      'generation',
+      'script_sha256',
+      'evidence_sha256',
+      'package_utf8',
+      'request_sha256',
+      'take',
+      'ceiling_cents',
+      sql<string | null>`case when octet_length(request_id) <= 128 then request_id else null end`.as('request_id'),
+    ])
     .where('world_id', '=', scope.authority.worldId)
     .where('business_run_id', '=', id)
     .forUpdate()
@@ -58,7 +68,9 @@ async function retained(scope: CutroomScopeTx) {
       'b.script_sha256 as business_script_sha256',
       'b.evidence_sha256 as business_evidence_sha256',
       'b.request_sha256 as business_request_sha256',
-      'b.request_id as business_request_id',
+      sql<string | null>`case when octet_length(b.request_id) <= 128 then b.request_id else null end`.as(
+        'business_request_id',
+      ),
       'b.take as business_take',
       'b.ceiling_cents as business_ceiling_cents',
       'b.package_sha256 as business_package_sha256',

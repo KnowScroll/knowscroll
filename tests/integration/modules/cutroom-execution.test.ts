@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { sql } from 'kysely';
+import { sql, type KyselyPlugin } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   cutroomExecutionFor,
@@ -211,6 +211,60 @@ describe('Cutroom C1 inert execution/accounting foundation (real PG/pg-boss; no 
         .set({ enabled: true, generation: 1 })
         .where('world_id', '=', 'dev')
         .execute();
+    }
+  });
+  it('accounting refuses an oversized stored business request ID after SQL projects NULL, without loading its text or creating work', async () => {
+    const isolated = await commissionFixture('accounting-oversized');
+    try {
+      const c = isolated.command('source');
+      expect(await isolated.commission()(c.input)).toMatchObject({ kind: 'pending' });
+      const original = await isolated.world.db
+        .selectFrom('content.reel_commissions')
+        .selectAll()
+        .where('business_run_id', '=', c.input.businessRunId)
+        .executeTakeFirstOrThrow();
+      const businessRunId = randomUUID(),
+        oversized = 'x'.repeat(1024 * 1024);
+      // Authored malformed initial row is allowed by immutable 0030. No trigger is disabled.
+      await isolated.world.db
+        .insertInto('content.reel_commissions')
+        .values({ ...original, business_run_id: businessRunId, request_id: oversized, attempt_id: null })
+        .execute();
+      const projected: unknown[] = [];
+      const inspect: KyselyPlugin = {
+        transformQuery: ({ node }) => node,
+        transformResult({ result }) {
+          for (const row of result.rows) {
+            if ('request_id' in row) projected.push(row['request_id']);
+            expect(Object.values(row)).not.toContain(oversized);
+          }
+          return Promise.resolve(result);
+        },
+      };
+      const withAccounting = makeWithCutroomAccountingScope(isolated.world.db.withPlugin(inspect), {
+        enabled: true,
+        lockTimeoutMs: 5000,
+      });
+      let entered = false;
+      expect(
+        await withAccounting({ worldId: 'dev', businessRunId, attemptId: original.attempt_id! }, () => {
+          entered = true;
+          return Promise.resolve();
+        }),
+      ).toEqual({ kind: 'refused', code: 'identity' });
+      expect(projected).toEqual([null]);
+      expect(entered).toBe(false);
+      expect(await isolated.world.db.selectFrom('reasoning.cutroom_observations').selectAll().execute()).toEqual([]);
+      expect(await isolated.world.db.selectFrom('reasoning.cutroom_accounting_intents').selectAll().execute()).toEqual(
+        [],
+      );
+      expect(
+        (await sql`select id from pgboss.job where name='reasoning.cutroom-accounting'`.execute(isolated.world.db))
+          .rows,
+      ).toEqual([]);
+      expect((await isolated.owner.query('select * from public.pool_order')).rows).toEqual([]);
+    } finally {
+      await isolated.close();
     }
   });
   it('forged/closed accounting scopes, wrong scope IDs and arbitrary queue substitution fail closed', async () => {
