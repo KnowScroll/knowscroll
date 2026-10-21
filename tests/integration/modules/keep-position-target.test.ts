@@ -400,3 +400,177 @@ describe('Content Keep position target (real PostgreSQL)', () => {
     ).toEqual([]);
   });
 });
+
+import { instrumentKeep, keepProbeSummary, seedKeepFixture, type KeepTiming } from '../support/keep-fixture.js';
+/** Serial warm Actions probes, not production percentiles or a client UX acceptance. */
+describe('Keep full canonical target transaction cost (real PostgreSQL; bounded authored probes)', () => {
+  let db: TestDatabase<Database>;
+  beforeAll(async () => {
+    db = await createTestDatabase<Database>('keep_cost');
+  });
+  afterAll(async () => {
+    await db.drop();
+  });
+  it('measures a real correction queued behind the full-admission SHARE transaction', async () => {
+    const f = await seedKeepFixture(db.db, 'maximal'),
+      projected = gate(),
+      release = gate();
+    let holderPid = 0;
+    const started = performance.now();
+    const pending = makeWithPersonalScope(db.db, { lockTimeoutMs: 5000 })(f.person.authority, async (sc) => {
+      holderPid = (await sql<{ p: number }>`select pg_backend_pid() p`.execute(transactionOf(sc))).rows[0]!.p;
+      const fenced = await accountAccessUseCases({ db: db.db, lockTimeoutMs: 5000 }).fenceOwnAccount(sc);
+      if (fenced.kind !== 'active') throw new Error('CI account fence refused');
+      const target = await lockKeepPositionTarget(sc, fenced.owner, f.ref);
+      projected.open();
+      await release.promise;
+      return target;
+    });
+    await projected.promise;
+    const correctionStarted = performance.now();
+    const correction = withTransaction(db.db, 'ci.keep-share-correction', async (trx) => {
+      await trx.updateTable('content.assets').set({ revision: 2 }).where('id', '=', f.ref.assetId).execute();
+    });
+    try {
+      const deadline = performance.now() + 4000;
+      let observed = false;
+      while (performance.now() < deadline) {
+        const r = await sql<{
+          n: number;
+        }>`select count(*)::int n from pg_stat_activity where datname=current_database() and ${holderPid}::int=any(pg_blocking_pids(pid))`.execute(
+          db.db,
+        );
+        if ((r.rows[0]?.n ?? 0) > 0) {
+          observed = true;
+          break;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 5));
+      }
+      expect(observed).toBe(true);
+    } finally {
+      release.open();
+    }
+    expect(await pending).toMatchObject({ kind: 'entered', value: { kind: 'scroll' } });
+    await correction;
+    const correctionWaitMs = performance.now() - correctionStarted,
+      transactionMs = performance.now() - started;
+    expect(transactionMs).toBeLessThan(5000);
+    const meter = instrumentKeep(db.db);
+    expect(await meter.cases.readEntry(f.person.authority, { version: 'keep-place.v1', target: f.ref })).toMatchObject({
+      kind: 'ok',
+      value: { status: 'saved_unavailable' },
+    });
+    process.stdout.write(
+      JSON.stringify({
+        event: 'keep-module-lock-probe',
+        kind: 'correction-after-share',
+        transactionMs,
+        correctionWaitMs,
+        barrier: 'actual pg_blocking_pids; full canonical admission before SHARE transaction commits',
+      }) + '\n',
+    );
+  });
+  it.each(['ordinary', 'maximal', 'reel'] as const)(
+    'records full read/set transaction/CPU/query/commit spans for %s',
+    async (variant) => {
+      const f = await seedKeepFixture(db.db, variant),
+        meter = instrumentKeep(db.db);
+      const position =
+        variant === 'reel'
+          ? { kind: 'reel' as const, positionMs: 129.25 }
+          : {
+              kind: 'scroll' as const,
+              blockId: variant === 'maximal' ? 'sim-a' : 'violet-eye',
+              offsetWithinBlock: 12.75,
+            };
+      const state = async () =>
+        (
+          await sql<{
+            revision: number;
+            receipts: number;
+            places: number;
+            evidence: number;
+            exposures: number;
+            actions: number;
+            jobs: number;
+          }>`select (select revision from identity.universes where id=${f.person.universeId}::uuid) revision,(select count(*)::int from receipts.personal_commands where universe_id=${f.person.universeId}::uuid) receipts,(select count(*)::int from experience.saved_places where universe_id=${f.person.universeId}::uuid) places,(select count(*)::int from evidence.observations where universe_id=${f.person.universeId}::uuid) evidence,(select count(*)::int from experience.exposures where universe_id=${f.person.universeId}::uuid) exposures,(select count(*)::int from experience.actions where universe_id=${f.person.universeId}::uuid) actions,(select count(*)::int from pgboss.job) jobs`.execute(
+            db.db,
+          )
+        ).rows[0]!;
+      const before = await state(),
+        reads: KeepTiming[] = [],
+        sets: KeepTiming[] = [];
+      const read = async () => {
+        const r = await meter.measure(() =>
+          meter.cases.readEntry(f.person.authority, { version: 'keep-place.v1', target: f.ref }),
+        );
+        expect(r.value).toMatchObject({ kind: 'ok', value: { status: 'available' } });
+        return r.timing;
+      };
+      const coldRead = await read();
+      for (let n = 0; n < 3; n++) await read();
+      for (let n = 0; n < 20; n++) reads.push(await read());
+      expect(await state()).toEqual(before);
+      let revision = 0;
+      const set = async () => {
+        const r = await meter.measure(() =>
+          meter.cases.setPlace(f.person.authority, {
+            version: 'keep-place.v1',
+            commandId: randomUUID(),
+            entry: f.entry,
+            expectedPlaceRevision: revision,
+            position,
+          }),
+        );
+        expect(r.value).toMatchObject({
+          kind: 'ok',
+          value: { basePlaceRevision: revision, acceptedPlaceRevision: revision + 1 },
+        });
+        revision++;
+        return r.timing;
+      };
+      const coldSet = await set();
+      for (let n = 0; n < 3; n++) await set();
+      for (let n = 0; n < 20; n++) sets.push(await set());
+      expect(await state()).toEqual({
+        ...before,
+        revision: before.revision + 24,
+        receipts: before.receipts + 24,
+        places: before.places + 1,
+      });
+      for (const timing of [coldRead, coldSet, ...reads, ...sets]) {
+        expect(timing.wallMs).toBeLessThan(5000);
+        expect(timing.txWallMs).toBeGreaterThan(0);
+        expect(timing.targetCpuMs).toBeGreaterThan(0);
+        expect(timing.phases.some((p) => p.phase === 'asset-share')).toBe(true);
+        expect(timing.phases.some((p) => p.phase === 'canonical-document')).toBe(true);
+      }
+      const pg = (await sql<{ version: string }>`select current_setting('server_version') version`.execute(db.db))
+        .rows[0]!.version;
+      process.stdout.write(
+        JSON.stringify({
+          event: 'keep-module-latency-probe',
+          fixture: 'authored-canonical-only',
+          variant,
+          node: process.versions.node,
+          pg,
+          runner: process.env['RUNNER_OS'] ?? 'unknown',
+          documentBytes: f.documentBytes,
+          documentSha256: f.documentSha256,
+          warmups: 3,
+          sampleSize: 20,
+          coldRead,
+          coldSet,
+          reads,
+          sets,
+          readSummary: keepProbeSummary(reads.map((s) => s.wallMs)),
+          setSummary: keepProbeSummary(sets.map((s) => s.wallMs)),
+          limits:
+            'existing scope lock5000ms; full canonical admission unchanged; bounded probe, not production percentile/UX acceptance',
+          timingMeaning:
+            'CPU is this process; target includes full proof plus SQL; commitAckSpan includes commit/driver return; query spans include lock waits',
+        }) + '\n',
+      );
+    },
+  );
+});

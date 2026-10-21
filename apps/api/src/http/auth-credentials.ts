@@ -4,7 +4,7 @@ import { DEVELOPMENT_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME, problemDetails } 
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { SESSION_TTL_DAYS } from '@knowscroll/backend/modules/identity';
 import { sendProblem } from './problems.js';
-import { currentRequest } from './request-context.js';
+import { currentRequest, isKeepPlaceRequest } from './request-context.js';
 
 /** The headers a credential can arrive in (HTTP request or Socket.IO handshake). */
 export interface CredentialHeaders {
@@ -105,10 +105,11 @@ export function originGuard(options: {
   };
 }
 
-/** Express middleware: nothing under `/auth` is cached (sessions, tokens and their absence). */
+/** Pre-guard cache policy: existing auth responses and the two finite private Keep POSTs. */
 export function noStoreForAuth() {
   return (request: Request, response: Response, next: NextFunction): void => {
     if (request.path.startsWith('/auth/')) response.setHeader('cache-control', 'no-store');
+    if (isKeepPlaceRequest(request)) response.setHeader('cache-control', 'private, no-store');
     next();
   };
 }

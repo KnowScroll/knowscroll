@@ -1,3 +1,4 @@
+import { KeepController } from './http/keep.controller.js';
 import { ScenesController } from './http/scenes.controller.js';
 import { SupplyController } from './http/supply.controller.js';
 import { GeographyController } from './http/geography.controller.js';
@@ -20,4 +21,5 @@ export const apiControllers = [
   SupplyController,
   GeographyController,
   ScenesController,
+  KeepController,
 ];

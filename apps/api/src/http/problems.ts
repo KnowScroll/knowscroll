@@ -3,6 +3,9 @@ import { ORPCError } from '@orpc/server';
 import type { NextFunction, Request, Response } from 'express';
 import {
   PROBLEM_MEDIA_TYPE,
+  KeepPlaceProblemSchema,
+  KeepProblemIssueSchema,
+  type KeepPlaceProblem,
   problemCatalogue,
   problemDetails,
   type ProblemCode,
@@ -34,6 +37,62 @@ export function problem(code: ProblemCode, extras: ProblemData = {}): ORPCError<
   });
 }
 
+const keepErrors = new WeakMap<object, KeepPlaceProblem>();
+/** Only a validated closed use-case refusal can carry the authorized current CAS revision. */
+export function keepProblem(refusal: {
+  readonly code: KeepPlaceProblem['code'];
+  readonly currentPlaceRevision?: number;
+}): ORPCError<string, unknown> {
+  const { type, title, status, code } = problemDetails(refusal.code);
+  const parsed = KeepPlaceProblemSchema.safeParse({
+    type,
+    title,
+    status,
+    code,
+    ...(code === 'KEEP_PLACE_REVISION_STALE' ? { currentPlaceRevision: refusal.currentPlaceRevision } : {}),
+  });
+  const details = parsed.success ? parsed.data : KeepPlaceProblemSchema.parse(problemDetails('INTERNAL'));
+  // oRPC validates and clones declared errors/data, preserving cause. Only this in-memory
+  // marker carries provenance; a copied error data object cannot manufacture it.
+  const marker = new Error('KEEP_CLOSED_REFUSAL');
+  keepErrors.set(marker, details);
+  const error = new ORPCError(details.code, {
+    status: details.status,
+    message: details.title,
+    data: details,
+    cause: marker,
+  });
+  return error;
+}
+/** Closed catalogue fields; arbitrary details, values, instance and untrusted CAS data are discarded. */
+function keepIssues(input: unknown): NonNullable<KeepPlaceProblem['issues']> {
+  if (!Array.isArray(input)) return [];
+  return input.slice(0, 32).map((issue: unknown) => {
+    const candidate = issue !== null && typeof issue === 'object' ? (issue as { path?: unknown; code?: unknown }) : {};
+    const path = Array.isArray(candidate.path) ? candidate.path.slice(0, 8) : [];
+    const code = KeepProblemIssueSchema.shape.code.safeParse(candidate.code);
+    return {
+      path: path.map((segment: unknown) => {
+        const key = segment !== null && typeof segment === 'object' && 'key' in segment ? segment.key : segment;
+        const token = KeepProblemIssueSchema.shape.path.element.safeParse(key);
+        return token.success ? token.data : 'unknown';
+      }),
+      code: code.success ? code.data : 'custom',
+    };
+  });
+}
+function keepDetails(details: ProblemDetails): ProblemDetails {
+  const { type, title, status, code } = details;
+  const parsed = KeepPlaceProblemSchema.safeParse({
+    type,
+    title,
+    status,
+    code,
+    ...(details.issues === undefined ? {} : { issues: keepIssues(details.issues) }),
+  });
+  return parsed.success ? parsed.data : KeepPlaceProblemSchema.parse(problemDetails('INTERNAL'));
+}
+
 function isProblemCode(code: string): code is ProblemCode {
   return Object.hasOwn(problemCatalogue, code);
 }
@@ -57,12 +116,25 @@ const orpcCodes: Partial<Record<string, ProblemCode>> = {
 
 /** Converts any oRPC error into problem details. Used as oRPC's error body encoder. */
 export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent: LogEvent): ProblemDetails {
+  const trusted = error.cause !== null && typeof error.cause === 'object' ? keepErrors.get(error.cause) : undefined;
+  if (trusted !== undefined) {
+    const context = currentRequest();
+    if (context !== undefined) context.problemCode = trusted.code;
+    return trusted;
+  }
   if (isProblemCode(error.code)) {
     const data = (error.data ?? {}) as ProblemData;
     return finish(problemDetails(error.code, data));
   }
   if (error.code === 'BAD_REQUEST')
-    return finish(problemDetails('INVALID_REQUEST', { issues: validationIssues(error) }));
+    return finish(
+      problemDetails('INVALID_REQUEST', {
+        issues:
+          currentRequest()?.problemFamily === 'keep-place'
+            ? keepIssues((error.data as { issues?: unknown } | undefined)?.issues)
+            : validationIssues(error),
+      }),
+    );
   const mapped =
     orpcCodes[error.code] ??
     (error.status >= 400 && error.status < 500 ? (statusCodes[error.status] ?? 'INVALID_REQUEST') : undefined);
@@ -127,7 +199,7 @@ function validationIssues(error: ORPCError<string, unknown>): ProblemIssue[] {
 function finish(details: ProblemDetails): ProblemDetails {
   const context = currentRequest();
   if (context !== undefined) context.problemCode = details.code;
-  return details;
+  return context?.problemFamily === 'keep-place' ? keepDetails(details) : details;
 }
 
 function logUnexpected(logEvent: LogEvent, error: unknown): void {
@@ -137,6 +209,12 @@ function logUnexpected(logEvent: LogEvent, error: unknown): void {
 
 /** Writes problem details with the RFC 9457 media type (and `Retry-After` on a 503). */
 export function sendProblem(response: Response, details: ProblemDetails): void {
+  if (currentRequest()?.problemFamily === 'keep-place') {
+    // Already validated trusted stale replies retain their sole authorized extension.
+    const trusted = KeepPlaceProblemSchema.safeParse(details);
+    details = trusted.success ? trusted.data : keepDetails(details);
+    response.setHeader('cache-control', 'private, no-store');
+  }
   if (details.status === 503) response.setHeader('retry-after', String(RETRY_AFTER_SECONDS));
   response.status(details.status).setHeader('content-type', PROBLEM_MEDIA_TYPE).end(JSON.stringify(details));
 }
