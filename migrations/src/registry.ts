@@ -40,4 +40,8 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
   { name: '0029_keep_places', sha256: 'd07ee1814da510a36a350725942ad6e82d93774c0d15c3e0bcc67a2f3c5cc4c5' },
   { name: '0030_cutroom_attempts', sha256: 'd43fedcd287a0a568cdb12289ce8d522848441d6610bfa599c1f39a4dad332c0' },
   { name: '0031_cutroom_execution', sha256: '6b7ca36bc4cc684ca68f8d6e673e0aab3b66d8581df5334b6ec93f066b6a9cea' },
+  {
+    name: '0032_reasoning_privacy_erasure',
+    sha256: '47f201bfb29a67e57ccfe8578470b95f26c35dfed18c6ffd6afde0ead3b20905',
+  },
 ];

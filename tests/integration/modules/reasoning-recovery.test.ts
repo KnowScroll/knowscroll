@@ -308,7 +308,17 @@ describe('reasoning recovery, charging and run rules (real database, fixture mod
       await withScope()(systemAuthority(person.universeId, 2), (scope) => eraseUniverse(scope, personalStores));
       release.open({ kind: 'success', text: '{"ok": true, "echo": "epoch1-private"}' });
       expect(await running).toMatchObject({ kind: 'refused', reason: 'output_ineligible' });
-      // The attempt settled with its output after the erase; the same run under epoch 2 must not get it.
+      // Late accounting survives, but private payload must not return after the erase.
+      expect((await attemptsOf(db(), person.universeId))[0]).toMatchObject({
+        state: 'succeeded',
+        output: null,
+        output_issues: null,
+        quota_observation: null,
+      });
+      expect((await receiptsOf(db(), [(await attemptsOf(db(), person.universeId))[0]!.id]))[0]).toMatchObject({
+        state: 'settled',
+      });
+      // The same run under epoch 2 still cannot get the answer or send again.
       expect(await propose(harness, person, { runId, epoch: 2 })).toEqual({ kind: 'refused', reason: 'run_mismatch' });
       expect(model.calls).toHaveLength(1);
     });

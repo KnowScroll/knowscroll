@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import type { ModuleErasure } from '../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../infrastructure/postgres/personal-scope.js';
+import { PRIVACY_ACCOUNTING_CODES } from './ledger-values.js';
 
 /**
  * The reasoning engine's personal rows (blueprint §5 erasure registry, §15 accounting identity).
@@ -8,9 +9,9 @@ import { transactionOf } from '../../infrastructure/postgres/personal-scope.js';
  * - Protected request bytes: all of the universe's are deleted, including those of attempts whose
  *   outcome is still open — the bytes are private context, and the attempt's hash is enough to
  *   account for it.
- * - Attempts: settled ones are deleted (with their stored outputs and validator issues); attempts
- *   still `dispatched` or `unknown` are kept, with their runs, as unresolved liability, and the
- *   report says `pending` so the eraser is retried after reconciliation or write-off.
+ * - Retained liabilities are marked/redacted under the same attempt lock settlement takes.
+ *   Only a freshly locked reserved row with no dispatch intent and its held receipt can be
+ *   released. Dispatched/unknown and any unproved reservation remain pending, never refunded.
  * - Runs without remaining attempts are deleted.
  *
  * Outside our database: a request sent to MiniMax leaves a copy there (see `nonRowStores`).
@@ -36,6 +37,58 @@ export const reasoningErasure: ModuleErasure = {
   async erase(scope) {
     const trx = transactionOf(scope);
     const universeId = scope.authority.universeId;
+    // Root is already held. Parent-before-child ordering also matches purge/settlement; return
+    // counts, not private rows or an unbounded JS payload list. Timeouts roll back the erasure.
+    await sql`with locked as materialized (
+      select id from reasoning.business_runs where universe_id = ${universeId}
+      order by id for update
+    ) select count(*) from locked`.execute(trx);
+    await sql`with locked as materialized (
+      select id from reasoning.external_attempts where universe_id = ${universeId}
+      order by id for update
+    ) select count(*) from locked`.execute(trx);
+    await sql`with locked as materialized (
+      select receipt.attempt_id from reasoning.usage_receipts receipt
+      where exists (select 1 from reasoning.external_attempts attempt
+        where attempt.universe_id = ${universeId} and attempt.id = receipt.attempt_id)
+      order by receipt.attempt_id for update
+    ) select count(*) from locked`.execute(trx);
+
+    // The root excludes dispatch CAS, and the locked current state/identity/receipt prove no
+    // dispatch intent ever committed. Missing/inconsistent proof stays held and pending.
+    const released = await sql<{ attempts: string; receipts: string }>`
+      with stopped as (
+        update reasoning.external_attempts attempt
+        set state = 'not_sent', outcome_code = 'AUTHORITY_REFUSED', settled_at = now()
+        where attempt.universe_id = ${universeId} and attempt.state = 'reserved'
+          and attempt.dispatch_id is null and attempt.dispatched_at is null
+          and exists (select 1 from reasoning.usage_receipts receipt
+            where receipt.attempt_id = attempt.id and receipt.state = 'held')
+        returning attempt.id
+      ), refunded as (
+        update reasoning.usage_receipts set state = 'released', settled_at = now()
+        where state = 'held' and attempt_id in (select id from stopped)
+        returning attempt_id
+      ) select (select count(*) from stopped)::text as attempts,
+               (select count(*) from refunded)::text as receipts`.execute(trx);
+    if (released.rows[0]?.attempts !== released.rows[0]?.receipts)
+      throw new Error('Reasoning privacy reservation receipt mismatch');
+
+    await sql`update reasoning.business_runs
+      set privacy_erased_at = coalesce(privacy_erased_at, now()), purpose = 'privacy-erased',
+          context_bundle_ref = null, context_refs = null
+      where universe_id = ${universeId}`.execute(trx);
+    await sql`update reasoning.external_attempts
+      set privacy_erased_at = coalesce(privacy_erased_at, now()), output = null,
+          output_issues = null, quota_observation = null, dispatched_by = null,
+          outcome_code = case when outcome_code in (${sql.join(PRIVACY_ACCOUNTING_CODES)})
+            then outcome_code else null end,
+          written_off_reason = case when written_off_reason is not null or state = 'written_off'
+            then 'privacy-erased' else null end,
+          written_off_by = case when written_off_by is not null or state = 'written_off'
+            then 'privacy-erased' else null end,
+          remote_id = case when remote_id ~ '^[A-Za-z0-9_.:-]{1,128}$' then remote_id else null end
+      where universe_id = ${universeId}`.execute(trx);
     const requests = await trx
       .deleteFrom('reasoning.protected_requests')
       .where('universe_id', '=', universeId)
@@ -43,7 +96,7 @@ export const reasoningErasure: ModuleErasure = {
     const attempts = await trx
       .deleteFrom('reasoning.external_attempts')
       .where('universe_id', '=', universeId)
-      .where('state', 'not in', ['dispatched', 'unknown'])
+      .where('state', 'not in', ['reserved', 'dispatched', 'unknown'])
       .executeTakeFirst();
     const runs = await trx
       .deleteFrom('reasoning.business_runs as run')

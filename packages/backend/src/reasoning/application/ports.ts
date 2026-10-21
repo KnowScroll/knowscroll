@@ -138,6 +138,8 @@ export const MAX_STORED_OUTPUT_BYTES = 65_536;
  * answers `run_closed`).
  */
 export interface AttemptRow {
+  /** Personal payload was erased. Internal read-model fence, never an accounting state. */
+  readonly privacyErased?: boolean;
   /** Privacy epoch for personal work; production generation for nonpersonal work. */
   readonly runGeneration: number;
   readonly runState: string;
