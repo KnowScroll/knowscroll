@@ -28,7 +28,7 @@ describe('Saved immutable revision choices', () => {
   it('makes corrected original and updated versions deliberate separate choices and keeps the private playhead', async () => {
     const open = jest.fn();
     await card(item, open);
-    expect(screen.getByText('Your place: 0:12 · opens paused')).toBeOnTheScreen();
+    expect(screen.getByText('On this device: 0:12 · opens paused')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Open original saved version' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Open updated version' }));
     expect(open.mock.calls).toEqual([[2], [3]]);

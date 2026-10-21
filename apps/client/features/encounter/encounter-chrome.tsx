@@ -16,6 +16,7 @@ import type { EncounterState, EncounterSession } from './encounter-session';
 import { RequestNotice, RequestPanel } from '../requests/request-panel';
 import { EncounterOverlay } from './encounter-overlay';
 import { ContinuationControls } from './continuation-controls';
+import { KeepWriteStatus } from '../saved/keep-detail';
 
 export function EncounterChrome({
   state,
@@ -82,6 +83,26 @@ export function EncounterActions({
           if (action === 'save') session.act(entry.context.actions.saved ? 'unsave' : 'save');
           if (action === 'like') session.act(entry.context.actions.liked ? 'unlike' : 'like');
         }}
+      />
+      <Button
+        label="Keep this place"
+        variant="ghost"
+        disabled={
+          state.phase !== 'active' ||
+          state.keepPlace?.write === 'sending' ||
+          state.keepPlace?.write === 'unknown' ||
+          state.keepPlace?.write === 'conflict'
+        }
+        onPress={() => {
+          void session.keepThisPlace();
+        }}
+      />
+      <Text variant="meta">Save keeps the item. Keep this place updates its saved position.</Text>
+      <KeepWriteStatus
+        state={state.keepPlace}
+        refresh={session.refreshKeep}
+        retry={session.retryKeep}
+        resolve={session.resolveKeepConflict}
       />
       <RequestNotice
         session={session.requests}

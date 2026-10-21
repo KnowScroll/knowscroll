@@ -36,11 +36,11 @@ export function SavedCard({
         <>
           {resume?.kind === 'reel' ? (
             <Text variant="meta">
-              Your place: {Math.floor(resume.positionMs / 60000)}:
+              On this device: {Math.floor(resume.positionMs / 60000)}:
               {String(Math.floor(resume.positionMs / 1000) % 60).padStart(2, '0')} · opens paused
             </Text>
           ) : resume?.kind === 'scroll' ? (
-            <Text variant="meta">Your reading place is kept.</Text>
+            <Text variant="meta">Your reading place on this device is kept.</Text>
           ) : null}
           {item.availability === 'corrected' ? (
             <Text variant="bodyS">

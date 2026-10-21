@@ -4,6 +4,8 @@ import {
   createScrollRecorder,
   ScopeEndedError,
   type AccountScope,
+  type KeepPlaceHandle,
+  type KeepPlaceState,
 } from '@knowscroll/client-core';
 import type {
   ApplyActionRequest,
@@ -17,8 +19,17 @@ import { createRequestSession, type RequestMode } from '../requests/request-sess
 import type { EncounterGestureMove } from './gestures/arbitration';
 import { ENCOUNTER_CAPABILITIES } from './capabilities';
 import { createEncounterHistory, readResume, type EncounterEntry } from './encounter-history';
+import {
+  keepBridgeFor,
+  refreshKeep,
+  sameKeep,
+  keepPositionFor,
+  checkpointPosition,
+  type AvailableKeep,
+} from '../saved/keep-place-bridge';
 
 export type EncounterPhase =
+  | 'keep_blocked'
   | 'idle'
   | 'opening'
   | 'ready_offer'
@@ -41,6 +52,7 @@ export interface EncounterState {
   readonly overlayOwner?: 'path' | 'request';
   readonly surfaceRevision: number;
   readonly contextReady?: boolean;
+  readonly keepPlace?: KeepPlaceState;
 }
 type Intent = NavigateExperienceRequest['intent'];
 type OfferActivation = Extract<
@@ -48,6 +60,7 @@ type OfferActivation = Extract<
   { sessionId: string }
 >;
 interface Work {
+  keep?: { mode: 'resume' | 'top'; expected?: AvailableKeep; handle?: KeepPlaceHandle };
   command: () => Promise<NavigationOutcome>;
   outcome?: NavigationOutcome;
   activateId: string;
@@ -68,6 +81,17 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let action: { readonly input: ApplyActionRequest; readonly entry: EncounterEntry } | undefined;
   let actionRunning = false;
   let contextSerial = 0;
+  let checkpoint: KeepPlaceHandle | undefined;
+  let checkpointOff: (() => void) | undefined;
+  let checkpointSerial = 0;
+  function releaseCheckpoint() {
+    checkpointSerial++;
+    checkpointOff?.();
+    checkpointOff = undefined;
+    checkpoint?.release();
+    checkpoint = undefined;
+    if (live && scope.active) publish({ keepPlace: undefined });
+  }
   const valid = () => live && scope.active;
   const publish = (patch: Partial<EncounterState> = {}) => {
     if (!valid()) return;
@@ -159,7 +183,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       exposureId,
       sessionId: activation.sessionId,
       context: response,
-      position: readResume(scope, offer.assetId, offer.assetRevision),
+      position: work?.keep ? undefined : readResume(scope, offer.assetId, offer.assetRevision),
+      ...(work?.keep ? { keepOrigin: true } : {}),
       restored: offer.relation.kind === 'return',
       started: false,
       suspended: false,
@@ -203,6 +228,14 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     busy = true;
     const current = work;
     try {
+      if (current.keep?.mode === 'resume' && !current.outcome) {
+        const fresh = current.keep.handle && (await refreshKeep(scope, current.keep.handle));
+        if (!valid() || work !== current) return;
+        if (!fresh || !current.keep.expected || !sameKeep(fresh, current.keep.expected)) {
+          publish({ phase: 'keep_blocked' });
+          return;
+        }
+      }
       if (!current.outcome) {
         publish({ phase: 'opening', actionFailed: false });
         current.outcome = await current.command();
@@ -211,6 +244,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       }
       const outcome = current.outcome;
       if (outcome.status !== 'ready') {
+        current.keep?.handle?.release();
         work = undefined;
         publish({ phase: outcome.status, outcome });
         return;
@@ -247,21 +281,46 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         current.entry?.recorder.end();
         return;
       }
+      if (current.keep) {
+        await context(current.entry);
+        if (!valid() || work !== current || !foreground) return;
+        if (current.keep.mode === 'resume') {
+          const fresh = current.keep.handle && (await refreshKeep(scope, current.keep.handle));
+          if (!valid() || work !== current) return;
+          if (!fresh || !current.keep.expected || !sameKeep(fresh, current.keep.expected)) {
+            publish({ phase: 'keep_blocked' });
+            return;
+          }
+          current.entry.position = keepPositionFor(current.entry, fresh);
+        } else current.entry.position = keepPositionFor(current.entry);
+        if (!current.entry.position) {
+          publish({ phase: 'keep_blocked' });
+          return;
+        }
+        current.entry.restored = true;
+        current.keep.handle?.release();
+        current.keep.handle = undefined;
+      }
+      releaseCheckpoint();
       history.push(current.entry);
       work = undefined;
       publish({ phase: 'active', outcome: undefined });
     } catch (error) {
-      fail(error);
+      if (current.keep && valid() && work === current) publish({ phase: 'keep_blocked' });
+      else fail(error);
     } finally {
       busy = false;
     }
   }
-  const begin = (command: () => Promise<NavigationOutcome>) => {
+  const begin = (command: () => Promise<NavigationOutcome>, keep?: Work['keep']) => {
     if (!valid() || work || busy || actionRunning) return;
-    work = { command, activateId: newId() };
+    work = { command, activateId: newId(), ...(keep ? { keep } : {}) };
     void run();
   };
-  const open = (target: { kind: 'discover' } | { kind: 'return'; assetId: string; assetRevision: number }) => {
+  const open = (
+    target: { kind: 'discover' } | { kind: 'return'; assetId: string; assetRevision: number },
+    keep?: Work['keep'],
+  ) => {
     if (!valid() || work || busy || actionRunning || action !== undefined) return false;
     const commandId = newId();
     const session = latestSession
@@ -275,7 +334,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
           : await scope.api.experience.openExposure({ ...common, target });
       if (!result.status) throw new Error('expected_navigation_outcome');
       return result;
-    });
+    }, keep);
     return true;
   };
   const requestSource = () => {
@@ -388,6 +447,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   const end = () => {
     if (!live) return;
     live = false;
+    releaseCheckpoint();
+    work?.keep?.handle?.release();
     work?.entry?.recorder.end();
     work = undefined;
     action = undefined;
@@ -407,6 +468,80 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       };
     },
     open,
+    openKept(target: { assetId: string; assetRevision: number }, mode: 'resume' | 'top', expected?: AvailableKeep) {
+      if (!valid() || work || busy || actionRunning || action !== undefined) return false;
+      if (
+        mode === 'resume' &&
+        (!expected ||
+          expected.entry.assetId !== target.assetId ||
+          expected.entry.assetRevision !== target.assetRevision ||
+          expected.place.status !== 'set')
+      )
+        return false;
+      const ref = { assetId: target.assetId, assetRevision: target.assetRevision };
+      const handle = mode === 'resume' ? keepBridgeFor(scope).retain(ref) : undefined;
+      if (mode === 'resume' && !handle) return false;
+      const accepted = open({ kind: 'return', ...ref }, { mode, expected, handle });
+      if (!accepted) handle?.release();
+      return accepted;
+    },
+    startKeepFromTop() {
+      if (!valid() || !work?.keep || busy || state.phase !== 'keep_blocked') return;
+      work.keep.mode = 'top';
+      work.keep.handle?.release();
+      work.keep.handle = undefined;
+      void run();
+    },
+    leaveKeep() {
+      if (busy || !work?.keep) return false;
+      work.keep.handle?.release();
+      work.entry?.recorder.end();
+      work = undefined;
+      publish({ phase: history.current() ? 'active' : 'idle' });
+      return true;
+    },
+    async keepThisPlace() {
+      const entry = history.current();
+      if (!valid() || !foreground || state.overlay || state.phase !== 'active' || !entry || entry.disposed) return;
+      const capture = entry.surface?.capture();
+      const position = capture && checkpointPosition(entry, capture);
+      if (!position) return;
+      checkpoint ??= keepBridgeFor(scope).retain({
+        assetId: entry.offer.assetId,
+        assetRevision: entry.offer.assetRevision,
+      });
+      const handle = checkpoint;
+      if (!handle) {
+        publish({ keepPlace: { status: 'unavailable', write: 'idle', reason: 'entry_unavailable' } });
+        return;
+      }
+      if (!checkpointOff)
+        checkpointOff = handle.subscribe(() => {
+          if (valid()) publish({ keepPlace: handle.getState() });
+        });
+      const serial = ++checkpointSerial;
+      publish({ keepPlace: handle.getState() });
+      try {
+        await refreshKeep(scope, handle);
+        if (
+          !valid() ||
+          serial !== checkpointSerial ||
+          history.current() !== entry ||
+          !foreground ||
+          !entry.surface ||
+          state.overlay ||
+          state.phase !== 'active'
+        )
+          return;
+        handle.setPosition(position);
+      } catch {
+        if (valid() && serial === checkpointSerial)
+          publish({ keepPlace: { ...handle.getState(), status: 'unavailable', reason: 'entry_unavailable' } });
+      }
+    },
+    retryKeep: () => checkpoint?.retry() ?? false,
+    refreshKeep: () => checkpoint?.refresh(),
+    resolveKeepConflict: (choice: 'server' | 'candidate') => checkpoint?.resolveConflict(choice) ?? false,
     navigate,
     requests,
     openRequest(mode: RequestMode = 'topic') {
@@ -493,7 +628,10 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         if (entry?.started) entry.restored = true;
         publish({ surfaceRevision: state.surfaceRevision + 1 });
       }
-      if (!value) history.park();
+      if (!value) {
+        history.park();
+        releaseCheckpoint();
+      }
       if (value && work && !busy) void run();
     },
     bindSurface(entry: EncounterEntry, surface: NonNullable<EncounterEntry['surface']>) {
@@ -516,7 +654,10 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       entry.started = true;
     },
     park(entry?: EncounterEntry) {
-      if (!entry || history.current() === entry) history.park();
+      if (!entry || history.current() === entry) {
+        history.park();
+        releaseCheckpoint();
+      }
     },
     done() {
       requests.visible(false);

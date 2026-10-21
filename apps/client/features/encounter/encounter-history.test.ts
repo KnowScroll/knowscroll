@@ -182,3 +182,32 @@ describe('AccountScope retained encounter history', () => {
     }
   });
 });
+
+describe('Keep-origin history stays in memory', () => {
+  it('retains Back position but never migrates it to the legacy unfenced resume key', () => {
+    const f = fixture();
+    try {
+      const history = createEncounterHistory(f.scope);
+      const first = f.entry(0);
+      first.keepOrigin = true;
+      history.push(first);
+      first.surface = {
+        capture: () => ({
+          kind: 'scroll',
+          value: { assetId: first.offer.assetId, revision: 1, blockId: 'pulls-p1', offsetWithinBlock: 12.5 },
+        }),
+        pause: jest.fn(),
+      };
+      history.push(f.entry(1));
+      expect(readResume(f.scope, first.offer.assetId, 1)).toBeUndefined();
+      expect(f.store.keys()).toHaveLength(0);
+      expect(history.back()).toBe(true);
+      expect(history.current()).toBe(first);
+      expect(first.position?.kind).toBe('scroll');
+      history.end();
+      expect(first.position).toBeUndefined();
+    } finally {
+      f.scope.end();
+    }
+  });
+});
