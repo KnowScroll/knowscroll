@@ -20,3 +20,5 @@ export * from './supply.js';
 export * from './geography.js';
 
 export * from './scenes.js';
+
+export * from './sharing.js';
