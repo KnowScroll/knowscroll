@@ -25,7 +25,13 @@ import {
   makeCutroomPool,
   type CutroomBPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
-import { cutroomPoolQueue, type CutroomOwnerApproval, type CutroomB } from '@knowscroll/backend/reasoning';
+import {
+  cutroomAccountingQueue,
+  cutroomFollowQueue,
+  cutroomPoolQueue,
+  type CutroomOwnerApproval,
+  type CutroomB,
+} from '@knowscroll/backend/reasoning';
 import { createTestDatabase, type TestDatabase } from './database.js';
 import { databaseUrl, quoteIdentifier, withAdmin } from './admin.js';
 export const hash = (v: string) => createHash('sha256').update(v, 'utf8').digest('hex');
@@ -90,6 +96,7 @@ export interface CommissionFixture {
   command(
     tag: string,
     ceilingCents?: number,
+    fixtureDistinctTemplate?: boolean,
   ): {
     input: CommissionInput;
     approval: CutroomOwnerApproval;
@@ -143,14 +150,19 @@ export async function commissionFixture(label: string): Promise<CommissionFixtur
   });
   const boss = createBoss(world.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
   await boss.start();
-  await applyQueueDeclarations(boss, [cutroomPoolQueue]);
+  await applyQueueDeclarations(boss, [cutroomPoolQueue, cutroomAccountingQueue, cutroomFollowQueue]);
   await world.db
     .insertInto('reasoning.cutroom_scopes')
     .values({ world_id: 'dev', generation: 1, enabled: true })
     .execute();
   const approvals: CutroomOwnerApproval[] = [];
-  const command = (tag: string, ceilingCents = 1) => {
-    const script = CutroomCommissionScriptSchema.parse(fictionalScript(`${label}-${tag}`)),
+  const command = (tag: string, ceilingCents = 1, fixtureDistinctTemplate = false) => {
+    const authored = fictionalScript(`${label}-${tag}`);
+    if (fixtureDistinctTemplate) {
+      authored.style.id = `fixture-${tag}`;
+      authored.narration = authored.narration.map((n) => ({ ...n, text: `Fixture ${tag} ${n.text}` }));
+    }
+    const script = CutroomCommissionScriptSchema.parse(authored),
       lint = lintCutroomCommission(script);
     if (lint.kind !== 'valid') throw new Error('CI fictional package invalid');
     const approvalReference = { ref: 'fictional-reference-only', scriptSha256: lint.scriptSha256 };
@@ -237,6 +249,74 @@ export async function commissionFixture(label: string): Promise<CommissionFixtur
         await a.query(`drop role ${quoteIdentifier(role)}`);
         await a.query(`drop role ${quoteIdentifier(legacyRole)}`);
       });
+    },
+  };
+}
+
+import {
+  reelFingerprint,
+  type ReelCorpusManifest,
+  type ReelCorpusRecord,
+  prepareCommissionReview,
+  type CommissionReviewPacket,
+  type CommissionHumanApproval,
+} from '@knowscroll/backend/modules/content';
+/** Authored trusted-completeness stand-in, NEVER an actual corpus inventory or owner approval. */
+export function fixtureCorpusManifest(records: readonly ReelCorpusRecord[] = []): ReelCorpusManifest {
+  const sorted = [...records].sort((a, b) =>
+    `${a.sourceNamespace}:${a.generatedReelId}` < `${b.sourceNamespace}:${b.generatedReelId}` ? -1 : 1,
+  );
+  return {
+    version: 'reel-corpus-completeness.v1',
+    snapshotId: 'fictional-complete.v1',
+    sourceScopesAndRevisions: ['fixture:snapshot1'],
+    totalCount: sorted.length,
+    allPagesDigest: reelFingerprint(sorted),
+    descriptorMappingDigest: reelFingerprint(
+      sorted.map((r) => ({
+        sourceNamespace: r.sourceNamespace,
+        generatedReelId: r.generatedReelId,
+        briefSha256: r.briefSha256,
+        descriptorSourceRef: r.descriptorSourceRef,
+        algorithmEvidenceRef: r.algorithmEvidenceRef,
+      })),
+    ),
+    requiredProjectionIds: ['legacy-template-v1', 'legacy-argument-v1', 'narration-bridge-v1'],
+    trustedReviewCommandSha256: hash('fictional-trusted-corpus-review'),
+  };
+}
+export function fixtureReview(input: CommissionInput): {
+  proposal: object;
+  packet: CommissionReviewPacket;
+  human: CommissionHumanApproval;
+} {
+  const proposal = {
+    businessRunId: input.businessRunId,
+    worldId: input.authority.worldId,
+    generation: input.authority.generation,
+    take: input.take,
+    ceilingCents: input.ceilingCents,
+    rightsReviewRef: 'fixture-rights',
+    framingReviewRef: 'fixture-framing',
+    targetReviewRef: 'fixture-target',
+    script: input.script,
+  };
+  const r = prepareCommissionReview(proposal);
+  if (r.kind !== 'prepared') throw new Error('FICTIONAL_REVIEW_INVALID');
+  const p = r.packet;
+  return {
+    proposal,
+    packet: p,
+    human: {
+      businessRunId: p.businessRunId,
+      worldId: p.worldId,
+      generation: p.generation,
+      reviewSha256: p.reviewSha256,
+      scriptSha256: p.scriptSha256,
+      evidenceSha256: p.evidenceSha256,
+      requestSha256: p.requestSha256,
+      ceilingCents: p.ceilingCents,
+      humanEvidenceRef: 'fixture-human-only',
     },
   };
 }

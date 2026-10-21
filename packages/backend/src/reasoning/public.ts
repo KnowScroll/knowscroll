@@ -92,3 +92,27 @@ export type {
 } from './application/cutroom-ports.js';
 
 export { CutroomPoolWorkSchema, cutroomPoolQueue } from './events.js';
+
+/** C1 public contracts only; factories remain explicit/default-disabled composition seams. */
+export type {
+  CutroomAccountingScopeTx,
+  WithCutroomAccountingScope,
+  CutroomAccountingTarget,
+  CutroomAccountingWork,
+  CutroomRemoteObservation,
+  CutroomReviewBinding,
+  CutroomDispatchPreflight,
+  CutroomIntentRecord,
+  CutroomDispatchPermit,
+  CutroomIntentResult,
+  CutroomExecutionStore,
+  CutroomReviewRecheck,
+  CutroomExecutionPorts,
+  CutroomExecutionFoundation,
+} from './application/cutroom-execution-ports.js';
+export {
+  cutroomAccountingQueue,
+  cutroomFollowQueue,
+  CutroomAccountingWorkSchema,
+  CutroomFollowWorkSchema,
+} from './events.js';

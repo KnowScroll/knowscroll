@@ -243,3 +243,21 @@ export const LOCK_KEEP_POSITION_TARGET = Symbol('content.lockKeepPositionTarget'
 /** Optional unmounted B business prerequisite; no dispatch/publication/Supply binding. */
 export type { CommissionBusiness, CommissionStore, CommissionPorts } from './production/commission-ports.js';
 export type CommissionCutroom = ReturnType<typeof makeCommission>;
+
+/** C1 source-review packet, never consumer metadata or human-approval authority. */
+export {
+  prepareCommissionReview,
+  reelFingerprint,
+  normalizeReelNarration,
+  checkReelCorpus,
+} from './production/commission-review.js';
+export type {
+  ReelTemplateDescriptor,
+  ReelArgumentDescriptor,
+  ReelCorpusRecord,
+  ReelCorpusManifest,
+  CommissionReviewPacket,
+  CommissionHumanApproval,
+  CommissionReviewVerdict,
+  CommissionReviewStore,
+} from './production/commission-review-ports.js';

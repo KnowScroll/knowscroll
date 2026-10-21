@@ -83,3 +83,49 @@ export const cutroomPoolQueue = defineQueue({
   },
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
 });
+
+/** C1 IDs-only declarations. Neither queue has a mounted consumer or schedule. */
+export const CutroomAccountingWorkSchema = z.strictObject({
+  v: z.literal(1),
+  worldId: z.enum(['dev', 'stage']),
+  attemptId: z.uuid(),
+  businessRunId: z.uuid(),
+  observationId: z.uuid(),
+});
+export const cutroomAccountingQueue = defineQueue({
+  name: 'reasoning.cutroom-accounting',
+  purpose: 'Reconcile retained Cutroom accounting evidence; never dispatch.',
+  payload: CutroomAccountingWorkSchema,
+  policy: {
+    expireInSeconds: 300,
+    retryLimit: 0,
+    retryDelaySeconds: 60,
+    retryBackoff: false,
+    retentionSeconds: 86400,
+    deleteAfterSeconds: 86400,
+    deadLetter: false,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
+});
+export const CutroomFollowWorkSchema = z.strictObject({
+  v: z.literal(1),
+  worldId: z.enum(['dev', 'stage']),
+  attemptId: z.uuid(),
+  businessRunId: z.uuid(),
+  dispatchId: z.uuid(),
+});
+export const cutroomFollowQueue = defineQueue({
+  name: 'reasoning.cutroom-follow',
+  purpose: 'Observe one committed Cutroom dispatch intent; never resend.',
+  payload: CutroomFollowWorkSchema,
+  policy: {
+    expireInSeconds: 300,
+    retryLimit: 0,
+    retryDelaySeconds: 60,
+    retryBackoff: false,
+    retentionSeconds: 86400,
+    deleteAfterSeconds: 86400,
+    deadLetter: false,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
+});

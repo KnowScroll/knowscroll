@@ -120,3 +120,7 @@ export { postgresCommissionStore };
 /** Optional public-business lock adapter, used only by explicit Cutroom B composition. */
 export const lockCommissionBusiness: CutroomBusinessLock = async (scope, id) =>
   (await postgresCommissionStore.lock(scope, id)) !== undefined;
+
+/** C1 optional/default-deny review assembly; no normal provider or trusted corpus/approval seed. */
+export { makeCommissionReview } from '../production/commission-review.js';
+export { postgresCommissionReview } from './postgres-commission-review.js';
