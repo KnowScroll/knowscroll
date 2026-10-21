@@ -421,3 +421,43 @@ export type CutroomChainReport =
         | { readonly kind: 'unavailable'; readonly code: 'not_video' | 'record' | 'gates' };
       readonly attestation: 'engine-attested-not-independent; cost-not-provider-invoice';
     };
+
+/** C2 GET-only collection bounds. No option can raise these ceilings. */
+export const CUTROOM_CHAIN_COLLECTION_LIMITS = Object.freeze({
+  calls: 10,
+  responseBytes: 262144,
+  totalResponseBytes: 2621440,
+  callTimeoutMs: 5000,
+  collectionTimeoutMs: 30000,
+});
+/** Trusted composition expectation only; this data does not attest an actual installation. */
+export interface CutroomChainCollectorSettings {
+  readonly enabled?: boolean;
+  readonly origin?: string;
+  readonly profile?: {
+    readonly upstreamRevision: string;
+    readonly soleWriterEvidenceSha256: string;
+    readonly observedAtMs: number;
+    readonly expiresAtMs: number;
+  };
+  readonly now?: () => number;
+}
+export type CutroomChainCollection =
+  | { readonly kind: 'unavailable'; readonly code: 'disabled' | 'profile' | 'identity' | 'not_ready' }
+  | { readonly kind: 'pending'; readonly code: 'running' | 'changing' }
+  | {
+      readonly kind: 'unknown';
+      readonly code: 'unreachable' | 'not_found' | 'protocol' | 'bounds' | 'deadline';
+    }
+  | {
+      readonly kind: 'observed';
+      readonly report: CutroomChainReport;
+      readonly evidenceSha256: string;
+      readonly calls: number;
+      readonly responseBytes: number;
+      readonly observedAtMs: number;
+    };
+/** No dispatch, artifact, persistence, billing or settlement method is exposed. */
+export interface CutroomChainCollector {
+  collect(expected: CutroomChainInput['expected']): Promise<CutroomChainCollection>;
+}
