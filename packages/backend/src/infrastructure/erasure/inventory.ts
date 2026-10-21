@@ -82,11 +82,17 @@ export async function checkErasureInventory(
     from information_schema.tables
     where table_type = 'BASE TABLE' and table_schema = 'identity' and table_name <> all(${identityRoots}::text[])
     order by 1`.execute(db);
-  const existingAccountTables = new Set(identityTables.rows.map((row) => row.table_name));
+  const existingIdentityAccountTables = new Set(identityTables.rows.map((row) => row.table_name));
+  // Account-lifetime stores may belong to modules outside Identity. This validates existence
+  // only; registration never supplies a deletion executor or weakens mandatory Identity coverage.
+  const baseTables = await sql<{ table_name: string }>`
+    select table_schema || '.' || table_name as table_name from information_schema.tables
+    where table_type = 'BASE TABLE' and table_schema <> all(${infrastructureSchemas}::text[])`.execute(db);
+  const existingAccountTables = new Set(baseTables.rows.map((row) => row.table_name));
   const declaredAccountTables = new Set(
     registry.flatMap((module) => (module.accountTables ?? []).map((table) => `${table.schema}.${table.table}`)),
   );
-  for (const table of existingAccountTables)
+  for (const table of existingIdentityAccountTables)
     if (!declaredAccountTables.has(table))
       problems.push(`${table} holds account records but no module declares it as an account table`);
   for (const table of declaredAccountTables)

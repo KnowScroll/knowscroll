@@ -180,6 +180,16 @@
       "@knowscroll/source": "./src/modules/scenes/adapters/nest-providers.ts",
       "types": "./dist/modules/scenes/adapters/nest-providers.d.ts",
       "default": "./dist/modules/scenes/adapters/nest-providers.js"
+    },
+    "./modules/social": {
+      "@knowscroll/source": "./src/modules/social/public.ts",
+      "types": "./dist/modules/social/public.d.ts",
+      "default": "./dist/modules/social/public.js"
+    },
+    "./modules/social/nest-providers": {
+      "@knowscroll/source": "./src/modules/social/adapters/nest-providers.ts",
+      "types": "./dist/modules/social/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/social/adapters/nest-providers.js"
     }
   },
   "files": [

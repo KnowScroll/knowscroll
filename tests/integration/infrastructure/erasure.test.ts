@@ -1,3 +1,5 @@
+import { socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
+import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { COVERAGE_POLICY, CONCEPT_CATALOGUE_VERSION, type CoverageCommand } from '@knowscroll/backend/modules/content';
 import {
@@ -125,6 +127,58 @@ describe('the erasure registry (real database)', () => {
     } finally {
       await sql`drop table experience.forgotten_personal`.execute(database.db);
     }
+  });
+
+  it('inventories Social account lifetime stores, retains them on exploration clear, and rejects a nonexistent declared account table', async () => {
+    const a = await seedPerson(database.db),
+      b = await seedPerson(database.db);
+    const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
+    const access = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 });
+    const social = socialUseCases({ withScope, fencePair: access.fenceAccountPair, fenceOwn: access.fenceOwnAccount });
+    await social.setProfile(a.authority, {
+      version: 'sharing.v1',
+      commandId: randomUUID(),
+      expectedProfileRevision: 0,
+      handle: 'erasure.owner',
+      displayName: 'Owner',
+    });
+    await social.setProfile(b.authority, {
+      version: 'sharing.v1',
+      commandId: randomUUID(),
+      expectedProfileRevision: 0,
+      handle: 'erasure.friend',
+      displayName: 'Friend',
+    });
+    const profile = await social.readProfile(b.authority);
+    if (profile.kind !== 'ok' || profile.value.status !== 'claimed') throw new Error('CI Social profile');
+    await social.command(a.authority, 'request', {
+      version: 'sharing.v1',
+      commandId: randomUUID(),
+      expectedPeerPersonId: profile.value.person.personId,
+      expectedPairRevision: 0,
+      target: { kind: 'handle', handle: 'erasure.friend' },
+    });
+    const before = await database.db.selectFrom('social.pairs').selectAll().execute();
+    expect(before.length).toBeGreaterThan(0);
+    await withScope(a.authority, (scope) => eraseUniverse(scope, personalStores));
+    expect(await database.db.selectFrom('social.pairs').selectAll().execute()).toEqual(before);
+    expect(
+      (await social.readPair(a.authority, { version: 'sharing.v1', peerPersonId: profile.value.person.personId })).kind,
+    ).toBe('ok');
+    expect(await checkErasureInventory(database.db, personalStores)).toEqual([]);
+    const nonexistent = erasureRegistry([
+      ...personalStores,
+      {
+        module: 'ci_account_missing',
+        tables: [],
+        accountTables: [{ schema: 'social', table: 'missing_account_table', ownerColumn: 'account_id' }],
+        nonRowStores: [],
+        erase: () => Promise.reject(new Error('unused')),
+      },
+    ]);
+    expect(await checkErasureInventory(database.db, nonexistent)).toEqual([
+      'social.missing_account_table is declared as an account table but does not exist',
+    ]);
   });
 
   it('fails when a queue carrying universeId has no declared payload store', () => {

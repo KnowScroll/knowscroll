@@ -48,3 +48,5 @@ Scenes (`modules/scenes`, #238) derives persisted bounded appearance from Geogra
 same-scope input. Required apply jobs are atomic with Geography; immutable chunk/manifest
 versions and stable descriptor allocation back readonly backend ports. No HTTP, renderer,
 bootstrap, model work or formation acknowledgement is installed by this prerequisite.
+
+Social exposes backend-only explicit profile/handle and Friends pair operations through its public ports. The source slice mounts no HTTP or worker producer, lists, invitations, visibility, visitor publication or presence. See `src/modules/social/README.md` for per-caller public revisions, private pair serialization and erasure limits.

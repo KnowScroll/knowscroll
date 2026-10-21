@@ -18,3 +18,5 @@ account deletion erases them. Not in the registry because they hold no personal 
 lifecycle, S1.x privacy work) and the shared content tables `content.assets`, `content.asset_revisions` and `content.asset_provenance`. The privacy operations that call `eraseUniverse` (clear
 history, reset, delete account) and their epoch handling arrive with the privacy work; this
 folder provides the registry and its checks.
+
+Account-keyed lifetime tables may be declared by modules outside Identity. The inventory checks their actual base-table existence separately while retaining compulsory coverage of every Identity account table, personal universe FK and account-linked column. These declarations do not execute account deletion.

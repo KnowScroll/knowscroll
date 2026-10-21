@@ -9,6 +9,8 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
 
+export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>;
+
 export type Json = JsonValue;
 
 export type JsonArray = JsonValue[];
@@ -823,6 +825,49 @@ export interface ScenesState {
   world_seed: string;
 }
 
+export interface SocialCommandBindings {
+  actor_account_id: string;
+  actor_epoch: number;
+  command_id: string;
+  lineage: string | null;
+  operation: string;
+  pair_id: string;
+}
+
+export interface SocialPairs {
+  accepted_lineage: string | null;
+  current_request_id: string | null;
+  high_account_id: string;
+  low_account_id: string;
+  pair_id: string;
+  private_revision: Generated<Int8>;
+}
+
+export interface SocialPairSides {
+  account_id: string;
+  own_blocked: Generated<boolean>;
+  pair_id: string;
+  public_revision: Generated<Int8>;
+  public_state: Generated<string>;
+}
+
+export interface SocialProfiles {
+  account_id: string;
+  display_name: string;
+  handle: string;
+  person_id: string;
+  profile_revision: Int8;
+}
+
+export interface SocialRequests {
+  disposition: string;
+  expires_at: Timestamp;
+  pair_id: string;
+  recipient_account_id: string;
+  request_id: string;
+  sender_account_id: string;
+}
+
 export interface SupplyRequests {
   brief: Json | null;
   command: Json;
@@ -918,6 +963,11 @@ export interface DB {
   "scenes.manifests": ScenesManifests;
   "scenes.objects": ScenesObjects;
   "scenes.state": ScenesState;
+  "social.command_bindings": SocialCommandBindings;
+  "social.pair_sides": SocialPairSides;
+  "social.pairs": SocialPairs;
+  "social.profiles": SocialProfiles;
+  "social.requests": SocialRequests;
   "supply.requests": SupplyRequests;
   "supply.work": SupplyWork;
 }
