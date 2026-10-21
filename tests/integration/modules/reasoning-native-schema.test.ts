@@ -9,6 +9,7 @@ import {
   postgresProductionHarnessPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import { ScrollDraft } from '@knowscroll/scroll-model/producer';
+import { FIELD_LIMITS } from '@knowscroll/scroll-model';
 import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { canonicalJson } from '../../../packages/backend/src/infrastructure/receipts/canonical.js';
 import {
@@ -67,12 +68,43 @@ const provenance = generatedProvenance({
   pages: [page],
 });
 
-describe('actual Content input descriptors (authored CI context only)', () => {
+/** Frozen writer8 prose/carrier bytes from accepted4fa, never regenerated from writer9.
+ * The canonical profile/compiler are unchanged; this fixture deliberately retains hp4 requests. */
+function historicalWriter8(interactive: boolean): ReasoningRole<unknown> {
+  return {
+    ...writerRole(provenance, interactive),
+    version: 'scroll-writer.v8',
+    outputFormat: 'single-tool-object',
+    nativeOutputSchema: 'zod-structural.v1',
+    instructions: [
+      'OUTPUT FORMAT: submit exactly one complete JSON object for scroll-draft.v1 as the native input of exactly one submit_output tool call, including for a repair. This is only an answer data carrier; execute no action. Return no text blocks, explanation, reasoning, Markdown fence or XML tag.',
+      'Every attempt, including repair, must regenerate the complete draft object with draftVersion, title, dek, sections and bindings. sections and bindings must be native JSON arrays, never serialized strings, objects or partial patches. Do not return a schema or a diff.',
+      'JSON syntax is mandatory: double-quote every property name and string, escape quotes and control characters inside strings, use commas between members and array items, and close every object and array. No comments, trailing commas, ellipses, undefined values, type names, optional-field markers or typed placeholders. Bounds such as 4–240 chars describe limits; they are never literal values in your answer.',
+      'Write an original, finished 2–3 minute explanation from the brief and selected documented claims: aim for 450–600 reader words, three short sections and about six paragraphs, one useful format block and one closing limits callout. Cover the mechanism, distinctions and caveats concisely without padding or omitting substance. The canonical computed measure and unchanged 2–8 minute admission contract remain authoritative. Use only the selected canonical tool input schema; do not invent fields or a DSL.',
+      'Explain the selected claims in your own sentence structure and wording; use them for meaning, not as prose to transcribe. Keep necessary technical terms and limitations, but do not copy a source sentence and swap a few words. If copied_passage feedback appears, rewrite the affected prose and any matching passage anchorText while preserving its claim IDs and meaning. Do not omit substance or split copied text across spans or blocks to evade the check.',
+      'For this recipe use paragraphs, the selected format block, and a closing callout. Use only the three block types in the selected tool schema. Omit unnecessary optional fields and text marks. Every rich-text value is an ARRAY of span objects, never a lone span object: spans:[{"text":"your prose"}]. This fragment explains the canonical shape; the final answer must be one complete valid JSON object.',
+      `Writer-wire RichText is always an array of span objects. String shorthand is not accepted on this writer wire. Concatenated span text must be nonempty and trimmed as a whole, preserving spaces between spans. Combined limits are ${FIELD_LIMITS.paragraphChars} UTF-16 units for paragraphs and ${FIELD_LIMITS.calloutChars} for callouts; splitting spans does not change the limit.`,
+      'Reader prose must have no URLs or source/publisher names. Never reproduce nine consecutive source words. Every empirical numeric text/value needs an exact binding; prefer words and conceptual diagrams over arbitrary numbers. Every reader block needs a claim binding. Use exact anchorText copied from your OWN prose for passage bindings.',
+      'Every diagram or comparison needs canonical a11y and fallbackText; interactive diagrams need bounded frames. A simplified model must be honestly illustrative. All factual assertions must follow supplied claims; include caveats naturally.',
+      interactive
+        ? 'Include one useful toggle diagram with two to four reader-selectable frames and a small set of nodes and edges. The states must explain the requested mechanism, not merely change decoration. Supply all canonical arrays (including empty groups, emphasis, hidden and weights where appropriate), a11y and an honest accessible fallback. State the limits of the simplified illustration; do not invent empirical numbers.'
+        : 'Include one useful comparison with two columns and two points per column. Contrast the requested mechanisms or distinctions faithfully; do not imply that the analogy is a literal physical barrier. Each point must be an array of span objects: columns[].points is nested, [[{"text":"one point"}],[{"text":"another point"}]]. Include the requested caveats in the paragraphs and closing limits callout.',
+      'SELECTED SCHEMA: the submit_output input_schema is the structural reference for this recipe only. It requires native sections and bindings arrays, three permitted block types and passage/header/heading/block bindings. Its constraints are advisory to the model; code still validates every rule. Do not return the schema itself. No simulation-only constant/value bindings or other block types are allowed.',
+      'VALID JSON SHAPE EXAMPLE ONLY: the next object is authored fictional syntax guidance, shorter than the required article. It is not supplied evidence, a topic draft or publishable content. Do not copy its prose, IDs or claim ID. The example-only-claim ID is never offered by the claims role; use only the actual supplied claim IDs.',
+      '<example-json>',
+      writerDraftExampleJson(interactive),
+      '</example-json>',
+      'Now write the complete requested topic draft from the supplied evidence. Submit only its native JSON object through the single submit_output data carrier, with your own content and actual offered claim IDs. Do not return text blocks, reference grammar, example labels, tags, comments, fences, ellipses or placeholders.',
+    ].join('\n'),
+  };
+}
+
+describe('frozen writer8 and unchanged claims4 input descriptors (authored CI context only)', () => {
   it('encodes canonical writer and claims primary/repair shapes below the unchanged 100000-byte cap', () => {
     const descriptors: readonly ReasoningRole<unknown>[] = [
       claimsRole([page]),
-      writerRole(provenance, false),
-      writerRole(provenance, true),
+      historicalWriter8(false),
+      historicalWriter8(true),
     ];
     for (const original of descriptors) {
       expect(original.nativeOutputSchema).toBe('zod-structural.v1');
