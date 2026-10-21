@@ -24,6 +24,7 @@ import { selectCallers } from './http/callers.js';
 import { orpcModuleConfig } from './http/orpc.js';
 import { ProblemExceptionFilter } from './http/problems.js';
 import { contentWiring } from './modules/content.js';
+import { sceneWiring } from './modules/scenes.js';
 import { evidenceWiring } from './modules/evidence.js';
 import { experienceWiring } from './modules/experience.js';
 import { identityWiring } from './modules/identity.js';
@@ -101,6 +102,7 @@ export class AppModule {
         ...experienceWiring,
         ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
         ...evidenceWiring,
+        ...sceneWiring,
         ScopeGateway,
       ],
     };

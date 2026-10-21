@@ -1,3 +1,4 @@
+import { ScenesController } from './http/scenes.controller.js';
 import { SupplyController } from './http/supply.controller.js';
 import { GeographyController } from './http/geography.controller.js';
 import { MediaController } from './http/media.controller.js';
@@ -18,4 +19,5 @@ export const apiControllers = [
   MediaController,
   SupplyController,
   GeographyController,
+  ScenesController,
 ];
