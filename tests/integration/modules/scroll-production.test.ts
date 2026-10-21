@@ -885,6 +885,10 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         code: shape === 'missing' ? 'missing' : 'invalid_type',
         detail: shape === 'missing' ? 'required; expected array' : 'expected array',
       }));
+      // The deliberately long scalar also trips the unchanged canonical sections-length bound.
+      // Retain that precise diagnostic instead of weakening the exact issue-array assertion.
+      if (shape === 'scalar')
+        expected.splice(1, 0, { path: 'sections', code: 'too_big', detail: 'at most 12 characters' });
       expect(writers[0]).toMatchObject({
         output: null,
         outcome_code: 'OUTPUT_SCHEMA_MISMATCH',
