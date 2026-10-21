@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { probeReel } from './probe.js';
 
+// Allow the existing 30s generation + 15s probe budgets and fixture I/O under one suite watchdog.
 describe('staged MP4 conformance (generated CI fixture, no provider)', () => {
   let root: string;
   beforeAll(async () => {
@@ -65,4 +66,4 @@ describe('staged MP4 conformance (generated CI fixture, no provider)', () => {
   ] as const)('refuses %s', async (name, size, seconds, codec, faststart) => {
     await expect(probeReel(await generate(name, size, seconds, codec, faststart))).rejects.toThrow();
   });
-});
+}, 60000);
