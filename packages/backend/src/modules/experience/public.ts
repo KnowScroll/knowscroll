@@ -1,3 +1,4 @@
+import type { makeReadKeepEntry, makeSetKeepPlace } from './application/keep-place.js';
 import type { ActivityLineage, RoutingHistory } from './application/navigation-ports.js';
 import type { EncounterAttribution } from '../content/public.js';
 /**
@@ -132,3 +133,11 @@ export type CheckRequestSource = (
   },
 ) => Promise<boolean>;
 export const CHECK_REQUEST_SOURCE = Symbol('experience.checkRequestSource');
+
+export { KEEP_PLACE_OPERATION, KEEP_PLACE_OUTCOME_VERSION } from './application/keep-place.js';
+export type { KeepResult, KeepRefusal } from './application/keep-ports.js';
+export interface KeepPlaceUseCases {
+  readonly readEntry: ReturnType<typeof makeReadKeepEntry>;
+  readonly setPlace: ReturnType<typeof makeSetKeepPlace>;
+}
+export const KEEP_PLACE_USE_CASES = Symbol('experience.keepPlaceUseCases');

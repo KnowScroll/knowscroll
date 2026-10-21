@@ -378,6 +378,14 @@ export interface ExperienceSavedItems {
   asset_id: string;
   asset_revision: number;
   saved_at: Timestamp;
+  saved_entry_id: Generated<string>;
+  universe_id: string;
+}
+
+export interface ExperienceSavedPlaces {
+  place_revision: Int8;
+  position: Json;
+  saved_entry_id: string;
   universe_id: string;
 }
 
@@ -927,6 +935,7 @@ export interface DB {
   "experience.offer_activations": ExperienceOfferActivations;
   "experience.offers": ExperienceOffers;
   "experience.saved_items": ExperienceSavedItems;
+  "experience.saved_places": ExperienceSavedPlaces;
   "experience.sessions": ExperienceSessions;
   "geography.deltas": GeographyDeltas;
   "geography.objects": GeographyObjects;
