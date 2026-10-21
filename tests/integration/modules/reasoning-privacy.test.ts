@@ -605,7 +605,7 @@ describe('personal Reasoning payload erasure cannot rewrite financial truth or r
           db(),
         );
       if (maintenance === 'request_purge')
-        await sql`update reasoning.protected_requests set expires_at=now()-interval '1 hour' where attempt_id=${id}`.execute(
+        await sql`update reasoning.protected_requests set created_at=now()-interval '2 hours', expires_at=now()-interval '1 hour' where attempt_id=${id}`.execute(
           db(),
         );
     };
