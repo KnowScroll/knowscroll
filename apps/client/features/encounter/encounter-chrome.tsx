@@ -36,24 +36,48 @@ export function EncounterChrome({
     availability[variant.kind] = variant.status === 'ready' ? 'ready' : 'unavailable';
   const pending = entry.context.variants.find((variant) => variant.status === 'pending');
   return (
-    <View style={styles.top}>
-      <IconButton icon="back" label="Back" onPress={back} />
-      <View style={styles.center}>
-        <FormatSwitch
-          selected={entry.kind}
-          availability={availability}
-          onSelect={(to) => {
-            if (entry.context.variants.some((variant) => variant.kind === to && variant.status === 'ready'))
-              session.navigate({ mode: 'variant', to });
+    <View>
+      <View style={styles.top}>
+        <IconButton icon="back" label="Back" onPress={back} />
+        <View style={styles.center}>
+          <FormatSwitch
+            selected={entry.kind}
+            availability={availability}
+            onSelect={(to) => {
+              if (entry.context.variants.some((variant) => variant.kind === to && variant.status === 'ready'))
+                session.navigate({ mode: 'variant', to });
+            }}
+          />
+          {entry.context.series ? <Text variant="meta">Part {entry.context.series.part}</Text> : null}
+          {pending ? (
+            <Text variant="meta">Your {pending.kind === 'reel' ? 'Reel' : 'Scroll'} request is still preparing.</Text>
+          ) : null}
+        </View>
+        <AccountButton initial={initial} surface="light" href="/account" onPress={() => router.navigate('/account')} />
+        <IconButton icon="more" label="More options" onPress={() => session.setOverlay(true)} />
+      </View>
+      <View style={styles.message}>
+        <Button
+          label="Keep this place"
+          size="sm"
+          variant="ghost"
+          disabled={
+            state.phase !== 'active' ||
+            state.keepPlace?.write === 'sending' ||
+            state.keepPlace?.write === 'unknown' ||
+            state.keepPlace?.write === 'conflict'
+          }
+          onPress={() => {
+            void session.keepThisPlace();
           }}
         />
-        {entry.context.series ? <Text variant="meta">Part {entry.context.series.part}</Text> : null}
-        {pending ? (
-          <Text variant="meta">Your {pending.kind === 'reel' ? 'Reel' : 'Scroll'} request is still preparing.</Text>
-        ) : null}
+        <KeepWriteStatus
+          state={state.keepPlace}
+          refresh={session.refreshKeep}
+          retry={session.retryKeep}
+          resolve={session.resolveKeepConflict}
+        />
       </View>
-      <AccountButton initial={initial} surface="light" href="/account" onPress={() => router.navigate('/account')} />
-      <IconButton icon="more" label="More options" onPress={() => session.setOverlay(true)} />
     </View>
   );
 }
@@ -83,26 +107,6 @@ export function EncounterActions({
           if (action === 'save') session.act(entry.context.actions.saved ? 'unsave' : 'save');
           if (action === 'like') session.act(entry.context.actions.liked ? 'unlike' : 'like');
         }}
-      />
-      <Button
-        label="Keep this place"
-        variant="ghost"
-        disabled={
-          state.phase !== 'active' ||
-          state.keepPlace?.write === 'sending' ||
-          state.keepPlace?.write === 'unknown' ||
-          state.keepPlace?.write === 'conflict'
-        }
-        onPress={() => {
-          void session.keepThisPlace();
-        }}
-      />
-      <Text variant="meta">Save keeps the item. Keep this place updates its saved position.</Text>
-      <KeepWriteStatus
-        state={state.keepPlace}
-        refresh={session.refreshKeep}
-        retry={session.retryKeep}
-        resolve={session.resolveKeepConflict}
       />
       <RequestNotice
         session={session.requests}

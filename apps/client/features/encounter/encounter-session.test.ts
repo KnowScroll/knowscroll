@@ -5,6 +5,7 @@ import { createEncounterSession, type EncounterSession } from './encounter-sessi
 import type { AvailableKeep } from '../saved/keep-place-bridge';
 import type { SetKeepPlace } from '@knowscroll/contracts';
 import scrollDocument from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
+import { parseDocument, computeIntegrity } from '@knowscroll/scroll-model';
 import { retainReelMuted } from './encounter-history';
 import { harness, id, offer } from './encounter-session.fixture';
 
@@ -433,6 +434,10 @@ describe('request overlay ownership', () => {
   });
 });
 
+// Expo's native Jest mock intentionally returns no UUID. This labelled fixture supplies valid command IDs only.
+jest.mock('../../platform/command-id', () => ({
+  newCommandId: () => jest.requireActual<{ randomUUID: () => string }>('node:crypto').randomUUID(),
+}));
 const jsonFixture = (v: unknown) =>
   new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
 /** Authored HTTP fixture over real AccountScope, Keep session and encounter Work; no backend/media. */
@@ -448,9 +453,17 @@ function keptFixture(kind: 'reel' | 'scroll' = 'reel') {
   let replaceOnDocument = false;
   let readGate: Promise<void> | undefined;
   const calls: { path: string; body: Record<string, unknown> }[] = [];
+  const parsed = parseDocument({ ...scrollDocument, assetId: offer(0).assetId });
+  if (parsed.kind !== 'valid') throw new Error('Canonical authored Scroll fixture');
+  const boundDocument = {
+    ...parsed.document,
+    integrity: { ...parsed.document.integrity, sha256: computeIntegrity(parsed.document) },
+  };
+  if (parseDocument(boundDocument, { verify: true }).kind !== 'valid')
+    throw new Error('Canonical UUID-bound fixture must verify');
   const chosen = {
     ...offer(0),
-    assetId: kind === 'scroll' ? scrollDocument.assetId : offer(0).assetId,
+    assetId: offer(0).assetId,
     assetRevision: kind === 'scroll' ? scrollDocument.revision : 2,
     metadata: { ...offer(0).metadata, kind },
     relation: { kind: 'return' as const },
@@ -540,7 +553,7 @@ function keptFixture(kind: 'reel' | 'scroll' = 'reel') {
           exposureId: id(400),
           assetId: chosen.assetId,
           assetRevision: chosen.assetRevision,
-          document: scrollDocument,
+          document: boundDocument,
           degradedEssential: [],
         });
       }

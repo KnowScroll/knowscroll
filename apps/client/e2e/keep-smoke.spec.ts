@@ -1,10 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
-import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
+import sourceDocument from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
+import { parseDocument, computeIntegrity } from '@knowscroll/scroll-model';
 
 /** Production-export consumer over authored HTTP fixtures. No live backend or decoded Reel proof. */
 const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 async function keptUI(page: Page, kind: 'reel' | 'scroll') {
-  const assetId = kind === 'scroll' ? document.assetId : id(3);
+  const parsed = parseDocument({ ...sourceDocument, assetId: id(3) });
+  if (parsed.kind !== 'valid') throw new Error('Canonical authored fixture');
+  const document = {
+    ...parsed.document,
+    integrity: { ...parsed.document.integrity, sha256: computeIntegrity(parsed.document) },
+  };
+  expect(parseDocument(document, { verify: true }).kind).toBe('valid');
+  const assetId = id(3);
   const revision = kind === 'scroll' ? document.revision : 1;
   let membership = id(4);
   let placeRevision = 1;

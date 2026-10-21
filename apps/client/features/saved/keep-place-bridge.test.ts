@@ -3,6 +3,10 @@ import { createAccountScope, memoryStore, type AccountScope } from '@knowscroll/
 import type { SetKeepPlace } from '@knowscroll/contracts';
 import { createKeepView, keepBridgeFor, refreshKeep, sameKeep, type AvailableKeep } from './keep-place-bridge';
 
+// Expo's native Jest mock intentionally returns no UUID. This labelled fixture supplies valid command IDs only.
+jest.mock('../../platform/command-id', () => ({
+  newCommandId: () => jest.requireActual<{ randomUUID: () => string }>('node:crypto').randomUUID(),
+}));
 const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
 const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const target = { assetId: id(3), assetRevision: 1 };
