@@ -269,6 +269,10 @@ The marker serializes with ledger settlement on the attempt lock. Settlement cla
 state and the role-failure bit from the original evidence BEFORE discarding private payload;
 usage/state/reservation/day/dispatch identity remain honest. Personal scope charges read the
 retained receipts through their attempt IDs, so deleting payload cannot refund a no-usage answer.
+A retained current-day personal attempt without the matching minimal receipt (attempt ID, role
+ID/version, provider/model, budget window and reserved tokens) refuses budget admission with a
+fixed accounting error. No missing/mismatched receipt is fabricated or treated as zero spend;
+legitimate state/usage differences are not an immutable-identity mismatch.
 Global/role receipts and brakes survive eventual personal deletion. Existing eventual terminal
 row deletion still resets the documented per-scope allowance; changing that policy belongs to the
 later selective-clear design, not this prerequisite.

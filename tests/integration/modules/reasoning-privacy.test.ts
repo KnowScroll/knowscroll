@@ -249,7 +249,7 @@ describe('personal Reasoning payload erasure cannot rewrite financial truth or r
     ).toEqual({ kind: 'entered', value: false });
   });
 
-  for (const invalid of ['dispatch_identity', 'missing_receipt'] as const) {
+  for (const invalid of ['dispatch_identity', 'missing_receipt', 'mismatched_receipt'] as const) {
     it(`retains/redacts an unproved reserved liability (${invalid}) rather than deletion-based release`, async () => {
       const person = await seedPerson(db()),
         item = await seeded(person, 'reserved');
@@ -259,13 +259,36 @@ describe('personal Reasoning payload erasure cannot rewrite financial truth or r
           .set({ dispatch_id: randomUUID() })
           .where('id', '=', item.id)
           .execute();
-      else await db().deleteFrom('reasoning.usage_receipts').where('attempt_id', '=', item.id).execute();
+      else if (invalid === 'missing_receipt')
+        await db().deleteFrom('reasoning.usage_receipts').where('attempt_id', '=', item.id).execute();
+      else
+        await db()
+          .updateTable('reasoning.usage_receipts')
+          .set({ reserved_tokens: 149 })
+          .where('attempt_id', '=', item.id)
+          .execute();
       expect(await erase(person)).toMatchObject({
         kind: 'entered',
         value: [expect.objectContaining({ status: 'pending' })],
       });
       expect((await redacted(person)).state).toBe('reserved');
-      if (invalid === 'dispatch_identity') expect(await receipt(item.id)).toMatchObject({ state: 'held' });
+      if (invalid === 'dispatch_identity') {
+        expect(await receipt(item.id)).toMatchObject({ state: 'held' });
+        expect(await scope()(person.authority, (tx) => ledger().budgetUsage(tx, 'fixture.privacy'))).toMatchObject({
+          kind: 'entered',
+          value: {
+            scope: { requests: 1, tokens: 150 },
+            global: { requests: 1, tokens: 150 },
+            role: { requests: 1, tokens: 150 },
+          },
+        });
+      } else {
+        await expect(scope()(person.authority, (tx) => ledger().budgetUsage(tx, 'fixture.privacy'))).rejects.toThrow(
+          'Reasoning accounting receipt unavailable',
+        );
+        if (invalid === 'mismatched_receipt')
+          expect(await receipt(item.id)).toMatchObject({ state: 'held', reserved_tokens: 149 });
+      }
       expect(
         await scope()(person.authority, (tx) =>
           ledger().commitDispatch(tx, item.id, {
@@ -567,4 +590,119 @@ describe('personal Reasoning payload erasure cannot rewrite financial truth or r
     expect(await settling).toBe(true);
     await redacted(person);
   });
+
+  for (const maintenance of ['write_off', 'stale_sweep', 'request_purge'] as const) {
+    const state = maintenance === 'write_off' ? 'unknown' : maintenance === 'request_purge' ? 'reserved' : 'dispatched';
+    const maintain = (id: string) =>
+      maintenance === 'write_off'
+        ? ledger().writeOff(id, 'private-fixture-canary', 'private-fixture-canary')
+        : maintenance === 'stale_sweep'
+          ? ledger().sweepStaleDispatched(1, 1)
+          : ledger().purgeExpiredRequests(1);
+    const eligible = async (id: string) => {
+      if (maintenance === 'stale_sweep')
+        await sql`update reasoning.external_attempts set dispatched_at=now()-interval '1 hour' where id=${id}`.execute(
+          db(),
+        );
+      if (maintenance === 'request_purge')
+        await sql`update reasoning.protected_requests set expires_at=now()-interval '1 hour' where attempt_id=${id}`.execute(
+          db(),
+        );
+    };
+    const charged = async (person: FixturePerson, id: string, receiptState: string) => {
+      expect(await receipt(id)).toMatchObject({ state: receiptState, reserved_tokens: 150, conclusive_failure: false });
+      const usage = await scope()(person.authority, (tx) => ledger().budgetUsage(tx, 'fixture.privacy'));
+      expect(usage).toMatchObject({
+        kind: 'entered',
+        value: {
+          global: { requests: receiptState === 'released' ? 0 : 1, tokens: receiptState === 'released' ? 0 : 150 },
+          role: { requests: receiptState === 'released' ? 0 : 1, tokens: receiptState === 'released' ? 0 : 150 },
+        },
+      });
+    };
+
+    it(`actual ${maintenance} locks attempt before receipt; erasure waits and consumes committed accounting`, async () => {
+      const person = await seedPerson(db()),
+        item = await seeded(person, state);
+      await eligible(item.id);
+      const locked = gate<number>(),
+        release = gate();
+      const holding = withTransaction(db(), 'privacy-ci-maintenance-receipt', async (trx) => {
+        await sql`select attempt_id from reasoning.usage_receipts where attempt_id=${item.id} for update`.execute(trx);
+        locked.open((await sql<{ pid: number }>`select pg_backend_pid() as pid`.execute(trx)).rows[0]!.pid);
+        await release.promise;
+      });
+      const receiptPID = await locked.promise,
+        maintaining = maintain(item.id);
+      let erasing: ReturnType<typeof erase> | undefined;
+      try {
+        await blockedBy(receiptPID);
+        const waiting = await sql<{
+          pid: number;
+        }>`select a.pid from pg_stat_activity a where a.datname=current_database()
+          and ${receiptPID}=any(pg_blocking_pids(a.pid))`.execute(db());
+        expect(waiting.rows).toHaveLength(1);
+        erasing = erase(person);
+        await blockedBy(waiting.rows[0]!.pid);
+      } finally {
+        release.open();
+        await holding;
+      }
+      if (maintenance === 'write_off') expect(await maintaining).toMatchObject({ kind: 'written_off' });
+      else expect(await maintaining).toBe(1);
+      await expect(erasing).resolves.toMatchObject({ kind: 'entered' });
+      if (maintenance === 'stale_sweep') {
+        expect((await redacted(person)).state).toBe('unknown');
+        expect((await redacted(person)).outcome_code).toBe('OUTCOME_NOT_RECORDED');
+      } else expect(await rows(person)).toEqual([]);
+      await charged(
+        person,
+        item.id,
+        maintenance === 'write_off' ? 'written_off' : maintenance === 'stale_sweep' ? 'unknown' : 'released',
+      );
+    });
+
+    it(`actual erasure locks first; ${maintenance} cannot invert locks, resurrect payload, or refund an open liability`, async () => {
+      const person = await seedPerson(db()),
+        item = await seeded(person, state);
+      await eligible(item.id);
+      const locked = gate<number>(),
+        release = gate();
+      const erasing = scope()(person.authority, async (tx) => {
+        await reasoning.erase(tx);
+        locked.open(
+          (await sql<{ pid: number }>`select pg_backend_pid() as pid`.execute(transactionOf(tx))).rows[0]!.pid,
+        );
+        await release.promise;
+      });
+      const pid = await locked.promise,
+        maintaining = maintain(item.id);
+      try {
+        if (maintenance === 'write_off') await blockedBy(pid);
+        else expect(await maintaining).toBe(0); // SKIP LOCKED must complete while erasure owns the rows.
+      } finally {
+        release.open();
+        await erasing;
+      }
+      if (maintenance === 'write_off') {
+        expect(await maintaining).toMatchObject({ kind: 'written_off' });
+        expect(await redacted(person)).toMatchObject({
+          state: 'written_off',
+          written_off_reason: 'privacy-erased',
+          written_off_by: 'privacy-erased',
+        });
+      } else if (maintenance === 'stale_sweep') {
+        expect((await redacted(person)).state).toBe('dispatched');
+        expect(await receipt(item.id)).toMatchObject({ state: 'held', reserved_tokens: 150 });
+        // A later maintenance pass after the committed marker may classify unknown, never resend/release.
+        expect(await maintain(item.id)).toBe(1);
+        expect((await redacted(person)).state).toBe('unknown');
+      } else expect(await rows(person)).toEqual([]);
+      await charged(
+        person,
+        item.id,
+        maintenance === 'write_off' ? 'written_off' : maintenance === 'stale_sweep' ? 'unknown' : 'released',
+      );
+    });
+  }
 });

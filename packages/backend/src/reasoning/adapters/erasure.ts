@@ -63,7 +63,11 @@ export const reasoningErasure: ModuleErasure = {
         where attempt.universe_id = ${universeId} and attempt.state = 'reserved'
           and attempt.dispatch_id is null and attempt.dispatched_at is null
           and exists (select 1 from reasoning.usage_receipts receipt
-            where receipt.attempt_id = attempt.id and receipt.state = 'held')
+            where receipt.attempt_id = attempt.id and receipt.state = 'held'
+              and (receipt.role_id, receipt.role_version, receipt.provider, receipt.model,
+                   receipt.budget_window, receipt.reserved_tokens) is not distinct from
+                  (attempt.role_id, attempt.role_version, attempt.provider, attempt.model,
+                   attempt.budget_window, attempt.reserved_tokens))
         returning attempt.id
       ), refunded as (
         update reasoning.usage_receipts set state = 'released', settled_at = now()

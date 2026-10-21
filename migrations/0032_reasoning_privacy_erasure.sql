@@ -25,7 +25,11 @@ alter table reasoning.external_attempts add constraint external_attempts_privacy
      and (written_off_by is null or written_off_by = 'privacy-erased')
      and (remote_id is null or remote_id ~ '^[A-Za-z0-9_.:-]{1,128}$'))
 ) not valid;
+-- Rollout already requires drained personal workers. Validation is deliberately atomic with
+-- the additive marker/checks; its table locks are bounded by the timeouts above.
+-- squawk-ignore constraint-missing-not-valid
 alter table reasoning.business_runs validate constraint business_runs_privacy_erased_check;
+-- squawk-ignore constraint-missing-not-valid
 alter table reasoning.external_attempts validate constraint external_attempts_privacy_erased_check;
 
 create function reasoning.keep_privacy_erased_marker() returns trigger language plpgsql as $$

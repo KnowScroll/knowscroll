@@ -128,6 +128,17 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
     async budgetUsage(scope, roleId) {
       const trx = transactionOf(scope);
       await sql`select pg_advisory_xact_lock(${BUDGET_LOCK_KEY}::bigint)`.execute(trx);
+      const integrity = await sql<{ valid: boolean }>`select not exists (
+        select 1 from reasoning.external_attempts attempt
+        left join reasoning.usage_receipts receipt on receipt.attempt_id = attempt.id
+        where attempt.universe_id = ${scope.authority.universeId} and attempt.budget_window = ${today}
+          and (receipt.attempt_id is null or
+            (receipt.role_id, receipt.role_version, receipt.provider, receipt.model,
+             receipt.budget_window, receipt.reserved_tokens) is distinct from
+            (attempt.role_id, attempt.role_version, attempt.provider, attempt.model,
+             attempt.budget_window, attempt.reserved_tokens))
+      ) as valid`.execute(trx);
+      if (integrity.rows[0]?.valid !== true) throw new Error('Reasoning accounting receipt unavailable');
       const global = await sql<{ requests: string; tokens: string }>`
         select ${receiptSpend} from reasoning.usage_receipts where budget_window = ${today}`.execute(trx);
       const role = await sql<{ requests: string; tokens: string }>`
