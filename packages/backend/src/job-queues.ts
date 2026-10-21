@@ -1,3 +1,4 @@
+import { projectSceneQueue } from './modules/scenes/public.js';
 import { cartographyQueue, publishDeltaQueue } from './modules/geography/public.js';
 import { resolveSupplyQueue } from './modules/supply/public.js';
 import { plannerQueue } from './modules/planner/public.js';
@@ -16,6 +17,7 @@ import { purgeExpiredRequestsQueue, sweepDispatchedAttemptsQueue } from './reaso
  * erasure inventory checks that every queue carrying `universeId` has an eraser.
  */
 export const releaseQueues = queueRegistry([
+  projectSceneQueue,
   cartographyQueue,
   publishDeltaQueue,
   resolveSupplyQueue,

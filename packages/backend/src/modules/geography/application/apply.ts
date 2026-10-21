@@ -164,6 +164,7 @@ export async function applyProposal(
   await p.store.writeDelta(scope, runId, hash, delta);
   await p.store.writeState(scope, { ...view.state, ...geography });
   await p.enqueueDelta(scope, delta);
+  await p.applied(scope, { transitionId: delta.transitionId, geography, personalRevision: personalWatermark });
   return { kind: 'applied', delta };
 }
 /** Validate retained hierarchy and relations before any public read. Aliases have no creation operation. */

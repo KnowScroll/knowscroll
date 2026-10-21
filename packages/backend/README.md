@@ -43,3 +43,8 @@ Geography (`modules/geography`, #237) consumes current trusted PC coverage to va
 Cartographer proposals and commit stable meaning/deltas. Its independent feature flag defaults off
 and economic permit defaults false. Public own-universe/delta reads have no HTTP/scene consumer;
 CI formation fixtures are distinct from actual reading/provider/dev acceptance.
+
+Scenes (`modules/scenes`, #238) derives persisted bounded appearance from Geography's public
+same-scope input. Required apply jobs are atomic with Geography; immutable chunk/manifest
+versions and stable descriptor allocation back readonly backend ports. No HTTP, renderer,
+bootstrap, model work or formation acknowledgement is installed by this prerequisite.

@@ -1,3 +1,4 @@
+import { sceneAppliedProviders } from '@knowscroll/backend/modules/scenes/nest-providers';
 import { geographyProviders } from '@knowscroll/backend/modules/geography/nest-providers';
 import { GEOGRAPHY_MATERIAL_CHANGE, type MaterialGeographyChange } from '@knowscroll/backend/modules/geography';
 import type { PlannerMaterialChange } from '@knowscroll/backend/modules/planner';
@@ -17,6 +18,7 @@ import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-co
 /** Evidence wiring for the API composition root: the observation intake and the dev diagnostics read. */
 const PERSONAL_MATERIAL_CHANGE = Symbol('personal.materialChange');
 export const evidenceWiring: Provider[] = [
+  ...sceneAppliedProviders({ enqueueJob: ENQUEUE_JOB }),
   ...geographyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   {
     provide: PERSONAL_MATERIAL_CHANGE,

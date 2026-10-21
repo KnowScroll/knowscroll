@@ -16,3 +16,7 @@ export const RUN_CARTOGRAPHER = Symbol('geography.runCartographer');
 export const READ_OWN_GEOGRAPHY = Symbol('geography.readOwn');
 export const READ_OWN_DELTAS = Symbol('geography.readDeltas');
 export const PUBLISH_GEOGRAPHY_DELTA = Symbol('geography.publishDelta');
+
+export type { GeographySceneInput, ReadGeographySceneInput, GeographyApplied } from './application/ports.js';
+export const READ_GEOGRAPHY_SCENE_INPUT = Symbol('geography.readSceneInput');
+export const GEOGRAPHY_APPLIED = Symbol('geography.applied');

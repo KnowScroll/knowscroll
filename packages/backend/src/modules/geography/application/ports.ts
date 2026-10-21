@@ -1,6 +1,8 @@
 import type {
   GeographyRevisions,
   GeographyAlias,
+  GeographyObject,
+  GeographyRoute,
   UniverseDelta,
   ReadGeography,
   GeographySnapshot,
@@ -90,6 +92,8 @@ export interface GeographyPorts {
     runId: string,
     delayed?: { readonly expectedClaimId: string; readonly startAfter: Date },
   ) => Promise<void>;
+  readonly applied: GeographyApplied;
+  readonly rootRevision: (scope: PersonalScopeTx) => Promise<number>;
   readonly enqueueDelta: (scope: PersonalScopeTx, delta: UniverseDelta) => Promise<void>;
   readonly notify: (scope: PersonalScopeTx, revision: number, eventId: string) => Promise<void>;
   readonly receipts: {
@@ -143,3 +147,32 @@ export type ReadOwnDeltas = (
   | { readonly kind: 'read'; readonly deltas: UniverseDeltas }
   | { readonly kind: 'refused'; readonly reason: 'scope_refused' }
 >;
+
+/** Minimized canonical Geography projection input; never evidence, prompts or support refs. */
+export interface GeographySceneInput {
+  readonly universeId: string;
+  readonly privacyEpoch: number;
+  readonly personalRevision: number;
+  readonly geography: GeographyRevisions;
+  readonly objects: readonly (GeographyObject & { readonly meaningId: string })[];
+  readonly routes: readonly GeographyRoute[];
+  readonly aliases: readonly GeographyAlias[];
+}
+export type ReadGeographySceneInput = (scope: PersonalScopeTx) => Promise<
+  | { readonly kind: 'read'; readonly input: GeographySceneInput }
+  | {
+      readonly kind: 'unavailable';
+      readonly reason: 'limit' | 'temporarily_unavailable';
+      readonly geography: GeographyRevisions;
+      readonly personalRevision: number;
+    }
+  | { readonly kind: 'refused' }
+>;
+export type GeographyApplied = (
+  scope: PersonalScopeTx,
+  input: {
+    readonly transitionId: string;
+    readonly geography: GeographyRevisions;
+    readonly personalRevision: number;
+  },
+) => Promise<void>;

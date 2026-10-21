@@ -335,6 +335,49 @@ describe('the erasure registry (real database)', () => {
             updated_at: new Date(),
           })
           .execute();
+        // Authored Scene erasure-only payloads: seed ALL new stores without claiming projection/formation.
+        const sceneObjectId = randomUUID(),
+          sceneChunkId = randomUUID(),
+          sceneSystemId = randomUUID();
+        const sceneFixture = { fixture: 'Authored CI erasure-only scene payload' };
+        await tx
+          .insertInto('scenes.manifests')
+          .values({ universe_id: person.universeId, privacy_epoch: 1, scene_revision: 1, payload: sceneFixture })
+          .execute();
+        await tx
+          .insertInto('scenes.chunks')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            scene_revision: 1,
+            chunk_id: sceneChunkId,
+            system_id: sceneSystemId,
+            payload: sceneFixture,
+          })
+          .execute();
+        await tx
+          .insertInto('scenes.objects')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            object_id: sceneObjectId,
+            system_id: sceneSystemId,
+            chunk_id: sceneChunkId,
+            slot: 0,
+            payload: sceneFixture,
+          })
+          .execute();
+        await tx
+          .insertInto('scenes.state')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            policy_version: 'canonical-lattice.v1',
+            world_seed: 'a'.repeat(64),
+            scene_revision: 1,
+            payload: sceneFixture,
+          })
+          .execute();
         // Authored Geography erasure-only rows. No fixture object is installed in runtime.
         const geographyRunId = randomUUID(),
           geographyObjectId = randomUUID(),
