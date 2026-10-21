@@ -60,12 +60,10 @@ const comparison = canonicalComparison
     }),
   })
   .required({ a11y: true, fallbackText: true });
-const bindings = z.discriminatedUnion('kind', [
-  binding('passage'),
-  binding('header'),
-  binding('heading'),
-  binding('block'),
-]);
+// This writer binds prose through its canonical projection, never a JSON/schema path.
+// Other canonical producers may name non-text fields; this selected profile uses block bindings there.
+const passage = binding('passage').safeExtend({ field: z.literal('text').optional() });
+const bindings = z.discriminatedUnion('kind', [passage, binding('header'), binding('heading'), binding('block')]);
 
 const interactiveBlocks = z.discriminatedUnion('type', [paragraph, diagram, callout]);
 const comparisonBlocks = z.discriminatedUnion('type', [paragraph, comparison, callout]);

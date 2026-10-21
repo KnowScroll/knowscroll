@@ -242,7 +242,7 @@ describe('Scroll production roles (labelled CI fixture)', () => {
   it('clarifies complete native arrays and aggregate text bounds while keeping canonical schemas strict', () => {
     for (const interactive of [false, true]) {
       const role = writerRole(provenance, interactive);
-      expect(role.version).toBe('scroll-writer.v9');
+      expect(role.version).toBe('scroll-writer.v10');
       expect(role.instructions).toContain('sections and bindings must be JSON arrays');
       expect(role.instructions).toContain('including repair, must regenerate the complete draft object');
       expect(role.instructions).toContain('Serialize only the complete object once');
@@ -294,6 +294,50 @@ describe('Scroll production roles (labelled CI fixture)', () => {
     column.points[0] = { text: 'An invalid lone object instead of a point span array.' };
     expect(ScrollDraft.safeParse(comparison).success).toBe(false);
   });
+  it.each([false, true])(
+    'compiles omitted/explicit text passage projections without accepting invented JSON paths, interactive=%s',
+    (interactive) => {
+      const role = writerRole(provenance, interactive);
+      expect(role.instructions).toContain('canonical projected prose field, NOT a JSON or schema path');
+      expect(role.instructions).toContain('whole diagram or comparison');
+      expect(role.instructions).toContain('actual supplied claim ID');
+      for (const type of ['paragraph', 'callout'] as const) {
+        for (const field of [undefined, 'text'] as const) {
+          const value = fixtureDraft(interactive);
+          const block = value.sections.flatMap((section) => section.blocks).find((block) => block.type === type);
+          if (block?.type !== type) throw new Error('CI_PROSE_MISSING');
+          const anchorText = block.data.spans
+            .map((span) => span.text)
+            .join('')
+            .match(/^[^.!?]+[.!?]/u)?.[0];
+          if (anchorText === undefined) throw new Error('CI_SENTENCE_MISSING');
+          const binding = {
+            kind: 'passage' as const,
+            blockId: block.id ?? '',
+            claimId: claims.claims[0]?.claimId ?? '',
+            anchorText,
+            ...(field === undefined ? {} : { field }),
+          };
+          value.bindings.push(binding);
+          expect(role.outputSchema.safeParse(value).success).toBe(true);
+          const compiled = compileGeneratedDraft(value, provenance, interactive);
+          expect(compiled.kind).toBe('compiled');
+          if (compiled.kind !== 'compiled') continue;
+          expect(compiled.provenance['bindings']).toContainEqual(
+            expect.objectContaining({ kind: 'passage', blockId: binding.blockId, field: 'text' }),
+          );
+          for (const invented of ['data.spans', 'data.spans.0.text', 'data.text', 'text.0']) {
+            const invalid = { ...value, bindings: [...value.bindings.slice(0, -1), { ...binding, field: invented }] };
+            expect(role.outputSchema.safeParse(invalid).success).toBe(false);
+            const refused = compileGeneratedDraft(invalid, provenance, interactive);
+            expect(refused.kind).toBe('refused');
+            if (refused.kind === 'refused')
+              expect(refused.issues).toContainEqual(expect.objectContaining({ code: 'binding_field_unknown' }));
+          }
+        }
+      }
+    },
+  );
   it('puts copy, number, source-name and binding failures inside the same writer schema repair boundary', () => {
     const role = writerRole(provenance, false);
     expect(role.outputSchema.safeParse(fixtureDraft()).success).toBe(true);
@@ -365,7 +409,7 @@ describe('code-owned explanation recipes (source declarations, not generated sem
   it('declares three independent same-subtopic units and two required interactive explanations', () => {
     const keys = ['greenhouse-radiation', 'greenhouse-balance', 'greenhouse-limits'] as const;
     const units = keys.map((key) => TOPICS[key]);
-    expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v11');
+    expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v12');
     expect(units.map(({ interactive }) => interactive)).toEqual([true, true, false]);
     expect(units.every(({ topicId }) => topicId === 'earth.greenhouse-effect')).toBe(true);
     expect(new Set(Object.values(TOPICS).map(({ assetId }) => assetId)).size).toBe(6);

@@ -518,3 +518,33 @@ both the initial HTTP promise and every explicit body-reader wait. Socket abort 
 cancellation remain best-effort cleanup, never an awaited prerequisite to returning the
 finite deadline result; late replies cannot become observed reports. The actual stalled-body
 regression is retained with its unchanged suite timeout.
+
+## Canonical prose binding projection in v12
+
+Policy `scroll-production.v12` / writer `scroll-writer.v10` narrows only the selected passage
+binding's optional `field` to literal `text` through the canonical node's `safeExtend`. Omission
+retains the compiler's canonical prose default. Paragraph and callout span arrays project to that
+field; `data.spans`, `data.spans.0.text`, `data.text` and other JSON/schema paths are not prose
+binding fields. The full core DSL remains unchanged. Header/heading/block nodes are reused
+exactly; the selected format uses whole-block bindings for diagrams/comparisons. Empirical numbers
+still require exact canonical support, otherwise the explanation must remain qualitative.
+
+Instructions distinguish the projected field from the input JSON, require exact unique
+single-sentence anchors from the writer's own original prose and actual supplied claim IDs,
+and show passage/default/explicit-text, header and heading syntax in the fictional example.
+The example remains nonpublishable under real offered evidence. No quote transcription,
+copy-nine evasion, source/honesty/numeric/a11y/reading-bound or admission relaxation is added.
+
+The real v11 job was rejected after three settled calls. Its bounded metadata contains six
+`binding_field_unknown` and one `copied_passage` entry at masked primary paths; repair records
+the fixed `unreadable` root category with `REPLY_TOOL_JSON_INVALID`. Failed bodies were discarded.
+These categories do not reveal the actual fields, received types, prose or malformed tool JSON.
+This correction follows the canonical projection's source contract, not reconstructed answers.
+
+Claims4/hp4, writer hp5 JSON-string carrier, all recipes/identities, stable roles, generation,
+4000/12000 output ceilings, 100000-byte request cap, tokens, brakes and one repair/max-four
+accounting remain unchanged. The new version is source lineage, not another allocation or paid
+retry grant. Existing historical rows/requests/SQL remain immutable. Actions use authored
+default/explicit-text positives and invented-path negatives through canonical compilation and
+native HTTP/PostgreSQL repair/replay; these fixtures do not prove provider success. No operator
+profile, ready config, deployment, live query, reservation or model call is authorized here.

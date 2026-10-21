@@ -15,9 +15,9 @@ import {
   type ClaimPackage,
 } from './quote-candidates.js';
 
-/** Claims keep their existing contract; writer9 retains that canonical subset inside an explicit JSON string carrier. */
+/** Claims keep their existing contract; writer10 narrows prose bindings inside the same JSON string carrier. */
 export const CLAIMS_ROLE_VERSION = 'scroll-claims.v4';
-export const WRITER_PROMPT_VERSION = 'scroll-writer.v9';
+export const WRITER_PROMPT_VERSION = 'scroll-writer.v10';
 
 /** Static module-owned feedback only; no draft, source or provider text enters this catalogue. */
 const WRITER_SAFE_ISSUES = Object.freeze({
@@ -188,6 +188,8 @@ export function writerRole(provenance: DraftProvenance, interactive: boolean): R
       'For this recipe use paragraphs, the selected format block, and a closing callout. Use only the three block types in the selected inner-object grammar. Omit unnecessary optional fields and text marks. Every rich-text value is an ARRAY of span objects, never a lone span object: spans:[{"text":"your prose"}]. This fragment explains the canonical shape; the final answer must be one complete valid JSON object.',
       `Writer-wire RichText is always an array of span objects. String shorthand is not accepted on this writer wire. Concatenated span text must be nonempty and trimmed as a whole, preserving spaces between spans. Combined limits are ${FIELD_LIMITS.paragraphChars} UTF-16 units for paragraphs and ${FIELD_LIMITS.calloutChars} for callouts; splitting spans does not change the limit.`,
       'Reader prose must have no URLs or source/publisher names. Never reproduce nine consecutive source words. Every empirical numeric text/value needs an exact binding; prefer words and conceptual diagrams over arbitrary numbers. Every reader block needs a claim binding. Use exact anchorText copied from your OWN prose for passage bindings.',
+      'PROSE BINDINGS: use kind passage with a blockId from your actual draft and a claimId from the supplied claims. For paragraph or callout prose, omit field or set field to exactly text. This text is the canonical projected prose field, NOT a JSON or schema path: never write data.spans, spans, data.text or text.0. Copy anchorText exactly from your OWN original prose; it must occur once within one sentence. Do not copy the source quote to make an anchor.',
+      'Use kind block for a whole diagram or comparison; do not invent passage fields for its nested data. Use kind header with field title, dek or kicker and anchorText from that header, or kind heading with the actual sectionId and anchorText from its heading. Every claimId must be an actual supplied claim ID; the fictional example IDs are never evidence. Include an empirical number only where an exact canonical binding supports it; otherwise explain qualitatively without inventing a value or binding path.',
       'Every diagram or comparison needs canonical a11y and fallbackText; interactive diagrams need bounded frames. A simplified model must be honestly illustrative. All factual assertions must follow supplied claims; include caveats naturally.',
       interactive
         ? 'Include one useful toggle diagram with two to four reader-selectable frames and a small set of nodes and edges. The states must explain the requested mechanism, not merely change decoration. Supply all canonical arrays (including empty groups, emphasis, hidden and weights where appropriate), a11y and an honest accessible fallback. State the limits of the simplified illustration; do not invent empirical numbers.'

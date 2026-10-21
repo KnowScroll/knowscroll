@@ -14,7 +14,7 @@ export function writerDraftExampleJson(interactive: boolean): string {
     sections: [
       {
         id: 'example-opening',
-        heading: null,
+        heading: 'Inspect the invented route',
         blocks: [
           {
             id: 'example-paragraph',
@@ -86,6 +86,31 @@ export function writerDraftExampleJson(interactive: boolean): string {
       { kind: 'block', claimId: 'example-only-claim', blockId: 'example-paragraph' },
       { kind: 'block', claimId: 'example-only-claim', blockId: 'example-diagram' },
       { kind: 'block', claimId: 'example-only-claim', blockId: 'example-limit' },
+      {
+        kind: 'passage',
+        claimId: 'example-only-claim',
+        blockId: 'example-paragraph',
+        anchorText: 'Imagine a device with a switch between an input and an output.',
+      },
+      {
+        kind: 'passage',
+        claimId: 'example-only-claim',
+        blockId: 'example-limit',
+        field: 'text',
+        anchorText: 'This authored device explains a contrast through selected states.',
+      },
+      {
+        kind: 'header',
+        claimId: 'example-only-claim',
+        field: 'title',
+        anchorText: 'A fictional signal switch',
+      },
+      {
+        kind: 'heading',
+        claimId: 'example-only-claim',
+        sectionId: 'example-opening',
+        anchorText: 'Inspect the invented route',
+      },
     ],
   };
   if (!interactive) {
