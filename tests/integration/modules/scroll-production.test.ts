@@ -22,11 +22,8 @@ import {
   quoteCandidates,
 } from '../../../packages/backend/src/modules/content/production/quote-candidates.js';
 import { writerDraftExampleJson } from '../../../packages/backend/src/modules/content/production/writer-example.js';
-import {
-  TOPICS,
-  explanationUnitFor,
-  type ScrollTopic,
-} from '../../../packages/backend/src/modules/content/production/topics.js';
+import { writerDraftProfile } from '../../../packages/backend/src/modules/content/production/writer-profile.js';
+import { TOPICS, explanationUnitFor } from '../../../packages/backend/src/modules/content/production/topics.js';
 import {
   claimsRole,
   generatedProvenance,
@@ -80,20 +77,19 @@ function draft(interactive = false) {
     ),
   ) as { draft: unknown };
   const value = ScrollDraft.parse(normaliseDraftInput(starter.draft));
+  // Existing authored prose is filtered only for this CI profile fixture, never product content.
+  value.sections = value.sections
+    .map((section) => ({
+      ...section,
+      blocks: section.blocks.filter((block) => block.type === 'paragraph' || block.type === 'callout'),
+    }))
+    .filter((section) => section.blocks.length > 0);
+  const format = ScrollDraft.parse(JSON.parse(writerDraftExampleJson(interactive))).sections[0]?.blocks[1];
+  if (format === undefined) throw new Error('CI_FORMAT_MISSING');
+  value.sections[0]?.blocks.push(format);
   for (const section of value.sections)
-    for (const block of section.blocks) {
-      if (block.type !== 'subheading')
-        value.bindings.push({ kind: 'block', blockId: block.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
-      if (block.type === 'disclosure')
-        for (const child of block.data.blocks)
-          value.bindings.push({ kind: 'block', blockId: child.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
-    }
-  if (interactive) {
-    const diagram = ScrollDraft.parse(JSON.parse(writerDraftExampleJson(true))).sections[0]?.blocks[1];
-    if (diagram === undefined) throw new Error('CI_DIAGRAM_MISSING');
-    value.sections[0]?.blocks.push(diagram);
-    value.bindings.push({ kind: 'block', blockId: diagram.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
-  }
+    for (const block of section.blocks)
+      value.bindings.push({ kind: 'block', blockId: block.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
   return value;
 }
 const answer = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });
@@ -122,7 +118,7 @@ describe('writer semantic feedback contract (authored CI fixture; no provider ne
     expect(claimsRole([page]).version).toBe('scroll-claims.v4');
     expect(claimsRole([page]).nativeOutputSchema).toBe('zod-structural.v1');
     expect(role.id).toBe('content.scroll-writer');
-    expect(role.version).toBe('scroll-writer.v7');
+    expect(role.version).toBe('scroll-writer.v8');
     expect(role.nativeOutputSchema).toBe('zod-structural.v1');
   });
 
@@ -188,10 +184,9 @@ describe('writer semantic feedback contract (authored CI fixture; no provider ne
       expect(masked.valid).toBe(false);
       if (!masked.valid)
         expect(masked.issues.every((issue) => issue.code === 'custom' && issue.detail === undefined)).toBe(true);
-      // Historical writer6 also clones ScrollDraft with one semantic refinement. Bare ScrollDraft
-      // has different reused-reference placement; compare the same structural wrapper, not that root.
+      // The selected profile is the real wire shape; semantic refinements must not alter its structural input.
       expect(deriveNativeInputSchema(role.outputSchema)).toEqual(
-        deriveNativeInputSchema(ScrollDraft.superRefine(() => undefined)),
+        deriveNativeInputSchema(writerDraftProfile(false).superRefine(() => undefined)),
       );
     },
   );
@@ -201,7 +196,20 @@ describe('writer semantic feedback contract (authored CI fixture; no provider ne
     missing.bindings = [];
     for (const [role, value, code] of [
       [writerRole(provenance, false), missing, 'reader_block_unbound'],
-      [writerRole(provenance, true), fixtureDraft(), 'interactive_required'],
+      [
+        writerRole(provenance, true),
+        {
+          ...draft(true),
+          sections: draft(true).sections.map((section) => ({
+            ...section,
+            blocks: section.blocks.filter((block) => block.type !== 'diagram'),
+          })),
+          bindings: draft(true).bindings.filter(
+            (binding) => !('blockId' in binding) || binding.blockId !== 'example-diagram',
+          ),
+        },
+        'interactive_required',
+      ],
     ] as const) {
       const verdict = validateOutput(role.outputSchema, value, role.safeCustomIssues);
       expect(verdict.valid).toBe(false);
@@ -250,6 +258,99 @@ function boundedRecipeResearch(url: string): ResearchPage {
     '2026-10-20T00:00:00.000Z',
   );
 }
+/** Inspect resolved native schema structure without printing schema/context/reply values. */
+function nativeShapeFacts(schema: unknown) {
+  const array = (value: unknown): value is readonly unknown[] => Array.isArray(value);
+  const record = (value: unknown): Record<string, unknown> => {
+    if (typeof value !== 'object' || value === null || array(value)) throw new Error('CI_SCHEMA_OBJECT_REQUIRED');
+    return value as Record<string, unknown>;
+  };
+  const root = record(schema);
+  const definitions = record(root['definitions'] ?? {});
+  const resolve = (value: unknown, depth = 0): Record<string, unknown> => {
+    if (depth > 32) throw new Error('CI_SCHEMA_REF_DEPTH');
+    const node = record(value);
+    if (typeof node['$ref'] !== 'string') return node;
+    const name = /^#\/definitions\/([A-Za-z0-9_$.-]+)$/u.exec(node['$ref'])?.[1];
+    if (!name || !Object.hasOwn(definitions, name)) throw new Error('CI_SCHEMA_REFERENCE_INVALID');
+    return resolve(definitions[name], depth + 1);
+  };
+  const property = (node: unknown, name: string) => resolve(record(resolve(node)['properties'])[name]);
+  const variants = (node: unknown) => {
+    const value = resolve(node);
+    const choices = value['anyOf'] ?? value['oneOf'];
+    if (!array(choices)) throw new Error('CI_SCHEMA_UNION_REQUIRED');
+    return choices.map((choice) => resolve(choice));
+  };
+  const literal = (node: unknown) => {
+    const value = resolve(node);
+    return value['const'] ?? (array(value['enum']) && value['enum'].length === 1 ? value['enum'][0] : undefined);
+  };
+  const sections = property(root, 'sections');
+  const section = resolve(sections['items']);
+  const blocks = property(section, 'blocks');
+  const blockVariants = variants(blocks['items']);
+  const bindings = property(root, 'bindings');
+  expect(root['required']).toEqual(['draftVersion', 'title', 'dek', 'sections', 'bindings']);
+  expect(root['additionalProperties']).toBe(false);
+  expect(sections).toMatchObject({ type: 'array', minItems: 1, maxItems: 12 });
+  expect(blocks).toMatchObject({ type: 'array', minItems: 1, maxItems: 80 });
+  expect(bindings).toMatchObject({ type: 'array', maxItems: 480 });
+  expect(section['additionalProperties']).toBe(false);
+  for (const variant of blockVariants) {
+    expect(variant['additionalProperties']).toBe(false);
+    const type = literal(property(variant, 'type'));
+    if (type === 'diagram' || type === 'comparison') {
+      expect(variant['required']).toEqual(expect.arrayContaining(['a11y', 'fallbackText']));
+      const data = property(variant, 'data');
+      expect(data['additionalProperties']).toBe(false);
+      if (type === 'diagram') {
+        expect(literal(property(property(data, 'interaction'), 'kind'))).toBe('toggle');
+        expect(property(data, 'frames')).toMatchObject({ type: 'array', minItems: 2, maxItems: 4 });
+      } else {
+        const columns = property(data, 'columns');
+        expect(columns).toMatchObject({ type: 'array', minItems: 2, maxItems: 2 });
+        const points = property(resolve(columns['items']), 'points');
+        expect(points).toMatchObject({ type: 'array', minItems: 2, maxItems: 2 });
+        expect(resolve(points['items'])['type']).toBe('array');
+      }
+    }
+  }
+  let nodes = 0;
+  const count = (value: unknown): void => {
+    nodes++;
+    if (typeof value === 'object' && value !== null) for (const child of Object.values(value)) count(child);
+  };
+  count(schema);
+  const height = (value: unknown, ancestors = new Set<object>()): number => {
+    if (typeof value !== 'object' || value === null) return 0;
+    if (ancestors.has(value)) throw new Error('CI_SCHEMA_CYCLE');
+    const next = new Set(ancestors).add(value);
+    if (!array(value)) {
+      const node = record(value);
+      if (node['$ref'] !== undefined) return 1 + height(resolve(node), next);
+    }
+    return (
+      1 +
+      Math.max(
+        0,
+        ...Object.entries(value)
+          .filter(([key]) => key !== 'definitions')
+          .map(([, child]) => height(child, next)),
+      )
+    );
+  };
+  return {
+    schemaBytes: Buffer.byteLength(JSON.stringify(schema)),
+    nodes,
+    resolvedDepth: height(schema),
+    blockTypes: blockVariants.map((variant) => literal(property(variant, 'type'))).sort(),
+    bindingKinds: variants(bindings['items'])
+      .map((variant) => literal(property(variant, 'kind')))
+      .sort(),
+  };
+}
+
 describe('new recipe native bodies (authored bounded context; no provider network)', () => {
   it.each(['greenhouse-radiation', 'greenhouse-balance', 'greenhouse-limits'] as const)(
     'fits primary and repair for %s through the real M3 encoder without raising caps',
@@ -279,6 +380,7 @@ describe('new recipe native bodies (authored bounded context; no provider networ
         const context = isClaims ? { policyVersion: 'quote-candidates.v1', candidates: pool } : checked;
         const invalid = validateOutput(role.outputSchema, {}, role.safeCustomIssues);
         if (invalid.valid) throw new Error('CI_INVALID_OUTPUT_ACCEPTED');
+        const fullBodies: Uint8Array[] = [];
         const bodies = [undefined, invalid.issues].map((feedback) => {
           const prompt = buildPrompt({
             roleId: role.id,
@@ -297,7 +399,7 @@ describe('new recipe native bodies (authored bounded context; no provider networ
             nativeOutputSchema: 'zod-structural.v1',
             ...(feedback === undefined ? {} : { feedback }),
           });
-          return makeMiniMaxModelPort({
+          const port = makeMiniMaxModelPort({
             apiKey: 'sk-cp-FIXTUREfixtureFIXTUREfixture0000',
             model: 'MiniMax-M3',
             requestTimeoutMs: 200,
@@ -305,7 +407,17 @@ describe('new recipe native bodies (authored bounded context; no provider networ
             quotaFloorPercent: 25,
             maxReplyBytes: 524288,
             maxRequestBytes: 100000,
-          }).encode({
+          });
+          if (!isClaims)
+            fullBodies.push(
+              port.encode({
+                ...prompt,
+                maxOutputTokens: role.maxOutputTokens,
+                outputFormat: 'single-tool-object',
+                outputJsonSchema: deriveNativeInputSchema(ScrollDraft.superRefine(() => undefined)),
+              }),
+            );
+          return port.encode({
             ...prompt,
             maxOutputTokens: role.maxOutputTokens,
             outputFormat: 'single-tool-object',
@@ -322,6 +434,21 @@ describe('new recipe native bodies (authored bounded context; no provider networ
           expect(wire.max_tokens).toBe(isClaims ? 4000 : 12000);
           expect(wire.tool_choice).toEqual({ type: 'auto' });
           expect(wire.tools[0]?.input_schema).toEqual(deriveNativeInputSchema(role.outputSchema));
+        }
+        if (!isClaims) {
+          const facts = nativeShapeFacts(deriveNativeInputSchema(role.outputSchema));
+          expect(facts.blockTypes).toEqual(
+            ['callout', recipe.interactive ? 'diagram' : 'comparison', 'paragraph'].sort(),
+          );
+          expect(facts.bindingKinds).toEqual(['block', 'header', 'heading', 'passage']);
+          const full = deriveNativeInputSchema(ScrollDraft.superRefine(() => undefined));
+          const fullSchemaBytes = Buffer.byteLength(JSON.stringify(full));
+          expect(facts.schemaBytes).toBeLessThan(fullSchemaBytes);
+          for (const [index, body] of bodies.entries())
+            expect(body.length).toBeLessThan(fullBodies[index]?.length ?? 0);
+          process.stdout.write(
+            `${JSON.stringify({ event: 'writer-profile-complexity', topic, ...facts, fullCanonicalSchemaBytes: fullSchemaBytes, instructionBytes: Buffer.byteLength(role.instructions), exampleBytes: Buffer.byteLength(writerDraftExampleJson(recipe.interactive)), primaryBytes: bodies[0]?.length, repairBytes: bodies[1]?.length, fullCanonicalPrimaryBytes: fullBodies[0]?.length, fullCanonicalRepairBytes: fullBodies[1]?.length })}\n`,
+          );
         }
         expect(
           createHash('sha256')
@@ -544,7 +671,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         })}\n`,
       );
       expect(wires.slice(0, 2).every((wire) => wire.system.includes('version scroll-claims.v4,'))).toBe(true);
-      expect(wires.slice(2).every((wire) => wire.system.includes('version scroll-writer.v7,'))).toBe(true);
+      expect(wires.slice(2).every((wire) => wire.system.includes('version scroll-writer.v8,'))).toBe(true);
       expect(wires[1]?.system).toContain('candidateIds: too_small (at least 4 items)');
       expect(wires[3]?.system).toContain(`copied_passage (${REPAIR_HINTS.copied_passage})`);
       expect(wires[3]?.system).not.toContain(passage);
@@ -560,8 +687,8 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       ).toEqual([
         ['content.scroll-claims', 'scroll-claims.v4', 'primary', 'hp4-tool-schema', 'OUTPUT_SCHEMA_MISMATCH'],
         ['content.scroll-claims', 'scroll-claims.v4', 'repair', 'hp4-tool-schema', 'SUCCEEDED'],
-        ['content.scroll-writer', 'scroll-writer.v7', 'primary', 'hp4-tool-schema', 'OUTPUT_SCHEMA_MISMATCH'],
-        ['content.scroll-writer', 'scroll-writer.v7', 'repair', 'hp4-tool-schema', 'SUCCEEDED'],
+        ['content.scroll-writer', 'scroll-writer.v8', 'primary', 'hp4-tool-schema', 'OUTPUT_SCHEMA_MISMATCH'],
+        ['content.scroll-writer', 'scroll-writer.v8', 'repair', 'hp4-tool-schema', 'SUCCEEDED'],
       ]);
       expect(attempts[0]?.output).toBeNull();
       expect(attempts[2]?.output).toBeNull();
@@ -594,7 +721,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .select(['policy_version', 'generation'])
         .execute();
       expect(runs).toHaveLength(2);
-      expect(runs.every((run) => run.policy_version === 'scroll-production.v9' && run.generation === 1)).toBe(true);
+      expect(runs.every((run) => run.policy_version === 'scroll-production.v10' && run.generation === 1)).toBe(true);
       for (const receipt of first.attempts?.filter((item) => item.role !== 'checks') ?? []) {
         expect(receipt).toMatchObject({ repaired: true, inputTokens: 40, outputTokens: 10 });
         expect(receipt.attempts?.map((item) => item.step)).toEqual(['primary', 'repair']);
@@ -606,7 +733,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .executeTakeFirstOrThrow();
       expect(provenance.provenance).toMatchObject({
         production: {
-          promptVersion: 'scroll-writer.v7',
+          promptVersion: 'scroll-writer.v8',
           model: 'MiniMax-M3',
           attemptIds: attempts.slice(2).map((attempt) => attempt.id),
         },
@@ -655,7 +782,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       expect(
         writers.every(
           (r) =>
-            r.role_version === 'scroll-writer.v7' &&
+            r.role_version === 'scroll-writer.v8' &&
             r.prompt_version === 'hp4-tool-schema' &&
             r.max_output_tokens === 12000,
         ),
@@ -697,6 +824,86 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       if (repairKind === 'complete') expect(codes).toBeUndefined();
       else expect(codes).toEqual(['invalid_output']);
       expect(await p.produce('seasons', false, signal(), true)).toEqual(persisted);
+      expect(p.calls).toHaveLength(4);
+      expect(
+        await database.db
+          .selectFrom('reasoning.production_attempts')
+          .selectAll()
+          .orderBy('reserved_at')
+          .orderBy('id')
+          .execute(),
+      ).toEqual(rows);
+    },
+  );
+
+  it.each(
+    [false, true].flatMap((interactive) =>
+      ['scalar', 'object', 'null', 'missing'].flatMap((shape) =>
+        ['valid', 'invalid'].map((repair) => ({ interactive, shape, repair })),
+      ),
+    ),
+  )(
+    'bounds root-array $shape refusal and $repair repair, interactive=$interactive (authored native PG fixture)',
+    async ({ interactive, shape, repair }) => {
+      const good = draft(interactive);
+      const bad =
+        shape === 'missing'
+          ? Object.fromEntries(Object.entries(good).filter(([key]) => key !== 'sections' && key !== 'bindings'))
+          : {
+              ...good,
+              sections: shape === 'scalar' ? 'PRIVATE-ARRAY-CANARY' : shape === 'object' ? {} : null,
+              bindings: shape === 'scalar' ? 'PRIVATE-ARRAY-CANARY' : shape === 'object' ? {} : null,
+            };
+      const inputs = [
+        { candidateIds: selection.candidateIds.slice(0, 3) },
+        selection,
+        bad,
+        repair === 'valid' ? good : bad,
+      ];
+      const p = setupNative((n) => {
+        if (n > 4) throw new Error('CI_FORBIDDEN_FIFTH_CALL');
+        return { input: inputs[n - 1] };
+      });
+      const topic = interactive ? 'seasons' : 'greenhouse';
+      const result = await p.produce(topic, false, signal());
+      expect(result.outcome).toBe(repair === 'valid' ? 'published' : 'rejected');
+      expect(p.calls).toHaveLength(4);
+      expect(p.quotaChecks()).toBe(4);
+      const rows = await database.db
+        .selectFrom('reasoning.production_attempts')
+        .selectAll()
+        .orderBy('reserved_at')
+        .orderBy('id')
+        .execute();
+      expect(rows).toHaveLength(4);
+      const writers = rows.filter((row) => row.role_id === 'content.scroll-writer');
+      expect(writers.map((row) => row.step)).toEqual(['primary', 'repair']);
+      expect(rows.filter((row) => row.role_id === 'content.scroll-claims')).toHaveLength(2);
+      expect(writers[1]?.causation_attempt_id).toBe(writers[0]?.id);
+      const expected = ['sections', 'bindings'].map((path) => ({
+        path,
+        code: shape === 'missing' ? 'missing' : 'invalid_type',
+        detail: shape === 'missing' ? 'required; expected array' : 'expected array',
+      }));
+      // The deliberately long scalar also trips the unchanged canonical sections-length bound.
+      // Retain that precise diagnostic instead of weakening the exact issue-array assertion.
+      if (shape === 'scalar')
+        expected.splice(1, 0, { path: 'sections', code: 'too_big', detail: 'at most 12 characters' });
+      expect(writers[0]).toMatchObject({
+        output: null,
+        outcome_code: 'OUTPUT_SCHEMA_MISMATCH',
+        output_issues: { reason: 'OUTPUT_SCHEMA_MISMATCH', issues: expected },
+      });
+      if (repair === 'invalid')
+        expect(writers[1]).toMatchObject({
+          output: null,
+          outcome_code: 'OUTPUT_SCHEMA_MISMATCH',
+          output_issues: { issues: expected },
+        });
+      expect(JSON.stringify(rows)).not.toContain('PRIVATE-ARRAY-CANARY');
+      const { codes, ...persisted } = result;
+      expect(codes).toEqual(repair === 'valid' ? undefined : ['invalid_output']);
+      expect(await p.produce(topic, false, signal(), true)).toEqual(persisted);
       expect(p.calls).toHaveLength(4);
       expect(
         await database.db
@@ -789,7 +996,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
               id: randomUUID(),
               ownerModule: 'content',
               purpose: 'fixture-unsupported',
-              policyVersion: 'scroll-production.v9',
+              policyVersion: 'scroll-production.v10',
               authority: { scopeId: 'scroll-supply', generation: 1 },
             },
             role,
@@ -854,14 +1061,14 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .executeTakeFirstOrThrow();
       expect(result.assetId).toBe(TOPICS[topic].assetId);
       expect(exactRevision.explanation_unit_id).toBe(explanationUnitFor(topic));
-      expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v7,');
+      expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v8,');
       expect(
         await database.db
           .selectFrom('content.scroll_production_runs')
           .select('policy_version')
           .where('id', '=', result.runId ?? '')
           .executeTakeFirstOrThrow(),
-      ).toEqual({ policy_version: 'scroll-production.v9' });
+      ).toEqual({ policy_version: 'scroll-production.v10' });
       expect(
         await database.db
           .selectFrom('content.asset_provenance')
@@ -869,7 +1076,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
           .where('asset_id', '=', result.assetId ?? '')
           .executeTakeFirstOrThrow(),
       ).toMatchObject({
-        provenance: { production: { promptVersion: 'scroll-writer.v7' } },
+        provenance: { production: { promptVersion: 'scroll-writer.v8' } },
       });
       expect(p.model.calls.every((call) => call.request.fixture === 'scroll-production-CI-fixture')).toBe(true);
       const projected = await database.db
@@ -1092,7 +1299,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(first);
     expect(p.model.calls).toHaveLength(4);
   });
-  it('preserves historical v1–v7 jobs, attempts and native request bytes while v9 creates distinct runs', async () => {
+  it('preserves historical v1–v7 jobs, attempts and native request bytes while v10 creates distinct runs', async () => {
     // Historical SHAPES only: synthetic IDs/receipts, never imported real research or provider output.
     const old = [
       { policy: 'scroll-production.v1', topic: 'seasons', counts: [1, 2] },
@@ -1157,20 +1364,9 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
                   input_schema:
                     job.policy === 'scroll-production.v7'
                       ? deriveNativeInputSchema(
-                          (role === 'claims'
-                            ? claimsRole([page])
-                            : writerRole(
-                                generatedProvenance({
-                                  topic: job.topic as ScrollTopic,
-                                  runId: id,
-                                  attemptIds: [attemptId],
-                                  model: 'historical-CI-fixture',
-                                  claims,
-                                  pages: [page],
-                                }),
-                                false,
-                              )
-                          ).outputSchema,
+                          role === 'claims'
+                            ? claimsRole([page]).outputSchema
+                            : ScrollDraft.superRefine(() => undefined),
                         )
                       : { type: 'object' },
                 },
@@ -1274,89 +1470,95 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       .select(['policy_version', 'claims_run_id', 'writer_run_id'])
       .where('id', '=', result.runId ?? '')
       .executeTakeFirstOrThrow();
-    expect(current.policy_version).toBe('scroll-production.v9');
+    expect(current.policy_version).toBe('scroll-production.v10');
     expect(ids).not.toContain(current.claims_run_id);
     expect(ids).not.toContain(current.writer_run_id);
     expect(p.model.calls[0]?.request.system).toContain('version scroll-claims.v4,');
-    expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v7,');
+    expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v8,');
     const provenance = await database.db
       .selectFrom('content.asset_provenance')
       .select('provenance')
       .where('asset_id', '=', result.assetId ?? '')
       .executeTakeFirstOrThrow();
-    expect(provenance.provenance).toMatchObject({ production: { promptVersion: 'scroll-writer.v7' } });
+    expect(provenance.provenance).toMatchObject({ production: { promptVersion: 'scroll-writer.v8' } });
     expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(result);
     expect(p.model.calls).toHaveLength(2);
     expect(await previousBytes()).toEqual(before);
   });
-  it('preserves a terminal v8 job, stored issues and protected bytes across policy9 publication and replay', async () => {
-    const jobId = randomUUID(),
-      claimsId = randomUUID(),
-      writerId = randomUUID();
-    await sql`insert into content.scroll_production_runs(id,topic,policy_version,target_revision,scope_generation,state,claims_run_id,writer_run_id,outcomes,completed_at) values(${jobId},'greenhouse-radiation','scroll-production.v8',1,1,'rejected',${claimsId},${writerId},'[]'::jsonb,now())`.execute(
-      database.db,
-    );
-    for (const [runId, role, version, count] of [
-      [claimsId, 'claims', 'scroll-claims.v4', 1],
-      [writerId, 'writer', 'scroll-writer.v6', 2],
-    ] as const) {
-      await sql`insert into reasoning.production_runs(scope_id,id,owner_module,purpose,generation,role_id,role_version,policy_version,provider,model,state,closed_at) values('scroll-supply',${runId},'content',${`scroll-${role}`},1,${`content.scroll-${role}`},${version},'scroll-production.v8','fixture','historical-CI-fixture','failed',now())`.execute(
+  it.each([
+    ['scroll-production.v8', 'scroll-writer.v6'],
+    ['scroll-production.v9', 'scroll-writer.v7'],
+  ] as const)(
+    'preserves terminal %s issues and protected bytes across policy10 publication and replay',
+    async (policy, historicalWriter) => {
+      const jobId = randomUUID(),
+        claimsId = randomUUID(),
+        writerId = randomUUID();
+      await sql`insert into content.scroll_production_runs(id,topic,policy_version,target_revision,scope_generation,state,claims_run_id,writer_run_id,outcomes,completed_at) values(${jobId},'greenhouse-radiation',${policy},1,1,'rejected',${claimsId},${writerId},'[]'::jsonb,now())`.execute(
         database.db,
       );
-      for (let n = 0; n < count; n++) {
-        const id = randomUUID(),
-          body = Buffer.from(
-            JSON.stringify({
-              label: 'authored historical v8 bytes',
-              version,
-              step: n,
-              feedback: n ? [{ code: 'custom', path: 'sections[2].blocks[1].data.spans' }] : [],
-            }),
-          );
-        const hash = createHash('sha256').update(body).digest('hex');
-        await sql`insert into reasoning.production_attempts(scope_id,id,run_id,step,provider,model,role_id,role_version,prompt_version,request_hash,state,dispatch_id,dispatched_at,settled_at,outcome_code,output_issues) values('scroll-supply',${id},${runId},${n ? 'repair' : 'primary'},'fixture','historical-CI-fixture',${`content.scroll-${role}`},${version},'hp4-tool-schema',${hash},'failed',${randomUUID()},now(),now(),'CI_HISTORICAL_REFUSAL','{"v":1,"reason":"OUTPUT_SCHEMA_MISMATCH","issues":[{"code":"custom","path":"sections[2].blocks[1].data.spans"}]}'::jsonb)`.execute(
+      for (const [runId, role, version, count] of [
+        [claimsId, 'claims', 'scroll-claims.v4', 1],
+        [writerId, 'writer', historicalWriter, 2],
+      ] as const) {
+        await sql`insert into reasoning.production_runs(scope_id,id,owner_module,purpose,generation,role_id,role_version,policy_version,provider,model,state,closed_at) values('scroll-supply',${runId},'content',${`scroll-${role}`},1,${`content.scroll-${role}`},${version},${policy},'fixture','historical-CI-fixture','failed',now())`.execute(
           database.db,
         );
-        await database.db
-          .insertInto('reasoning.production_requests')
-          .values({
-            scope_id: 'scroll-supply',
-            attempt_id: id,
-            body,
-            body_sha256: hash,
-            erasure_class: 'nonpersonal_production',
-            expires_at: new Date(Date.now() + 3600000),
-          })
-          .execute();
+        for (let n = 0; n < count; n++) {
+          const id = randomUUID(),
+            body = Buffer.from(
+              JSON.stringify({
+                label: `authored historical ${policy.replace('scroll-production.', '')} bytes`,
+                version,
+                step: n,
+                feedback: n ? [{ code: 'custom', path: 'sections[2].blocks[1].data.spans' }] : [],
+              }),
+            );
+          const hash = createHash('sha256').update(body).digest('hex');
+          await sql`insert into reasoning.production_attempts(scope_id,id,run_id,step,provider,model,role_id,role_version,prompt_version,request_hash,state,dispatch_id,dispatched_at,settled_at,outcome_code,output_issues) values('scroll-supply',${id},${runId},${n ? 'repair' : 'primary'},'fixture','historical-CI-fixture',${`content.scroll-${role}`},${version},'hp4-tool-schema',${hash},'failed',${randomUUID()},now(),now(),'CI_HISTORICAL_REFUSAL','{"v":1,"reason":"OUTPUT_SCHEMA_MISMATCH","issues":[{"code":"custom","path":"sections[2].blocks[1].data.spans"}]}'::jsonb)`.execute(
+            database.db,
+          );
+          await database.db
+            .insertInto('reasoning.production_requests')
+            .values({
+              scope_id: 'scroll-supply',
+              attempt_id: id,
+              body,
+              body_sha256: hash,
+              erasure_class: 'nonpersonal_production',
+              expires_at: new Date(Date.now() + 3600000),
+            })
+            .execute();
+        }
       }
-    }
-    const snapshot = async () => {
-      const result: Record<string, unknown> = {};
-      for (const table of ['production_runs', 'production_attempts', 'production_requests']) {
-        result[table] = (
-          await sql`select row_to_json(r)::text as bytes from ${sql.table('reasoning.' + table)} r where ${table === 'production_runs' ? sql`id=any(${[claimsId, writerId]}::uuid[])` : table === 'production_attempts' ? sql`run_id=any(${[claimsId, writerId]}::uuid[])` : sql`attempt_id in(select id from reasoning.production_attempts where run_id=any(${[claimsId, writerId]}::uuid[]))`} order by ${sql.ref(table === 'production_requests' ? 'attempt_id' : 'id')}`.execute(
+      const snapshot = async () => {
+        const result: Record<string, unknown> = {};
+        for (const table of ['production_runs', 'production_attempts', 'production_requests']) {
+          result[table] = (
+            await sql`select row_to_json(r)::text as bytes from ${sql.table('reasoning.' + table)} r where ${table === 'production_runs' ? sql`id=any(${[claimsId, writerId]}::uuid[])` : table === 'production_attempts' ? sql`run_id=any(${[claimsId, writerId]}::uuid[])` : sql`attempt_id in(select id from reasoning.production_attempts where run_id=any(${[claimsId, writerId]}::uuid[]))`} order by ${sql.ref(table === 'production_requests' ? 'attempt_id' : 'id')}`.execute(
+              database.db,
+            )
+          ).rows;
+        }
+        result['job'] = (
+          await sql`select row_to_json(r)::text as bytes from content.scroll_production_runs r where id=${jobId}::uuid`.execute(
             database.db,
           )
         ).rows;
-      }
-      result['job'] = (
-        await sql`select row_to_json(r)::text as bytes from content.scroll_production_runs r where id=${jobId}::uuid`.execute(
-          database.db,
-        )
-      ).rows;
-      return result;
-    };
-    const before = await snapshot();
-    expect(before['production_attempts']).toHaveLength(3);
-    expect(before['production_requests']).toHaveLength(3);
-    const p = setupNative((n) => ({ input: n === 1 ? selection : draft() }));
-    const result = await p.produce('greenhouse', false, signal());
-    expect(result.outcome).toBe('published');
-    expect(await snapshot()).toEqual(before);
-    expect(await p.produce('greenhouse', false, signal(), true)).toEqual(result);
-    expect(p.calls).toHaveLength(2);
-    expect(await snapshot()).toEqual(before);
-  });
+        return result;
+      };
+      const before = await snapshot();
+      expect(before['production_attempts']).toHaveLength(3);
+      expect(before['production_requests']).toHaveLength(3);
+      const p = setupNative((n) => ({ input: n === 1 ? selection : draft() }));
+      const result = await p.produce('greenhouse', false, signal());
+      expect(result.outcome).toBe('published');
+      expect(await snapshot()).toEqual(before);
+      expect(await p.produce('greenhouse', false, signal(), true)).toEqual(result);
+      expect(p.calls).toHaveLength(2);
+      expect(await snapshot()).toEqual(before);
+    },
+  );
   it('repairs a lone span object once with schema-declared field paths, without loosening the canonical array contract', async () => {
     const bad = JSON.parse(JSON.stringify(draft())) as { sections: { blocks: { data: { spans: unknown } }[] }[] };
     const paragraph = bad.sections[0]?.blocks[0];
@@ -1514,11 +1716,11 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     };
     await expect(p.produce(stopBeforeWriter)('greenhouse', false, signal())).rejects.toThrow('CI_STOP_BEFORE_WRITER');
     if (changed === 'claims')
-      await sql`update content.scroll_production_runs set claims=jsonb_set(claims,'{claims,0,quote}','"tampered CI quote"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v9'`.execute(
+      await sql`update content.scroll_production_runs set claims=jsonb_set(claims,'{claims,0,quote}','"tampered CI quote"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v10'`.execute(
         database.db,
       );
     else
-      await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v9'`.execute(
+      await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v10'`.execute(
         database.db,
       );
     const resumed = await p.produce()('greenhouse', false, signal(), true);

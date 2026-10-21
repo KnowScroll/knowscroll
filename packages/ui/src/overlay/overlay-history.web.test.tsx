@@ -13,8 +13,30 @@ function Probe({ visible, onClose }: { visible: boolean; onClose: () => void }) 
   return null;
 }
 
-/** jsdom dispatches `popstate` after a task, like browsers. */
-const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+/** Await the real history task; elapsed wall time does not prove traversal completed. */
+function afterPopState(action: () => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timeout);
+      window.removeEventListener('popstate', onPopState);
+    };
+    const onPopState = () => {
+      cleanup();
+      resolve();
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('History traversal did not dispatch popstate'));
+    }, 2000);
+    window.addEventListener('popstate', onPopState);
+    try {
+      action();
+    } catch (error) {
+      cleanup();
+      reject(error instanceof Error ? error : new Error('History action failed'));
+    }
+  });
+}
 
 let root: Root;
 
@@ -24,8 +46,13 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  act(() => root.unmount());
-  await act(settle);
+  const state: unknown = window.history.state;
+  if (typeof state === 'object' && state !== null && '__ksOverlay' in state) {
+    const popped = afterPopState(() => act(() => root.unmount()));
+    await act(() => popped);
+  } else {
+    act(() => root.unmount());
+  }
 });
 
 describe('useOverlayHistory (web)', () => {
@@ -41,8 +68,7 @@ describe('useOverlayHistory (web)', () => {
     const onClose = jest.fn();
     act(() => root.render(<Probe visible onClose={onClose} />));
 
-    window.history.back();
-    await act(settle);
+    await act(() => afterPopState(() => window.history.back()));
 
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(window.location.pathname).toBe('/gallery');
@@ -52,8 +78,8 @@ describe('useOverlayHistory (web)', () => {
   it('removes its entry when the overlay closes another way (Esc, Close, scrim)', async () => {
     const onClose = jest.fn();
     act(() => root.render(<Probe visible onClose={onClose} />));
-    act(() => root.render(<Probe visible={false} onClose={onClose} />));
-    await act(settle);
+    const popped = afterPopState(() => act(() => root.render(<Probe visible={false} onClose={onClose} />)));
+    await act(() => popped);
 
     expect(window.history.state).toEqual({ route: 'gallery' });
     expect(onClose).not.toHaveBeenCalled();

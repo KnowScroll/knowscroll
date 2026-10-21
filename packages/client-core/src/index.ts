@@ -78,3 +78,12 @@ export {
   type ScrollBlockKey,
   type ScrollBlockStateStore,
 } from './scroll-state';
+export {
+  createUniverseSceneSession,
+  UNIVERSE_SCENE_LIMITS,
+  type UniverseGeography,
+  type UniverseSceneSnapshot,
+  type UniverseSceneReason,
+  type UniverseSceneState,
+  type UniverseSceneSession,
+} from './universe-scene';
