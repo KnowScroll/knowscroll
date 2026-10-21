@@ -816,6 +816,7 @@ export interface ScenesObjects {
 
 export interface ScenesState {
   payload: Json;
+  policy_version: string;
   privacy_epoch: number;
   scene_revision: number;
   universe_id: string;

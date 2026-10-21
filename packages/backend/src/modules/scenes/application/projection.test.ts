@@ -229,4 +229,86 @@ describe('persisted Scene projection policy (authored CI fixtures)', () => {
       }),
     ).toThrow();
   });
+  it('retains route bucket membership across earlier-sorting arrivals and withdrawal; aliases never retarget objects', () => {
+    const input = fixture();
+    const objects = [...input.objects, place(6, 'planet', 2, 'earth.tides')];
+    const route = (n: number) => ({
+      id: id(n),
+      kind: 'route' as const,
+      fromObjectId: id(4),
+      toObjectId: id(6),
+      originTransitionId: id(9999),
+      truthStatus: 'factual' as const,
+      relationRevision: 1,
+      status: 'current' as const,
+    });
+    const routes = Array.from({ length: 101 }, (_, i) => route(5000 + i));
+    const first = project({ ...input, objects, routes });
+    const next = projectBounded(
+      {
+        ...input,
+        objects,
+        routes: [
+          route(100),
+          ...routes.map((r, i) => (i === 0 ? { ...r, status: 'withdrawn' as const, relationRevision: 2 } : r)),
+        ],
+        geography: { revision: 2, structureRevision: 2, activityRevision: 0 },
+      },
+      first.objects,
+      first.changed,
+      seed,
+      2,
+      hash,
+      first.routeChunks,
+    );
+    for (const membership of first.routeChunks)
+      expect(next.routeChunks.find((r) => r.routeId === membership.routeId)).toEqual(membership);
+    expect(next.objects).toEqual(first.objects);
+    const alias = {
+      id: id(7000),
+      kind: 'alias' as const,
+      fromObjectId: id(4),
+      toObjectId: id(6),
+      originTransitionId: id(9999),
+      truthStatus: 'factual' as const,
+      relationRevision: 1,
+      status: 'current' as const,
+    };
+    const aliased = project({ ...input, objects, aliases: [alias] });
+    expect(aliased.objects.map((o) => o.descriptor.target)).toEqual(
+      project({ ...input, objects }).objects.map((o) => o.descriptor.target),
+    );
+  });
+  it('validates cross-chunk routes against the whole projection and refuses total chunk/route parser caps', () => {
+    const input = fixture();
+    const objects = [
+      place(2, 'system', 1, 'earth'),
+      ...Array.from({ length: 101 }, (_, i) => place(i + 3, 'planet', 2, 'earth.seasons')),
+    ];
+    const route = {
+      id: id(7000),
+      kind: 'route' as const,
+      fromObjectId: id(3),
+      toObjectId: id(103),
+      originTransitionId: id(9999),
+      truthStatus: 'factual' as const,
+      relationRevision: 1,
+      status: 'current' as const,
+    };
+    const p = project({ ...input, objects, routes: [route] });
+    expect(p.objects.find((o) => o.descriptor.objectId === route.fromObjectId)!.chunkId).not.toBe(
+      p.objects.find((o) => o.descriptor.objectId === route.toObjectId)!.chunkId,
+    );
+    expect(p.changed.some((c) => c.chunk.routes.some((r) => r.id === route.id))).toBe(true);
+    const chunk = p.changed.find((c) => c.chunk.routes.length)!.chunk;
+    expect(
+      SceneChunkSchema.safeParse({
+        ...chunk,
+        routes: Array.from({ length: 101 }, (_, i) => ({ ...route, id: id(8000 + i) })),
+      }).success,
+    ).toBe(false);
+    expect(() =>
+      project({ ...input, objects: Array.from({ length: 129 }, (_, i) => place(i + 2, 'system', 1, 'earth')) }),
+    ).toThrow(ProjectionUnavailable);
+  });
 });

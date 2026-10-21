@@ -372,6 +372,7 @@ describe('the erasure registry (real database)', () => {
           .values({
             universe_id: person.universeId,
             privacy_epoch: 1,
+            policy_version: 'canonical-lattice.v1',
             world_seed: 'a'.repeat(64),
             scene_revision: 1,
             payload: sceneFixture,

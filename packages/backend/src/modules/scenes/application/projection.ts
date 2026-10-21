@@ -9,7 +9,7 @@ import {
   type SceneChunk,
 } from '@knowscroll/contracts';
 import type { GeographySceneInput } from '../../geography/public.js';
-import type { StoredObject, StoredChunk } from './ports.js';
+import type { StoredObject, StoredChunk, RouteChunk } from './ports.js';
 export const SCENE_POLICY = 'canonical-lattice.v1';
 export class ProjectionUnavailable extends Error {
   constructor(readonly reason: 'limit' | 'temporarily_unavailable') {
@@ -57,12 +57,15 @@ export function projectBounded(
   worldSeed: string,
   sceneRevision: number,
   hash: (v: unknown) => string,
+  priorRoutes?: readonly RouteChunk[],
 ): {
   readonly manifest: SceneManifest;
   readonly objects: readonly StoredObject[];
   readonly changed: readonly StoredChunk[];
+  readonly routeChunks: readonly RouteChunk[];
 } {
-  if (input.objects.length > 1000 || input.routes.length + input.aliases.length > 1000) return refuse('limit');
+  if (input.objects.length > 1000 || prior.length > 1000 || input.routes.length + input.aliases.length > 1000)
+    return refuse('limit');
   const ids = new Map(input.objects.map((o) => [o.id, o]));
   if (ids.size !== input.objects.length) return refuse('temporarily_unavailable');
   const objects = new Map(prior.map((o) => [o.descriptor.objectId, o])),
@@ -156,7 +159,19 @@ export function projectBounded(
     b.objects.push(o.descriptor);
     buckets.set(o.chunkId, b);
   }
-  const routeCounts = new Map<string, number>();
+  const retainedRoutes =
+    priorRoutes ??
+    previousChunks.flatMap((c) =>
+      c.chunk.routes.map((r) => ({ routeId: r.id, systemId: c.systemId, chunkId: c.chunk.chunkId })),
+    );
+  const routeChunks = new Map(retainedRoutes.map((r) => [r.routeId, r]));
+  if (
+    routeChunks.size !== retainedRoutes.length ||
+    retainedRoutes.length > 1000 ||
+    retainedRoutes.some((r) => !input.routes.some((current) => current.id === r.routeId))
+  )
+    return refuse('temporarily_unavailable');
+  const routeIds = new Set<string>();
   for (const r of [...input.routes].sort((a, b) => a.id.localeCompare(b.id))) {
     const a = objects.get(r.fromObjectId),
       b = objects.get(r.toObjectId);
@@ -172,10 +187,21 @@ export function projectBounded(
       a.descriptor.objectId === b.descriptor.objectId
     )
       return refuse('temporarily_unavailable');
+    if (routeIds.has(r.id) || objects.has(r.id)) return refuse('temporarily_unavailable');
+    routeIds.add(r.id);
+    let membership = routeChunks.get(r.id);
+    if (membership && membership.systemId !== a.systemId) return refuse('temporarily_unavailable');
+    if (!membership) {
+      const index = [...routeChunks.values()].filter((r) => r.systemId === a.systemId).length;
+      membership = {
+        routeId: r.id,
+        systemId: a.systemId,
+        chunkId: chunkId(hash, worldSeed, a.systemId, `routes:${Math.floor(index / SCENE_LIMITS.routesPerChunk)}`),
+      };
+      routeChunks.set(r.id, membership);
+    }
     if (r.status !== 'current') continue;
-    const index = routeCounts.get(a.systemId) ?? 0;
-    routeCounts.set(a.systemId, index + 1);
-    const id = chunkId(hash, worldSeed, a.systemId, `routes:${Math.floor(index / SCENE_LIMITS.routesPerChunk)}`),
+    const id = membership.chunkId,
       bucket = buckets.get(id) ?? { systemId: a.systemId, objects: [], routes: [] };
     bucket.routes.push({
       id: r.id,
@@ -210,5 +236,5 @@ export function projectBounded(
     });
   }
   const manifest = SceneManifestSchema.parse({ schemaVersion: 'scene-manifest.v1', revisions, chunks: references });
-  return { manifest, objects: [...objects.values()], changed };
+  return { manifest, objects: [...objects.values()], changed, routeChunks: [...routeChunks.values()] };
 }

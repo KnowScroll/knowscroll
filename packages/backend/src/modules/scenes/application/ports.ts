@@ -25,7 +25,14 @@ export interface StoredChunk {
   readonly systemId: string;
   readonly chunk: SceneChunk;
 }
+export interface RouteChunk {
+  readonly routeId: string;
+  readonly systemId: string;
+  readonly chunkId: string;
+}
 export interface SceneState {
+  readonly policyVersion: 'canonical-lattice.v1';
+  readonly routeChunks: readonly RouteChunk[];
   readonly worldSeed: string;
   readonly manifest?: SceneManifest;
   readonly failure?: { readonly geographyRevision: number; readonly reason: 'limit' | 'temporarily_unavailable' };

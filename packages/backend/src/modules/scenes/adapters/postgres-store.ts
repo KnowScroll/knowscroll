@@ -7,8 +7,9 @@ export const sceneStore: SceneStore = {
   async state(scope) {
     const r = await sql<{
       world_seed: string;
+      policy_version: SceneState['policyVersion'];
       payload: SceneState;
-    }>`select world_seed,payload from scenes.state where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch}`.execute(
+    }>`select world_seed,policy_version,payload from scenes.state where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch}`.execute(
       transactionOf(scope),
     );
     const row = r.rows[0];
@@ -16,13 +17,14 @@ export const sceneStore: SceneStore = {
     return {
       ...row.payload,
       worldSeed: row.world_seed,
+      policyVersion: row.policy_version,
       ...(row.payload.manifest ? { manifest: SceneManifestSchema.parse(row.payload.manifest) } : {}),
     };
   },
   async objects(scope) {
     const r = await sql<{
       payload: StoredObject;
-    }>`select payload from scenes.objects where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} order by object_id`.execute(
+    }>`select payload from scenes.objects where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} order by object_id limit 1001`.execute(
       transactionOf(scope),
     );
     return r.rows.map((r) => ({ ...r.payload, descriptor: SceneDescriptorSchema.parse(r.payload.descriptor) }));
@@ -54,7 +56,7 @@ export const sceneStore: SceneStore = {
         tx,
       );
     const { worldSeed, ...payload } = state;
-    await sql`insert into scenes.state(universe_id,privacy_epoch,world_seed,scene_revision,payload) values(${u}::uuid,${e},${worldSeed},${state.manifest?.revisions.sceneRevision ?? 0},${JSON.stringify(payload)}::jsonb) on conflict(universe_id,privacy_epoch) do update set scene_revision=excluded.scene_revision,payload=excluded.payload`.execute(
+    await sql`insert into scenes.state(universe_id,privacy_epoch,policy_version,world_seed,scene_revision,payload) values(${u}::uuid,${e},${state.policyVersion},${worldSeed},${state.manifest?.revisions.sceneRevision ?? 0},${JSON.stringify(payload)}::jsonb) on conflict(universe_id,privacy_epoch) do update set scene_revision=excluded.scene_revision,payload=excluded.payload`.execute(
       tx,
     );
   },

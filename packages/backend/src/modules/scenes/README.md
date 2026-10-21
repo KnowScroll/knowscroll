@@ -41,7 +41,10 @@ objects choose the closest free slot to their parent, with a deterministic seed 
 topological kind/ID allocation order. Existing slots never move. Sibling arrivals, label/activity
 updates, restarts and full/low/reduced-motion capabilities never reroll existing appearance.
 
-Objects append to stable per-system buckets of100. Separate per-system route buckets contain
+The immutable state policy identity is stored explicitly as `canonical-lattice.v1`.
+Objects append to stable per-system buckets of100. Route-to-chunk membership is also persisted
+through arrivals and withdrawals; sorting a newly arrived route never rebalances older routes.
+Separate per-system route buckets contain
 at most100 current routes; withdrawal removes a route from a later snapshot, retaining objects.
 The whole hierarchy and route endpoints are checked before publication, including cross-chunk
 parents/endpoints. Canonical parsers enforce depth/node/UTF-8/escape budgets, at most100 objects
@@ -54,7 +57,7 @@ chunk references with their original input stamps, as the shared wire explicitly
 
 | Store | Purpose and access |
 |---|---|
-| scenes.state | Current epoch pointer, private world seed and latest failure stamp; one locked scope |
+| scenes.state | Current epoch pointer, pinned policy, private world seed, route allocation and latest failure stamp; one locked scope |
 | scenes.objects | Stable descriptor, system/chunk membership and finite slot; caller/epoch/object lookup |
 | scenes.chunks | Immutable chunk versions; exact caller/epoch/chunk/revision lookup |
 | scenes.manifests | Immutable whole-manifest versions; caller/epoch/scene revision |

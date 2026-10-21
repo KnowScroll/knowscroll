@@ -1,5 +1,5 @@
 import { ProjectSceneJobSchema } from '../events.js';
-import { projectBounded, ProjectionUnavailable } from './projection.js';
+import { projectBounded, ProjectionUnavailable, SCENE_POLICY } from './projection.js';
 import type { ProjectScene, ScenePorts, StoredChunk } from './ports.js';
 /** Old deliveries coalesce onto latest Geography; persisted stamps make crash-after-commit replay inert. */
 export function makeProjectScene(p: ScenePorts): ProjectScene {
@@ -41,10 +41,16 @@ export function makeProjectScene(p: ScenePorts): ProjectScene {
             worldSeed,
             (old?.manifest?.revisions.sceneRevision ?? 0) + 1,
             p.hash,
+            old?.routeChunks,
           );
           await p.store.save(
             scope,
-            { worldSeed, manifest: projection.manifest },
+            {
+              worldSeed,
+              policyVersion: SCENE_POLICY,
+              routeChunks: projection.routeChunks,
+              manifest: projection.manifest,
+            },
             projection.objects,
             projection.changed,
           );
@@ -60,6 +66,8 @@ export function makeProjectScene(p: ScenePorts): ProjectScene {
             scope,
             {
               worldSeed,
+              policyVersion: SCENE_POLICY,
+              routeChunks: old?.routeChunks ?? [],
               ...(old?.manifest ? { manifest: old.manifest } : {}),
               failure: { geographyRevision: input.geography.revision, reason },
             },

@@ -342,6 +342,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       (await sceneStoreState(p))!.manifest,
     );
     expect(first!.worldSeed).toBe((await sceneStoreState(p))!.worldSeed);
+    expect((await sceneStoreState(p))!.policyVersion).toBe('canonical-lattice.v1');
   });
   it('serves only selected exact current manifest references; foreign/old/unknown references never expose chunks', async () => {
     const p = await fixture();
@@ -419,6 +420,11 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       database.pool.query("update scenes.state set world_seed=repeat('b',64) where universe_id=$1", [p.universeId]),
     ).rejects.toMatchObject({ code: '23514' });
     await expect(
+      database.pool.query("update scenes.state set policy_version='canonical-lattice.v2' where universe_id=$1", [
+        p.universeId,
+      ]),
+    ).rejects.toMatchObject({ code: '23514' });
+    await expect(
       database.pool.query(
         "update scenes.objects set payload=jsonb_set(payload,'{descriptor,anchor,x}','999') where universe_id=$1",
         [p.universeId],
@@ -437,8 +443,38 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       job = (await jobs(p))[0]!.data;
     await project(job);
     await project((await jobs(kept))[0]!.data);
+    await withScope()(p.authority, async (scope) => {
+      const planet = p.places.find((o) => o.id === p.planet)!;
+      await geographyStore.saveObject(scope, { ...planet, label: 'Seasons retained history', objectRevision: 2 }, []);
+      await geographyStore.writeState(scope, {
+        ...(await geographyStore.state(scope)),
+        revision: 2,
+        structureRevision: 2,
+      });
+      const personalRevision = await advanceScopeRevision(scope);
+      await geo.applied(scope, {
+        transitionId: randomUUID(),
+        geography: { revision: 2, structureRevision: 2, activityRevision: 0 },
+        personalRevision,
+      });
+    });
+    await project(job);
+    expect(
+      (await database.pool.query('select scene_revision from scenes.manifests where universe_id=$1', [p.universeId]))
+        .rows,
+    ).toHaveLength(2);
+    // Additional old-epoch copies are explicit erasure-only CI rows, never active projection authority.
+    for (const [table, columns] of [
+      ['objects', 'object_id,system_id,chunk_id,slot,payload'],
+      ['chunks', 'chunk_id,scene_revision,system_id,payload'],
+      ['manifests', 'scene_revision,payload'],
+    ])
+      await database.pool.query(
+        `insert into scenes.${table} select universe_id,2,${columns} from scenes.${table} where universe_id=$1 and privacy_epoch=1`,
+        [p.universeId],
+      );
     await database.pool.query(
-      'insert into scenes.state select universe_id,2,world_seed,scene_revision,payload from scenes.state where universe_id=$1 and privacy_epoch=1',
+      'insert into scenes.state select universe_id,2,policy_version,world_seed,scene_revision,payload from scenes.state where universe_id=$1 and privacy_epoch=1',
       [p.universeId],
     );
     await c.boss.send(deadLetterQueueName(projectSceneQueue.name), job);

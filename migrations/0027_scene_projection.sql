@@ -30,7 +30,7 @@ create table scenes.objects (
 );
 create table scenes.state (
  universe_id uuid not null references identity.universes(id) on delete restrict,
- privacy_epoch integer not null check(privacy_epoch>0),world_seed text not null check(world_seed~'^[a-f0-9]{64}$'),
+ privacy_epoch integer not null check(privacy_epoch>0),policy_version text not null check(policy_version='canonical-lattice.v1'),world_seed text not null check(world_seed~'^[a-f0-9]{64}$'),
  scene_revision integer not null check(scene_revision>=0),
  payload jsonb not null check(jsonb_typeof(payload)='object' and octet_length(payload::text)<=262144),
  primary key(universe_id,privacy_epoch)
@@ -43,14 +43,14 @@ create function scenes.guard_object() returns trigger language plpgsql as $$
 begin
  if (new.universe_id,new.privacy_epoch,new.object_id,new.system_id,new.chunk_id,new.slot) is distinct from (old.universe_id,old.privacy_epoch,old.object_id,old.system_id,old.chunk_id,old.slot)
  or (new.payload-'descriptor') is distinct from (old.payload-'descriptor')
- or (new.payload->'descriptor'-array['label','activity']) is distinct from (old.payload->'descriptor'-array['label','activity'])
+ or ((new.payload->'descriptor')-array['label','activity']) is distinct from ((old.payload->'descriptor')-array['label','activity'])
  then raise exception 'SCENE_IDENTITY_IMMUTABLE' using errcode='23514'; end if;
  return new;
 end $$;
 create trigger scene_object_identity before update on scenes.objects for each row execute function scenes.guard_object();
 create function scenes.guard_state() returns trigger language plpgsql as $$
 begin
- if (new.universe_id,new.privacy_epoch,new.world_seed) is distinct from (old.universe_id,old.privacy_epoch,old.world_seed) or new.scene_revision<old.scene_revision
+ if (new.universe_id,new.privacy_epoch,new.policy_version,new.world_seed) is distinct from (old.universe_id,old.privacy_epoch,old.policy_version,old.world_seed) or new.scene_revision<old.scene_revision
  then raise exception 'SCENE_SEED_IMMUTABLE' using errcode='23514'; end if;
  return new;
 end $$;
