@@ -2,7 +2,7 @@ import type { ReportedUsage } from '../../domain/budgets.js';
 import type { ModelReply, QuotaObservation, StopReason } from '../../application/ports.js';
 import { canonicalJson, type CanonicalJson } from '../../../infrastructure/receipts/canonical.js';
 import { MAX_ANSWER_CHARS, MAX_ANSWER_DEPTH, exceedsDepth } from '../../domain/output.js';
-import { OUTPUT_TOOL_NAME, type ReplyFormat } from './output-format.js';
+import { OUTPUT_TOOL_NAME, JSON_STRING_TOOL_NAME, type ReplyFormat } from './output-format.js';
 
 /**
  * Pure parsing of MiniMax responses on the Anthropic-compatible route (providers-and-secrets.md).
@@ -137,6 +137,45 @@ export function parseMessagesReply(text: string, format: ReplyFormat = 'text'): 
   if (body['type'] === 'error' || (typeof baseStatus === 'number' && baseStatus !== 0))
     return { kind: 'rejected', code: `PROVIDER_ERROR_${providerErrorCode(body) ?? 'UNSPECIFIED'}` };
   const content = Array.isArray(body['content']) ? (body['content'] as unknown[]) : [];
+  if (format === 'single-tool-json-string.v1') {
+    const failed = (code: string): ParsedReply => ({
+      kind: 'reply',
+      reply: { ...withId, usage, answer: { kind: 'unreadable', code } },
+    });
+    if (body['stop_reason'] === 'max_tokens')
+      return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'text', text: '', stop: 'max_tokens' } } };
+    if (body['stop_reason'] !== 'tool_use') return failed('REPLY_TOOL_STOP_INVALID');
+    let input: Readonly<Record<string, unknown>> | undefined;
+    for (const value of content) {
+      const block = record(value);
+      if (block?.['type'] === 'thinking') continue;
+      if (block?.['type'] !== 'tool_use' || block['name'] !== JSON_STRING_TOOL_NAME || input !== undefined)
+        return failed('REPLY_TOOL_SHAPE_INVALID');
+      input = record(block['input']);
+      if (input === undefined) return failed('REPLY_TOOL_INPUT_INVALID');
+    }
+    if (input === undefined) return failed('REPLY_TOOL_MISSING');
+    if (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'json') || typeof input['json'] !== 'string')
+      return failed('REPLY_TOOL_INPUT_INVALID');
+    const answer = input['json'];
+    if (answer.length > MAX_ANSWER_CHARS) return failed('OUTPUT_TOO_LARGE');
+    let parsed: unknown;
+    try {
+      // Strict bare JSON only. No fences, field coercion, second decoding or repair here.
+      parsed = JSON.parse(answer);
+    } catch {
+      return failed('REPLY_TOOL_JSON_INVALID');
+    }
+    if (record(parsed) === undefined) return failed('REPLY_TOOL_JSON_INVALID');
+    const values: unknown[] = [parsed];
+    for (let value = values.pop(); value !== undefined; value = values.pop()) {
+      if (typeof value === 'number' && !Number.isFinite(value)) return failed('REPLY_TOOL_JSON_INVALID');
+      if (typeof value === 'object' && value !== null) for (const child of Object.values(value)) values.push(child);
+    }
+    if (exceedsDepth(parsed, MAX_ANSWER_DEPTH)) return failed('OUTPUT_TOO_DEEP');
+    // The unchanged harness still extracts, redacts, validates, semantically checks and bounds storage.
+    return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'text', text: answer, stop: 'end' } } };
+  }
   if (format === 'single-tool-object') {
     const failed = (code: string): ParsedReply => ({
       kind: 'reply',

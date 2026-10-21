@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 /** Advisory input shape only. The original role parser/refinements remain authoritative. */
 export const NATIVE_SCHEMA_MODE = 'zod-structural.v1';
+/** New transport selection only; the existing structural lowering remains unchanged. */
+export const JSON_STRING_SCHEMA_MODE = 'zod-structural-json-string.v1';
 export const NATIVE_SCHEMA_LIMITS = {
   bytes: 32_768,
   nodes: 4096,
