@@ -8,7 +8,7 @@
  * an operator-owned admission capability and never record who consumed content.
  */
 import { INTERACTION_KINDS, type ScrollDocument } from '@knowscroll/scroll-model';
-import type { PersonalScopeTx } from '../identity/public.js';
+import type { AccountAccess, PersonalScopeTx } from '../identity/public.js';
 import type { AssetKind } from './domain/provenance.js';
 import type { ReadingFacts } from './domain/reading-facts.js';
 
@@ -219,3 +219,22 @@ export type {
   CutroomObservedRun,
   ValidateCutroomRemoteChain,
 } from './production/commission-contracts.js';
+
+/** Minimized current immutable facts, bounded by canonical document validation. No rendering grant. */
+export type KeepPositionTarget =
+  | { readonly kind: 'reel'; readonly durationMs: number }
+  | { readonly kind: 'scroll'; readonly topLevelBlockIds: readonly string[] };
+/** Precondition: open own PersonalScopeTx, actual same-transaction FENCE_OWN_ACCOUNT, then exact
+ * Saved membership check, before this Content SHARE lock. owner must be that fresh gate result.
+ * Plain AccountAccess does NOT certify a held lock and cannot be cached/reused as authority.
+ * Matching actor/account/universe/epoch is checked here; the caller owns the account-gate and
+ * membership protocol. Missing/withdrawn/corrected/unsupported/malformed all return undefined.
+ * Current eligibility is freshly read after SHARE waits and remains fenced until commit.
+ * Ref uses the existing strict KeepAssetRef schema, not a guessed SQL UUID/revision cast.
+ */
+export type LockKeepPositionTarget = (
+  scope: PersonalScopeTx,
+  owner: AccountAccess,
+  ref: unknown,
+) => Promise<KeepPositionTarget | undefined>;
+export const LOCK_KEEP_POSITION_TARGET = Symbol('content.lockKeepPositionTarget');
