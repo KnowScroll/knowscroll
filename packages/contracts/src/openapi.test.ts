@@ -5,6 +5,11 @@ import {
   CODE_CHALLENGE_PATTERN,
   CODE_VERIFIER_PATTERN,
   ProblemDetailsSchema,
+  ClearExplorationSchema,
+  ClearExplorationAcceptanceSchema,
+  ReadClearExplorationStatusSchema,
+  ClearExplorationStatusSchema,
+  PrivacyProblemSchema,
   ReadKeepEntrySchema,
   SetKeepPlaceSchema,
   KeepEntrySnapshotSchema,
@@ -42,6 +47,7 @@ describe('the API contract', () => {
     const routes = [
       apiContract.health,
       ...Object.values(apiContract.keep),
+      ...Object.values(apiContract.privacy),
       ...Object.values(apiContract.sharing),
       apiContract.scenes.manifest,
       apiContract.scenes.chunk,
@@ -574,5 +580,147 @@ describe('RegionEncounterOpen declaration OpenAPI metadata', () => {
       expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty('regionId');
     }
     // Refinements still require the actual canonical parser; metadata grants no target authority.
+  });
+});
+
+describe('Selective Clear exploration declaration OpenAPI metadata', () => {
+  it('generates exact private POST202/200 and direct status-specific closed RFC9457 schemas', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const errors = apiContract.privacy.clearExploration['~orpc'].errorMap;
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas: {
+        ClearExploration: { schema: ClearExplorationSchema },
+        ClearExplorationAcceptance: { schema: ClearExplorationAcceptanceSchema },
+        ReadClearExplorationStatus: { schema: ReadClearExplorationStatusSchema },
+        ClearExplorationStatus: { schema: ClearExplorationStatusSchema },
+        PrivacyProblem: { schema: PrivacyProblemSchema },
+        ...Object.fromEntries(
+          Object.entries(errors).map(([code, definition]) => [`PrivacyProblem_${code}`, { schema: definition.data }]),
+        ),
+      },
+    });
+    expect(
+      Object.keys(document.paths ?? {})
+        .filter((path) => path.startsWith('/v1/privacy/'))
+        .sort(),
+    ).toEqual(['/v1/privacy/clear-exploration', '/v1/privacy/clear-exploration/status']);
+    const errorStatuses = ['400', '401', '403', '409', '413', '415', '422', '500', '503'];
+    for (const [path, input, output, success] of [
+      ['/v1/privacy/clear-exploration', 'ClearExploration', 'ClearExplorationAcceptance', '202'],
+      ['/v1/privacy/clear-exploration/status', 'ReadClearExplorationStatus', 'ClearExplorationStatus', '200'],
+    ] as const) {
+      const item = document.paths?.[path];
+      expect(Object.keys(item ?? {})).toEqual(['post']);
+      const operation = item?.post;
+      expect(operation?.parameters ?? []).toEqual([]);
+      expect(operation?.requestBody).toEqual({
+        required: true,
+        content: { 'application/json': { schema: { $ref: `#/components/schemas/${input}` } } },
+      });
+      expect(operation?.responses?.[success]).toMatchObject({
+        content: { 'application/json': { schema: { $ref: `#/components/schemas/${output}` } } },
+      });
+      expect(Object.keys(operation?.responses ?? {}).sort()).toEqual([success, ...errorStatuses].sort());
+      for (const status of errorStatuses) {
+        const response = operation?.responses?.[status];
+        expect(response && !('$ref' in response) && response.content).toEqual({
+          'application/problem+json': {
+            schema: {
+              oneOf: Object.entries(errors)
+                .filter(([, definition]) => String(definition.status) === status)
+                .map(([code]) => ({ $ref: `#/components/schemas/PrivacyProblem_${code}` })),
+            },
+          },
+        });
+      }
+    }
+    const schemas = document.components?.schemas;
+    expect(schemas?.['ClearExploration']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: ['version', 'commandId', 'expectedPrivacyEpoch', 'confirmation'],
+      properties: {
+        version: { const: 'clear-exploration.v1' },
+        expectedPrivacyEpoch: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+        confirmation: { const: 'clear-exploration-preserve-keep-and-social' },
+      },
+    });
+    expect(schemas?.['ClearExplorationAcceptance']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: expect.arrayContaining([
+        'version',
+        'commandId',
+        'fromEpoch',
+        'toEpoch',
+        'recordedAt',
+        'outcome',
+        'operation',
+        'replayed',
+      ]) as unknown,
+    });
+    expect(schemas?.['ReadClearExplorationStatus']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: ['version', 'target'],
+    });
+    const status = JSON.stringify(schemas?.['ClearExplorationStatus']);
+    for (const field of [
+      'scope',
+      'target',
+      'receipt',
+      'fromEpoch',
+      'toEpoch',
+      'not_recorded',
+      'pending',
+      'failed',
+      'completed_live',
+      'removing_live_data',
+      'waiting_for_accounting',
+      'verifying_live_removal',
+    ])
+      expect(status).toContain(`"${field}"`);
+    const whole = JSON.stringify(
+      Object.fromEntries(
+        Object.entries(schemas ?? {}).filter(
+          ([key]) =>
+            key.startsWith('ClearExploration') ||
+            key === 'ReadClearExplorationStatus' ||
+            key.startsWith('PrivacyProblem'),
+        ),
+      ),
+    );
+    for (const field of [
+      'universeId',
+      'tables',
+      'counts',
+      'progress',
+      'provider',
+      'detail',
+      'instance',
+      'payload',
+      'backupExpiresAt',
+      'preservedItems',
+      'currentEpoch',
+      'requestHash',
+    ])
+      expect(whole).not.toContain(`"${field}"`);
+    for (const [code, definition] of Object.entries(errors)) {
+      const schema = schemas?.[`PrivacyProblem_${code}`];
+      expect(schema).toMatchObject({
+        type: 'object',
+        additionalProperties: false,
+        required: expect.arrayContaining(['type', 'title', 'status', 'code']) as unknown,
+        properties: {
+          code: { const: code },
+          status: { const: definition.status },
+          title: { const: problemCatalogue[code as keyof typeof problemCatalogue].title },
+        },
+      });
+      for (const forbidden of ['defined', 'message', 'detail', 'instance', 'receipt', 'currentEpoch'])
+        expect(JSON.stringify(schema)).not.toContain(`"${forbidden}"`);
+    }
+    expect(schemas?.['PrivacyProblem']).toBeDefined();
   });
 });
