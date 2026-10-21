@@ -51,7 +51,7 @@ describe('Content Keep position target (real PostgreSQL)', () => {
     const source = starterSource();
     const assetId = randomUUID();
     source['assetId'] = assetId;
-    source['reference'] = 'CI Keep target fixture, no live provenance claim';
+    source['reference'] = 'ci-keep-target-only-no-live-provenance';
     expect(await importEditorialScrollUseCase(database.db)(source)).toMatchObject({ kind: 'imported' });
     const row = await database.db
       .selectFrom('content.asset_revisions')
