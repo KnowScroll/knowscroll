@@ -3,7 +3,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { inject } from 'vitest';
-import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
+import { applyQueueDeclarations, createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   CutroomCommissionScriptSchema,
@@ -25,7 +25,7 @@ import {
   makeCutroomPool,
   type CutroomBPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
-import type { CutroomOwnerApproval, CutroomB } from '@knowscroll/backend/reasoning';
+import { cutroomPoolQueue, type CutroomOwnerApproval, type CutroomB } from '@knowscroll/backend/reasoning';
 import { createTestDatabase, type TestDatabase } from './database.js';
 import { databaseUrl, quoteIdentifier, withAdmin } from './admin.js';
 export const hash = (v: string) => createHash('sha256').update(v, 'utf8').digest('hex');
@@ -143,6 +143,7 @@ export async function commissionFixture(label: string): Promise<CommissionFixtur
   });
   const boss = createBoss(world.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
   await boss.start();
+  await applyQueueDeclarations(boss, [cutroomPoolQueue]);
   await world.db
     .insertInto('reasoning.cutroom_scopes')
     .values({ world_id: 'dev', generation: 1, enabled: true })
