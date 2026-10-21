@@ -77,7 +77,27 @@ export type CutroomIntentResult =
       readonly kind: 'held';
       readonly code: 'disabled' | 'identity' | 'review' | 'preflight' | 'expired' | 'unknown' | 'settled';
     };
+/** Immutable C1 metadata only, read under the existing live accounting scope. */
+export interface CutroomExecutionBinding {
+  readonly dispatchId: string;
+  readonly fence: number;
+  readonly requestSha256: string;
+  readonly reviewSha256: string;
+  readonly corpusSha256: string;
+  readonly humanEvidenceRef: string;
+  readonly profileSha256: string;
+  readonly soleWriterEvidenceSha256: string;
+  readonly fundsEvidenceSha256: string;
+  readonly poolReceipt: CutroomPoolReceipt;
+}
 export interface CutroomExecutionStore {
+  readAccountingBinding(scope: CutroomAccountingScopeTx): Promise<CutroomExecutionBinding | undefined>;
+  matchesAccountingObservation(
+    scope: CutroomAccountingScopeTx,
+    observationId: string,
+    snapshotSha256: string,
+    runId: string,
+  ): Promise<boolean>;
   identify(
     scope: CutroomScopeTx,
     attemptId: string,
@@ -123,6 +143,21 @@ export interface CutroomExecutionPorts {
   readonly now: () => Date;
 }
 export interface CutroomExecutionFoundation {
+  readAccountingBinding(scope: CutroomAccountingScopeTx): Promise<CutroomExecutionBinding | undefined>;
+  matchesAccountingObservation(
+    scope: CutroomAccountingScopeTx,
+    observationId: string,
+    snapshotSha256: string,
+    runId: string,
+  ): Promise<boolean>;
+  recordObservationInScope(
+    scope: CutroomAccountingScopeTx,
+    observation: unknown,
+  ): Promise<
+    | { readonly kind: 'pending'; readonly observationId: string }
+    | { readonly kind: 'refused'; readonly code: 'disabled' | 'identity' | 'invalid' }
+  >;
+
   prepareIntent(authority: CutroomAuthority, attemptId: string): Promise<CutroomIntentResult>;
   recordObservation(
     target: CutroomAccountingTarget,

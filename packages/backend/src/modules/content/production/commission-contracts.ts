@@ -461,3 +461,27 @@ export type CutroomChainCollection =
 export interface CutroomChainCollector {
   collect(expected: CutroomChainInput['expected']): Promise<CutroomChainCollection>;
 }
+
+/** Data-only sanitized collection envelope. Neither its hashes nor timestamps grant authority. */
+export const CutroomCollectedChainSchema = z.strictObject({
+  version: z.literal('cutroom-chain-collection.v1'),
+  input: CutroomChainInputSchema,
+  evidenceSha256: digest,
+  calls: z.number().int().min(1).max(CUTROOM_CHAIN_COLLECTION_LIMITS.calls),
+  responseBytes: z.number().int().min(1).max(CUTROOM_CHAIN_COLLECTION_LIMITS.totalResponseBytes),
+  observedAtMs: chainCounter,
+  profile: z.strictObject({
+    upstreamRevision: z.literal(CUTROOM_CHAIN_UPSTREAM_REVISION),
+    soleWriterEvidenceSha256: digest,
+    observedAtMs: chainCounter,
+    expiresAtMs: chainCounter,
+  }),
+});
+export type CutroomCollectedChain = z.infer<typeof CutroomCollectedChainSchema>;
+export type CutroomChainSnapshotCollection =
+  | Exclude<CutroomChainCollection, { readonly kind: 'observed' }>
+  | { readonly kind: 'collected'; readonly snapshot: CutroomCollectedChain };
+/** Explicit composition only. Returns sanitized metadata, never dispatch/settlement authority. */
+export interface CutroomChainSnapshotCollector {
+  collect(expected: CutroomChainInput['expected']): Promise<CutroomChainSnapshotCollection>;
+}

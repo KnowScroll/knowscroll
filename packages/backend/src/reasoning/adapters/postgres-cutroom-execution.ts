@@ -11,6 +11,84 @@ export function postgresCutroomExecution(
   now: () => Date = () => new Date(),
 ): CutroomExecutionStore {
   return {
+    async matchesAccountingObservation(scope, observationId, snapshotSha256, runId) {
+      const trx = cutroomAccountingTransactionOf(scope);
+      const observation = {
+        requestId: scope.identity.requestId,
+        runId,
+        evidenceSha256: snapshotSha256,
+        outcome: 'terminal_unvalidated',
+      };
+      const expectedProjection = createHash('sha256').update(JSON.stringify(observation), 'utf8').digest('hex');
+      const row = await trx
+        .selectFrom('reasoning.cutroom_observations as o')
+        .innerJoin('reasoning.cutroom_accounting_intents as i', (join) =>
+          join.onRef('i.observation_id', '=', 'o.id').onRef('i.attempt_id', '=', 'o.attempt_id'),
+        )
+        .select('o.id')
+        .where('o.id', '=', observationId)
+        .where('o.attempt_id', '=', scope.attemptId)
+        .where('o.request_id', '=', scope.identity.requestId)
+        .where('o.run_id', '=', runId)
+        .where('o.evidence_sha256', '=', snapshotSha256)
+        .where('o.projection_sha256', '=', expectedProjection)
+        .where('o.outcome', '=', 'terminal_unvalidated')
+        .where('i.state', '=', 'pending')
+        .executeTakeFirst();
+      return row !== undefined;
+    },
+    async readAccountingBinding(scope) {
+      const trx = cutroomAccountingTransactionOf(scope);
+      const row = await trx
+        .selectFrom('reasoning.cutroom_execution as e')
+        .innerJoin('reasoning.cutroom_attempts as a', 'a.id', 'e.attempt_id')
+        .select([
+          'e.dispatch_id',
+          'e.fence',
+          'e.request_sha256',
+          'e.review_sha256',
+          'e.corpus_sha256',
+          'e.human_evidence_ref',
+          'e.profile_sha256',
+          'e.sole_writer_evidence_sha256',
+          'e.funds_evidence_sha256',
+          'e.binding_id',
+          'a.binding_id as retained_binding_id',
+          'a.pool_state',
+          sql<string>`to_char(e.claimed_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as('claimed'),
+          sql<string>`to_char(e.bound_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as('bound'),
+          sql<string>`to_char(a.claimed_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as('retained_claimed'),
+          sql<string>`to_char(a.bound_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as('retained_bound'),
+        ])
+        .where('e.attempt_id', '=', scope.attemptId)
+        .where('e.world_id', '=', scope.worldId)
+        .where('e.business_run_id', '=', scope.businessRunId)
+        .where('a.world_id', '=', scope.worldId)
+        .where('a.business_run_id', '=', scope.businessRunId)
+        .executeTakeFirst();
+      if (
+        !row ||
+        row.fence !== scope.fence ||
+        row.request_sha256 !== scope.identity.requestSha256 ||
+        row.pool_state !== 'claimed' ||
+        row.binding_id !== row.retained_binding_id ||
+        row.claimed !== row.retained_claimed ||
+        row.bound !== row.retained_bound
+      )
+        return undefined;
+      return {
+        dispatchId: row.dispatch_id,
+        fence: row.fence,
+        requestSha256: row.request_sha256,
+        reviewSha256: row.review_sha256,
+        corpusSha256: row.corpus_sha256,
+        humanEvidenceRef: row.human_evidence_ref,
+        profileSha256: row.profile_sha256,
+        soleWriterEvidenceSha256: row.sole_writer_evidence_sha256,
+        fundsEvidenceSha256: row.funds_evidence_sha256,
+        poolReceipt: { bindingId: row.binding_id, claimedAt: row.claimed, boundAt: row.bound },
+      };
+    },
     async identify(scope, attemptId) {
       const trx = cutroomTransactionOf(scope);
       const a = await trx

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runMarkedTransaction } from '../../../../infrastructure/postgres/transaction-marker.js';
-import { makeCutroomChainCollector } from './chain-reader.js';
+import { makeCutroomChainCollector, makeCutroomChainSnapshotCollector } from './chain-reader.js';
 import {
   CUTROOM_CHAIN_UPSTREAM_REVISION,
   type CutroomChainInput,
@@ -452,5 +452,33 @@ describe('GET-only bounded Cutroom collector (authored wire fixtures)', () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect(await promise).toEqual({ kind: 'unknown', code: 'deadline' });
     expect(mock).toHaveBeenCalledTimes(1);
+  });
+  it('separately retains only sanitized bounded projections and captured profile references', async () => {
+    single();
+    const result = await makeCutroomChainSnapshotCollector(settings()).collect(expected);
+    expect(result.kind).toBe('collected');
+    if (result.kind !== 'collected') throw new Error('CI_SNAPSHOT');
+    expect(result.snapshot).toMatchObject({
+      version: 'cutroom-chain-collection.v1',
+      calls: 5,
+      observedAtMs: 1000,
+      input: { validationTimeMs: 1000, runs: [{ closedAtMs: 1000 }] },
+    });
+    expect(JSON.stringify(result.snapshot)).not.toMatch(/private-key|signature|credential|example.invalid/);
+    expect(result.snapshot.input.runs[0]!.recordUtf8).toContain('accept_with_label');
+    expect(result.snapshot.input.runs[0]!.statusUtf8).toContain('fictional-original');
+  });
+  it('new document handoff defaults disabled and has the same actual transaction network fence', async () => {
+    const mock = single();
+    expect(await makeCutroomChainSnapshotCollector().collect(expected)).toEqual({
+      kind: 'unavailable',
+      code: 'disabled',
+    });
+    expect(mock).not.toHaveBeenCalled();
+    const result = await runMarkedTransaction('authored-snapshot-fixture', () =>
+      makeCutroomChainSnapshotCollector(settings()).collect(expected),
+    );
+    expect(result.kind).toBe('unknown');
+    expect(mock).not.toHaveBeenCalled();
   });
 });

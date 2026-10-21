@@ -102,6 +102,33 @@ export interface ContentCoverageRevisions {
   status: string;
 }
 
+export interface ContentCutroomChainDocuments {
+  body_utf8: string;
+  byte_length: number;
+  kind: string;
+  run_ordinal: number;
+  sha256: string;
+  snapshot_id: string;
+}
+
+export interface ContentCutroomChainSnapshots {
+  attempt_id: string;
+  business_run_id: string;
+  document_count: number;
+  engine_actual_cents: Int8;
+  header_utf8: string;
+  id: string;
+  observation_id: string;
+  over_ceiling: boolean;
+  projection_version: string;
+  sealed_validation_time_ms: Int8;
+  snapshot_ordinal: number;
+  snapshot_sha256: string;
+  total_document_bytes: number;
+  video_kind: string;
+  world_id: string;
+}
+
 export interface ContentCutroomCorpus {
   bridge_sha256: string;
   generated_reel_id: string;
@@ -1048,6 +1075,8 @@ export interface DB {
   "content.continuity_links": ContentContinuityLinks;
   "content.coverage_heads": ContentCoverageHeads;
   "content.coverage_revisions": ContentCoverageRevisions;
+  "content.cutroom_chain_documents": ContentCutroomChainDocuments;
+  "content.cutroom_chain_snapshots": ContentCutroomChainSnapshots;
   "content.cutroom_corpus": ContentCutroomCorpus;
   "content.cutroom_reviews": ContentCutroomReviews;
   "content.discovery_revisions": ContentDiscoveryRevisions;

@@ -10,6 +10,8 @@ import {
   CutroomChainResultSnapshotSchema,
   CutroomChainRecordSnapshotSchema,
   type CutroomChainCollector,
+  type CutroomCollectedChain,
+  type CutroomChainSnapshotCollector,
   type CutroomChainCollectorSettings,
   type CutroomChainCollection,
   type CutroomChainInput,
@@ -142,14 +144,17 @@ function originOf(value: string | undefined): URL | undefined {
 }
 /** GET-only and inert by default. Supplied profile expectations are NOT deployed-service proof.
  * Raw wire bodies are private transient input; return only finite reports/digests/counters. */
-export function makeCutroomChainCollector(settings: CutroomChainCollectorSettings = {}): CutroomChainCollector {
+type InternalCollection =
+  | Exclude<CutroomChainCollection, { readonly kind: 'observed' }>
+  | (Extract<CutroomChainCollection, { readonly kind: 'observed' }> & { readonly snapshot: CutroomCollectedChain });
+function makeCollector(settings: CutroomChainCollectorSettings = {}) {
   // Capture trusted composition settings, never a per-request origin/profile override.
   const enabled = settings.enabled === true;
   const origin = originOf(settings.origin);
   const profile = settings.profile ? { ...settings.profile } : undefined;
   const clock = settings.now ?? Date.now;
   return {
-    async collect(expected): Promise<CutroomChainCollection> {
+    async collect(expected: CutroomChainInput['expected']): Promise<InternalCollection> {
       if (!enabled) return { kind: 'unavailable', code: 'disabled' };
       try {
         const start = clock();
@@ -342,14 +347,24 @@ export function makeCutroomChainCollector(settings: CutroomChainCollectorSetting
           runs[index]!.closedAtMs = closing.at;
         }
         const observedAtMs = time();
-        const report = validatePinnedCutroomChain({
+        const input = {
           upstreamRevision: profile.upstreamRevision,
           validationTimeMs: observedAtMs,
           expected: identity,
           runs,
-        });
+        };
+        const report = validatePinnedCutroomChain(input);
         return {
           kind: 'observed',
+          snapshot: {
+            version: 'cutroom-chain-collection.v1',
+            input,
+            evidenceSha256: hash(JSON.stringify(evidence)),
+            calls,
+            responseBytes,
+            observedAtMs,
+            profile: { ...profile, upstreamRevision: CUTROOM_CHAIN_UPSTREAM_REVISION },
+          },
           report,
           evidenceSha256: hash(JSON.stringify(evidence)),
           calls,
@@ -359,6 +374,37 @@ export function makeCutroomChainCollector(settings: CutroomChainCollectorSetting
       } catch (error) {
         return error instanceof CollectionRefusal ? error.result : { kind: 'unknown', code: 'protocol' };
       }
+    },
+  };
+}
+
+/** Existing report-only API intentionally discards all sanitized documents. */
+export function makeCutroomChainCollector(settings: CutroomChainCollectorSettings = {}): CutroomChainCollector {
+  const collector = makeCollector(settings);
+  return {
+    async collect(expected) {
+      const value = await collector.collect(expected);
+      if (value.kind !== 'observed') return value;
+      return {
+        kind: value.kind,
+        report: value.report,
+        evidenceSha256: value.evidenceSha256,
+        calls: value.calls,
+        responseBytes: value.responseBytes,
+        observedAtMs: value.observedAtMs,
+      };
+    },
+  };
+}
+/** Separately selected default-disabled handoff; raw wire data never leaves the common parser. */
+export function makeCutroomChainSnapshotCollector(
+  settings: CutroomChainCollectorSettings = {},
+): CutroomChainSnapshotCollector {
+  const collector = makeCollector(settings);
+  return {
+    async collect(expected) {
+      const value = await collector.collect(expected);
+      return value.kind === 'observed' ? { kind: 'collected', snapshot: value.snapshot } : value;
     },
   };
 }

@@ -328,3 +328,74 @@ export async function fixtureReview(
     },
   };
 }
+
+import { cutroomExecutionFor, makeWithCutroomAccountingScope } from '@knowscroll/backend/reasoning/nest-providers';
+import { sql } from 'kysely';
+import type { CutroomDispatchPreflight } from '@knowscroll/backend/reasoning';
+/** Genuine disposable B claim + C1 dispatch intent. NEVER consumes/sends its ephemeral permit. */
+export async function fixtureDispatchedCommission(f: CommissionFixture, label: string) {
+  const command = f.command(label, 1, true),
+    reviewed = await fixtureReview(f, command.input);
+  const admitted = await f.commission()(command.input);
+  if (admitted.kind !== 'pending') throw new Error('CI_CHAIN_ADMISSION');
+  const target = { worldId: 'dev' as const, businessRunId: command.input.businessRunId, attemptId: admitted.attemptId };
+  const review = makeCommissionReview(postgresCommissionReview, {
+    enabled: true,
+    approvals: [reviewed.human],
+    manifests: [fixtureCorpusManifest()],
+  });
+  const accepted = await f
+    .service()
+    .withScope(command.input.authority, 'admit', (scope) => review.admit(scope, reviewed.packet));
+  if (accepted.kind !== 'entered' || accepted.value.kind !== 'reviewed') throw new Error('CI_CHAIN_REVIEW');
+  const claimed = await f.service().claim(command.input.authority, admitted.attemptId);
+  if (claimed.kind !== 'pending' || claimed.poolState !== 'claimed') throw new Error('CI_CHAIN_CLAIM');
+  const a = await f.world.db
+    .selectFrom('reasoning.cutroom_attempts')
+    .select(['fence', 'binding_id'])
+    .where('id', '=', admitted.attemptId)
+    .executeTakeFirstOrThrow();
+  const receipt = (
+    await sql<{ claimed: string; bound: string }>`select
+    to_char(claimed_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') claimed,
+    to_char(bound_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') bound
+    from reasoning.cutroom_attempts where id=${admitted.attemptId}::uuid`.execute(f.world.db)
+  ).rows[0]!;
+  const now = new Date();
+  const preflight: CutroomDispatchPreflight = {
+    attemptId: admitted.attemptId,
+    requestSha256: command.prepared.requestSha256,
+    fence: a.fence,
+    profileSha256: hash('fixture-engine'),
+    soleWriterEvidenceSha256: hash('fixture-sole-writer'),
+    fundsEvidenceSha256: hash('fixture-funds-not-real'),
+    observedAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + 30000).toISOString(),
+    availableCents: 200,
+    poolReceipt: { bindingId: a.binding_id!, claimedAt: receipt.claimed, boundAt: receipt.bound },
+  };
+  const execution = cutroomExecutionFor(f.world.db, f.boss, {
+    enabled: true,
+    recheckReview: review.recheck,
+    preflights: [preflight],
+    now: () => now,
+  });
+  const dispatched = await execution.prepareIntent(command.input.authority, admitted.attemptId);
+  if (dispatched.kind !== 'prepared') throw new Error('CI_CHAIN_INTENT');
+  return {
+    ...command,
+    target,
+    preflight,
+    execution,
+    accounting: makeWithCutroomAccountingScope(f.world.db, { enabled: true, lockTimeoutMs: 5000 }),
+    expected: {
+      ...target,
+      requestId: command.prepared.requestId,
+      scriptSha256: command.prepared.scriptSha256,
+      requestSha256: command.prepared.requestSha256,
+      contractVersion: 1 as const,
+      take: command.input.take,
+      ceilingCents: command.input.ceilingCents,
+    },
+  };
+}

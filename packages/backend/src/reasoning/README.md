@@ -613,3 +613,20 @@ a script or proves current funds/profile/corpus completeness. A concurrent chang
 make the returned packet stale; unchanged locked C1 admission and execution recheck
 must validate current generation/approval/corpus again. No normal worker/API/operator,
 registry seed, corpus reader/import, transport, pool grant or paid operation is bound.
+
+### Durable Content chain evidence handoff (#240)
+
+The optional Content snapshot factory can read immutable C1 execution metadata and verify an exact
+observation/pending-intent binding through the existing live accounting scope. These methods expose
+no protected bytes, B scope, permit or pool operation. Receipt timestamps remain canonical UTC text
+with six fractional digits. `recordObservationInScope` reuses the old generic wrapper's validation,
+identity check, observation/intent and fixed IDs-only pg-boss enqueue in the caller's SAME transaction;
+there is no nested transaction or second outbox. The original `recordObservation` behavior is unchanged.
+
+For the new complete-snapshot path only, `evidenceSha256` is the canonical sealed snapshot digest.
+The raw-body aggregate remains a separately named Content header field. The unique observation maps
+to one immutable Content snapshot, allowing the existing accounting job to find retained evidence.
+Replay/capacity checks occur before observation writes; a later failure throws through the scope and
+rolls snapshot, observation, pending intent and job back together. Neither cost completeness nor video
+classification settles money, changes AttemptState/pool state or releases the whole held ceiling.
+No normal consumer/transport/approval/root is installed; all factories remain explicit and disabled.
