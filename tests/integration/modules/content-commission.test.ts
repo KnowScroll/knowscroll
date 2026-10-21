@@ -410,11 +410,14 @@ describe('C1 CF63 exact legacy projections and conservative narration bridge (so
     script.criteria.depictionPolicyVersion = 'policy-new';
     script.evidence.sources.reverse();
     script.narration.reverse();
-    script.narration = script.narration.map((n) => ({ ...n, text: `  ${n.text.toUpperCase()}  ` }));
+    script.narration = script.narration.map((n) => ({ ...n, text: `  ${n.text.toUpperCase().replace(/ /g, ' \t ')}` }));
     const p = packetOf({ ...input, script });
     expect(p.templateSha256).not.toBe(base.templateSha256);
     expect(p.bridgeSha256).toBe(base.bridgeSha256);
     expect(checkReelCorpus([record], fixtureCorpusManifest([record]), p)).toBe('repetition');
+    const trailing = structuredClone(script);
+    trailing.narration[0]!.text += '  ';
+    expect(prepareCommissionReview({ ...input, script: trailing })).toEqual({ kind: 'refused', code: 'invalid' });
   });
   it('ordered claim-count changes can alter template but never clear equal narration', () => {
     const input = proposedScript(),
