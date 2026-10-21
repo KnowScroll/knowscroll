@@ -4,6 +4,9 @@ import type { NextFunction, Request, Response } from 'express';
 import {
   PROBLEM_MEDIA_TYPE,
   KeepPlaceProblemSchema,
+  KeepRemovalProblemSchema,
+  KeepRemovalProblemIssueSchema,
+  type KeepRemovalProblem,
   KeepProblemIssueSchema,
   type KeepPlaceProblem,
   problemCatalogue,
@@ -93,6 +96,35 @@ function keepDetails(details: ProblemDetails): ProblemDetails {
   return parsed.success ? parsed.data : KeepPlaceProblemSchema.parse(problemDetails('INTERNAL'));
 }
 
+/** Removal never carries privileged place-CAS or replacement metadata. */
+function keepRemovalIssues(input: unknown): NonNullable<KeepRemovalProblem['issues']> {
+  if (!Array.isArray(input)) return [];
+  return input.slice(0, 32).map((issue: unknown) => {
+    const candidate = issue !== null && typeof issue === 'object' ? (issue as { path?: unknown; code?: unknown }) : {};
+    const path = Array.isArray(candidate.path) ? candidate.path.slice(0, 8) : [];
+    const code = KeepRemovalProblemIssueSchema.shape.code.safeParse(candidate.code);
+    return {
+      path: path.map((segment: unknown) => {
+        const key = segment !== null && typeof segment === 'object' && 'key' in segment ? segment.key : segment;
+        const token = KeepRemovalProblemIssueSchema.shape.path.element.safeParse(key);
+        return token.success ? token.data : 'unknown';
+      }),
+      code: code.success ? code.data : 'custom',
+    };
+  });
+}
+function keepRemovalDetails(details: ProblemDetails): KeepRemovalProblem {
+  const { type, title, status, code } = details;
+  const parsed = KeepRemovalProblemSchema.safeParse({
+    type,
+    title,
+    status,
+    code,
+    ...(details.issues === undefined ? {} : { issues: keepRemovalIssues(details.issues) }),
+  });
+  return parsed.success ? parsed.data : KeepRemovalProblemSchema.parse(problemDetails('INTERNAL'));
+}
+
 function isProblemCode(code: string): code is ProblemCode {
   return Object.hasOwn(problemCatalogue, code);
 }
@@ -119,6 +151,7 @@ export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent
   const trusted = error.cause !== null && typeof error.cause === 'object' ? keepErrors.get(error.cause) : undefined;
   if (trusted !== undefined) {
     const context = currentRequest();
+    if (context?.problemFamily === 'keep-remove') return finish(trusted);
     if (context !== undefined) context.problemCode = trusted.code;
     return trusted;
   }
@@ -126,6 +159,12 @@ export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent
     const data = (error.data ?? {}) as ProblemData;
     return finish(problemDetails(error.code, data));
   }
+  if (error.code === 'BAD_REQUEST' && currentRequest()?.problemFamily === 'keep-remove')
+    return finish(
+      problemDetails('INVALID_REQUEST', {
+        issues: keepRemovalIssues((error.data as { issues?: unknown } | undefined)?.issues),
+      }),
+    );
   if (error.code === 'BAD_REQUEST')
     return finish(
       problemDetails('INVALID_REQUEST', {
@@ -198,6 +237,11 @@ function validationIssues(error: ORPCError<string, unknown>): ProblemIssue[] {
 
 function finish(details: ProblemDetails): ProblemDetails {
   const context = currentRequest();
+  if (context?.problemFamily === 'keep-remove') {
+    const closed = keepRemovalDetails(details);
+    context.problemCode = closed.code;
+    return closed;
+  }
   if (context !== undefined) context.problemCode = details.code;
   return context?.problemFamily === 'keep-place' ? keepDetails(details) : details;
 }
@@ -209,6 +253,12 @@ function logUnexpected(logEvent: LogEvent, error: unknown): void {
 
 /** Writes problem details with the RFC 9457 media type (and `Retry-After` on a 503). */
 export function sendProblem(response: Response, details: ProblemDetails): void {
+  if (currentRequest()?.problemFamily === 'keep-remove') {
+    details = keepRemovalDetails(details);
+    const context = currentRequest();
+    if (context !== undefined) context.problemCode = details.code;
+    response.setHeader('cache-control', 'private, no-store');
+  }
   if (currentRequest()?.problemFamily === 'keep-place') {
     // Already validated trusted stale replies retain their sole authorized extension.
     const trusted = KeepPlaceProblemSchema.safeParse(details);

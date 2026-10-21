@@ -10,12 +10,17 @@ import type { LogEvent } from '@knowscroll/backend/infrastructure/observability'
 export interface RequestContext {
   readonly requestId: string;
   problemCode?: string;
-  readonly problemFamily?: 'keep-place';
+  readonly problemFamily?: 'keep-place' | 'keep-remove';
 }
 
 /** Finite serializer/cache selection only, never caller or operation authority. */
 export function isKeepPlaceRequest(request: Pick<Request, 'method' | 'path'>): boolean {
   return request.method === 'POST' && /^\/v1\/experience\/keep\/(?:read|place)\/?$/i.test(request.path);
+}
+
+/** New removal has a separate closed error family, selected before auth/body parsing. */
+function isKeepRemovalRequest(request: Pick<Request, 'method' | 'path'>): boolean {
+  return request.method === 'POST' && /^\/v1\/experience\/keep\/remove\/?$/i.test(request.path);
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -33,11 +38,14 @@ export function currentRequest(): RequestContext | undefined {
 export function requestContextMiddleware(logEvent: LogEvent) {
   return (request: Request, response: Response, next: NextFunction): void => {
     const keep = isKeepPlaceRequest(request);
+    const removal = isKeepRemovalRequest(request);
     const context: RequestContext = {
       requestId: randomUUID(),
       ...(keep ? { problemFamily: 'keep-place' as const } : {}),
+      ...(removal ? { problemFamily: 'keep-remove' as const } : {}),
     };
     if (keep) response.setHeader('cache-control', 'private, no-store');
+    if (removal) response.setHeader('cache-control', 'private, no-store');
     const startedAt = performance.now();
     response.setHeader('x-request-id', context.requestId);
     let logged = false;

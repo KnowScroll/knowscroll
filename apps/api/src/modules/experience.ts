@@ -13,13 +13,14 @@ import {
   experienceEvidenceReadProviders,
   experienceProviders,
   keepPlaceProviders,
+  keepRemovalProviders,
   navigationProviders,
   NAVIGATE_ENCOUNTER,
   ACTIVATE_OFFER,
   READ_EXPOSURE_CONTEXT,
   APPLY_ENCOUNTER_ACTION,
 } from '@knowscroll/backend/modules/experience/nest-providers';
-import { KEEP_PLACE_USE_CASES } from '@knowscroll/backend/modules/experience';
+import { KEEP_PLACE_USE_CASES, KEEP_REMOVAL_USE_CASE } from '@knowscroll/backend/modules/experience';
 import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
 import { API_CONFIG, DATABASE, ENQUEUE_JOB, WITH_PERSONAL_SCOPE } from '../tokens.js';
 
@@ -43,12 +44,14 @@ export const experienceWiring: Provider[] = [
       accountAccessUseCases({ db, lockTimeoutMs: config.scopeLockTimeoutMs }).fenceOwnAccount,
   },
   ...keepPlaceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
+  ...keepRemovalProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...composerProviders({ isOperator: () => false }),
   ...navigationProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
 ];
 
 export {
   KEEP_PLACE_USE_CASES,
+  KEEP_REMOVAL_USE_CASE,
   ACTIVATE_EXPOSURE,
   APPLY_ACTION,
   LIST_SAVED,
