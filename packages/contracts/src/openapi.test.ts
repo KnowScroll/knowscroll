@@ -5,6 +5,11 @@ import {
   CODE_CHALLENGE_PATTERN,
   CODE_VERIFIER_PATTERN,
   ProblemDetailsSchema,
+  ReadKeepEntrySchema,
+  SetKeepPlaceSchema,
+  KeepEntrySnapshotSchema,
+  KeepPlaceAcceptanceSchema,
+  KeepPlaceProblemSchema,
   apiContract,
   problemCatalogue,
   scopeClaimOf,
@@ -33,6 +38,7 @@ describe('the API contract', () => {
 
     const routes = [
       apiContract.health,
+      ...Object.values(apiContract.keep),
       ...Object.values(apiContract.sharing),
       apiContract.scenes.manifest,
       apiContract.scenes.chunk,
@@ -362,5 +368,108 @@ describe('the API contract', () => {
     expect(CODE_VERIFIER_PATTERN.test('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk')).toBe(true);
     expect(CODE_VERIFIER_PATTERN.test('short')).toBe(false);
     expect(CODE_VERIFIER_PATTERN.test(`${'a'.repeat(42)} `)).toBe(false);
+  });
+});
+
+describe('Keep declaration OpenAPI metadata', () => {
+  it('generates exact private POST bodies, named schemas and direct status-specific RFC9457 responses', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const errors = apiContract.keep.setPlace['~orpc'].errorMap;
+    const commonSchemas = {
+      ReadKeepEntry: { schema: ReadKeepEntrySchema },
+      SetKeepPlace: { schema: SetKeepPlaceSchema },
+      KeepEntrySnapshot: { schema: KeepEntrySnapshotSchema },
+      KeepPlaceAcceptance: { schema: KeepPlaceAcceptanceSchema },
+      KeepPlaceProblem: { schema: KeepPlaceProblemSchema },
+      ...Object.fromEntries(
+        Object.entries(errors).map(([code, definition]) => [`KeepProblem_${code}`, { schema: definition.data }]),
+      ),
+    };
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas,
+    });
+    const paths = Object.keys(document.paths ?? {}).filter((path) => path.includes('/keep/'));
+    expect(paths.sort()).toEqual(['/v1/experience/keep/place', '/v1/experience/keep/read']);
+    for (const [path, input, output] of [
+      ['/v1/experience/keep/read', 'ReadKeepEntry', 'KeepEntrySnapshot'],
+      ['/v1/experience/keep/place', 'SetKeepPlace', 'KeepPlaceAcceptance'],
+    ]) {
+      const item = document.paths?.[path!];
+      expect(Object.keys(item ?? {})).toEqual(['post']);
+      const operation = item?.post;
+      expect(operation?.parameters ?? []).toEqual([]);
+      expect(operation?.requestBody).toEqual({
+        required: true,
+        content: { 'application/json': { schema: { $ref: `#/components/schemas/${input}` } } },
+      });
+      expect(operation?.responses?.['200']).toMatchObject({
+        content: { 'application/json': { schema: { $ref: `#/components/schemas/${output}` } } },
+      });
+      expect(Object.keys(operation?.responses ?? {}).sort()).toEqual([
+        '200',
+        '400',
+        '401',
+        '403',
+        '404',
+        '409',
+        '413',
+        '415',
+        '422',
+        '500',
+        '503',
+      ]);
+      for (const status of ['400', '401', '403', '404', '409', '413', '415', '422', '500', '503']) {
+        const response = operation?.responses?.[status];
+        expect(response && !('$ref' in response) && response.content).toEqual({
+          'application/problem+json': {
+            schema: {
+              oneOf: Object.entries(errors)
+                .filter(([, definition]) => String(definition.status) === status)
+                .map(([code]) => ({ $ref: `#/components/schemas/KeepProblem_${code}` })),
+            },
+          },
+        });
+      }
+    }
+    const schemas = document.components?.schemas;
+    expect(schemas?.['ReadKeepEntry']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: ['version', 'target'],
+    });
+    expect(schemas?.['SetKeepPlace']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: ['version', 'commandId', 'entry', 'expectedPlaceRevision', 'position'],
+    });
+    expect(schemas?.['KeepEntrySnapshot']).toBeDefined();
+    expect(schemas?.['KeepPlaceAcceptance']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: expect.arrayContaining(['scope', 'entry', 'basePlaceRevision', 'acceptedPlaceRevision']) as unknown,
+    });
+    expect(schemas?.['KeepPlaceProblem']).toBeDefined();
+    for (const [code, definition] of Object.entries(errors)) {
+      const schema = schemas?.[`KeepProblem_${code}`];
+      expect(schema).toMatchObject({
+        type: 'object',
+        additionalProperties: false,
+        required: expect.arrayContaining(['type', 'title', 'status', 'code']) as unknown,
+        properties: {
+          code: { const: code },
+          status: { const: definition.status },
+          title: { const: problemCatalogue[code as keyof typeof problemCatalogue].title },
+        },
+      });
+      const encoded = JSON.stringify(schema);
+      expect(encoded).not.toContain('"defined"');
+      expect(encoded).not.toContain('"message"');
+      expect(encoded).not.toContain('"detail"');
+      expect(encoded).not.toContain('"instance"');
+      expect(encoded.includes('"currentPlaceRevision"')).toBe(code === 'KEEP_PLACE_REVISION_STALE');
+      if (code === 'KEEP_PLACE_REVISION_STALE')
+        expect(schema).toMatchObject({ required: expect.arrayContaining(['currentPlaceRevision']) as unknown });
+    }
   });
 });
