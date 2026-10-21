@@ -50,6 +50,32 @@ export function postgresCommissionChainStore(): CommissionChainStore {
         return { kind: 'refused', code: 'corrupt' };
       const old = rows.find((r) => r.snapshot_sha256 === snapshot.snapshotSha256);
       if (old) {
+        // A matching digest alone does not prove the stored projections correspond to its header.
+        // Compare one bounded row against the snapshot already validated before this transaction.
+        const stored = await trx
+          .selectFrom('content.cutroom_chain_snapshots')
+          .select([
+            'header_utf8',
+            'document_count',
+            'total_document_bytes',
+            'sealed_validation_time_ms',
+            'engine_actual_cents',
+            'over_ceiling',
+            'video_kind',
+          ])
+          .where('id', '=', old.id)
+          .executeTakeFirst();
+        if (
+          !stored ||
+          stored.header_utf8 !== snapshot.headerUtf8 ||
+          stored.document_count !== snapshot.documents.length ||
+          stored.total_document_bytes !== snapshot.documents.reduce((sum, d) => sum + d.byteLength, 0) ||
+          stored.sealed_validation_time_ms !== String(snapshot.header.collection.observedAtMs) ||
+          stored.engine_actual_cents !== String(snapshot.header.summary.actualCents) ||
+          stored.over_ceiling !== snapshot.header.summary.overCeiling ||
+          stored.video_kind !== snapshot.header.summary.videoKind
+        )
+          return { kind: 'refused', code: 'corrupt' };
         const docs = await trx
           .selectFrom('content.cutroom_chain_documents')
           .select(['run_ordinal', 'kind', 'byte_length', 'sha256'])

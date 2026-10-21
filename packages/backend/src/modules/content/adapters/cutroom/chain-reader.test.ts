@@ -3,6 +3,7 @@ import { runMarkedTransaction } from '../../../../infrastructure/postgres/transa
 import { makeCutroomChainCollector, makeCutroomChainSnapshotCollector } from './chain-reader.js';
 import {
   CUTROOM_CHAIN_UPSTREAM_REVISION,
+  CutroomCollectedChainSchema,
   type CutroomChainInput,
   type CutroomChainCollectorSettings,
 } from '../../production/commission-contracts.js';
@@ -467,6 +468,22 @@ describe('GET-only bounded Cutroom collector (authored wire fixtures)', () => {
     expect(JSON.stringify(result.snapshot)).not.toMatch(/private-key|signature|credential|example.invalid/);
     expect(result.snapshot.input.runs[0]!.recordUtf8).toContain('accept_with_label');
     expect(result.snapshot.input.runs[0]!.statusUtf8).toContain('fictional-original');
+  });
+  it('projects only the four declared profile fields from trusted composition metadata', async () => {
+    single();
+    const profile = { ...settings().profile!, privateMetadata: canary };
+    const result = await makeCutroomChainSnapshotCollector({ ...settings(), profile }).collect(expected);
+    expect(result.kind).toBe('collected');
+    if (result.kind !== 'collected') throw new Error('CI_SNAPSHOT');
+    expect(CutroomCollectedChainSchema.safeParse(result.snapshot).success).toBe(true);
+    expect(result.snapshot.profile).toEqual(settings().profile);
+    expect(Object.keys(result.snapshot.profile).sort()).toEqual([
+      'expiresAtMs',
+      'observedAtMs',
+      'soleWriterEvidenceSha256',
+      'upstreamRevision',
+    ]);
+    expect(JSON.stringify(result.snapshot)).not.toContain(canary);
   });
   it('new document handoff defaults disabled and has the same actual transaction network fence', async () => {
     const mock = single();

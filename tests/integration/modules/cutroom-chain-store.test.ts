@@ -570,7 +570,7 @@ describe('durable sanitized chain evidence and atomic C1 pending handoff (real P
     expect(erased.kind).toBe('entered');
     expect(await counts(c)).toEqual(before);
   });
-  it('actual SQL row hash/byte constraints reject wrong documents, and a DDL-valid corrupt header column fails readback closed', async () => {
+  it('actual SQL row hash/byte constraints reject wrong documents, and a DDL-valid corrupt header column fails readback and identical replay closed', async () => {
     const c = await fixture('direct-corruption'),
       r = await saved(c);
     const row = await db()
@@ -642,6 +642,10 @@ describe('durable sanitized chain evidence and atomic C1 pending handoff (real P
       kind: 'refused',
       code: 'corrupt',
     });
+    expect(await counts(c)).toEqual(after);
+    const replay = envelope(c);
+    replay.evidenceSha256 = hash('corrupt-cost');
+    expect(await service(c).recordCollectedChain(c.target, replay)).toEqual({ kind: 'refused', code: 'corrupt' });
     expect(await counts(c)).toEqual(after);
   });
 });

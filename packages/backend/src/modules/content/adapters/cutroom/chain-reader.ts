@@ -363,7 +363,12 @@ function makeCollector(settings: CutroomChainCollectorSettings = {}) {
             calls,
             responseBytes,
             observedAtMs,
-            profile: { ...profile, upstreamRevision: CUTROOM_CHAIN_UPSTREAM_REVISION },
+            profile: {
+              upstreamRevision: CUTROOM_CHAIN_UPSTREAM_REVISION,
+              soleWriterEvidenceSha256: profile.soleWriterEvidenceSha256,
+              observedAtMs: profile.observedAtMs,
+              expiresAtMs: profile.expiresAtMs,
+            },
           },
           report,
           evidenceSha256: hash(JSON.stringify(evidence)),
