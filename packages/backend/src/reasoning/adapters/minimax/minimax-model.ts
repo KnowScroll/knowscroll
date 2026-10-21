@@ -8,7 +8,7 @@ import {
   type QuotaObservation,
 } from '../../application/ports.js';
 import { judgeQuota, parseMessagesReply, providerErrorCode } from './reply.js';
-import { OUTPUT_TOOL, SCHEMA_OUTPUT_TOOL_DESCRIPTION, requestReplyFormat } from './output-format.js';
+import { OUTPUT_TOOL, JSON_STRING_TOOL, SCHEMA_OUTPUT_TOOL_DESCRIPTION, requestReplyFormat } from './output-format.js';
 import { isNativeInputSchema } from '../../domain/native-schema.js';
 
 /** The fixed Anthropic-compatible messages route of the token plan (no endpoint override). */
@@ -141,12 +141,14 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
     provider: 'minimax',
     model: settings.model,
     supportsSingleToolObject: settings.model === 'MiniMax-M3',
+    supportsSingleToolJsonString: settings.model === 'MiniMax-M3',
     supportsNativeOutputSchema: settings.model === 'MiniMax-M3',
 
     encode(request) {
       if (
         request.outputFormat !== undefined &&
-        (request.outputFormat !== 'single-tool-object' || settings.model !== 'MiniMax-M3')
+        ((request.outputFormat !== 'single-tool-object' && request.outputFormat !== 'single-tool-json-string.v1') ||
+          settings.model !== 'MiniMax-M3')
       )
         throw new ModelNotSentError('OUTPUT_FORMAT_UNSUPPORTED');
       if (
@@ -167,13 +169,15 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
             ? {}
             : {
                 tools: [
-                  request.outputJsonSchema === undefined
-                    ? OUTPUT_TOOL
-                    : {
-                        name: OUTPUT_TOOL.name,
-                        description: SCHEMA_OUTPUT_TOOL_DESCRIPTION,
-                        input_schema: request.outputJsonSchema,
-                      },
+                  request.outputFormat === 'single-tool-json-string.v1'
+                    ? JSON_STRING_TOOL
+                    : request.outputJsonSchema === undefined
+                      ? OUTPUT_TOOL
+                      : {
+                          name: OUTPUT_TOOL.name,
+                          description: SCHEMA_OUTPUT_TOOL_DESCRIPTION,
+                          input_schema: request.outputJsonSchema,
+                        },
                 ],
                 tool_choice: { type: 'auto' },
               }),
@@ -230,7 +234,7 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
       // Snapshot once: mode selection and fetch see the same bytes even if the caller mutates its array.
       const frozenBody = new Uint8Array(body);
       const replyFormat = requestReplyFormat(decoder.decode(frozenBody));
-      if (replyFormat === undefined || (replyFormat === 'single-tool-object' && settings.model !== 'MiniMax-M3'))
+      if (replyFormat === undefined || (replyFormat !== 'text' && settings.model !== 'MiniMax-M3'))
         throw new ModelNotSentError('OUTPUT_FORMAT_UNSUPPORTED');
       const limit = deadline(signal, settings.requestTimeoutMs);
       const uncertain = (fallback: string) =>

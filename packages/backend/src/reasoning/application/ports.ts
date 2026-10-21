@@ -15,7 +15,7 @@ export interface ModelRequest {
   readonly user: string;
   readonly maxOutputTokens: number;
   /** Opt-in output-data carrier, never a tool executor or an autonomous interaction. */
-  readonly outputFormat?: 'single-tool-object';
+  readonly outputFormat?: 'single-tool-object' | 'single-tool-json-string.v1';
   /** Derived structural input only; opt-in and bounded before admission. */
   readonly outputJsonSchema?: NativeInputSchema;
 }
@@ -96,6 +96,7 @@ export interface ModelPort {
   readonly model: string;
   /** Explicit transport capability; absent means existing text output only. */
   readonly supportsSingleToolObject?: boolean;
+  readonly supportsSingleToolJsonString?: boolean;
   readonly supportsNativeOutputSchema?: boolean;
   encode(request: ModelRequest): Uint8Array;
   observeQuota(signal: AbortSignal): Promise<QuotaObservation>;

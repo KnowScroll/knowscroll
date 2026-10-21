@@ -1,3 +1,4 @@
+import { MAX_ANSWER_CHARS } from '../../domain/output.js';
 import { isNativeInputSchema } from '../../domain/native-schema.js';
 
 /** Fixed output-data carrier. It grants no action, executor, network access or follow-up turn. */
@@ -11,7 +12,21 @@ export const OUTPUT_TOOL = Object.freeze({
   input_schema: Object.freeze({ type: 'object' }),
 });
 
-export type ReplyFormat = 'text' | 'single-tool-object';
+export const JSON_STRING_TOOL_NAME = 'submit_json_output_v1';
+export const JSON_STRING_TOOL_DESCRIPTION =
+  'Submit the complete answer as one JSON object serialized once in json. Data only; executes no action.';
+export const JSON_STRING_TOOL = Object.freeze({
+  name: JSON_STRING_TOOL_NAME,
+  description: JSON_STRING_TOOL_DESCRIPTION,
+  input_schema: Object.freeze({
+    type: 'object',
+    properties: Object.freeze({ json: Object.freeze({ type: 'string', maxLength: MAX_ANSWER_CHARS }) }),
+    required: Object.freeze(['json']),
+    additionalProperties: false,
+  }),
+});
+
+export type ReplyFormat = 'text' | 'single-tool-object' | 'single-tool-json-string.v1';
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -41,6 +56,32 @@ export function requestReplyFormat(text: string): ReplyFormat | undefined {
   if (!Array.isArray(body['tools']) || body['tools'].length !== 1) return undefined;
   const tool = record(body['tools'][0]);
   const choice = record(body['tool_choice']);
+  if (tool?.['name'] === JSON_STRING_TOOL_NAME) {
+    const schema = record(tool['input_schema']);
+    const properties = record(schema?.['properties']);
+    const json = record(properties?.['json']);
+    return exactKeys(tool, ['name', 'description', 'input_schema']) &&
+      tool['description'] === JSON_STRING_TOOL_DESCRIPTION &&
+      schema !== undefined &&
+      exactKeys(schema, ['type', 'properties', 'required', 'additionalProperties']) &&
+      schema['type'] === 'object' &&
+      schema['additionalProperties'] === false &&
+      Array.isArray(schema['required']) &&
+      schema['required'].length === 1 &&
+      schema['required'][0] === 'json' &&
+      properties !== undefined &&
+      exactKeys(properties, ['json']) &&
+      json !== undefined &&
+      exactKeys(json, ['type', 'maxLength']) &&
+      json['type'] === 'string' &&
+      json['maxLength'] === MAX_ANSWER_CHARS &&
+      choice !== undefined &&
+      exactKeys(choice, ['type']) &&
+      choice['type'] === 'auto' &&
+      body['model'] === 'MiniMax-M3'
+      ? 'single-tool-json-string.v1'
+      : undefined;
+  }
   if (
     tool === undefined ||
     !exactKeys(tool, ['name', 'description', 'input_schema']) ||
