@@ -1,3 +1,4 @@
+import { privacyContract } from './privacy.js';
 import { keepContract } from './keep.js';
 import { sharingContract } from './sharing.js';
 import { readSceneManifestContract, readSceneChunkContract } from './scenes.js';
@@ -26,6 +27,7 @@ import { evidenceDiagnosticsContract, submitObservationsContract } from './inter
 /** The complete HTTP contract of the KnowScroll API. Every route the API serves is listed here. */
 export const apiContract = {
   health: healthContract,
+  privacy: privacyContract,
   keep: keepContract,
   sharing: sharingContract,
   scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract },

@@ -10,6 +10,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/problems.ts` | `problemCatalogue` (code → HTTP status, fixed title), RFC 9457 `ProblemDetailsSchema`, `problemDetails()` |
 | `src/health.ts` | `GET /health` response and contract |
 | `src/identity.ts` | `/auth/*` sign-in and session routes, the link and session token shapes, the session cookie names (D-022) |
+| `src/privacy.ts` | Declaration-only selective Clear exploration intent/acceptance, current coarse status and closed local problems |
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |
 | `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) and `ClientCapabilities` from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
 | `src/experience.ts` | `POST /v1/actions`, `GET /v1/saved`, and the exposure routes: `POST /v1/experience/open`, `POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document` |
@@ -588,3 +589,79 @@ must preserve AccountScope disposal and its local exact camera/selection return,
 accessible dialog/focus/keyboard and truthful unavailable states. U05 durable
 per-account shown/skipped acknowledgement remains a separate missing prerequisite;
 origin IDs, this command receipt and local memory cannot replace it.
+
+
+## Selective Clear exploration prerequisite (#246)
+
+`clear-exploration.v1` declares `apiContract.privacy.clearExploration` (POST
+`/v1/privacy/clear-exploration`,202) and `readClearExplorationStatus` (read-only POST
+`/v1/privacy/clear-exploration/status`,200). These strict JSON declarations install
+no handler, deletion executor, durable operation receipt, queue or client flow.
+No SQL number is allocated. First-party Origin, current session/`X-KS-Scope`,
+active account authority and private/no-store responses remain mandatory for
+both future adapters; these routes are not an unscoped authentication exception.
+Parsed IDs, confirmation, receipts and hashes never confer authority.
+
+A deliberate start supplies only version, commandId, expectedPrivacyEpoch and
+`confirmation: clear-exploration-preserve-keep-and-social`. The future owner derives
+account/universe, fences current authority before receipt lookup and atomically
+accepts one operation, advances epoch exactly once, sets a live-read barrier,
+revokes old sockets and enqueues IDs-only work. fromEpoch/toEpoch are positive
+safe integers with toEpoch=fromEpoch+1. Input at the maximum epoch can be represented;
+a new operation must refuse counter exhaustion without any effects, using fixed
+CONFLICT. Busy live cleanup also refuses without effects. An immutable202
+acceptance records historical epochs/time/command, accepted operation and replay
+delivery; it contains neither completion nor a current authorization scope.
+Never construct an AccountScope from its toEpoch. Only the existing authenticated
+session owner establishes current scope.
+
+After accepted or unknown transport outcome, the future client synchronously
+fences and purges the old AccountScope before awaiting session refresh. It retries
+the exact original body/command only through a fresh current scope. A matching
+account-lifetime receipt can replay after later epoch changes; a changed body
+refuses COMMAND_KEY_REUSED, and a missing receipt plus stale expected epoch cannot
+start a new operation. Historical receipt replay must neither rerun broad erasers
+nor reveal surviving/replacement content. These are required backend/client
+semantics, not proof established by wire validation.
+
+Status uses a closed `latest` or exact `command` selector; its response echoes the
+selector and CURRENT authenticated account/epoch. A recorded receipt must match
+the command selector and cannot advance beyond that current epoch. `not_recorded`
+is one serialized snapshot, not proof a delayed start cannot arrive. Latest
+supports reload recovery without retaining old private scope caches/journals.
+Recorded states distinguish pending coarse phases (`removing_live_data`,
+`waiting_for_accounting`, `verifying_live_removal`), durable failed work with only
+`temporarily_unavailable`/`completion_unverified`, and verified `completed_live`.
+Failed does not claim rollback of partial deletion. No percent, counts, owner table
+names, private item lists, arbitrary error text or ETA is public. Status is a read:
+no enqueue, Evidence, activation, model or reconciliation call.
+
+Later lifecycle owners must preserve exact Keep membership UUID/ref/revision/time
+and full position/place CAS, Social friendships/settings and explicitly declared
+conversation state, while deleting old action origins/exposures/history, Evidence,
+Personal Context/Memory, Composer/planner and all Scene/Geography versions/jobs.
+Keep is never a source for reconstructing cleared evidence or worlds. Current
+full-delete/eraseUniverse behavior remains unchanged. No conversation store is
+claimed implemented by this declaration. An account-owned durable receipt must
+survive epoch changes; existing erasable personal receipts are insufficient.
+A real selective-maintenance capability and lock-free live-read barrier are still
+missing. Monotonic internal core_done must prevent old retries deleting fresh
+new-epoch exploration after the barrier opens, even while old minimal accounting
+liabilities remain pending. Durable Reasoning request/output/context redaction and
+late-settlement suppression are prerequisites; unknown paid outcomes stay held,
+never blindly resent/refunded or reconstructed. All mandatory controllable live
+cleanup must be verified before completed_live; retained minimal usage accounting
+is separate. No backup/provider/offline expiry period or removal guarantee is
+invented. These implementation and real-journey prerequisites remain unallocated.
+
+`PrivacyProblemSchema` is a strict local RFC9457 family using existing catalogue
+codes, fixed type/title/status and bounded schema-owned issue tokens or `unknown`.
+Unknown field names/values and numeric paths cannot be echoed; no detail/instance
+or current-state private payload is allowed. Global ProblemDetails and legacy
+unknown-field stripping remain unchanged. The supported route.spec hook describes
+converter-produced error data directly as application/problem+json, with exact
+status-specific alternatives; it is not a mounted exception serializer. Real
+OpenAPI tests assert named components, exact202/200 POSTs and direct errors. Epoch
+increments/receipt-selection invariants remain parser checks beyond structural
+OpenAPI metadata. Synthetic wire tests run only in Actions; no completed privacy
+operation, account deletion or runtime preservation is established here.
