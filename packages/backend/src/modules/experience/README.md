@@ -122,8 +122,8 @@ Unsave cascades its place; resave creates a different identity. Legacy Save-noop
 receipts still echo the requested revision and must not construct a Keep entry.
 Legacy asset-keyed Unsave still has an ABA gap; it is not membership-fenced here.
 
-`keepPlaceUseCases`/`keepPlaceProviders` are explicit opt-in factories, mounted
-nowhere by this source slice. They implement the accepted strict `keep-place.v1`
+`keepPlaceUseCases`/`keepPlaceProviders` are explicit factories, now mounted by
+the API Keep controller. They implement the accepted strict `keep-place.v1`
 Read/Set schemas. Order is READ COMMITTED own root → actual Identity
 `FENCE_OWN_ACCOUNT` UPDATE gate/fresh authority → exact Saved membership → Content
 SHARE/canonical target. Plain AccountAccess does not prove lock ownership.
@@ -169,8 +169,12 @@ There is no Keep worker/job. Old-scope generic work is refused at the scope gate
 
 Canonical Content318 stored admission remains unchanged, including bounded CPU
 proof work while the transaction is held. Worst-case valid-document transaction
-and HTTP latency must be measured before a later mounted consumer; these fixtures
-claim no measured performance. Actions fixtures cover real-PG CAS/receipt/identity/
+and installed HTTP latency are measured by authored Actions probes before a client consumer.
+The20 serial warm samples per operation/control follow three warmups, retain cold samples
+separately and report actual CPU/transaction/query/commit-return spans plus HTTP wall time.
+They include the existing full eight100×100-grid canonical proof, not a cheap parser or
+prevalidated flag. Query spans include real lock waits; commit-return includes driver overhead.
+They establish neither production percentiles nor an accepted client response/lock budget. Actions fixtures cover real-PG CAS/receipt/identity/
 Content/membership races, rollback after receipt/place/hint, strict JSON, actual
-resume units, counter limits and all-epoch erasure. No served Keep route, client
+resume units, counter limits and all-epoch erasure. The thin API source mounts read/set without a worker or new business authority. No client
 journey, privacy completion, runtime rollout or full #246 acceptance is claimed.

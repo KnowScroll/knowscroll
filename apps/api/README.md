@@ -92,3 +92,32 @@ invoke providers. Scene provider construction includes an inert projector functi
 with no API consumer or execution path. No private payload or reference is added to diagnostics.
 Installed API/PG fixtures are authored transport evidence; actual dev endpoints, formation,
 rendering, camera return and durable shown/skipped acknowledgement require separate acceptance.
+
+
+## Durable Keep place HTTP (#246)
+
+`POST /v1/experience/keep/read` and `POST /v1/experience/keep/place` mount the existing
+Experience Keep ports. The admitted session/scope supplies authority; strict JSON bodies carry
+only the declared target or membership/CAS command. The same Origin, session, scope and body
+limits apply. The thin controller validates the strict output and its initiating scope/target
+binding; malformed output answers coarse INTERNAL. Reads create no state or work. Sets retain
+the existing atomic receipt/place/root/hint behavior and create no Evidence, exposure or job.
+
+Both finite POST paths, including Express case/trailing-slash forms, set
+`Cache-Control: private, no-store` before guards and body parsing. Their request-context family
+selects only serialization: every error uses the closed Keep problem catalogue and schema-owned
+issue tokens, with unknown/numeric path segments masked and arbitrary detail/value/instance
+removed. Only a validated use-case stale refusal carries currentPlaceRevision. This tag grants
+no authority; generic errors and legacy routes retain their existing behavior.
+
+Actions fixtures use installed Nest plus disposable PostgreSQL, real session/Origin/scope gates,
+CAS/replay/resave and actual lock barriers. Authored ordinary Scroll, maximal valid Scroll
+(eight100×100 simulation grids) and Reel metadata fixtures record cold samples plus20 serial
+warm reads/sets after three warmups. Separate module records include actual transaction/CPU,
+query spans and callback-end-to-commit-return spans. Query spans include waits; commit-return
+includes driver overhead. Raw samples and runner/Node/PG/document-size/hash metadata appear in
+Actions logs. These are bounded probes, not production percentiles or a client latency budget;
+full canonical admission and the existing200ms CPU admission assertion remain unchanged.
+A client mount requires separate inspection and approval of actual latency records. This source
+mount does not establish a deployed endpoint, device journey or selective privacy clear.
+Legacy asset-keyed Unsave still has its separate ABA limitation.

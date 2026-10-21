@@ -7,12 +7,14 @@ import {
   READ_EXPOSURE_DOCUMENT,
   experienceEvidenceReadProviders,
   experienceProviders,
+  keepPlaceProviders,
   navigationProviders,
   NAVIGATE_ENCOUNTER,
   ACTIVATE_OFFER,
   READ_EXPOSURE_CONTEXT,
   APPLY_ENCOUNTER_ACTION,
 } from '@knowscroll/backend/modules/experience/nest-providers';
+import { KEEP_PLACE_USE_CASES } from '@knowscroll/backend/modules/experience';
 import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
 import { DATABASE, ENQUEUE_JOB, WITH_PERSONAL_SCOPE } from '../tokens.js';
 
@@ -27,11 +29,13 @@ export const experienceWiring: Provider[] = [
     enqueueJob: ENQUEUE_JOB,
   }),
   ...experienceEvidenceReadProviders(),
+  ...keepPlaceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...composerProviders({ isOperator: () => false }),
   ...navigationProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
 ];
 
 export {
+  KEEP_PLACE_USE_CASES,
   ACTIVATE_EXPOSURE,
   APPLY_ACTION,
   LIST_SAVED,

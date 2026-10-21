@@ -97,3 +97,91 @@ describe('the outcome → RFC 9457 mapping', () => {
     expect(events).toEqual([{ event: 'http.unexpected_error', fields: { error: cause } }]);
   });
 });
+
+import type { Request, Response } from 'express';
+import { KeepPlaceProblemSchema } from '@knowscroll/contracts';
+import { requestContextMiddleware } from './request-context.js';
+import { keepProblem } from './problems.js';
+function inKeep<T>(work: () => T): T {
+  let value: T | undefined;
+  requestContextMiddleware(() => undefined)(
+    { method: 'POST', path: '/V1/EXPERIENCE/KEEP/PLACE/' } as Request,
+    { setHeader: () => undefined, once: () => undefined } as unknown as Response,
+    () => {
+      value = work();
+    },
+  );
+  return value as T;
+}
+describe('finite Keep problem serializer, independent of caller authority', () => {
+  it('masks unknown/numeric locations and drops values, messages, detail and instance', () => {
+    const details = inKeep(() =>
+      problemFromOrpcError(
+        new ORPCError('BAD_REQUEST', {
+          data: {
+            issues: [
+              {
+                path: ['entry', 'PRIVATE-KEY', 412],
+                code: 'unrecognized_keys',
+                input: 'PRIVATE-VALUE',
+                message: 'PRIVATE-MESSAGE',
+              },
+              { path: ['position', 'positionMs'], code: 'too_big', input: 'PRIVATE-VALUE' },
+            ],
+          },
+        }),
+        () => undefined,
+      ),
+    );
+    expect(KeepPlaceProblemSchema.safeParse(details).success).toBe(true);
+    expect(details.issues).toEqual([
+      { path: ['entry', 'unknown', 'unknown'], code: 'unrecognized_keys' },
+      { path: ['position', 'positionMs'], code: 'too_big' },
+    ]);
+    expect(JSON.stringify(details)).not.toContain('PRIVATE');
+    expect(
+      inKeep(() => problemFromOrpcError(problem('INVALID_REQUEST', { detail: 'PRIVATE-DETAIL' }), () => undefined)),
+    ).not.toHaveProperty('detail');
+  });
+  it('closes malformed issue data without coercing hostile keys or exposing rejected values', () => {
+    const error = new ORPCError('BAD_REQUEST', {
+      data: { issues: [null, { path: [{ key: 'entry' }, { key: { private: 'CANARY' } }, 7], code: 'HOSTILE' }] },
+    });
+    const result = inKeep(() => problemFromOrpcError(error, () => undefined));
+    expect(result.issues).toEqual([
+      { path: [], code: 'custom' },
+      { path: ['entry', 'unknown', 'unknown'], code: 'custom' },
+    ]);
+    expect(JSON.stringify(result)).not.toContain('CANARY');
+    expect(KeepPlaceProblemSchema.safeParse(result).success).toBe(true);
+  });
+  it('preserves only an internally validated stale revision; arbitrary error data cannot supply it', () => {
+    const valid = inKeep(() =>
+      problemFromOrpcError(
+        keepProblem({ code: 'KEEP_PLACE_REVISION_STALE', currentPlaceRevision: 9 }),
+        () => undefined,
+      ),
+    );
+    expect(valid).toMatchObject({ code: 'KEEP_PLACE_REVISION_STALE', currentPlaceRevision: 9 });
+    const original = keepProblem({ code: 'KEEP_PLACE_REVISION_STALE', currentPlaceRevision: 11 });
+    const cloned = new ORPCError(original.code, {
+      status: original.status,
+      message: original.message,
+      data: { ...(original.data as object) },
+      cause: original.cause,
+      defined: true,
+    });
+    expect(inKeep(() => problemFromOrpcError(cloned, () => undefined))).toMatchObject({
+      code: 'KEEP_PLACE_REVISION_STALE',
+      currentPlaceRevision: 11,
+    });
+    for (const error of [
+      new ORPCError('KEEP_PLACE_REVISION_STALE', { data: { currentPlaceRevision: 999 } }),
+      keepProblem({ code: 'KEEP_PLACE_REVISION_STALE', currentPlaceRevision: NaN }),
+    ]) {
+      const details = inKeep(() => problemFromOrpcError(error, () => undefined));
+      expect(details.code).toBe('INTERNAL');
+      expect(details).not.toHaveProperty('currentPlaceRevision');
+    }
+  });
+});

@@ -152,3 +152,38 @@ describe('apiSecurityHeaders', () => {
     });
   });
 });
+
+import { isKeepPlaceRequest, requestContextMiddleware, currentRequest } from './request-context.js';
+import { noStoreForAuth } from './auth-credentials.js';
+describe('finite Keep pre-guard cache and serializer context', () => {
+  it('tags exactly both POST paths including Express case/trailing-slash forms before guards', () => {
+    for (const path of [
+      '/v1/experience/keep/read',
+      '/v1/experience/keep/place',
+      '/V1/EXPERIENCE/KEEP/READ/',
+      '/v1/experience/keep/place/',
+    ]) {
+      const request = { method: 'POST', path } as Request,
+        headers: Record<string, string> = {};
+      const response = {
+        setHeader: (k: string, v: string) => {
+          headers[k.toLowerCase()] = v;
+        },
+        once: () => undefined,
+      } as unknown as Response;
+      requestContextMiddleware(() => undefined)(request, response, () => {
+        expect(currentRequest()?.problemFamily).toBe('keep-place');
+        expect(headers['cache-control']).toBe('private, no-store');
+      });
+      noStoreForAuth()(request, response, () => undefined);
+      expect(headers['cache-control']).toBe('private, no-store');
+    }
+    for (const request of [
+      { method: 'GET', path: '/v1/experience/keep/read' },
+      { method: 'POST', path: '/v1/experience/keep/read/extra' },
+      { method: 'POST', path: '/v1/experience/keep/place-secret' },
+      { method: 'POST', path: '/v1/saved' },
+    ])
+      expect(isKeepPlaceRequest(request)).toBe(false);
+  });
+});
