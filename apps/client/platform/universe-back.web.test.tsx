@@ -2,28 +2,43 @@ import type * as React from 'react';
 import { act, type EffectCallback } from 'react';
 import { createRoot } from 'test-renderer';
 import { useUniverseBack } from '../features/universe/use-universe-back.web';
-import { createUniverseViewSession } from '../features/universe/universe-session';
-import { universeHarness, fixtureId } from '../features/universe/universe.fixture';
+import type { UniverseViewState } from '../features/universe/universe-session';
+
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof React>('react');
   return { useFocusEffect: (effect: EffectCallback) => useEffect(effect, [effect]) };
 });
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+/** Adapter-only fixture. The real controller/core is exercised by native components and production Playwright. */
 it('Back closes the panel before restoring a camera and unregisters; history carries only a transient marker', async () => {
-  const h = universeHarness(),
-    session = createUniverseViewSession(h.scope);
-  session.setForeground(true);
-  await new Promise<void>((resolve, reject) => {
-    const off = session.subscribe(() => {
-      if (session.getState().read.status === 'ready') {
-        off();
-        resolve();
-      } else if (session.getState().read.status === 'unavailable') {
-        off();
-        reject(new Error('fixture_read_failed'));
-      }
-    });
+  let state: UniverseViewState = {
+    read: { status: 'ready', active: true },
+    frame: { x: 10, y: 20, scale: 0.5 },
+    focusId: 'private-fixture-id',
+    overlay: null,
+    detail: 'full',
+    historyDepth: 0,
+  };
+  const listeners = new Set<() => void>();
+  const publish = () => listeners.forEach((listener) => listener());
+  const back = jest.fn(() => {
+    if (state.overlay) state = { ...state, overlay: null };
+    else if (state.historyDepth) state = { ...state, focusId: null, frame: { x: 0, y: 0, scale: 1 }, historyDepth: 0 };
+    else return false;
+    publish();
+    return true;
   });
+  const session = {
+    back,
+    getState: () => state,
+    canBack: () => Boolean(state.overlay || state.historyDepth),
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
   function Host() {
     useUniverseBack(session, true);
     return null;
@@ -32,21 +47,23 @@ it('Back closes the panel before restoring a camera and unregisters; history car
     root = createRoot();
   act(() => root.render(<Host />));
   act(() => {
-    session.focus(fixtureId(10));
-    session.showOverlay('place');
+    state = { ...state, historyDepth: 1, overlay: 'place' };
+    publish();
   });
-  expect(JSON.stringify(push.mock.calls)).not.toMatch(/objectId|frame|seed|CI system|0199a000/);
+  expect(JSON.stringify(push.mock.calls.at(-1)?.[0])).toContain('ksUniverse');
+  expect(JSON.stringify(push.mock.calls)).not.toMatch(/objectId|frame|seed|private-fixture-id/);
   window.history.replaceState({}, '', window.location.href);
   await act(() => window.dispatchEvent(new PopStateEvent('popstate')));
-  expect(session.getState().overlay).toBeNull();
-  expect(session.getState().focusId).toBe(fixtureId(10));
+  expect(state.overlay).toBeNull();
+  expect(state.historyDepth).toBe(1);
+  expect(state.frame).toEqual({ x: 10, y: 20, scale: 0.5 });
   window.history.replaceState({}, '', window.location.href);
   await act(() => window.dispatchEvent(new PopStateEvent('popstate')));
-  expect(session.getState().focusId).toBeNull();
+  expect(state.focusId).toBeNull();
+  expect(state.frame).toEqual({ x: 0, y: 0, scale: 1 });
   act(() => root.unmount());
-  const previous = session.getState();
   await act(() => window.dispatchEvent(new PopStateEvent('popstate')));
-  expect(session.getState()).toBe(previous);
-  h.scope.end();
+  expect(back).toHaveBeenCalledTimes(2);
+  expect(listeners.size).toBe(0);
   push.mockRestore();
 });

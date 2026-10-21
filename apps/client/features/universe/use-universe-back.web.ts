@@ -3,7 +3,10 @@ import { useFocusEffect } from 'expo-router';
 import type { UniverseViewSession } from './universe-session';
 let sequence = 0;
 /** One same-address marker; no private IDs, frame or navigation tree in browser history. */
-export function useUniverseBack(session: UniverseViewSession, enabled: boolean) {
+export function useUniverseBack(
+  session: Pick<UniverseViewSession, 'back' | 'canBack' | 'getState' | 'subscribe'>,
+  enabled: boolean,
+) {
   const marker = useRef(`universe-${String(++sequence)}`),
     ignored = useRef(false);
   useFocusEffect(
