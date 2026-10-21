@@ -188,7 +188,11 @@ describe('writer semantic feedback contract (authored CI fixture; no provider ne
       expect(masked.valid).toBe(false);
       if (!masked.valid)
         expect(masked.issues.every((issue) => issue.code === 'custom' && issue.detail === undefined)).toBe(true);
-      expect(deriveNativeInputSchema(role.outputSchema)).toEqual(deriveNativeInputSchema(ScrollDraft));
+      // Historical writer6 also clones ScrollDraft with one semantic refinement. Bare ScrollDraft
+      // has different reused-reference placement; compare the same structural wrapper, not that root.
+      expect(deriveNativeInputSchema(role.outputSchema)).toEqual(
+        deriveNativeInputSchema(ScrollDraft.superRefine(() => undefined)),
+      );
     },
   );
 
