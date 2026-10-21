@@ -15,6 +15,9 @@ import {
   KeepEntrySnapshotSchema,
   KeepPlaceAcceptanceSchema,
   KeepPlaceProblemSchema,
+  RemoveKeepEntrySchema,
+  KeepRemovalAcceptanceSchema,
+  KeepRemovalProblemSchema,
   RegionEncounterOpenRequestSchema,
   RegionEncounterOpenResponseSchema,
   RegionEncounterProblemSchema,
@@ -400,7 +403,11 @@ describe('Keep declaration OpenAPI metadata', () => {
       commonSchemas,
     });
     const paths = Object.keys(document.paths ?? {}).filter((path) => path.includes('/keep/'));
-    expect(paths.sort()).toEqual(['/v1/experience/keep/place', '/v1/experience/keep/read']);
+    expect(paths.sort()).toEqual([
+      '/v1/experience/keep/place',
+      '/v1/experience/keep/read',
+      '/v1/experience/keep/remove',
+    ]);
     for (const [path, input, output] of [
       ['/v1/experience/keep/read', 'ReadKeepEntry', 'KeepEntrySnapshot'],
       ['/v1/experience/keep/place', 'SetKeepPlace', 'KeepPlaceAcceptance'],
@@ -722,5 +729,90 @@ describe('Selective Clear exploration declaration OpenAPI metadata', () => {
         expect(JSON.stringify(schema)).not.toContain(`"${forbidden}"`);
     }
     expect(schemas?.['PrivacyProblem']).toBeDefined();
+  });
+});
+
+describe('membership-fenced Keep removal OpenAPI declaration', () => {
+  it('describes exact body/acknowledgement and closed direct RFC9457 responses without place CAS', async () => {
+    const errors = apiContract.keep.remove['~orpc'].errorMap;
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas: {
+        RemoveKeepEntry: { schema: RemoveKeepEntrySchema },
+        KeepRemovalAcceptance: { schema: KeepRemovalAcceptanceSchema },
+        KeepRemovalProblem: { schema: KeepRemovalProblemSchema },
+        ...Object.fromEntries(
+          Object.entries(errors).map(([code, definition]) => [
+            `KeepRemovalProblem_${code}`,
+            { schema: definition.data },
+          ]),
+        ),
+      },
+    });
+    const route = document.paths?.['/v1/experience/keep/remove'];
+    expect(Object.keys(route ?? {})).toEqual(['post']);
+    const operation = route?.post;
+    expect(operation?.parameters ?? []).toEqual([]);
+    expect(operation?.requestBody).toEqual({
+      required: true,
+      content: { 'application/json': { schema: { $ref: '#/components/schemas/RemoveKeepEntry' } } },
+    });
+    expect(operation?.responses?.['200']).toMatchObject({
+      content: { 'application/json': { schema: { $ref: '#/components/schemas/KeepRemovalAcceptance' } } },
+    });
+    expect(Object.keys(operation?.responses ?? {}).sort()).toEqual([
+      '200',
+      '400',
+      '401',
+      '403',
+      '404',
+      '409',
+      '413',
+      '415',
+      '422',
+      '500',
+      '503',
+    ]);
+    for (const status of ['400', '401', '403', '404', '409', '413', '415', '422', '500', '503']) {
+      const response = operation?.responses?.[status];
+      expect(response && !('$ref' in response) && response.content).toEqual({
+        'application/problem+json': {
+          schema: {
+            oneOf: Object.entries(errors)
+              .filter(([, definition]) => String(definition.status) === status)
+              .map(([code]) => ({ $ref: `#/components/schemas/KeepRemovalProblem_${code}` })),
+          },
+        },
+      });
+    }
+    const schemas = document.components?.schemas;
+    expect(schemas?.['RemoveKeepEntry']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: ['version', 'commandId', 'entry'],
+    });
+    expect(schemas?.['KeepRemovalAcceptance']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: expect.arrayContaining([
+        'version',
+        'scope',
+        'commandId',
+        'recordedAt',
+        'replayed',
+        'outcome',
+        'operation',
+        'entry',
+      ]) as unknown,
+    });
+    for (const [code, definition] of Object.entries(errors))
+      expect(schemas?.[`KeepRemovalProblem_${code}`]).toMatchObject({
+        type: 'object',
+        additionalProperties: false,
+        properties: { code: { const: code }, status: { const: definition.status } },
+      });
+    expect(schemas?.['KeepRemovalProblem_KEEP_PLACE_REVISION_STALE']).toBeUndefined();
+    expect(schemas?.['KeepRemovalProblem_KEEP_PLACE_COUNTER_EXHAUSTED']).toBeUndefined();
   });
 });

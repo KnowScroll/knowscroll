@@ -665,3 +665,44 @@ OpenAPI tests assert named components, exact202/200 POSTs and direct errors. Epo
 increments/receipt-selection invariants remain parser checks beyond structural
 OpenAPI metadata. Synthetic wire tests run only in Actions; no completed privacy
 operation, account deletion or runtime preservation is established here.
+
+
+## Exact Saved membership removal prerequisite (#234 / #246)
+
+`keep-remove.v1` declares `apiContract.keep.remove`, POST `/v1/experience/keep/remove`,
+with strict version/commandId/entry JSON. Entry is the actual Saved UUID plus immutable
+asset/revision from an authorized Keep read. An asset ID, Save acknowledgement or local
+resume is insufficient. No position, current membership override, force or Undo token is
+accepted. Parsing is not authority; this declaration installs no endpoint or safer removal.
+Legacy asset-keyed Unsave stays unchanged and retains its known remove/resave race.
+
+A future adapter authenticates current session, Origin and `X-KS-Scope`, locks/rechecks
+the current personal root/account before receipt lookup and keeps all responses private
+and no-store. For a new command it must remove ONLY that exact current membership/ref.
+Missing/replaced membership refuses with fixed KEEP_ENTRY_UNAVAILABLE; it neither removes
+a later Save nor returns its identity/place. A corrected or withdrawn asset can still be
+removed: removal requires current membership and account authority, not Content admission
+or a playback grant. Place cascade and existing Unsave action/state/contribution semantics,
+receipt, root revision and required pg-boss work must commit atomically. Do not bypass the
+existing domain action effects with an isolated Saved-table delete. Removal creates no
+consumption, playback, reading interval or invented Evidence.
+
+The strict200 acceptance repeats only the selected entry, scope, command, recorded time,
+accepted operation and replay flag. It is historical: it does not assert current absence,
+current place or permission to remove another membership. After current authority and exact
+body/key matching, receipt replay MUST precede the now-deleted membership check; otherwise
+an acknowledged removal could never replay. Replaying removal of A while a later membership
+B exists returns only the original A acknowledgement and leaves B untouched. A different
+body under the same key refuses COMMAND_KEY_REUSED. An old epoch never bypasses current
+scope guards to recover a receipt, and later clear/account deletion may erase that receipt.
+These are backend obligations, not invariants a wire parser can prove.
+
+KeepRemovalProblemSchema is a closed14-code RFC9457 family using existing catalogue titles,
+statuses and types. Only fixed schema-owned issue tokens or unknown are allowed; numeric
+segments, received keys/values, arbitrary detail/instance, counts and replacement identity
+are forbidden. Place-CAS stale/counter errors are excluded. Its supported OpenAPI hook
+describes direct application/problem+json data; it is metadata, not an installed error
+serializer. Existing Keep place/read schemas, global problems and legacy stripping stay
+unchanged. Actions-only synthetic wire and actual generator tests cover declarations.
+A backend receipt/locking implementation, mounted consumer migration and real two-device
+remove/resave/unknown-ACK verification remain required before claiming ABA-safe removal.
