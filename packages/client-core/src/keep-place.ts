@@ -430,11 +430,13 @@ export function createKeepPlaceSession(options: { scope: AccountScope; newComman
         getState: () => (released || !live() ? endedState : current.state),
         subscribe(listener) {
           if (!usable()) return () => {};
-          listeners.add(listener);
-          current.listeners.add(listener);
+          // Each subscription owns its token, including identical callbacks on other handles.
+          const subscription = () => listener();
+          listeners.add(subscription);
+          current.listeners.add(subscription);
           return () => {
-            listeners.delete(listener);
-            current.listeners.delete(listener);
+            listeners.delete(subscription);
+            current.listeners.delete(subscription);
           };
         },
         refresh: () => {

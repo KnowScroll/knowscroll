@@ -123,6 +123,38 @@ describe('scope-owned Keep foundation (authored protocol fixtures only)', () => 
     expect(b.scope.active).toBe(true);
   });
 
+  it('keeps identical callbacks independent across retained handles and repeated subscriptions', async () => {
+    const f = fixture();
+    const a = f.session.retain(target)!;
+    const b = f.session.retain(target)!;
+    await ready(a);
+    await ready(b);
+    const shared = vi.fn();
+    const unsubscribeA = a.subscribe(shared);
+    const unsubscribeB = b.subscribe(shared);
+    unsubscribeA();
+    f.replace(originalEntry, 1, 1);
+    b.refresh();
+    await vi.waitFor(() => expect(b.getState().snapshot).toMatchObject({ place: { placeRevision: 1 } }));
+    expect(shared).toHaveBeenCalledTimes(1);
+    a.subscribe(shared);
+    a.release();
+    f.replace(originalEntry, 2, 2);
+    b.refresh();
+    await vi.waitFor(() => expect(b.getState().snapshot).toMatchObject({ place: { placeRevision: 2 } }));
+    expect(shared).toHaveBeenCalledTimes(2);
+    b.subscribe(shared);
+    unsubscribeB();
+    unsubscribeB();
+    f.replace(originalEntry, 3, 3);
+    b.refresh();
+    await vi.waitFor(() => expect(b.getState().snapshot).toMatchObject({ place: { placeRevision: 3 } }));
+    expect(shared).toHaveBeenCalledTimes(3);
+    b.release();
+    f.scope.end();
+    expect(shared).toHaveBeenCalledTimes(3);
+  });
+
   it('drops an abort-ignoring read after epoch end and removes released details without persistence', async () => {
     const gate = deferred<unknown>();
     const f = fixture(() => gate.promise);
