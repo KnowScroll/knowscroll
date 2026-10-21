@@ -548,3 +548,41 @@ retry grant. Existing historical rows/requests/SQL remain immutable. Actions use
 default/explicit-text positives and invented-path negatives through canonical compilation and
 native HTTP/PostgreSQL repair/replay; these fixtures do not prove provider success. No operator
 profile, ready config, deployment, live query, reservation or model call is authorized here.
+
+## Durable sanitized chain evidence (#240)
+
+The separately selected `makeCutroomChainSnapshotCollector` shares the existing GET/parser/projection
+sequence and fixed deadlines/bounds. Default-disabled settings perform no work. The existing report-only
+collector still discards every document; the new port exposes only the strict sanitized four/eight
+projections, collection/profile references, times and raw-body aggregate/counters. URLs, headers, raw
+reply bodies, freeform details and degradation reasons do not escape; retained reasons are digests.
+Source/profile expectations and fixture hashes are not an actual engine/funds/human attestation.
+
+`makeCommissionChainSnapshots` is an explicit default-disabled factory with no normal API/worker
+binding. It validates serialized byte/depth/node/semantic limits outside the write transaction, derives
+cost/classification itself, then enters the existing root -> exact business -> retained attempt
+accounting scope. Reasoning's public scoped ports own immutable execution/receipt/observation metadata;
+Content never queries those tables. Request IDs use bounded projections and claimed/bound timestamps
+retain all six fractional digits. No protected request, permit, POST, pool operation, media opener,
+publication or attempt engine is added. Old/disabled-generation liability metadata can be retained
+without reviving approval, purged bytes, another take or dispatch permission.
+
+World0033 adds two immutable shared Content tables. A snapshot has a canonical <=8192-byte versioned
+header, ordered document hashes/byte vector and exact execution identity. Each document is <=262144
+UTF8 bytes; exactly4 or8 documents total <=2097152 bytes. DB SHA/byte checks and a deferred completeness
+trigger prevent partial commits even on adapter bypass. Thirty-two unique ordinal/digest slots bound
+history to <=67108864 document bytes/attempt plus bounded headers/columns. The33rd is held/refused;
+there is no eviction, overwrite, bootstrap or personal-erasure cascade. Read at most33 bounded headers
+and one exact known snapshot/observation/eight documents; corrupt/unknown versions or correspondence
+refuse. Raw intake remains separately <=2621440 bytes, not a claimed2MiB total memory ceiling.
+
+The new complete-path observation key is the **snapshot digest**, distinct from the raw-body aggregate
+and existing semantic chain digest. Its unique observation ID resolves one Content header for the
+unchanged IDs-only accounting work. Exact replay returns original IDs without another job; different
+later evidence cannot replace earlier evidence. Header/documents, existing C1 observation, pending
+accounting intent and pg-boss job commit atomically. Post-write refusals throw through the actual scope
+and are mapped only after rollback. Lost COMMIT ACK never causes financial action; an exact replay/read
+recovers durable IDs. A historical read revalidates at its sealed capture time and does not make that
+evidence current or reconstruct request bytes. Reported safe cents and accept-with-label outcomes stay
+honest, including overage and video-unavailable chains. All whole-ceiling liabilities remain held;
+settlement/import/disposition, actual profile/funds/pool authority, human scripts and CF62 are later gates.

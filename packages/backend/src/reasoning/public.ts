@@ -106,6 +106,7 @@ export type {
   CutroomDispatchPermit,
   CutroomIntentResult,
   CutroomExecutionStore,
+  CutroomExecutionBinding,
   CutroomReviewRecheck,
   CutroomExecutionPorts,
   CutroomExecutionFoundation,

@@ -127,3 +127,8 @@ export { postgresCommissionReview } from './postgres-commission-review.js';
 
 /** Optional GET-only collector assembly; no normal resource/worker binding. */
 export { makeCutroomChainCollector } from './cutroom/chain-reader.js';
+
+/** Optional evidence-only chain durability assembly; no normal resource/worker binding. */
+export { makeCutroomChainSnapshotCollector } from './cutroom/chain-reader.js';
+export { makeCommissionChainSnapshots } from '../production/commission-chain-store.js';
+export { postgresCommissionChainStore } from './postgres-commission-chain.js';

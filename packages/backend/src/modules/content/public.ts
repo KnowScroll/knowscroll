@@ -286,3 +286,23 @@ export type {
   CutroomChainCollectorSettings,
   CutroomChainCollection,
 } from './production/commission-contracts.js';
+
+/** Sanitized evidence data/ports only; no adapter or dispatch/settlement factory here. */
+export type {
+  CutroomCollectedChain,
+  CutroomChainSnapshotCollection,
+  CutroomChainSnapshotCollector,
+} from './production/commission-contracts.js';
+export type {
+  ChainDocument,
+  ChainDocumentKind,
+  ChainSnapshotHeader,
+  SealedChainSnapshot,
+  StoredChainSnapshot,
+  ChainSnapshotSelector,
+  ChainStoreRefusal,
+  ChainStoreResult,
+  CommissionChainStore,
+  CommissionChainStorePorts,
+  CommissionChainSnapshots,
+} from './production/commission-chain-store-ports.js';

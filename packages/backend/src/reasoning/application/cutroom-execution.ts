@@ -5,6 +5,7 @@ import type {
   CutroomExecutionFoundation,
   CutroomExecutionPorts,
   CutroomIntentRecord,
+  CutroomAccountingScopeTx,
 } from './cutroom-execution-ports.js';
 const digest = z.string().regex(/^[0-9a-f]{64}$/);
 const ref = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/);
@@ -51,7 +52,28 @@ export function makeCutroomExecutionFoundation(p: CutroomExecutionPorts): Cutroo
     preflights = z.array(preflightSchema).max(16).parse(structuredClone(p.preflights));
   const held = (code: 'disabled' | 'identity' | 'review' | 'preflight' | 'expired' | 'unknown' | 'settled') =>
     ({ kind: 'held', code }) as const;
+  async function recordObservationInScope(scope: CutroomAccountingScopeTx, input: unknown) {
+    if (!enabled) return { kind: 'refused', code: 'disabled' } as const;
+    const observation = observationSchema.safeParse(input);
+    if (!observation.success) return { kind: 'refused', code: 'invalid' } as const;
+    if (scope.identity.requestId !== observation.data.requestId) return { kind: 'refused', code: 'identity' } as const;
+    return p.store.observe(scope, observation.data);
+  }
   return {
+    recordObservationInScope,
+    async readAccountingBinding(scope) {
+      return enabled ? p.store.readAccountingBinding(scope) : undefined;
+    },
+    async matchesAccountingObservation(scope, observationId, snapshotSha256, runId) {
+      if (
+        !enabled ||
+        !z.uuid().safeParse(observationId).success ||
+        !digest.safeParse(snapshotSha256).success ||
+        !ref.safeParse(runId).success
+      )
+        return false;
+      return p.store.matchesAccountingObservation(scope, observationId, snapshotSha256, runId);
+    },
     async prepareIntent(authority, attemptId) {
       if (!enabled) return held('disabled');
       if (!z.uuid().safeParse(attemptId).success) return held('identity');
@@ -110,10 +132,7 @@ export function makeCutroomExecutionFoundation(p: CutroomExecutionPorts): Cutroo
       const t = targetSchema.safeParse(target),
         o = observationSchema.safeParse(input);
       if (!t.success || !o.success) return { kind: 'refused', code: 'invalid' };
-      const r = await p.withAccountingScope(t.data, async (scope) => {
-        if (scope.identity.requestId !== o.data.requestId) return { kind: 'refused', code: 'identity' } as const;
-        return p.store.observe(scope, o.data);
-      });
+      const r = await p.withAccountingScope(t.data, (scope) => recordObservationInScope(scope, o.data));
       return r.kind === 'entered' ? r.value : r;
     },
   };
