@@ -1,4 +1,5 @@
 import type { ScrollDraft } from '@knowscroll/scroll-model/producer';
+import { writerDraftProfile } from './writer-profile.js';
 
 /**
  * Authored, fictional syntax example, never product content. Its claim ID deliberately lies
@@ -118,5 +119,7 @@ export function writerDraftExampleJson(interactive: boolean): string {
     };
     example.bindings[1] = { kind: 'block', claimId: 'example-only-claim', blockId: 'example-comparison' };
   }
-  return JSON.stringify(example);
+  // Validate fictional syntax against the same selected contract used by the actual role.
+  // This grants no evidence authority; the full semantic compiler still rejects these claim IDs.
+  return JSON.stringify(writerDraftProfile(interactive).parse(example));
 }
