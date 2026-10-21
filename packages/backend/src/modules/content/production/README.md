@@ -395,3 +395,33 @@ Every historical fingerprinted Reel across availability/status/version belongs t
 The dynamic snapshot commits trusted legacy completeness plus every ordered retained v2 row (strict supported packet/version, derived hashes, Content business/column correspondence, raw packet hash, human evidence reference and exact revocation timestamp). Unknown, malformed or mismatched rows refuse before novelty filtering, irrespective of their indexed hashes or status. The legacy limit is separately 1000 records x 16384 bytes (16,384,000 bytes); validated v2 packets are separately limited to 1000 rows and 8,388,608 bytes. Their combined accepted JSON metadata ceiling is 24,772,608 bytes, plus DDL-bounded scalar columns. Each scan fetches at most 1001 rows to detect overflow: v2 packet intake can reach 100,100,000 bytes before aggregate refusal (1001 x the 100000-byte DDL bound), and legacy intake can reach 16,400,384 bytes. Business request IDs are projected as NULL before materialization when over 128 UTF-8 bytes; identity checks refuse the row, without truncating or filtering it. Other selected business text has DDL bounds: hashes 64 ASCII bytes, fixed policy, approval reference at most 128 characters/512 UTF-8 bytes, and own package at most 65536 bytes. No partial snapshot is treated as complete. Shared corpus serialization and retained-row share locks fence concurrent admission/revocation. The verified computed template is compared for every mapped historical row even when its original template stamp is null; nullable original stamps remain unchanged.
 
 Admission/recheck recompute that snapshot under the same root/business/corpus locking order and require exact equality to the human-reviewed packet. Only fully validated exact same-business packet replay excludes its own row, so insertion preserves its own replay digest while another admission advances the snapshot. Stale packets/approvals refuse. An existing business is checked before compilation: preparation reuses only validated stored review metadata (including after protected-byte purge), or refuses unreviewed/stale/corrupt history. There is no implicit refresh, reapproval, replacement, maintenance bootstrap or take change. Existing stale immutable reviews remain held for an explicit later protocol; C1 does not invent that authority.
+
+## Disabled-root read-only preapproval (#240 D1)
+
+`makeCommissionPreparation` is a distinct default-disabled factory with only `prepare`.
+It uses the live read-only preparation scope and the existing store's `prepareReadOnly`
+method; no human registry/admit/recheck/business/attempt/dispatch method is exposed.
+Its trusted completeness list starts empty. Missing/unproven completeness is
+corpus_unavailable, never complete-empty. Normal composition supplies no binding.
+
+The read-only and locked C1 paths share one bounded row projection, full canonical
+packet/column/hash validation and snapshot digest algorithm. Locked preparation,
+admission and recheck retain root/business/corpus serialization and SHARE locks.
+Read-only preparation instead uses one consistent repeatable-read snapshot, no row or
+advisory lock. The existing disabled root/generation, every mapped legacy row and every
+retained v2 review across versions/statuses are read consistently. The same1000+1 scan
+bounds, separate16,384,000B legacy/8,388,608B accepted v2 caps and24,772,608B combined
+accepted JSON ceiling apply; raw intake bounds remain16,400,384B/100,100,000B before
+aggregate refusal. Oversized business request IDs still project NULL before materialization.
+No row is silently skipped/truncated and no fingerprint policy/version resets history.
+
+Fresh public candidates compile once to hash/length metadata before any B business.
+Existing businesses use only exact retained review metadata before compilation, including
+when protected bytes were purged; absent/corrupt/stale metadata refuses, never rebuilds,
+refreshes or replaces the request. The returned clear packet is only true for its snapshot,
+not reserved novelty or human approval. Another admitted/revoked review or root change can
+make it stale; final locked C1 admission/recheck remains mandatory and unchanged.
+Actions fixtures label completeness and human attestations fictional, prove actual read-only
+write refusal, separate capability/lifetime/markers, exact zero effects and stale snapshot
+refusals. Actual complete corpus mapping, per-script human evidence, fal/pool/sole-writer
+preflight, dispatch, media publication and Supply completion require separate accepted work.

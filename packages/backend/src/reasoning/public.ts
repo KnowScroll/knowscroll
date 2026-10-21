@@ -116,3 +116,5 @@ export {
   CutroomAccountingWorkSchema,
   CutroomFollowWorkSchema,
 } from './events.js';
+
+export type { CutroomPreparationScopeTx, WithCutroomPreparationScope } from './application/cutroom-execution-ports.js';

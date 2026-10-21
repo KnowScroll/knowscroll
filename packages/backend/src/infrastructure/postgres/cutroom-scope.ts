@@ -151,3 +151,50 @@ export function cutroomAccountingTransactionOf(scope: CutroomAccountingScopeTx):
   if (!trx) throw new ScopeClosedError('Cutroom accounting scope is forged or closed');
   return trx;
 }
+
+// A third disjoint live map. Read-only preparation cannot obtain either mutable capability.
+import type { CutroomPreparationScopeTx, WithCutroomPreparationScope } from '../../reasoning/public.js';
+const preparationLive = new WeakMap<CutroomPreparationScopeTx, Transaction<Database>>();
+const preparationAuthority = z.strictObject({
+  worldId: z.enum(['dev', 'stage']),
+  generation: z.number().int().min(1).max(2147483647),
+});
+/** Default disabled; no root seed, row locks, request bytes, jobs or external work. */
+export function makeWithCutroomPreparationScope(
+  db: Kysely<Database>,
+  options: { readonly enabled?: boolean } = {},
+): WithCutroomPreparationScope {
+  const enabled = options.enabled ?? false;
+  return async (claimed, work) => {
+    if (!enabled) return { kind: 'refused', code: 'disabled' };
+    const parsed = preparationAuthority.safeParse(claimed);
+    if (!parsed.success) return { kind: 'refused', code: 'identity' };
+    const authority = Object.freeze(parsed.data);
+    return withTransaction(db, 'cutroom-preparation', async (trx) => {
+      // First statement after BEGIN: establish the actual server-enforced snapshot before reads.
+      await sql`set transaction isolation level repeatable read, read only`.execute(trx);
+      await sql`set local statement_timeout = '5000ms'`.execute(trx);
+      await sql`set local lock_timeout = '5000ms'`.execute(trx);
+      const root = await trx
+        .selectFrom('reasoning.cutroom_scopes')
+        .select(['enabled', 'generation'])
+        .where('world_id', '=', authority.worldId)
+        .executeTakeFirst();
+      if (!root) return { kind: 'refused', code: 'identity' } as const;
+      if (root.generation !== authority.generation) return { kind: 'refused', code: 'generation' } as const;
+      const scope = Object.freeze({ authority, rootEnabledAtSnapshot: root.enabled }) as CutroomPreparationScopeTx;
+      preparationLive.set(scope, trx);
+      try {
+        return { kind: 'entered', value: await work(scope) } as const;
+      } finally {
+        preparationLive.delete(scope);
+      }
+    });
+  };
+}
+/** Only metadata adapters use this getter. PG itself refuses all writes/locking reads. */
+export function cutroomPreparationTransactionOf(scope: CutroomPreparationScopeTx): Transaction<Database> {
+  const trx = preparationLive.get(scope);
+  if (!trx) throw new ScopeClosedError('Cutroom preparation scope is forged or closed');
+  return trx;
+}

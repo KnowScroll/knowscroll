@@ -1,5 +1,5 @@
 import type { CutroomCommissionScript } from './commission-contracts.js';
-import type { CutroomReviewBinding, CutroomScopeTx } from '../../../reasoning/public.js';
+import type { CutroomReviewBinding, CutroomScopeTx, CutroomPreparationScopeTx } from '../../../reasoning/public.js';
 export interface ReelTemplateDescriptor {
   readonly narrationClaimCounts: readonly number[];
   readonly claimRoles: readonly ('main' | 'supporting')[];
@@ -110,4 +110,13 @@ export interface CommissionReviewStore {
     approvals: readonly CommissionHumanApproval[],
     manifests: readonly ReelCorpusManifest[],
   ): Promise<CutroomReviewBinding | undefined>;
+}
+
+/** Separate read-only store: no gate/admit/recheck, business mutation or approval capability. */
+export interface CommissionPreparationStore {
+  prepareReadOnly(
+    scope: CutroomPreparationScopeTx,
+    input: unknown,
+    manifests: readonly ReelCorpusManifest[],
+  ): Promise<CommissionReviewPreparation>;
 }

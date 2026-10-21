@@ -551,3 +551,23 @@ This unmounted, disabled-by-default slice adds immutable dispatch-intent and all
 The dispatch path locks root, exact Content business, then retained attempt/request. Current generation, review, receipt and protected bytes must agree. Intent, reserved-to-dispatched transition and IDs-only follow job commit together. The ephemeral single-use permit exists only after COMMIT acknowledgement and expires with the preflight. Lost acknowledgement returns no permit; later delivery uses unchanged decideOnDelivery to mark unknown, never resend. C1 has no permit consumer that sends a request.
 
 A separate opaque accounting capability locks the current root, exact business and retained attempt, including disabled roots/old generations. Its private live-map transaction expires with the callback and cannot be used by B's byte/claim/dispatch adapters. It exposes only immutable pool identity and fences, never protected request bytes. Strict allowlisted observations remain unvalidated, and their immutable pending intent plus fixed accounting-queue job commit in that same transaction. They provide no cost attestation or permission to release/settle money. Forged, closed or mismatched scopes refuse. All future pool/network access must remain outside marked transactions; pool is the sole cents authority. Personal erasure does not erase these public business/liability records. Migration0031 seeds no root, approval, corpus or role.
+
+## Read-only Cutroom preparation (#240 D1)
+
+`makeWithCutroomPreparationScope` is a separate, unmounted/default-disabled factory.
+It runs a real marked PostgreSQL REPEATABLE READ, READ ONLY transaction with fixed5s
+statement/lock bounds. The existing world root is the first metadata read: missing or
+mismatched generation refuses; disabled roots are allowed. No root is seeded/enabled.
+`rootEnabledAtSnapshot` describes that consistent snapshot, never admission authority.
+A separate private live map expires before the transaction returns; copied/serialized,
+forged and closed scopes fail. It cannot supply B, accounting, protected-request,
+dispatch-intent, personal or enqueue capabilities. Network/nested transactions remain
+refused by the existing transaction marker. Read-only mode is server-enforced for
+protected tables, not a promise that PostgreSQL performs no internal disk writes.
+
+This capability obtains public script/corpus metadata for a concrete human review
+packet before any business/attempt/claim exists. It never reserves novelty, approves
+a script or proves current funds/profile/corpus completeness. A concurrent change may
+make the returned packet stale; unchanged locked C1 admission and execution recheck
+must validate current generation/approval/corpus again. No normal worker/API/operator,
+registry seed, corpus reader/import, transport, pool grant or paid operation is bound.

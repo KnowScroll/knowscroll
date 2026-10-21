@@ -13,8 +13,10 @@ import type {
   ReelCorpusRecord,
   ReelTemplateDescriptor,
   CommissionReviewStore,
+  CommissionPreparationStore,
+  CommissionReviewPreparation,
 } from './commission-review-ports.js';
-import type { CutroomScopeTx } from '../../../reasoning/public.js';
+import type { CutroomScopeTx, CutroomAuthority, WithCutroomPreparationScope } from '../../../reasoning/public.js';
 const digest = z.string().regex(/^[0-9a-f]{64}$/),
   ref = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/);
 /** Exact legacy key sorting / JSON scalar encoding. Projection IDs live OUTSIDE the hashed payload. */
@@ -310,11 +312,32 @@ export function parseCommissionReviewPacket(value: unknown): CommissionReviewPac
   const { reviewSha256, ...payload } = p.data;
   return reelFingerprint(payload) === reviewSha256 ? p.data : undefined;
 }
-/** Module-internal sealing seam: invoked ONLY after the store has validated actual complete metadata under lock. */
+/** Module-internal sealing seam: invoked ONLY after the store validates complete metadata in its locked or read-only snapshot. */
 export function sealCommissionReviewDraft(
   draft: CommissionReviewDraft,
   corpusSnapshotSha256: string,
 ): CommissionReviewPacket {
   const payload = { ...draft, corpusSnapshotSha256, corpusGate: 'clear' as const };
   return { ...payload, reviewSha256: reelFingerprint(payload) };
+}
+
+/** Consistent snapshot preparation only; clear metadata is neither a reservation nor human approval.
+ * No normal composition binds this factory. Final locked C1 admission/recheck remains mandatory. */
+export function makeCommissionPreparation(
+  store: CommissionPreparationStore,
+  withScope: WithCutroomPreparationScope,
+  options: { readonly enabled?: boolean; readonly manifests?: readonly ReelCorpusManifest[] } = {},
+) {
+  const enabled = options.enabled ?? false;
+  const manifests = z
+    .array(ReelCorpusManifestSchema)
+    .max(1)
+    .parse(structuredClone(options.manifests ?? []));
+  return {
+    async prepare(authority: CutroomAuthority, input: unknown): Promise<CommissionReviewPreparation> {
+      if (!enabled) return { kind: 'refused', code: 'corpus_unavailable' };
+      const result = await withScope(authority, (scope) => store.prepareReadOnly(scope, input, manifests));
+      return result.kind === 'entered' ? result.value : { kind: 'refused', code: 'identity' };
+    },
+  };
 }
