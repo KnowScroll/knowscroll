@@ -466,3 +466,55 @@ capability, media/publication eligibility, Supply completion or retry/new-take a
 funds/pool/profile/corpus/approval/transport/media gates remain separately allocated work. Authored
 unit fixtures run only in Actions; no real resumed chain, provider billing or deployed journey is
 claimed by this prerequisite.
+
+## Bounded GET-only Cutroom collector (#240 C2)
+
+`makeCutroomChainCollector` is disabled without explicit trusted settings. No normal
+composition calls it. It has only `collect`: fixed loopback HTTP GET readiness,
+request lookup and run status/result/record routes. There is no POST, resume/cancel,
+billing/pool/credential access, DB/store/job, artifact opener or publication method.
+The existing single-run importer, its video-only result method, approved saved results,
+A16 declaration and all vendored wire bytes remain unchanged.
+
+Full canonical wire-v1 schemas parse every terminal arm, including the failed original
+of an automatic child chain. Raw response bytes are bounded before JSON parsing; an
+iterative depth12/node12000 guard precedes recursive wire validation. Limits are fixed:
+10 GETs/delivery,262144B/response,2621440B total raw intake,5s/call,30s total. UTF8 is
+strict. Redirects/retries are disabled, finite errors discard all reply/error/header
+text, and no configurable limit can raise these ceilings. The normal one/two-run paths
+use5/9 GETs including readiness. No operation polls or sleeps while holding a transaction;
+the existing transaction marker refuses any network access inside a marked transaction.
+
+Opening statuses may name the original or newest child. The bounded traversal checks
+request identity and exact reciprocal links, fetches each full terminal result/record,
+then closes EVERY status after ALL records. A running/delayed child, changed closing
+sequence/topology,404,timeout or missing proof remains pending/unknown; it never resends
+or creates a take, releases liability or silently refreshes. Under the94ee source profile,
+automatic child creation occurs in the SAME transaction finishing the failed parent;
+15 minutes delays its job, not its row. Running-source/sole-writer correspondence remains
+an external prerequisite, never inferred from readiness or supplied profile metadata.
+
+Raw bodies are transient private input. Explicit allowlists serialize the eight strict
+sanitized projections for the accepted pure validator; paths, video URLs, freeform detail,
+rule prose and headers are discarded, degradation reasons become SHA256. Checks and labels
+are never dropped to pass gates. Returned values contain only the finite validator report,
+raw-body-digest aggregate, received time and bounded counters; no raw run/piece IDs or eight
+documents are exposed or persisted. The evidence digest is not a provider invoice, remote
+body attestation or approval capability. Per-response and aggregate projection bounds remain
+separate from raw intake/transient parsing memory. Unsupported shapes refuse, never truncate.
+
+Supplied profile/time/digest expectations are trusted composition data, not actual engine
+installation evidence. Freshness is rechecked after every HTTP wait and at closure; stale,
+future or reversed clocks refuse. Actual profile/data epoch/sole writer, full-corpus/human
+exact-script approval, fresh sufficient fal funds, pool grant/principal/receipt, acknowledged
+dispatch intent, onePOST/unknown recovery, durable snapshot/accounting integration, verified
+media/publication and Supply completion still require separate reviewed work. No cost-complete
+report settles a claim or weakens CF62's whole-ceiling hold on import failure. Authored fake-HTTP
+and canary fixtures run only in Actions; no real Cutroom/provider or live media result is claimed.
+
+Canonical readiness status/body pairs are200/true and503/false only; false readiness
+stops before lookup, contradictions/private extra fields refuse. A fixed deadline races
+both the initial HTTP promise and every explicit body-reader wait. Socket abort and stream
+cancellation remain best-effort cleanup, never an awaited prerequisite to returning the
+finite deadline result; late replies cannot become observed reports. The actual stalled-body
+regression is retained with its unchanged suite timeout.

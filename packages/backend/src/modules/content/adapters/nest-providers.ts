@@ -124,3 +124,6 @@ export const lockCommissionBusiness: CutroomBusinessLock = async (scope, id) =>
 /** C1 optional/default-deny review assembly; no normal provider or trusted corpus/approval seed. */
 export { makeCommissionReview } from '../production/commission-review.js';
 export { postgresCommissionReview } from './postgres-commission-review.js';
+
+/** Optional GET-only collector assembly; no normal resource/worker binding. */
+export { makeCutroomChainCollector } from './cutroom/chain-reader.js';

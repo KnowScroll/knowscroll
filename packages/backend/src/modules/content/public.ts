@@ -279,3 +279,10 @@ export type {
   CutroomChainReport,
   CutroomChainLabel,
 } from './production/commission-contracts.js';
+
+export { CUTROOM_CHAIN_COLLECTION_LIMITS } from './production/commission-contracts.js';
+export type {
+  CutroomChainCollector,
+  CutroomChainCollectorSettings,
+  CutroomChainCollection,
+} from './production/commission-contracts.js';
