@@ -10,6 +10,14 @@ refuses. Incompatible old v2 is stopped before old links return; recovery remain
 V1 uses its separate legacy database. No schema mutation, automatic data restore or cleanup bypass
 is part of this guard.
 
+If v2 preparation (quiesce, dump or migrate) fails or its outcome is unknown, automatic recovery
+does not attempt to activate the prior v2 release, even if a schema snapshot still matches it.
+An in-flight migration COMMIT may not yet be visible. Stop/disable v2 before restoring original
+links and report recovery incomplete; a failed stop prevents restoring links. Conclusive outcome
+review is required before separate manual recovery. After acknowledged successful preparation,
+ordinary compatible activation/health recovery and explicit rollback retain their schema guards.
+Legacy v1 recovery still uses its separate database.
+
 Every v2 deployment first stops/disables its v2 target, API and worker before any dump/migration,
 even with an unchanged schema. Stop failure prevents DDL. This intentional brief downtime prevents
 old erasers and automatic restarts from running during new backfills. Legacy v1 stays untouched until

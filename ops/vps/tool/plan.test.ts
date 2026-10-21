@@ -152,6 +152,59 @@ test('#250 failed deploy cannot restart old v2 after new/unknown DDL', async () 
   assert.deepEqual(unsafeCalls, [], 'never expose old code to automatic restart if stop failed');
 });
 
+test('#250 failed preparation never activates prior v2 even when its schema snapshot would match', async () => {
+  const calls: string[] = [];
+  const recovered = await recoverFailedActivation('v2', {
+    activate: () => activateAfterSchemaCheck('v2', {
+      checkV2Schema: () => { assert.equal(v2SchemaCompatibility(SCHEMA, schemaSnapshot()).ok, true); calls.push('schema'); },
+      pointCurrent: () => { calls.push('old-links'); },
+      start: () => { calls.push('old-v2-start'); return Promise.resolve(true); },
+    }),
+    stopV2: () => { calls.push('stop-disable-v2'); },
+    restoreLinks: () => { calls.push('original-links'); },
+  }, { preparationFailed: true });
+  assert.equal(recovered, false, 'matching metadata cannot prove an uncertain COMMIT finished');
+  assert.deepEqual(calls, ['stop-disable-v2', 'original-links']);
+});
+
+test('#250 failed preparation cannot restore old links when stopping v2 fails', async () => {
+  const calls: string[] = [];
+  await assert.rejects(recoverFailedActivation('v2', {
+    activate: () => { calls.push('activation'); return Promise.resolve(true); },
+    stopV2: () => { calls.push('stop-failed'); throw new Error('fixture: stop failed'); },
+    restoreLinks: () => { calls.push('unsafe-old-links'); },
+  }, { preparationFailed: true }), /stop failed/);
+  assert.deepEqual(calls, ['stop-failed']);
+});
+
+test('#250 acknowledged preparation retains compatible v2 recovery', async () => {
+  const calls: string[] = [];
+  assert.equal(await recoverFailedActivation('v2', {
+    activate: () => activateAfterSchemaCheck('v2', {
+      checkV2Schema: () => { assert.equal(v2SchemaCompatibility(SCHEMA, schemaSnapshot()).ok, true); calls.push('schema'); },
+      pointCurrent: () => { calls.push('links'); },
+      start: () => { calls.push('start'); return Promise.resolve(true); },
+    }),
+    stopV2: () => { calls.push('unexpected-stop'); },
+    restoreLinks: () => { calls.push('unexpected-restore'); },
+  }, { preparationFailed: false }), true);
+  assert.deepEqual(calls, ['schema', 'links', 'start']);
+});
+
+test('#250 failed v2 preparation preserves prior v1 separate-database recovery', async () => {
+  const calls: string[] = [];
+  assert.equal(await recoverFailedActivation('v1', {
+    activate: () => activateAfterSchemaCheck('v1', {
+      checkV2Schema: () => { throw new Error('legacy must not read v2'); },
+      pointCurrent: () => { calls.push('legacy-links'); },
+      start: () => { calls.push('legacy-start'); return Promise.resolve(true); },
+    }),
+    stopV2: () => { throw new Error('legacy recovery does not use the v2 failure branch'); },
+    restoreLinks: () => { calls.push('unexpected-restore'); },
+  }, { preparationFailed: true }), true);
+  assert.deepEqual(calls, ['legacy-links', 'legacy-start']);
+});
+
 test('#250 v1 activation/recovery never reads the separate v2 database', async () => {
   const calls: string[] = [];
   const result = await recoverFailedActivation('v1', {
@@ -220,6 +273,7 @@ test('#250 the actual system branches use the tested gate and conservative recov
   const recovery = source.slice(source.indexOf('async function restoreRunning('), source.indexOf('function cleanupAfterDeploy('));
   assert.match(recovery, /recoverFailedActivation\(next.generation,/);
   assert.match(recovery, /stopV2: \(\) => quiesceV2\(world\)/);
+  assert.match(recovery, /\}, context\)/);
   const quiesce = source.slice(source.indexOf('function quiesceV2('), source.indexOf('async function activate('));
   assert.match(quiesce, /worldUnits\(world, 'v2'\)/);
   assert.match(quiesce, /systemctl\('stop', units.target, \.\.\.units.services\)/);
@@ -234,6 +288,7 @@ test('#250 the actual system branches use the tested gate and conservative recov
   assert.match(deployment, /dump = prepareV2Deployment\(\{\s*quiesce: \(\) => quiesceV2\(w\),\s*dump: \(\) => predeployDump\(w, commit\),\s*migrate: \(\) => migrateV2/);
   assert.match(deployment, /!migrationFailed && await activate/);
   assert.match(deployment, /restoreRunning\(w, beforeSlot,\s*\(\) => applyLinks/);
+  assert.match(deployment, /\{ preparationFailed: migrationFailed \}/);
   assert.match(deployment, /failed-recovery-incomplete/);
   assert.doesNotMatch(source, /assumed: 'v1'/, 'an unknown manifest cannot bypass the v2 guard');
 });
