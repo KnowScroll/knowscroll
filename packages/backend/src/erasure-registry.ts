@@ -1,3 +1,4 @@
+import { socialErasure } from './modules/social/adapters/erasure.js';
 import { scenesErasure } from './modules/scenes/adapters/erasure.js';
 import { geographyErasure } from './modules/geography/adapters/erasure.js';
 import { supplyErasure } from './modules/supply/adapters/erasure.js';
@@ -22,6 +23,7 @@ import { receiptsErasure } from './infrastructure/receipts/erasure.js';
  * lifecycle) and `content.assets` (shared content).
  */
 export const personalStores = erasureRegistry([
+  socialErasure,
   scenesErasure,
   geographyErasure,
   supplyErasure,
