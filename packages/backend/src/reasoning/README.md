@@ -478,3 +478,68 @@ charged. It cannot release an unknown original claim or authorize another POST/n
 original liability remains held pending conclusive reconciliation. Caller resume remains outside this seam. Unverified chain cost semantics block final settlement;
 actual cost is never clamped to an estimate or ceiling. Future capability/ports require implementation,
 persistence, authority and provider-specific conformance review before any consumer or paid use.
+
+
+## Durable Cutroom B foundation (#240, migration0030)
+
+`cutroomBFor` is an explicit optional factory, default disabled with an empty trusted
+owner-approval registry. No root is seeded, no principal/ACL/grant is installed,
+and no app/worker/HTTP consumer, schedule, provider POST/GET, fal preflight, media,
+publication or Supply binding is added. The complete `CutroomExecution` declaration
+remains unimplemented. B returns explicit pending/held metadata, never dispatch
+permission or a fabricated pool reservation. Parsed approval refs and the shared
+GitHub account are not human script approval.
+
+Reasoning owns shared `cutroom_scopes`, `cutroom_attempts`, protected
+`cutroom_requests` and immutable `cutroom_pool_operations`. Content owns immutable
+public `reel_commissions` and its attempt reference. Pool0003 alone owns cents;
+world rows contain exact identity/expectation and acknowledgement, no money balance.
+Personal Clear/Reset/erasers do not delete these shared public business/liability
+records. No personal input or model role/attempt pipeline is accepted.
+
+Lock order is Cutroom world root -> Content business through its public lock port
+-> Reasoning attempt/request/operation. `CutroomScopeTx` is backed by a private live
+transaction map; forged/closed/deserialized scopes fail. All callbacks share the
+same marked READ COMMITTED transaction, including IDs-only pg-boss enqueue through
+`enqueue-cutroom`. New claims recheck enabled/generation and the exact composition
+registry after waiting. Recovery may inspect existing liabilities under a disabled
+current root but cannot authorize a new claim. No normal root is created here.
+
+One admitted take1..999 and exact canonical UTF-8 request are persisted once. Both
+application and SQL verify SHA-256, byte length, wire1 and the unchanged100000-byte
+bound. Proposed protected retention is30days. Business replay checks its immutable
+original command hash before compilation. Expiry never regenerates/replaces an
+attempt or reconstructs bytes from Content. Purge is explicitly invoked/bounded1..100,
+removes only payload bytes and retains hashes, IDs, fences and pool liability. It
+uses unchanged `canTransitionCutroomAttempt` for reserved -> not_sent; dispatched/
+unknown liabilities remain held. There is no model purge behavior change.
+
+A claim intention and required recovery job commit before a separate pool connection.
+Lost world COMMIT acknowledgement stops that external action. Pool access uses only
+v2 APIs and verifies pinned SESSION login/OID plus grant/world/request/full script
+SHA/take/until/body SHA/ordered_by/ceiling/approval. Server binding UUID, claimed_at
+and bound_at start null and are pinned once from an exact authoritative read.
+Bigint status values are parsed without clamping; foreign/unbound/conflicting,
+revoked/terminal/accounting-held/unknown responses park the same candidate. No legacy
+next_take, conflict adoption, silent increment or second allowance exists. Lost pool
+or local acknowledgement recovers only the same intention/tuple by exact read;
+missing rows,404,ready,refusal,timeout or expiry do not prove zero cost.
+
+Release requires locked irreversible not_sent/no-dispatch-intent proof and a committed
+exact release intention/fence. Only after acknowledged world commit does Reasoning
+mint an ephemeral runtime-proven permit; the pool adapter consumes it once and binds
+it to the exact real claim receipt. Serialized/stale/forged permits fail. Routine0003
+has no release ACL: permission refusal stays held/needs_operator. No source grant or
+principal is added; disposable genuine-login fixtures alone simulate that future
+right. Expiry racing an in-flight claim cannot release an unobserved liability.
+All pool connections, status/read/claim/release operations reject marked transactions.
+The composition caller must use a bounded dedicated pool connection.
+
+The new queue `reasoning.cutroom-pool` declares only world/generation/attempt/operation
+IDs, no request bytes, script/evidence, personal scope or approval capability. No
+consumer/scheduler is installed. Actual owner approvals, pool provisioning/installation,
+future C dispatch/reconciliation and D chain/media/publication require separate review.
+Actions fixtures use separate disposable world/pool databases, real pg-boss and
+unmixed LOGIN roles. The optional legacy ACL role is fixture-renamed to prevent
+parallel old tests sharing role ownership; v2 SQL is unchanged. Fixtures are not
+live billing, commissioning, human approval or runtime proof.

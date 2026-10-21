@@ -75,3 +75,20 @@ export type {
   CutroomCentsReceipt,
 } from './domain/cutroom-attempt.js';
 export type { CutroomOwnerCapability, CutroomExecution } from './application/cutroom.js';
+
+/** B only: shared transaction/reservation metadata. No full dispatch implementation. */
+export type {
+  CutroomScopeTx,
+  CutroomAuthority,
+  CutroomScopeOutcome,
+  WithCutroomScope,
+  CutroomPoolIdentity,
+  CutroomCandidate,
+  CutroomOwnerApproval,
+  CutroomB,
+  CutroomBResult,
+  CutroomReservationPort,
+  CutroomBusinessLock,
+} from './application/cutroom-ports.js';
+
+export { CutroomPoolWorkSchema, cutroomPoolQueue } from './events.js';
