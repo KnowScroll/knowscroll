@@ -82,6 +82,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let actionRunning = false;
   let contextSerial = 0;
   let checkpoint: KeepPlaceHandle | undefined;
+  let checkpointOwner: { entry: EncounterEntry; assetId: string; assetRevision: number } | undefined;
   let checkpointOff: (() => void) | undefined;
   let checkpointSerial = 0;
   function releaseCheckpoint() {
@@ -90,7 +91,17 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     checkpointOff = undefined;
     checkpoint?.release();
     checkpoint = undefined;
+    checkpointOwner = undefined;
     if (live && scope.active) publish({ keepPlace: undefined });
+  }
+  // A scalar Reel position is valid for many assets; handle ownership must be exact, too.
+  function checkpointFor(entry = history.current()) {
+    return entry &&
+      checkpointOwner?.entry === entry &&
+      checkpointOwner.assetId === entry.offer.assetId &&
+      checkpointOwner.assetRevision === entry.offer.assetRevision
+      ? checkpoint
+      : undefined;
   }
   const valid = () => live && scope.active;
   const publish = (patch: Partial<EncounterState> = {}) => {
@@ -506,18 +517,23 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       const capture = entry.surface?.capture();
       const position = capture && checkpointPosition(entry, capture);
       if (!position) return;
-      checkpoint ??= keepBridgeFor(scope).retain({
-        assetId: entry.offer.assetId,
-        assetRevision: entry.offer.assetRevision,
-      });
-      const handle = checkpoint;
+      if (!checkpointFor(entry)) {
+        releaseCheckpoint();
+        checkpoint = keepBridgeFor(scope).retain({
+          assetId: entry.offer.assetId,
+          assetRevision: entry.offer.assetRevision,
+        });
+        if (checkpoint)
+          checkpointOwner = { entry, assetId: entry.offer.assetId, assetRevision: entry.offer.assetRevision };
+      }
+      const handle = checkpointFor(entry);
       if (!handle) {
         publish({ keepPlace: { status: 'unavailable', write: 'idle', reason: 'entry_unavailable' } });
         return;
       }
       if (!checkpointOff)
         checkpointOff = handle.subscribe(() => {
-          if (valid()) publish({ keepPlace: handle.getState() });
+          if (valid() && checkpointFor() === handle) publish({ keepPlace: handle.getState() });
         });
       const serial = ++checkpointSerial;
       publish({ keepPlace: handle.getState() });
@@ -526,6 +542,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         if (
           !valid() ||
           serial !== checkpointSerial ||
+          checkpointFor(entry) !== handle ||
           history.current() !== entry ||
           !foreground ||
           !entry.surface ||
@@ -535,13 +552,13 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
           return;
         handle.setPosition(position);
       } catch {
-        if (valid() && serial === checkpointSerial)
+        if (valid() && serial === checkpointSerial && checkpointFor() === handle)
           publish({ keepPlace: { ...handle.getState(), status: 'unavailable', reason: 'entry_unavailable' } });
       }
     },
-    retryKeep: () => checkpoint?.retry() ?? false,
-    refreshKeep: () => checkpoint?.refresh(),
-    resolveKeepConflict: (choice: 'server' | 'candidate') => checkpoint?.resolveConflict(choice) ?? false,
+    retryKeep: () => checkpointFor()?.retry() ?? false,
+    refreshKeep: () => checkpointFor()?.refresh(),
+    resolveKeepConflict: (choice: 'server' | 'candidate') => checkpointFor()?.resolveConflict(choice) ?? false,
     navigate,
     requests,
     openRequest(mode: RequestMode = 'topic') {
@@ -674,6 +691,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       }
       if (work || busy) return false;
       if (!history.back()) return false;
+      releaseCheckpoint();
       contextSerial += 1;
       // No read, command, activation, or new recorder on Back. Latest server intent remains independent.
       publish({ phase: 'active', outcome: undefined });
@@ -681,6 +699,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     },
     restore(exposureId: string) {
       if (work || busy || !history.restore(exposureId)) return;
+      releaseCheckpoint();
       contextSerial += 1;
       requests.visible(false);
       publish({ phase: 'active', outcome: undefined, overlay: false, overlayOwner: undefined });

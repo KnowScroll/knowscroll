@@ -709,3 +709,232 @@ describe('explicit mounted Keep return and measured checkpoint', () => {
     expect(f.calls.filter((c) => c.path.endsWith('/activate'))).toHaveLength(0);
   });
 });
+
+/** Two distinct authored Reel targets over the real Keep session. No backend/decoded media. */
+function historyKeepFixture() {
+  let next = 6000;
+  let selected = 0;
+  let gate: { target: number; promise: Promise<void> } | undefined;
+  const revisions = [1, 1];
+  const calls: { path: string; body: Record<string, unknown> }[] = [];
+  const offers = [0, 1].map((n) => ({ ...offer(n), relation: { kind: 'return' as const } }));
+  const snapshot = (n: number): AvailableKeep => ({
+    version: 'keep-place.v1',
+    scope: { accountId: id(3), privacyEpoch: 1 },
+    target: { assetId: offers[n]!.assetId, assetRevision: 2 },
+    status: 'available',
+    entry: { assetId: offers[n]!.assetId, assetRevision: 2, savedEntryId: id(900 + n) },
+    place: { status: 'set', placeRevision: revisions[n]!, position: { kind: 'reel', positionMs: 0 } },
+  });
+  const scope = createAccountScope({
+    account: { accountId: id(3), universeId: id(4), privacyEpoch: 1, email: 'history@fixture.test' },
+    baseUrl: 'https://fixture.test',
+    authorization: () => undefined,
+    store: memoryStore(),
+    fetch: async (request) => {
+      const path = new URL(request.url).pathname;
+      const body = request.method === 'POST' ? ((await request.json()) as Record<string, unknown>) : {};
+      calls.push({ path, body });
+      if (path.endsWith('/keep/read')) {
+        const n = offers.findIndex((v) => v.assetId === (body.target as { assetId: string }).assetId);
+        const result = snapshot(n);
+        // Deliberately ignores abort; the controller must discard this old target's response.
+        if (gate?.target === n) await gate.promise;
+        return jsonFixture(result);
+      }
+      if (path.endsWith('/keep/place')) {
+        const b = body as unknown as SetKeepPlace;
+        const n = offers.findIndex((v) => v.assetId === b.entry.assetId);
+        revisions[n] = b.expectedPlaceRevision + 1;
+        return jsonFixture({
+          version: 'keep-place.v1',
+          scope: snapshot(n).scope,
+          commandId: b.commandId,
+          recordedAt: '2026-10-22T00:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'keep.place.set',
+          entry: b.entry,
+          basePlaceRevision: b.expectedPlaceRevision,
+          acceptedPlaceRevision: revisions[n],
+        });
+      }
+      if (path.endsWith('/open')) {
+        selected = offers.findIndex((v) => v.assetId === (body.target as { assetId: string }).assetId);
+        return jsonFixture({
+          commandId: body.commandId,
+          sessionId: id(1),
+          intentRevision: 1,
+          revision: 1,
+          decisionId: id(2),
+          replayed: false,
+          status: 'ready',
+          offer: offers[selected],
+          bufferedOffers: [],
+        });
+      }
+      if (path.endsWith('/activate'))
+        return jsonFixture({
+          commandId: body.commandId,
+          sessionId: id(1),
+          intentRevision: 1,
+          offerId: offers[selected]!.offerId,
+          exposureId: id(400 + selected),
+          assetId: offers[selected]!.assetId,
+          assetRevision: 2,
+          kind: 'reel',
+          activatedAt: '2026-10-22T00:00:00.000Z',
+          revision: 1,
+          replayed: false,
+        });
+      if (path.endsWith('/context')) {
+        const n = Number(path.split('/').at(-2)!.slice(-12)) - 400;
+        return jsonFixture({
+          exposureId: id(400 + n),
+          assetId: offers[n]!.assetId,
+          assetRevision: 2,
+          revision: 1,
+          session: { sessionId: id(1), intentRevision: 1 },
+          actions: { saved: true, liked: false, hidden: false },
+          variants: [],
+          continuations: {
+            seriesNext: { status: 'unavailable', reason: 'series_boundary' },
+            seriesPrevious: { status: 'unavailable', reason: 'series_boundary' },
+            related: { status: 'unavailable', reason: 'no_related_ready' },
+          },
+        });
+      }
+      if (path === '/v1/media/grants')
+        return jsonFixture({
+          document: {
+            schemaVersion: 'reel-document.v1',
+            assetId: offers[selected]!.assetId,
+            revision: 2,
+            title: 'History fixture',
+            summary: 'Authored fixture only',
+            language: 'en',
+            truthLabel: 'generated',
+            fixture: true,
+            captions: 'burned_in',
+            mediaKey: `sha256/aa/${'a'.repeat(64)}.mp4`,
+            durationMs: 20000,
+            width: 1080,
+            height: 1920,
+          },
+          path: '/media/fixture',
+          expiresAt: '2099-10-22T00:00:00.000Z',
+        });
+      throw new Error('Unexpected history fixture path');
+    },
+  });
+  const session = createEncounterSession(scope, () => id(++next));
+  const open = async (n: number) => {
+    expect(session.openKept(offers[n]!, 'top')).toBe(true);
+    await waitFor(() => expect(session.getState().phase).toBe('active'));
+    return session.getState().entry!;
+  };
+  return {
+    scope,
+    session,
+    calls,
+    offers,
+    open,
+    gateRead: (target: number, promise: Promise<void>) => {
+      gate = { target, promise };
+    },
+  };
+}
+describe('checkpoint ownership across retained history transitions', () => {
+  it.each(['back', 'restore'] as const)('%s releases B before A can capture a Reel position', async (mode) => {
+    const f = historyKeepFixture();
+    try {
+      f.session.setForeground(true);
+      const a = await f.open(0);
+      const b = await f.open(1);
+      f.session.bindSurface(b, {
+        capture: () => ({ kind: 'reel', positionMs: 222.5, playing: false, muted: false }),
+        pause: jest.fn(),
+      });
+      await f.session.keepThisPlace();
+      await waitFor(() => expect(f.session.getState().keepPlace?.write).toBe('idle'));
+      if (mode === 'back') expect(f.session.back()).toBe(true);
+      else f.session.restore(a.exposureId);
+      expect(f.session.getState().entry).toBe(a);
+      expect(f.session.getState().keepPlace).toBeUndefined();
+      // Old renderer cleanup occurs after history already selected A.
+      f.session.park(b);
+      f.session.bindSurface(a, {
+        capture: () => ({ kind: 'reel', positionMs: 111.25, playing: false, muted: false }),
+        pause: jest.fn(),
+      });
+      await f.session.keepThisPlace();
+      await waitFor(() => expect(f.session.getState().keepPlace?.write).toBe('idle'));
+      const writes = f.calls.filter((v) => v.path.endsWith('/keep/place')).map((v) => v.body);
+      expect(writes).toHaveLength(2);
+      expect(writes.map((v) => v.entry)).toEqual([
+        { assetId: f.offers[1]!.assetId, assetRevision: 2, savedEntryId: id(901) },
+        { assetId: f.offers[0]!.assetId, assetRevision: 2, savedEntryId: id(900) },
+      ]);
+      expect(writes.map((v) => v.position)).toEqual([
+        { kind: 'reel', positionMs: 222.5 },
+        { kind: 'reel', positionMs: 111.25 },
+      ]);
+    } finally {
+      f.scope.end();
+    }
+  });
+  it.each(['back', 'restore'] as const)(
+    '%s fences an abort-ignoring pending B read and never writes its capture',
+    async (mode) => {
+      const f = historyKeepFixture();
+      let release!: () => void;
+      let pending: Promise<void> | undefined;
+      try {
+        f.session.setForeground(true);
+        const a = await f.open(0);
+        const b = await f.open(1);
+        f.gateRead(
+          1,
+          new Promise<void>((resolve) => {
+            release = resolve;
+          }),
+        );
+        f.session.bindSurface(b, {
+          capture: () => ({ kind: 'reel', positionMs: 222.5, playing: false, muted: false }),
+          pause: jest.fn(),
+        });
+        pending = f.session.keepThisPlace();
+        await waitFor(() =>
+          expect(
+            f.calls.some(
+              (v) =>
+                v.path.endsWith('/keep/read') && (v.body.target as { assetId: string }).assetId === b.offer.assetId,
+            ),
+          ).toBe(true),
+        );
+        if (mode === 'back') expect(f.session.back()).toBe(true);
+        else f.session.restore(a.exposureId);
+        expect(f.session.getState().entry).toBe(a);
+        expect(f.session.getState().keepPlace).toBeUndefined();
+        expect(f.session.retryKeep()).toBe(false);
+        f.session.park(b);
+        f.session.bindSurface(a, {
+          capture: () => ({ kind: 'reel', positionMs: 111.25, playing: false, muted: false }),
+          pause: jest.fn(),
+        });
+        await f.session.keepThisPlace();
+        release();
+        await waitFor(() => expect(f.session.getState().keepPlace?.write).toBe('idle'));
+        const writes = f.calls.filter((v) => v.path.endsWith('/keep/place')).map((v) => v.body);
+        expect(writes).toHaveLength(1);
+        expect(writes[0]!.entry).toEqual({ assetId: a.offer.assetId, assetRevision: 2, savedEntryId: id(900) });
+        expect(writes[0]!.position).toEqual({ kind: 'reel', positionMs: 111.25 });
+        expect(f.session.getState().keepPlace?.snapshot?.target.assetId).toBe(a.offer.assetId);
+      } finally {
+        release?.();
+        f.scope.end();
+        await pending;
+      }
+    },
+  );
+});
