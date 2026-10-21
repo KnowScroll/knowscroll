@@ -89,25 +89,27 @@ describe('explicit versioned single-string carrier (fake HTTP only)', () => {
     expect(calls).toEqual([kept]);
   });
 
-  it.each([
-    null,
-    [],
-    'raw',
-    {},
-    { json: null },
-    { json: {} },
-    { json: [] },
-    { json: 1 },
-    { json: '{}', extra: true },
-    { json: '[]' },
-    { json: 'null' },
-    { json: '"{}"' },
-    { json: '```json\n{}\n```' },
-    { json: '{}{}' },
-    { json: 'prose {}' },
-    { json: '{' },
-    { json: '{"value":1e999}' },
-  ])('refuses malformed envelope/inner JSON without salvaging values: case %#', (input) => {
+  it.each(
+    [
+      null,
+      [],
+      'raw',
+      {},
+      { json: null },
+      { json: {} },
+      { json: [] },
+      { json: 1 },
+      { json: '{}', extra: true },
+      { json: '[]' },
+      { json: 'null' },
+      { json: '"{}"' },
+      { json: '```json\n{}\n```' },
+      { json: '{}{}' },
+      { json: 'prose {}' },
+      { json: '{' },
+      { json: '{"value":1e999}' },
+    ].map((input, index) => ({ input, index })),
+  )('refuses malformed envelope/inner JSON without salvaging values: case $index', ({ input }) => {
     expect(parse(input)).toMatchObject({ reply: { answer: { kind: 'unreadable' } } });
   });
 
