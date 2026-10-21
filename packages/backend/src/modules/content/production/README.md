@@ -351,3 +351,31 @@ failure brakes, token/request/output ceilings and unknown-liability ledgers rema
 A new policy is not a cap reset or a retry grant. No SQL, operator activation, allocation, reservation,
 provider request, default or runtime permission changes here; a later operation needs separately
 reviewed exact source/release/profile and budget authority. Fixtures do not prove provider success.
+
+## Canonical production profiles in v10
+
+Policy `scroll-production.v10` / writer `scroll-writer.v8` changes the actual production input
+contract to a strict subset of the unchanged canonical `scroll-draft.v1`. The interactive profile
+selects paragraph/diagram/callout with canonical toggle interaction and two to four frames; the
+comparison profile selects paragraph/comparison/callout with two columns and two points each.
+Both retain canonical passage/header/heading/block bindings. Non-text accessibility and fallback
+fields are required. The profile selects original exported canonical schema nodes and narrows
+through public Zod APIs; it does not copy fields, coerce strings, introduce a DSL or change core
+Scroll schemas. Root/section array bounds stay canonical. Full compilation, support, copy-nine,
+number/honesty checks, min-four claims, actual interaction and computed two-to-eight-minute
+admission remain authoritative.
+
+The tool's actual advisory input schema is now the selected structural reference. The production
+prompt omits the full general-purpose catalogue and compiler convenience notation, retaining one
+matching authored fictional JSON example. That example cannot be admitted under actual offered
+claims and is never product content. Other users of the full catalogue/schema retain all16 types.
+
+The real v9 radiation job was rejected after claims succeeded and both writer attempts reported
+non-array-contract failures at sections/bindings. Failed raw replies were not retained; their
+received member types and bytes are unknown. No serialization defect or causal explanation was
+established. Reducing irrelevant grammar may help, but authored CI fixtures do not prove future
+provider compliance or content quality. M3's auto-choice carrier remains advisory, not forced
+schema decoding. Claims4/hp4, every recipe/source/asset/explanation identity, stable roles,
+generation, token/request/quota/brake bounds and max-four/one-repair limits remain unchanged.
+Historical v1–v9 jobs, attempts, issues and protected request bytes remain immutable. This source
+version supplies no operator profile, rollout, allocation, reservation or permission to call again.

@@ -18,6 +18,7 @@ import {
 } from './roles.js';
 import { TOPICS, explanationUnitFor, parseScrollTopic, SCROLL_PRODUCTION_VERSION } from './topics.js';
 import { writerDraftExampleJson } from './writer-example.js';
+import { writerDraftProfile } from './writer-profile.js';
 import { hydrateSelectedClaims, quoteCandidates } from './quote-candidates.js';
 
 const sourceWords =
@@ -38,19 +39,24 @@ const provenance = generatedProvenance({
   claims,
   pages: [page],
 });
-function fixtureDraft() {
+function fixtureDraft(interactive = false) {
   const source = JSON.parse(
     readFileSync(new URL('../starter/why-the-sky-is-blue.editorial-scroll.json', import.meta.url), 'utf8'),
   ) as { draft: unknown };
   const draft = ScrollDraft.parse(normaliseDraftInput(source.draft));
+  // Existing authored prose is filtered only for this CI profile fixture, never product content.
+  draft.sections = draft.sections
+    .map((section) => ({
+      ...section,
+      blocks: section.blocks.filter((block) => block.type === 'paragraph' || block.type === 'callout'),
+    }))
+    .filter((section) => section.blocks.length > 0);
+  const format = ScrollDraft.parse(JSON.parse(writerDraftExampleJson(interactive))).sections[0]?.blocks[1];
+  if (format === undefined) throw new Error('CI_FORMAT_MISSING');
+  draft.sections[0]?.blocks.push(format);
   for (const section of draft.sections)
-    for (const block of section.blocks) {
-      if (block.type !== 'subheading')
-        draft.bindings.push({ kind: 'block', blockId: block.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
-      if (block.type === 'disclosure')
-        for (const child of block.data.blocks)
-          draft.bindings.push({ kind: 'block', blockId: child.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
-    }
+    for (const block of section.blocks)
+      draft.bindings.push({ kind: 'block', blockId: block.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
   return draft;
 }
 describe('Scroll production roles (labelled CI fixture)', () => {
@@ -100,6 +106,7 @@ describe('Scroll production roles (labelled CI fixture)', () => {
       const json = writerDraftExampleJson(interactive);
       const example: unknown = JSON.parse(json);
       expect(ScrollDraft.safeParse(example).success).toBe(true);
+      expect(writerDraftProfile(interactive).safeParse(example).success).toBe(true);
       const synthetic: DraftProvenance = {
         ...provenance,
         publication: {
@@ -146,19 +153,18 @@ describe('Scroll production roles (labelled CI fixture)', () => {
       const role = writerRole(provenance, interactive);
       const json = writerDraftExampleJson(interactive);
       expect(role.instructions.split(json)).toHaveLength(2);
-      expect(role.instructions).toContain(blockCatalogueText());
-      expect(role.instructions.indexOf('SCHEMA REFERENCE GRAMMAR ONLY')).toBeLessThan(
-        role.instructions.indexOf(blockCatalogueText()),
-      );
-      expect(role.instructions.indexOf('</schema-reference-grammar>')).toBeLessThan(role.instructions.indexOf(json));
+      expect(role.instructions).not.toContain(blockCatalogueText());
+      expect(role.instructions).toContain('SELECTED SCHEMA:');
+      expect(role.instructions).toContain('input_schema is the structural reference');
+      expect(role.instructions).not.toContain('compiler convenience notation');
+      expect(role.instructions).not.toContain('formula (closed kinds');
       expect(role.instructions).toContain('No comments, trailing commas, ellipses');
-      expect(role.instructions).toContain('NOT valid JSON to copy');
       expect(role.instructions).toContain('Do not copy its prose, IDs or claim ID');
       expect(role.instructions.length).toBeLessThanOrEqual(MAX_INSTRUCTION_CHARS);
       expect(Buffer.byteLength(role.instructions)).toBeLessThan(20_000);
       expect(role.instructions).toContain('finished 2–3 minute');
       expect(role.instructions).toContain('2–8 minute admission contract');
-      expect(role.instructions).toContain('columns[].points is nested');
+      expect(role.instructions.includes('columns[].points is nested')).toBe(!interactive);
       const parsed = ScrollDraft.parse(JSON.parse(json));
       expect(parsed.sections[0]?.blocks[1]?.type).toBe(interactive ? 'diagram' : 'comparison');
       expect(role.instructions).not.toContain(writerDraftExampleJson(!interactive));
@@ -236,11 +242,11 @@ describe('Scroll production roles (labelled CI fixture)', () => {
   it('clarifies complete native arrays and aggregate text bounds while keeping canonical schemas strict', () => {
     for (const interactive of [false, true]) {
       const role = writerRole(provenance, interactive);
-      expect(role.version).toBe('scroll-writer.v7');
+      expect(role.version).toBe('scroll-writer.v8');
       expect(role.instructions).toContain('sections and bindings must be native JSON arrays');
       expect(role.instructions).toContain('including repair, must regenerate the complete draft object');
-      expect(role.instructions).toContain('compiler convenience notation');
-      expect(role.instructions).toContain('1200 UTF-16 units for paragraphs, 400 for quotes and 600 for callouts');
+      expect(role.instructions).toContain('String shorthand is not accepted');
+      expect(role.instructions).toContain('1200 UTF-16 units for paragraphs and 600 for callouts');
       expect(role.safeCustomIssues).toHaveProperty('rich_text_too_long');
       expect(role.safeCustomIssues).toHaveProperty('rich_text_not_trimmed');
       const bad = fixtureDraft();
@@ -288,15 +294,31 @@ describe('Scroll production roles (labelled CI fixture)', () => {
   });
   it('puts copy, number, source-name and binding failures inside the same writer schema repair boundary', () => {
     const role = writerRole(provenance, false);
-    for (const text of [sourceWords, 'An unexplained count is 99 today.', 'A publisher called NASA said this.']) {
+    expect(role.outputSchema.safeParse(fixtureDraft()).success).toBe(true);
+    for (const [code, text] of [
+      ['copied_passage', sourceWords],
+      ['number_unbound', 'An unexplained count is 99 today.'],
+      ['reader_source_or_url', 'A publisher called NASA said this.'],
+    ] as const) {
       const draft = fixtureDraft();
       const block = draft.sections[0]?.blocks.find((b) => b.type === 'paragraph');
-      if (block?.type === 'paragraph') block.data.spans = [{ text }];
-      expect(role.outputSchema.safeParse(draft).success).toBe(false);
+      if (block?.type !== 'paragraph') throw new Error('CI_PARAGRAPH_MISSING');
+      block.data.spans = [{ text }];
+      const parsed = role.outputSchema.safeParse(draft);
+      expect(parsed.success).toBe(false);
+      if (!parsed.success)
+        expect(parsed.error.issues).toContainEqual(
+          expect.objectContaining({ code: 'custom', params: { safeCode: code } }),
+        );
     }
     const missing = fixtureDraft();
     missing.bindings = [];
-    expect(role.outputSchema.safeParse(missing).success).toBe(false);
+    const parsed = role.outputSchema.safeParse(missing);
+    expect(parsed.success).toBe(false);
+    if (!parsed.success)
+      expect(parsed.error.issues).toContainEqual(
+        expect.objectContaining({ code: 'custom', params: { safeCode: 'reader_block_unbound' } }),
+      );
   });
 });
 
@@ -341,7 +363,7 @@ describe('code-owned explanation recipes (source declarations, not generated sem
   it('declares three independent same-subtopic units and two required interactive explanations', () => {
     const keys = ['greenhouse-radiation', 'greenhouse-balance', 'greenhouse-limits'] as const;
     const units = keys.map((key) => TOPICS[key]);
-    expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v9');
+    expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v10');
     expect(units.map(({ interactive }) => interactive)).toEqual([true, true, false]);
     expect(units.every(({ topicId }) => topicId === 'earth.greenhouse-effect')).toBe(true);
     expect(new Set(Object.values(TOPICS).map(({ assetId }) => assetId)).size).toBe(6);
