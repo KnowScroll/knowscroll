@@ -1,5 +1,4 @@
-import { EmptyUniverseScreen } from '../../features/universe/empty-universe-screen';
-
+import { UniverseScreen } from '../../features/universe/universe-screen';
 export default function Universe() {
-  return <EmptyUniverseScreen />;
+  return <UniverseScreen />;
 }

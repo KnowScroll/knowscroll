@@ -198,3 +198,38 @@ waiter according to server authority; closing is not cancellation. Scope end cle
 frozen command, source, receipt, status and timers. There is no durable request list or production
 retry endpoint in this bounded consumer. CI fixtures cover these boundaries; actual connected web
 and native request journeys remain coordinator-owned acceptance work.
+
+## Mounted own Universe (#238)
+
+`/universe` now mounts `createUniverseSceneSession` through one view controller per actual
+AccountScope object. Focus/AppState starts and pauses its existing readonly QueryObserver; the
+scope's existing socket supplies hints. No polling, second socket, observation, exposure, command,
+provider, job or persistence is created by a map action. Same-scope camera/history (maximum32)
+returns exactly; scope end synchronously clears the controller, geometry cache and view. A fresh
+scope object with the same account/epoch never reuses that state. Capability replacement disposes
+old reads before starting one replacement; abort-ignoring replies remain fenced by accepted core.
+
+The layered SVG draws canonical scene-core numeric silhouettes and server anchors. Full/low and
+reduced motion keep identical targets. Geometry cache≤128/full vertices≤8192; viewport output≤64
+bodies/64 routes/32 labels. Crowded drawings explicitly offer the virtualised outline, where all
+accepted≤1000 places remain reachable. Native background pan/pinch and named zoom/fit controls,
+web map-only keys, ordinary44px targets and outline buttons provide the same navigation. Browser
+Back uses one same-address transient marker with no private frame/IDs in history. Panels close
+before a retained camera level; native/toolbar Back follows the same controller.
+
+Only accepted empty reads use the empty screen. Loading never implies a new planet. Last complete
+same-scope snapshots remain visibly stale on lag/network failure and retain their own labels;
+authority refusals clear private state. Unsupported drawing can retain the independently validated
+Geography outline. Canonical input/catch-up/8MiB accepted-data budgets remain unchanged; they do not
+promise a raw pre-decode network allocation bound.
+
+This first mounted slice covers overview/system/planet/region focus, place details, actual current
+same-system planet-route travel, outline and exact local Back. It does not draw prototype ML worlds,
+on-globe region positions, landmarks or cross-system routes absent from current descriptors. The
+current persisted global lattice and x/y/scale camera remain authoritative. Region encounter Open,
+Lately recency and once-only U05 presentation await their owning backend contracts/authority. The
+place card explicitly states encounter unavailability and offers only general Explore. Actual
+reading→formation, populated projection, visual/device performance and full U01–U08 parity are
+not established or closed by this source change. CI scenes are labelled authored protocol fixtures,
+not personal activity. Connected dev/native/physical acceptance remains coordinator work; the
+separately frozen fb2/schema28 writer experiment is not automatically replaced by this source.

@@ -21,7 +21,13 @@ export default defineConfig({
   projects: [
     {
       name: 'production',
-      testMatch: ['web-smoke.spec.ts', 'auth-smoke.spec.ts', 'security-smoke.spec.ts', 'encounter-smoke.spec.ts'],
+      testMatch: [
+        'web-smoke.spec.ts',
+        'auth-smoke.spec.ts',
+        'security-smoke.spec.ts',
+        'encounter-smoke.spec.ts',
+        'universe-smoke.spec.ts',
+      ],
       use: { baseURL: `http://127.0.0.1:${production}` },
     },
     {

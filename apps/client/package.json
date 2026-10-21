@@ -37,7 +37,8 @@
     "react-native-svg": "catalog:",
     "react-native-web": "catalog:",
     "expo-video": "catalog:",
-    "@knowscroll/contracts": "workspace:*"
+    "@knowscroll/contracts": "workspace:*",
+    "@knowscroll/scene-core": "workspace:*"
   },
   "devDependencies": {
     "@babel/plugin-transform-parameters": "catalog:",
