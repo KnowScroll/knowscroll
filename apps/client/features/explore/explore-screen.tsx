@@ -110,6 +110,22 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
       {['opening', 'ready_offer', 'activating'].includes(state.phase) ? (
         <Skeleton rows={2} label="Opening your encounter" />
       ) : null}
+      {state.phase === 'keep_blocked' ? (
+        <StateBlock
+          title="Your saved place needs attention"
+          body="It changed or couldn't be checked. No saved position has been applied."
+          actions={[
+            { label: 'Start from the top', onPress: () => session.startKeepFromTop(), variant: 'primary' },
+            {
+              label: 'Return to Keep',
+              onPress: () => {
+                if (session.leaveKeep()) router.navigate('/saved');
+              },
+              variant: 'default',
+            },
+          ]}
+        />
+      ) : null}
       {state.phase === 'offline' ? (
         <OfflineState
           body="Your place is kept. Retry the same move when you're connected."

@@ -13,6 +13,8 @@ import { encounterSessionFor } from '../encounter/use-encounter-session';
 import { ScreenFrame } from '../shell/screen-frame';
 import { EmptyKeepScreen } from './empty-keep-screen';
 import { SavedCard } from './saved-card';
+import { KeepDetail } from './keep-detail';
+import type { AvailableKeep } from './keep-place-bridge';
 import { createSavedRemoval, savedQueryOptions } from './saved-query';
 
 const removals = new WeakMap<AccountScope, ReturnType<typeof createSavedRemoval>>();
@@ -31,6 +33,7 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
   const [failed, setFailed] = useState<ReadonlyMap<string, ListSavedResponse['items'][number]>>(new Map());
   const [removing, setRemoving] = useState<ReadonlySet<string>>(new Set());
   const [openFailed, setOpenFailed] = useState(false);
+  const [selected, setSelected] = useState<ListSavedResponse['items'][number]>();
   const remove = async (item: ListSavedResponse['items'][number]) => {
     if (removing.has(item.assetId)) return;
     setRemoving((values) => new Set(values).add(item.assetId));
@@ -49,9 +52,14 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
       return next;
     });
   };
-  const open = (item: ListSavedResponse['items'][number], assetRevision: number) => {
+  const open = (
+    item: ListSavedResponse['items'][number],
+    assetRevision: number,
+    mode: 'resume' | 'top' = 'top',
+    snapshot?: AvailableKeep,
+  ) => {
     const session = encounterSessionFor(scope);
-    const accepted = session.open({ kind: 'return', assetId: item.assetId, assetRevision });
+    const accepted = session.openKept({ assetId: item.assetId, assetRevision }, mode, snapshot);
     if (!accepted) {
       setOpenFailed(true);
       return;
@@ -71,7 +79,10 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
               size="sm"
               variant={filter === kind ? 'primary' : 'ghost'}
               toggled={filter === kind}
-              onPress={() => setFilter(kind)}
+              onPress={() => {
+                setFilter(kind);
+                setSelected(undefined);
+              }}
             />
           ))}
         </View>
@@ -133,19 +144,33 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
         {items.length > 0 && visible.length === 0 ? (
           <StateBlock title="No saved encounters in this filter" body="Try All to see the rest of this list." />
         ) : null}
-        {visible.map((item) => (
-          <SavedCard
-            key={item.assetId}
-            item={item}
-            resume={readResume(scope, item.assetId, item.assetRevision)}
-            failed={failed.has(item.assetId)}
-            removing={removing.has(item.assetId)}
-            onRemove={() => {
-              void remove(item);
-            }}
-            onOpen={(revision) => open(item, revision)}
+        {selected ? (
+          <KeepDetail
+            key={`${selected.assetId}:${String(selected.assetRevision)}`}
+            scope={scope}
+            item={selected}
+            onBack={() => setSelected(undefined)}
+            onOpen={(mode, snapshot) => open(selected, selected.assetRevision, mode, snapshot)}
           />
-        ))}
+        ) : null}
+        {!selected
+          ? visible.map((item) => (
+              <SavedCard
+                key={item.assetId}
+                item={item}
+                resume={readResume(scope, item.assetId, item.assetRevision)}
+                failed={failed.has(item.assetId)}
+                removing={removing.has(item.assetId)}
+                onRemove={() => {
+                  void remove(item);
+                }}
+                onOpen={(revision) => {
+                  if (revision === item.assetRevision) setSelected(item);
+                  else open(item, revision);
+                }}
+              />
+            ))
+          : null}
         {items.length >= 100 ? (
           <Text variant="meta">
             Showing the newest 100 saved encounters. This is a bounded list, not your complete library.

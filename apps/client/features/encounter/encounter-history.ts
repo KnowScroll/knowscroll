@@ -10,6 +10,8 @@ export type EncounterEntry = {
   readonly sessionId: string;
   context: ExposureContextResponse;
   position?: PrivatePosition;
+  /** Keep positions never enter the legacy asset/revision-only resume store. */
+  keepOrigin?: boolean;
   restored: boolean;
   started: boolean;
   suspended: boolean;
@@ -86,7 +88,7 @@ export function createEncounterHistory(scope: Pick<AccountScope, 'active' | 'sto
     const position = entry.surface?.capture();
     if (scope.active && position) {
       entry.position = position;
-      writeResume(scope, entry.offer.assetId, entry.offer.assetRevision, position);
+      if (!entry.keepOrigin) writeResume(scope, entry.offer.assetId, entry.offer.assetRevision, position);
     }
   };
   const park = () => {
@@ -107,6 +109,7 @@ export function createEncounterHistory(scope: Pick<AccountScope, 'active' | 'sto
     entry.surface?.pause();
     entry.surface = undefined;
     entry.recorder.end();
+    if (entry.keepOrigin) entry.position = undefined;
     if (entry.kind === 'reel') {
       entry.mediaGrant = undefined;
       entry.muted = undefined;

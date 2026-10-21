@@ -233,3 +233,32 @@ reading→formation, populated projection, visual/device performance and full U0
 not established or closed by this source change. CI scenes are labelled authored protocol fixtures,
 not personal activity. Connected dev/native/physical acceptance remains coordinator work; the
 separately frozen fb2/schema28 writer experiment is not automatically replaced by this source.
+
+## Partial mounted Keep positions (#234/#246)
+
+The selected inline Keep detail uses the real scope-object `KeepPlaceSession`, not the old
+asset/revision-only local resume cache. At most two app-owned handles serve detail/current work;
+no eager100 position reads, polling, second socket or persistent command journal. A current exact
+membership/ref/place read is checked before normal return/activation and again before mounting
+restored content. Changed/unavailable state blocks restore with explicit top/return choices;
+Start from top affects only this visit. Corrected old Saved revisions can be `saved_unavailable`
+because the current Content target admits only its exact current head. Updated versions inherit
+no membership or position. Legacy card positions are explicitly labelled “On this device”.
+
+**Keep this place** is a deliberate actual foreground measured-surface capture. Save still keeps
+the item; automatic checkpoint-on-Save/park/background, all-card server positions and complete
+S01/S02 behavior remain required later. No restored incoming/local position is automatically
+uploaded. Unknown writes retry only the original command/body; CAS conflict resolution is explicit;
+an immutable ACK is followed by a new read, never advertised as current position itself.
+
+Detail/restore state creates no reading/watching observation. Normal visibility/playback after
+actual renderer admission retains the existing recorder. Restored Reels start paused; Scrolls
+keep exact top-level fractional logical offsets and clamp through the actual measured renderer.
+Keep-origin Back positions stay in memory and do not enter the legacy asset-keyed resume store.
+Scope end synchronously purges handles/tokens/private views and fences abort-ignoring replies.
+
+Legacy Unsave/removal is still asset-keyed: a delayed retry can remove a replacement membership
+(ABA). This slice does not add membership-safe Remove, Undo or a privacy-clear promise. Shared
+contracts/backend/core/renderers/SQL remain unchanged. Component/production-export HTTP fixtures
+in Actions prove source behavior only, not real endpoint, decoded Reel, physical device or final
+privacy/UX acceptance. Root separately owns real journeys and latency acceptance before rollout.
