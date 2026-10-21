@@ -11,7 +11,7 @@ function isPublicLabel(s: string): boolean {
     s.trim() === s &&
     [...s].every((character) => {
       const point = character.codePointAt(0)!;
-      return point >= 32 && point !== 127;
+      return point >= 32 && (point < 127 || point > 159);
     })
   );
 }

@@ -114,6 +114,18 @@ describe('bounded Friends and visibility declarations', () => {
     ])
       expect(SharingHandleSchema.safeParse(handle).success, handle).toBe(false);
     expect(PublicPersonRefSchema.parse(person)).toEqual(person);
+    expect(PublicPersonRefSchema.parse({ ...person, displayName: 'आशा' }).displayName).toBe('आशा');
+    for (const control of ['\u0080', '\u0085', '\u009f']) {
+      expect(PublicPersonRefSchema.safeParse({ ...person, displayName: `A${control}B` }).success).toBe(false);
+      expect(
+        SetSharingProfileSchema.safeParse({
+          ...command,
+          expectedProfileRevision: 0,
+          handle: person.handle,
+          displayName: `A${control}B`,
+        }).success,
+      ).toBe(false);
+    }
     refusesExtras(PublicPersonRefSchema, person, [
       'email',
       'accountId',
@@ -348,6 +360,19 @@ describe('bounded Friends and visibility declarations', () => {
 
   it('uses a separate public visitor allowlist with no private scene, location or evidence slots', () => {
     expect(VisitorWorldSnapshotSchema.parse(visit)).toEqual(visit);
+    expect(
+      VisitorWorldSnapshotSchema.safeParse({
+        ...visit,
+        projection: { ...visit.projection, systems: [{ publicSystemId: id(6), label: 'विज्ञान' }] },
+      }).success,
+    ).toBe(true);
+    for (const control of ['\u0080', '\u0085', '\u009f'])
+      expect(
+        VisitorWorldSnapshotSchema.safeParse({
+          ...visit,
+          projection: { ...visit.projection, systems: [{ publicSystemId: id(6), label: `A${control}B` }] },
+        }).success,
+      ).toBe(false);
     const read = { version: 'sharing.v1', target, capabilities, expected: visit.authority };
     expect(ReadVisitorWorldSchema.parse(read)).toEqual(read);
     expect(
