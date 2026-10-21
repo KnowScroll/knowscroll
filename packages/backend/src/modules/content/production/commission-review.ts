@@ -7,6 +7,7 @@ import {
 } from './commission-contracts.js';
 import type {
   CommissionReviewPacket,
+  CommissionReviewDraft,
   CommissionHumanApproval,
   ReelCorpusManifest,
   ReelCorpusRecord,
@@ -95,7 +96,7 @@ export const CommissionHumanApprovalSchema = z.strictObject({
   ceilingCents: z.number().int().min(1).max(75),
   humanEvidenceRef: ref,
 });
-const proposalSchema = z.strictObject({
+export const CommissionReviewProposalSchema = z.strictObject({
   businessRunId: z.uuid(),
   worldId: z.enum(['dev', 'stage']),
   generation: z.number().int().min(1).max(2147483647),
@@ -106,13 +107,13 @@ const proposalSchema = z.strictObject({
   targetReviewRef: ref,
   script: CutroomCommissionScriptSchema,
 });
-/** Pure source preparation, NO human approval/claim/reservation. Concrete script and exact body fingerprint precede any approval request. */
+/** Pure DRAFT only: no corpus-clear verdict, approval, claim or reservation. Trusted scoped preparation must seal actual metadata before owner review. */
 export function prepareCommissionReview(
   input: unknown,
 ):
-  | { readonly kind: 'prepared'; readonly packet: CommissionReviewPacket }
+  | { readonly kind: 'draft'; readonly draft: CommissionReviewDraft }
   | { readonly kind: 'refused'; readonly code: 'invalid' } {
-  const parsed = proposalSchema.safeParse(input);
+  const parsed = CommissionReviewProposalSchema.safeParse(input);
   if (!parsed.success) return { kind: 'refused', code: 'invalid' };
   const v = parsed.data,
     lint = lintCutroomCommission(v.script);
@@ -149,13 +150,13 @@ export function prepareCommissionReview(
     bridge,
     bridgeSha256: reelFingerprint(bridge),
   };
-  return { kind: 'prepared', packet: { ...packet, reviewSha256: reelFingerprint(packet) } };
+  return { kind: 'draft', draft: packet };
 }
 /** Verify every mapped row, including unavailable/refused/withdrawn history. No DB corpus is inferred from the 14 retained input files. */
 export function checkReelCorpus(
   input: readonly unknown[],
   manifest: ReelCorpusManifest,
-  packet: CommissionReviewPacket,
+  packet: CommissionReviewDraft,
 ): 'clear' | 'repetition' | 'corpus_unavailable' {
   const m = ReelCorpusManifestSchema.safeParse(manifest);
   if (!m.success || input.length !== m.data.totalCount || input.length > 1000) return 'corpus_unavailable';
@@ -195,7 +196,7 @@ export function checkReelCorpus(
   )
     return 'corpus_unavailable';
   return sorted.some(
-    (r) => r.originalTemplateSha256 === packet.templateSha256 || r.bridgeSha256 === packet.bridgeSha256,
+    (r) => reelFingerprint(r.template) === packet.templateSha256 || r.bridgeSha256 === packet.bridgeSha256,
   )
     ? 'repetition'
     : 'clear';
@@ -231,6 +232,10 @@ export function makeCommissionReview(
       .max(1)
       .parse(structuredClone(options.manifests ?? []));
   return {
+    prepare: (scope: CutroomScopeTx, input: unknown) =>
+      enabled
+        ? store.prepare(scope, input, manifests)
+        : Promise.resolve({ kind: 'refused', code: 'corpus_unavailable' } as const),
     async admit(scope: CutroomScopeTx, input: unknown) {
       if (!enabled) return { kind: 'refused', code: 'approval' } as const;
       const packet = parseCommissionReviewPacket(input);
@@ -245,7 +250,7 @@ export function makeCommissionReview(
 }
 
 /** Hydration validates bounded immutable metadata WITHOUT recompiling/reconstructing protected bytes. */
-const packetSchema = proposalSchema.extend({
+const draftSchema = CommissionReviewProposalSchema.extend({
   version: z.literal('cutroom-review.v1'),
   grantRef: z.literal('knowscroll-v2-d018'),
   grantCeilingCents: z.literal(200),
@@ -258,10 +263,9 @@ const packetSchema = proposalSchema.extend({
   templateSha256: digest,
   bridge: z.strictObject({ narrationText: z.array(z.string().min(1).max(500)).min(6).max(12) }),
   bridgeSha256: digest,
-  reviewSha256: digest,
 });
-export function parseCommissionReviewPacket(value: unknown): CommissionReviewPacket | undefined {
-  const parsed = packetSchema.safeParse(value);
+export function parseCommissionReviewDraft(value: unknown): CommissionReviewDraft | undefined {
+  const parsed = draftSchema.safeParse(value);
   if (!parsed.success || Buffer.byteLength(JSON.stringify(parsed.data), 'utf8') > 100000) return undefined;
   const p = parsed.data,
     lint = lintCutroomCommission(p.script);
@@ -283,12 +287,34 @@ export function parseCommissionReviewPacket(value: unknown): CommissionReviewPac
     planVaryOn: null,
   };
   const expectedBridge = { narrationText: p.script.narration.map((n) => normalizeReelNarration(n.text)).sort() };
-  const { reviewSha256, ...payload } = p;
   return reelFingerprint(p.template) === p.templateSha256 &&
     reelFingerprint(expectedTemplate) === p.templateSha256 &&
     reelFingerprint(p.bridge) === p.bridgeSha256 &&
-    reelFingerprint(expectedBridge) === p.bridgeSha256 &&
-    reelFingerprint(payload) === reviewSha256
+    reelFingerprint(expectedBridge) === p.bridgeSha256
     ? p
     : undefined;
+}
+
+const packetSchema = draftSchema.extend({
+  corpusSnapshotSha256: digest,
+  corpusGate: z.literal('clear'),
+  reviewSha256: digest,
+});
+export function draftOfPacket(packet: CommissionReviewPacket): CommissionReviewDraft {
+  const { corpusSnapshotSha256: _snapshot, corpusGate: _gate, reviewSha256: _review, ...draft } = packet;
+  return draft;
+}
+export function parseCommissionReviewPacket(value: unknown): CommissionReviewPacket | undefined {
+  const p = packetSchema.safeParse(value);
+  if (!p.success || !parseCommissionReviewDraft(draftOfPacket(p.data))) return undefined;
+  const { reviewSha256, ...payload } = p.data;
+  return reelFingerprint(payload) === reviewSha256 ? p.data : undefined;
+}
+/** Module-internal sealing seam: invoked ONLY after the store has validated actual complete metadata under lock. */
+export function sealCommissionReviewDraft(
+  draft: CommissionReviewDraft,
+  corpusSnapshotSha256: string,
+): CommissionReviewPacket {
+  const payload = { ...draft, corpusSnapshotSha256, corpusGate: 'clear' as const };
+  return { ...payload, reviewSha256: reelFingerprint(payload) };
 }

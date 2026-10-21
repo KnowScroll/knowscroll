@@ -15,6 +15,8 @@ import {
   makeCommission,
   postgresCommissionStore,
   lockCommissionBusiness,
+  makeCommissionReview,
+  postgresCommissionReview,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import {
   cutroomBFor,
@@ -257,7 +259,6 @@ import {
   reelFingerprint,
   type ReelCorpusManifest,
   type ReelCorpusRecord,
-  prepareCommissionReview,
   type CommissionReviewPacket,
   type CommissionHumanApproval,
 } from '@knowscroll/backend/modules/content';
@@ -285,11 +286,14 @@ export function fixtureCorpusManifest(records: readonly ReelCorpusRecord[] = [])
     trustedReviewCommandSha256: hash('fictional-trusted-corpus-review'),
   };
 }
-export function fixtureReview(input: CommissionInput): {
+export async function fixtureReview(
+  f: CommissionFixture,
+  input: CommissionInput,
+): Promise<{
   proposal: object;
   packet: CommissionReviewPacket;
   human: CommissionHumanApproval;
-} {
+}> {
   const proposal = {
     businessRunId: input.businessRunId,
     worldId: input.authority.worldId,
@@ -301,9 +305,13 @@ export function fixtureReview(input: CommissionInput): {
     targetReviewRef: 'fixture-target',
     script: input.script,
   };
-  const r = prepareCommissionReview(proposal);
-  if (r.kind !== 'prepared') throw new Error('FICTIONAL_REVIEW_INVALID');
-  const p = r.packet;
+  const review = makeCommissionReview(postgresCommissionReview, {
+    enabled: true,
+    manifests: [fixtureCorpusManifest()],
+  });
+  const r = await f.service().withScope(input.authority, 'admit', (scope) => review.prepare(scope, proposal));
+  if (r.kind !== 'entered' || r.value.kind !== 'prepared') throw new Error('FICTIONAL_REVIEW_INVALID');
+  const p = r.value.packet;
   return {
     proposal,
     packet: p,

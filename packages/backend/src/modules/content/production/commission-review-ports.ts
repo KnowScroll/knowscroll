@@ -39,7 +39,7 @@ export interface ReelCorpusManifest {
   readonly requiredProjectionIds: readonly ['legacy-template-v1', 'legacy-argument-v1', 'narration-bridge-v1'];
   readonly trustedReviewCommandSha256: string;
 }
-export interface CommissionReviewPacket {
+export interface CommissionReviewDraft {
   readonly version: 'cutroom-review.v1';
   readonly businessRunId: string;
   readonly worldId: 'dev' | 'stage';
@@ -61,8 +61,18 @@ export interface CommissionReviewPacket {
   readonly templateSha256: string;
   readonly bridge: { readonly narrationText: readonly string[] };
   readonly bridgeSha256: string;
+}
+export interface CommissionReviewPacket extends CommissionReviewDraft {
+  readonly corpusSnapshotSha256: string;
+  readonly corpusGate: 'clear';
   readonly reviewSha256: string;
 }
+export type CommissionReviewPreparation =
+  | { readonly kind: 'prepared'; readonly packet: CommissionReviewPacket }
+  | {
+      readonly kind: 'refused';
+      readonly code: 'invalid' | 'identity' | 'corpus_unavailable' | 'repetition' | 'stale_snapshot';
+    };
 /** Explicit human evidence matched by trusted composition; parsed refs/PR/Git identity cannot mint this registry. */
 export interface CommissionHumanApproval {
   readonly businessRunId: string;
@@ -79,9 +89,15 @@ export type CommissionReviewVerdict =
   | { readonly kind: 'reviewed'; readonly binding: CutroomReviewBinding }
   | {
       readonly kind: 'refused';
-      readonly code: 'invalid' | 'identity' | 'corpus_unavailable' | 'repetition' | 'approval' | 'revoked';
+      readonly code:
+        'invalid' | 'identity' | 'corpus_unavailable' | 'repetition' | 'approval' | 'revoked' | 'stale_snapshot';
     };
 export interface CommissionReviewStore {
+  prepare(
+    scope: CutroomScopeTx,
+    input: unknown,
+    manifests: readonly ReelCorpusManifest[],
+  ): Promise<CommissionReviewPreparation>;
   gate(
     scope: CutroomScopeTx,
     packet: CommissionReviewPacket,

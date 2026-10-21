@@ -68,8 +68,19 @@ describe('Cutroom C1 inert execution/accounting foundation (real PG/pg-boss; no 
     ).rows[0];
   }
   async function prepared(label: string) {
-    const c = await admitted(label, true),
-      r = fixtureReview(c.input),
+    const cmd = f.command(label, 1, true),
+      r = await fixtureReview(f, cmd.input),
+      admittedResult = await f.commission()(cmd.input);
+    if (admittedResult.kind !== 'pending') throw new Error('CI reserve');
+    const c = {
+        ...cmd,
+        attemptId: admittedResult.attemptId,
+        target: {
+          worldId: 'dev' as const,
+          businessRunId: cmd.input.businessRunId,
+          attemptId: admittedResult.attemptId,
+        },
+      },
       review = makeCommissionReview(postgresCommissionReview, {
         enabled: true,
         approvals: [r.human],
