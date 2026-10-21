@@ -131,3 +131,23 @@ it('refuses retained geometry across pause and capability generations, even afte
   expect(s.cacheSize()).toBe(1);
   h.scope.end();
 });
+
+it('Fit and Back preserve an exact matching canonical locator and camera frame', async () => {
+  const h = universeHarness(),
+    s = createUniverseViewSession(h.scope);
+  s.setForeground(true);
+  await ready(s);
+  s.focus(fixtureId(12));
+  s.camera({ x: 81, y: -23, scale: 0.25 });
+  expect(s.getState().locator?.frame).toEqual(s.getState().frame);
+  s.fit();
+  const fitted = s.getState();
+  expect(fitted.frame).not.toEqual({ x: 81, y: -23, scale: 0.25 });
+  expect(fitted.locator?.frame).toEqual(fitted.frame);
+  s.focus(fixtureId(13));
+  expect(s.back()).toBe(true);
+  expect(s.getState().frame).toEqual(fitted.frame);
+  expect(s.getState().locator).toEqual(fitted.locator);
+  expect(s.getState().locator?.frame).toEqual(s.getState().frame);
+  h.scope.end();
+});

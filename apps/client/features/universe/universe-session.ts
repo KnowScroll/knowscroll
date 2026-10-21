@@ -233,14 +233,17 @@ export function createUniverseViewSession(scope: AccountScope) {
       }
     },
     fit() {
-      if (live() && foreground)
-        publish({
-          frame: fitFrame(
-            descriptors().filter((o) =>
-              !state.focusId ? o.kind === 'system' : o.objectId === state.focusId || o.parentId === state.focusId,
-            ),
+      if (live() && foreground) {
+        const frame = fitFrame(
+          descriptors().filter((o) =>
+            !state.focusId ? o.kind === 'system' : o.objectId === state.focusId || o.parentId === state.focusId,
           ),
+        );
+        publish({
+          frame,
+          locator: state.locator ? returnLocator(state.locator.chunkId, state.locator.objectId!, frame) : undefined,
         });
+      }
     },
     async refresh() {
       if (live() && foreground) await core.refresh();
