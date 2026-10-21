@@ -4,6 +4,8 @@ import { OpenAPILink } from '@orpc/openapi-client/fetch';
 import {
   PROBLEM_MEDIA_TYPE,
   ProblemDetailsSchema,
+  KeepPlaceProblemSchema,
+  type KeepPlaceProblem,
   apiContract,
   type ApiContract,
   type ProblemDetails,
@@ -78,6 +80,15 @@ export function apiProblem(error: unknown): ProblemDetails | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
+/** Strict Keep-only problem view; generic apiProblem deliberately keeps its existing shape. */
+export function apiKeepPlaceProblem(error: unknown): KeepPlaceProblem | undefined {
+  if (!(error instanceof ORPCError)) return undefined;
+  const parsed = KeepPlaceProblemSchema.safeParse(error.data);
+  return parsed.success && parsed.data.code === error.code && parsed.data.status === error.status
+    ? parsed.data
+    : undefined;
+}
+
 export interface ApiClientOptions {
   readonly baseUrl: string;
   /** Defaults to the platform `fetch`. */
@@ -94,7 +105,9 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     url: options.baseUrl,
     fetch: problemAwareFetch(fetchImplementation),
     customErrorResponseBodyDecoder: (body, response) => {
-      const parsed = ProblemDetailsSchema.safeParse(body);
+      // Preserve the closed authorized CAS extension before the generic schema strips it.
+      const keep = KeepPlaceProblemSchema.safeParse(body);
+      const parsed = keep.success ? keep : ProblemDetailsSchema.safeParse(body);
       if (!parsed.success) return null;
       return new ORPCError(parsed.data.code, {
         status: response.status,

@@ -1,5 +1,6 @@
 export {
   apiProblem,
+  apiKeepPlaceProblem,
   createApiClient,
   resolveApiOrigin,
   type ApiClient,
@@ -87,3 +88,11 @@ export {
   type UniverseSceneState,
   type UniverseSceneSession,
 } from './universe-scene';
+
+export {
+  createKeepPlaceSession,
+  KEEP_PLACE_LIMITS,
+  type KeepPlaceState,
+  type KeepPlaceHandle,
+  type KeepPlaceSession,
+} from './keep-place';

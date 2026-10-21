@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { problemDetails, type HealthResponse } from '@knowscroll/contracts';
-import { apiProblem, createApiClient, resolveApiOrigin } from './api-client';
+import { apiKeepPlaceProblem, apiProblem, createApiClient, resolveApiOrigin } from './api-client';
 import { createAccountScope, memoryStore } from './account-scope';
 
 const health: HealthResponse = {
@@ -204,4 +204,52 @@ it('sends the four Universe reads through the actual typed scoped client as read
   } finally {
     scope.end();
   }
+});
+
+/** Authored transport fixture; no backend, device or provider operation. */
+describe('strict Keep problems before the generic RFC9457 decoder', () => {
+  const uuid = '0199a000-0000-7000-8000-000000000001';
+  const command = {
+    version: 'keep-place.v1' as const,
+    commandId: uuid,
+    entry: { assetId: uuid, assetRevision: 1, savedEntryId: uuid },
+    expectedPlaceRevision: 0,
+    position: { kind: 'reel' as const, positionMs: 12.75 },
+  };
+  it('retains only the strict authorized stale revision through the actual typed transport', async () => {
+    const body = { ...problemDetails('KEEP_PLACE_REVISION_STALE'), currentPlaceRevision: 7 };
+    const double = fakeFetch(
+      () =>
+        new Response(JSON.stringify(body), {
+          status: 409,
+          headers: { 'content-type': 'application/problem+json' },
+        }),
+    );
+    const api = createApiClient({ baseUrl: 'https://keep.fixture.test', fetch: double.fetch });
+    const error: unknown = await api.keep.setPlace(command).catch((failure: unknown) => failure);
+    expect(apiKeepPlaceProblem(error)).toEqual(body);
+    expect(apiProblem(error)).not.toHaveProperty('currentPlaceRevision');
+    expect(double.requests[0]?.url).toBe('https://keep.fixture.test/v1/experience/keep/place');
+    expect(double.requests[0]?.method).toBe('POST');
+  });
+  it('refuses malformed, extra-field and status-mismatched Keep metadata without inferring a revision', async () => {
+    for (const [extra, status] of [
+      [{}, 409],
+      [{ currentPlaceRevision: -1 }, 409],
+      [{ currentPlaceRevision: 2, privateValue: 'fixture-canary' }, 409],
+      [{ currentPlaceRevision: 2 }, 503],
+    ] as const) {
+      const double = fakeFetch(
+        () =>
+          new Response(JSON.stringify({ ...problemDetails('KEEP_PLACE_REVISION_STALE'), ...extra }), {
+            status,
+            headers: { 'content-type': 'application/problem+json' },
+          }),
+      );
+      const api = createApiClient({ baseUrl: 'https://keep.fixture.test', fetch: double.fetch });
+      const error: unknown = await api.keep.setPlace(command).catch((failure: unknown) => failure);
+      expect(apiKeepPlaceProblem(error)).toBeUndefined();
+    }
+    expect(apiKeepPlaceProblem(new TypeError('fixture network'))).toBeUndefined();
+  });
 });
