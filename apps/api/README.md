@@ -78,3 +78,17 @@ states. Reads schedule no work, create no state row, acknowledge no presentation
 formation, scene, provider or sharing authority. Scene projection and its consumer remain separate.
 Installed-release HTTP fixtures exercise the real Nest/PG boundary without a worker or provider;
 they are not deployed map or formation evidence.
+
+Scene reads are `POST /v1/universe/scenes/manifest/read` and
+`POST /v1/universe/scenes/chunks/read`. Thin Nest adapters consume the canonical307 contracts
+and existing own-scope read ports, with the same Origin/session/X-KS-Scope/JSON/size guards.
+Successful Scene bodies carry `Cache-Control: private, no-store`. Only admitted caller authority
+is used; foreign/unknown selection or foreign-scope references disclose only NOT_FOUND.
+Current own references retain the backend's explicit stale_manifest/unknown_chunk states.
+Unsupported bounded capabilities return unsupported_version; detail/motion never change identity.
+Manifest and chunk revisions remain distinct, including unchanged older immutable chunks in a
+newer current manifest. Reads never enqueue, bootstrap, project, acknowledge presentation or
+invoke providers. Scene provider construction includes an inert projector function binding,
+with no API consumer or execution path. No private payload or reference is added to diagnostics.
+Installed API/PG fixtures are authored transport evidence; actual dev endpoints, formation,
+rendering, camera return and durable shown/skipped acknowledgement require separate acceptance.
