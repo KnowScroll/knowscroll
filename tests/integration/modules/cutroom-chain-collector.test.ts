@@ -274,6 +274,34 @@ describe('C2 collector real fake-HTTP protocol (Actions fixture, not Cutroom)', 
     }
   });
 
+  it('maps canonical readiness503/false without another GET and refuses contradictory/private readiness bodies', async () => {
+    const f = fixture();
+    let code = 503,
+      body: unknown = { contractVersion: 1, ready: false };
+    const h = await start((req, res) => {
+      if (req.url === '/v1/ready') json(res, body, code);
+      else f.handler(req, res);
+    });
+    expect(await h.collector().collect(expected)).toEqual({ kind: 'unavailable', code: 'not_ready' });
+    expect(h.hits).toHaveLength(1);
+    for (const [statusCode, value] of [
+      [503, { contractVersion: 1, ready: true }],
+      [200, { contractVersion: 1, ready: false }],
+      [503, { contractVersion: 1, ready: false, detail: secret }],
+    ] as const) {
+      code = statusCode;
+      body = value;
+      const before = h.hits.length,
+        result = await h.collector().collect(expected);
+      expect(result).toEqual({ kind: 'unknown', code: 'protocol' });
+      expect(h.hits.length - before).toBe(1);
+      expect(JSON.stringify(result)).not.toContain(secret);
+    }
+    code = 200;
+    body = { contractVersion: 1, ready: true };
+    expect(await h.collector().collect(expected)).toMatchObject({ kind: 'observed', calls: 5 });
+  });
+
   it('keeps a canonical result409 pending while refusing non-200 success codes', async () => {
     const f = fixture();
     let code = 409;

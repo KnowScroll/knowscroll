@@ -205,8 +205,16 @@ export function makeCutroomChainCollector(settings: CutroomChainCollectorSetting
           const before = time();
           if (++calls > limits.calls) return refuse('bounds');
           const controller = new AbortController();
+          let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+          let rejectDeadline!: (reason: CollectionRefusal) => void;
+          const deadline = new Promise<never>((_resolve, reject) => {
+            rejectDeadline = reject;
+          });
           const timer = setTimeout(
-            () => controller.abort(),
+            () => {
+              rejectDeadline(new CollectionRefusal({ kind: 'unknown', code: 'deadline' }));
+              controller.abort();
+            },
             Math.min(limits.callTimeoutMs, start + limits.collectionTimeoutMs - before, profile!.expiresAtMs - before),
           );
           function withinCall(): number {
@@ -215,25 +223,32 @@ export function makeCutroomChainCollector(settings: CutroomChainCollectorSetting
             return at;
           }
           try {
-            // eslint-disable-next-line no-restricted-globals -- Fixed GET-only loopback Cutroom collector, no model/paid endpoint or arbitrary request escape hatch.
-            const response = await fetch(new URL(path, origin), {
-              method: 'GET',
-              redirect: 'error',
-              signal: controller.signal,
-            });
+            const response = await Promise.race([
+              // eslint-disable-next-line no-restricted-globals -- Fixed GET-only loopback Cutroom collector, no model/paid endpoint or arbitrary request escape hatch.
+              fetch(new URL(path, origin), {
+                method: 'GET',
+                redirect: 'error',
+                signal: controller.signal,
+              }),
+              deadline,
+            ]);
             withinCall();
             if (response.status === 409 && (schemaName === 'RunResult' || schemaName === 'RunRecord'))
               throw new CollectionRefusal({ kind: 'pending', code: 'running' });
             if (response.status === 404) return refuse('not_found');
             if (
-              response.status !== 200 ||
+              (response.status !== 200 && !(schemaName === 'ReadyResponse' && response.status === 503)) ||
               response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json'
             )
               return refuse('protocol');
             if (!response.body) return refuse('protocol');
             const chunks: Uint8Array[] = [];
             let length = 0;
-            for await (const chunk of response.body) {
+            reader = response.body.getReader();
+            for (;;) {
+              const next = await Promise.race([reader.read(), deadline]);
+              if (next.done) break;
+              const chunk = next.value;
               length += chunk.length;
               responseBytes += chunk.length;
               if (length > limits.responseBytes || responseBytes > limits.totalResponseBytes) return refuse('bounds');
@@ -248,8 +263,13 @@ export function makeCutroomChainCollector(settings: CutroomChainCollectorSetting
               return refuse('protocol');
             }
             if (!bounded(value)) return refuse('bounds');
-            const parsed = (await wireParser(file, schemaName)).safeParse(value);
+            const schema = await Promise.race([wireParser(file, schemaName), deadline]);
+            const parsed = schema.safeParse(value);
             if (!parsed.success) return refuse('protocol');
+            if (schemaName === 'ReadyResponse') {
+              const ready = (parsed.data as { ready: boolean }).ready;
+              if (ready !== (response.status === 200)) return refuse('protocol');
+            }
             const at = withinCall();
             // Response digests are private metadata, not a claim of provider invoice/authenticity.
             evidence.push(hash(bytes));
@@ -260,6 +280,15 @@ export function makeCutroomChainCollector(settings: CutroomChainCollectorSetting
           } finally {
             clearTimeout(timer);
             controller.abort();
+            if (reader) {
+              // Cleanup must not keep the caller waiting after the deadline, even for an uncooperative stream.
+              void reader.cancel().catch(() => undefined);
+              try {
+                reader.releaseLock();
+              } catch {
+                /* Already closed/released: no authority or retry follows. */
+              }
+            }
           }
         }
         if (!(await get<{ ready: boolean }>('/v1/ready', 'ready', 'ReadyResponse')).value.ready)

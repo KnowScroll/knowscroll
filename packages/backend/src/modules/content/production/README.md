@@ -511,3 +511,10 @@ dispatch intent, onePOST/unknown recovery, durable snapshot/accounting integrati
 media/publication and Supply completion still require separate reviewed work. No cost-complete
 report settles a claim or weakens CF62's whole-ceiling hold on import failure. Authored fake-HTTP
 and canary fixtures run only in Actions; no real Cutroom/provider or live media result is claimed.
+
+Canonical readiness status/body pairs are200/true and503/false only; false readiness
+stops before lookup, contradictions/private extra fields refuse. A fixed deadline races
+both the initial HTTP promise and every explicit body-reader wait. Socket abort and stream
+cancellation remain best-effort cleanup, never an awaited prerequisite to returning the
+finite deadline result; late replies cannot become observed reports. The actual stalled-body
+regression is retained with its unchanged suite timeout.

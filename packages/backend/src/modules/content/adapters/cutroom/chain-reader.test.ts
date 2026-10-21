@@ -323,7 +323,8 @@ describe('GET-only bounded Cutroom collector (authored wire fixtures)', () => {
   });
 
   it('treats not-ready/running as pending work without result or POST calls', async () => {
-    const notReady = replies([{ contractVersion: 1, ready: false }]);
+    const notReady = vi.fn(() => Promise.resolve(response({ contractVersion: 1, ready: false }, 503)));
+    vi.stubGlobal('fetch', notReady);
     expect(await makeCutroomChainCollector(settings()).collect(expected)).toEqual({
       kind: 'unavailable',
       code: 'not_ready',
@@ -335,6 +336,29 @@ describe('GET-only bounded Cutroom collector (authored wire fixtures)', () => {
     ]);
     expect(await makeCutroomChainCollector(settings()).collect(expected)).toEqual({ kind: 'pending', code: 'running' });
     expect(running).toHaveBeenCalledTimes(2);
+  });
+
+  it('accepts canonical 503/false only and refuses contradictory readiness status/body pairs', async () => {
+    for (const [code, ready] of [
+      [503, true],
+      [200, false],
+    ] as const) {
+      const mock = vi.fn(() => Promise.resolve(response({ contractVersion: 1, ready }, code)));
+      vi.stubGlobal('fetch', mock);
+      expect(await makeCutroomChainCollector(settings()).collect(expected)).toEqual({
+        kind: 'unknown',
+        code: 'protocol',
+      });
+      expect(mock).toHaveBeenCalledTimes(1);
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response({ contractVersion: 1, ready: false, detail: canary }, 503))),
+    );
+    expect(await makeCutroomChainCollector(settings()).collect(expected)).toEqual({
+      kind: 'unknown',
+      code: 'protocol',
+    });
   });
 
   it('refuses byte, UTF8, raw depth/node and count overflows before accepting recursive wire data', async () => {
@@ -375,6 +399,29 @@ describe('GET-only bounded Cutroom collector (authored wire fixtures)', () => {
       });
       expect(mock).toHaveBeenCalledTimes(1);
     }
+  });
+
+  it('bounds a stalled body even when cancellation itself never acknowledges', async () => {
+    vi.useFakeTimers();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"private":"'));
+      },
+      pull() {
+        return new Promise<void>(() => undefined);
+      },
+      cancel() {
+        return new Promise<void>(() => undefined);
+      },
+    });
+    const mock = vi.fn(() =>
+      Promise.resolve(new Response(stream, { headers: { 'content-type': 'application/json' } })),
+    );
+    vi.stubGlobal('fetch', mock);
+    const promise = makeCutroomChainCollector(settings()).collect(expected);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await promise).toEqual({ kind: 'unknown', code: 'deadline' });
+    expect(mock).toHaveBeenCalledTimes(1);
   });
 
   it('never accepts a late response even when a transport ignores its abort signal', async () => {
