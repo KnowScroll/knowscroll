@@ -1,5 +1,6 @@
 import { privacyContract } from './privacy.js';
 import { keepContract } from './keep.js';
+import { removeKeepEntryContract } from './keep-remove.js';
 import { sharingContract } from './sharing.js';
 import { readSceneManifestContract, readSceneChunkContract } from './scenes.js';
 import { readGeographyContract, readUniverseDeltasContract } from './geography.js';
@@ -28,7 +29,7 @@ import { evidenceDiagnosticsContract, submitObservationsContract } from './inter
 export const apiContract = {
   health: healthContract,
   privacy: privacyContract,
-  keep: keepContract,
+  keep: { ...keepContract, remove: removeKeepEntryContract },
   sharing: sharingContract,
   scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract },
   geography: { read: readGeographyContract, deltas: readUniverseDeltasContract },
