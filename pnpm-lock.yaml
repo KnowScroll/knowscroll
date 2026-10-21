@@ -345,6 +345,9 @@ importers:
       '@knowscroll/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@knowscroll/scene-core':
+        specifier: workspace:*
+        version: link:../../packages/scene-core
       '@knowscroll/scroll-model':
         specifier: workspace:*
         version: link:../../packages/scroll-model

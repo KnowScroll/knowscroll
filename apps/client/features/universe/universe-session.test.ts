@@ -1,0 +1,153 @@
+import { waitFor } from '@testing-library/react-native';
+import { createUniverseViewSession } from './universe-session';
+import { universeSessionFor } from './use-universe-session';
+import { fixtureId, universeHarness } from './universe.fixture';
+const ready = async (session: ReturnType<typeof createUniverseViewSession>) =>
+  waitFor(() => expect(session.getState().read.status).toBe('ready'));
+it('loads through the real core; hierarchy/travel/Back restore the precise private frame without commands', async () => {
+  const h = universeHarness(),
+    s = createUniverseViewSession(h.scope);
+  s.setForeground(true);
+  await ready(s);
+  s.camera({ x: 21.5, y: -14, scale: 0.5 });
+  s.focus(fixtureId(10));
+  s.focus(fixtureId(12));
+  const planet = s.getState().frame;
+  expect(s.travel(fixtureId(8000))).toBe(true);
+  expect(s.getState().focusId).toBe(fixtureId(13));
+  s.back();
+  expect(s.getState().frame).toEqual(planet);
+  s.back();
+  s.back();
+  expect(s.getState().frame).toEqual({ x: 21.5, y: -14, scale: 0.5 });
+  expect(s.focus(fixtureId(999))).toBe(false);
+  expect(s.travel(fixtureId(999))).toBe(false);
+  expect(h.calls.every((p) => p.startsWith('/v1/universe/'))).toBe(true);
+  expect(h.store.keys()).toEqual([]);
+  h.scope.end();
+});
+it('retains stale own labels, then clears every private resource on authority refusal and same-ID scope replacement', async () => {
+  const h = universeHarness(),
+    s = universeSessionFor(h.scope);
+  s.setForeground(true);
+  await ready(s);
+  s.focus(fixtureId(12));
+  const retained = s.descriptors()[0]!;
+  s.geometry(retained);
+  expect(s.cacheSize()).toBe(1);
+  h.network(true);
+  await s.refresh();
+  expect(s.getState().read.reason).toBe('network');
+  expect(s.places()[0]!.label).toBe('CI system 0');
+  h.network(false);
+  h.authority(true);
+  await s.refresh();
+  expect(s.getState().read.reason).toBe('authority');
+  expect(s.places()).toEqual([]);
+  expect(s.getState().historyDepth).toBe(0);
+  expect(s.cacheSize()).toBe(0);
+  expect(s.geometry(retained)).toBeUndefined();
+  expect(s.cacheSize()).toBe(0);
+  h.scope.end();
+  const next = universeHarness();
+  expect(next.scope.id).toBe(h.scope.id);
+  expect(universeSessionFor(next.scope)).not.toBe(s);
+  expect(s.getState().read.status).toBe('ended');
+  next.scope.end();
+});
+it('fences late abort-ignoring replies after pause, capability replacement and scope end', async () => {
+  const h = universeHarness();
+  let release!: () => void;
+  h.gate(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  const s = createUniverseViewSession(h.scope);
+  s.setForeground(true);
+  await waitFor(() => expect(h.calls.length).toBe(1));
+  s.setForeground(false);
+  s.configure({ detail: 'low', reducedMotion: true });
+  h.scope.end();
+  release();
+  await Promise.resolve();
+  expect(s.getState().read.status).toBe('ended');
+  expect(s.places()).toEqual([]);
+  expect(s.cacheSize()).toBe(0);
+});
+it('accepts complete1000-place snapshots while bounding history and geometry, and empty stays distinct from loading', async () => {
+  const h = universeHarness(1000),
+    s = createUniverseViewSession(h.scope);
+  s.setForeground(true);
+  await ready(s);
+  expect(s.places()).toHaveLength(1000);
+  for (const p of s.descriptors()) s.geometry(p);
+  expect(s.cacheSize()).toBe(128);
+  for (let n = 0; n < 50; n++) s.focus(fixtureId(12));
+  expect(s.getState().historyDepth).toBe(32);
+  h.scope.end();
+  const e = universeHarness(0),
+    empty = createUniverseViewSession(e.scope);
+  expect(empty.getState().read.status).toBe('idle');
+  empty.setForeground(true);
+  await waitFor(() => expect(empty.getState().read.status).toBe('empty'));
+  expect(empty.places()).toEqual([]);
+  e.scope.end();
+});
+it('does not reuse a private return locator when the selected immutable chunk handle changes', async () => {
+  const h = universeHarness(),
+    s = createUniverseViewSession(h.scope);
+  s.setForeground(true);
+  await ready(s);
+  s.focus(fixtureId(12));
+  const locator = s.getState().locator!;
+  expect(locator.chunkId).toBe(h.world.chunks[0]!.chunkId);
+  h.world.chunks[0]!.chunkId = fixtureId(20000); // adversarial but structurally valid protocol fixture, never product maintenance
+  await s.refresh();
+  expect(s.getState().read.status).toBe('ready');
+  expect(s.getState().focusId).toBeNull();
+  expect(s.getState().historyDepth).toBe(0);
+  expect(s.getState().notice).toBe('place_unavailable');
+  h.scope.end();
+});
+
+it('refuses retained geometry across pause and capability generations, even after replacement becomes ready', async () => {
+  const h = universeHarness(),
+    s = createUniverseViewSession(h.scope);
+  s.setForeground(true);
+  await ready(s);
+  const retained = s.descriptors()[0]!;
+  expect(s.geometry(retained)).toBeDefined();
+  s.setForeground(false);
+  expect(s.geometry(retained)).toBeUndefined();
+  s.configure({ detail: 'low', reducedMotion: false });
+  expect(s.cacheSize()).toBe(0);
+  expect(s.geometry(retained)).toBeUndefined();
+  s.setForeground(true);
+  await ready(s);
+  expect(s.geometry(retained)).toBeUndefined();
+  expect(s.cacheSize()).toBe(0);
+  expect(s.geometry(s.descriptors()[0]!)).toBeDefined();
+  expect(s.cacheSize()).toBe(1);
+  h.scope.end();
+});
+
+it('Fit and Back preserve an exact matching canonical locator and camera frame', async () => {
+  const h = universeHarness(),
+    s = createUniverseViewSession(h.scope);
+  s.setForeground(true);
+  await ready(s);
+  s.focus(fixtureId(12));
+  s.camera({ x: 81, y: -23, scale: 0.25 });
+  expect(s.getState().locator?.frame).toEqual(s.getState().frame);
+  s.fit();
+  const fitted = s.getState();
+  expect(fitted.frame).not.toEqual({ x: 81, y: -23, scale: 0.25 });
+  expect(fitted.locator?.frame).toEqual(fitted.frame);
+  s.focus(fixtureId(13));
+  expect(s.back()).toBe(true);
+  expect(s.getState().frame).toEqual(fitted.frame);
+  expect(s.getState().locator).toEqual(fitted.locator);
+  expect(s.getState().locator?.frame).toEqual(s.getState().frame);
+  h.scope.end();
+});
