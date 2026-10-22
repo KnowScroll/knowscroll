@@ -23,6 +23,10 @@ import {
   type RunPlanner,
 } from '@knowscroll/backend/modules/planner';
 import type { Provider } from '@nestjs/common';
+import type { Kysely } from 'kysely';
+import type { Database } from '@knowscroll/backend/infrastructure/postgres';
+import type { WorkerConfig } from '@knowscroll/backend/infrastructure/config';
+import type { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { jobConsumer, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
@@ -57,7 +61,16 @@ import {
   type SweepDispatchedAttempts,
 } from '@knowscroll/backend/reasoning';
 import { reasoningPurgeProviders, reasoningSweepProviders } from '@knowscroll/backend/reasoning/nest-providers';
-import { ENQUEUE_JOB, DATABASE, JOB_CONSUMERS, LOG_EVENT, WITH_PERSONAL_SCOPE, WORKER_CONFIG } from './tokens.js';
+import {
+  ENQUEUE_JOB,
+  DATABASE,
+  JOB_CONSUMERS,
+  LOG_EVENT,
+  WITH_PERSONAL_SCOPE,
+  WORKER_CONFIG,
+  PG_BOSS,
+} from './tokens.js';
+import { clearExplorationConsumer } from './privacy.js';
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-context';
 
@@ -114,6 +127,9 @@ export const jobWiring: Provider[] = [
       PURGE_EXPIRED_REQUESTS,
       SWEEP_DISPATCHED_ATTEMPTS,
       LOG_EVENT,
+      DATABASE,
+      PG_BOSS,
+      WORKER_CONFIG,
     ],
     useFactory: (
       projectScene: ProjectScene,
@@ -128,7 +144,11 @@ export const jobWiring: Provider[] = [
       purgeExpiredRequests: PurgeExpiredRequests,
       sweepDispatchedAttempts: SweepDispatchedAttempts,
       logEvent: LogEvent,
+      db: Kysely<Database>,
+      boss: ReturnType<typeof createBoss>,
+      config: WorkerConfig,
     ): readonly JobConsumer<unknown>[] => [
+      clearExplorationConsumer(db, boss, config.scopeLockTimeoutMs),
       jobConsumer(projectSceneQueue, async (payload) => {
         await projectScene(payload);
       }),

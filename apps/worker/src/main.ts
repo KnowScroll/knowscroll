@@ -48,7 +48,7 @@ async function main(): Promise<void> {
       });
       await boss.start();
       const app = await NestFactory.createApplicationContext(
-        WorkerModule.forRoot({ config, db: database.db, logEvent, enqueueJob: makeEnqueueJob(boss) }),
+        WorkerModule.forRoot({ config, db: database.db, boss, logEvent, enqueueJob: makeEnqueueJob(boss) }),
         {
           logger: new FrameworkLogAdapter(logEvent),
           abortOnError: false,

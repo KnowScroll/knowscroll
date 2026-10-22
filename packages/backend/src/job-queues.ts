@@ -8,7 +8,7 @@ import {
   projectScrollReadingQueue,
   projectEncounterActivityQueue,
 } from './modules/evidence/public.js';
-import { sweepSignInRecordsQueue } from './modules/identity/public.js';
+import { sweepSignInRecordsQueue, clearExplorationQueue } from './modules/identity/public.js';
 import {
   cutroomAccountingQueue,
   cutroomFollowQueue,
@@ -23,6 +23,7 @@ import {
  * erasure inventory checks that every queue carrying `universeId` has an eraser.
  */
 export const releaseQueues = queueRegistry([
+  clearExplorationQueue,
   cutroomPoolQueue,
   cutroomAccountingQueue,
   cutroomFollowQueue,

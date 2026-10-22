@@ -1,5 +1,18 @@
 # @knowscroll/worker
 
+## Clear exploration maintenance (#345)
+
+The explicit consumer registry includes `identity.clear-exploration`. Its IDs-only payload
+locates an existing account-lifetime operation; durable core_done determines whether the
+worker may obtain core-removal authority or only exact-set accounting authority. Selective
+removal uses the complete verified owner registry and preserves every Saved/place/Social
+row. Accounting retries cannot run a broad eraser or dispatch paid work. After the queue's
+finite retry policy is exhausted, the consumer records a coarse completion_unverified failure.
+
+This composition requires the durable core from PR348 and its installed schema/queue policy.
+Actions installed-release fixtures exercise the normal API and worker with disposable data
+and no provider. Actual dev/stage privacy journeys require separate deployment evidence.
+
 Background worker: a Nest application context with no network listener. pg-boss claims jobs for
 the queues in the explicit consumer registry (`src/jobs.ts`); nothing is discovered by
 decorators. HTTP guards never run here, so every consumer's use case rechecks authority itself
