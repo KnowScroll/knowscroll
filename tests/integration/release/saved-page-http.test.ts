@@ -139,17 +139,21 @@ describe('real Saved pagination through installed HTTP release', () => {
       expect(filtered.items.every((i) => i.kind === 'scroll')).toBe(true);
     },
   );
-  it('guards current session/Origin/scope before interpreting private query data and masks validation failures', async () => {
+  it('guards current session/scope and preserves safe GET Origin policy while masking validation failures', async () => {
     const f = await fixture(1);
     await refusal(await get({ ...selection, cursor: canary }, {}), 'UNAUTHENTICATED');
     await refusal(
       await get({ ...selection, cursor: canary }, { ...headers(f), 'x-ks-scope': `${randomUUID()}:1` }),
       'SCOPE_MISMATCH',
     );
-    await refusal(
-      await get(selection, { ...headers(f, true), origin: 'https://wrong.fixture.test' }),
-      'ORIGIN_NOT_ALLOWED',
-    );
+    // D-007 exempts safe GETs from the state-changing Origin guard. The browser still receives
+    // no cross-origin read permission; current cookie/session/scope checks remain mandatory.
+    const foreignOriginValue = 'https://wrong.fixture.test',
+      foreignOrigin = await get(selection, { ...headers(f, true), origin: foreignOriginValue });
+    expect(foreignOrigin.headers.get('access-control-allow-origin')).not.toBe(foreignOriginValue);
+    const safeRead = await page(foreignOrigin);
+    expect(safeRead.scope).toEqual({ accountId: f.person.accountId, privacyEpoch: 1 });
+    expect(safeRead.items.map((item) => item.assetId)).toEqual(f.rows.map((row) => row.id));
     for (const query of [
       { ...selection, limit: '51' },
       { ...selection, cursor: canary },
