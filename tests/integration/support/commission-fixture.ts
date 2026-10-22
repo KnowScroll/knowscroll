@@ -111,9 +111,12 @@ export interface CommissionFixture {
   grantReleaseForFixtureOnly(): Promise<void>;
   close(): Promise<void>;
 }
-export async function commissionFixture(label: string): Promise<CommissionFixture> {
-  const world = await createTestDatabase<Database>(`commission_${label}`),
-    poolName = `${inject('runPrefix')}cutroom_${randomBytes(4).toString('hex')}`;
+export async function commissionFixture(
+  label: string,
+  options: { readonly world?: TestDatabase<Database>; readonly runPrefix?: string } = {},
+): Promise<CommissionFixture> {
+  const world = options.world ?? (await createTestDatabase<Database>(`commission_${label}`)),
+    poolName = `${options.runPrefix ?? inject('runPrefix')}cutroom_${randomBytes(4).toString('hex')}`;
   const role = `ks_b_${randomBytes(7).toString('hex')}`,
     legacyRole = `ks_b_legacy_${randomBytes(6).toString('hex')}`,
     password = randomBytes(24).toString('hex');
@@ -333,8 +336,8 @@ import { cutroomExecutionFor, makeWithCutroomAccountingScope } from '@knowscroll
 import { sql } from 'kysely';
 import type { CutroomDispatchPreflight } from '@knowscroll/backend/reasoning';
 /** Genuine disposable B claim + C1 dispatch intent. NEVER consumes/sends its ephemeral permit. */
-export async function fixtureDispatchedCommission(f: CommissionFixture, label: string) {
-  const command = f.command(label, 1, true),
+export async function fixtureDispatchedCommission(f: CommissionFixture, label: string, ceilingCents = 1) {
+  const command = f.command(label, ceilingCents, true),
     reviewed = await fixtureReview(f, command.input);
   const admitted = await f.commission()(command.input);
   if (admitted.kind !== 'pending') throw new Error('CI_CHAIN_ADMISSION');
@@ -384,6 +387,8 @@ export async function fixtureDispatchedCommission(f: CommissionFixture, label: s
   if (dispatched.kind !== 'prepared') throw new Error('CI_CHAIN_INTENT');
   return {
     ...command,
+    review,
+    permit: dispatched.permit,
     target,
     preflight,
     execution,
@@ -398,4 +403,218 @@ export async function fixtureDispatchedCommission(f: CommissionFixture, label: s
       ceilingCents: command.input.ceilingCents,
     },
   };
+}
+
+/** #354 additive protocol installed ONLY in a disposable fixture pool. No real ACL action. */
+export async function installCutroomEvidenceFixture(f: CommissionFixture) {
+  await f.owner.query(
+    await readFile(new URL('../../../ops/pool/migrations/0004_v2_evidence_hold.sql', import.meta.url), 'utf8'),
+  );
+  await f.owner.query(
+    `grant execute on function public.pool_v2_record_evidence(text,public.pool_v2_identity,text,bigint,text,text,text),public.pool_v2_settle(text,public.pool_v2_identity,text,bigint,text,text,text) to ${quoteIdentifier(f.role)}`,
+  );
+  await f.owner.query('begin');
+  try {
+    await f.owner.query('set local search_path=pg_catalog,public,pg_temp');
+    const result = (
+      await f.owner.query<{ digest: string }>(
+        `select encode(sha256(convert_to(pg_get_functiondef('public.pool_v2_record_evidence(text,public.pool_v2_identity,text,bigint,text,text,text)'::regprocedure),'UTF8')),'hex') digest`,
+      )
+    ).rows[0]!;
+    await f.owner.query('commit');
+    return result.digest;
+  } catch (error) {
+    await f.owner.query('rollback');
+    throw error;
+  }
+}
+
+import { CUTROOM_CHAIN_UPSTREAM_REVISION, type CutroomCollectedChain } from '@knowscroll/backend/modules/content';
+/** Authored sanitized finite terminal chain. This is not an engine/provider observation. */
+export function fixtureClosedCommissionChain(
+  c: Awaited<ReturnType<typeof fixtureDispatchedCommission>>,
+  options: { cost?: number; childCost?: number; video?: boolean } = {},
+): CutroomCollectedChain {
+  const now = Date.now(),
+    two = options.childCost !== undefined;
+  const run = (runId: string, child: boolean) => {
+    const status = {
+      contractVersion: 1 as const,
+      requestId: c.expected.requestId,
+      runId,
+      state: 'finished',
+      lastSeq: 8,
+      ...(two ? (child ? { resumes: 'fixture-original' } : { resumedBy: 'fixture-child' }) : {}),
+    };
+    const record = {
+      contractVersion: 1,
+      runId,
+      pictures: options.video
+        ? [
+            {
+              pictureId: 'p1',
+              shotId: 'shot-0',
+              chosen: true,
+              checks: ['technical', 'text', 'witness', 'reconcile'].map((step) => ({
+                gate: '1',
+                step,
+                outcome: 'accept',
+              })),
+            },
+          ]
+        : [],
+      takes: options.video
+        ? [
+            {
+              takeId: 't1',
+              shotId: 'shot-0',
+              number: 1,
+              used: true,
+              checks: ['2', '3', '4', '5'].map((gate) => ({ gate, outcome: 'accept' })),
+            },
+          ]
+        : [],
+      degradations: [],
+    };
+    const result = {
+      contractVersion: 1,
+      runId,
+      requestId: c.expected.requestId,
+      status: options.video ? 'completed' : 'failed',
+      costCents: child ? options.childCost : (options.cost ?? 34),
+      ...(options.video ? { until: 'video', stills: [{ pictureId: 'p1', shotId: 'shot-0' }], degradations: [] } : {}),
+    };
+    return {
+      statusUtf8: JSON.stringify(status),
+      resultUtf8: JSON.stringify(result),
+      recordUtf8: JSON.stringify(record),
+      closingStatusUtf8: JSON.stringify(status),
+      openedAtMs: now,
+      resultAtMs: now + 1,
+      recordAtMs: now + 2,
+      closedAtMs: now + 3,
+    };
+  };
+  return {
+    version: 'cutroom-chain-collection.v1',
+    evidenceSha256: hash('fixture-not-provider'),
+    calls: two ? 9 : 5,
+    responseBytes: 2000,
+    observedAtMs: now + 4,
+    profile: {
+      upstreamRevision: CUTROOM_CHAIN_UPSTREAM_REVISION,
+      soleWriterEvidenceSha256: c.preflight.soleWriterEvidenceSha256,
+      observedAtMs: now - 10,
+      expiresAtMs: now + 29990,
+    },
+    input: {
+      upstreamRevision: CUTROOM_CHAIN_UPSTREAM_REVISION,
+      validationTimeMs: now + 4,
+      expected: c.expected,
+      runs: two ? [run('fixture-original', false), run('fixture-child', true)] : [run('fixture-original', false)],
+    },
+  };
+}
+
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { cutroomFixture } from './cutroom-fixture.js';
+import {
+  makeCommissionChainSnapshots,
+  postgresCommissionChainStore,
+  makeCutroomChainSnapshotCollector,
+  makeCommissionedReelImporter,
+  financialReportOfSnapshot,
+} from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  makeCutroomSettlement,
+  postgresCutroomSettlement,
+  makeEnqueueCutroomMaintenance,
+  makeCutroomSettlementPool,
+  cutroomMaintenanceFor,
+} from '@knowscroll/backend/reasoning/nest-providers';
+import { cutroomSettleQueue, recoverCutroomQueue } from '@knowscroll/backend/reasoning';
+/** Fully admitted generated synthetic video + exact real disposable settlement, never provider proof. */
+export async function fixturePublishedCommission(f: CommissionFixture, label: string) {
+  const root = await mkdtemp(join(tmpdir(), 'ks-connected-reel-')),
+    media = await cutroomFixture(root);
+  try {
+    const pin = await installCutroomEvidenceFixture(f);
+    await applyQueueDeclarations(f.boss, [cutroomSettleQueue, recoverCutroomQueue]);
+    const c = await fixtureDispatchedCommission(f, label, 75);
+    media.status.requestId = c.expected.requestId;
+    media.result.requestId = c.expected.requestId;
+    media.result.costCents = 34;
+    const snapshots = makeCommissionChainSnapshots({
+      enabled: true,
+      withAccountingScope: c.accounting,
+      execution: c.execution,
+      store: postgresCommissionChainStore(),
+    });
+    const now = Date.now(),
+      collected = await makeCutroomChainSnapshotCollector({
+        enabled: true,
+        origin: media.origin,
+        profile: {
+          upstreamRevision: CUTROOM_CHAIN_UPSTREAM_REVISION,
+          soleWriterEvidenceSha256: c.preflight.soleWriterEvidenceSha256,
+          observedAtMs: now - 1,
+          expiresAtMs: now + 29999,
+        },
+      }).collect(c.expected);
+    if (collected.kind !== 'collected') throw new Error('FIXTURE_VIDEO_COLLECTION');
+    const stored = await snapshots.recordCollectedChain(c.target, collected.snapshot);
+    if (stored.kind === 'refused') throw new Error('FIXTURE_VIDEO_SNAPSHOT');
+    const snapshot = await snapshots.readSnapshot(c.target, {
+      snapshotId: stored.snapshotId,
+      snapshotSha256: stored.snapshotSha256,
+    });
+    if (snapshot.kind !== 'snapshot') throw new Error('FIXTURE_VIDEO_READ');
+    const pool = makeCutroomSettlementPool(() => f.pool.connect(), { evidenceFunctionSha256: pin });
+    const financial = makeCutroomSettlement({
+      enabled: true,
+      withAccountingScope: c.accounting,
+      pool,
+      store: postgresCutroomSettlement(makeEnqueueCutroom(f.boss), makeEnqueueCutroomMaintenance(f.boss)),
+    });
+    const maintenance = cutroomMaintenanceFor(f.world.db, f.boss, {
+      enabled: true,
+      worldId: 'dev',
+      lockBusiness: lockCommissionBusiness,
+    });
+    await f
+      .service()
+      .withScope(c.input.authority, 'admit', (scope) => maintenance.trackInScope(scope, c.target.attemptId));
+    const publication = makeCommissionedReelImporter(
+      { enabled: true, withScope: f.service().withScope, review: c.review.recheck, snapshots, settlement: financial },
+      { origin: media.origin, artifactRoot: media.artifactRoot, mediaRoot: media.mediaRoot, fixture: true },
+    );
+    const published = await publication.publish(c.input.authority, c.target, {
+      snapshotId: stored.snapshotId,
+      snapshotSha256: stored.snapshotSha256,
+    });
+    if (published.kind !== 'published') throw new Error(`FIXTURE_VIDEO_${published.code}`);
+    return {
+      c,
+      snapshots,
+      snapshot,
+      financial,
+      maintenance,
+      publication,
+      published,
+      media,
+      pin,
+      root,
+      report: financialReportOfSnapshot(snapshot),
+      close: async () => {
+        await media.close();
+        await rm(root, { recursive: true, force: true });
+      },
+    };
+  } catch (error) {
+    await media.close();
+    await rm(root, { recursive: true, force: true });
+    throw error;
+  }
 }

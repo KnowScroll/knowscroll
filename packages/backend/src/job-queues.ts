@@ -17,6 +17,8 @@ import {
   cutroomAccountingQueue,
   cutroomFollowQueue,
   cutroomPoolQueue,
+  cutroomSettleQueue,
+  recoverCutroomQueue,
   purgeExpiredRequestsQueue,
   sweepDispatchedAttemptsQueue,
 } from './reasoning/events.js';
@@ -32,6 +34,8 @@ export const releaseQueues = queueRegistry([
   cutroomPoolQueue,
   cutroomAccountingQueue,
   cutroomFollowQueue,
+  cutroomSettleQueue,
+  recoverCutroomQueue,
   projectSceneQueue,
   cartographyQueue,
   publishDeltaQueue,

@@ -586,3 +586,35 @@ recovers durable IDs. A historical read revalidates at its sealed capture time a
 evidence current or reconstruct request bytes. Reported safe cents and accept-with-label outcomes stay
 honest, including overage and video-unavailable chains. All whole-ceiling liabilities remain held;
 settlement/import/disposition, actual profile/funds/pool authority, human scripts and CF62 are later gates.
+
+The connected commissioning facade captures each parsed review packet per invocation, admits it
+with the exact new B reservation, and tracks durable work in that same transaction. The only POST
+consumes the acknowledged C1 permit once and sends the protected original bytes unchanged. A lost
+intent COMMIT, POST acknowledgement, refusal or timeout leads to retained liability plus bounded
+GET reconciliation; it never authorizes a new take, resume, cancel, release or blind resend.
+
+A collected0033 closed chain is revalidated before import. Distinct original/one-auto-child OWN
+costs form one stable `cutroom-financial.v1` report; it includes exact receipt UUID/six-fractional
+UTC times and sanitized result/record document digests, but excludes collection timestamps and
+publication IDs. Unknown/incomplete chain cost is never invented. Nonvideo, overage, review/media
+or import failure leaves the full claim open. Known exact terminal reports use the additive
+reviewed evidence-only pool protocol; only a verified publication may settle actual cost. No
+clamping, refund or allowance reset is performed.
+
+`makeReelCorpusImporter` imports trusted complete legacy metadata without replacing, deleting or
+filtering history. Existing retained v2 reviews remain automatically inventoried by the owning
+review store. A complete legacy manifest and individual HUMAN approval are separate mandatory
+inputs. A clear corpus result alone cannot dispatch. Root-driven immediate delivery reports
+`held`, `post_unknown`, `accounting_pending` or concrete observed/publication/accounting progress;
+`accounting_confirmed` can mean an active evidence hold and is not a claim-settled assertion.
+
+Upfront budget activation boundary: wire v1 alone does not prove a shared chain cap. The
+pinned Cutroom94ee04a1 source does: `reelSpentCents` is original plus child OWN spend, the child
+copies the original request unchanged, every image/video/narration send guards that total against
+its original `budgetCents`, and resume admission checks prior spend plus child estimate. A second
+child/resume-of-resume is refused. This intended engine-accounted bound assumes the matched real
+adapter/guard rates, token-plan-covered model/speech, one-hop image profile, serial record-before-
+next-send and one writer. Actual installed revision/profile/rates, lease suitability and complete
+send/receipt state remain separately mandatory Root activation facts. Unknown or unexpected
+provider billing is not proved away; the exact overage hold remains defensive accounting, not
+retroactive authorization. Source never widens, refunds or clips the approved ceiling.

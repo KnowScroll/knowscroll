@@ -129,3 +129,48 @@ export const cutroomFollowQueue = defineQueue({
   },
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
 });
+
+export const CutroomSettleWorkSchema = z.strictObject({
+  v: z.literal(1),
+  worldId: z.enum(['dev', 'stage']),
+  businessRunId: z.uuid(),
+  attemptId: z.uuid(),
+  operationId: z.uuid(),
+});
+export const cutroomSettleQueue = defineQueue({
+  name: 'reasoning.settle-cutroom',
+  purpose: 'Reconcile one immutable verified-publication settlement; never claim, dispatch or release.',
+  payload: CutroomSettleWorkSchema,
+  policy: {
+    expireInSeconds: 120,
+    retryLimit: 2,
+    retryDelaySeconds: 60,
+    retryBackoff: false,
+    retentionSeconds: 86400,
+    deleteAfterSeconds: 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 5 },
+});
+export const CutroomRecoveryWorkSchema = z.union([
+  z.strictObject({ v: z.literal(1) }),
+  z
+    .strictObject({ v: z.literal(1), afterAttemptId: z.uuid(), throughAttemptId: z.uuid() })
+    .refine((v) => v.afterAttemptId < v.throughAttemptId),
+]);
+export const recoverCutroomQueue = defineQueue({
+  name: 'reasoning.recover-cutroom',
+  purpose: 'Bounded finite world-owned Cutroom maintenance; no new attempt or POST authority.',
+  payload: CutroomRecoveryWorkSchema,
+  policy: {
+    expireInSeconds: 120,
+    retryLimit: 2,
+    retryDelaySeconds: 60,
+    retryBackoff: false,
+    retentionSeconds: 86400,
+    deleteAfterSeconds: 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 10 },
+  schedule: { cron: '*/5 * * * *', payload: { v: 1 } },
+});
