@@ -295,9 +295,14 @@ it('retains the exact unknown accept retry and refreshes instead of treating the
   const view = await render(h.tree);
   try {
     await screen.findByText('No people to show in this list.');
-    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Incoming requests', checked: false }));
+    const incoming = screen.getByRole('togglebutton', { name: 'Incoming requests' });
+    // RNTL14 only supports the checked query filter for checkbox/radio/switch.
+    expect(incoming.props.accessibilityState).toEqual(expect.objectContaining({ checked: false }));
+    await fireEvent.press(incoming);
     await screen.findByText('Peer fixture');
-    expect(screen.getByRole('togglebutton', { name: 'Incoming requests', checked: true })).toBeOnTheScreen();
+    const selected = screen.getByRole('togglebutton', { name: 'Incoming requests' });
+    expect(selected).toBeOnTheScreen();
+    expect(selected.props.accessibilityState).toEqual(expect.objectContaining({ checked: true }));
     await fireEvent.press(screen.getByRole('button', { name: 'Accept Peer fixture' }));
     await screen.findByRole('button', { name: 'Retry the same request' });
     expect(screen.getByRole('button', { name: 'Accept Peer fixture' })).toBeDisabled();
