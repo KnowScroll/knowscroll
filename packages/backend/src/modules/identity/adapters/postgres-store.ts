@@ -52,7 +52,13 @@ export async function readUniverseAccess(
   const row = await db
     .selectFrom('identity.universes as universe')
     .innerJoin('identity.accounts as account', 'account.id', 'universe.account_id')
-    .select(['universe.revision', 'universe.privacy_epoch', 'universe.status', 'account.status as account_status'])
+    .select([
+      'universe.revision',
+      'universe.privacy_epoch',
+      'universe.status',
+      'universe.clear_operation_id',
+      'account.status as account_status',
+    ])
     .where('universe.id', '=', universeId)
     .where('universe.account_id', '=', accountId)
     .executeTakeFirst();
@@ -60,7 +66,7 @@ export async function readUniverseAccess(
   return {
     revision: row.revision,
     privacyEpoch: row.privacy_epoch,
-    active: row.status === 'active' && row.account_status === 'active',
+    active: row.status === 'active' && row.account_status === 'active' && row.clear_operation_id === null,
   };
 }
 

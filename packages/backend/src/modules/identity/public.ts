@@ -357,3 +357,56 @@ export type InvalidateOwnAccountAccess = (
 export const FENCE_ACCOUNT_PAIR = Symbol('identity.fenceAccountPair');
 export const FENCE_OWN_ACCOUNT = Symbol('identity.fenceOwnAccount');
 export const INVALIDATE_OWN_ACCOUNT_ACCESS = Symbol('identity.invalidateOwnAccountAccess');
+
+// Clear is an opt-in lifecycle. These capabilities never grant ordinary exploration authority.
+declare const privacyScopeBrand: unique symbol;
+declare const clearCoreBrand: unique symbol;
+declare const clearAccountingBrand: unique symbol;
+export interface PrivacyAuthority {
+  readonly accountId: string;
+  readonly universeId: string;
+  readonly privacyEpoch: number;
+}
+export interface PrivacyScopeTx {
+  readonly [privacyScopeBrand]: true;
+  readonly authority: PrivacyAuthority;
+  readonly revisionAtEntry: number;
+  readonly barrierId: string | null;
+}
+export interface ClearBinding {
+  readonly operationId: string;
+  readonly accountId: string;
+  readonly universeId: string;
+  readonly commandId: string;
+  readonly fromEpoch: number;
+  readonly toEpoch: number;
+}
+export interface ClearCoreTx {
+  readonly [clearCoreBrand]: true;
+  readonly binding: ClearBinding;
+}
+export interface ClearAccountingTx {
+  readonly [clearAccountingBrand]: true;
+  readonly binding: ClearBinding;
+  readonly liabilities: readonly ClearLiability[];
+}
+export interface ClearLiability {
+  readonly attemptId: string;
+  readonly runId: string;
+  readonly roleId: string;
+  readonly roleVersion: string;
+  readonly provider: string;
+  readonly model: string;
+  readonly budgetWindow: string;
+  readonly reservedTokens: number;
+}
+export type WithPrivacyScope = <T>(
+  authority: PrivacyAuthority,
+  work: (scope: PrivacyScopeTx) => Promise<T>,
+) => Promise<ScopeOutcome<T>>;
+export type WithClearMaintenance = <T>(
+  accountId: string,
+  commandId: string,
+  work: (scope: ClearCoreTx | ClearAccountingTx) => Promise<T>,
+) => Promise<T | undefined>;
+export { ClearExplorationJobSchema, clearExplorationQueue, type ClearExplorationJob } from './events.js';
