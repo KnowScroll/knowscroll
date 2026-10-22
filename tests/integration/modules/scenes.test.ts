@@ -19,7 +19,11 @@ import {
   accountAccessUseCases,
   identityScopeOwnerProviders,
 } from '@knowscroll/backend/modules/identity/nest-providers';
-import type { PersonalScopeTx } from '@knowscroll/backend/modules/identity';
+import {
+  FENCE_OWN_ACCOUNT,
+  FENCE_PERSONAL_RECORDING,
+  type PersonalScopeTx,
+} from '@knowscroll/backend/modules/identity';
 import { READ_COVERAGE_INPUTS, READ_TRUSTED_COVERAGE } from '@knowscroll/backend/modules/personal-context';
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import {
@@ -96,6 +100,8 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     const values = new Map<symbol, unknown>([
       [SCOPE, withScope()],
       [ENQUEUE, makeEnqueueJob(c.boss)],
+      [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
+      [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_TRUSTED_COVERAGE, c.readTrustedCoverage],
       [READ_COVERAGE_INPUTS, buildFromProviders(personalContextProviders(), READ_COVERAGE_INPUTS, new Map())],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
