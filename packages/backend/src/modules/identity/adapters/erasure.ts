@@ -17,6 +17,7 @@ export const identityErasure: ModuleErasure = {
   module: 'identity',
   tables: [],
   accountTables: [
+    { schema: 'identity', table: 'recording_commands', ownerColumn: 'account_id' },
     { schema: 'identity', table: 'email_addresses', ownerColumn: 'account_id' },
     { schema: 'identity', table: 'sign_in_links', ownerColumn: 'address' },
     { schema: 'identity', table: 'sessions', ownerColumn: 'account_id' },

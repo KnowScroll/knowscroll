@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-22 21:54 UTC · **Phase:** RESUMED / original-generation contracts integrated / Friends candidate and recording recovery review · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-22 22:40 UTC · **Phase:** RESUMED / Friends integrated, Identity recording prerequisite on actual base · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,19 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current authoritative phase — 22 Oct 2026 21:54 UTC
+## Current authoritative phase — 2026-10-22 22:40 UTC
+
+**Actual integration is `3c167cd907482870101fb014a9d0d6d918f685a6`, tree `03d23921f84f80c14f598131465ff4af99212f3c`, schema40.** Friends PR386 is actually squash-merged on exact30c39190 after complete source/current-base reviews and acceptancefef0128e. Sourcee3990987/run39864208408 and actualPRfbf2da59/run39864218060 passed all six, each full114 official logs/102 successful steps, official artifact digests, all19,683 manifest entries/40 SQL/smoke29. Squash993b9b07 verifies exact parent/tree and clean integration fast-forward. Both priorf33/60e failures/full archives remain retained. Source/CI acceptance does not establish deployment or real two-account/native journeys; parents241/377 remain open.
+
+**This candidate contains only the Identity recording prerequisite.** All18 feature blobs/modes remain exact independently reviewed0e602a8c (825ba0dd); all other source matches actual3c, including current original-generation command contracts, receiving-fixture dynamic registry guards, actual Friends UI/toggle correction and formation383. Only this Root-owned checkpoint differs. Normal current-base composition resolves11 conflicts by exact reviewed parent blobs. Schema41 SQLa0b041e0 adds monotone root on/generation and immutable lifetime exact-body receipts, keeps both old-table checks NOT VALID and preserves all40 prior SQL. Genuine own/root/epoch gates precede current reads and historical receipt replay; exact original bodies cannot retoggle later state. Selective Clear preserves policy and receipts. This prerequisite mounts no recording HTTP/UI/worker consumer. Separate current-base independent review and fresh source/actual-PR Actions/full-artifact acceptance are mandatory before integration.
+
+**Later full recording source remains separate and unaccepted operationally.** LocalRoot compositionc8594811 combines reviewed42–44, roles, queue identity, genuine own/lifecycle, both actual owner material effects, Workerbac327e9 whole3 source0fa793d8, API/control/helpers4c0e1505 whole15 source8760d9a6 and installedHTTP fixtureac855306 source6f592e35 with actual Friends3c. Full dependency build/all-workspace types/scoped API lint/format/boundaries/Knip passed before composition; composed build/types also pass. Combined current-base independent closure and hosted behavior are still required. Initial installedfixture P2e6e8d887 (operation ID vs command ID) remains retained/corrected. Its1ms intake fixture proves no qualification/model success. A disjoint HIGH client owner is implementing current-read policy authority, original generation for eight command shapes, exact-v2 outbox ACKs, activation-command sessions and truthful shared Pause UI. No fixture, empty codegen or source preview is deployed/runtime evidence. Legacy NULL lifecycle provenance stays unknown; no history scan/backfill/owner Clear/adoption or mixed-version sandbox claim.
+
+Fresh publichealth909d8aaf at22:37UTC identifies both dev476baec5/schema35/archive8579c51b and legacy stage8982391f, unchanged main e5fdc319 and devsource106c4701 (not deployed). SSD APFS UUID AFAE8457-8861-427F-A8D0-5F2CC802E2B9 matches. All prior operational windows remain expired/consumed. Ledgerdf1dd4d5 remains36used/0held/0unknown of43; v12 terminal rejected/noasset after3 settled requests,22 unexplained own-consumer deltas and ZERO accepted generated Scrolls remain. Exact PR379 Sun-angle script approval79c26473 is ONE future order≤75¢; no order/job/reservation is allocated. Funds/principal/full-route+voice entitlement, fal exact billing unit/retry liability, corpus/pool/sole writer and fresh finite exact-runtime plans remain open. No owner data/history, spending reset, main or production action.
+
+Continue exact-head coherent phases, remaining architecture/design/privacy/social/native/operator implementation, real-service journeys, genuine Cutroom and interactive Scroll evidence, D002 integration→dev PR/mergeback and identical-artifact stage via scripts/promote.sh. **All five programme requirements remain OPEN.**
+
+## Earlier authoritative phase — 22 Oct 2026 21:54 UTC
 
 **Latest actual integration is `30c391902e8c3ef1d854b88b3b2b94b0b0d13cba`, tree `b612b753e762e23392f8c8f9a6d38eda06f750ec`, schema39.** PR385 is actually squash-merged on receiver553d5c00 after independent current-base composition162331d6 and complete source/actual-PR acceptance02252b5d. Exact source18ae699e and actual PRc2abc5e4 passed all six required checks (39856037642/39856046757), with full114 official logs and all102 step logs each, official artifact digests, all19,626 manifest entries/all39 immutable SQL and smoke29. Actual squash receipt63cea0ff verifies expected parent/tree and clean integration fast-forward. All eight original-generation command contracts remain declaration prerequisites; API/UI recording is not activated.
 

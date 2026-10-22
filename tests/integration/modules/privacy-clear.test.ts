@@ -49,6 +49,7 @@ import {
 } from '@knowscroll/backend/modules/identity';
 import {
   clearExplorationFor,
+  recordingPolicyFor,
   clearStore,
   readClearRecoveryCandidates,
   identityUseCases,
@@ -219,6 +220,75 @@ describe('durable selective Clear', () => {
       );
     return { id, runId, ledger };
   }
+  it.each([false, true])(
+    'preserves recording policy and immutable account receipts through Clear while on=%s',
+    async (on) => {
+      const p = await seedPerson(db()),
+        recording = recordingPolicyFor(db(), { lockTimeoutMs: 5000 });
+      const first = {
+        version: 'recording-policy.v1',
+        commandId: randomUUID(),
+        expectedPrivacyEpoch: 1,
+        expectedRecordingGeneration: 1,
+        on: false,
+      };
+      expect(await recording.set(p.authority, first)).toMatchObject({ kind: 'ok' });
+      if (on)
+        expect(
+          await recording.set(p.authority, {
+            ...first,
+            commandId: randomUUID(),
+            expectedRecordingGeneration: 2,
+            on: true,
+          }),
+        ).toMatchObject({ kind: 'ok' });
+      const prior = await root(p),
+        receipts = await db().selectFrom('identity.recording_commands').selectAll().orderBy('command_id').execute();
+      const clear = body();
+      expect(await cases().start(authority(p), clear)).toMatchObject({ kind: 'entered' });
+      // The ordinary root/barrier check still precedes an account-lifetime historical replay.
+      expect(await recording.set({ ...p.authority, privacyEpoch: 2 }, first)).toMatchObject({
+        kind: 'scope_refused',
+        refusal: { kind: 'universe_suspended' },
+      });
+      await cases().process(job(p, clear.commandId));
+      const after = await root(p);
+      expect({ on: after.recording_on, generation: after.recording_generation }).toEqual({
+        on: prior.recording_on,
+        generation: prior.recording_generation,
+      });
+      expect(await db().selectFrom('identity.recording_commands').selectAll().orderBy('command_id').execute()).toEqual(
+        receipts,
+      );
+      expect(await recording.set(p.authority, first)).toMatchObject({
+        kind: 'scope_refused',
+        refusal: { kind: 'epoch_changed' },
+      });
+      const fresh = { ...p.authority, privacyEpoch: 2 };
+      expect(await recording.set(fresh, first)).toMatchObject({
+        kind: 'ok',
+        value: { replayed: true, receipt: { requestedPrivacyEpoch: 1, toGeneration: 2, on: false } },
+      });
+      const input = {
+        version: 'recording-policy.v1',
+        readId: randomUUID(),
+        target: { kind: 'command', commandId: first.commandId },
+      };
+      expect(await recording.read(fresh, input)).toMatchObject({
+        kind: 'ok',
+        value: {
+          ...input,
+          scope: { accountId: p.accountId, privacyEpoch: 2 },
+          policy: { on, generation: prior.recording_generation },
+          status: 'recorded',
+          receipt: { requestedPrivacyEpoch: 1, on: false },
+        },
+      });
+      expect(await root(p)).toEqual(after);
+      expect(await checkErasureInventory(db(), personalStores)).toEqual([]);
+    },
+  );
+
   it('serializes duplicate starts, binds the complete original body, and replays only under current authority', async () => {
     const p = await seedPerson(db()),
       input = body();
