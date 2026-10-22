@@ -389,6 +389,7 @@ export interface ClearAccountingTx {
   readonly [clearAccountingBrand]: true;
   readonly binding: ClearBinding;
   readonly liabilities: readonly ClearLiability[];
+  readonly completed: boolean;
 }
 export interface ClearLiability {
   readonly attemptId: string;
