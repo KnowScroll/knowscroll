@@ -64,17 +64,33 @@ export function keepBridgeFor(scope: AccountScope) {
 }
 
 /** Mount ownership is acquired in an effect, so StrictMode can release/reacquire the same view. */
-export function createKeepView(scope: AccountScope, target: KeepAssetRef) {
+export function createKeepView(scope: AccountScope, target: KeepAssetRef, savedEntryId?: string) {
   let handle: KeepPlaceHandle | undefined;
   let off: (() => void) | undefined;
   let endOff: (() => void) | undefined;
   let refused = false;
   const listeners = new Set<() => void>();
+  const boundState = () => {
+    if (!scope.active) return ended;
+    const state = handle?.getState() ?? (refused ? unavailable : loading);
+    const snapshot = state.snapshot;
+    // A new membership for the same asset is not the membership displayed by this card/detail.
+    if (
+      savedEntryId &&
+      snapshot &&
+      (snapshot.status === 'not_saved' ||
+        snapshot.entry.savedEntryId !== savedEntryId ||
+        snapshot.entry.assetId !== target.assetId ||
+        snapshot.entry.assetRevision !== target.assetRevision)
+    )
+      return unavailable;
+    return state;
+  };
   const emit = () => {
     for (const listener of [...listeners]) listener();
   };
   return {
-    getState: () => (!scope.active ? ended : (handle?.getState() ?? (refused ? unavailable : loading))),
+    getState: boundState,
     subscribe(this: void, listener: () => void) {
       listeners.add(listener);
       return () => {
@@ -105,8 +121,9 @@ export function createKeepView(scope: AccountScope, target: KeepAssetRef) {
       emit();
     },
     refresh: () => handle?.refresh(),
-    retry: () => handle?.retry() ?? false,
-    resolveConflict: (choice: 'server' | 'candidate') => handle?.resolveConflict(choice) ?? false,
+    retry: () => boundState() !== unavailable && (handle?.retry() ?? false),
+    resolveConflict: (choice: 'server' | 'candidate') =>
+      boundState() !== unavailable && (handle?.resolveConflict(choice) ?? false),
   };
 }
 

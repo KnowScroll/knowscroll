@@ -93,6 +93,9 @@ export function EncounterActions({
   if (!entry) return null;
   return (
     <View>
+      {entry.context.actions.saved && !state.keepPlace?.snapshot ? (
+        <Text variant="meta">Checking saved membership before removal…</Text>
+      ) : null}
       <ActionStrip
         available={['like', 'save', 'ask']}
         liked={entry.context.actions.liked}

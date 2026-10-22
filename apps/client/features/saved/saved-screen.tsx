@@ -1,11 +1,9 @@
-import { useState, useSyncExternalStore } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
-import type { ListSavedResponse } from '@knowscroll/contracts';
 import { spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, ErrorState, Skeleton, StateBlock, Text } from '@knowscroll/ui';
+import { Button, ErrorState, Skeleton, StateBlock, Text } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
 import { readResume } from '../encounter/encounter-history';
@@ -15,36 +13,37 @@ import { EmptyKeepScreen } from './empty-keep-screen';
 import { KeptSavedCard } from './saved-card';
 import { KeepDetail } from './keep-detail';
 import type { AvailableKeep } from './keep-place-bridge';
-import { savedRemovalFor, savedQueryOptions } from './saved-query';
+import { savedRemovalFor, createSavedPages, type SavedItem } from './saved-query';
 
 export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
-  const query = useQuery(savedQueryOptions(scope));
+  const pages = useMemo(() => createSavedPages(scope), [scope]);
+  useFocusEffect(
+    useCallback(() => {
+      pages.start();
+      return () => pages.stop();
+    }, [pages]),
+  );
+  const page = useSyncExternalStore(pages.subscribe, pages.getState, pages.getState);
+  const { filter, selected } = page;
   const router = useRouter();
-  const [page, setPage] = useState(0);
-  const [filter, setFilter] = useState<'all' | 'reel' | 'scroll'>('all');
   const removal = savedRemovalFor(scope, newCommandId);
   const removalState = useSyncExternalStore(removal.subscribe, removal.getState, removal.getState);
   const [openFailed, setOpenFailed] = useState(false);
-  const [selected, setSelected] = useState<ListSavedResponse['items'][number]>();
   const removing = ['preparing', 'grace', 'sending', 'unknown'].includes(removalState.status);
-  const open = (
-    item: ListSavedResponse['items'][number],
-    assetRevision: number,
-    mode: 'resume' | 'top' = 'top',
-    snapshot?: AvailableKeep,
-  ) => {
+  const open = (item: SavedItem, assetRevision: number, mode: 'resume' | 'top' = 'top', snapshot?: AvailableKeep) => {
     const session = encounterSessionFor(scope);
-    const accepted = session.openKept({ assetId: item.assetId, assetRevision }, mode, snapshot);
+    const accepted = session.openKept({ assetId: item.assetId, assetRevision }, mode, snapshot, {
+      assetId: item.assetId,
+      assetRevision: item.assetRevision,
+      savedEntryId: item.savedEntryId,
+    });
     if (!accepted) {
       setOpenFailed(true);
       return;
     }
     router.navigate('/explore');
   };
-  const items = query.data?.items ?? [];
-  const filtered = items.filter((item) => filter === 'all' || item.metadata?.kind === filter);
-  const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 20) - 1));
-  const visible = filtered.slice(currentPage * 20, currentPage * 20 + 20);
+  const visible = page.page?.items ?? [];
   return (
     <ScreenFrame tone="paper" title="Keep" bodyOffset={spacing[7]}>
       <View style={styles.body}>
@@ -57,38 +56,20 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
               variant={filter === kind ? 'primary' : 'ghost'}
               toggled={filter === kind}
               onPress={() => {
-                setFilter(kind);
-                setPage(0);
-                setSelected(undefined);
+                pages.refresh(kind);
               }}
             />
           ))}
         </View>
-        {query.isPending ? <Skeleton rows={3} label="Loading kept encounters" /> : null}
-        {query.isError && !query.data ? (
+        {page.status === 'loading' ? <Skeleton rows={3} label="Loading kept encounters" /> : null}
+        {page.status === 'unavailable' ? (
           <ErrorState
-            title="Couldn't load Keep"
-            body="Check your connection and try again."
-            onRetry={() => {
-              void query.refetch();
-            }}
+            title="Refresh Keep"
+            body="This page couldn't be checked. Refresh to start with the latest saved encounters."
+            onRetry={() => pages.refresh()}
           />
         ) : null}
-        {query.isError && query.data ? (
-          <Banner
-            kind="info"
-            lead="Your saved list may be out of date."
-            message="The last loaded list is shown while the connection is unavailable."
-          />
-        ) : null}
-        {query.isError && query.data ? (
-          <Button
-            label="Refresh Keep"
-            onPress={() => {
-              void query.refetch();
-            }}
-          />
-        ) : null}
+        <Button label="Refresh Keep" variant="ghost" onPress={() => pages.refresh()} />
         {openFailed ? (
           <StateBlock
             title="Your current move needs attention"
@@ -104,23 +85,21 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
             ]}
           />
         ) : null}
-        {query.data && items.length === 0 ? (
+        {page.status === 'ready' && visible.length === 0 ? (
           <StateBlock
-            title="Nothing kept yet"
-            body="Save a Reel or Scroll to keep a way back to your place."
-            actions={[
-              {
-                label: 'Go to Explore',
-                href: '/explore',
-                role: 'link',
-                onPress: () => router.navigate('/explore'),
-                variant: 'primary',
-              },
-            ]}
+            title={
+              page.page?.continuation.status === 'more'
+                ? 'More saved encounters to check'
+                : filter === 'all' && !page.canPrevious && !page.olderDiscarded
+                  ? 'Nothing kept yet'
+                  : 'No saved encounters on this page'
+            }
+            body={
+              page.page?.continuation.status === 'more'
+                ? 'Continue to check the next part of this filter.'
+                : 'Try another filter or refresh Keep. You can also save an encounter from Explore.'
+            }
           />
-        ) : null}
-        {items.length > 0 && visible.length === 0 ? (
-          <StateBlock title="No saved encounters in this filter" body="Try All to see the rest of this list." />
         ) : null}
         {removalState.status === 'grace' ? (
           <View style={styles.body}>
@@ -159,7 +138,7 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
             key={`${selected.assetId}:${String(selected.assetRevision)}`}
             scope={scope}
             item={selected}
-            onBack={() => setSelected(undefined)}
+            onBack={() => pages.select()}
             onOpen={(mode, snapshot) => open(selected, selected.assetRevision, mode, snapshot)}
           />
         ) : null}
@@ -167,7 +146,7 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
           ? visible.map((item) => (
               <KeptSavedCard
                 scope={scope}
-                key={item.assetId}
+                key={item.savedEntryId}
                 item={item}
                 resume={readResume(scope, item.assetId, item.assetRevision)}
                 failed={removalState.status === 'unavailable' && removalState.item.assetId === item.assetId}
@@ -176,36 +155,37 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
                   void removal.prepare(item);
                 }}
                 onOpen={(revision) => {
-                  if (revision === item.assetRevision) setSelected(item);
+                  if (revision === item.assetRevision) pages.select(item);
                   else open(item, revision);
                 }}
               />
             ))
           : null}
-        {!selected && filtered.length > 20 ? (
+        {!selected && page.status === 'ready' ? (
           <View role="group" accessibilityLabel="Keep pages" style={styles.filters}>
-            <Text variant="meta">
-              Showing {currentPage * 20 + 1}–{Math.min(currentPage * 20 + 20, filtered.length)} of {filtered.length}{' '}
-              loaded encounters
-            </Text>
             <Button
               label="Previous 20 saved encounters"
               variant="ghost"
-              disabled={currentPage === 0}
-              onPress={() => setPage(currentPage - 1)}
+              disabled={!page.canPrevious}
+              onPress={() => {
+                pages.previous();
+              }}
             />
-            <Button
-              label="Next 20 saved encounters"
-              variant="ghost"
-              disabled={(currentPage + 1) * 20 >= filtered.length}
-              onPress={() => setPage(currentPage + 1)}
-            />
+            {page.page?.continuation.status === 'more' ? (
+              <Button
+                label={visible.length === 0 ? 'Continue' : 'Next 20 saved encounters'}
+                variant="ghost"
+                onPress={() => {
+                  pages.next();
+                }}
+              />
+            ) : (
+              <Text variant="meta">End of this traversal. Keep is a live list; refresh for changes.</Text>
+            )}
+            {!page.canPrevious && page.olderDiscarded ? (
+              <Text variant="meta">This is the oldest retained page. Refresh Keep to return to the beginning.</Text>
+            ) : null}
           </View>
-        ) : null}
-        {items.length >= 100 ? (
-          <Text variant="meta">
-            Showing the newest 100 saved encounters. This is a bounded list, not your complete library.
-          </Text>
         ) : null}
         <Text variant="meta">Content requests aren't available here yet.</Text>
       </View>

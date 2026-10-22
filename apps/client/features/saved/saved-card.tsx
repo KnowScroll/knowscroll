@@ -3,12 +3,12 @@ import { useFocusEffect } from 'expo-router';
 import type { AccountScope, KeepPlaceState } from '@knowscroll/client-core';
 import { createKeepView } from './keep-place-bridge';
 import { StyleSheet, View } from 'react-native';
-import type { ListSavedResponse } from '@knowscroll/contracts';
+import type { SavedItem } from './saved-query';
 import { content, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import type { PrivatePosition } from '../encounter/encounter-history';
 
-type Item = ListSavedResponse['items'][number];
+type Item = SavedItem;
 export function SavedCard({
   item,
   resume,
@@ -28,14 +28,17 @@ export function SavedCard({
 }) {
   const withdrawn = item.availability === 'withdrawn';
   const savedPosition =
-    place?.status === 'ready' && place.snapshot?.status === 'available' && place.snapshot.place.status === 'set'
+    place?.status === 'ready' &&
+    place.snapshot?.status === 'available' &&
+    place.snapshot.entry.savedEntryId === item.savedEntryId &&
+    place.snapshot.entry.assetId === item.assetId &&
+    place.snapshot.entry.assetRevision === item.assetRevision &&
+    place.snapshot.place.status === 'set'
       ? place.snapshot.place.position
       : undefined;
   return (
     <View style={styles.card} testID="saved-encounter-card">
-      <Text variant="meta">
-        {item.metadata?.kind === 'reel' ? 'Reel' : item.metadata?.kind === 'scroll' ? 'Scroll' : 'Encounter'}
-      </Text>
+      <Text variant="meta">{item.kind === 'reel' ? 'Reel' : 'Scroll'}</Text>
       <Text variant="title" heading={2}>
         {item.metadata?.title ?? 'Saved encounter'}
       </Text>
@@ -90,7 +93,7 @@ export function SavedCard({
               label="Open updated version"
               variant="ghost"
               disabled={removing}
-              onPress={() => onOpen(item.currentAssetRevision!)}
+              onPress={() => onOpen(item.currentAssetRevision)}
             />
           ) : null}
         </>
@@ -125,8 +128,13 @@ export function KeptSavedCard({
   ...props
 }: React.ComponentProps<typeof SavedCard> & { readonly scope: AccountScope }) {
   const view = useMemo(
-    () => createKeepView(scope, { assetId: props.item.assetId, assetRevision: props.item.assetRevision }),
-    [scope, props.item.assetId, props.item.assetRevision],
+    () =>
+      createKeepView(
+        scope,
+        { assetId: props.item.assetId, assetRevision: props.item.assetRevision },
+        props.item.savedEntryId,
+      ),
+    [scope, props.item.assetId, props.item.assetRevision, props.item.savedEntryId],
   );
   useFocusEffect(
     useCallback(() => {

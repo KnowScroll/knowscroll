@@ -1,17 +1,24 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { DisplayProvider } from '@knowscroll/ui';
 import type { KeepPlaceState } from '@knowscroll/client-core';
-import type { ListSavedResponse } from '@knowscroll/contracts';
+import type { SavedPageResponse } from '@knowscroll/contracts';
 import { SavedCard } from './saved-card';
-const item: ListSavedResponse['items'][number] = {
+const item: Extract<SavedPageResponse['items'][number], { availability: 'corrected' }> = {
   assetId: '0199a000-0000-7000-8000-000000000001',
+  kind: 'reel',
+  savedEntryId: '0199a000-0000-7000-8000-000000000001',
   assetRevision: 2,
   savedAt: '2026-10-20T10:00:00.000Z',
   metadata: { kind: 'reel', title: 'Corrected CI fixture', summary: 'Fixture only', language: 'en' },
   availability: 'corrected',
   currentAssetRevision: 3,
 };
-function card(value: typeof item, onOpen: (revision: number) => void, onRemove = jest.fn(), place?: KeepPlaceState) {
+function card(
+  value: SavedPageResponse['items'][number],
+  onOpen: (revision: number) => void,
+  onRemove = jest.fn(),
+  place?: KeepPlaceState,
+) {
   return render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
       <SavedCard
@@ -39,11 +46,35 @@ describe('Saved immutable revision choices', () => {
   it('a withdrawn encounter can be removed but never opened', async () => {
     const open = jest.fn();
     const remove = jest.fn();
-    await card({ ...item, availability: 'withdrawn', currentAssetRevision: undefined }, open, remove);
+    await card(
+      { ...item, availability: 'withdrawn', metadata: undefined, currentAssetRevision: undefined },
+      open,
+      remove,
+    );
     expect(screen.queryByRole('button', { name: /Open/ })).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Remove from Keep' }));
     expect(remove).toHaveBeenCalledTimes(1);
     expect(open).not.toHaveBeenCalled();
+  });
+  it('does not display a replacement membership B playhead for paged card A', async () => {
+    await card(item, jest.fn(), jest.fn(), {
+      status: 'ready',
+      write: 'idle',
+      snapshot: {
+        version: 'keep-place.v1',
+        scope: { accountId: item.assetId, privacyEpoch: 1 },
+        target: item,
+        status: 'available',
+        entry: {
+          assetId: item.assetId,
+          assetRevision: item.assetRevision,
+          savedEntryId: '0199a000-0000-7000-8000-000000000002',
+        },
+        place: { status: 'set', placeRevision: 1, position: { kind: 'reel', positionMs: 65432 } },
+      },
+    });
+    expect(screen.queryByText('Saved place: 1:05 · opens paused')).toBeNull();
+    expect(screen.queryByText(/On this device/)).toBeNull();
   });
   it('uses a current server place instead of a legacy local value, and labels read failure honestly', async () => {
     const place: KeepPlaceState = {

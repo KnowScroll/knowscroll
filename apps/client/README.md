@@ -156,11 +156,18 @@ A Reel down-swipe or ArrowUp requests a previous subject; it is distinct from lo
 Android Back, browser Back and the toolbar use the same local path, overlay first. Browser state
 holds one transient same-address sentinel rather than an encounter navigation tree.
 
-Saved uses `GET /v1/saved?limit=100`; a full bounded list is explicitly labelled, not described as
-complete pagination. Metadata is allowlisted server output. Withdrawn items stay removable;
+Saved uses the explicit `saved-page.v1` GET `/v1/saved` contract with a server filter and limit
+of twenty. Only the current page payload is retained. Opaque Previous history is bounded to twenty
+cursors; Next can continue arbitrarily far, including an empty page with `more`. Only `end` ends a
+traversal; there is no library count. The oldest retained back boundary and expired/unavailable
+cursors offer Refresh, which clears selection/history and starts a new live traversal. Each admitted
+page must echo the actual scope, filter, numeric limit and exact request cursor, and cannot regress
+the traversal's personal revision watermark. Withdrawn metadata is not supplied or invented;
 corrected items keep their saved revision and offer a separate updated-version choice. Remove
-retains its unsave ID on unknown failure and rolls the optimistic list change back. Revisit
-opens the exact chosen revision then activates, restoring only a matching private local position.
+checks the displayed Saved UUID before minting its exact removal command, rechecks it after the
+five-second Undo grace, and retains the same body after an unknown outcome. No optimistic list
+removal occurs. Revisit opens the chosen immutable revision, activates, and restores only the
+selected authoritative membership's matching private place after another check.
 
 CI fixtures cover typed command retry/fencing, retained history, recorder identity/timebase,
 park/capture ordering, action rollback, Saved correction/withdrawal and platform Back/gesture
@@ -271,9 +278,12 @@ Direct Reel and Scroll share an actual-surface controller for focus/background/u
 post-Save fresh reads and explicit unknown/conflict UI. A direct Scroll now offers real Save with
 stable same-body retry. Actual SDK/renderer geometry is required; incoming local values alone never
 upload. Direct Reel keeps only its private playhead for a future paused visit. Keep cards display
-current scoped server places in pages of twenty, with at most four simultaneous readers; Previous/
-Next reaches all one hundred loaded entries without one hundred eager place reads. The API's
-existing hundred-item ceiling remains labelled; true unbounded library pagination needs a server
-cursor contract. Full S01/S02 visual/interaction parity remains follow-up work. Source/component/protocol fixtures in Actions establish
+current scoped server places on the current twenty-item page, with at most four simultaneous
+readers. Saved cards, selected detail and restore bind the displayed Saved UUID plus immutable ref.
+A replacement membership for the same asset cannot supply its place or authorize Remove/restore;
+Refresh lets the person choose it explicitly. Explore and direct Reel Remove pass the authoritative
+UUID currently displayed. Initial stale A→B preparation mints no removal command, while a previously
+unknown A command retains its exact original body for explicit retry. Starting at the top changes
+position choice and never bypasses the selected membership check. Full S01/S02 visual/interaction parity remains follow-up work. Source/component/protocol fixtures in Actions establish
 client behavior only. Root owns real disposable-account endpoint/decoded media/device journeys
 and deployment acceptance; this source makes no runtime or final privacy acceptance claim.

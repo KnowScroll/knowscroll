@@ -639,7 +639,7 @@ describe('explicit mounted Keep return and measured checkpoint', () => {
       }
     },
   );
-  it('blocks a replaced membership after activation before recorder start; explicit top reuses exact Work IDs', async () => {
+  it('blocks a replaced membership after activation and top cannot bypass the displayed membership', async () => {
     const f = keptFixture();
     const expected = f.snapshot();
     f.replaceOnDocument();
@@ -650,16 +650,46 @@ describe('explicit mounted Keep return and measured checkpoint', () => {
       expect(f.session.getState().entry).toBeUndefined();
       expect(f.calls.filter((c) => c.path.includes('/observations/'))).toHaveLength(0);
       f.session.startKeepFromTop();
-      await waitFor(() => expect(f.session.getState().phase).toBe('active'));
-      expect(f.session.getState().entry?.position).toEqual({
-        kind: 'reel',
-        positionMs: 0,
-        playing: false,
-        muted: false,
-      });
+      await waitFor(() =>
+        expect(f.calls.filter((c) => c.path.endsWith('/keep/read')).length).toBeGreaterThanOrEqual(3),
+      );
+      await waitFor(() => expect(f.session.getState().phase).toBe('keep_blocked'));
+      expect(f.session.getState().entry).toBeUndefined();
       expect(f.calls.filter((c) => c.path.endsWith('/open'))).toHaveLength(1);
       expect(f.calls.filter((c) => c.path.endsWith('/activate'))).toHaveLength(1);
       expect(f.calls.filter((c) => c.path.endsWith('/keep/place'))).toHaveLength(0);
+    } finally {
+      f.scope.end();
+    }
+  });
+  it.each(['resume', 'top'] as const)('refuses selected A→B before a %s return issues Open', async (mode) => {
+    const f = keptFixture();
+    const expected = f.snapshot();
+    try {
+      f.setMembership(id(901));
+      f.session.setForeground(true);
+      expect(f.session.openKept(f.chosen, mode, mode === 'resume' ? expected : undefined, expected.entry)).toBe(true);
+      await waitFor(() => expect(f.session.getState().phase).toBe('keep_blocked'));
+      expect(f.calls.every((c) => c.path.endsWith('/keep/read'))).toBe(true);
+      expect(f.session.getState().entry).toBeUndefined();
+    } finally {
+      f.scope.end();
+    }
+  });
+  it('Explore removal binds the displayed authoritative A and refuses a fresh replacement B', async () => {
+    const f = keptFixture();
+    try {
+      f.session.setForeground(true);
+      f.session.openKept(f.chosen, 'top');
+      await waitFor(() => expect(f.session.getState().phase).toBe('active'));
+      f.session.mount(f.session.getState().entry!);
+      await waitFor(() => expect(f.session.getState().keepPlace?.snapshot?.status).toBe('available'));
+      expect(f.session.getState().keepPlace?.snapshot).toMatchObject({ entry: { savedEntryId: id(900) } });
+      f.setMembership(id(901));
+      f.session.act('unsave');
+      await waitFor(() => expect(f.session.getState().removal?.status).toBe('unavailable'));
+      expect(f.calls.some((c) => c.path.endsWith('/keep/remove') || c.path === '/v1/actions')).toBe(false);
+      expect(f.session.getState().removal).toMatchObject({ item: { savedEntryId: id(900) } });
     } finally {
       f.scope.end();
     }

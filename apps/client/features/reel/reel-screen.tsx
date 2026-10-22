@@ -87,6 +87,7 @@ function ReadyReel({
     return { kind: 'reel' as const, positionMs };
   }, [scope, document]);
   const kept = useKeepSurface(scope, target, exposureId, capture);
+  const snapshot = kept.state.place.snapshot;
   const saved =
     kept.state.place.snapshot?.status === 'available' || kept.state.place.snapshot?.status === 'saved_unavailable';
   const [resume] = useState(() => readResume(scope, document.assetId, document.revision));
@@ -123,7 +124,11 @@ function ReadyReel({
   const save = async () => {
     if (saving || !scope.active) return;
     if (saved && kept.state.save !== 'unknown') {
-      await removal.prepare({ assetId: document.assetId, assetRevision: document.revision });
+      await removal.prepare({
+        assetId: document.assetId,
+        assetRevision: document.revision,
+        savedEntryId: snapshot && snapshot.status !== 'not_saved' ? snapshot.entry.savedEntryId : undefined,
+      });
       return;
     }
     capture();
