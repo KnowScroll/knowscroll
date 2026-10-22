@@ -9,6 +9,7 @@ import {
   savedListProblemResponses,
 } from './saved-page.js';
 import { AssetIdSchema, CommandIdSchema, UuidSchema } from './ids.js';
+import { RecordingGenerationSchema } from './recording.js';
 import {
   ActivateOfferRequestSchema,
   ActivateOfferResponseSchema,
@@ -22,16 +23,23 @@ import {
  * client once per user intent and reused on retry; the same ID with different content is refused
  * with `COMMAND_KEY_REUSED`. `assetRevision` is the revision the client showed.
  */
-export const ApplyActionRequestSchema = z.object({
-  commandId: CommandIdSchema,
-  kind: z.enum(['save', 'unsave', 'like', 'unlike', 'hide']),
-  target: z.object({ assetId: AssetIdSchema, assetRevision: z.number().int().min(1) }),
-  /**
-   * Optional explicit encounter linkage: own activated exposure, same epoch and exact revision.
-   * Without it this is asset preference only; never infer a latest encounter or qualification.
-   */
-  exposureId: UuidSchema.optional(),
-});
+export const ApplyActionRequestSchema = z
+  .object({
+    commandId: CommandIdSchema,
+    kind: z.enum(['save', 'unsave', 'like', 'unlike', 'hide']),
+    target: z.object({ assetId: AssetIdSchema, assetRevision: z.number().int().min(1) }),
+    /**
+     * Optional explicit encounter linkage: own activated exposure, same epoch and exact revision.
+     * Without it this is asset preference only; never infer a latest encounter or qualification.
+     */
+    exposureId: UuidSchema.optional(),
+    /** Original intent fence, retained in the receipt hash; never inferred from a later resume. */
+    recordingGeneration: RecordingGenerationSchema.optional(),
+  })
+  .refine((r) => !Object.hasOwn(r, 'recordingGeneration') || r.recordingGeneration !== undefined, {
+    path: ['recordingGeneration'],
+    message: 'A supplied recording generation must be defined.',
+  });
 
 export const SavedActionResponseSchema = z.object({
   commandId: CommandIdSchema,
@@ -127,13 +135,20 @@ export const listSavedContract = oc
  * is not a Scroll answers `ASSET_NOT_FOUND`; none of those writes a receipt. The same route also
  * declares Composer discovery (see navigation.ts); the interim consumer refuses it explicitly.
  */
-export const DirectOpenExposureRequestSchema = z.object({
-  commandId: CommandIdSchema,
-  target: z.object({ kind: z.enum(['scroll', 'reel']), assetId: AssetIdSchema }),
-  origin: z.object({ kind: z.literal('direct') }),
-  /** What this client build can render; the document is negotiated for it (D-012). */
-  capabilities: ClientCapabilities,
-});
+export const DirectOpenExposureRequestSchema = z
+  .object({
+    commandId: CommandIdSchema,
+    target: z.object({ kind: z.enum(['scroll', 'reel']), assetId: AssetIdSchema }),
+    origin: z.object({ kind: z.literal('direct') }),
+    /** What this client build can render; the document is negotiated for it (D-012). */
+    capabilities: ClientCapabilities,
+    /** Direct open is nonevidence; do not strip a generation-bearing mixed command into this branch. */
+    recordingGeneration: z.never().optional(),
+  })
+  .refine((r) => !Object.hasOwn(r, 'recordingGeneration'), {
+    path: ['recordingGeneration'],
+    message: 'Direct open does not admit a recording generation.',
+  });
 
 export const DirectOpenExposureResponseSchema = z.object({
   /** Reserved for Composer outcomes; they must not downgrade into a legacy exposure. */
@@ -173,12 +188,18 @@ export const openExposureContract = oc
  * exposure answers its original activation time. `NOT_FOUND` for an exposure that is not the
  * caller's (an unknown and a foreign exposure are indistinguishable).
  */
-export const DirectActivateExposureRequestSchema = z.object({
-  /** Newly reserved discriminator: all other unknown legacy fields still strip as before. */
-  target: z.never().optional(),
-  commandId: CommandIdSchema,
-  exposureId: UuidSchema,
-});
+export const DirectActivateExposureRequestSchema = z
+  .object({
+    /** Newly reserved discriminator: all other unknown legacy fields still strip as before. */
+    target: z.never().optional(),
+    commandId: CommandIdSchema,
+    exposureId: UuidSchema,
+    recordingGeneration: RecordingGenerationSchema.optional(),
+  })
+  .refine((r) => !Object.hasOwn(r, 'recordingGeneration') || r.recordingGeneration !== undefined, {
+    path: ['recordingGeneration'],
+    message: 'A supplied recording generation must be defined.',
+  });
 
 export const DirectActivateExposureResponseSchema = z.object({
   /** Reserved for offer activation so malformed offer lineage cannot downgrade. */
