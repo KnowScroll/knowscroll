@@ -144,3 +144,34 @@ states cannot mint a replacement clear. No journal, storage, query payload, sock
 private/raw-error logging is added. `completed_live` confirms only live removal, with no backup,
 provider-copy or offline-device expiry claim. Tests use authored HTTP/auth fixtures and the actual
 manager/fenced transport; automated verification runs only in Actions.
+
+## Canonical region preview (#362)
+
+`createRegionPreviewSession({ scope, capabilities, newReadId })` owns one ephemeral read-only card
+per actual AccountScope object. It requires synchronous `onEnd`, parses the merged U04 contract,
+binds the exact read ID/region/object/Geography revision/capabilities/universe/epoch and rejects
+regressive root/Geography watermarks. Accepted decoded data is limited to32KiB; this is not a
+pre-decode transport allocation guarantee. The card is frozen and is never a cache payload or
+storage record. No offer, activation, evidence, request, job or provider operation is created.
+
+`read`, `cancel` and `dispose` own generation/AbortSignal fences. At most one underlying read and
+one latest queued selection remain, including when a transport ignores abort. Cancel drops the
+card and queued selection synchronously; late replies cannot repopulate it. Authority refusals
+clear the card, and end permanently purges listeners/watermarks/queued work before callbacks.
+Read failures do not create a fallback encounter or retry automatically. Explicit Refresh starts a
+new correlated read. Consumers must also cancel on pin changes, Close, Back, capability changes,
+background and owning map-generation changes.
+
+The app's scoped Universe controller retains camera/history privately and passes only the displayed
+immutable asset/revision to its existing encounter engine on deliberate Open/More. The engine
+validates the region acknowledgement before exact offer activation and retains identical command
+and activation IDs on unknown outcomes; a later auth refusal cannot resolve an earlier ambiguous
+send. Returning parks the actual renderer/recorder and restores the exact private map frame/focus,
+without serializing camera or encounter positions on the region wire. Ordinary series, related,
+variant and What-if semantics are not reclassified as region discovery.
+
+This client consumer is fixture-testable against merged contracts. The real preview/Open backend
+is not installed by this change: missing/unsupported services remain unavailable, and canonical
+coverage/admission authority stays server-owned. Authored protocol/component/exported-browser
+fixtures run in Actions only and do not establish real formation, approved mappings, generated
+content, device parity or populated dev acceptance.
