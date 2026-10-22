@@ -10,7 +10,7 @@ import type { LogEvent } from '@knowscroll/backend/infrastructure/observability'
 export interface RequestContext {
   readonly requestId: string;
   problemCode?: string;
-  readonly problemFamily?: 'keep-place' | 'keep-remove';
+  readonly problemFamily?: 'keep-place' | 'keep-remove' | 'privacy-clear';
 }
 
 /** Finite serializer/cache selection only, never caller or operation authority. */
@@ -21,6 +21,11 @@ export function isKeepPlaceRequest(request: Pick<Request, 'method' | 'path'>): b
 /** New removal has a separate closed error family, selected before auth/body parsing. */
 function isKeepRemovalRequest(request: Pick<Request, 'method' | 'path'>): boolean {
   return request.method === 'POST' && /^\/v1\/experience\/keep\/remove\/?$/i.test(request.path);
+}
+
+/** Only the two mounted privacy POSTs; this selects serialization, never authority. */
+function isPrivacyClearRequest(request: Pick<Request, 'method' | 'path'>): boolean {
+  return request.method === 'POST' && /^\/v1\/privacy\/clear-exploration(?:\/status)?\/?$/i.test(request.path);
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -39,13 +44,16 @@ export function requestContextMiddleware(logEvent: LogEvent) {
   return (request: Request, response: Response, next: NextFunction): void => {
     const keep = isKeepPlaceRequest(request);
     const removal = isKeepRemovalRequest(request);
+    const privacy = isPrivacyClearRequest(request);
     const context: RequestContext = {
       requestId: randomUUID(),
       ...(keep ? { problemFamily: 'keep-place' as const } : {}),
       ...(removal ? { problemFamily: 'keep-remove' as const } : {}),
+      ...(privacy ? { problemFamily: 'privacy-clear' as const } : {}),
     };
     if (keep) response.setHeader('cache-control', 'private, no-store');
     if (removal) response.setHeader('cache-control', 'private, no-store');
+    if (privacy) response.setHeader('cache-control', 'private, no-store');
     const startedAt = performance.now();
     response.setHeader('x-request-id', context.requestId);
     let logged = false;

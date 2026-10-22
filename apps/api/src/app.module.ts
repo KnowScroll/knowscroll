@@ -6,7 +6,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { ORPCModule } from '@orpc/nest';
 import type { Kysely } from 'kysely';
 import type { ApiConfig } from '@knowscroll/backend/infrastructure/config';
-import type { EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
+import type { EnqueueJob, createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import type { RelayState } from '@knowscroll/backend/infrastructure/notices';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -28,6 +28,7 @@ import { sceneWiring } from './modules/scenes.js';
 import { evidenceWiring } from './modules/evidence.js';
 import { experienceWiring } from './modules/experience.js';
 import { identityWiring } from './modules/identity.js';
+import { privacyWiring } from './modules/privacy.js';
 import { ScopeGateway } from './realtime/scope.gateway.js';
 import { apiControllers } from './routes.js';
 import {
@@ -36,6 +37,7 @@ import {
   CALLERS,
   DATABASE,
   ENQUEUE_JOB,
+  PG_BOSS,
   LOG_EVENT,
   RELAY_STATE,
   WITH_PERSONAL_SCOPE,
@@ -45,6 +47,7 @@ import {
 export interface ApiResources {
   readonly config: ApiConfig;
   readonly db: Kysely<Database>;
+  readonly boss: ReturnType<typeof createBoss>;
   readonly enqueueJob: EnqueueJob;
   readonly logEvent: LogEvent;
   readonly relayState: () => RelayState;
@@ -65,6 +68,7 @@ export class AppModule {
       providers: [
         { provide: API_CONFIG, useValue: resources.config },
         { provide: DATABASE, useValue: resources.db },
+        { provide: PG_BOSS, useValue: resources.boss },
         { provide: LOG_EVENT, useValue: resources.logEvent },
         { provide: ENQUEUE_JOB, useValue: resources.enqueueJob },
         { provide: RELAY_STATE, useValue: resources.relayState },
@@ -97,6 +101,7 @@ export class AppModule {
           logEvent: resources.logEvent,
         }),
         ...identityScopeOwnerProviders(),
+        ...privacyWiring(resources.config.scopeLockTimeoutMs),
         ...contentWiring,
         ...mediaWiring,
         ...experienceWiring,
