@@ -319,6 +319,7 @@ export interface EvidenceActivityRevisions {
   policy_version: string;
   privacy_epoch: number;
   recorded_at: Generated<Timestamp>;
+  recording_generation: Generated<number>;
   revision: number;
   universe_id: string;
 }
@@ -337,6 +338,7 @@ export interface EvidenceEncounterEvidence {
   privacy_epoch: number;
   q: number;
   qualification: string;
+  recording_generation: Generated<number>;
   revision: number;
   summary: Json;
   universe_id: string;
@@ -356,8 +358,43 @@ export interface EvidenceObservations {
   payload: Json;
   privacy_epoch: number;
   received_at: Timestamp;
+  recording_generation: Generated<number>;
   schema_version: string;
   seq: number;
+  session_id: string;
+  universe_id: string;
+}
+
+export interface EvidenceRecordingExposureCredit {
+  attribution_sha256: string;
+  exposure_id: string;
+  frozen_base: Json;
+  input_sha256: string;
+  last_effective: Json;
+  policy_version: Generated<string>;
+  privacy_epoch: number;
+  source_vector: Json;
+  universe_id: string;
+  working_generation: number;
+}
+
+export interface EvidenceRecordingSegmentHeads {
+  activity_id: string | null;
+  exposure_id: string;
+  input_sha256: string;
+  privacy_epoch: number;
+  qualification_id: string | null;
+  recording_generation: number;
+  source_vector: Json;
+  universe_id: string;
+}
+
+export interface EvidenceRecordingSessions {
+  activation_command_id: string;
+  exposure_id: string;
+  privacy_epoch: number;
+  recording_generation: number;
+  server_started_at: Timestamp;
   session_id: string;
   universe_id: string;
 }
@@ -413,6 +450,15 @@ export interface ExperienceActionState {
   liked_origin_action_id: string | null;
   liked_origin_exposure_id: string | null;
   privacy_epoch: number;
+  recording_channel_revision: Generated<number>;
+  recording_liked_decision_action_id: string | null;
+  recording_liked_origin_action_id: string | null;
+  recording_liked_origin_exposure_id: string | null;
+  recording_liked_state: boolean | null;
+  recording_saved_decision_action_id: string | null;
+  recording_saved_origin_action_id: string | null;
+  recording_saved_origin_exposure_id: string | null;
+  recording_saved_state: boolean | null;
   saved_origin_action_id: string | null;
   saved_origin_exposure_id: string | null;
   universe_id: string;
@@ -504,6 +550,61 @@ export interface ExperienceOffers {
   session_id: string;
   source_exposure_id: string | null;
   source_offer_id: string | null;
+  universe_id: string;
+}
+
+export interface ExperienceRecordingCommandOrigins {
+  command_id: string;
+  disposition_version: Generated<number>;
+  eligible_generation: number | null;
+  operation: string;
+  original_generation: number | null;
+  privacy_epoch: number;
+  recorded_at: Timestamp;
+  universe_id: string;
+}
+
+export interface ExperienceRecordingOfferOrigins {
+  eligible_generation: number | null;
+  offer_id: string;
+  original_command_id: string;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
+export interface ExperienceRecordingSegmentInputs {
+  action_revision: Generated<number>;
+  exposure_id: string;
+  horizontal: Generated<boolean>;
+  liked_decision_action_id: string | null;
+  liked_origin_action_id: string | null;
+  liked_origin_generation: number | null;
+  liked_override: boolean | null;
+  navigation_revision: Generated<number>;
+  privacy_epoch: number;
+  recording_generation: number;
+  returned: Generated<boolean>;
+  saved_decision_action_id: string | null;
+  saved_origin_action_id: string | null;
+  saved_origin_generation: number | null;
+  saved_override: boolean | null;
+  universe_id: string;
+}
+
+export interface ExperienceRecordingSegments {
+  asset_id: string;
+  asset_revision: number;
+  attribution_payload: Json;
+  attribution_sha256: string;
+  attribution_version: Generated<string>;
+  explanation_unit_id: string;
+  exposure_id: string;
+  first_eligible_activation_at: Timestamp | null;
+  first_eligible_activation_command_id: string | null;
+  initialized_at: Timestamp;
+  kind: string;
+  privacy_epoch: number;
+  recording_generation: number;
   universe_id: string;
 }
 
@@ -739,6 +840,63 @@ export interface PersonalContextCoverageSupports {
   reference_count: number;
   topic_id: string;
   truth_sha256: string;
+  universe_id: string;
+}
+
+export interface PersonalContextRecordingCoverageContributions {
+  exposure_id: string;
+  input_sha256: string;
+  policy_version: Generated<string>;
+  privacy_epoch: number;
+  universe_id: string;
+  witnesses: Json;
+  working_generation: number;
+}
+
+export interface PersonalContextRecordingCoverageReferences {
+  explanation_unit_id: string;
+  exposure_id: string;
+  facet_id: string;
+  meaning_sha256: string;
+  privacy_epoch: number;
+  source_activity_id: string;
+  source_certificate_sha256: string;
+  source_generation: number;
+  source_kind: string;
+  source_legacy_exposure_id: string | null;
+  source_qualification_id: string;
+  source_segment_generation: number | null;
+  topic_id: string;
+  truth_sha256: string;
+  universe_id: string;
+}
+
+export interface PersonalContextRecordingExposureContributions {
+  explanation_unit_id: string;
+  exposure_id: string;
+  frozen_base: Json;
+  input_sha256: string;
+  payload: Json;
+  payload_version: Generated<string>;
+  privacy_epoch: number;
+  qualified: boolean;
+  universe_id: string;
+  working_generation: number;
+}
+
+export interface PersonalContextRecordingSegmentHeads {
+  activity_id: string;
+  contribution: Json;
+  coverage: Json | null;
+  coverage_sha256: string | null;
+  explanation_unit_id: string;
+  exposure_id: string;
+  input_sha256: string;
+  payload_version: Generated<string>;
+  privacy_epoch: number;
+  qualification_id: string | null;
+  qualified: boolean;
+  recording_generation: number;
   universe_id: string;
 }
 
@@ -1319,6 +1477,9 @@ export interface DB {
   "evidence.activity_revisions": EvidenceActivityRevisions;
   "evidence.encounter_evidence": EvidenceEncounterEvidence;
   "evidence.observations": EvidenceObservations;
+  "evidence.recording_exposure_credit": EvidenceRecordingExposureCredit;
+  "evidence.recording_segment_heads": EvidenceRecordingSegmentHeads;
+  "evidence.recording_sessions": EvidenceRecordingSessions;
   "evidence.topic_context": EvidenceTopicContext;
   "evidence.topic_contributions": EvidenceTopicContributions;
   "experience.action_links": ExperienceActionLinks;
@@ -1331,6 +1492,10 @@ export interface DB {
   "experience.offer_activations": ExperienceOfferActivations;
   "experience.offer_region_constraints": ExperienceOfferRegionConstraints;
   "experience.offers": ExperienceOffers;
+  "experience.recording_command_origins": ExperienceRecordingCommandOrigins;
+  "experience.recording_offer_origins": ExperienceRecordingOfferOrigins;
+  "experience.recording_segment_inputs": ExperienceRecordingSegmentInputs;
+  "experience.recording_segments": ExperienceRecordingSegments;
   "experience.saved_items": ExperienceSavedItems;
   "experience.saved_places": ExperienceSavedPlaces;
   "experience.sessions": ExperienceSessions;
@@ -1352,6 +1517,10 @@ export interface DB {
   "personal_context.coverage_contributions": PersonalContextCoverageContributions;
   "personal_context.coverage_references": PersonalContextCoverageReferences;
   "personal_context.coverage_supports": PersonalContextCoverageSupports;
+  "personal_context.recording_coverage_contributions": PersonalContextRecordingCoverageContributions;
+  "personal_context.recording_coverage_references": PersonalContextRecordingCoverageReferences;
+  "personal_context.recording_exposure_contributions": PersonalContextRecordingExposureContributions;
+  "personal_context.recording_segment_heads": PersonalContextRecordingSegmentHeads;
   "personal_context.state": PersonalContextState;
   "personal_context.supports": PersonalContextSupports;
   "personal_context.topics": PersonalContextTopics;
