@@ -1078,3 +1078,63 @@ not a mounted serializer/cache/Origin/auth guard. Authored synthetic schema/Open
 run in Actions only. Durable state/locks/unknown replay, real mixed-version intake/worker
 fences, scoped client callbacks/offline buffers, deployed pause/resume and preservation
 remain mandatory following work; this contract prerequisite does not finish #246.
+
+## Bounded Friends roster scan prerequisite (#378 / #377)
+
+`friend-pages.v2` declares `apiContract.friendPages.friends` at private JSON POST
+`/v1/social/friends/page` and `.requests` at `/v1/social/requests/page`. These are
+pure read declarations only: no controller, list index, cursor codec, maintenance,
+client drain, friendship, invitation or runtime journey is installed. Existing
+`sharing.v1` schemas/tests and `/friends/read` / `/requests/read` declarations are
+unchanged, including their nonempty continuation rule. Unsupported old routes
+remain unavailable; malformed new input never downgrades to an old route/version.
+
+`ReadFriendsPage` takes exact version, UUID `requestId`, filter `friends|blocked`,
+integer limit1..50 and optional canonical `SharingListCursor`; `ReadFriendRequestsPage`
+uses `incoming|outgoing`. The cursor's filter must match the request. Request IDs
+correlate reads, never command effects or permissions. Scope/cursor syntax is the
+existing canonical schema, with no copied ID, pair, cursor or scope definitions.
+Owner and current epoch come from authenticated authority, never a cursor grant.
+
+`FriendsPage` / `FriendRequestsPage` echo version/requestId, current own scope,
+filter and the public `snapshotRevision`, with at most50 unique matching canonical
+`FriendPairView` items and optional `next`. Response continuations bind that same
+scope/filter/head. Empty items WITH next means the bounded scan examined candidates
+without returning a currently eligible row and has another finite scan window.
+It never means an empty roster or traversal end. Only no next exhausts the captured
+traversal. Empty items without next is valid exhaustion. There are no totals,
+private pair roots/revisions, peer epochs, raw scan anchors, counts, progress or
+hidden peer causes. Canonical caller-visible pair views retain their existing
+semantics; presence/expiry/private transitions never advance the public list head.
+
+The future backend must authenticate and keep confidential the opaque cursor,
+binding protocol/purpose/world, actual owner/universe/epoch, filter, public head,
+requested limit, advancing anchor, captured finite ceiling and expiry. Cursor
+syntax cannot establish authenticity or authority. Current eligibility may remove
+inactive/inaccessible candidates; reads must not falsely terminate after an empty
+bounded candidate window or run unbounded scans to manufacture a nonempty page.
+Stable public ordering, a finite per-read candidate budget/lookahead and real
+anchor advancement remain backend responsibilities. Private decline/block,
+internal pair revision, peer epoch and presence changes must not leak through a
+head, cursor refusal or data shape. Live profile/eligibility hydration must not
+introduce public-head fanout for private transitions.
+
+Consumers compare the response with the initiating requestId, actual AccountScope,
+filter and captured public head; enforce returned items <=requested limit; reject
+old/out-of-order responses, scope changes, repeated tokens and nonadvancing chains;
+and purge scoped pages/cursors on logout, account switch or Clear. Empty+next may
+show an explicit further-scan control, never a fabricated empty-state message or an
+automatic unbounded drain. A schema cannot compare two HTTP messages or decode a
+cursor. A continuing token does not prove a visible friend exists later.
+
+Both new routes reuse the unchanged closed Social RFC9457 problem family through
+its existing supported metadata hook. New input field paths absent from that
+allowlist (`requestId`, `filter`) must map to `unknown`; never echo dynamic keys,
+values, tokens or numeric indices. OpenAPI describes direct application/problem+json,
+not installed exception handling. Current session/Origin/`X-KS-Scope`, private/no-store
+before body/auth parsing and bounded output are mandatory in future adapters.
+
+`friend-pages.test.ts` and additive actual OpenAPI-generator assertions contain
+synthetic contract fixtures only, run in Actions. Current database authority,
+finite scan/token security, installed HTTP, scoped UI/client pagination and a real
+two-account Friends journey remain required after this declaration prerequisite.

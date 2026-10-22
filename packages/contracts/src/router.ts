@@ -1,5 +1,6 @@
 import { conversationsContract } from './conversations.js';
 import { contentSharesContract } from './content-shares.js';
+import { friendPagesContract } from './friend-pages.js';
 import { formationPresentationContract } from './formation-presentation.js';
 import { privacyContract } from './privacy.js';
 import { recordingContract } from './recording.js';
@@ -39,6 +40,7 @@ export const apiContract: {
   recording: typeof recordingContract;
   keep: typeof keepContract & { remove: typeof removeKeepEntryContract };
   sharing: typeof sharingContract;
+  friendPages: typeof friendPagesContract;
   conversations: typeof conversationsContract;
   contentShares: typeof contentSharesContract;
   scenes: { manifest: typeof readSceneManifestContract; chunk: typeof readSceneChunkContract };
@@ -79,6 +81,7 @@ export const apiContract: {
   recording: recordingContract,
   keep: { ...keepContract, remove: removeKeepEntryContract },
   sharing: sharingContract,
+  friendPages: friendPagesContract,
   conversations: conversationsContract,
   contentShares: contentSharesContract,
   scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract },
