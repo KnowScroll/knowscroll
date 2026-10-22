@@ -100,7 +100,7 @@ describe('fresh recording lifecycle certification (Actions only)', () => {
             confirmation: 'clear-exploration-preserve-keep-and-social',
           },
         ),
-      ).toMatchObject({ kind: 'ok' });
+      ).toMatchObject({ kind: 'entered', value: { kind: 'ok' } });
       await use.process({ v: 1, accountId: p.accountId, commandId });
       return await database.db
         .selectFrom('identity.clear_operations')
@@ -789,7 +789,7 @@ describe('fresh recording lifecycle certification (Actions only)', () => {
         p.authority,
         'advance_epoch',
       ),
-    ).toMatchObject({ kind: 'invalidated', privacyEpoch: 2 });
+    ).toMatchObject({ kind: 'entered', value: { kind: 'invalidated', privacyEpoch: 2 } });
     const current = { ...p, authority: { ...p.authority, privacyEpoch: 2 } };
     expect(await inRecording(current, 1, readRecordingLifecycle)).toMatchObject({ value: { kind: 'not_ready' } });
     expect(await witnesses(p)).toMatchObject([{ privacy_epoch: 1, origin_kind: 'birth' }]);
