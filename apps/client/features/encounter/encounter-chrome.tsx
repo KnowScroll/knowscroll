@@ -39,22 +39,23 @@ export function EncounterChrome({
     <View>
       <View style={styles.top}>
         <IconButton icon="back" label="Back" onPress={back} />
-        <View style={styles.center}>
-          <FormatSwitch
-            selected={entry.kind}
-            availability={availability}
-            onSelect={(to) => {
-              if (entry.context.variants.some((variant) => variant.kind === to && variant.status === 'ready'))
-                session.navigate({ mode: 'variant', to });
-            }}
-          />
-          {entry.context.series ? <Text variant="meta">Part {entry.context.series.part}</Text> : null}
-          {pending ? (
-            <Text variant="meta">Your {pending.kind === 'reel' ? 'Reel' : 'Scroll'} request is still preparing.</Text>
-          ) : null}
-        </View>
+        <View style={styles.spacer} />
         <AccountButton initial={initial} surface="light" href="/account" onPress={() => router.navigate('/account')} />
         <IconButton icon="more" label="More options" onPress={() => session.setOverlay(true)} />
+      </View>
+      <View style={styles.center}>
+        <FormatSwitch
+          selected={entry.kind}
+          availability={availability}
+          onSelect={(to) => {
+            if (entry.context.variants.some((variant) => variant.kind === to && variant.status === 'ready'))
+              session.navigate({ mode: 'variant', to });
+          }}
+        />
+        {entry.context.series ? <Text variant="meta">Part {entry.context.series.part}</Text> : null}
+        {pending ? (
+          <Text variant="meta">Your {pending.kind === 'reel' ? 'Reel' : 'Scroll'} request is still preparing.</Text>
+        ) : null}
       </View>
       <View style={styles.message}>
         <Button
@@ -235,7 +236,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[2],
     backgroundColor: content.paper,
   },
-  center: { flex: 1, gap: spacing[1], alignItems: 'center' },
+  center: { gap: spacing[1], alignItems: 'center', paddingHorizontal: layout.gutter, paddingBottom: spacing[2] },
+  spacer: { flex: 1 },
   message: { gap: spacing[2], padding: spacing[3] },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: content.paper, zIndex: 10 },
   menu: { paddingTop: spacing[9], paddingHorizontal: layout.gutter, paddingBottom: spacing[24], gap: spacing[3] },
