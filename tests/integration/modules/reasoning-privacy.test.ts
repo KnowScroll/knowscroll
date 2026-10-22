@@ -463,13 +463,24 @@ describe('personal Reasoning payload erasure cannot rewrite financial truth or r
     const model = fixtureModel();
     const base = fixtureHarness(db(), { model });
     const withScope = base.ports.withPersonalScope;
-    let entries = 0;
+    let dispatchCommitted = false,
+      stopped = false;
     const { harness } = fixtureHarness(db(), {
       model,
       overrides: {
+        ledger: {
+          ...base.ports.ledger,
+          async commitDispatch(scope, attemptId, dispatch) {
+            const won = await base.ports.ledger.commitDispatch(scope, attemptId, dispatch);
+            dispatchCommitted ||= won;
+            return won;
+          },
+        },
         withPersonalScope: async (authority, work) => {
           const value = await withScope(authority, work);
-          if (++entries === 2) {
+          // Target the actual committed dispatch, not an entry count changed by privacy reads.
+          if (dispatchCommitted && !stopped) {
+            stopped = true;
             committed.open();
             await resume.promise;
           }
