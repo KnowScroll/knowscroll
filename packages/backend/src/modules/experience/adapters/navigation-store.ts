@@ -5,6 +5,8 @@ import { transactionOf } from '../../../infrastructure/postgres/personal-scope.j
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { EncounterAttribution } from '../../content/public.js';
 import type { ComposerSession, StoredOffer, NavigationPorts } from '../application/navigation-ports.js';
+import { OfferRegionConstraintSchema } from '../application/navigation-ports.js';
+import { consumeRegionActivationPermit } from '../application/navigation.js';
 import type { ReadActivityLineage, ReadRoutingHistory } from '../public.js';
 import { readExposure } from './postgres-store.js';
 const own = (scope: PersonalScopeTx) => ({
@@ -54,15 +56,30 @@ type OfferRow = {
   continuity_link_id: string | null;
   continuity_link_revision: number | null;
   expires_at: Date | string;
+  constraint_payload?: unknown;
 };
 function offerOf(r: OfferRow): StoredOffer {
+  const descriptor = EncounterOfferSchema.parse(r.descriptor);
+  const regionConstraint =
+    r.constraint_payload === null || r.constraint_payload === undefined
+      ? undefined
+      : OfferRegionConstraintSchema.parse(r.constraint_payload);
+  if (
+    regionConstraint &&
+    (r.mode !== 'vertical' ||
+      descriptor.relation.kind !== 'discovery' ||
+      regionConstraint.coverage.assetId !== descriptor.assetId ||
+      regionConstraint.coverage.assetRevision !== descriptor.assetRevision)
+  )
+    throw new Error('REGION_CONSTRAINT_IDENTITY');
   return {
     policyVersion: r.policy_version,
     id: r.id,
     sessionId: r.session_id,
     intentRevision: r.intent_revision,
     privacyEpoch: r.privacy_epoch,
-    descriptor: EncounterOfferSchema.parse(r.descriptor),
+    descriptor,
+    ...(regionConstraint ? { regionConstraint } : {}),
     mode: r.mode,
     ...(r.source_offer_id && r.source_exposure_id
       ? { source: { offerId: r.source_offer_id, exposureId: r.source_exposure_id } }
@@ -75,10 +92,9 @@ function offerOf(r: OfferRow): StoredOffer {
 }
 export const readOffer: NavigationPorts['readOffer'] = async (scope, id) => {
   const { u, e, db } = own(scope);
-  const rows =
-    await sql<OfferRow>`select * from experience.offers where universe_id=${u}::uuid and id=${id}::uuid and privacy_epoch=${e}`.execute(
-      db,
-    );
+  const rows = await sql<OfferRow>`select o.*,r.constraint_payload from experience.offers o
+      left join experience.offer_region_constraints r on r.universe_id=o.universe_id and r.privacy_epoch=o.privacy_epoch and r.offer_id=o.id
+      where o.universe_id=${u}::uuid and o.id=${id}::uuid and o.privacy_epoch=${e}`.execute(db);
   return rows.rows[0] ? offerOf(rows.rows[0]) : undefined;
 };
 /** Receipt replay reads only immutable descriptors named by that own receipt, in recorded order. */
@@ -86,10 +102,9 @@ export const readOwnedOffers: NavigationPorts['readOwnedOffers'] = async (scope,
   if (ids.length > 3 || new Set(ids).size !== ids.length) throw new Error('RECEIPT_OFFER_REFS_INVALID');
   if (!ids.length) return [];
   const { u, e, db } = own(scope);
-  const result =
-    await sql<OfferRow>`select * from experience.offers where universe_id=${u}::uuid and privacy_epoch=${e} and id=any(${ids}::uuid[])`.execute(
-      db,
-    );
+  const result = await sql<OfferRow>`select o.*,r.constraint_payload from experience.offers o
+      left join experience.offer_region_constraints r on r.universe_id=o.universe_id and r.privacy_epoch=o.privacy_epoch and r.offer_id=o.id
+      where o.universe_id=${u}::uuid and o.privacy_epoch=${e} and o.id=any(${ids}::uuid[])`.execute(db);
   return ids.flatMap((id) => {
     const row = result.rows.find((r) => r.id === id);
     return row ? [offerOf(row)] : [];
@@ -99,7 +114,9 @@ export const readMember: NavigationPorts['readMember'] = async (scope, sessionId
   const { u, e, db } = own(scope);
   const rows = await sql<
     OfferRow & { exposure_id: string; activated_at: Date }
-  >`select o.*,a.exposure_id,x.activated_at from experience.offers o join experience.offer_activations a on a.universe_id=o.universe_id and a.offer_id=o.id and a.privacy_epoch=o.privacy_epoch join experience.exposures x on x.universe_id=a.universe_id and x.id=a.exposure_id and x.privacy_epoch=a.privacy_epoch where o.universe_id=${u}::uuid and o.privacy_epoch=${e} and o.session_id=${sessionId}::uuid and o.id=${offerId}::uuid and x.activated_at is not null ${exposureId ? sql`and x.id=${exposureId}::uuid` : sql``}`.execute(
+  >`select o.*,r.constraint_payload,a.exposure_id,x.activated_at from experience.offers o
+  left join experience.offer_region_constraints r on r.universe_id=o.universe_id and r.privacy_epoch=o.privacy_epoch and r.offer_id=o.id
+  join experience.offer_activations a on a.universe_id=o.universe_id and a.offer_id=o.id and a.privacy_epoch=o.privacy_epoch join experience.exposures x on x.universe_id=a.universe_id and x.id=a.exposure_id and x.privacy_epoch=a.privacy_epoch where o.universe_id=${u}::uuid and o.privacy_epoch=${e} and o.session_id=${sessionId}::uuid and o.id=${offerId}::uuid and x.activated_at is not null ${exposureId ? sql`and x.id=${exposureId}::uuid` : sql``}`.execute(
     db,
   );
   const r = rows.rows[0];
@@ -110,13 +127,28 @@ export const readMember: NavigationPorts['readMember'] = async (scope, sessionId
 export const insertOffers: NavigationPorts['insertOffers'] = async (scope, offers) => {
   if (offers.length > 3) throw new Error('OFFER_LIMIT');
   const { u, e, db } = own(scope);
-  for (const o of offers)
+  for (const o of offers) {
     await sql`insert into experience.offers(universe_id,id,privacy_epoch,session_id,intent_revision,policy_version,decision_id,asset_id,asset_revision,descriptor,source_offer_id,source_exposure_id,mode,continuity_link_id,continuity_link_revision,expires_at) values(${u}::uuid,${o.id}::uuid,${e},${o.sessionId}::uuid,${o.intentRevision},${o.policyVersion},${o.descriptor.decisionId}::uuid,${o.descriptor.assetId}::uuid,${o.descriptor.assetRevision},${JSON.stringify(o.descriptor)}::jsonb,${o.source?.offerId ?? null}::uuid,${o.source?.exposureId ?? null}::uuid,${o.mode},${o.link?.linkId ?? null}::uuid,${o.link?.revision ?? null},${o.expiresAt}::timestamptz)`.execute(
       db,
     );
+    if (o.regionConstraint) {
+      const constraint = OfferRegionConstraintSchema.parse(o.regionConstraint);
+      await sql`insert into experience.offer_region_constraints(universe_id,privacy_epoch,offer_id,asset_id,asset_revision,coverage_head_revision,mapping_sha256,constraint_payload)
+        values(${u}::uuid,${e},${o.id}::uuid,${constraint.coverage.assetId}::uuid,${constraint.coverage.assetRevision},${constraint.coverage.headRevision},${constraint.coverage.mappingSha256},${JSON.stringify(constraint)}::jsonb)`.execute(
+        db,
+      );
+    }
+  }
 };
-export const bindOffer: NavigationPorts['bindOffer'] = async (scope, offerId, exposureId) => {
+export const bindOffer: NavigationPorts['bindOffer'] = async (scope, offerId, exposureId, regionPermit) => {
   const { u, e, db } = own(scope);
+  if (regionPermit) {
+    if (!consumeRegionActivationPermit(scope, offerId, regionPermit))
+      throw new Error('REGION_ACTIVATION_PERMIT_INVALID');
+    // Transaction-local compatibility marker, never HTTP input or a reusable authorization.
+    // Old binaries do not emit it and0037 rejects their fresh regional activation atomically.
+    await sql`select set_config('knowscroll.region_activation_v1',${offerId},true)`.execute(db);
+  }
   await sql`insert into experience.offer_activations(universe_id,privacy_epoch,offer_id,exposure_id) values(${u}::uuid,${e},${offerId}::uuid,${exposureId}::uuid)`.execute(
     db,
   );

@@ -894,11 +894,31 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       kind: 'read',
       deltas: { status: 'available', hasMore: true, deltas: [{ base: { revision: 0 }, geography: { revision: 1 } }] },
     });
-    await database.db
-      .deleteFrom('geography.deltas')
-      .where('universe_id', '=', p.universeId)
-      .where('revision', '=', 1)
-      .execute();
+    // Authored snapshot-gap fixture ONLY: no production Geography retention pruner exists.
+    // Normal full/Clear already erase Scenes before Geography. Preserve the restrictive FK
+    // here by removing this exact delivery fact and exact delta together under the own root.
+    await scope()(p.authority, async (sc) => {
+      const tx = transactionOf(sc);
+      const gap = await tx
+        .selectFrom('geography.deltas')
+        .select('transition_id')
+        .where('universe_id', '=', p.universeId)
+        .where('privacy_epoch', '=', 1)
+        .where('revision', '=', 1)
+        .executeTakeFirstOrThrow();
+      await tx
+        .deleteFrom('scenes.formation_presentations')
+        .where('universe_id', '=', p.universeId)
+        .where('privacy_epoch', '=', 1)
+        .where('transition_id', '=', gap.transition_id)
+        .execute();
+      await tx
+        .deleteFrom('geography.deltas')
+        .where('universe_id', '=', p.universeId)
+        .where('privacy_epoch', '=', 1)
+        .where('revision', '=', 1)
+        .execute();
+    });
     expect(await deltas(p.authority, { afterGeographyRevision: 0, limit: 10 })).toMatchObject({
       kind: 'read',
       deltas: { status: 'snapshot_required' },

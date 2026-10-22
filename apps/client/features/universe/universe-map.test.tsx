@@ -29,3 +29,8 @@ it('low detail preserves actual targets and ordinary touch labels', async () => 
   await v.unmount();
   h.scope.end();
 });
+// Authored valid UUIDs replace Expo's undefined native Jest UUID stub; production IDs are unchanged.
+jest.mock('../../platform/command-id', () => {
+  let next = 50000;
+  return { newCommandId: () => `0199a000-0000-7000-8000-${(next++).toString(16).padStart(12, '0')}` };
+});
