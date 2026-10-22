@@ -1,13 +1,74 @@
 import { sql } from 'kysely';
 import { UniverseDeltaSchema, GeographyAliasSchema } from '@knowscroll/contracts';
+import { recordingTransactionOf } from '../../../infrastructure/postgres/recording-scope.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import type { GeographyStore, GeographyRun, GeographyContext, RegionConstraintPorts } from '../application/ports.js';
-import { GeographyProposalSchema, type Place, type Route } from '../domain/policy.js';
+import type {
+  GeographyStore,
+  GeographyRun,
+  GeographyRunHeader,
+  GeographySource,
+  GeographyContext,
+  RegionConstraintPorts,
+} from '../application/ports.js';
+import { type Place, type Route } from '../domain/policy.js';
 const owner = (s: Parameters<GeographyStore['state']>[0]) => ({
   tx: transactionOf(s),
   u: s.authority.universeId,
   e: s.authority.privacyEpoch,
 });
+type OriginRow = {
+  recording_account_id: string | null;
+  recording_generation: number | null;
+  recording_origin_kind: string | null;
+  recording_origin_command_id: string | null;
+  recording_origin_source_revision: number | null;
+};
+function source(g: number | null, k: string | null, c: string | null, r: number | null): GeographySource | undefined {
+  if (g === null) {
+    if (k !== null || c !== null || r !== null) throw new Error('GEOGRAPHY_STORED_ORIGIN');
+    return undefined;
+  }
+  if (k === 'command' && c !== null && r === null) return { generation: g, kind: k, commandId: c };
+  if (k === 'material' && r !== null && r > 0 && c === null) return { generation: g, kind: k, sourceRevision: r };
+  if (k === 'legacy1' && g === 1 && r === null && c === null) return { generation: 1, kind: k };
+  throw new Error('GEOGRAPHY_STORED_ORIGIN');
+}
+type HeaderRow = OriginRow & {
+  id: string;
+  desired_revision: number;
+  status: GeographyRun['status'];
+  claim_id: string | null;
+  claim_until: Date | null;
+  normal_wake_id: string | null;
+  claim_wake_claim_id: string | null;
+  recording_context_sha256: string | null;
+  recording_model_context_sha256: string | null;
+  has_context: boolean;
+  outcome: string | null;
+};
+function header(r: HeaderRow): GeographyRunHeader {
+  const origin = source(
+    r.recording_generation,
+    r.recording_origin_kind,
+    r.recording_origin_command_id,
+    r.recording_origin_source_revision,
+  );
+  if (origin ? !r.recording_account_id : r.recording_account_id !== null) throw new Error('GEOGRAPHY_STORED_ACCOUNT');
+  return {
+    id: r.id,
+    desiredRevision: r.desired_revision,
+    status: r.status,
+    hasContext: r.has_context,
+    ...(origin ? { recording: { accountId: r.recording_account_id!, source: origin } } : {}),
+    ...(r.claim_id ? { claimId: r.claim_id } : {}),
+    ...(r.claim_until ? { claimUntil: r.claim_until.toISOString() } : {}),
+    ...(r.normal_wake_id ? { normalWakeId: r.normal_wake_id } : {}),
+    ...(r.claim_wake_claim_id ? { claimWakeClaimId: r.claim_wake_claim_id } : {}),
+    ...(r.recording_context_sha256 ? { contextSha256: r.recording_context_sha256 } : {}),
+    ...(r.recording_model_context_sha256 ? { modelContextSha256: r.recording_model_context_sha256 } : {}),
+    ...(r.outcome ? { outcome: r.outcome } : {}),
+  };
+}
 /** Exact indexed selectors under the existing live personal scope; no private support refs. */
 export const readRegionPlace: RegionConstraintPorts['object'] = async (scope, selector) => {
   const { tx, u, e } = owner(scope);
@@ -31,6 +92,94 @@ export const readRegionPlace: RegionConstraintPorts['object'] = async (scope, se
 };
 /** Every private lookup retains universe and epoch predicates; IDs grant no access. */
 export const geographyStore: GeographyStore = {
+  async root(cap) {
+    const r = await recordingTransactionOf(cap)
+      .selectFrom('identity.universes')
+      .select(['account_id', 'revision'])
+      .where('id', '=', cap.personal.authority.universeId)
+      .executeTakeFirstOrThrow();
+    return { accountId: r.account_id, revision: r.revision };
+  },
+  async header(scope, id) {
+    const { tx, u, e } = owner(scope);
+    const r = (
+      await sql<HeaderRow>`select id,desired_revision,status,claim_id,claim_until,normal_wake_id,claim_wake_claim_id,recording_account_id,recording_generation,recording_origin_kind,recording_origin_command_id,recording_origin_source_revision,recording_context_sha256,recording_model_context_sha256,(context is not null) as has_context,outcome from geography.runs where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid`.execute(
+        tx,
+      )
+    ).rows[0];
+    return r ? header(r) : undefined;
+  },
+  async accountingHeader(scope, id) {
+    const { tx, u, e } = owner(scope);
+    const r = (
+      await sql<{
+        id: string;
+        status: GeographyRun['status'];
+        recording_account_id: string | null;
+        recording_generation: number | null;
+        normal_wake_id: string | null;
+        legacy_origin: boolean;
+        claim_id: string | null;
+        claim_until: Date | null;
+        claim_wake_claim_id: string | null;
+      }>`select id,status,recording_account_id,recording_generation,normal_wake_id,claim_id,claim_until,claim_wake_claim_id,(recording_account_id is null and recording_generation is null and recording_origin_kind is null and recording_origin_command_id is null and recording_origin_source_revision is null and recording_context_sha256 is null and recording_model_context_sha256 is null) as legacy_origin from geography.runs where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid`.execute(
+        tx,
+      )
+    ).rows[0];
+    return r
+      ? {
+          id: r.id,
+          status: r.status,
+          legacyOrigin: r.legacy_origin,
+          ...(r.claim_id ? { claimId: r.claim_id } : {}),
+          ...(r.claim_until ? { claimUntil: r.claim_until.toISOString() } : {}),
+          ...(r.claim_wake_claim_id ? { claimWakeClaimId: r.claim_wake_claim_id } : {}),
+          ...(r.normal_wake_id ? { normalWakeId: r.normal_wake_id } : {}),
+          ...(r.recording_account_id ? { accountId: r.recording_account_id } : {}),
+          ...(r.recording_generation === null ? {} : { generation: r.recording_generation }),
+        }
+      : undefined;
+  },
+  async context(cap, id) {
+    const r = await recordingTransactionOf(cap)
+      .selectFrom('geography.runs')
+      .select('context')
+      .where('universe_id', '=', cap.personal.authority.universeId)
+      .where('privacy_epoch', '=', cap.personal.authority.privacyEpoch)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return r?.context as unknown as GeographyContext | undefined;
+  },
+  async consumeNormalWake(scope, id, wakeId) {
+    const { tx, u, e } = owner(scope);
+    const result =
+      await sql`update geography.runs set normal_wake_id=null,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and normal_wake_id=${wakeId}::uuid returning id`.execute(
+        tx,
+      );
+    return result.rows.length === 1;
+  },
+  async setNormalWake(scope, id, wakeId) {
+    const { tx, u, e } = owner(scope);
+    const result =
+      await sql`update geography.runs set normal_wake_id=${wakeId}::uuid,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and normal_wake_id is null and status in('queued','prepared','blocked','unknown') returning id`.execute(
+        tx,
+      );
+    return result.rows.length === 1;
+  },
+  async finishUnadmitted(scope, id, claimId) {
+    const { tx, u, e } = owner(scope);
+    const result =
+      await sql`update geography.runs set status='blocked',outcome='provider_unavailable',claim_id=null,claim_until=null,claim_wake_claim_id=null,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and status='prepared' and claim_id=${claimId}::uuid and claim_wake_claim_id=${claimId}::uuid and normal_wake_id is null returning id`.execute(
+        tx,
+      );
+    if (result.rows.length !== 1) throw new Error('GEOGRAPHY_UNADMITTED_CLAIM_CHANGED');
+  },
+  async retire(scope, id) {
+    const { tx, u, e } = owner(scope);
+    await sql`update geography.runs set status='stale',outcome='recording_revoked',claim_id=null,claim_until=null,normal_wake_id=null,claim_wake_claim_id=null,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and status in('queued','prepared','blocked','unknown')`.execute(
+      tx,
+    );
+  },
   async state(scope) {
     const { tx, u, e } = owner(scope);
     const row = (
@@ -42,6 +191,10 @@ export const geographyStore: GeographyStore = {
         material_revision: number;
         published_revision: number;
         active_run_id: string | null;
+        desired_recording_generation: number | null;
+        desired_origin_kind: string | null;
+        desired_origin_command_id: string | null;
+        desired_origin_source_revision: number | null;
       }>`select * from geography.state where universe_id=${u}::uuid and privacy_epoch=${e}`.execute(tx)
     ).rows[0];
     return row
@@ -52,6 +205,21 @@ export const geographyStore: GeographyStore = {
           desiredRevision: row.desired_revision,
           materialRevision: row.material_revision,
           publishedRevision: row.published_revision,
+          ...(source(
+            row.desired_recording_generation,
+            row.desired_origin_kind,
+            row.desired_origin_command_id,
+            row.desired_origin_source_revision,
+          )
+            ? {
+                desiredSource: source(
+                  row.desired_recording_generation,
+                  row.desired_origin_kind,
+                  row.desired_origin_command_id,
+                  row.desired_origin_source_revision,
+                ),
+              }
+            : {}),
           ...(row.active_run_id ? { activeRunId: row.active_run_id } : {}),
         }
       : {
@@ -65,9 +233,9 @@ export const geographyStore: GeographyStore = {
   },
   async writeState(scope, s) {
     const { tx, u, e } = owner(scope);
-    await sql`insert into geography.state(universe_id,privacy_epoch,revision,structure_revision,activity_revision,desired_revision,material_revision,published_revision,active_run_id)
- values(${u}::uuid,${e},${s.revision},${s.structureRevision},${s.activityRevision},${s.desiredRevision},${s.materialRevision},${s.publishedRevision},${s.activeRunId ?? null}::uuid)
- on conflict(universe_id,privacy_epoch) do update set revision=excluded.revision,structure_revision=excluded.structure_revision,activity_revision=excluded.activity_revision,desired_revision=excluded.desired_revision,material_revision=excluded.material_revision,published_revision=excluded.published_revision,active_run_id=excluded.active_run_id`.execute(
+    await sql`insert into geography.state(universe_id,privacy_epoch,revision,structure_revision,activity_revision,desired_revision,material_revision,published_revision,active_run_id,desired_recording_generation,desired_origin_kind,desired_origin_command_id,desired_origin_source_revision)
+ values(${u}::uuid,${e},${s.revision},${s.structureRevision},${s.activityRevision},${s.desiredRevision},${s.materialRevision},${s.publishedRevision},${s.activeRunId ?? null}::uuid,${s.desiredSource?.generation ?? null},${s.desiredSource?.kind ?? null},${s.desiredSource?.kind === 'command' ? s.desiredSource.commandId : null}::uuid,${s.desiredSource?.kind === 'material' ? s.desiredSource.sourceRevision : null})
+ on conflict(universe_id,privacy_epoch) do update set revision=excluded.revision,structure_revision=excluded.structure_revision,activity_revision=excluded.activity_revision,desired_revision=excluded.desired_revision,material_revision=excluded.material_revision,published_revision=excluded.published_revision,active_run_id=excluded.active_run_id,desired_recording_generation=excluded.desired_recording_generation,desired_origin_kind=excluded.desired_origin_kind,desired_origin_command_id=excluded.desired_origin_command_id,desired_origin_source_revision=excluded.desired_origin_source_revision`.execute(
       tx,
     );
   },
@@ -107,41 +275,11 @@ export const geographyStore: GeographyStore = {
       aliases: relations.filter((r) => r.kind === 'alias').map((r) => GeographyAliasSchema.parse(r.payload)),
     };
   },
-  async run(scope, id) {
-    const { tx, u, e } = owner(scope);
-    const r = (
-      await sql<{
-        id: string;
-        desired_revision: number;
-        status: GeographyRun['status'];
-        claim_id: string | null;
-        claim_until: Date | null;
-        context: GeographyContext | null;
-        proposal: unknown;
-        attempt_id: string | null;
-        outcome: string | null;
-      }>`select * from geography.runs where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid`.execute(
-        tx,
-      )
-    ).rows[0];
-    return r
-      ? {
-          id: r.id,
-          desiredRevision: r.desired_revision,
-          status: r.status,
-          ...(r.claim_id && r.claim_until ? { claimId: r.claim_id, claimUntil: r.claim_until.toISOString() } : {}),
-          ...(r.context ? { context: r.context } : {}),
-          ...(r.proposal ? { proposal: GeographyProposalSchema.parse(r.proposal) } : {}),
-          ...(r.attempt_id ? { attemptId: r.attempt_id } : {}),
-          ...(r.outcome ? { outcome: r.outcome } : {}),
-        }
-      : undefined;
-  },
   async writeRun(scope, r) {
     const { tx, u, e } = owner(scope);
-    await sql`insert into geography.runs(universe_id,privacy_epoch,id,desired_revision,status,claim_id,claim_until,context,proposal,attempt_id,outcome)
- values(${u}::uuid,${e},${r.id}::uuid,${r.desiredRevision},${r.status},${r.claimId ?? null}::uuid,${r.claimUntil ?? null}::timestamptz,${r.context ? JSON.stringify(r.context) : null}::jsonb,${r.proposal ? JSON.stringify(r.proposal) : null}::jsonb,${r.attemptId ?? null}::uuid,${r.outcome ?? null})
- on conflict(universe_id,id) do update set desired_revision=excluded.desired_revision,status=excluded.status,claim_id=excluded.claim_id,claim_until=excluded.claim_until,context=excluded.context,proposal=excluded.proposal,attempt_id=excluded.attempt_id,outcome=excluded.outcome,updated_at=now()`.execute(
+    await sql`insert into geography.runs(universe_id,privacy_epoch,id,desired_revision,status,claim_id,claim_until,context,proposal,attempt_id,outcome,recording_account_id,recording_generation,recording_origin_kind,recording_origin_command_id,recording_origin_source_revision,recording_context_sha256,recording_model_context_sha256,normal_wake_id,claim_wake_claim_id)
+ values(${u}::uuid,${e},${r.id}::uuid,${r.desiredRevision},${r.status},${r.claimId ?? null}::uuid,${r.claimUntil ?? null}::timestamptz,${r.context ? JSON.stringify(r.context) : null}::jsonb,${r.proposal ? JSON.stringify(r.proposal) : null}::jsonb,${r.attemptId ?? null}::uuid,${r.outcome ?? null},${r.recording?.accountId ?? null}::uuid,${r.recording?.source.generation ?? null},${r.recording?.source.kind ?? null},${r.recording?.source.kind === 'command' ? r.recording.source.commandId : null}::uuid,${r.recording?.source.kind === 'material' ? r.recording.source.sourceRevision : null},${r.contextSha256 ?? null},${r.modelContextSha256 ?? null},${r.normalWakeId ?? null}::uuid,${r.claimWakeClaimId ?? null}::uuid)
+ on conflict(universe_id,id) do update set desired_revision=excluded.desired_revision,status=excluded.status,claim_id=excluded.claim_id,claim_until=excluded.claim_until,context=coalesce(excluded.context,geography.runs.context),proposal=coalesce(excluded.proposal,geography.runs.proposal),attempt_id=coalesce(excluded.attempt_id,geography.runs.attempt_id),outcome=excluded.outcome,recording_account_id=coalesce(excluded.recording_account_id,geography.runs.recording_account_id),recording_generation=coalesce(excluded.recording_generation,geography.runs.recording_generation),recording_origin_kind=coalesce(excluded.recording_origin_kind,geography.runs.recording_origin_kind),recording_origin_command_id=coalesce(excluded.recording_origin_command_id,geography.runs.recording_origin_command_id),recording_origin_source_revision=coalesce(excluded.recording_origin_source_revision,geography.runs.recording_origin_source_revision),recording_context_sha256=coalesce(excluded.recording_context_sha256,geography.runs.recording_context_sha256),recording_model_context_sha256=coalesce(excluded.recording_model_context_sha256,geography.runs.recording_model_context_sha256),normal_wake_id=excluded.normal_wake_id,claim_wake_claim_id=excluded.claim_wake_claim_id,updated_at=now()`.execute(
       tx,
     );
   },

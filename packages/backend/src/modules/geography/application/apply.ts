@@ -1,6 +1,6 @@
 import { UniverseDeltaSchema, type UniverseDelta, type GeographyObject } from '@knowscroll/contracts';
 import { CONCEPTS } from '../../content/public.js';
-import type { PersonalScopeTx } from '../../identity/public.js';
+import type { RecordingScopeTx } from '../../identity/public.js';
 import {
   activityFor,
   semanticKey,
@@ -29,14 +29,17 @@ export function publicPlace(p: Place, universeId: string, objects: readonly Plac
 /** Current authority, complete pure validation, all writes + immutable delta + required work in one root. */
 export async function applyProposal(
   p: GeographyPorts,
-  scope: PersonalScopeTx,
+  cap: RecordingScopeTx,
   runId: string,
   c: GeographyContext,
   proposal: GeographyProposal,
+  closeLedger: () => Promise<void>,
 ): Promise<
   | { readonly kind: 'applied' | 'replayed'; readonly delta: UniverseDelta }
   | { readonly kind: 'refused'; readonly reason: string }
 > {
+  await p.store.root(cap);
+  const scope = cap.personal;
   if (
     !(await p.ownerActive(scope)) ||
     c.universeId !== scope.authority.universeId ||
@@ -45,15 +48,16 @@ export async function applyProposal(
     return { kind: 'refused', reason: 'scope_authority' };
   const hash = p.hash({ policy: GEOGRAPHY_POLICY, context: c, proposal }),
     prior = await p.store.findDelta(scope, c.transitionId);
-  if (prior)
+  if (prior) {
     return prior.hash === hash
       ? { kind: 'replayed', delta: prior.delta }
       : { kind: 'refused', reason: 'transition_key_reused' };
+  }
   const view = await p.store.view(scope);
   if (!validView(view, c.universeId)) return { kind: 'refused', reason: 'stored_structure' };
   if (view.state.revision !== c.base.revision || view.state.desiredRevision !== c.desiredRevision)
     return { kind: 'refused', reason: 'revision_changed' };
-  const fresh = await prepareGeography(p, scope, view, c);
+  const fresh = await prepareGeography(p, cap, view, c);
   if (
     !fresh ||
     fresh.pcRevision !== c.pcRevision ||
@@ -140,6 +144,7 @@ export async function applyProposal(
     }
   }
   if (objects.length > 1000 || routes.length + view.aliases.length > 1000) return { kind: 'refused', reason: 'limit' };
+  await closeLedger();
   const personalWatermark = await p.advance(scope);
   const geography = {
     revision,
@@ -164,7 +169,8 @@ export async function applyProposal(
   await p.store.writeDelta(scope, runId, hash, delta);
   await p.store.writeState(scope, { ...view.state, ...geography });
   await p.enqueueDelta(scope, delta);
-  await p.applied(scope, {
+  await p.applied(cap, {
+    recordingGeneration: cap.generation,
     transitionId: delta.transitionId,
     geography,
     personalRevision: personalWatermark,

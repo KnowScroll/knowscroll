@@ -90,3 +90,10 @@ export function cartographyContextItems(c: GeographyContext): readonly ContextIt
     throw new Error('GEOGRAPHY_CONTEXT_LIMIT');
   return items;
 }
+
+export function geographyContextHashes(context: GeographyContext, runId: string, hash: (value: unknown) => string) {
+  return {
+    contextSha256: hash(context),
+    modelContextSha256: hash({ bundleRef: `geography:${runId}`, items: cartographyContextItems(context) }),
+  };
+}

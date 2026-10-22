@@ -6,6 +6,7 @@ import type { GeographyApplied } from '../../geography/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const input: Parameters<GeographyApplied>[1] = {
+  recordingGeneration: 1,
   transitionId: id(1),
   geography: { revision: 1, structureRevision: 1, activityRevision: 0 },
   personalRevision: 1,
@@ -63,7 +64,12 @@ describe('actual creation delivery policy', () => {
   it('records no activity/label/route/historical callback as creation; never truncates ninth target', async () => {
     const record = vi.fn();
     const callback = makeRecordFormation({ record });
-    await callback({} as PersonalScopeTx, { transitionId: id(1), geography: input.geography, personalRevision: 1 });
+    await callback({} as PersonalScopeTx, {
+      recordingGeneration: 1,
+      transitionId: id(1),
+      geography: input.geography,
+      personalRevision: 1,
+    });
     expect(record).not.toHaveBeenCalled();
     const targets = Array.from({ length: 9 }, (_, i) => ({
       ...input.committedCreations!.targets[0]!,

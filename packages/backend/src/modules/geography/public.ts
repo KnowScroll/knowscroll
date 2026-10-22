@@ -9,7 +9,7 @@ export type {
   ReadOwnDeltas,
   PublishGeographyDelta,
 } from './application/ports.js';
-export { cartographyQueue, publishDeltaQueue } from './events.js';
+export { CartographyJobSchema, type CartographyJob, cartographyQueue, publishDeltaQueue } from './events.js';
 export const GEOGRAPHY_MATERIAL_CHANGE = Symbol('geography.materialChange');
 export const REQUEST_CARTOGRAPHY = Symbol('geography.requestCartography');
 export const RUN_CARTOGRAPHER = Symbol('geography.runCartographer');
@@ -23,3 +23,5 @@ export const GEOGRAPHY_APPLIED = Symbol('geography.applied');
 export type { GeographyRegionConstraint, ReadOwnRegionConstraint } from './application/ports.js';
 export const READ_OWN_REGION_CONSTRAINT = Symbol('geography.readOwnRegionConstraint');
 export { GeographyRegionConstraintSchema } from './application/region-constraint.js';
+
+export { CHECK_GEOGRAPHY_RECORDING_RUN } from '../../reasoning/public.js';

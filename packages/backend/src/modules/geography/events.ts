@@ -1,7 +1,39 @@
 import { z } from 'zod';
 import { defineQueue } from '../../infrastructure/jobs/queues.js';
 const Scope = { v: z.literal(1), universeId: z.uuid(), privacyEpoch: z.number().int().positive() };
-export const CartographyJobSchema = z.strictObject({ ...Scope, runId: z.uuid(), expectedClaimId: z.uuid().optional() });
+export const CartographyJobSchema = z
+  .strictObject({
+    v: z.union([z.literal(1), z.literal(2)]),
+    universeId: z.uuid(),
+    privacyEpoch: z.number().int().positive(),
+    runId: z.uuid(),
+    kind: z.literal('retire').optional(),
+    recordingGeneration: z.number().int().min(1).max(2147483647).nullable().optional(),
+    wakeId: z.uuid().optional(),
+    expectedClaimId: z.uuid().optional(),
+  })
+  .superRefine((r, c) => {
+    const own = (k: 'kind' | 'recordingGeneration' | 'wakeId' | 'expectedClaimId') => Object.hasOwn(r, k);
+    const invalid =
+      r.v === 1
+        ? own('kind') ||
+          own('recordingGeneration') ||
+          own('wakeId') ||
+          (own('expectedClaimId') && r.expectedClaimId === undefined)
+        : r.kind === 'retire'
+          ? r.recordingGeneration === undefined ||
+            (r.recordingGeneration !== null && r.recordingGeneration % 2 !== 1) ||
+            !r.wakeId ||
+            own('expectedClaimId')
+          : own('kind') ||
+            r.recordingGeneration === null ||
+            r.recordingGeneration === undefined ||
+            r.recordingGeneration % 2 !== 1 ||
+            own('wakeId') === own('expectedClaimId') ||
+            (own('wakeId') && r.wakeId === undefined) ||
+            (own('expectedClaimId') && r.expectedClaimId === undefined);
+    if (invalid) c.addIssue({ code: 'custom', message: 'Invalid original recording wake' });
+  });
 export const PublishDeltaJobSchema = z.strictObject({
   ...Scope,
   transitionId: z.uuid(),
