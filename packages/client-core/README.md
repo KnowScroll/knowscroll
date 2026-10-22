@@ -175,3 +175,47 @@ is not installed by this change: missing/unsupported services remain unavailable
 coverage/admission authority stays server-owned. Authored protocol/component/exported-browser
 fixtures run in Actions only and do not establish real formation, approved mappings, generated
 content, device parity or populated dev acceptance.
+
+## Durable formation presentation client (#363)
+
+`createFormationPresentationSession` consumes the merged `formation-presentation.v1` protocol
+through the actual AccountScope. A pure, bounded32KiB accepted-data read must match its request,
+capabilities, current scope/epoch/root and exact complete Geography/Scene selection. Every target
+must retain its actual creation transition, object revision, parent, kind, label and truth framing.
+No client infers a formation from the latest scene or an origin ID alone. Missing services remain
+unavailable. A fresh claim command/nonce follows only a current, fresh, claimable server read.
+
+An immutable claimed receipt alone cannot start anything. Current active status must bind its
+exact claim and unrenewed expiry, the current projection/capabilities must still match, and the
+screen must be foreground. Conservative monotonic deadlines include elapsed request time and
+never extend the original300s freshness or30s claim. Mount wins synchronously once before timers.
+A64-entry local duplicate fence supplements the durable server uniqueness rule; it is neither a
+persistent shown journal nor cross-device authority. Route remounts reuse the scope's controller.
+
+An own-claim root hint may refresh SceneCore before or after the claim reply. A confirmed claim
+waits for strict ready projection before its first local start. Once mounted, a transient loading
+state retaining the identical validated frozen Geography/snapshot pair can continue that same
+attempt; it cannot start or restart one. New ready data must validate every target again. A new
+snapshot identity, explicit pending projection, failed read, authority loss, changed target,
+capabilities, expiry or background interrupts. This private certificate is purged with the scope.
+
+Unknown claim/acknowledgement outcomes retain the identical command/body and require explicit
+retry; focus never resends them. A later4xx cannot resolve an earlier ambiguous send. Completion
+requires an actual mounted2400ms full sequence or an actually mounted reduced-motion final still.
+`completed` describes that local rendered surface, not durable acknowledgement success. Skip,
+background, route leave or projection/capability interruption stops locally and requests skipped.
+A pending shown acknowledgement is never replaced by skipped. Late terminal receipts retain the
+server's actual disposition. Surface callbacks carry the exact frozen fact reference, so cleanup
+or timers from an older presentation cannot alter another one.
+
+Scope end synchronously fences callbacks and purges targets, command bodies, timers, IDs and
+listeners; it dispatches no replacement-scope acknowledgement. There is no storage, query body,
+polling, extra socket, observation, model call, job or evidence transport. The app draws only its
+current canonical descriptor geometry, names only actual fact targets, skips new-system beats
+unless matching system/star creations were committed together, and labels hypothetical framing.
+Skip is the first focus stop, final status is polite and Done focuses the actual projected place.
+
+Protocol/component/browser cases are authored fixtures and run only in Actions. This source
+installs no durable backend/API/worker, creates no supported Geography, approves no mappings and
+proves no real cross-device, populated-dev or physical-device journey. Those remain acceptance
+requirements under363/238/237/222; models and paid roles remain separately controlled.

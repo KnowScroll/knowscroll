@@ -11,6 +11,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/health.ts` | `GET /health` response and contract |
 | `src/identity.ts` | `/auth/*` sign-in and session routes, the link and session token shapes, the session cookie names (D-022) |
 | `src/privacy.ts` | Declaration-only selective Clear exploration intent/acceptance, current coarse status and closed local problems |
+| `src/recording.ts` | Declaration-only recording policy read/set, immutable original receipts, current generation and closed private problems (#376) |
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |
 | `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) and `ClientCapabilities` from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
 | `src/saved-page.ts` | Versioned live Saved keyset pages, exact membership/format/availability rows and closed private list problems (#344 declaration prerequisite) |
@@ -898,3 +899,242 @@ must not recreate cleared state or touch genuine new-epoch data. Those implement
 accessibility/browser/native journeys and #237/#238 completion remain separate gates.
 Only Actions run the authored contract/refinement/OpenAPI suites; fixtures are not
 actual claims, rendered worlds or runtime acceptance.
+
+
+## Direct conversation and whole-content sharing prerequisite (#370 / #241 / #242)
+
+`apiContract.conversations` declares nine private JSON POSTs under
+`/v1/social/conversations/`: deliberate `start`, `inbox`, `read`, `history`, `changes`,
+`send`, caller-only `mark-read`, `mute` and `leave`. A current accepted friend may start
+one direct two-human conversation. Existing Friends/profile/invite/visibility/presence/visitor
+contracts and their partial unmounted backend remain unchanged. These declarations mount
+nothing. Group/thread invitations, content threads, snippets/anchors/block settings, scenarios,
+rooms, typing, AI participants and Social sockets are separate phases. Never display authored
+contacts, messages or availability as real activity. Missing features stay explicitly unavailable.
+
+A future backend must enter the current personal root/account/epoch gates, then reuse the
+existing private pair aggregate as its **sole** shared locking authority for direct conversation
+work. The conversation has a separate opaque public ID; no private pair root or revision travels.
+Never acquire a pair root and then a second conversation root. Current accepted pair lineage,
+participation, block/revocation and Content access precede both current reads and historical
+receipt lookup. Lost access is coarse unavailable, with no private peer cause. Own participation
+has an immutable ID/revision; leave/withdrawal ends it, and later re-friending cannot silently
+restore the old conversation or command authority. Parsing does not prove any gate or lock.
+
+Messages have stable server-assigned sequence/UUID identity. A separate durable **visible**
+change sequence orders creation/redaction; redacting a body updates the original bubble rather
+than moving it. A message ID cannot change its original sequence or share one with a different
+ID. Peer read/mute/presence/private transitions never advance a caller-visible counter, change
+position or inbox order. Inbox order is last visible message commit time DESC, conversation ID
+ASC. Lists contain only actual authorized conversations, not suggestions or activity counts.
+Only the caller's read-through and notification preference travel; no peer seen marker, current
+branch, interests, playback or reading position is permitted. Human author labels are actual public
+person references. Deleted private bodies/attachments become minimal unavailable markers without
+old author/text. Shared public Content and another person's independent messages remain theirs.
+
+Initial snapshot plus catch-up position must be captured atomically under the aggregate root.
+Each purpose has a different opaque confidential cursor (`kci1_`, `kch1_`, `kcc1_`), bound to world,
+caller/account/epoch, membership/authority lineage, purpose, limit and finite traversal ceiling.
+Each request selects limit1..50 and returns at most that many items; each response echoes its readId, actual scope, limit and initiating
+cursor where applicable. Consumers compare these to the actual request/scope and reject
+regressive watermarks. Strict schemas check unique ordered bubbles, increasing bounded changes,
+finite-window completion and nonlooping continuations; they cannot authenticate a cursor or
+compare it to a separate request. Invalid/expired/rotated cursor means explicit refresh_required,
+never an implicit first page. Empty caught-up is a valid live result, not a claim that future
+messages cannot arrive. Each captured change window ends even under continuous new writes.
+History has its own cursor and never replaces the active catch-up cursor. Retention gaps require
+refresh; do not invent missing changes. Current privacy/access gates still apply on every page.
+
+Durable send accepts plain text<=2000 UTF-16 units or a whole exact asset/revision with an optional
+note. No snippet/player locator enters this phase. Commands keep one stable commandId and exact
+original body after an unknown outcome, including a later401/403 refusal that cannot reconcile the
+first attempt. Never mint a replacement or automatically reissue an ambiguous command. Receipts
+repeat only committed IDs/order and exact content identity, not message text, current membership,
+delivery/seen assertions or access grants. Same canonical body replays one outcome; a changed body
+under that key is COMMAND_KEY_REUSED. Receipt, message/domain effects and required pg-boss work
+must commit in one transaction. Disposable ID-only NOTIFY hints cannot acknowledge a send; missed
+hints repair through authorized bounded HTTP catch-up/foreground refresh. No second outbox,
+socket command path or model/provider work is introduced. Report/abuse handling remains future
+implementation, not a fabricated successful moderation action.
+
+`apiContract.contentShares` declares four JSON POSTs under `/v1/social/content-shares/`:
+`create`, `revoke`, current-own `read`, and sensitive `resolve`. Exact references never silently
+replace a corrected revision. A corrected projection names both the original and a different
+current revision of that same asset; a user deliberately chooses a new canonical Open, then the
+real activation/recorder path independently establishes any encounter. Received cards, message
+reads, sharing, link resolution, copy and platform intent create no consumption Evidence, learning,
+interest or formation. Confirmed in-app send is distinct from sheet-open/cancel, copied link or
+external delivery, which cannot be inferred.
+
+Audience is explicit: `public_metadata` or one authorized direct conversation. Public resolution
+returns the same current public Content allowlist for **all** callers, without sender, conversation,
+relationship, private body, source panel, token, media URL or playback grant. It never consults a
+peer-private block to change that public projection. Public audience cannot publish a private asset.
+Private possession alone grants nothing; current member/pair/block/source checks are mandatory.
+Unknown/expired/revoked/withdrawn/private-denied landing has one neutral shape, no title/poster,
+sender or reason. No link automatically joins a conversation/thread. Current Content correction,
+withdrawal or access change cannot be bypassed by a historical message or creation receipt.
+
+A `kssh_` bearer token is delivered once, separately from the immutable acceptance; replay can
+recover the same shareId but never another token. Lost delivery requires deliberate revoke of that
+link then a new command. Original expiry is captured once, finite, later enforced from server time;
+no read/replay renews it. Concrete TTL/key/retention policies require later backend review. Fresh
+same-account current-resource lookup by shareId or original creation command can recover a retained
+own link after Clear without replaying the old-epoch command or exposing its token. Private reads
+still require current relevant authority. The dedicated future `/s/:token` landing must isolate
+proxy/referrer/OpenGraph handling; sensitive API resolution uses JSON, not a general API path/query.
+No token in logs, ordinary receipts, notices, errors or persistent client storage. Metadata/card
+caches purge on scope end and revocation, and bounded foreground reads recover missed invalidations.
+No public response/OG metadata may reveal a private link's existence or data.
+
+Clear preserves account-lifetime Social membership/messages/shares but fences old-epoch commands
+and purges scoped clients/sockets. Full account deletion separately removes authored private
+message bodies/attachments, leaves minimal continuity markers and revokes private links; it must
+not delete other people's independent messages, retain erased text in summaries or promise recall
+of external copies/backups. Runtime erasers/account deletion are not implemented by this wire.
+All endpoints require current session/Origin/scope and private/no-store before parsing, except a
+future explicitly reviewed unscoped public landing/resolution composition; no current guard exemption
+is added here. The closed Social problem family reuses existing catalogue statuses/titles and only
+static issue tokens or unknown; it rejects raw values, numeric/dynamic paths, detail/instance and
+private cause/counter fields. OpenAPI describes direct RFC9457 data, not a mounted serializer.
+
+Authored strict schema/privacy/cursor/order/replay/first-secret-delivery and actual OpenAPI tests run
+only in Actions. SQL/lock/concurrency/recovery/erasure, real HTTP/cache/membership/content authority,
+scoped client unknown-retry/purge, two-account share/reconnect/revocation and independent real
+encounter evidence remain mandatory follow-up work. This prerequisite does not finish241/242 or
+claim mounted Social, delivery, public publication, media access or runtime acceptance.
+
+## Pause personal recording prerequisite (#376)
+
+`recording-policy.v1` declares two scoped private JSON POSTs in `apiContract.recording`:
+`/v1/privacy/recording/read` and `/set`. They are declarations only: no policy table,
+recording gate, API controller, worker, recorder behavior or account mutation is installed.
+Existing selective Clear schemas and contract bindings are unchanged. Export and account
+deletion remain separate unimplemented lifecycle work; this adds no authentication exception.
+
+Pause stops new durable passive encounter evidence and NEW derived personal growth,
+including growth inferred from explicit actions. Explicitly requested commands still need
+their own necessary records. Existing history, Keep and current universe remain visible.
+Recording generation is distinct from privacy epoch, starts at1/on, is bounded by2147483647
+and never wraps or resets across Clear. An actual on/off transition increments it once;
+an accepted no-op retains it. Clear preserves the preference and generation.
+Because only real boolean toggles increment from1/on, odd generations are on and even
+generations are off. Current policy and receipt final-state schemas enforce that invariant.
+
+Set requires one stable commandId, expected privacy epoch/generation and desired boolean on.
+The receipt's two-component operation is `privacy.recording-set`; outcome-version storage
+is a separate infrastructure concern. Unknown transport outcomes retain the exact original
+body/ID; never mint a replacement or silently queue an offline toggle. The historical receipt
+records its requested epoch, from/to generation, desired on, changed flag and server time.
+It is not the current policy. After current authenticated owner/root/epoch/Clear-barrier
+checks, replay returns that receipt without retoggling, renewing or undoing a newer policy.
+
+Pure read echoes readId and exact current/command target with the current account/epoch,
+root revision and on/generation. A command target separately says recorded/not_recorded;
+only recorded contains its matching immutable receipt. At equal generations the receipt
+must match current on; older receipts may differ. A recorded old on receipt cannot authorize
+collection while the current snapshot is paused. A not_recorded snapshot does not prove
+an in-flight command cannot still arrive. Reads create no work or repair effects. Consumers
+must correlate actual scope/readId/target and reject stale generations/root watermarks;
+schema validation alone cannot authenticate a request or compare another response.
+
+`observation-batch.v2` adds the separate declaration
+`POST /v1/observations/recording-batch` (`apiContract.observations.submitRecording`).
+Its strict input requires version and recordingGeneration plus the original bounded event
+shapes/instrumentationVersion, with the complete encoded batch capped at49152bytes.
+No generation is optional. Malformed new input cannot downgrade into old input. The existing
+unversioned `/v1/observations/batch` input/output schemas and route remain unchanged.
+The separate new route prevents today's mounted old controller from parsing and then
+silently ignoring a new generation field during a contracts-only release.
+
+The FOLLOWING backend must allow old unversioned batches ONLY in initial generation1/on.
+After the first actual recording toggle that legacy wire is permanently refused with
+`RECORDING_GENERATION_REQUIRED`, including after resume; no legacy backlog may enter a new
+generation. Do not activate Pause until this guard covers the normal legacy controller,
+every delayed projection/reconciliation path, personal growth preparation/dispatch and
+final application. A mixed-version writer that ignores the generation must fail closed.
+
+The new intake response echoes submitted generation separately from current generation,
+scope and root revision. `processed` has exactly counted ordered final event results,
+and requires equal current/submitted odd (on) generations; it proves intake, never qualification
+or learning. `not_recorded` has only recording_paused/recording_generation_stale and no
+partial accepted results. Both are final for that exact batch. Consumers compare ordered
+event IDs for processed replies; remove refused events rather than relabelling/retrying
+them under a new generation. Missing authority/epoch/validation remains a private problem.
+The recording_paused branch requires an even current generation; requests may submit
+either parity so paused/stale batches can receive their final refusal.
+
+Pre-pause delayed work cannot apply after resume merely because on is true again.
+Resume starts fresh recording segments; paused/stale offline buffers never acquire a new
+generation. Client collection stops under pause/unknown scope, but no scope-wide suspension
+or history reset is implied. Already irreversibly authorized external effects may still
+return/bill: preserve accounting and prevent stale personal application, never invent a refund.
+No model/provider permission follows this policy or its schemas.
+
+Closed recording problems expose fixed catalogue title/status/type and bounded static issue
+tokens only. No event values, dynamic/numeric paths, generation counters, detail/instance,
+private causes or operation body appears in errors. OpenAPI describes direct RFC9457 data,
+not a mounted serializer/cache/Origin/auth guard. Authored synthetic schema/OpenAPI fixtures
+run in Actions only. Durable state/locks/unknown replay, real mixed-version intake/worker
+fences, scoped client callbacks/offline buffers, deployed pause/resume and preservation
+remain mandatory following work; this contract prerequisite does not finish #246.
+
+## Bounded Friends roster scan prerequisite (#378 / #377)
+
+`friend-pages.v2` declares `apiContract.friendPages.friends` at private JSON POST
+`/v1/social/friends/page` and `.requests` at `/v1/social/requests/page`. These are
+pure read declarations only: no controller, list index, cursor codec, maintenance,
+client drain, friendship, invitation or runtime journey is installed. Existing
+`sharing.v1` schemas/tests and `/friends/read` / `/requests/read` declarations are
+unchanged, including their nonempty continuation rule. Unsupported old routes
+remain unavailable; malformed new input never downgrades to an old route/version.
+
+`ReadFriendsPage` takes exact version, UUID `requestId`, filter `friends|blocked`,
+integer limit1..50 and optional canonical `SharingListCursor`; `ReadFriendRequestsPage`
+uses `incoming|outgoing`. The cursor's filter must match the request. Request IDs
+correlate reads, never command effects or permissions. Scope/cursor syntax is the
+existing canonical schema, with no copied ID, pair, cursor or scope definitions.
+Owner and current epoch come from authenticated authority, never a cursor grant.
+
+`FriendsPage` / `FriendRequestsPage` echo version/requestId, current own scope,
+filter and the public `snapshotRevision`, with at most50 unique matching canonical
+`FriendPairView` items and optional `next`. Response continuations bind that same
+scope/filter/head. Empty items WITH next means the bounded scan examined candidates
+without returning a currently eligible row and has another finite scan window.
+It never means an empty roster or traversal end. Only no next exhausts the captured
+traversal. Empty items without next is valid exhaustion. There are no totals,
+private pair roots/revisions, peer epochs, raw scan anchors, counts, progress or
+hidden peer causes. Canonical caller-visible pair views retain their existing
+semantics; presence/expiry/private transitions never advance the public list head.
+
+The future backend must authenticate and keep confidential the opaque cursor,
+binding protocol/purpose/world, actual owner/universe/epoch, filter, public head,
+requested limit, advancing anchor, captured finite ceiling and expiry. Cursor
+syntax cannot establish authenticity or authority. Current eligibility may remove
+inactive/inaccessible candidates; reads must not falsely terminate after an empty
+bounded candidate window or run unbounded scans to manufacture a nonempty page.
+Stable public ordering, a finite per-read candidate budget/lookahead and real
+anchor advancement remain backend responsibilities. Private decline/block,
+internal pair revision, peer epoch and presence changes must not leak through a
+head, cursor refusal or data shape. Live profile/eligibility hydration must not
+introduce public-head fanout for private transitions.
+
+Consumers compare the response with the initiating requestId, actual AccountScope,
+filter and captured public head; enforce returned items <=requested limit; reject
+old/out-of-order responses, scope changes, repeated tokens and nonadvancing chains;
+and purge scoped pages/cursors on logout, account switch or Clear. Empty+next may
+show an explicit further-scan control, never a fabricated empty-state message or an
+automatic unbounded drain. A schema cannot compare two HTTP messages or decode a
+cursor. A continuing token does not prove a visible friend exists later.
+
+Both new routes reuse the unchanged closed Social RFC9457 problem family through
+its existing supported metadata hook. New input field paths absent from that
+allowlist (`requestId`, `filter`) must map to `unknown`; never echo dynamic keys,
+values, tokens or numeric indices. OpenAPI describes direct application/problem+json,
+not installed exception handling. Current session/Origin/`X-KS-Scope`, private/no-store
+before body/auth parsing and bounded output are mandatory in future adapters.
+
+`friend-pages.test.ts` and additive actual OpenAPI-generator assertions contain
+synthetic contract fixtures only, run in Actions. Current database authority,
+finite scan/token security, installed HTTP, scoped UI/client pagination and a real
+two-account Friends journey remain required after this declaration prerequisite.

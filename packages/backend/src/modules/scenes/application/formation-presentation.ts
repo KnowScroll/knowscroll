@@ -278,7 +278,7 @@ export function makeFormationPresentations(p: FormationPorts): FormationUseCases
       if (!parsed.success) return refused('INVALID_REQUEST');
       const q = parsed.data;
       return enter(authority, async (scope) => {
-        const operation = 'scenes.formation-claim.v1' as const,
+        const operation = 'scenes.formation-claim' as const,
           key = { commandId: q.commandId, operation, requestHash: p.hash(operation, q), outcomeVersion: 1 as const };
         const lookup = await p.receipts.find(scope, key);
         if (lookup.kind === 'refused') return lookup;
@@ -371,7 +371,7 @@ export function makeFormationPresentations(p: FormationPorts): FormationUseCases
       if (!parsed.success) return refused('INVALID_REQUEST');
       const q = parsed.data;
       return enter(authority, async (scope) => {
-        const operation = 'scenes.formation-acknowledge.v1' as const,
+        const operation = 'scenes.formation-acknowledge' as const,
           key = { commandId: q.commandId, operation, requestHash: p.hash(operation, q), outcomeVersion: 1 as const };
         const lookup = await p.receipts.find(scope, key);
         if (lookup.kind === 'refused') return lookup;

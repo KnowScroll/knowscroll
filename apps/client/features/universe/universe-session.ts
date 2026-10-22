@@ -1,5 +1,6 @@
 import {
   createRegionPreviewSession,
+  createFormationPresentationSession,
   createUniverseSceneSession,
   type AvailableRegionPreview,
   type RegionPreviewState,
@@ -66,6 +67,12 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   let core = createUniverseSceneSession({ scope, capabilities: sceneCapabilities(detail, reducedMotion) });
   let history: CameraEntry[] = [];
   const preview = createRegionPreviewSession({ scope, capabilities: ENCOUNTER_CAPABILITIES, newReadId: newId });
+  const formation = createFormationPresentationSession({
+    scope,
+    newId,
+    projection: () => core.getState(),
+    capabilities: () => sceneCapabilities(detail, reducedMotion),
+  });
   let returnPoint: { camera: CameraEntry; history: CameraEntry[] } | undefined;
   const listeners = new Set<() => void>(),
     cache = new Map<string, { key: string; geometry: SceneGeometry }>();
@@ -80,10 +87,13 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     regionPreview: preview.getState(),
   };
   const live = () => !ended && scope.active;
+  let notificationDepth = 0;
   const publish = (patch: Partial<UniverseViewState>) => {
     state = { ...state, ...patch, historyDepth: history.length };
+    if (notificationDepth) return;
     for (const listener of [...listeners]) listener();
   };
+  const formationOff = formation.subscribe(() => publish({}));
   const previewOff = preview.subscribe(() => publish({ regionPreview: preview.getState() }));
   const cancelPreview = () => preview.cancel();
   const target = (): RegionEncounterTarget | undefined => {
@@ -152,6 +162,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     const read = core.getState(),
       hadSnapshot = Boolean(state.read.snapshot);
     if (read.status === 'ended' || read.reason === 'authority') {
+      formation.dispose();
       history = [];
       returnPoint = undefined;
       cancelPreview();
@@ -173,6 +184,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
         ? { frame: fitFrame(read.snapshot.chunks.flatMap((c) => c.objects).filter((o) => o.kind === 'system')) }
         : {}),
     });
+    formation.update();
     if (state.focusId && (read.snapshot || read.geography) && !validCamera(state)) {
       history = [];
       publish({ focusId: null, locator: undefined, overlay: null, notice: 'place_unavailable' });
@@ -197,6 +209,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     });
     previewOff();
     preview.dispose();
+    formationOff();
+    formation.dispose();
     returnPoint = undefined;
     state = { ...state, regionPreview: { status: 'ended' } };
     listeners.clear();
@@ -205,6 +219,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   const focus = (id: string) => {
     if (!live() || !foreground || !places().some((p) => p.id === id)) return false;
     cancelPreview();
+    formation.skip();
     history.push({ frame: { ...state.frame }, focusId: state.focusId, locator: state.locator });
     if (history.length > DRAW_LIMITS.history) history.shift();
     const all = descriptors(),
@@ -222,6 +237,10 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   };
   const back = () => {
     if (!live() || !foreground) return false;
+    if (formation.getState().fact) {
+      formation.skip();
+      return true;
+    }
     if (state.overlay) {
       cancelPreview();
       publish({ overlay: null });
@@ -253,12 +272,28 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     },
     places,
     descriptors,
+    formation,
+    dismissFormation(expected?: Parameters<typeof formation.dismiss>[0]) {
+      if (!live() || !foreground) return;
+      // Browser Back observes this view, not intermediate controller/preview callbacks.
+      // Hiding the story and focusing its real target must not briefly remove its marker
+      // (which would queue history.back before the new camera history was committed).
+      notificationDepth++;
+      try {
+        const fact = formation.dismiss(expected);
+        if (fact) focus(fact.sequence.kind === 'planet' ? fact.sequence.planetId : fact.targets[0]!.objectId);
+      } finally {
+        notificationDepth--;
+        if (!notificationDepth) publish({});
+      }
+    },
     focus,
     back,
-    canBack: () => live() && (history.length > 0 || state.overlay !== null),
+    canBack: () => live() && (Boolean(formation.getState().fact) || history.length > 0 || state.overlay !== null),
     setForeground(value: boolean) {
       if (!live()) return;
       foreground = value;
+      formation.setForeground(value && state.overlay === null);
       if (value) core.resume();
       else {
         cancelPreview();
@@ -268,6 +303,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     configure(next: { detail: 'full' | 'low'; reducedMotion: boolean }) {
       if (!live() || (next.detail === detail && next.reducedMotion === reducedMotion)) return;
       cancelPreview();
+      formation.setForeground(false);
       detail = next.detail;
       reducedMotion = next.reducedMotion;
       unsubscribe();
@@ -277,11 +313,13 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       unsubscribe = core.subscribe(readChanged);
       publish({ detail, reducedMotion, read: core.getState(), overlay: null });
       if (foreground) core.start();
+      formation.setForeground(foreground);
     },
     showOverlay(overlay: UniverseViewState['overlay']) {
       if (live() && foreground && (overlay !== 'place' || state.focusId)) {
         cancelPreview();
         publish({ overlay });
+        formation.setForeground(overlay === null);
         if (overlay === 'place') readPreview();
       }
     },
