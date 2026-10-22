@@ -21,3 +21,5 @@ export {
   type QueuePolicy,
 } from './queues.js';
 export { deleteJobPayloads } from './erasure.js';
+
+export { makeEnqueuePrivacyJob } from './enqueue-privacy.js';

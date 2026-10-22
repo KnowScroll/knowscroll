@@ -91,7 +91,9 @@ export function KeepDetail({
         </Text>
       ) : null}
       {snapshot?.place.status === 'none' ? (
-        <Text variant="bodyS">No place kept yet. Use Keep this place while viewing to update it.</Text>
+        <Text variant="bodyS">
+          No place kept yet. Your place is kept when you save or leave an available encounter.
+        </Text>
       ) : null}
       {position?.kind === 'reel' ? (
         <Text variant="bodyS">

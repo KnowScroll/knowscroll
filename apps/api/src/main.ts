@@ -64,6 +64,7 @@ async function main(): Promise<void> {
         AppModule.forRoot({
           config,
           db: database.db,
+          boss,
           enqueueJob: makeEnqueueJob(boss),
           logEvent,
           relayState: () => relay.state,

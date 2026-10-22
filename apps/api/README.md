@@ -1,5 +1,21 @@
 # @knowscroll/api
 
+## Clear exploration composition (#345)
+
+`POST /v1/privacy/clear-exploration` accepts the Identity-owned durable operation (202);
+`POST /v1/privacy/clear-exploration/status` reads its coarse current status. Both use the
+ordinary Origin/session/current `X-KS-Scope` pipeline, including during the operation's
+barrier, and set private/no-store before body parsing or authentication. Their closed
+privacy problem family masks unknown keys, values and numeric issue paths. Historical
+acceptance epochs never identify the current authorized scope.
+
+The API only calls start/status. It does not erase data or wait for the worker in an HTTP
+request. Start commits the epoch/barrier, lifetime receipt and required fixed pg-boss job
+together; the separately registered normal worker performs selective removal and exact-set
+accounting. Composition depends on the reviewed durable core in PR348. Source and installed
+Actions fixtures are separate from actual dev/stage privacy acceptance. Pause, export and
+account deletion remain separate programme work.
+
 The HTTP and live-hint API: Nest 12 with the Express adapter, oRPC contract handlers
 (`@orpc/nest`), RFC 9457 problem details, and a Socket.IO gateway for revision hints. Entry
 points: `dist/main.js` (serve), `dist/migrate.js` (migrate the database, install pg-boss, apply

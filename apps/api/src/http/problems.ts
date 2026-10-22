@@ -18,6 +18,7 @@ import {
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { LOG_EVENT } from '../tokens.js';
 import { currentRequest } from './request-context.js';
+import { privacyDetails, privacyIssues } from './privacy-problems.js';
 
 export interface ProblemData {
   readonly detail?: string;
@@ -151,7 +152,7 @@ export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent
   const trusted = error.cause !== null && typeof error.cause === 'object' ? keepErrors.get(error.cause) : undefined;
   if (trusted !== undefined) {
     const context = currentRequest();
-    if (context?.problemFamily === 'keep-remove') return finish(trusted);
+    if (context?.problemFamily === 'keep-remove' || context?.problemFamily === 'privacy-clear') return finish(trusted);
     if (context !== undefined) context.problemCode = trusted.code;
     return trusted;
   }
@@ -159,6 +160,12 @@ export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent
     const data = (error.data ?? {}) as ProblemData;
     return finish(problemDetails(error.code, data));
   }
+  if (error.code === 'BAD_REQUEST' && currentRequest()?.problemFamily === 'privacy-clear')
+    return finish(
+      problemDetails('INVALID_REQUEST', {
+        issues: privacyIssues((error.data as { issues?: unknown } | undefined)?.issues),
+      }),
+    );
   if (error.code === 'BAD_REQUEST' && currentRequest()?.problemFamily === 'keep-remove')
     return finish(
       problemDetails('INVALID_REQUEST', {
@@ -237,6 +244,11 @@ function validationIssues(error: ORPCError<string, unknown>): ProblemIssue[] {
 
 function finish(details: ProblemDetails): ProblemDetails {
   const context = currentRequest();
+  if (context?.problemFamily === 'privacy-clear') {
+    const closed = privacyDetails(details);
+    context.problemCode = closed.code;
+    return closed;
+  }
   if (context?.problemFamily === 'keep-remove') {
     const closed = keepRemovalDetails(details);
     context.problemCode = closed.code;
@@ -253,6 +265,12 @@ function logUnexpected(logEvent: LogEvent, error: unknown): void {
 
 /** Writes problem details with the RFC 9457 media type (and `Retry-After` on a 503). */
 export function sendProblem(response: Response, details: ProblemDetails): void {
+  if (currentRequest()?.problemFamily === 'privacy-clear') {
+    details = privacyDetails(details);
+    const context = currentRequest();
+    if (context !== undefined) context.problemCode = details.code;
+    response.setHeader('cache-control', 'private, no-store');
+  }
   if (currentRequest()?.problemFamily === 'keep-remove') {
     details = keepRemovalDetails(details);
     const context = currentRequest();

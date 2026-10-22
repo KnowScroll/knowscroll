@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { DisplayProvider } from '@knowscroll/ui';
+import type { KeepPlaceState } from '@knowscroll/client-core';
 import type { ListSavedResponse } from '@knowscroll/contracts';
 import { SavedCard } from './saved-card';
 const item: ListSavedResponse['items'][number] = {
@@ -10,11 +11,12 @@ const item: ListSavedResponse['items'][number] = {
   availability: 'corrected',
   currentAssetRevision: 3,
 };
-function card(value: typeof item, onOpen: (revision: number) => void, onRemove = jest.fn()) {
+function card(value: typeof item, onOpen: (revision: number) => void, onRemove = jest.fn(), place?: KeepPlaceState) {
   return render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
       <SavedCard
         item={value}
+        place={place}
         failed={false}
         removing={false}
         onOpen={onOpen}
@@ -42,5 +44,26 @@ describe('Saved immutable revision choices', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Remove from Keep' }));
     expect(remove).toHaveBeenCalledTimes(1);
     expect(open).not.toHaveBeenCalled();
+  });
+  it('uses a current server place instead of a legacy local value, and labels read failure honestly', async () => {
+    const place: KeepPlaceState = {
+      status: 'ready',
+      write: 'idle',
+      snapshot: {
+        version: 'keep-place.v1',
+        scope: { accountId: item.assetId, privacyEpoch: 1 },
+        target: { assetId: item.assetId, assetRevision: item.assetRevision },
+        status: 'available',
+        entry: { assetId: item.assetId, assetRevision: item.assetRevision, savedEntryId: item.assetId },
+        place: { status: 'set', placeRevision: 1, position: { kind: 'reel', positionMs: 65432 } },
+      },
+    };
+    const view = await card(item, jest.fn(), jest.fn(), place);
+    expect(screen.getByText('Saved place: 1:05 · opens paused')).toBeOnTheScreen();
+    expect(screen.queryByText(/On this device/)).toBeNull();
+    await view.unmount();
+    await card(item, jest.fn(), jest.fn(), { ...place, status: 'unavailable', reason: 'network' });
+    expect(screen.getByText("Saved place couldn't be checked. Open details to retry.")).toBeOnTheScreen();
+    expect(screen.queryByText(/Saved place: 1:05/)).toBeNull();
   });
 });

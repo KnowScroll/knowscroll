@@ -1,3 +1,4 @@
+import type { ClearAccountingTx, ClearLiability, PrivacyScopeTx } from '../modules/identity/public.js';
 /**
  * The shared reasoning engine's public surface (blueprint §15, §22): the harness that module-owned
  * roles call and its typed inputs and outcomes. Roles (instructions, context builder, output
@@ -119,3 +120,9 @@ export {
 } from './events.js';
 
 export type { CutroomPreparationScopeTx, WithCutroomPreparationScope } from './application/cutroom-execution-ports.js';
+
+/** Bounded owner port for selective Clear; global/role receipts and monetary states are untouched. */
+export interface ClearReasoning {
+  capture(scope: PrivacyScopeTx): Promise<readonly ClearLiability[]>;
+  verifyAndPrune(scope: ClearAccountingTx): Promise<'pending' | 'verified' | 'verified_retained'>;
+}
