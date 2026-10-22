@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-22 17:14 UTC · **Phase:** PAUSED by user / all active source pushed / continuation ready · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-22 18:39 UTC · **Phase:** RESUMED / Universe integrated / Social, privacy and Cutroom source phases active · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,23 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## User-requested pause — 2026-10-22 17:14 UTC
+## Resumed programme and accepted Universe phase — 22 Oct 2026
+
+The user explicitly resumed the whole programme after the pause, with gpt-6.1-sol/xhigh coordination and explicitly configured Sol HIGH/MEDIUM subagents, at most four active agents including Root. The COMPLETE continuation brief and evidence index were read. SSD APFS identity AFAE8457-8861-427F-A8D0-5F2CC802E2B9, pushed candidates, GitHub state, public health and accounting were reconciled under `knowscroll-dev/v2/agents/coordinator/resume-20261022T180826Z`. Every previous operational window remains expired. Source fixes and this resumption do not authorize another paid attempt, individual script approval, owner-data action, main update or production deployment.
+
+**Latest integrated product is `cdd844f7482300ff7a5ef6f48299e8e7fb8b9a14`, tree `09533af5cd660fe054c6742f5f9c67469ee6402c`, schema38.** Complete Universe PR375 is actually squash-merged after Root exact acceptance88d9ada6 and actual-squash acceptance. Source897f63e2 and actual PR7fde1146 share that whole tree against106c0d24. Runs39828985078/39828991932 both passed all six required checks. Root verified complete113/114 official logs, all102 ordinary step logs per run, official ZIP digests, all19,543 manifest entries/all38SQL and29 installed smoke checks in each artifact. Source tar96dc08ad/PR tarfb54ee46 are bound individually; equal trees do not imply identical compressed archive hashes. Independent composition6a52673e preserves all73 feature blobs and the entire other-path base. The source Chromium provisioning delay completed successfully without cancellation, rerun or code change; the initially failing Universe rounds remain retained. The data-only full-artifact collector's two provenance findings were corrected and independently closed9c39c244 before acceptance. Integration cdd needs its own exact Actions before operational election. No real formation, authenticated native or schema38 deployment is inferred.
+
+**Next coherent source phases:** finish separately reviewed shared Pause contracts376, then the additive Friends scan-page contracts378; compose default-disabled CF62 receiver373 and Social HTTP374 with accepted integration; complete child377 Friends rosters/invitations/backend/client using explicit disjoint ownership and exclusive new SQL0040 after receiver0039. Pause contracts8f37953c have final static acceptance7b5560d1 and independent closure526a6485; no actual Pause backend/recorder is installed. Receiver56832e59 has independent source review7af1b1cd (one README correction local); SocialHTTPccbb9a51 has independent49ef20d6. Their current-base candidate/actual-PR Actions and runtime acceptance remain open. Shared contracts precede consumers, all suites run only in hosted Actions, and no unreviewed source is integrated.
+
+A source-grounded coverage inventory now maps22 domains,51 artboards,218 frame/panel entries and17 essential journeys (`agents/resume-coverage-inventory/`). Conversations/shares/threads/explorations/rooms, complete Pause/export/deletion, broader Universe interaction, Supply recovery/approved producer bridge, native/physical and operator coverage remain open as specified there; declarations and empty UI are not implementation evidence.
+
+**Actual service/accounting reconciliation:** both dev public health endpoints still identify476baec5acc5ad89fac8b7417085f446076ed20e/schema35/archive8579c51b; both stage endpoints identify legacy8982391f. Ledgerdf1dd4d5 remains36used/0held/0unknown of43, development11/12 anddev25/31. The original cap race is resolved by PR346; generation readiness is still open. Retain v12 terminal rejected/noasset after3settled, zero accepted generated Scrolls,22 unexplained own-consumer preservation deltas and all historical limitations. No deployment, provider, pool or owner-history mutation was performed during this resumed phase.
+
+The actual historical corpus export has a separately independently reviewed pure ten-row mapping4f5e8ac5/65ab1119; original template and argument fingerprints and separate narration bridges are preserved. This is not a fresh live export or trusted import. A new original six-beat midlatitude Sun-angle script38f4668d has independent final source review9fbeaca9 and passes pure lint/corpus checks. A dedicated draft PR will request individual HUMAN review; no business run, take, approval, pool increase or commission is allocated. fal/MiniMax funds remain unverified until an authorized current read succeeds. Continue unblocked implementation while owner-controlled gates are pending.
+
+**All five final requirements remain OPEN:** complete architecture/design coverage; actual-candidate checks; connected real-service journeys; real Cutroom plus at least three accepted new Scrolls including two used interactive Scrolls; verified dev/stage revisions and artifacts. D002 integration→dev PR/mergeback, fresh finite preservation/deployment controls and artifact-identical stage promotion remain required. Never replay an expired window or convert green fixtures into real-service evidence.
+
+## Historical user-requested pause — 2026-10-22 17:14 UTC
 
 The user explicitly requested: stop implementation, push all changes, close running processes and provide a next-session prompt. **Implementation is stopped. All five programme requirements remain OPEN.** The complete resumption brief/evidence index are on the SSD at `knowscroll-dev/v2/agents/coordinator/NEXT-SESSION.md` and `NEXT-SESSION-EVIDENCE.md`; historical versions are preserved in the timestamped handoff directory. No later action is authorized merely by this checkpoint.
 

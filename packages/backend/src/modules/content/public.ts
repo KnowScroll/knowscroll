@@ -11,6 +11,7 @@ import type { makeCommission } from './production/commission.js';
 import { INTERACTION_KINDS, type ScrollDocument } from '@knowscroll/scroll-model';
 import type { AccountAccess, PersonalScopeTx } from '../identity/public.js';
 import type { AssetKind } from './domain/provenance.js';
+import type { CoverageAuthority } from './domain/coverage.js';
 import type { ReadingFacts } from './domain/reading-facts.js';
 
 export { PROVENANCE_KINDS, type AssetKind, type ProvenanceKind } from './domain/provenance.js';
@@ -69,7 +70,12 @@ export const READ_SCROLL_READING_FACTS = Symbol('content.readScrollReadingFacts'
 
 /** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
 export { CONCEPT_CATALOGUE_VERSION, CONCEPTS } from './domain/concepts.js';
-export { COVERAGE_POLICY, CoverageCommandSchema, CoverageMappingSchema } from './domain/coverage.js';
+export {
+  COVERAGE_POLICY,
+  CoverageCommandSchema,
+  CoverageMappingSchema,
+  CoverageAuthoritySchema,
+} from './domain/coverage.js';
 export type { CoverageAuthority, CoverageCommand, CoverageMapping, CoverageRef } from './domain/coverage.js';
 export type {
   AdmitCoverage,
@@ -211,6 +217,39 @@ export type LockCurrentEncounters = (
   }[]
 >;
 export const LOCK_CURRENT_ENCOUNTERS = Symbol('content.lockCurrentEncounters');
+
+/** Canonical factual facet retrieval only. No text/topic-tag/global discovery fallback.
+ * At most100 validated rows plus a key-only lookahead; incomplete selection is explicit. */
+export interface RegionEncounterCandidate {
+  readonly encounter: EncounterSnapshot;
+  readonly coverage: CoverageAuthority;
+}
+export interface RegionEncounterQuery {
+  readonly topicId: string;
+  readonly facetId: string;
+  readonly truthStatus: 'factual';
+  readonly capabilities: unknown;
+  readonly expected?: EncounterRef;
+}
+export type ReadRegionEncounterCandidates = (
+  scope: PersonalScopeTx,
+  query: RegionEncounterQuery,
+) => Promise<
+  | { readonly kind: 'read'; readonly candidates: readonly RegionEncounterCandidate[]; readonly hasMore: boolean }
+  | { readonly kind: 'unsupported' }
+>;
+/** Holds exact current asset + canonical mapping SHARE fences until personal commit. */
+export type LockRegionEncounterCandidates = (
+  scope: PersonalScopeTx,
+  query: Omit<RegionEncounterQuery, 'expected'> & {
+    readonly candidates: readonly {
+      readonly ref: EncounterRef;
+      readonly coverage: CoverageAuthority;
+    }[];
+  },
+) => Promise<boolean>;
+export const READ_REGION_ENCOUNTER_CANDIDATES = Symbol('content.readRegionEncounterCandidates');
+export const LOCK_REGION_ENCOUNTER_CANDIDATES = Symbol('content.lockRegionEncounterCandidates');
 
 /** Backend-internal Cutroom prerequisite; pure preparation, no commissioned content or permission. */
 export {

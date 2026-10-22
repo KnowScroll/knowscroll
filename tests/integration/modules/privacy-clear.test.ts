@@ -705,6 +705,65 @@ describe('durable selective Clear', () => {
         },
       });
       if (activated.kind !== 'accepted') throw new Error('fixture offer activation refused');
+      // Authored erasure-only private constraint on this already-activated discovery offer.
+      // This exercises the new store without claiming actual Geography formation/navigation.
+      const coverageHead = await database.db
+        .selectFrom('content.coverage_revisions')
+        .select(['revision', 'mapping_sha256'])
+        .where('asset_id', '=', starter.assetId)
+        .where('asset_revision', '=', starter.revision)
+        .executeTakeFirstOrThrow();
+      const regionConstraint = {
+        version: 'offer-region-constraint.v1',
+        region: {
+          version: 'geography-region-constraint.v1',
+          target: { kind: 'region', regionId: randomUUID(), expectedObjectRevision: 1, expectedGeographyRevision: 1 },
+          planetId: randomUUID(),
+          planetObjectRevision: 1,
+          systemId: randomUUID(),
+          topicId: 'earth.seasons',
+          facetId: 'earth.seasons.axial-tilt',
+          truthStatus: 'factual',
+          catalogueVersion: 'content-concepts.v1',
+        },
+        coverage: {
+          assetId: starter.assetId,
+          assetRevision: starter.revision,
+          headRevision: coverageHead.revision,
+          mappingSha256: coverageHead.mapping_sha256,
+        },
+      };
+      // The existing return fixture is intentionally nonregional. Author a separate exact
+      // discovery descriptor in-place only in this owning CI fixture before adding its child.
+      // No production offer is relabelled: the new child uses a fresh parent inserted below.
+      const parent = await database.db
+        .selectFrom('experience.offers')
+        .selectAll()
+        .where('id', '=', o.offer.offerId)
+        .executeTakeFirstOrThrow();
+      const regionalId = randomUUID();
+      await database.db
+        .insertInto('experience.offers')
+        .values({
+          ...parent,
+          id: regionalId,
+          mode: 'vertical',
+          descriptor: { ...o.offer, offerId: regionalId, relation: { kind: 'discovery' } },
+        })
+        .execute();
+      await database.db
+        .insertInto('experience.offer_region_constraints')
+        .values({
+          universe_id: person.universeId,
+          privacy_epoch: 1,
+          offer_id: regionalId,
+          asset_id: starter.assetId,
+          asset_revision: starter.revision,
+          coverage_head_revision: coverageHead.revision,
+          mapping_sha256: coverageHead.mapping_sha256,
+          constraint_payload: regionConstraint,
+        })
+        .execute();
       await scroll.applyEncounterAction(person.authority, {
         commandId: randomUUID(),
         kind: 'like',
@@ -868,6 +927,25 @@ describe('durable selective Clear', () => {
             support_refs: JSON.stringify([]),
           })
           .execute();
+        // Authored erasure-only actual creation tuple: populate the new registered delivery
+        // store, not a live formation, semantic approval or shown assertion.
+        const formationRecordedAt = new Date().toISOString();
+        const formationGeography = { revision: 1, structureRevision: 1, activityRevision: 0 };
+        const formationTarget = {
+          objectId: geographyObjectId,
+          parentId: person.universeId,
+          kind: 'system' as const,
+          objectRevision: 1,
+          label: 'Authored erasure-only system',
+          truthStatus: 'factual' as const,
+        };
+        const formationFact = {
+          transitionId: geographyTransitionId,
+          recordedAt: formationRecordedAt,
+          geography: formationGeography,
+          targets: [formationTarget],
+          sequence: { kind: 'final_still' },
+        };
         await tx
           .insertInto('geography.deltas')
           .values({
@@ -878,7 +956,39 @@ describe('durable selective Clear', () => {
             run_id: geographyRunId,
             policy_version: 'geography-passive.v1',
             input_sha256: 'a'.repeat(64),
-            payload: { fixture: 'Authored erasure-only delta' },
+            payload: {
+              fixture: 'Authored erasure-only delta',
+              recordedAt: formationRecordedAt,
+              geography: formationGeography,
+              operations: [
+                {
+                  kind: 'create_system',
+                  object: {
+                    id: geographyObjectId,
+                    parent: { id: person.universeId },
+                    kind: 'system',
+                    objectRevision: 1,
+                    label: formationTarget.label,
+                    truthStatus: 'factual',
+                  },
+                },
+              ],
+            },
+          })
+          .execute();
+        await tx
+          .insertInto('scenes.formation_presentations')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            transition_id: geographyTransitionId,
+            recorded_at: new Date(formationRecordedAt),
+            geography_revision: 1,
+            structure_revision: 1,
+            activity_revision: 0,
+            target_count: 1,
+            fact: JSON.stringify(formationFact),
+            limited: false,
           })
           .execute();
         await tx

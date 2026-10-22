@@ -241,3 +241,13 @@ Actions-only real PostgreSQL fixtures cover160-row traversal,110 tied rows,
 submillisecond boundaries, late kind matches, withdrawal, deleted/resaved anchors,
 100-ref budgets, unchanged activity/root state and current authority after real
 root/account lock waits. Complete deployed/UI acceptance remains under #344.
+
+### Region preview, deliberate Open and constrained activation (U04)
+
+`REGION_ENCOUNTERS` preview uses current personal/root/account authority and reads one honest canonical card without creating a session, offer, exposure, receipt, decision, root stamp, job or hint. Unmapped/unsupported Regions return explicit unavailable responses. Deliberate Open delegates to the existing two-transaction Composer/navigation engine; supplied displayed A is mandatory as the exact eligible asset, never silently replaced with B. The optional existing session retains exact session/intent concurrency semantics. Unknown acknowledgements recover through the original command receipt/body.
+
+Every chosen and buffered regional discovery offer carries an immutable private `experience.offer_region_constraints` child. Its Geography snapshot and coverage identity are rechecked on current authority before receipt replay and activation. Vertical continuation inherits the same Region; series, related, variant and return retain their distinct relationships. The 100+1 bounded lookup reports uncertainty rather than manufacturing exhaustion. No new model call or provider/network work runs on this path.
+
+The concrete personal erasure inventory includes `offer_region_constraints`, removed before offers across all epochs by both full erasure and selective Clear. Saved items, Saved places and shared Content projection survive selective Clear. Historical Geography IDs deliberately have no live Geography FK because Geography erases earlier in the registry; activation always rechecks live Geography instead. Content mapping FKs retain the exact immutable accounting of selection, never permission to activate an old mapping.
+
+Schema0037 adds structural compatibility guards. Old writers cannot bind a regional offer without the new transaction-local protocol marker or commit a generic vertical child that sheds its parent Region. The new adapter sets the marker only after consuming an unforgeable one-use live-scope/offer permit minted after current authority checks; the marker alone is not business authority and disappears on commit/rollback. Ordinary legacy offers keep their behavior. A rolling downgrade is unsupported: incompatible processes must be stopped, and the existing exact schema release guard must refuse old code against schema37. These guards do not retroactively give an old process the new read/receipt replay checks.
