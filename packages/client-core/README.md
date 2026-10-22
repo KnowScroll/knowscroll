@@ -119,3 +119,28 @@ A handle exposes authoritative read state, `setPosition`, explicit `retry`, `res
 Scope end or authority refusal synchronously purges private snapshots, listeners and commands. Generation/read tokens also discard transports that ignore abort after release, membership replacement, or scope end. Ordinary network/read failures may retain a last valid same-membership snapshot under an unavailable state; it is not labelled current. `apiKeepPlaceProblem` is the finite strict problem helper: authorized stale revision metadata is preserved before the generic problem decoder strips extensions; `apiProblem` keeps its existing generic shape.
 
 Authored protocol fixtures cover scope-object isolation, synchronous purge and late replies, CAS/ABA/replay/coalescing, uncertain acknowledgements, required ACK rereads and resource caps. Automated verification runs in Actions only. This source does not establish mounted Keep UX, native/runtime acceptance, a response/lock UX budget, or a production latency SLO; those remain separate consumer/review gates after the actual HTTP probes.
+
+## Manager-owned selective Clear (#345)
+
+`AccountScopeManager.privacy` is an in-memory controller outside the provider's keyed scope subtree.
+A deliberate `confirm({ commandId, confirmation: PRIVACY_CLEAR_ACKNOWLEDGEMENT })` sends exactly
+one current-epoch body. Accepted, malformed or unknown replies synchronously fence and purge the
+old scope before awaiting the real session read. Receipt epochs never construct authorization.
+A scope already refreshed by server revocation for the same account stays live; its fresh authority
+can read current status. Credential-generation tickets, exact scope identity and operation serials
+prevent late clears/recovery/status replies from changing a newer account. Local redeem/signout
+attempts and manager disposal purge the minimal pending intent; privacy does not change auth's
+existing signout semantics. A credential transition cannot admit a new privacy mutation.
+
+An unknown result retains only the original body and account ID through a same-account privacy
+remount. `retryOriginal()` is explicit and sends the same UUID, expected epoch and confirmation
+through a fresh current scope; it never substitutes the new epoch. Status reads bind account,
+current epoch, requested command/latest selector and immutable known receipt metadata. A
+`not_recorded` snapshot cannot prove a delayed original request will never arrive or authorize a
+replacement. A definitive rejection of a retry also cannot resolve an earlier ambiguous send;
+the original body stays retained for bound status recovery. A new controller after reload reads
+latest without creating work. Pending/failed
+states cannot mint a replacement clear. No journal, storage, query payload, socket, polling or
+private/raw-error logging is added. `completed_live` confirms only live removal, with no backup,
+provider-copy or offline-device expiry claim. Tests use authored HTTP/auth fixtures and the actual
+manager/fenced transport; automated verification runs only in Actions.

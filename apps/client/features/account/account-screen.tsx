@@ -44,6 +44,7 @@ export function previousTab(state: TabsState | undefined): string {
 /** Signed in: who, and the two ways out (this device, or every device). */
 function SignedIn({ email }: { readonly email: string }) {
   const { manager } = useAccountScope();
+  const router = useRouter();
   const [busy, setBusy] = useState<'here' | 'everywhere' | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const signOut = async (everywhere: boolean) => {
@@ -64,6 +65,13 @@ function SignedIn({ email }: { readonly email: string }) {
       {failed ? (
         <Banner kind="offline" lead="Not signed out." message="We couldn't reach KnowScroll. Try again." />
       ) : null}
+      <Button
+        label="Privacy & history"
+        role="link"
+        href="/account/privacy"
+        variant="ghost"
+        onPress={() => router.push('/account/privacy')}
+      />
       <Button
         label="Sign out"
         busyLabel="Signing out…"

@@ -18,6 +18,7 @@ import {
   type RequestLinkOutcome,
 } from './auth-client';
 import { createQueryClient } from './query-client';
+import { createPrivacyClearSession, type PrivacyClearSession } from './privacy-clear';
 
 type Fetch = (input: Request, init?: RequestInit) => Promise<Response>;
 
@@ -58,6 +59,8 @@ export type AccountScopeState =
 export interface AccountScopeManager {
   /** Stable between changes (for `useSyncExternalStore`). */
   readonly getState: () => AccountScopeState;
+  /** Manager-owned minimal Clear intent survives same-account privacy scope remounts. */
+  readonly privacy: PrivacyClearSession;
   readonly subscribe: (listener: () => void) => () => void;
   /** The query client of the current scope, or of the signed-out period (never shared between them). */
   readonly queryClient: () => QueryClient;
@@ -149,6 +152,7 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
    * nothing from the secure store.
    */
   let generation = 0;
+  let credentialTransition: number | undefined;
   let refreshing: { readonly generation: number; readonly done: Promise<void> } | undefined;
 
   function set(next: AccountScopeState): void {
@@ -164,6 +168,7 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
   /** Mounts the scope of `account` with `credential` (its session's bearer token, native only). */
   function mount(account: SessionAccount, credential: string | undefined): void {
     if (state.status === 'signed_in' && state.scope.active && state.scope.id === scopeIdOf(account)) return;
+    privacy.accountChanged(account.accountId);
     endCurrentScope();
     signedOutClient.clear();
     const connect = options.connect;
@@ -193,6 +198,7 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
 
   async function signedOut(reason: 'none' | 'signed_out' | 'session_ended'): Promise<void> {
     generation += 1;
+    privacy.reset();
     endCurrentScope();
     // Whatever any earlier scope left behind on this device goes too.
     purgeStorage(options.store, SCOPED_STORAGE_PREFIX);
@@ -250,8 +256,50 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
     if (state.status === 'signed_in' && state.scope === scope) scope.reconnect();
   }
 
+  const currentAccountIs = (accountId: string) =>
+    state.status === 'signed_in' && state.scope.active && state.scope.account.accountId === accountId;
+
+  const privacy = createPrivacyClearSession({
+    current: () => (state.status === 'signed_in' ? state.scope : undefined),
+    capture(scope) {
+      if (
+        disposed ||
+        credentialTransition !== undefined ||
+        state.status !== 'signed_in' ||
+        state.scope !== scope ||
+        !scope.active
+      )
+        return undefined;
+      const capturedGeneration = generation;
+      const accountId = scope.account.accountId;
+      return {
+        async finishAfterAttempt() {
+          if (disposed || generation !== capturedGeneration) return false;
+          if (state.status === 'signed_in' && state.scope.account.accountId !== accountId) return false;
+          if (state.status === 'signed_in' && state.scope === scope) {
+            // Fence old requests/rereads and private UI synchronously, before awaiting auth.
+            generation += 1;
+            endCurrentScope();
+            signedOutClient.clear();
+            signedOutClient = newQueryClient();
+            set({ status: 'unavailable' });
+            const recoveringGeneration = generation;
+            await refreshOnce();
+            return !disposed && generation === recoveringGeneration && currentAccountIs(accountId);
+          }
+          // Revocation may already have mounted this account's new epoch. Keep it live and use
+          // it only for a current bound status read. ACK.toEpoch never creates authorization.
+          if (state.status === 'signed_in') return state.scope.active;
+          await refreshOnce();
+          return !disposed && generation === capturedGeneration && currentAccountIs(accountId);
+        },
+      };
+    },
+  });
+
   return {
     getState: () => state,
+    privacy,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -307,39 +355,56 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
       // token being written to the secure store; web: the cookie the answer sets). Rereads in
       // flight belong to the old generation and are ignored when they answer (re-review N5).
       generation += 1;
+      const transition = generation;
+      credentialTransition = transition;
+      privacy.reset();
       endCurrentScope();
-      let codeVerifier: string | undefined;
-      if (options.platform === 'native') codeVerifier = await options.signInBinding?.verifier().catch(() => undefined);
-      const outcome = await auth.redeem({
-        ...request,
-        client: options.platform,
-        ...(codeVerifier === undefined ? {} : { codeVerifier }),
-      });
-      if (outcome.kind !== 'signed_in') {
-        if (switching) await refreshOnce();
+      try {
+        let codeVerifier: string | undefined;
+        if (options.platform === 'native')
+          codeVerifier = await options.signInBinding?.verifier().catch(() => undefined);
+        const outcome = await auth.redeem({
+          ...request,
+          client: options.platform,
+          ...(codeVerifier === undefined ? {} : { codeVerifier }),
+        });
+        if (outcome.kind !== 'signed_in') {
+          if (switching) await refreshOnce();
+          return outcome;
+        }
+        const { session, account } = outcome.response;
+        generation += 1;
+        let credential: string | undefined;
+        if (session.kind === 'bearer') {
+          credential = session.token;
+          token = session.token;
+          await options.tokens?.write(session.token);
+          await options.signInBinding?.clear().catch(() => undefined);
+        }
+        pendingEmail = undefined;
+        mount(account, credential);
         return outcome;
+      } finally {
+        if (credentialTransition === transition) credentialTransition = undefined;
       }
-      const { session, account } = outcome.response;
-      generation += 1;
-      let credential: string | undefined;
-      if (session.kind === 'bearer') {
-        credential = session.token;
-        token = session.token;
-        await options.tokens?.write(session.token);
-        await options.signInBinding?.clear().catch(() => undefined);
-      }
-      pendingEmail = undefined;
-      mount(account, credential);
-      return outcome;
     },
     async signOut(signOutOptions = {}) {
       generation += 1;
-      const answer = await auth.signOut({ everywhere: signOutOptions.everywhere === true });
-      if (answer === 'unavailable' && options.platform === 'web') return 'unavailable';
-      await signedOut('signed_out');
-      return 'signed_out';
+      const transition = generation;
+      credentialTransition = transition;
+      privacy.reset();
+      try {
+        const answer = await auth.signOut({ everywhere: signOutOptions.everywhere === true });
+        if (answer === 'unavailable' && options.platform === 'web') return 'unavailable';
+        await signedOut('signed_out');
+        return 'signed_out';
+      } finally {
+        if (credentialTransition === transition) credentialTransition = undefined;
+      }
     },
     dispose() {
+      generation += 1; // A deferred privacy recovery/session read must not create an orphan scope.
+      privacy.reset(true);
       endCurrentScope();
       listeners.clear();
       disposed = true;
