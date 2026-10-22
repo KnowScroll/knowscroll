@@ -1,4 +1,8 @@
 import type { ActivateExposureResponse } from '@knowscroll/contracts';
+import { z } from 'zod';
+import { CoverageAuthoritySchema } from '../../content/public.js';
+import { GeographyRegionConstraintSchema } from '../../geography/public.js';
+import type { ReadOwnRegionConstraint } from '../../geography/public.js';
 import type {
   ActivateOfferRequest,
   EncounterOffer,
@@ -8,6 +12,7 @@ import type {
   OpenDiscoveryRequest,
   OpenRevisitRequest,
   ProblemCode,
+  RegionEncounterOpenRequest,
 } from '@knowscroll/contracts';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import type {
@@ -18,9 +23,22 @@ import type {
   ReadEncounterAttribution,
   EncounterRef,
   EncounterAttribution,
+  ReadRegionEncounterCandidates,
+  LockRegionEncounterCandidates,
 } from '../../content/public.js';
 import type { ComposeEncounter, PersistComposerDecision, ReadPreparedEvidenceInput } from '../../composer/public.js';
 import type { CommandPorts, JsonValue, NewExposure } from './ports.js';
+export const OfferRegionConstraintSchema = z.strictObject({
+  version: z.literal('offer-region-constraint.v1'),
+  region: GeographyRegionConstraintSchema,
+  coverage: CoverageAuthoritySchema,
+});
+export type OfferRegionConstraint = z.infer<typeof OfferRegionConstraintSchema>;
+declare const regionActivationPermit: unique symbol;
+/** Not constructible from IDs/JSON. Runtime identity is minted only after live checks. */
+export interface RegionActivationPermit {
+  readonly [regionActivationPermit]: true;
+}
 export interface ComposerSession {
   readonly id: string;
   readonly intentRevision: number;
@@ -38,6 +56,7 @@ export interface StoredOffer {
   readonly source?: { readonly offerId: string; readonly exposureId: string };
   readonly link?: { readonly linkId: string; readonly revision: number };
   readonly expiresAt: string;
+  readonly regionConstraint?: OfferRegionConstraint;
 }
 export interface ActivatedMember {
   readonly offer: StoredOffer;
@@ -72,6 +91,9 @@ export interface RoutingHistory {
   readonly hiddenAssetIds: readonly string[];
 }
 export interface NavigationPorts extends CommandPorts {
+  readonly readRegionConstraint: ReadOwnRegionConstraint;
+  readonly readRegionCandidates: ReadRegionEncounterCandidates;
+  readonly lockRegionCandidates: LockRegionEncounterCandidates;
   readonly readSession: (scope: PersonalScopeTx, id: string) => Promise<ComposerSession | undefined>;
   readonly writeSession: (
     scope: PersonalScopeTx,
@@ -88,7 +110,12 @@ export interface NavigationPorts extends CommandPorts {
     exposureId?: string,
   ) => Promise<ActivatedMember | undefined>;
   readonly insertOffers: (scope: PersonalScopeTx, offers: readonly StoredOffer[]) => Promise<void>;
-  readonly bindOffer: (scope: PersonalScopeTx, offerId: string, exposureId: string) => Promise<void>;
+  readonly bindOffer: (
+    scope: PersonalScopeTx,
+    offerId: string,
+    exposureId: string,
+    regionPermit?: RegionActivationPermit,
+  ) => Promise<void>;
   readonly readHidden: (scope: PersonalScopeTx, assetIds: readonly string[]) => Promise<readonly string[]>;
   readonly readDiscoveryCandidates: ReadDiscoveryCandidates;
   readonly readExactEncounter: ReadExactEncounter;
@@ -125,7 +152,8 @@ export interface NavigationPorts extends CommandPorts {
     | undefined
   >;
 }
-export type NavigationCommand = OpenDiscoveryRequest | OpenRevisitRequest | NavigateExperienceRequest;
+export type NavigationCommand =
+  OpenDiscoveryRequest | OpenRevisitRequest | NavigateExperienceRequest | RegionEncounterOpenRequest;
 export type NavigationResult =
   | { readonly kind: 'accepted'; readonly outcome: NavigationOutcome }
   | { readonly kind: 'refused'; readonly code: ProblemCode };

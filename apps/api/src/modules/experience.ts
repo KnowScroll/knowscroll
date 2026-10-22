@@ -66,7 +66,7 @@ export const experienceWiring: Provider[] = [
   ...keepPlaceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...keepRemovalProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...composerProviders({ isOperator: () => false }),
-  ...navigationProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
+  ...navigationProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }, { region: true }),
 ];
 
 export {

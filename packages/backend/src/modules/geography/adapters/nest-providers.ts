@@ -35,6 +35,7 @@ import {
   READ_OWN_GEOGRAPHY,
   READ_OWN_DELTAS,
   PUBLISH_GEOGRAPHY_DELTA,
+  READ_OWN_REGION_CONSTRAINT,
 } from '../public.js';
 import { makeRequestCartography, makeGeographyMaterialChange } from '../application/request.js';
 import { makeReadGeography, makeReadDeltas } from '../application/read.js';
@@ -42,7 +43,8 @@ import { makeRunCartographer, makePublishDelta } from '../application/run.js';
 import type { GeographyPorts, RequestCartographyResult } from '../application/ports.js';
 import { makeReadGeographySceneInput } from '../application/scene-input.js';
 import type { GeographyApplied } from '../public.js';
-import { geographyStore } from './postgres-store.js';
+import { geographyStore, readRegionPlace } from './postgres-store.js';
+import { makeReadOwnRegionConstraint } from '../application/region-constraint.js';
 export const GEOGRAPHY_PORTS = Symbol('geography.ports');
 const key = (commandId: string, input: unknown) => ({
   commandId,
@@ -53,6 +55,16 @@ const key = (commandId: string, input: unknown) => ({
 /** Provider-free API request/read/apply ports. Required jobs use the caller's pg-boss transaction. */
 export function geographyProviders(t: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol }) {
   return [
+    {
+      provide: READ_OWN_REGION_CONSTRAINT,
+      inject: [CHECK_PERSONAL_OWNER_ACTIVE],
+      useFactory: (ownerActive: CheckPersonalOwnerActive) =>
+        makeReadOwnRegionConstraint({
+          ownerActive,
+          state: (scope) => geographyStore.state(scope),
+          object: readRegionPlace,
+        }),
+    },
     {
       provide: GEOGRAPHY_PORTS,
       inject: [
