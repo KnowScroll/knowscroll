@@ -8,7 +8,12 @@ import { applyActionEvidenceQueue, type ApplyActionEvidence } from '@knowscroll/
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { experienceUseCases } from '../support/experience.js';
 import { seedAsset, seedPerson } from '../support/fixtures.js';
-import { evidenceUseCase } from '../support/evidence.js';
+import { makeWithPersonalScope, fencePersonalRecording } from '@knowscroll/backend/infrastructure/postgres';
+import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
+import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
+import { APPLY_ACTION_EVIDENCE, evidenceProviders } from '@knowscroll/backend/modules/evidence/nest-providers';
+import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
+import { buildFromProviders } from '../support/providers.js';
 
 const silent: LogEvent = () => undefined;
 const secret = 'canary-job-secret-Xq19';
@@ -18,7 +23,18 @@ describe('evidence.apply-action consumer (real database, real pg-boss)', () => {
   let applyActionEvidence: ApplyActionEvidence;
   beforeAll(async () => {
     database = await createTestDatabase<Database>('evidence');
-    applyActionEvidence = evidenceUseCase(database);
+    const scope = Symbol('test.evidenceScope');
+    const values = new Map<symbol, unknown>([
+      [scope, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
+      [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
+      [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
+      ...experienceEvidenceReadProviders().map((p) => [p.provide, p.useValue] as const),
+    ]);
+    applyActionEvidence = buildFromProviders(
+      evidenceProviders({ withPersonalScope: scope }),
+      APPLY_ACTION_EVIDENCE,
+      values,
+    ) as ApplyActionEvidence;
   });
   afterAll(async () => {
     await database.drop();
