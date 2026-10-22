@@ -1,5 +1,4 @@
 import type { EncounterSnapshot } from '../../content/public.js';
-import type { ApplyActionEvidencePayload } from '../../evidence/public.js';
 import type {
   FencePersonalRecording,
   PersonalAuthority,
@@ -84,7 +83,15 @@ export interface ApplyActionPorts {
     scope: PersonalScopeTx,
     action: ActionRecord,
   ) => Promise<void | { readonly recording: RecordingChannelsResult }>;
-  readonly enqueueActionEvidence: (scope: PersonalScopeTx, payload: ApplyActionEvidencePayload) => Promise<void>;
+  readonly enqueueActionEvidence: (
+    scope: PersonalScopeTx,
+    payload: {
+      readonly v: 1;
+      readonly universeId: string;
+      readonly privacyEpoch: number;
+      readonly actionId: string;
+    },
+  ) => Promise<void>;
   /**
    * Advances the universe revision in this transaction: the command's own catch-up watermark.
    * Called only when the command changed something a subscriber reads.
