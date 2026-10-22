@@ -137,7 +137,9 @@ remount. `retryOriginal()` is explicit and sends the same UUID, expected epoch a
 through a fresh current scope; it never substitutes the new epoch. Status reads bind account,
 current epoch, requested command/latest selector and immutable known receipt metadata. A
 `not_recorded` snapshot cannot prove a delayed original request will never arrive or authorize a
-replacement. A new controller after reload reads latest without creating work. Pending/failed
+replacement. A definitive rejection of a retry also cannot resolve an earlier ambiguous send;
+the original body stays retained for bound status recovery. A new controller after reload reads
+latest without creating work. Pending/failed
 states cannot mint a replacement clear. No journal, storage, query payload, socket, polling or
 private/raw-error logging is added. `completed_live` confirms only live removal, with no backup,
 provider-copy or offline-device expiry claim. Tests use authored HTTP/auth fixtures and the actual

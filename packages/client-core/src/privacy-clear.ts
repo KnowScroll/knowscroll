@@ -155,8 +155,10 @@ export function createPrivacyClearSession(host: PrivacyClearHost): PrivacyClearS
     const ticket = host.capture(scope);
     if (!ticket) return false;
     const token = ++serial;
+    const previouslyUnknown = original.unknown;
+    const previousReceipt = state.receipt?.commandId === original.body.commandId ? state.receipt : undefined;
     busy = true;
-    publish({ status: 'sending' });
+    publish({ status: 'sending', ...(previousReceipt ? { receipt: previousReceipt } : {}) });
     let receipt: ClearExplorationReceipt | undefined;
     try {
       const ack = ClearExplorationAcceptanceSchema.parse(await scope.api.privacy.clearExploration(original.body));
@@ -173,22 +175,26 @@ export function createPrivacyClearSession(host: PrivacyClearHost): PrivacyClearS
       blockingReceipt = true;
     } catch (error) {
       if (!valid(token)) return false;
-      if (error instanceof ORPCError && error.status >= 400 && error.status < 500) {
+      if (error instanceof ORPCError && error.status >= 400 && error.status < 500 && !previouslyUnknown) {
         pending = undefined;
         busy = false;
         publish({ status: 'unavailable' });
         return false;
       }
+      // A rejection of this delivery cannot establish whether an earlier ambiguous send
+      // committed or is still in flight. Preserve its exact body until a bound receipt resolves it.
       original.unknown = true;
     }
+    const retainedReceipt = receipt ?? previousReceipt;
     // finishAfterAttempt synchronously purges the exact old scope before its first await. It
     // preserves a newer scope already mounted for the same account, and rejects old credentials.
     const recovery = ticket.finishAfterAttempt();
-    if (valid(token)) publish({ status: receipt ? 'accepted' : 'unknown', ...(receipt ? { receipt } : {}) });
+    if (valid(token))
+      publish({ status: receipt ? 'accepted' : 'unknown', ...(retainedReceipt ? { receipt: retainedReceipt } : {}) });
     const recovered = await recovery.catch(() => false);
     if (!valid(token)) return false;
     busy = false;
-    publish({ status: receipt ? 'accepted' : 'unknown', ...(receipt ? { receipt } : {}) });
+    publish({ status: receipt ? 'accepted' : 'unknown', ...(retainedReceipt ? { receipt: retainedReceipt } : {}) });
     if (recovered) await readStatus();
     return true;
   }

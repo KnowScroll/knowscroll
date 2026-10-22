@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ClearExploration, ClearExplorationStatus, SessionAccount } from '@knowscroll/contracts';
+import {
+  problemDetails,
+  type ClearExploration,
+  type ClearExplorationStatus,
+  type SessionAccount,
+} from '@knowscroll/contracts';
 import { createAccountScopeManager } from './account-scope-manager';
 import { memoryStore, type AccountScope } from './account-scope';
 import type { AuthClient, SessionOutcome } from './auth-client';
@@ -16,9 +21,9 @@ const account: SessionAccount = {
 const other = { ...account, accountId: id(9), email: 'other@fixture.invalid' };
 const intent = { commandId: id(3), confirmation: PRIVACY_CLEAR_ACKNOWLEDGEMENT };
 const receipt = { commandId: id(3), fromEpoch: 1, toEpoch: 2, recordedAt: '2026-10-22T10:00:00.000Z' };
-const json = (value: unknown) =>
-  new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } });
-const respond = (value: unknown) => Promise.resolve(json(value));
+const json = (value: unknown, status = 200) =>
+  new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
+const respond = (value: unknown, status = 200) => Promise.resolve(json(value, status));
 const gate = <T>() => {
   let open!: (value: T) => void;
   const promise = new Promise<T>((resolve) => {
@@ -458,5 +463,45 @@ describe('manager-owned selective Clear with real client fences', () => {
     expect(await running).toBe(false);
     expect(f.connections).toHaveLength(1);
     expect(f.manager.privacy.getState()).toMatchObject({ status: 'ended', canConfirm: false });
+  });
+  it('a definitive retry rejection preserves the earlier unknown command until its late receipt is read', async () => {
+    const f = await fixture();
+    f.actual({ ...account, privacyEpoch: 2 });
+    f.clear(() => Promise.reject(new Error('fixture lost first reply')));
+    f.status(({ target }, epoch) =>
+      respond({
+        version: 'clear-exploration.v1',
+        scope: { accountId: account.accountId, privacyEpoch: epoch },
+        target,
+        status: 'not_recorded',
+      }),
+    );
+    await f.manager.privacy.confirm(intent);
+    expect(f.manager.privacy.getState()).toMatchObject({ retryOriginal: true, canConfirm: false });
+    f.clear(() => respond(problemDetails('UNAUTHENTICATED'), 401));
+    await f.manager.privacy.retryOriginal();
+    expect(clearCalls(f)).toHaveLength(2);
+    expect(clearCalls(f)[1]?.body).toEqual(clearCalls(f)[0]?.body);
+    expect(f.manager.privacy.getState()).toMatchObject({
+      status: 'not_recorded',
+      retryOriginal: true,
+      canConfirm: false,
+    });
+    expect(await f.manager.privacy.confirm({ ...intent, commandId: id(8) })).toBe(false);
+    // The first delivery's durable receipt becomes observable later; only that bound read resolves it.
+    f.status(undefined);
+    expect(await f.manager.privacy.refreshStatus()).toBe(true);
+    expect(f.calls.at(-1)?.body).toEqual({
+      version: 'clear-exploration.v1',
+      target: { kind: 'command', commandId: intent.commandId },
+    });
+    expect(f.manager.privacy.getState()).toMatchObject({
+      status: 'pending',
+      receipt,
+      retryOriginal: false,
+      canConfirm: false,
+    });
+    expect(await f.manager.privacy.confirm({ ...intent, commandId: id(8) })).toBe(false);
+    expect(clearCalls(f)).toHaveLength(2);
   });
 });

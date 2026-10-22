@@ -22,7 +22,7 @@ const message = (state: PrivacyClearState): string => {
     return 'Live removal could not be verified. Check its status again; your request is retained.';
   if (state.status === 'pending') {
     if (state.phase === 'waiting_for_accounting')
-      return 'Removal is waiting for accounting to finish. Your request is retained.';
+      return 'Some earlier activity is still finishing. Your removal request is retained.';
     if (state.phase === 'verifying_live_removal') return 'Checking that live exploration data has been removed.';
     return 'Your exploration history and universe are being removed.';
   }
@@ -74,6 +74,9 @@ export function PrivacyScreen() {
           <View accessibilityLiveRegion="polite">
             <Text variant="bodyS">{message(state)}</Text>
           </View>
+        ) : null}
+        {state.receipt ? (
+          <Text variant="meta">Clear request recorded {new Date(state.receipt.recordedAt).toLocaleString()}</Text>
         ) : null}
         {state.retryOriginal ? (
           <Button
