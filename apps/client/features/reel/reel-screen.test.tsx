@@ -267,6 +267,7 @@ async function mount(
       </AccountScopeProvider>
     </DisplayProvider>,
   );
+  await waitFor(() => expect(screen.getByTestId('direct-reel-page')).toBeOnTheScreen());
   return {
     ...rendered,
     paths,

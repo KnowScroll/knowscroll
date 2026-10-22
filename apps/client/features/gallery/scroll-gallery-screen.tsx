@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { setStatusBarStyle } from 'expo-status-bar';
+import { useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { createScopedBlockStateStore } from '@knowscroll/client-core';
@@ -56,6 +57,11 @@ const galleryStore: ScrollBlockStateStore = createScopedBlockStateStore({
  */
 export function ScrollGalleryScreen() {
   useDocumentTitle('Scroll gallery');
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle('dark');
+    }, []),
+  );
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{

@@ -287,3 +287,29 @@ unknown A command retains its exact original body for explicit retry. Starting a
 position choice and never bypasses the selected membership check. Full S01/S02 visual/interaction parity remains follow-up work. Source/component/protocol fixtures in Actions establish
 client behavior only. Root owns real disposable-account endpoint/decoded media/device journeys
 and deployment acceptance; this source makes no runtime or final privacy acceptance claim.
+
+### Responsive media flow (#359)
+
+Explore Reel and direct Reel pages scroll in normal flow: the shared player measures its actual
+frame width for a bounded video stage, then lays out wrapping playback controls, captions, actions
+and subject navigation below. Stage resize preserves the mounted SDK player, exposure, grant and
+private sound/place. Ready continuation edges are anchored to the video stage and remain outside
+its gesture responder. The encounter header gives the complete format labels their own row;
+unavailable/preparing words wrap and targets remain at least44px. Scroll retains its own bounded
+article scroller and interactive gesture exclusions, without a Reel page scroller around it.
+Cream component/Scroll galleries set dark system icons on focus, matching ScreenFrame's existing
+per-route ownership. Spatial routes keep their own light tone.
+
+Hosted browser cases measure actual355×767/320×568/390×844/landscape/tablet/desktop rectangles,
+reachable hit targets, text enlargement and unchanged video/lineage across resize. These use labelled
+HTTP/media fixtures, with no decoded playback claim. UI fixtures pin actual200% text/reduced motion;
+router focus fixtures do not prove native status pixels. Connected real dev playback/Keep/resize and
+hosted native gallery→space→back visual verification remain separate acceptance gates.
+
+Native Reel page scrolling also fences visibility: the actual video stage is measured against
+its current page viewport after safe/tab exclusions. Scroll/layout invalidation synchronously
+pauses playback; only a current mounted-stage measurement with at least half the stage visible
+can re-enable the existing active fence. Monotonic callbacks, route/background and scope-end
+cleanup prevent late geometry from reviving an old encounter. Returning to view does not restore
+play intent. Web retains its existing IntersectionObserver. Native geometry tests use labelled
+callbacks; real native visibility and status pixels remain a separate hosted runtime gate.
