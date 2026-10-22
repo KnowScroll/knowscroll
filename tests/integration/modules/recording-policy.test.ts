@@ -230,6 +230,9 @@ describe('Identity account-lifetime recording policy', () => {
           .set({ recording_generation: 2147483647, recording_on: true })
           .where('id', '=', p.universeId)
           .execute();
+        // 0044 queues this real deferred check on the boundary UPDATE. Execute it before
+        // ALTER TABLE; keep the lifecycle constraint enabled and preserve the existing seed only.
+        await sql`set constraints identity.recording_lifecycle_ready immediate`.execute(trx);
         await sql`alter table identity.universes enable trigger recording_policy_guard`.execute(trx);
       });
     expect(await cases().set(p.authority, body(2147483647, true))).toMatchObject({
