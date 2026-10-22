@@ -100,6 +100,8 @@ export async function readObservations(
       clockDomain: stored.clockDomain,
       receivedAt: new Date(row.received_at),
       originalWireProved: stored.wireSha256 !== undefined,
+      descriptorEligible: stored.descriptorEligible,
+      ...(stored.descriptorSha256 ? { descriptorSha256: stored.descriptorSha256 } : {}),
       ...(row.server_started_at ? { serverStartedAt: new Date(row.server_started_at) } : {}),
     });
   }
@@ -155,7 +157,7 @@ export async function insertEvidence(scope: RecordingScopeTx, evidence: NewEvide
     on conflict(universe_id,exposure_id,input_watermark,policy_version) do nothing returning id`.execute(
       recordingTransactionOf(scope),
     );
-  if (result.rows.length && evidence.clockDomain === 'session') {
+  if (result.rows.length && evidence.descriptorQualified) {
     const prior = (
       await sql<{
         source_vector: Record<string, string | number>;
@@ -163,10 +165,19 @@ export async function insertEvidence(scope: RecordingScopeTx, evidence: NewEvide
         recordingTransactionOf(scope),
       )
     ).rows[0];
-    const vector = { ...prior?.source_vector, qualificationId: evidence.id, qualificationRevision: evidence.revision };
+    const vector = {
+      ...prior?.source_vector,
+      ...(evidence.clockDomain === 'legacy'
+        ? { legacyQualificationId: evidence.id }
+        : {
+            sessionQualificationId: evidence.id,
+            qualificationId: evidence.id,
+            qualificationRevision: evidence.revision,
+          }),
+    };
     await sql`insert into evidence.recording_segment_heads(universe_id,privacy_epoch,exposure_id,recording_generation,qualification_id,input_sha256,source_vector)
-      values(${scope.personal.authority.universeId}::uuid,${scope.personal.authority.privacyEpoch},${evidence.exposureId}::uuid,${scope.generation},${evidence.id}::uuid,${canonicalSha256(vector)},${JSON.stringify(vector)}::jsonb)
-      on conflict(universe_id,exposure_id,recording_generation) do update set qualification_id=excluded.qualification_id,input_sha256=excluded.input_sha256,source_vector=excluded.source_vector`.execute(
+      values(${scope.personal.authority.universeId}::uuid,${scope.personal.authority.privacyEpoch},${evidence.exposureId}::uuid,${scope.generation},${evidence.clockDomain === 'session' ? evidence.id : null}::uuid,${canonicalSha256(vector)},${JSON.stringify(vector)}::jsonb)
+      on conflict(universe_id,exposure_id,recording_generation) do update set qualification_id=coalesce(excluded.qualification_id,evidence.recording_segment_heads.qualification_id),input_sha256=excluded.input_sha256,source_vector=excluded.source_vector`.execute(
       recordingTransactionOf(scope),
     );
   }

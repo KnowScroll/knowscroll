@@ -88,6 +88,8 @@ export function makeProjectScrollReading(ports: ProjectScrollReadingPorts) {
           !segment ||
           (segment.firstEligibleActivationAt !== undefined &&
             row.originalWireProved &&
+            row.descriptorEligible &&
+            row.descriptorSha256 === segment.attributionSha256 &&
             row.receivedAt.getTime() >= Date.parse(segment.initializedAt)),
       );
       const elapsedMs =
@@ -123,6 +125,7 @@ export function makeProjectScrollReading(ports: ProjectScrollReadingPorts) {
           id: evidenceId,
           recordingGeneration: cap.generation,
           clockDomain: domain,
+          descriptorQualified: segment?.firstEligibleActivationAt !== undefined,
           exposureId: exposure.id,
           revision,
           policyVersion: reelPolicy.version,
@@ -154,6 +157,7 @@ export function makeProjectScrollReading(ports: ProjectScrollReadingPorts) {
         id: evidenceId,
         recordingGeneration: cap.generation,
         clockDomain: domain,
+        descriptorQualified: segment?.firstEligibleActivationAt !== undefined,
         exposureId: exposure.id,
         revision,
         inputWatermark: summary.inputWatermark,

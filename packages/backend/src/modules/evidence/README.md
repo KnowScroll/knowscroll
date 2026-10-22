@@ -45,8 +45,16 @@ Audit revisions allocate from an indexed global exposure/revision reverse seek; 
 never reuses an audit revision. Activity requires an existing genuine Experience descriptor and
 never calls `ensureLineage` to manufacture eligibility. Old already-activated exposures without
 one confer no new activity until actual eligible activation. New segment factual proofs exclude
-pre-descriptor observations and pre-envelope legacy bodies; an old qualification audit is not a
-fresh current-segment proof. Committed legacy state remains retained independently.
+pre-descriptor observations and pre-envelope legacy bodies. The server alone records
+`descriptorEligible` plus the immutable descriptor attribution SHA in a strict internal event
+envelope, after a genuine same-root/generation read proves the exact exposure/asset/revision and
+actual eligible activation. Client metadata cannot grant this marker. Markerless/false envelopes
+never upgrade, including on exact retry. The projector requires that marker and exact descriptor
+SHA; millisecond timestamps are only a defense, never lineage proof. Only this eligible projection
+writes `source_vector.legacyQualificationId`; current legacy qualification reads resolve that
+exact universe/epoch/exposure/generation/audit pointer. Session qualification remains a separate
+head. An old audit cannot seed a new descriptor even when its PostgreSQL timestamp sorts after the
+later JavaScript initialization within the same millisecond. Committed legacy state remains retained independently.
 
 `recording-credit.v1` is one fixed exposure reducer/cache, with bounded independent legacy/session
 source slots, never a generation-history array. Advancing generation freezes the previous EFFECTIVE
@@ -273,3 +281,5 @@ Evidence's `CheckCoverageEvidence` capability batch-checks<=1000 exact current c
 indexed latest-row probes; other owners never read Evidence tables directly. PC's live trusted
 proof read additionally revalidates/locks Content authority until caller commit. Stored reference
 counts alone never authorize geography after a correction/retraction/withdrawal.
+
+A current descriptor or accepted activation/session alone is not an activity source. Explicit projection returns `no_current_source`, and reconciliation examines without queuing or changing metadata-gap counts, until an exact current qualification pointer (including an actual unknown qualification), non-NULL channel decision, or actual same-generation H/R exists. This refusal precedes credit/cache reads and preserves committed heads and effective credit. An explicit false channel decision remains a correction source; NULL does not become zero credit.

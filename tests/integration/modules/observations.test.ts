@@ -16,6 +16,11 @@ const StoredEnvelope = z.strictObject({
     v: z.literal(1),
     clockDomain: z.enum(['legacy', 'session']),
     wireSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    descriptorEligible: z.boolean(),
+    descriptorSha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/u)
+      .optional(),
   }),
   body: z.unknown(),
 });
