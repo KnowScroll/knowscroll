@@ -18,8 +18,8 @@ import {
   startConsumers,
   deadLetterQueueName,
 } from '@knowscroll/backend/infrastructure/jobs';
-import { personalStores, explorationStores } from '@knowscroll/backend/erasure-registry';
-import { eraseUniverse, eraseExploration, checkErasureInventory } from '@knowscroll/backend/infrastructure/erasure';
+import { personalStores, eraseCurrentExploration } from '@knowscroll/backend/erasure-registry';
+import { eraseUniverse, checkErasureInventory } from '@knowscroll/backend/infrastructure/erasure';
 import {
   identityScopeOwnerProviders,
   clearExplorationFor,
@@ -809,7 +809,7 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
     const clear = clearExplorationFor(database.db, c.boss, {
       reasoning: clearReasoning,
       eraseCore: async (s) => {
-        await eraseExploration(s, explorationStores);
+        await eraseCurrentExploration(s);
       },
     });
     const q = {

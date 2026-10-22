@@ -6,8 +6,8 @@ import { canonicalSha256 } from '@knowscroll/scroll-model';
 import type { RegionEncounterOpenRequest, RegionEncounterTarget } from '@knowscroll/contracts';
 import { makeWithPersonalScope, transactionOf, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { createBoss, applyQueueDeclarations, makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
-import { explorationStores, personalStores } from '@knowscroll/backend/erasure-registry';
-import { eraseUniverse, eraseExploration, checkErasureInventory } from '@knowscroll/backend/infrastructure/erasure';
+import { eraseCurrentExploration, personalStores } from '@knowscroll/backend/erasure-registry';
+import { eraseUniverse, checkErasureInventory } from '@knowscroll/backend/infrastructure/erasure';
 import { REGION_ENCOUNTERS, type RegionEncounterUseCases } from '@knowscroll/backend/modules/experience';
 import {
   navigationProviders,
@@ -554,7 +554,7 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
     const clear = clearExplorationFor(database.db, privacyBoss, {
         reasoning: clearReasoning,
         eraseCore: async (s) => {
-          await eraseExploration(s, explorationStores);
+          await eraseCurrentExploration(s);
         },
       }),
       commandId = randomUUID();
