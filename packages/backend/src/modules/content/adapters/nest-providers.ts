@@ -21,6 +21,8 @@ import {
   READ_SCROLL_READING_FACTS,
   READ_ADMITTED_COVERAGE_MAPPING,
   LOCK_CURRENT_COVERAGE_AUTHORITIES,
+  READ_REGION_ENCOUNTER_CANDIDATES,
+  LOCK_REGION_ENCOUNTER_CANDIDATES,
   RENDER_SCROLL,
   type RenderScroll,
 } from '../public.js';
@@ -38,6 +40,7 @@ import { makeRenderScroll } from './render-scroll.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
 import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
+import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
 
 /**
  * Reusable outer wiring (blueprint §22): content's scope-bound read ports, used inside a personal
@@ -45,6 +48,8 @@ import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './c
  */
 export function contentProviders() {
   return [
+    { provide: READ_REGION_ENCOUNTER_CANDIDATES, useValue: readRegionEncounterCandidates },
+    { provide: LOCK_REGION_ENCOUNTER_CANDIDATES, useValue: lockRegionEncounterCandidates },
     { provide: LOCK_KEEP_POSITION_TARGET, useValue: lockKeepPositionTarget },
     { provide: LOCK_CURRENT_ENCOUNTERS, useValue: lockCurrentEncounters },
     { provide: READ_DISCOVERY_CANDIDATES, useValue: readDiscoveryCandidates },
@@ -115,6 +120,11 @@ export {
 export { makeAdmitCoverage } from '../application/admit-coverage.js';
 
 export { lockCurrentEncounters } from './current-encounters.js';
+export {
+  readRegionEncounterCandidates,
+  lockRegionEncounterCandidates,
+  contentRegionStores,
+} from './region-candidates.js';
 
 export { lockKeepPositionTarget } from './keep-position-target.js';
 

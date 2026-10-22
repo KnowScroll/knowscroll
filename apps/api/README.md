@@ -191,3 +191,17 @@ foreign/changed-filter tokens, real second-instance/restart rejection, and the
 actual selective Clear barrier. Synthetic codec fixtures additionally prove
 expiry boundaries and authenticated IV/ciphertext/tag binding. Source/CI tests
 are distinct from deployed disposable-account and native/media acceptance.
+
+### Private Region navigation (U04)
+
+The central `apiControllers` registry mounts `RegionEncounterController` exactly once. Both POST `/v1/experience/region/preview` and `/v1/experience/region/open` use the normal session/native caller and current scope guard, and receive `private, no-store` before Origin/auth/body parsing. Closed problem projection masks rejected values and unrecognized paths. Preview is provider-free and read-only; Open composes the existing session/offer/activation engine with actual Geography and canonical Content ports. The response must echo the exact caller scope, request target, capabilities, displayed expectation and command/session identity. No client geometry, renderer position, operational approval or global fallback enters this API.
+
+U05 (#363) mounts the three strict private POSTs `/v1/universe/formation/read`, `/claim` and
+`/acknowledge` through the central controller index and existing Scenes wiring. Cache and closed
+problem-family selection occur before Origin/auth/body parsing. All calls still require the
+normal current session, X-KS-Scope, root/account/epoch/Clear checks; stored command receipts never
+bypass current authority. Read is pure. Claim atomically writes the immutable receipt, once-only
+claim and required expiry work, with disposable root hints that may arrive before the HTTP ACK.
+The immutable receipt is not current animation permission; clients must use current status and
+actual validated targets. ACK records the client's actual shown/skipped statement, not learning
+or proof of rendering. No recovery, model or provider call is mounted on a read/status route.

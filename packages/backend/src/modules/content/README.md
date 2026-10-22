@@ -308,3 +308,9 @@ Cross-world CF62 zero-cost receive is **unimplemented**. Ordering-world C1 and t
 receipt cannot authorize a second world to import another world's output or settle its original
 claim. A separately reviewed provenance handoff/receiver remains required; no0c receive receipt
 or runtime completeness is claimed by this source.
+
+### Region candidate projection (U04)
+
+`content.region_bindings` is a shared derived lookup owned by Content, maintained atomically by the coverage-head trigger for admission, correction and retraction. The `(topic_id, facet_id, asset_id, asset_revision)` key supports an exact canonical Region query with 100 hydrated candidates and one key-only lookahead; an explicitly displayed asset is looked up directly. Each result independently revalidates current admitted Scroll revision, complete canonical mapping/document/provenance and render capabilities. There is no topic-label, global-pool or model fallback, and no semantic approval is added by this feature. Current production coverage review remains default-deny.
+
+`contentRegionStores` concretely inventories this shared projection: at most 16 bindings per mapping head, retained with immutable coverage history, no account/universe dependency, preserved by full and selective personal erasure. It is not personal state or admission authority. Up to three actual decision candidates are fenced under current Content asset/head SHARE locks through the personal commit.

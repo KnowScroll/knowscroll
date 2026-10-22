@@ -7,6 +7,7 @@ const tables = [
   'action_state',
   'navigation_transitions',
   'offer_activations',
+  'offer_region_constraints',
   'offers',
   'sessions',
   'encounter_activity_inputs',

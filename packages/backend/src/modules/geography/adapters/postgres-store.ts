@@ -1,13 +1,34 @@
 import { sql } from 'kysely';
 import { UniverseDeltaSchema, GeographyAliasSchema } from '@knowscroll/contracts';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import type { GeographyStore, GeographyRun, GeographyContext } from '../application/ports.js';
+import type { GeographyStore, GeographyRun, GeographyContext, RegionConstraintPorts } from '../application/ports.js';
 import { GeographyProposalSchema, type Place, type Route } from '../domain/policy.js';
 const owner = (s: Parameters<GeographyStore['state']>[0]) => ({
   tx: transactionOf(s),
   u: s.authority.universeId,
   e: s.authority.privacyEpoch,
 });
+/** Exact indexed selectors under the existing live personal scope; no private support refs. */
+export const readRegionPlace: RegionConstraintPorts['object'] = async (scope, selector) => {
+  const { tx, u, e } = owner(scope);
+  const predicate = 'id' in selector ? sql`id=${selector.id}::uuid` : sql`semantic_key=${selector.key}`;
+  const row = (
+    await sql<{ id: string; semantic_key: string; payload: unknown }>`
+    select id,semantic_key,payload from geography.objects
+    where universe_id=${u}::uuid and privacy_epoch=${e} and ${predicate} limit 1`.execute(tx)
+  ).rows[0];
+  if (!row) return undefined;
+  if (
+    !row.payload ||
+    typeof row.payload !== 'object' ||
+    !('id' in row.payload) ||
+    !('key' in row.payload) ||
+    row.payload.id !== row.id ||
+    row.payload.key !== row.semantic_key
+  )
+    throw new Error('GEOGRAPHY_STORED_IDENTITY');
+  return row.payload;
+};
 /** Every private lookup retains universe and epoch predicates; IDs grant no access. */
 export const geographyStore: GeographyStore = {
   async state(scope) {

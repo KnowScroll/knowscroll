@@ -291,3 +291,24 @@ it('Close, background and pin changes cancel previews; a retained old card canno
   h.scope.end();
   expect(s.getState().regionPreview.status).toBe('ended');
 });
+it('formation is a pure current-map read until the service confirms a real claim, and scope end purges its separate controller', async () => {
+  const h = universeHarness(),
+    s = createUniverseViewSession(h.scope);
+  expect(s.formation.getState().status).toBe('idle');
+  expect(h.calls).toEqual([]);
+  s.setForeground(true);
+  await ready(s);
+  await waitFor(() => expect(s.formation.getState().status).toBe('unavailable'));
+  expect(h.calls.filter((p) => p.endsWith('/formation/read'))).toHaveLength(1);
+  expect(h.calls.some((p) => /formation\/(claim|acknowledge)|observations/.test(p))).toBe(false);
+  h.scope.end();
+  expect(s.formation.getState()).toEqual({ status: 'ended' });
+  s.formation.retry();
+  s.formation.setForeground(true);
+  const next = universeHarness(),
+    replacement = createUniverseViewSession(next.scope);
+  expect(next.scope.id).toBe(h.scope.id);
+  expect(replacement.formation.getState()).toEqual({ status: 'idle' });
+  expect(next.calls).toEqual([]);
+  next.scope.end();
+});

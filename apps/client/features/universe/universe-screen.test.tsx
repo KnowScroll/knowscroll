@@ -150,3 +150,15 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
   await act(() => scope.end());
   await view.unmount();
 });
+it('a missing formation service shows an honest unavailable state without a birth, claim or shown acknowledgement', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  const v = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByText('New-place views aren’t available right now.')).toBeOnTheScreen());
+  expect(screen.queryByText(/A new place:/)).toBeNull();
+  expect(h.calls.filter((p) => p.endsWith('/formation/read'))).toHaveLength(1);
+  expect(h.calls.some((p) => /formation\/(claim|acknowledge)|observations/.test(p))).toBe(false);
+  await act(() => h.scope.end());
+  expect(screen.queryByText('New-place views aren’t available right now.')).toBeNull();
+  await v.unmount();
+});

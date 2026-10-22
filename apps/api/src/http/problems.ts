@@ -1,3 +1,4 @@
+import { formationDetails, formationIssues } from './formation-problems.js';
 import { Catch, HttpException, Inject, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
 import { ORPCError } from '@orpc/server';
 import type { NextFunction, Request, Response } from 'express';
@@ -20,6 +21,7 @@ import { LOG_EVENT } from '../tokens.js';
 import { currentRequest } from './request-context.js';
 import { privacyDetails, privacyIssues } from './privacy-problems.js';
 import { savedListDetails, savedListIssues } from './saved-list-problems.js';
+import { regionEncounterDetails, regionEncounterIssues } from './region-encounter-problems.js';
 
 export interface ProblemData {
   readonly detail?: string;
@@ -156,7 +158,9 @@ export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent
     if (
       context?.problemFamily === 'keep-remove' ||
       context?.problemFamily === 'privacy-clear' ||
-      context?.problemFamily === 'saved-list'
+      context?.problemFamily === 'saved-list' ||
+      context?.problemFamily === 'formation' ||
+      context?.problemFamily === 'region-encounter'
     )
       return finish(trusted);
     if (context !== undefined) context.problemCode = trusted.code;
@@ -166,6 +170,18 @@ export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent
     const data = (error.data ?? {}) as ProblemData;
     return finish(problemDetails(error.code, data));
   }
+  if (error.code === 'BAD_REQUEST' && currentRequest()?.problemFamily === 'formation')
+    return finish(
+      problemDetails('INVALID_REQUEST', {
+        issues: formationIssues((error.data as { issues?: unknown } | undefined)?.issues),
+      }),
+    );
+  if (error.code === 'BAD_REQUEST' && currentRequest()?.problemFamily === 'region-encounter')
+    return finish(
+      problemDetails('INVALID_REQUEST', {
+        issues: regionEncounterIssues((error.data as { issues?: unknown } | undefined)?.issues),
+      }),
+    );
   if (error.code === 'BAD_REQUEST' && currentRequest()?.problemFamily === 'saved-list')
     return finish(
       problemDetails('INVALID_REQUEST', {
@@ -256,6 +272,16 @@ function validationIssues(error: ORPCError<string, unknown>): ProblemIssue[] {
 
 function finish(details: ProblemDetails): ProblemDetails {
   const context = currentRequest();
+  if (context?.problemFamily === 'formation') {
+    const closed = formationDetails(details);
+    context.problemCode = closed.code;
+    return closed;
+  }
+  if (context?.problemFamily === 'region-encounter') {
+    const closed = regionEncounterDetails(details);
+    context.problemCode = closed.code;
+    return closed;
+  }
   if (context?.problemFamily === 'saved-list') {
     const closed = savedListDetails(details);
     context.problemCode = closed.code;
@@ -282,6 +308,16 @@ function logUnexpected(logEvent: LogEvent, error: unknown): void {
 
 /** Writes problem details with the RFC 9457 media type (and `Retry-After` on a 503). */
 export function sendProblem(response: Response, details: ProblemDetails): void {
+  if (currentRequest()?.problemFamily === 'formation') {
+    details = formationDetails(details);
+    response.setHeader('cache-control', 'private, no-store');
+  }
+  if (currentRequest()?.problemFamily === 'region-encounter') {
+    details = regionEncounterDetails(details);
+    const context = currentRequest();
+    if (context !== undefined) context.problemCode = details.code;
+    response.setHeader('cache-control', 'private, no-store');
+  }
   if (currentRequest()?.problemFamily === 'saved-list') {
     details = savedListDetails(details);
     const context = currentRequest();

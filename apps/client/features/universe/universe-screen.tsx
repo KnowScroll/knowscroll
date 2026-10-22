@@ -13,6 +13,7 @@ import { useUniverseBack } from './use-universe-back';
 import { UniverseMap } from './universe-map';
 import { UniverseOutline } from './universe-outline';
 import { UniversePlaceCard } from './universe-place-card';
+import { FormationPresentation } from './formation-presentation';
 
 export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   const { reducedMotion } = useDisplay(),
@@ -69,6 +70,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
             }}
           />
         ) : null}
+        <FormationPresentation session={session} />
         {state.notice ? (
           <Text variant="body" color={space.label}>
             That place is no longer available in this map. Choose a place from the outline.
