@@ -3,8 +3,8 @@ import { AppState, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountScope } from '@knowscroll/client-core';
-import { content, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, ErrorState, OfflineState, Skeleton, StateBlock, Text } from '@knowscroll/ui';
+import { content, layout, spacing } from '@knowscroll/design-tokens';
+import { Banner, Button, ErrorState, OfflineState, Skeleton, StateBlock, Text, useDisplay } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { useDocumentTitle } from '../../platform/document-title';
 import { EncounterChrome, EncounterMenu } from '../encounter/encounter-chrome';
@@ -13,6 +13,7 @@ import { EncounterGestures } from '../encounter/gestures/encounter-gestures';
 import { useEncounterBack } from '../encounter/use-encounter-back';
 import { useEncounterSession } from '../encounter/use-encounter-session';
 import { useEncounterContext } from '../encounter/use-encounter-context';
+import { usesRail } from '../shell/app-navigation';
 import { ReelPage } from '../reel/reel-page';
 import { FirstArrivalScreen } from './first-arrival-screen';
 
@@ -31,6 +32,7 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   const { session, state } = useEncounterSession(scope);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const railed = usesRail(useDisplay().breakpoint);
   const [foreground, setForeground] = useState(false);
   useEncounterContext(scope, session, state.entry, foreground);
   const [hint, setHint] = useState(() => scope.storage.get('explore.hint.dismissed') !== '1');
@@ -63,7 +65,18 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
     entry && Object.values(entry.context.continuations).some((direction) => direction.status === 'ready');
   const showEntry = entry && state.phase !== 'revoked';
   return (
-    <View style={[styles.ground, { paddingTop: insets.top }]} testID="encounter-explore">
+    <View
+      style={[
+        styles.ground,
+        {
+          paddingTop: insets.top,
+          paddingBottom: (railed ? 0 : layout.tabBarSlot) + insets.bottom,
+          paddingLeft: railed ? 0 : insets.left,
+          paddingRight: insets.right,
+        },
+      ]}
+      testID="encounter-explore"
+    >
       <EncounterPage reading={entry?.kind === 'scroll'}>
         {showEntry ? (
           <>
@@ -222,7 +235,7 @@ export function ExploreScreen() {
   return <FirstArrivalScreen />;
 }
 const styles = StyleSheet.create({
-  ground: { flex: 1, minHeight: 0, backgroundColor: content.paper, paddingBottom: spacing[24] },
+  ground: { flex: 1, minHeight: 0, backgroundColor: content.paper },
   readingPage: { flex: 1, minHeight: 0 },
   buttons: {
     flexDirection: 'row',

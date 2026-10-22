@@ -1,6 +1,16 @@
+import { render, screen } from '@testing-library/react-native';
+import { QueryClientProvider } from '@tanstack/react-query';
+import * as SafeArea from 'react-native-safe-area-context';
+import { DisplayProvider } from '@knowscroll/ui';
+import { SignedInExplore } from '../explore/explore-screen';
 import { AppState, type AppStateStatus } from 'react-native';
 import { harness } from '../encounter/encounter-session.fixture';
 import { createReelViewport, observeReelPageStage } from './reel-page';
+
+jest.mock('expo-router', () => ({
+  useFocusEffect: jest.fn(),
+  useRouter: () => ({ canGoBack: () => false, back: jest.fn() }),
+}));
 
 type Measurement = (x: number, y: number, width: number, height: number) => void;
 const page = { left: 0, top: 100, right: 355, bottom: 500 }; // Already excludes header/safe/tab regions.
@@ -118,6 +128,36 @@ describe('actual native Reel viewport authority (labelled geometry callbacks, no
       h.scope.end();
     }
   });
+  it('keeps a throwing released-host measurement unavailable and fences its earlier queued callback', () => {
+    const h = harness(),
+      store = createReelViewport(),
+      pause = jest.fn(),
+      changed = jest.fn();
+    const revision = store.invalidate();
+    store.measured(revision, page);
+    let previous: Measurement | undefined;
+    const observer = observeReelPageStage(
+      store,
+      h.scope,
+      true,
+      pause,
+      (callback) => {
+        if (previous) throw new Error('labelled released native host');
+        previous = callback;
+      },
+      changed,
+    );
+    try {
+      observer.layout();
+      expect(changed).toHaveBeenLastCalledWith(false);
+      previous?.(0, 120, 355, 300);
+      expect(changed).toHaveBeenLastCalledWith(false);
+      expect(pause).toHaveBeenCalled();
+    } finally {
+      observer.stop();
+      h.scope.end();
+    }
+  });
   it('never transfers a previous stage permission to a new scope object, or grants a parked route', () => {
     const h = geometry(),
       other = harness();
@@ -168,4 +208,39 @@ describe('actual native Reel viewport authority (labelled geometry callbacks, no
       other.scope.end();
     }
   });
+});
+
+// Actual owning layout and actual scope/query resources; focus is parked, no encounter/network is opened.
+describe('Explore page safe/tab composition', () => {
+  it.each([
+    [355, 130, 12],
+    [768, 34, 0],
+  ] as const)(
+    'at width%s excludes the real navigation slot and positive safe areas before measuring native stages',
+    async (width, bottom, left) => {
+      const h = harness();
+      jest.spyOn(SafeArea, 'useSafeAreaInsets').mockReturnValue({ top: 24, bottom: 34, left: 12, right: 9 });
+      const app = await render(
+        <DisplayProvider value={{ width, textScale: 1, reducedMotion: true }}>
+          <QueryClientProvider client={h.scope.queryClient}>
+            <SignedInExplore scope={h.scope} />
+          </QueryClientProvider>
+        </DisplayProvider>,
+      );
+      try {
+        expect(screen.getByTestId('encounter-explore')).toHaveStyle({
+          paddingTop: 24,
+          paddingBottom: bottom,
+          paddingLeft: left,
+          paddingRight: 9,
+        });
+        expect(screen.getByTestId('encounter-page')).toHaveStyle({ flex: 1, minHeight: 0 });
+        expect(h.calls).toHaveLength(0);
+      } finally {
+        await app.unmount();
+        h.scope.end();
+        jest.restoreAllMocks();
+      }
+    },
+  );
 });

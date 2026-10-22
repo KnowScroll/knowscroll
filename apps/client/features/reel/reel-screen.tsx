@@ -62,7 +62,13 @@ function OpenReel({ scope, assetId }: { scope: AccountScope; assetId: string }) 
   if (failed) return <StateBlock title="This Reel isn't available" body="Check your connection, then open it again." />;
   if (!opened) return <Skeleton rows={3} label="Opening the Reel" />;
   return (
-    <ReelPage testID="direct-reel-page" topInset={insets.top} bottomInset={insets.bottom}>
+    <ReelPage
+      testID="direct-reel-page"
+      topInset={insets.top}
+      bottomInset={insets.bottom}
+      leftInset={insets.left}
+      rightInset={insets.right}
+    >
       <ReadyReel scope={scope} exposureId={opened.exposureId} document={opened.document} />
     </ReelPage>
   );

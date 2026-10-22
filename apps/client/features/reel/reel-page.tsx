@@ -51,11 +51,15 @@ export function ReelPage({
   testID,
   topInset = 0,
   bottomInset = 0,
+  leftInset = 0,
+  rightInset = 0,
 }: {
   readonly children: ReactNode;
   readonly testID: string;
   readonly topInset?: number;
   readonly bottomInset?: number;
+  readonly leftInset?: number;
+  readonly rightInset?: number;
 }) {
   const store = useMemo(() => createReelViewport(), []);
   const viewport = useRef<ComponentRef<typeof View>>(null);
@@ -65,23 +69,27 @@ export function ReelPage({
     if (Platform.OS === 'web') return;
     // Subscribers synchronously pause and revoke their old observation before asynchronous measurement.
     const revision = store.invalidate();
-    viewport.current?.measureInWindow((x, y, w, h) => {
-      if (!mounted.current) return;
-      const measured = box(x, y, w, h),
-        window = Dimensions.get('window');
-      const clipped = measured
-        ? {
-            left: Math.max(0, measured.left),
-            top: Math.max(0, measured.top),
-            right: Math.min(window.width, measured.right),
-            bottom: Math.min(window.height, measured.bottom),
-          }
-        : null;
-      store.measured(
-        revision,
-        clipped && clipped.right > clipped.left && clipped.bottom > clipped.top ? clipped : null,
-      );
-    });
+    try {
+      viewport.current?.measureInWindow((x, y, w, h) => {
+        if (!mounted.current) return;
+        const measured = box(x, y, w, h),
+          window = Dimensions.get('window');
+        const clipped = measured
+          ? {
+              left: Math.max(0, measured.left),
+              top: Math.max(0, measured.top),
+              right: Math.min(window.width, measured.right),
+              bottom: Math.min(window.height, measured.bottom),
+            }
+          : null;
+        store.measured(
+          revision,
+          clipped && clipped.right > clipped.left && clipped.bottom > clipped.top ? clipped : null,
+        );
+      });
+    } catch {
+      store.measured(revision, null);
+    }
   }, [store]);
   useLayoutEffect(() => {
     mounted.current = true;
@@ -91,10 +99,15 @@ export function ReelPage({
       store.invalidate();
     };
   }, [store, measure]);
-  useLayoutEffect(measure, [measure, width, height, topInset, bottomInset]);
+  useLayoutEffect(measure, [measure, width, height, topInset, bottomInset, leftInset, rightInset]);
   return (
     <Viewport.Provider value={store}>
-      <View style={[styles.fill, { paddingTop: topInset, paddingBottom: bottomInset }]}>
+      <View
+        style={[
+          styles.fill,
+          { paddingTop: topInset, paddingBottom: bottomInset, paddingLeft: leftInset, paddingRight: rightInset },
+        ]}
+      >
         <View ref={viewport} testID={testID} style={styles.fill} onLayout={measure}>
           <ScrollView
             testID={`${testID}-scroll`}
@@ -139,19 +152,23 @@ export function observeReelPageStage(
     }
     if (!alive || !enabled || !scope.active || !foreground || !current.bounds) return;
     const sequence = ++ticket;
-    measureStage((x, y, w, h) => {
-      if (!alive || sequence !== ticket || !scope.active || !foreground || store.read().revision !== current.revision)
-        return;
-      const stage = box(x, y, w, h),
-        v = current.bounds!;
-      const area = stage
-        ? Math.max(0, Math.min(stage.right, v.right) - Math.max(stage.left, v.left)) *
-          Math.max(0, Math.min(stage.bottom, v.bottom) - Math.max(stage.top, v.top))
-        : 0;
-      const visible = stage !== null && area / (w * h) >= 0.5;
-      if (!visible) pause();
-      changed(visible);
-    });
+    try {
+      measureStage((x, y, w, h) => {
+        if (!alive || sequence !== ticket || !scope.active || !foreground || store.read().revision !== current.revision)
+          return;
+        const stage = box(x, y, w, h),
+          v = current.bounds!;
+        const area = stage
+          ? Math.max(0, Math.min(stage.right, v.right) - Math.max(stage.left, v.left)) *
+            Math.max(0, Math.min(stage.bottom, v.bottom) - Math.max(stage.top, v.top))
+          : 0;
+        const visible = stage !== null && area / (w * h) >= 0.5;
+        if (!visible) pause();
+        changed(visible);
+      });
+    } catch {
+      invalidate();
+    }
   };
   const unsubscribe = store.subscribe(measure);
   const ended = scope.onEnd?.(() => {

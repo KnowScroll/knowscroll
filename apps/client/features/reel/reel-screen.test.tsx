@@ -267,7 +267,6 @@ async function mount(
       </AccountScopeProvider>
     </DisplayProvider>,
   );
-  await waitFor(() => expect(screen.getByTestId('direct-reel-page')).toBeOnTheScreen());
   return {
     ...rendered,
     paths,
@@ -317,6 +316,7 @@ describe('direct Reel response boundaries', () => {
       action: () => Promise.resolve(json({ ...action, kind: saved ? 'unsave' : 'save', saved: !saved })),
     });
     expect(await screen.findByText(document.title)).toBeOnTheScreen();
+    expect(screen.getByTestId('direct-reel-page')).toBeOnTheScreen();
     expect(
       app.paths.filter((path) => ['/v1/experience/open', '/v1/media/grants', '/v1/experience/activate'].includes(path)),
     ).toEqual(['/v1/experience/open', '/v1/media/grants', '/v1/experience/activate']);
