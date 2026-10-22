@@ -1,4 +1,5 @@
-import type { PersonalScopeTx } from '../../modules/identity/public.js';
+import { clearCoreTransactionOf, markClearRemovalVerified } from '../postgres/privacy-scope.js';
+import type { ClearCoreTx, PersonalScopeTx } from '../../modules/identity/public.js';
 
 /** A personal SQL table and the column that names its universe. */
 export interface PersonalTable {
@@ -61,6 +62,11 @@ export interface ModuleErasure {
   readonly accountTables?: readonly AccountTable[];
   /** Erasers run in registry order; list dependants (rows referencing others) first. */
   erase(scope: PersonalScopeTx): Promise<ErasureReport>;
+  /** Separate capability, owner callback and per-store disposition for selective Clear. */
+  clearExploration?: {
+    readonly dispositions: Readonly<Record<string, 'erase' | 'preserve' | 'redact_accounting' | 'external_retention'>>;
+    erase(scope: ClearCoreTx): Promise<ErasureReport>;
+  };
 }
 
 /** The complete registry. Refuses a table or store declared by two modules. */
@@ -86,5 +92,56 @@ export async function eraseUniverse(
 ): Promise<readonly ErasureReport[]> {
   const reports: ErasureReport[] = [];
   for (const declaration of registry) reports.push(await declaration.erase(scope));
+  return reports;
+}
+
+/** Every declared store needs an explicit disposition; omission refuses cleanup before any SQL. */
+const clearVerifiers = new WeakMap<readonly ModuleErasure[], (scope: ClearCoreTx) => Promise<boolean>>();
+export function clearExplorationRegistry(
+  registry: readonly ModuleErasure[],
+  inventory?: readonly ModuleErasure[],
+  verify?: (scope: ClearCoreTx) => Promise<boolean>,
+): readonly ModuleErasure[] {
+  for (const d of registry) {
+    const clear = d.clearExploration;
+    if (!clear) throw new Error('CLEAR_OWNER_MISSING');
+    const names = [
+      ...d.tables.map((t) => `${t.schema}.${t.table}`),
+      ...(d.accountTables ?? []).map((t) => `${t.schema}.${t.table}`),
+      ...(d.accountColumns ?? []).map((t) => `${t.schema}.${t.table}`),
+      ...d.nonRowStores.map((s) => `store:${s.name}`),
+    ];
+    if (
+      names.some((n) => !Object.hasOwn(clear.dispositions, n)) ||
+      Object.keys(clear.dispositions).some((n) => !names.includes(n))
+    )
+      throw new Error('CLEAR_DISPOSITION_MISSING');
+  }
+  if (
+    !inventory ||
+    !verify ||
+    registry.length !== inventory.length ||
+    inventory.some((owner) => !registry.some((d) => d.module === owner.module))
+  )
+    throw new Error('CLEAR_INVENTORY_UNVERIFIED');
+  const complete = Object.freeze([...registry]);
+  clearVerifiers.set(complete, verify);
+  return complete;
+}
+export async function eraseExploration(
+  scope: ClearCoreTx,
+  registry: readonly ModuleErasure[],
+): Promise<readonly ErasureReport[]> {
+  clearCoreTransactionOf(scope);
+  const verify = clearVerifiers.get(registry);
+  if (!verify || !(await verify(scope))) throw new Error('CLEAR_INVENTORY_UNVERIFIED');
+  const reports: ErasureReport[] = [];
+  for (const d of registry) {
+    clearCoreTransactionOf(scope);
+    const report = await d.clearExploration!.erase(scope);
+    if (report.module !== d.module || report.status !== 'completed') throw new Error('CLEAR_OWNER_UNVERIFIED');
+    reports.push(report);
+  }
+  markClearRemovalVerified(scope);
   return reports;
 }

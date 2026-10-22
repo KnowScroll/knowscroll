@@ -269,3 +269,8 @@ export function accountAccessProviders(tokens: { readonly useCases: symbol }) {
     pick(INVALIDATE_OWN_ACCOUNT_ACCESS, 'invalidateOwnAccountAccess'),
   ];
 }
+
+export { clearExplorationFor, readClearRecoveryCandidates, clearStore } from './clear-providers.js';
+
+export { makeClearExploration } from '../application/clear-exploration.js';
+export type { ClearPorts, ClearOperation, ClearStore } from '../application/clear-ports.js';

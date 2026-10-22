@@ -530,6 +530,41 @@ export interface IdentityAccounts {
   status: Generated<string>;
 }
 
+export interface IdentityClearLiabilities {
+  account_id: string;
+  attempt_id: string;
+  budget_window: Timestamp;
+  model: string;
+  operation_id: string;
+  provider: string;
+  reserved_tokens: number;
+  role_id: string;
+  role_version: string;
+  run_id: string;
+  scope_id: string;
+}
+
+export interface IdentityClearOperations {
+  account_id: string;
+  cleanup_due_at: Timestamp | null;
+  cleanup_recovery_after: Timestamp | null;
+  cleanup_recovery_attempts: Generated<number>;
+  command_id: string;
+  completed_at: Timestamp | null;
+  core_done_at: Timestamp | null;
+  failure_code: string | null;
+  from_epoch: number;
+  id: string;
+  outcome_version: Generated<number>;
+  phase: Generated<string>;
+  recorded_at: Generated<Timestamp>;
+  recovery_after: Timestamp | null;
+  recovery_attempts: Generated<number>;
+  request_hash: string;
+  scope_id: string;
+  to_epoch: number;
+}
+
 export interface IdentityEmailAddresses {
   account_id: string;
   address: string;
@@ -564,6 +599,7 @@ export interface IdentitySignInLinks {
 
 export interface IdentityUniverses {
   account_id: string;
+  clear_operation_id: string | null;
   created_at: Generated<Timestamp>;
   id: string;
   privacy_epoch: Generated<number>;
@@ -1111,6 +1147,8 @@ export interface DB {
   "geography.runs": GeographyRuns;
   "geography.state": GeographyState;
   "identity.accounts": IdentityAccounts;
+  "identity.clear_liabilities": IdentityClearLiabilities;
+  "identity.clear_operations": IdentityClearOperations;
   "identity.email_addresses": IdentityEmailAddresses;
   "identity.sessions": IdentitySessions;
   "identity.sign_in_links": IdentitySignInLinks;

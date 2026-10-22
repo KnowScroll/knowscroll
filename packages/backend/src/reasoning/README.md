@@ -630,3 +630,20 @@ Replay/capacity checks occur before observation writes; a later failure throws t
 rolls snapshot, observation, pending intent and job back together. Neither cost completeness nor video
 classification settles money, changes AttemptState/pool state or releases the whole held ceiling.
 No normal consumer/transport/approval/root is installed; all factories remain explicit and disabled.
+
+### Selective Clear accounting ownership (#345)
+
+`clearReasoning` is an opt-in owner port. Capture locks the personal run/attempt/receipt chain and
+returns at most 1000 bounded exact accounting tuples, never protected bytes or outputs. Missing or
+mismatched receipt proof and oversized identities refuse acceptance before a barrier is published.
+Selective erasure uses the existing irreversible markers and dispatch-proof release rule; the full
+`reasoningErasure.erase` behavior is preserved. Requests, context, outputs, issues, quota and freeform
+actor/reason fields are removed while minimal marked current-day attempt links survive. Their
+presence preserves the existing per-scope current UTC budget join across repeated Clear operations.
+
+After core completion `verifyAndPrune` accepts only a live accounting capability and visits its
+captured identities, in run → attempt → receipt lock order. It preserves unresolved charges and all
+global/role receipts. Terminal links remain through their UTC window, then only those exact old IDs
+and orphaned marked parent runs may be pruned. The normal ledger still owns settlement, write-off,
+late usage and brakes; Clear neither refunds nor increases caps. A later delivered answer remains
+redacted under the #337 marker checks. No production/Cutroom/pool row is read or changed here.

@@ -9,3 +9,5 @@ export {
   type PersonalNonRowStore,
   type PersonalTable,
 } from './registry.js';
+
+export { clearExplorationRegistry, eraseExploration } from './registry.js';

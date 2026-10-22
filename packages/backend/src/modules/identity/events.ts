@@ -28,3 +28,50 @@ export const sweepSignInRecordsQueue = defineQueue({
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
   schedule: { cron: '*/15 * * * *', payload: { v: 1 } },
 });
+
+/** Opt-in only: the normal release registry does not install or consume this queue. */
+export const ClearExplorationJobSchema = z.strictObject({ v: z.literal(1), accountId: z.uuid(), commandId: z.uuid() });
+export type ClearExplorationJob = z.infer<typeof ClearExplorationJobSchema>;
+export const clearExplorationQueue = defineQueue({
+  name: 'identity.clear-exploration',
+  purpose: 'Complete an existing account-owned Clear operation; no paid work.',
+  payload: ClearExplorationJobSchema,
+  policy: {
+    expireInSeconds: 120,
+    retryLimit: 3,
+    retryDelaySeconds: 30,
+    retryBackoff: true,
+    retentionSeconds: 604800,
+    deleteAfterSeconds: 172800,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 2 },
+});
+
+/** Fixed cron or a strictly advancing finite-pass continuation; neither selects user effects. */
+export const ClearRecoveryJobSchema = z.union([
+  z.strictObject({ v: z.literal(1) }),
+  z.strictObject({
+    v: z.literal(1),
+    cursor: z
+      .strictObject({ afterOperationId: z.uuid(), throughOperationId: z.uuid() })
+      .refine((cursor) => cursor.afterOperationId < cursor.throughOperationId),
+  }),
+]);
+export type ClearRecoveryJob = z.infer<typeof ClearRecoveryJobSchema>;
+export const recoverClearOperationsQueue = defineQueue({
+  name: 'identity.recover-clear-operations',
+  purpose: 'Recover bounded missing Clear deliveries and due exact-set accounting cleanup.',
+  payload: ClearRecoveryJobSchema,
+  policy: {
+    expireInSeconds: 120,
+    retryLimit: 1,
+    retryDelaySeconds: 60,
+    retryBackoff: false,
+    retentionSeconds: 3600,
+    deleteAfterSeconds: 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
+  schedule: { cron: '*/5 * * * *', payload: { v: 1 } },
+});
