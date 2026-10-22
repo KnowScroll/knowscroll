@@ -189,7 +189,10 @@ describe('recording-policy.v1 declaration (synthetic contract fixtures only)', (
 
   it('matches command UUID aliases without changing target, receipt or original command spelling', () => {
     const upper = id.toUpperCase();
-    for (const [targetId, receiptId] of [[id, upper], [upper, id]]) {
+    for (const [targetId, receiptId] of [
+      [id, upper],
+      [upper, id],
+    ]) {
       const value = {
         ...recorded,
         target: { ...target, commandId: targetId },
