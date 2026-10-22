@@ -603,7 +603,7 @@ function keptFixture(kind: 'reel' | 'scroll' = 'reel') {
     calls,
     snapshot,
     unavailableSaved: (value: { assetId: string; assetRevision: number }) => {
-      unavailableSaved = value;
+      unavailableSaved = { assetId: value.assetId, assetRevision: value.assetRevision };
     },
     setMembership: (value: string) => {
       membership = value;
