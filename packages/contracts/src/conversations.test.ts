@@ -15,6 +15,9 @@ import {
   ReadConversationHistorySchema,
   ReadConversationInboxSchema,
   MarkConversationReadSchema,
+  ReadOwnConversationSendSchema,
+  OwnConversationSendSchema,
+  ownConversationSendForRead,
 } from './conversations.js';
 
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -332,4 +335,185 @@ describe('direct conversation wire prerequisite (authored fixtures, no social ru
       }).success,
     ).toBe(false);
   });
+});
+
+describe('current own-send identity lookup (#242; contract fixtures only)', () => {
+  const selector = { kind: 'command', commandId: id(7) };
+  const request = { version, readId: id(40), conversation, selector };
+  const accepted = {
+    ...request,
+    scope,
+    status: 'accepted',
+    messageId: id(41),
+    messageSequence: 1,
+    recordedAt: '2026-10-22T00:00:00.000Z',
+    sent: { kind: 'text' },
+  };
+  it('uses a fresh read and current participation with an immutable, body-free sent identity', () => {
+    const pending = {
+      version,
+      commandId: selector.commandId,
+      conversation,
+      body: { kind: 'text', text: 'PRIVATE_MESSAGE_CANARY' },
+    };
+    const original = JSON.stringify(pending);
+    expect(SendConversationMessageSchema.parse(pending)).toEqual(pending);
+    expect(ReadOwnConversationSendSchema.parse(request)).toEqual(request);
+    expect(OwnConversationSendSchema.parse(accepted)).toEqual(accepted);
+    expect(OwnConversationSendSchema.parse({ ...accepted, sent: { kind: 'content', target } })).toEqual({
+      ...accepted,
+      sent: { kind: 'content', target },
+    });
+    const serialised = JSON.stringify(OwnConversationSendSchema.parse(accepted));
+    expect(serialised).not.toContain('PRIVATE_MESSAGE_CANARY');
+    for (const field of ['body', 'text', 'note', 'replayed', 'operation', 'outcome', 'token'])
+      expect(serialised).not.toContain(`"${field}"`);
+    expect(JSON.stringify(pending)).toBe(original);
+  });
+  it('keeps unavailable ambiguous, without reauthorisation, resend flags or historical epoch receipts', () => {
+    const unavailable = { version, readId: request.readId, scope, selector, status: 'unavailable' };
+    expect(OwnConversationSendSchema.parse(unavailable)).toEqual(unavailable);
+    for (const extra of [
+      { notSent: true },
+      { reason: 'never_recorded' },
+      { conversation },
+      { sent: { kind: 'text' } },
+      { executeAgain: true },
+      { replayed: true },
+    ])
+      expect(OwnConversationSendSchema.safeParse({ ...unavailable, ...extra }).success).toBe(false);
+    for (const status of ['not_sent', 'unknown', 'revoked', 'not_recorded'])
+      expect(OwnConversationSendSchema.safeParse({ ...unavailable, status }).success).toBe(false);
+    for (const extra of [
+      { scope },
+      { body: { kind: 'text', text: 'PRIVATE_MESSAGE_CANARY' } },
+      { commandId: selector.commandId },
+      { recordingGeneration: 3 },
+    ])
+      expect(ReadOwnConversationSendSchema.safeParse({ ...request, ...extra }).success).toBe(false);
+    expect(
+      ReadOwnConversationSendSchema.safeParse({ ...request, selector: { kind: 'message', messageId: id(41) } }).success,
+    ).toBe(false);
+    // Syntax cannot compare separate messages. The consumer must match all initiating echoes,
+    // current scope and current DirectRef after waiting, before accepting this result.
+    expect(OwnConversationSendSchema.safeParse({ ...accepted, readId: id(42) }).success).toBe(true);
+    expect(accepted.readId).toBe(request.readId);
+    expect(accepted.selector).toEqual(request.selector);
+    expect(accepted.conversation).toEqual(request.conversation);
+  });
+  it('refuses private extras, coerced identities and unbounded/invalid counters without stripping them', () => {
+    for (const extra of [
+      { body: { text: 'PRIVATE_MESSAGE_CANARY' } },
+      { note: 'PRIVATE_NOTE_CANARY' },
+      { token: 'PRIVATE_TOKEN_CANARY' },
+      { currentGeneration: 3 },
+    ])
+      expect(OwnConversationSendSchema.safeParse({ ...accepted, ...extra }).success).toBe(false);
+    for (const messageSequence of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1'])
+      expect(OwnConversationSendSchema.safeParse({ ...accepted, messageSequence }).success).toBe(false);
+    expect(
+      ReadOwnConversationSendSchema.safeParse({
+        ...request,
+        conversation: { ...conversation, membershipRevision: '1' },
+      }).success,
+    ).toBe(false);
+    expect(
+      ReadOwnConversationSendSchema.safeParse({ ...request, selector: { ...selector, commandId: undefined } }).success,
+    ).toBe(false);
+  });
+  it('rejects nested getters and non-JSON data before evaluating or defaulting any received value', () => {
+    let calls = 0;
+    const selectorAccessor = Object.defineProperty({ kind: 'command' }, 'commandId', {
+      enumerable: true,
+      get: () => {
+        calls++;
+        return selector.commandId;
+      },
+    });
+    expect(ReadOwnConversationSendSchema.safeParse({ ...request, selector: selectorAccessor }).success).toBe(false);
+    const scopeAccessor = Object.defineProperty({ accountId: scope.accountId }, 'privacyEpoch', {
+      enumerable: true,
+      get: () => {
+        calls++;
+        return 2;
+      },
+    });
+    expect(OwnConversationSendSchema.safeParse({ ...accepted, scope: scopeAccessor }).success).toBe(false);
+    expect(calls).toBe(0);
+    const symbolic = { ...request, [Symbol('PRIVATE_KEY_CANARY')]: true };
+    const hidden = Object.defineProperty({ ...request }, 'PRIVATE_KEY_CANARY', { value: true, enumerable: false });
+    const inherited: unknown = Object.assign(Object.create({ private: true }) as object, request);
+    const cyclic: Record<string, unknown> = { ...request };
+    cyclic['self'] = cyclic;
+    for (const value of [
+      symbolic,
+      hidden,
+      inherited,
+      cyclic,
+      { ...request, ignored: undefined },
+      { ...request, ignored: Infinity },
+    ])
+      expect(ReadOwnConversationSendSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+it('correlates own-send identity with every current request/scope/incarnation field without granting authority', () => {
+  const selector = { kind: 'command', commandId: id(70) };
+  const request = { version, readId: id(71), conversation, selector };
+  const result = {
+    ...request,
+    scope,
+    status: 'accepted',
+    messageId: id(72),
+    messageSequence: 1,
+    recordedAt: '2026-10-22T00:00:00.000Z',
+    sent: { kind: 'text' },
+  };
+  const current = { scope, conversation };
+  expect(ownConversationSendForRead(request, result, current)).toEqual(result);
+  const unavailable = { version, readId: request.readId, selector, scope, status: 'unavailable' };
+  expect(ownConversationSendForRead(request, unavailable, current)).toEqual(unavailable);
+  for (const changed of [
+    { ...result, readId: id(73) },
+    { ...result, selector: { ...selector, commandId: id(73) } },
+    { ...result, scope: { ...scope, accountId: id(73) } },
+    { ...result, scope: { ...scope, privacyEpoch: 3 } },
+    { ...result, conversation: { ...conversation, conversationId: id(73) } },
+    { ...result, conversation: { ...conversation, membershipId: id(73) } },
+    { ...result, conversation: { ...conversation, membershipRevision: 2 } },
+    { ...result, sent: { kind: 'text', text: 'PRIVATE_CANARY' } },
+  ])
+    expect(ownConversationSendForRead(request, changed, current)).toBeUndefined();
+  for (const changed of [
+    undefined,
+    {},
+    { ...current, scope: { ...scope, privacyEpoch: 3 } },
+    { ...current, conversation: { ...conversation, membershipRevision: 2 } },
+  ])
+    expect(ownConversationSendForRead(request, result, changed)).toBeUndefined();
+  expect(
+    ownConversationSendForRead(
+      { ...request, conversation: { ...conversation, membershipId: id(73) } },
+      unavailable,
+      current,
+    ),
+  ).toBeUndefined();
+  const uppercase = 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA';
+  expect(
+    ownConversationSendForRead(
+      { ...request, readId: uppercase },
+      { ...result, readId: uppercase.toLowerCase() },
+      current,
+    )?.readId,
+  ).toBe(uppercase.toLowerCase());
+  let calls = 0;
+  const accessor = Object.defineProperty({ conversation }, 'scope', {
+    enumerable: true,
+    get: () => {
+      calls++;
+      return scope;
+    },
+  });
+  expect(ownConversationSendForRead(request, result, accessor)).toBeUndefined();
+  expect(calls).toBe(0);
 });

@@ -105,7 +105,9 @@ export const ResolvedContentShareSchema = z.discriminatedUnion('status', [
     content: ShareableContentProjectionSchema,
   }),
 ]);
-/** Every current read/replay requires current authority; never treat an old receipt as continued
+/** Public anonymous metadata has its separate public-content-shares.ts boundary; this private
+ * JSON resolver must never be broadly unscoped or used as a public union fallback.
+ * Every current read/replay requires current authority; never treat an old receipt as continued
  * access. Correction keeps exact original ref, explicit current ref, and requires a deliberate
  * canonical Open/activation. External copy/system intent is not confirmed delivery or recall.
  * Social survives Clear; full account deletion separately removes authored private bodies and

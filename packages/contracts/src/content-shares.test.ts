@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PublicContentSharePreviewSchema } from './public-content-shares.js';
 import {
   CreateContentShareSchema,
   CreateContentShareResultSchema,
@@ -187,4 +188,17 @@ describe('whole exact-content share prerequisite (no endpoint or granted access)
       expect(ResolveContentShareSchema.safeParse({ ...read, token: bad }).success).toBe(false);
     expect(ResolveContentShareSchema.safeParse({ ...read, token, peerAccountId: id(8) }).success).toBe(false);
   });
+});
+
+it('retains the existing private conversation resolver without broadening the public projection', () => {
+  const privateResult = {
+    ...read,
+    status: 'conversation',
+    scope,
+    conversation,
+    content: { status: 'available', target, metadata },
+  };
+  expect(ResolvedContentShareSchema.parse(privateResult)).toEqual(privateResult);
+  expect(PublicContentSharePreviewSchema.safeParse(privateResult).success).toBe(false);
+  expect(ResolveContentShareSchema.parse({ ...read, token })).toEqual({ ...read, token });
 });
