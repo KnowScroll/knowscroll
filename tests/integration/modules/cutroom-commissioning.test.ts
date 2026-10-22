@@ -13,9 +13,15 @@ import {
 import {
   cutroomMaintenanceFor,
   makeEnqueueCutroom,
+  makeEnqueueCutroomAccounting,
   makeEnqueueCutroomMaintenance,
 } from '@knowscroll/backend/reasoning/nest-providers';
-import { cutroomPoolQueue, cutroomSettleQueue, recoverCutroomQueue } from '@knowscroll/backend/reasoning';
+import {
+  cutroomPoolQueue,
+  cutroomAccountingQueue,
+  cutroomSettleQueue,
+  recoverCutroomQueue,
+} from '@knowscroll/backend/reasoning';
 import {
   createBoss,
   applyQueueDeclarations,
@@ -137,6 +143,38 @@ describe('connected reservation, closed queue authority and finite durable recov
       accounting(retained!, { kind: 'settle', payload: { v: 1, ...c.target, operationId: randomUUID() } }),
     ).rejects.toThrow('forged or closed');
     expect(send).not.toHaveBeenCalled();
+    // A caller-supplied QueueDefinition cannot mutate the fixed validated payload or
+    // change its name between validation and send through a getter/parser callback.
+    let reads = 0;
+    const callerParser = vi.fn(() => {
+      throw new Error('fixture-caller-parser-must-not-run');
+    });
+    const hostile = {
+      ...cutroomPoolQueue,
+      get name() {
+        return ++reads === 1 ? cutroomPoolQueue.name : 'fixture.paid';
+      },
+      payload: cutroomPoolQueue.payload.superRefine(callerParser),
+    };
+    const payload = {
+      v: 1 as const,
+      worldId: 'dev' as const,
+      generation: 1,
+      attemptId: c.target.attemptId,
+      operationId: randomUUID(),
+    };
+    await f.service().withScope(c.input.authority, 'admit', (scope) => enqueue(scope, hostile, payload));
+    expect(reads).toBe(1);
+    expect(callerParser).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledExactlyOnceWith(cutroomPoolQueue.name, payload, expect.any(Object));
+    const accountingPayload = { v: 1 as const, ...c.target, observationId: randomUUID() };
+    const fixedAccounting = makeEnqueueCutroomAccounting(f.boss, {
+      ...cutroomAccountingQueue,
+      payload: cutroomAccountingQueue.payload.superRefine(callerParser),
+    });
+    await c.accounting(c.target, (scope) => fixedAccounting(scope, accountingPayload));
+    expect(callerParser).not.toHaveBeenCalled();
+    expect(send).toHaveBeenLastCalledWith(cutroomAccountingQueue.name, accountingPayload, expect.any(Object));
   });
   it('consumes one genuine committed C1 permit for exactly stored POST bytes; copied/replayed/lost ACK never authorizes a resend', async () => {
     f = await commissionFixture('onesend');

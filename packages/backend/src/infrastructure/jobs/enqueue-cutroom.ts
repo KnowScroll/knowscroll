@@ -14,14 +14,15 @@ export type EnqueueCutroom = <T>(
 export function makeEnqueueCutroom(boss: PgBoss): EnqueueCutroom {
   return async (scope, queue, payload, startAfter) => {
     const trx = cutroomTransactionOf(scope);
-    const schema = worldWork[queue.name];
+    const name = queue.name;
+    const schema = worldWork[name];
     if (!schema) throw new Error('CUTROOM_FIXED_QUEUE_REQUIRED');
     const data = schema.parse(payload);
     if (data.worldId !== scope.authority.worldId) throw new Error('CUTROOM_JOB_WORLD_MISMATCH');
-    queue.payload.parse(data);
+    // The fixed local schema alone validates; caller callbacks cannot mutate parsed work.
     if (startAfter && (!Number.isFinite(startAfter.getTime()) || startAfter.getTime() > Date.now() + 86400000))
       throw new Error('CUTROOM_MAINTENANCE_DATE');
-    const id = await boss.send(queue.name, data, { db: fromKysely(trx), ...(startAfter ? { startAfter } : {}) });
+    const id = await boss.send(name, data, { db: fromKysely(trx), ...(startAfter ? { startAfter } : {}) });
     if (id === null) throw new Error('CUTROOM_JOB_NOT_CREATED');
   };
 }
@@ -66,7 +67,6 @@ export function makeEnqueueCutroomAccounting(
       data.attemptId !== scope.attemptId
     )
       throw new Error('CUTROOM_ACCOUNTING_SCOPE_MISMATCH');
-    queue.payload.parse(data);
     const id = await boss.send(queueName, data, { db: fromKysely(trx) });
     if (id === null) throw new Error('CUTROOM_ACCOUNTING_JOB_NOT_CREATED');
   };
