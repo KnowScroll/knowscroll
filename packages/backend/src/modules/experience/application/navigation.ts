@@ -18,7 +18,7 @@ import type {
 } from '../../content/public.js';
 import type { GeographyRegionConstraint } from '../../geography/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
-import type { CommandKey, JsonValue } from './ports.js';
+import { originalRecordingGeneration, recordingRequest, type CommandKey, type JsonValue } from './ports.js';
 import type {
   ActivateOffer,
   ComposerSession,
@@ -110,6 +110,7 @@ async function currentRegionOffers(
   ).length;
 }
 function keyOf(p: NavigationPorts, command: NavigationCommand): CommandKey {
+  originalRecordingGeneration(command);
   const { commandId, ...request } = command;
   const operation = isRegionOpen(command)
     ? 'experience.region-open-v1'
@@ -194,6 +195,7 @@ async function receipt(
 }
 interface Prepared {
   readonly kind: 'prepared';
+  readonly recordingGeneration?: number;
   readonly session: ComposerSession;
   readonly creates: boolean;
   readonly source?: { readonly offerId: string; readonly exposureId: string };
@@ -219,6 +221,8 @@ async function prepare(
   if (region.kind !== 'region' && region.kind !== 'none') return region;
   const old = await receipt(p, scope, key, isRegionOpen(c) ? c.capabilities : undefined);
   if (old) return old;
+  const recording = await p.recording?.fence(scope, originalRecordingGeneration(c));
+  if (recording?.kind === 'unavailable') return refuse('SERVICE_UNAVAILABLE');
   const isNav = 'intent' in c;
   const sessionRef = isNav ? { sessionId: c.sessionId, expectedIntentRevision: c.expectedIntentRevision } : c.session;
   const existing = sessionRef ? await p.readSession(scope, sessionRef.sessionId) : undefined;
@@ -428,6 +432,7 @@ async function prepare(
   }
   return {
     kind: 'prepared',
+    ...(recording?.kind === 'recording' ? { recordingGeneration: recording.scope.generation } : {}),
     session,
     creates: !existing,
     ...(source ? { source } : {}),
@@ -465,11 +470,14 @@ async function variants(
 export function makeNavigateEncounter(p: NavigationPorts) {
   return async (authority: PersonalAuthority, c: NavigationCommand): Promise<NavigationResult> => {
     const key = keyOf(p, c);
+    // A rerank cannot upgrade the original preparation after a policy transition.
+    let firstEligibility: number | null | undefined;
     for (let attempt = 0; attempt < 2; attempt++) {
       const entry = await p.withPersonalScope(authority, (s) => prepare(p, s, c, key));
       if (entry.kind !== 'entered') return refuse(scopeCode(entry.refusal.kind));
       const prepared = entry.value;
       if (prepared.kind !== 'prepared') return prepared;
+      if (firstEligibility === undefined) firstEligibility = prepared.recordingGeneration ?? null;
       const decision = p.compose(prepared.snapshot);
       const commit = await p.withPersonalScope(
         authority,
@@ -585,7 +593,16 @@ export function makeNavigateEncounter(p: NavigationPorts) {
                 : {}),
             });
           }
+          const recording = await p.recording?.fence(scope, originalRecordingGeneration(c));
+          if (recording?.kind === 'unavailable') return refuse('SERVICE_UNAVAILABLE');
+          const eligible =
+            recording?.kind === 'recording' &&
+            recording.scope.generation === prepared.recordingGeneration &&
+            recording.scope.generation === firstEligibility
+              ? recording.scope.generation
+              : undefined;
           await p.insertReceipt(scope, key);
+          await p.recording?.remember(scope, key, originalRecordingGeneration(c), eligible, p.now());
           await p.writeSession(scope, prepared.session, json('intent' in c ? c.intent : c.target), prepared.creates);
           await p.persistDecision(
             scope,
@@ -598,6 +615,12 @@ export function makeNavigateEncounter(p: NavigationPorts) {
             decision,
           );
           await p.insertOffers(scope, offers);
+          await p.recording?.bindOfferOrigins(
+            scope,
+            offers.map((o) => o.id),
+            c.commandId,
+            eligible,
+          );
           const revision = await p.advanceRevision(scope);
           const common = {
             commandId: c.commandId,
@@ -646,7 +669,7 @@ export function makeActivateOffer(p: NavigationPorts): ActivateOffer {
     const key = {
       commandId: c.commandId,
       operation,
-      requestHash: p.hashRequest(operation, json(c.target)),
+      requestHash: p.hashRequest(operation, json({ ...c.target, ...recordingRequest(c) })),
       outcomeVersion: 1,
     };
     const entered = await p.withPersonalScope(authority, async (scope) => {
@@ -699,10 +722,20 @@ export function makeActivateOffer(p: NavigationPorts): ActivateOffer {
       const bound = await p.readMember(scope, session.id, offer.id);
       let exposureId = bound?.exposureId;
       let activatedAt = bound?.activatedAt;
+      const at = p.now();
+      const recording = await p.recording?.fence(scope, originalRecordingGeneration(c));
+      if (recording?.kind === 'unavailable') return { kind: 'refused' as const, code: 'SERVICE_UNAVAILABLE' as const };
       await p.insertReceipt(scope, key);
+      await p.recording?.remember(
+        scope,
+        key,
+        originalRecordingGeneration(c),
+        recording?.kind === 'recording' ? recording.scope.generation : undefined,
+        at,
+      );
       if (!exposureId) {
         exposureId = p.newId();
-        const now = p.now();
+        const now = at;
         await p.insertExposure(scope, {
           id: exposureId,
           ...ref(exact),
@@ -720,12 +753,20 @@ export function makeActivateOffer(p: NavigationPorts): ActivateOffer {
           offer.regionConstraint ? issueRegionPermit(scope, offer.id) : undefined,
         );
         const metadata = await p.readAttribution(scope, ref(exact));
-        if (metadata) await p.recordActivation(scope, exposureId, metadata, offer);
-        await p.enqueueActivity(scope, exposureId);
+        if (metadata) await p.recordActivation(scope, exposureId, metadata, offer, originalRecordingGeneration(c));
+        await p.enqueueActivity(scope, exposureId, originalRecordingGeneration(c));
         if (offer.source && (offer.mode === 'series' || offer.mode === 'related'))
-          await p.enqueueActivity(scope, offer.source.exposureId);
+          await p.enqueueActivity(scope, offer.source.exposureId, originalRecordingGeneration(c));
         activatedAt = now.toISOString();
       }
+      const offerGeneration = await p.recording?.offerOrigin(scope, offer.id);
+      if (recording?.kind === 'recording')
+        await p.recording?.activation(recording.scope, exposureId, c.commandId, at, {
+          fresh: !bound,
+          mode: offer.mode,
+          ...(offer.source ? { source: offer.source.exposureId } : {}),
+          ...(offerGeneration === undefined ? {} : { eligibleGeneration: offerGeneration }),
+        });
       const revision = bound ? scope.revisionAtEntry : await p.advanceRevision(scope);
       const outcome = ActivateOfferResponseSchema.parse({
         commandId: c.commandId,

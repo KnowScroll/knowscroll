@@ -1,7 +1,13 @@
+import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
+import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import { readFileSync } from 'node:fs';
 import type { PgBoss } from 'pg-boss';
 import { createBoss, makeEnqueueJob, type EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  fencePersonalRecording,
+  makeWithPersonalScope,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
 import { RENDER_SCROLL, type ImportEditorialScroll, type RenderScroll } from '@knowscroll/backend/modules/content';
 import {
   contentProviders,
@@ -124,6 +130,8 @@ export async function scrollUseCases(
   readonly readContext: ReadExposureContext;
   readonly applyEncounterAction: ApplyEncounterAction;
   readonly listSaved: ListSaved;
+  /** Actual owning effect from this fixture graph, for delegation/failure wrappers. */
+  readonly activityContextEffect: ActivityDerivedEffect;
   readonly projectActivity: ProjectEncounterActivity;
   readonly reconcileActivity: ReconcileEncounterActivity;
   readonly readPrepared: ReadPreparedEvidenceInput;
@@ -147,6 +155,8 @@ export async function scrollUseCases(
   const enqueue = makeEnqueueJob(boss);
   const scope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
   const values = new Map<symbol, unknown>([
+    [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
+    [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
     [DATABASE, database.db],
     [SCOPE, options.wrapScope ? options.wrapScope(scope) : scope],
     [ENQUEUE, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],
@@ -192,6 +202,7 @@ export async function scrollUseCases(
     readContext: build(READ_EXPOSURE_CONTEXT) as ReadExposureContext,
     applyEncounterAction: build(APPLY_ENCOUNTER_ACTION) as ApplyEncounterAction,
     listSaved: build(LIST_SAVED) as ListSaved,
+    activityContextEffect: values.get(ACTIVITY_CONTEXT_EFFECT) as ActivityDerivedEffect,
     projectActivity: build(PROJECT_ENCOUNTER_ACTIVITY) as ProjectEncounterActivity,
     reconcileActivity: build(RECONCILE_ENCOUNTER_ACTIVITY) as ReconcileEncounterActivity,
     readPrepared: values.get(READ_PREPARED_ACTIVITY) as ReadPreparedEvidenceInput,

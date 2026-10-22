@@ -1,10 +1,11 @@
+import type { RecordingChannelsResult } from './ports.js';
 import type { JsonValue } from './ports.js';
 import { ApplyActionResponseSchema, type ApplyActionRequest, type ProblemCode } from '@knowscroll/contracts';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import type { FindAssetForAction } from '../../content/public.js';
 import type { Exposure } from '../domain/exposures.js';
 type ReadExposureForEvidence = (scope: PersonalScopeTx, id: string) => Promise<Omit<Exposure, 'origin'> | undefined>;
-import type { CommandPorts } from './ports.js';
+import { recordingRequest, type CommandPorts } from './ports.js';
 export interface ChannelState {
   readonly saved: boolean;
   readonly savedRevision?: number;
@@ -23,6 +24,9 @@ export interface ChannelAction {
   readonly assetRevision: number;
   readonly exposureId?: string;
   readonly at: Date;
+  readonly recordingGeneration?: number;
+  readonly operation?: string;
+  readonly necessaryChanged?: boolean;
 }
 export interface EncounterActionPorts extends CommandPorts {
   readonly findAsset: FindAssetForAction;
@@ -32,7 +36,7 @@ export interface EncounterActionPorts extends CommandPorts {
     scope: PersonalScopeTx,
     action: ChannelAction,
     before: ChannelState,
-  ) => Promise<{ readonly changed: boolean }>;
+  ) => Promise<{ readonly changed: boolean; readonly recording?: RecordingChannelsResult }>;
   readonly advance: (scope: PersonalScopeTx) => Promise<number>;
   readonly notify: (
     scope: PersonalScopeTx,
@@ -42,7 +46,12 @@ export interface EncounterActionPorts extends CommandPorts {
 export function makeApplyEncounterAction(p: EncounterActionPorts) {
   return async (authority: PersonalAuthority, c: ApplyActionRequest) => {
     const operation = 'experience.encounter-action-v0';
-    const request = { kind: c.kind, target: c.target, ...(c.exposureId ? { exposureId: c.exposureId } : {}) };
+    const request = {
+      ...recordingRequest(c),
+      kind: c.kind,
+      target: c.target,
+      ...(c.exposureId ? { exposureId: c.exposureId } : {}),
+    };
     const key = {
       commandId: c.commandId,
       operation,
@@ -90,10 +99,17 @@ export function makeApplyEncounterAction(p: EncounterActionPorts) {
           assetRevision: c.target.assetRevision,
           ...(c.exposureId ? { exposureId: c.exposureId } : {}),
           at: p.now(),
+          operation,
+          ...recordingRequest(c),
         },
         before,
       );
-      const revision = effect.changed ? await p.advance(scope) : scope.revisionAtEntry;
+      const derived = effect.recording;
+      const revision = derived?.changed
+        ? derived.revision
+        : effect.changed
+          ? await p.advance(scope)
+          : scope.revisionAtEntry;
       const saved = c.kind === 'save' ? true : c.kind === 'unsave' ? false : before.saved;
       const liked = c.kind === 'like' ? true : c.kind === 'unlike' ? false : before.liked;
       const hidden = c.kind === 'hide' ? true : before.hidden;
@@ -108,7 +124,7 @@ export function makeApplyEncounterAction(p: EncounterActionPorts) {
         replayed: false,
       });
       await p.completeReceipt(scope, c.commandId, JSON.parse(JSON.stringify(outcome)) as Record<string, JsonValue>);
-      if (effect.changed) await p.notify(scope, { revision, eventId: actionId });
+      if (effect.changed || effect.recording?.changed) await p.notify(scope, { revision, eventId: actionId });
       return { kind: 'applied' as const, outcome };
     });
     return entered.kind === 'entered'

@@ -9,6 +9,7 @@ import { OfferRegionConstraintSchema } from '../application/navigation-ports.js'
 import { consumeRegionActivationPermit } from '../application/navigation.js';
 import type { ReadActivityLineage, ReadRoutingHistory } from '../public.js';
 import { readExposure } from './postgres-store.js';
+import { legacyRecording } from './recording-store.js';
 const own = (scope: PersonalScopeTx) => ({
   u: scope.authority.universeId,
   e: scope.authority.privacyEpoch,
@@ -169,6 +170,7 @@ export async function recordActivation(
   id: string,
   metadata: EncounterAttribution,
   offer?: StoredOffer,
+  originalGeneration?: number,
 ): Promise<void> {
   const { u, e, db } = own(scope);
   const exposure = await readExposure(scope, id);
@@ -179,7 +181,9 @@ export async function recordActivation(
   }>`select activated_at from experience.encounter_lineage where universe_id=${u}::uuid and privacy_epoch=${e} and explanation_unit_id=${metadata.explanationUnitId} and exposure_id<>${id}::uuid and activated_at<=${at} order by activated_at desc,exposure_id limit 1`.execute(
     db,
   );
+  const growth = await legacyRecording(scope, originalGeneration);
   const returned =
+    growth !== undefined &&
     offer?.mode === 'return' &&
     prior.rows[0] !== undefined &&
     at.getTime() - new Date(prior.rows[0].activated_at).getTime() >= 30 * 60000;
@@ -190,7 +194,8 @@ export async function recordActivation(
     db,
   );
   if (offer) {
-    const horizontal = (offer.mode === 'series' || offer.mode === 'related') && offer.source !== undefined;
+    const horizontal =
+      growth !== undefined && (offer.mode === 'series' || offer.mode === 'related') && offer.source !== undefined;
     await sql`insert into experience.navigation_transitions(universe_id,privacy_epoch,target_exposure_id,source_exposure_id,offer_id,session_id,mode,horizontal,returned,policy_version) values(${u}::uuid,${e},${id}::uuid,${offer.source?.exposureId ?? null}::uuid,${offer.id}::uuid,${offer.sessionId}::uuid,${offer.mode},${horizontal},${returned},'activity.v0') on conflict(universe_id,target_exposure_id) do nothing`.execute(
       db,
     );

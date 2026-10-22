@@ -1,5 +1,5 @@
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
@@ -73,13 +73,33 @@ export async function readActionForEvidence(
 ): Promise<ActionForEvidence | undefined> {
   const row = await transactionOf(scope)
     .selectFrom('experience.actions')
-    .select(['id', 'kind', 'asset_id', 'asset_revision', 'privacy_epoch'])
+    .select(['id', 'command_id', 'kind', 'asset_id', 'asset_revision', 'privacy_epoch'])
     .where('universe_id', '=', scope.authority.universeId)
     .where('id', '=', actionId)
     .executeTakeFirst();
   if (row === undefined) return undefined;
+  const origins = await sql<{
+    original_generation: number | null;
+    eligible_generation: number | null;
+  }>`select o.original_generation,o.eligible_generation from experience.actions a join experience.recording_command_origins o on o.universe_id=a.universe_id and o.command_id=a.command_id and o.privacy_epoch=a.privacy_epoch where a.universe_id=${scope.authority.universeId}::uuid and a.privacy_epoch=${scope.authority.privacyEpoch} and a.id=${row.id}::uuid`.execute(
+    transactionOf(scope),
+  );
+  const origin = origins.rows[0]
+    ? {
+        original: origins.rows[0].original_generation ?? undefined,
+        eligible: origins.rows[0].eligible_generation ?? undefined,
+      }
+    : undefined;
   return {
+    recordingOrigin: origin
+      ? {
+          kind: 'recorded',
+          ...(origin.original === undefined ? {} : { originalGeneration: origin.original }),
+          ...(origin.eligible === undefined ? {} : { eligibleGeneration: origin.eligible }),
+        }
+      : { kind: 'legacy' },
     id: row.id,
+    commandId: row.command_id,
     kind: row.kind as ActionForEvidence['kind'],
     assetId: row.asset_id,
     assetRevision: row.asset_revision,

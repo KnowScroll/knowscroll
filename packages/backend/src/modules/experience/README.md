@@ -251,3 +251,75 @@ Every chosen and buffered regional discovery offer carries an immutable private 
 The concrete personal erasure inventory includes `offer_region_constraints`, removed before offers across all epochs by both full erasure and selective Clear. Saved items, Saved places and shared Content projection survive selective Clear. Historical Geography IDs deliberately have no live Geography FK because Geography erases earlier in the registry; activation always rechecks live Geography instead. Content mapping FKs retain the exact immutable accounting of selection, never permission to activate an old mapping.
 
 Schema0037 adds structural compatibility guards. Old writers cannot bind a regional offer without the new transaction-local protocol marker or commit a generic vertical child that sheds its parent Region. The new adapter sets the marker only after consuming an unforgeable one-use live-scope/offer permit minted after current authority checks; the marker alone is not business authority and disappears on commit/rollback. Ordinary legacy offers keep their behavior. A rolling downgrade is unsupported: incompatible processes must be stopped, and the existing exact schema release guard must refuse old code against schema37. These guards do not retroactively give an old process the new read/receipt replay checks.
+
+
+## Recording provenance prerequisite (#381, source only)
+
+The command/offer/session hooks implement the reviewed recording design without exposing a
+Pause controller or toggle. The immutable original optional `recordingGeneration` participates
+in command hashing only when supplied; omitted bodies retain their original hashes. Supplied
+undefined/malformed fields refuse rather than downgrade. An own-account UPDATE/fresh authority
+fence follows the real personal-root wait and precedes every command receipt lookup. Replay
+returns the original acknowledgement without a new action, origin, session, queue or correction.
+
+Necessary Saved/Like/Hide/navigation/Keep state and receipts still commit while recording is off,
+stale or missing after the first toggle. Their immutable `recording_command_origins` store the
+original supplied generation and independently eligible generation, never resumed server-current.
+Composer Tx1 eligibility survives the outside-transaction compose and bounded rerank; Tx2 can only
+narrow it. Each of at most three offers retains that intent origin. H/R requires that intent and
+actual activation to be eligible in the same generation. Old source exposures gain no H without an
+actual same-generation activation. Routing/opening/grants alone never qualify consumption.
+
+The original provider composition is a **legacy initial1/on compatibility composition**. Its real
+recording fence refuses collection after any toggle, even if a fresh command supplies generation3.
+It does not provide v2 recording readiness. The explicit recording-aware composition requires
+`options.recordingEffects` naming a complete `ExperienceRecordingEffects` provider. Missing or
+incomplete methods refuse factory construction; there is no empty success implementation. Evidence
+owns its session/queue/reducer adapter and the required PC effect. API/worker composition and all
+recorder/client/role consumers must be separately completed before controls are exposed.
+
+A fresh eligible activation command may create a session even when the immutable exposure is
+already active. Its command ID is the recorder session ID. `serverStartedAt` is captured within
+that accepted root/account transaction; only the client monotonic clock starts after the correlated
+ACK. Exact replay creates no session. The generation segment stores immutable attribution and a
+separate first actual eligible activation pair; an action/correction initialization is not an
+encounter or R predecessor. A bounded reverse exact-exposure index seek checks the pinned descriptor;
+changed attribution creates no new session. A restart preserves the first activation and earns no
+H/R. Session creation alone enqueues no zero-valued activity or semantic growth.
+
+L/B uses an independent latest eligible asset/channel pointer in `action_state`, separate from
+necessary flags/origins. A positive domain no-op cannot backfill a paused Save/Like. A fresh eligible
+negative may retract a prior generation's effective credit, including when necessary state is
+already false. A real new positive edge atomically moves the pointer and corrects at most old/new
+two exposures. Current-generation inherit/true/false overrides bind the exact original action and
+source generation; old audit heads remain immutable. The legacy use case passes its authoritative
+pre-write `changed` result rather than inferring an edge from the post-write Saved row.
+
+The synchronous owning effect returns `{changed:false}` or `{changed:true,revision}`. On an actual
+derived delta Evidence allocates one revision/material-change effect for the complete group and
+emits no notice; Experience reuses it for the command acknowledgement and emits its single notice.
+Necessary-only changes advance once as before. Failure of either exposure/required effect rolls
+pointer, origin, action, receipt, domain state, aggregates and jobs back together. The derived port
+uses the genuine `RecordingScopeTx`; it does not retag the old source as current input. PC must use
+its own committed baseline and separately current segment qualification, never Evidence's inherited
+aggregate-qualified flag.
+
+**Legacy certification remains unimplemented and unallocated.** New nullable pointer state means
+uncertified, never false. Neither current Saved/Like flags nor the newest action proves uniqueness:
+a retained committed E1 positive may coexist with a pending old retraction and a later E2 pointer.
+Recording-aware positive credit therefore stays unavailable for uncertified channels. The safe next
+seam is an explicitly allocated initial1/on durable finite-page certification over real committed
+sources and pending-work convergence, with an authenticated epoch/generation-bound ceiling/cursor,
+fixed page budgets and typed unknown/overflow. A toggle invalidates incomplete work; it cannot
+repair old inputs after resume. No certification operation, historical scan/backfill or implicit
+initialization is included here. Existing selective Clear erases all four new Experience stores
+and the entire pointer row while preserving Saved; surviving Saved state cannot recreate credit.
+Epoch-only invalidation also resets recording fields to uncertified rather than inheriting them.
+
+Actions-only fixtures retain all prior assertions and add original-hash separation, off/stale
+necessary effects, replay after toggles, real root/account waits and required-port rollback.
+The new recording-aware positive Evidence/PC composition, finite legacy certification, deployed
+journeys and complete Pause acceptance remain separate prerequisites. Remaining concrete consumers
+include `apps/api/src/modules/experience.ts`, `apps/api/src/modules/evidence.ts`, worker job/owning
+Evidence provider selection and the recording-aware client/recorder wiring; none is activated by
+this source slice.
