@@ -100,9 +100,12 @@ describe('the daily caps hold under concurrent proposals (real database, fixture
     const arrived = gate();
     const unprotectedReads = gate();
     const reachedTransport = gate();
+    const firstWave = gate();
+    const waveSize = Math.min(database.settings.poolMax, participants.length);
     const arrivals = new Set<number>();
     const arrive = (index: number) => {
       arrivals.add(index);
+      if (Array.from({ length: waveSize }, (_, index) => index).every((index) => arrivals.has(index))) firstWave.open();
       if (arrivals.size === participants.length) arrived.open();
     };
     const model = fixtureModel(() => ({ kind: 'hold', until: release.promise }));
@@ -130,7 +133,7 @@ describe('the daily caps hold under concurrent proposals (real database, fixture
             ) as held`.execute(transactionOf(scope));
           if (lock.rows[0]?.held !== true) {
             readers += 1;
-            if (readers === Math.min(database.settings.poolMax, participants.length)) unprotectedReads.open();
+            if (readers === waveSize) unprotectedReads.open();
             await unprotectedReads.promise;
           }
         }
@@ -139,7 +142,12 @@ describe('the daily caps hold under concurrent proposals (real database, fixture
     };
     // Each call gets its own wrapper so transport arrival maps to the proposal, even when many
     // participants share one universe. The underlying fixture still records every real send.
-    const proposals = participants.map((person, index) => {
+    // For snapshot alignment, start one full pool-sized wave first. Once that wave has committed
+    // admission and reached transport/refusal, the remaining competitors read its reservations.
+    // This keeps a sixth stale snapshot from being refused by the separate five-run role brake
+    // after the lock-removal mutation: all excess proposals must exercise the actual spend cap.
+    const proposals = participants.map(async (person, index) => {
+      if (options.alignUnprotectedReads === true && index >= waveSize) await firstWave.promise;
       const participant = fixtureHarness(db(), {
         model: {
           ...model,
@@ -183,6 +191,7 @@ describe('the daily caps hold under concurrent proposals (real database, fixture
     } finally {
       clearTimeout(watchdog);
       reachedTransport.open();
+      firstWave.open();
       unprotectedReads.open();
       release.open({ kind: 'success', text: '{"ok": true, "echo": "lantern"}' });
       await Promise.allSettled(proposals);
