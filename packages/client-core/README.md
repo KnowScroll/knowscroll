@@ -227,7 +227,8 @@ exact-handle lookup, pair, invite-status and invite-resolution reads. Constructi
 actual active AccountScope and synchronous `onEnd`. Every request uses `scope.api`; schema parsing
 and scope/operation/command/reference/revision checks happen before publication. The transport
 retains at most 64 KiB of accepted decoded output per response; this is not a pre-decode allocation
-guarantee. State is deeply frozen, ephemeral and independent for each scope object. No response,
+guarantee. Schema-validated UUID references compare case-insensitively without rewriting wire
+values; command/read correlation IDs, opaque cursors and invite secrets remain exact. State is deeply frozen, ephemeral and independent for each scope object. No response,
 receipt, cursor or invite token is a query-cache payload, storage record, URL or log entry.
 
 `command(operation, draft)` adds one UUID and the contract version only after an explicit caller
@@ -255,5 +256,13 @@ visitor, visibility, conversation, player position or personal observation consu
 
 Tests are authored HTTP/protocol fixtures and run only in GitHub Actions. They do not establish
 mounted Friends UI, actual backend availability, real friendships or a connected device journey.
-The roster adapter is being upgraded to the separately versioned bounded-scan page contract;
-legacy `sharing.v1` contracts remain unchanged.
+Roster reads use only the separately versioned `friend-pages.v2` namespace/routes, with a fresh
+`requestId` from the same UUID supplier (`newCommandId`); an ID on a read implies no mutation.
+The response must bind request ID, current scope, selected filter, cursor snapshot and requested
+limit. Only absence of `next` ends the captured scan: an empty page with `next` is a scan
+continuation, and Next makes exactly one more request. There is no automatic empty-page draining.
+The current page contains at most 50 items; eight opaque previous page-start cursors are retained,
+with no old page bodies. Previous traverses only that bounded window; Refresh restarts from the
+beginning. Stale/invalid continuations discard the window and require explicit Refresh. Repeated
+current/retained tokens are refused; the server authenticates finite advancing scan authority.
+Legacy `sharing.v1` contracts remain unchanged and are never a downgrade/fallback path.

@@ -211,6 +211,44 @@ describe('Friends scoped HTTP transport (authored fixtures)', () => {
     ).rejects.toBeInstanceOf(FriendsHttpError);
     h.scope.end();
   });
+  it('compares UUID peer/scope/link references semantically while preserving wire bytes', async () => {
+    const h = fixture((request) =>
+      new URL(request.url).pathname.endsWith('/read')
+        ? {
+            ...envelope,
+            scope: { ...scopeValue, accountId: scopeValue.accountId.toUpperCase() },
+            status: 'available',
+            pair,
+          }
+        : new URL(request.url).pathname.endsWith('/revoke')
+          ? {
+              ...acceptance,
+              operation: 'invite.revoke',
+              linkId: id(9),
+              baseInviteRevision: 1,
+              acceptedInviteRevision: 2,
+            }
+          : {
+              ...acceptance,
+              operation: 'friend.remove',
+              peerPersonId: peer.personId,
+              basePairRevision: 2,
+              acceptedPairRevision: 3,
+            },
+    );
+    await h.http.call('pair', { version: 'sharing.v1', peerPersonId: peer.personId.toUpperCase() });
+    await h.http.call('remove', { ...command, version: 'sharing.v1', peerPersonId: peer.personId.toUpperCase() });
+    await h.http.call('revokeInvite', {
+      version: 'sharing.v1',
+      commandId: id(8),
+      linkId: id(9).toUpperCase(),
+      expectedInviteRevision: 1,
+    });
+    expect(h.calls[0]!.input.peerPersonId).toBe(peer.personId.toUpperCase());
+    expect(h.calls[1]!.input.peerPersonId).toBe(peer.personId.toUpperCase());
+    expect(h.calls[2]!.input.linkId).toBe(id(9).toUpperCase());
+    h.scope.end();
+  });
   it('never accepts replayed invite secret delivery', async () => {
     const entry = cases.find((c) => c.operation === 'createInvite')!;
     const h = fixture(() => ({
@@ -265,6 +303,111 @@ describe('Friends scoped HTTP transport (authored fixtures)', () => {
     await expect(h.http.call('lookup', { version: 'sharing.v1', handle: peer.handle })).rejects.toMatchObject({
       reason: 'invalid',
     });
+    h.scope.end();
+  });
+});
+
+const cursor = (filter: 'friends' | 'blocked' | 'incoming' | 'outgoing', value = 'opaque_next') => ({
+  scope: scopeValue,
+  filter,
+  snapshotRevision: 7,
+  token: value,
+});
+const pageInput = { version: 'friend-pages.v2' as const, requestId: id(20), filter: 'friends' as const, limit: 2 };
+const pageOutput = {
+  version: 'friend-pages.v2',
+  requestId: id(20),
+  scope: scopeValue,
+  filter: 'friends',
+  snapshotRevision: 7,
+  items: [pair],
+};
+describe('Friends v2 bounded scan HTTP (authored fixtures)', () => {
+  it.each(['friends', 'blocked', 'incoming', 'outgoing'] as const)(
+    'uses only the v2 %s endpoint and correlates a pure read',
+    async (filter) => {
+      const h = fixture(() => ({ ...pageOutput, filter, items: [], next: cursor(filter) }));
+      const operation = filter === 'friends' || filter === 'blocked' ? 'friends' : 'requests';
+      const input = { ...pageInput, filter };
+      await h.http.call(operation, input);
+      expect(h.calls).toEqual([
+        { path: `/v1/social/${operation}/page`, method: 'POST', input, scope: `${account.accountId}:1` },
+      ]);
+      expect(h.scope.queryClient.getQueryCache().getAll()).toEqual([]);
+      expect(h.store.keys()).toEqual([]);
+      h.scope.end();
+    },
+  );
+  it('accepts empty+next as an advancing scan continuation, not a false terminal empty roster', async () => {
+    const h = fixture(() => ({ ...pageOutput, items: [], next: cursor('friends') }));
+    const value = await h.http.call('friends', pageInput);
+    expect(value.items).toEqual([]);
+    expect(value.next?.token).toBe('opaque_next');
+    expect(h.calls).toHaveLength(1);
+    h.scope.end();
+  });
+  it.each([
+    'requestId',
+    'scope',
+    'epoch',
+    'filter',
+    'head',
+    'limit',
+    'repeated',
+    'duplicate',
+    'alias_duplicate',
+    'private',
+    'v1',
+  ] as const)('refuses wrong %s without a v1 downgrade', async (field) => {
+    const output = { ...pageOutput, next: cursor('friends', 'next_after_current'), items: [pair] };
+    let response: unknown = output;
+    if (field === 'requestId') output.requestId = id(99);
+    if (field === 'scope') {
+      output.scope = { accountId: id(99), privacyEpoch: 1 };
+      output.next = { ...output.next, scope: output.scope };
+    }
+    if (field === 'epoch') {
+      output.scope = { ...scopeValue, privacyEpoch: 2 };
+      output.next = { ...output.next, scope: output.scope };
+    }
+    if (field === 'filter') response = { ...output, filter: 'blocked', items: [], next: cursor('blocked') };
+    if (field === 'head') {
+      output.snapshotRevision = 8;
+      output.next.snapshotRevision = 8;
+    }
+    if (field === 'limit')
+      output.items = [
+        pair,
+        { ...pair, peer: { ...peer, personId: id(31) } },
+        { ...pair, peer: { ...peer, personId: id(32) } },
+      ];
+    if (field === 'repeated') output.next.token = 'current';
+    if (field === 'duplicate') output.items = [pair, pair];
+    if (field === 'alias_duplicate')
+      output.items = [pair, { ...pair, peer: { ...peer, personId: peer.personId.toUpperCase() } }];
+    if (field === 'private') response = { ...output, privatePairRoot: id(99) };
+    if (field === 'v1') response = { ...envelope, filter: 'friends', snapshotRevision: 7, items: [pair] };
+    const h = fixture(() => response);
+    await expect(h.http.call('friends', { ...pageInput, cursor: cursor('friends', 'current') })).rejects.toMatchObject({
+      reason: 'invalid',
+    });
+    expect(h.calls).toHaveLength(1);
+    expect(h.calls[0]!.path).toBe('/v1/social/friends/page');
+    h.scope.end();
+  });
+  it('refuses foreign or mismatched-filter cursor input before any request', async () => {
+    const h = fixture(() => pageOutput);
+    await expect(
+      h.http.call('friends', {
+        ...pageInput,
+        cursor: { ...cursor('friends'), scope: { ...scopeValue, privacyEpoch: 2 } },
+      }),
+    ).rejects.toMatchObject({ reason: 'invalid', ambiguous: false });
+    await expect(h.http.call('friends', { ...pageInput, cursor: cursor('blocked') })).rejects.toMatchObject({
+      reason: 'invalid',
+      ambiguous: false,
+    });
+    expect(h.calls).toEqual([]);
     h.scope.end();
   });
 });

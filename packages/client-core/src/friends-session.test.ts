@@ -43,7 +43,7 @@ function fixture(
   handler: (path: string, input: Record<string, unknown>, signal: AbortSignal) => unknown,
   signedIn = account,
 ) {
-  const calls: { path: string; input: Record<string, unknown>; signal: AbortSignal }[] = [];
+  const calls: { path: string; input: Record<string, unknown>; signal: AbortSignal; body: string }[] = [];
   const store = memoryStore();
   const scope = createAccountScope({
     account: signedIn,
@@ -52,8 +52,9 @@ function fixture(
     baseUrl: 'https://friends.fixture.test',
     fetch: async (request) => {
       const path = new URL(request.url).pathname;
-      const input = request.method === 'GET' ? {} : ((await request.json()) as Record<string, unknown>);
-      calls.push({ path, input, signal: request.signal });
+      const body = request.method === 'GET' ? '' : await request.text();
+      const input = body ? (JSON.parse(body) as Record<string, unknown>) : {};
+      calls.push({ path, input, signal: request.signal, body });
       const value = await handler(path, input, request.signal);
       return value instanceof Response
         ? value
@@ -126,12 +127,51 @@ describe('Friends ephemeral scoped session (authored fixtures)', () => {
     expect(h.newCommandId).toHaveBeenCalledTimes(1);
     await h.session.retryCommand();
     expect(h.calls[2]!.input).toEqual(first);
+    expect(h.calls[2]!.body).toBe(h.calls[1]!.body);
     expect(h.newCommandId).toHaveBeenCalledTimes(1);
     expect(h.session.getState().command).toMatchObject({ status: 'accepted', acceptance: { replayed: true } });
     expect(h.session.getState().lookup.status).toBe('idle');
     expect(h.session.getState().pair.status).toBe('idle');
     await h.session.retryCommand();
     expect(h.calls).toHaveLength(3);
+    h.scope.end();
+  });
+  it('retains original UUID case in unknown retries while matching the selected semantic peer', async () => {
+    let sends = 0;
+    const h = fixture((path, input) =>
+      path.endsWith('lookup')
+        ? lookup
+        : ++sends === 1
+          ? Promise.reject(new TypeError('authored lost ACK'))
+          : { ...ack(input), peerPersonId: peer.personId },
+    );
+    await h.session.lookup(peer.handle);
+    await h.session.command('request', { ...draft(), expectedPeerPersonId: peer.personId.toUpperCase() });
+    expect(h.session.getState().command.status).toBe('unknown');
+    await h.session.retryCommand();
+    expect(h.calls[1]!.input.expectedPeerPersonId).toBe(peer.personId.toUpperCase());
+    expect(h.calls[2]!.input).toEqual(h.calls[1]!.input);
+    expect(h.calls[2]!.body).toBe(h.calls[1]!.body);
+    expect(h.session.getState().command.status).toBe('accepted');
+    h.scope.end();
+  });
+  it('binds a pair request reference across UUID-case aliases without rewriting its command', async () => {
+    const h = fixture((path, input) =>
+      path.endsWith('pairs/read')
+        ? { ...envelope, status: 'available', pair: { state: 'incoming', peer, pairRevision: 2, requestId: id(7) } }
+        : { ...ack(input, 'friend.accept'), peerPersonId: peer.personId },
+    );
+    await h.session.readPair(peer.personId.toUpperCase());
+    await h.session.command('accept', {
+      peerPersonId: peer.personId.toUpperCase(),
+      requestId: id(7).toUpperCase(),
+      expectedPairRevision: 2,
+    });
+    expect(h.calls[1]!.input).toMatchObject({
+      peerPersonId: peer.personId.toUpperCase(),
+      requestId: id(7).toUpperCase(),
+    });
+    expect(h.session.getState().command.status).toBe('accepted');
     h.scope.end();
   });
   it('keeps earlier unknown unresolved after a later definitive refusal', async () => {
@@ -280,6 +320,7 @@ describe('Friends ephemeral scoped session (authored fixtures)', () => {
     await h.session.command('createInvite', { expectedInviteRevision: 0 });
     await h.session.retryCommand();
     expect(h.calls[2]!.input).toEqual(h.calls[1]!.input);
+    expect(h.calls[2]!.body).toBe(h.calls[1]!.body);
     expect(h.session.takeInviteToken()).toBeUndefined();
     expect(h.session.getState().command).toMatchObject({
       status: 'accepted',
@@ -327,7 +368,7 @@ describe('Friends ephemeral scoped session (authored fixtures)', () => {
       path.endsWith('/resolve') ? { ...envelope, status: 'available', issuer: peer, pairRevision: 0 } : ack(input),
     );
     await h.session.resolveInvite(token);
-    await h.session.command('request', { ...draft(), target: { kind: 'invite', token: `ksfi_${'t'.repeat(43)}` } });
+    await h.session.command('request', { ...draft(), target: { kind: 'invite', token: `ksfi_${'S'.repeat(43)}` } });
     expect(h.calls).toHaveLength(1);
     await h.session.command('request', { ...draft(), target: { kind: 'invite', token } });
     expect(h.calls).toHaveLength(2);
@@ -454,6 +495,229 @@ describe('Friends ephemeral scoped session (authored fixtures)', () => {
     });
     await h.session.readProfile();
     expect(h.session.getState().status).toBe('ended');
+    h.scope.end();
+  });
+});
+
+function scanPage(input: Record<string, unknown>, items: unknown[] = [], next?: string) {
+  return {
+    version: 'friend-pages.v2',
+    requestId: input.requestId,
+    scope: envelope.scope,
+    filter: input.filter,
+    snapshotRevision: 7,
+    items,
+    ...(next ? { next: { scope: envelope.scope, filter: input.filter, snapshotRevision: 7, token: next } } : {}),
+  };
+}
+function scanPair(filter: unknown, n = 0) {
+  return {
+    state: filter,
+    peer: { ...peer, personId: id(200 + n) },
+    pairRevision: 2,
+    ...(filter === 'friends'
+      ? { availability: { state: 'unknown' } }
+      : filter === 'incoming' || filter === 'outgoing'
+        ? { requestId: id(7) }
+        : {}),
+  };
+}
+describe('Friends v2 roster recovery session (authored fixtures)', () => {
+  it('keeps empty scan continuations recoverable and performs one read per explicit Next', async () => {
+    const h = fixture((_path, input) => {
+      const cursor = input.cursor as { token: string } | undefined;
+      return cursor?.token === 'scan_2'
+        ? scanPage(input, [scanPair(input.filter)])
+        : scanPage(input, [], cursor ? 'scan_2' : 'scan_1');
+    });
+    await h.session.refreshPage();
+    expect(h.session.getState().roster).toMatchObject({
+      status: 'ready',
+      data: { items: [], next: { token: 'scan_1' } },
+    });
+    expect(h.session.getState().canNext).toBe(true);
+    expect(h.calls).toHaveLength(1);
+    await h.session.nextPage();
+    expect(h.session.getState().canNext).toBe(true);
+    expect(h.calls).toHaveLength(2);
+    await h.session.nextPage();
+    expect(h.session.getState().roster).toMatchObject({ status: 'ready', data: { items: [scanPair('friends')] } });
+    expect(h.session.getState().canNext).toBe(false);
+    await h.session.nextPage();
+    expect(h.calls).toHaveLength(3);
+    expect(new Set(h.calls.map((c) => c.input.requestId)).size).toBe(3);
+    expect(h.calls.every((c) => c.path === '/v1/social/friends/page')).toBe(true);
+    h.scope.end();
+  });
+  it.each(['friends', 'incoming', 'outgoing', 'blocked'] as const)(
+    'reads real %s pages without fake people or mutation',
+    async (filter) => {
+      const h = fixture((_path, input) => scanPage(input, [scanPair(input.filter)]));
+      await h.session.selectFilter(filter);
+      expect(h.session.getState().filter).toBe(filter);
+      expect(h.session.getState().roster).toMatchObject({
+        status: 'ready',
+        data: { filter, items: [scanPair(filter)] },
+      });
+      expect(h.calls[0]!.path).toBe(
+        `/v1/social/${filter === 'friends' || filter === 'blocked' ? 'friends' : 'requests'}/page`,
+      );
+      expect(h.calls[0]!.input).toMatchObject({ version: 'friend-pages.v2', limit: 50, filter });
+      expect(h.session.getState().command.status).toBe('idle');
+      expect(h.session.takeInviteToken()).toBeUndefined();
+      h.scope.end();
+    },
+  );
+  it('retains at most fifty current rows and refuses an oversized next page without trimming', async () => {
+    const h = fixture((_path, input) =>
+      scanPage(
+        input,
+        Array.from({ length: input.cursor ? 51 : 50 }, (_, n) => scanPair(input.filter, n)),
+        input.cursor ? undefined : 'next_fifty',
+      ),
+    );
+    await h.session.refreshPage();
+    const first = h.session.getState().roster;
+    expect(first.status === 'ready' && first.data.items.length).toBe(50);
+    await h.session.nextPage();
+    expect(h.session.getState().roster).toEqual({ status: 'unavailable', reason: 'invalid' });
+    expect(h.session.getState().canNext).toBe(false);
+    expect(h.calls).toHaveLength(2);
+    expect(h.scope.queryClient.getQueryCache().getAll()).toEqual([]);
+    h.scope.end();
+  });
+  it('retains only eight previous page-start cursors and no previous page bodies', async () => {
+    const h = fixture((_path, input) => {
+      const value = input.cursor as { token: string } | undefined;
+      const index = value ? Number(value.token.slice(2)) : 0;
+      return scanPage(input, [scanPair(input.filter, index)], `p_${index + 1}`);
+    });
+    await h.session.refreshPage();
+    for (let n = 0; n < 10; n++) await h.session.nextPage();
+    expect(h.session.getState().roster).toMatchObject({ status: 'ready', data: { items: [scanPair('friends', 10)] } });
+    expect(JSON.stringify(h.session.getState())).not.toContain(id(209));
+    for (let n = 0; n < 8; n++) {
+      expect(h.session.getState().canPrevious).toBe(true);
+      await h.session.previousPage();
+    }
+    expect(h.session.getState().canPrevious).toBe(false);
+    expect(h.session.getState().roster).toMatchObject({ status: 'ready', data: { items: [scanPair('friends', 2)] } });
+    const before = h.calls.length;
+    await h.session.previousPage();
+    expect(h.calls).toHaveLength(before);
+    await h.session.refreshPage();
+    expect(h.calls[h.calls.length - 1]!.input).not.toHaveProperty('cursor');
+    expect(h.session.getState().roster).toMatchObject({ status: 'ready', data: { items: [scanPair('friends', 0)] } });
+    expect(h.scope.queryClient.getQueryCache().getAll()).toEqual([]);
+    expect(h.store.keys()).toEqual([]);
+    h.scope.end();
+  });
+  it('stale continuation requires explicit Refresh and never claims an empty terminal roster', async () => {
+    const h = fixture((_path, input) =>
+      input.cursor ? stale() : scanPage(input, [scanPair(input.filter)], 'old_cursor'),
+    );
+    await h.session.refreshPage();
+    await h.session.nextPage();
+    expect(h.calls).toHaveLength(2);
+    expect(h.session.getState().roster).toEqual({ status: 'unavailable', reason: 'refresh_required' });
+    expect(h.session.getState().canNext).toBe(false);
+    expect(h.session.getState().canPrevious).toBe(false);
+    await h.session.nextPage();
+    expect(h.calls).toHaveLength(2);
+    await h.session.refreshPage();
+    expect(h.calls).toHaveLength(3);
+    expect(h.calls[2]!.input).not.toHaveProperty('cursor');
+    expect(h.calls[2]!.input.requestId).not.toBe(h.calls[1]!.input.requestId);
+    h.scope.end();
+  });
+  it('rejects a continuation loop through a retained token with explicit Refresh recovery', async () => {
+    const h = fixture((_path, input) => {
+      const value = input.cursor as { token: string } | undefined;
+      return scanPage(input, [], !value ? 'a' : value.token === 'a' ? 'b' : 'a');
+    });
+    await h.session.refreshPage();
+    await h.session.nextPage();
+    await h.session.nextPage();
+    expect(h.calls).toHaveLength(3);
+    expect(h.session.getState().roster).toEqual({ status: 'unavailable', reason: 'invalid' });
+    expect(h.session.getState().canNext).toBe(false);
+    await h.session.refreshPage();
+    expect(h.calls).toHaveLength(4);
+    expect(h.calls[3]!.input).not.toHaveProperty('cursor');
+    h.scope.end();
+  });
+  it('switching filters drops old cursor authority and fences a late abort-ignoring page', async () => {
+    const delayed = gate<unknown>();
+    const h = fixture((_path, input) =>
+      input.filter === 'friends' ? delayed.promise : scanPage(input, [scanPair(input.filter)]),
+    );
+    const first = h.session.refreshPage();
+    await until(() => h.calls.length === 1);
+    const blocked = h.session.selectFilter('blocked');
+    expect(h.calls).toHaveLength(1);
+    delayed.release(scanPage(h.calls[0]!.input, [scanPair('friends')], 'old_friends'));
+    await first;
+    await blocked;
+    expect(h.session.getState().filter).toBe('blocked');
+    expect(h.session.getState().roster).toMatchObject({
+      status: 'ready',
+      data: { filter: 'blocked', items: [scanPair('blocked')] },
+    });
+    expect(h.calls[1]!.input).not.toHaveProperty('cursor');
+    expect(h.session.getState().canPrevious).toBe(false);
+    h.scope.end();
+  });
+  it('late page success cannot repopulate a new account/epoch or restore cursor history', async () => {
+    const delayed = gate<unknown>();
+    const old = fixture((_path, input) => (input.cursor ? delayed.promise : scanPage(input, [], 'old_next')));
+    await old.session.refreshPage();
+    const work = old.session.nextPage();
+    await until(() => old.calls.length === 2);
+    old.scope.end();
+    const signedIn = { ...account, accountId: id(60), privacyEpoch: 2 };
+    const current = fixture(
+      (_path, input) => ({ ...scanPage(input), scope: { accountId: signedIn.accountId, privacyEpoch: 2 } }),
+      signedIn,
+    );
+    await current.session.refreshPage();
+    const before = current.session.getState();
+    delayed.release(scanPage(old.calls[1]!.input, [scanPair('friends')], 'later_old'));
+    await work;
+    expect(old.session.getState()).toMatchObject({
+      status: 'ended',
+      canPrevious: false,
+      canNext: false,
+      roster: { status: 'idle' },
+    });
+    expect(current.session.getState()).toBe(before);
+    expect(current.session.getState().canPrevious).toBe(false);
+    expect(current.scope.queryClient.getQueryCache().getAll()).toEqual([]);
+    current.scope.end();
+  });
+  it('a newer current list head never invalidates the original unknown command ACK replay', async () => {
+    let sends = 0;
+    const h = fixture((path, input) =>
+      path.endsWith('/lookup')
+        ? lookup
+        : path.endsWith('/page')
+          ? { ...scanPage(input), snapshotRevision: 90 }
+          : ++sends === 1
+            ? Promise.reject(new TypeError('authored lost ACK'))
+            : { ...ack(input), replayed: true },
+    );
+    await h.session.lookup(peer.handle);
+    await h.session.command('request', draft());
+    const original = h.calls[1]!.input;
+    await h.session.refreshPage();
+    expect(h.session.getState().roster).toMatchObject({ status: 'ready', data: { snapshotRevision: 90 } });
+    await h.session.retryCommand();
+    expect(h.calls[3]!.input).toEqual(original);
+    expect(h.newCommandId).toHaveBeenCalledTimes(2); // One command plus one pure read correlation.
+    expect(h.session.getState().command).toMatchObject({
+      status: 'accepted',
+      acceptance: { basePairRevision: 0, acceptedPairRevision: 1, replayed: true },
+    });
+    expect(h.session.getState().roster.status).toBe('idle');
     h.scope.end();
   });
 });

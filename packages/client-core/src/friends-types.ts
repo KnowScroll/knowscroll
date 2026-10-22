@@ -29,8 +29,10 @@ export type FriendsCommandOperation =
   | 'unblock'
   | 'createInvite'
   | 'revokeInvite';
-export type FriendsInput<K extends FriendsOperation> = Parameters<ApiClient['sharing'][K]>[0];
-export type FriendsOutput<K extends FriendsOperation> = Awaited<ReturnType<ApiClient['sharing'][K]>>;
+type FriendsApi = Pick<ApiClient['sharing'], Exclude<FriendsOperation, 'friends' | 'requests'>> &
+  Pick<ApiClient['friendPages'], 'friends' | 'requests'>;
+export type FriendsInput<K extends FriendsOperation> = Parameters<FriendsApi[K]>[0];
+export type FriendsOutput<K extends FriendsOperation> = Awaited<ReturnType<FriendsApi[K]>>;
 export type FriendsCommandDraft<K extends FriendsCommandOperation> = Omit<FriendsInput<K>, 'version' | 'commandId'>;
 export type FriendsFilter = FriendsInput<'friends'>['filter'] | FriendsInput<'requests'>['filter'];
 export type FriendsPage = FriendsOutput<'friends'> | FriendsOutput<'requests'>;
@@ -66,6 +68,7 @@ export interface FriendsState {
   readonly resolvedInvite: FriendsReadState<FriendsOutput<'resolveInvite'>>;
   readonly roster: FriendsReadState<FriendsPage>;
   readonly filter: FriendsFilter;
+  /** Earlier retained cursor available, not a claim that a bounded history reaches the beginning. */
   readonly canPrevious: boolean;
   readonly canNext: boolean;
   readonly command: FriendsCommandState;

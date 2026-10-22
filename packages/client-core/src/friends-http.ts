@@ -7,9 +7,10 @@ import {
   SharingPersonLookupSchema,
   ReadFriendPairSchema,
   FriendPairResultSchema,
-  ReadFriendsSchema,
-  ReadFriendRequestsSchema,
-  SharingListPageSchema,
+  ReadFriendsPageSchema,
+  ReadFriendRequestsPageSchema,
+  FriendsPageSchema,
+  FriendRequestsPageSchema,
   RequestFriendSchema,
   AcceptFriendSchema,
   DeclineFriendSchema,
@@ -36,8 +37,8 @@ const inputs = {
   setProfile: SetSharingProfileSchema,
   lookup: LookupSharingPersonSchema,
   pair: ReadFriendPairSchema,
-  friends: ReadFriendsSchema,
-  requests: ReadFriendRequestsSchema,
+  friends: ReadFriendsPageSchema,
+  requests: ReadFriendRequestsPageSchema,
   request: RequestFriendSchema,
   accept: AcceptFriendSchema,
   decline: DeclineFriendSchema,
@@ -55,8 +56,8 @@ const outputs = {
   setProfile: SharingProfileAcceptanceSchema,
   lookup: SharingPersonLookupSchema,
   pair: FriendPairResultSchema,
-  friends: SharingListPageSchema,
-  requests: SharingListPageSchema,
+  friends: FriendsPageSchema,
+  requests: FriendRequestsPageSchema,
   request: FriendCommandAcceptanceSchema,
   accept: FriendCommandAcceptanceSchema,
   decline: FriendCommandAcceptanceSchema,
@@ -98,8 +99,12 @@ export function freezeFriends<T>(value: T): T {
   }
   return value;
 }
+/** Semantic comparison of schema-validated UUID references only; never changes wire/retry bytes. */
+export function sameFriendsId(a: unknown, b: unknown): boolean {
+  return typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
+}
 function sameScope(scope: AccountScope, value: { accountId: string; privacyEpoch: number }): boolean {
-  return value.accountId === scope.account.accountId && value.privacyEpoch === scope.account.privacyEpoch;
+  return sameFriendsId(value.accountId, scope.account.accountId) && value.privacyEpoch === scope.account.privacyEpoch;
 }
 function bound(
   scope: AccountScope,
@@ -119,27 +124,27 @@ function bound(
     if (operation === 'createInvite' || operation === 'revokeInvite')
       return (
         receipt.baseInviteRevision === input.expectedInviteRevision &&
-        (operation !== 'revokeInvite' || receipt.linkId === input.linkId)
+        (operation !== 'revokeInvite' || sameFriendsId(receipt.linkId, input.linkId))
       );
     return (
-      receipt.peerPersonId === (operation === 'request' ? input.expectedPeerPersonId : input.peerPersonId) &&
+      sameFriendsId(receipt.peerPersonId, operation === 'request' ? input.expectedPeerPersonId : input.peerPersonId) &&
       receipt.basePairRevision === input.expectedPairRevision
     );
   }
   if (operation === 'lookup' && output.status === 'available')
     return (output.person as { handle: string }).handle === input.handle;
   if (operation === 'pair' && output.status === 'available')
-    return (output.pair as { peer: { personId: string } }).peer.personId === input.peerPersonId;
+    return sameFriendsId((output.pair as { peer: { personId: string } }).peer.personId, input.peerPersonId);
   if (operation === 'friends' || operation === 'requests') {
     const page = output as unknown as FriendsOutput<'friends'>;
     const cursor = input.cursor as FriendsInput<'friends'>['cursor'];
     return (
+      page.requestId === input.requestId &&
       page.filter === input.filter &&
       page.items.length <= Number(input.limit) &&
       (!cursor ||
         (sameScope(scope, cursor.scope) &&
           page.snapshotRevision === cursor.snapshotRevision &&
-          page.items.length > 0 &&
           page.next?.token !== cursor.token))
     );
   }
@@ -165,10 +170,11 @@ export function createFriendsHttp(scope: AccountScope) {
       const prepared = prepare(operation, input);
       let raw: unknown;
       try {
-        const method = scope.api.sharing[operation] as (
-          body: FriendsInput<K>,
-          options: { signal?: AbortSignal },
-        ) => Promise<unknown>;
+        const method = (
+          operation === 'friends' || operation === 'requests'
+            ? scope.api.friendPages[operation]
+            : scope.api.sharing[operation]
+        ) as (body: FriendsInput<K>, options: { signal?: AbortSignal }) => Promise<unknown>;
         raw = await method(prepared, signal ? { signal } : {});
       } catch (error) {
         if (!scope.active || signal?.aborted) throw new FriendsHttpError('authority', true);
@@ -194,8 +200,7 @@ export function createFriendsHttp(scope: AccountScope) {
         // Accepted decoded-data ceiling only, not a pre-decode allocation guarantee.
         if (new TextEncoder().encode(JSON.stringify(raw)).length > FRIENDS_LIMITS.responseBytes) throw new Error();
         const parsed = outputs[operation].safeParse(raw);
-        if (!parsed.success || !bound(scope, operation, prepared as Record<string, unknown>, parsed.data))
-          throw new Error();
+        if (!parsed.success || !bound(scope, operation, prepared, parsed.data)) throw new Error();
         return freezeFriends(parsed.data as FriendsOutput<K>);
       } catch {
         throw new FriendsHttpError('invalid', true);

@@ -1,6 +1,6 @@
 import type { AccountScope } from './account-scope';
 import { ScopeEndedError } from './account-scope';
-import { createFriendsHttp, freezeFriends, FRIENDS_LIMITS, FriendsHttpError } from './friends-http';
+import { createFriendsHttp, freezeFriends, FRIENDS_LIMITS, FriendsHttpError, sameFriendsId } from './friends-http';
 import type {
   FriendsAcceptance,
   FriendsCommandDraft,
@@ -149,8 +149,15 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
   async function page(cursor: FriendsCursor | undefined, history: (FriendsCursor | undefined)[]): Promise<void> {
     if (!live()) return;
     const filter = state.filter;
+    let requestId: string;
+    try {
+      requestId = options.newCommandId();
+    } catch {
+      requestId = '';
+    }
     const input = {
-      version: 'sharing.v1' as const,
+      version: 'friend-pages.v2' as const,
+      requestId,
       filter,
       limit: FRIENDS_LIMITS.pageItems,
       ...(cursor ? { cursor } : {}),
@@ -179,7 +186,7 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
         invite.inviteRevision === command.input.expectedInviteRevision &&
         (command.operation === 'createInvite'
           ? invite.status !== 'active'
-          : invite.status === 'active' && invite.linkId === command.input.linkId)
+          : invite.status === 'active' && sameFriendsId(invite.linkId, command.input.linkId))
       );
     }
     if (command.operation === 'request') {
@@ -189,14 +196,14 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
           state.lookup.status === 'ready' &&
           state.lookup.data.status === 'available' &&
           state.lookup.data.person.handle === target.handle &&
-          state.lookup.data.person.personId === expectedPeerPersonId &&
+          sameFriendsId(state.lookup.data.person.personId, expectedPeerPersonId) &&
           state.lookup.data.pairRevision === expectedPairRevision
         );
       return (
         target.token === resolvedToken &&
         state.resolvedInvite.status === 'ready' &&
         state.resolvedInvite.data.status === 'available' &&
-        state.resolvedInvite.data.issuer.personId === expectedPeerPersonId &&
+        sameFriendsId(state.resolvedInvite.data.issuer.personId, expectedPeerPersonId) &&
         state.resolvedInvite.data.pairRevision === expectedPairRevision
       );
     }
@@ -204,13 +211,13 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
     const pair =
       state.pair.status === 'ready' &&
       state.pair.data.status === 'available' &&
-      state.pair.data.pair.peer.personId === body.peerPersonId
+      sameFriendsId(state.pair.data.pair.peer.personId, body.peerPersonId)
         ? state.pair.data.pair
         : state.roster.status === 'ready'
-          ? state.roster.data.items.find((p) => p.peer.personId === body.peerPersonId)
+          ? state.roster.data.items.find((p) => sameFriendsId(p.peer.personId, body.peerPersonId))
           : undefined;
     if (!pair || pair.pairRevision !== body.expectedPairRevision) return false;
-    if ('requestId' in body && (!('requestId' in pair) || pair.requestId !== body.requestId)) return false;
+    if ('requestId' in body && (!('requestId' in pair) || !sameFriendsId(pair.requestId, body.requestId))) return false;
     return command.operation === 'accept' || command.operation === 'decline'
       ? pair.state === 'incoming'
       : command.operation === 'cancel'
