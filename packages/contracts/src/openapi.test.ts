@@ -802,7 +802,12 @@ describe('Selective Clear exploration declaration OpenAPI metadata', () => {
       Object.keys(document.paths ?? {})
         .filter((path) => path.startsWith('/v1/privacy/'))
         .sort(),
-    ).toEqual(['/v1/privacy/clear-exploration', '/v1/privacy/clear-exploration/status']);
+    ).toEqual([
+      '/v1/privacy/clear-exploration',
+      '/v1/privacy/clear-exploration/status',
+      '/v1/privacy/recording/read',
+      '/v1/privacy/recording/set',
+    ]);
     const errorStatuses = ['400', '401', '403', '409', '413', '415', '422', '500', '503'];
     for (const [path, input, output, success] of [
       ['/v1/privacy/clear-exploration', 'ClearExploration', 'ClearExplorationAcceptance', '202'],
