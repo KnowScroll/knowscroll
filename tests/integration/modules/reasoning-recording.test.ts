@@ -262,16 +262,17 @@ describe('personal recording Reasoning prerequisite (PostgreSQL hosted fixtures 
   });
 
   /** Accounting adapter fixture only: real gated ledger writes, no successful Role owner adapter/model pipeline. */
-  async function accountingRun(p: FixturePerson, steps: readonly string[] = ['primary']) {
+  async function accountingRun(p: FixturePerson, steps: readonly string[] = ['primary'], proved = true) {
     const c = fixtureHarness(db(), { model: undefined }),
       runId = randomUUID(),
-      ids = steps.map(() => randomUUID());
+      ids = steps.map(() => randomUUID()),
+      requestBody = new Uint8Array([1]);
     const binding: PersonalRunAccountingBinding = {
       ownerModule: 'planner',
       purpose: 'personal-planner',
       accountId: p.accountId,
       privacyEpoch: 1,
-      recordingGeneration: 1,
+      recordingGeneration: proved ? 1 : null,
     };
     expect(
       await withScope()(p.authority, async (scope) => {
@@ -289,12 +290,16 @@ describe('personal recording Reasoning prerequisite (PostgreSQL hosted fixtures 
             model: 'fixture',
             contextBundleRef: fixtureContext.bundleRef,
             contextRefs: fixtureContext.items.map((x) => x.ref),
-            recording: {
-              accountId: p.accountId,
-              generation: 1,
-              contextSha256: 'a'.repeat(64),
-              modelContextSha256: canonicalSha256(fixtureContext),
-            },
+            ...(proved
+              ? {
+                  recording: {
+                    accountId: p.accountId,
+                    generation: 1,
+                    contextSha256: 'a'.repeat(64),
+                    modelContextSha256: canonicalSha256(fixtureContext),
+                  },
+                }
+              : {}),
           }),
         ).toMatchObject({ kind: 'admitted' });
         for (const [n, step] of steps.entries())
@@ -307,8 +312,8 @@ describe('personal recording Reasoning prerequisite (PostgreSQL hosted fixtures 
             roleId: 'fixture.echo',
             roleVersion: 'v1',
             promptVersion: 'fixture.v1',
-            requestHash: 'b'.repeat(64),
-            requestBody: new Uint8Array([1]),
+            requestHash: c.ports.hashBytes(requestBody),
+            requestBody,
             maxOutputTokens: 1,
             reservedTokens: 2,
             requestRetentionSeconds: 60,
@@ -369,6 +374,83 @@ describe('personal recording Reasoning prerequisite (PostgreSQL hosted fixtures 
     ]);
     expect(c.checkPlanner).not.toHaveBeenCalled();
     expect(c.checkGeography).not.toHaveBeenCalled();
+    expect(c.model.calls).toHaveLength(0);
+  });
+
+  it('supplies only the frozen actual current owner snapshot after a held-root epoch wait', async () => {
+    const p = await seedPerson(db()),
+      c = recording(),
+      entered = gate(),
+      mutate = gate(),
+      requested = gate();
+    const held = withScope()(p.authority, async (scope) => {
+      expect((await own()(scope)).kind).toBe('active');
+      entered.open();
+      await mutate.promise;
+      await transactionOf(scope)
+        .updateTable('identity.universes')
+        .set({ privacy_epoch: 2 })
+        .where('id', '=', p.universeId)
+        .execute();
+    });
+    await entered.promise;
+    const authority = { ...p.authority, privacyEpoch: 2 };
+    const expected = vi.fn(
+      (
+        _scope: Parameters<typeof c.harness.readPersonalRunAccounting>[0],
+        snapshot: Parameters<Parameters<typeof c.harness.readPersonalRunAccounting>[2]>[1],
+      ) => {
+        expect(snapshot).toEqual({ accountId: p.accountId, universeId: p.universeId, privacyEpoch: 2 });
+        expect(Reflect.ownKeys(snapshot).sort()).toEqual(['accountId', 'privacyEpoch', 'universeId']);
+        expect(Object.isFrozen(snapshot)).toBe(true);
+        expect(Reflect.set(snapshot, 'accountId', randomUUID())).toBe(false);
+        expect(snapshot.accountId).toBe(p.accountId);
+        return Promise.resolve({
+          ownerModule: 'geography' as const,
+          purpose: 'personal-cartographer' as const,
+          accountId: snapshot.accountId,
+          privacyEpoch: snapshot.privacyEpoch,
+          recordingGeneration: null,
+        });
+      },
+    );
+    const pending = (async () => {
+      requested.open();
+      return withScope()(authority, (scope) => c.harness.readPersonalRunAccounting(scope, randomUUID(), expected));
+    })();
+    await requested.promise;
+    expect(expected).not.toHaveBeenCalled();
+    mutate.open();
+    await held;
+    expect(await pending).toMatchObject({ kind: 'entered', value: { kind: 'not_found' } });
+    expect(expected).toHaveBeenCalledOnce();
+    expect(c.checkPlanner).not.toHaveBeenCalled();
+    expect(c.checkGeography).not.toHaveBeenCalled();
+    expect(c.model.calls).toHaveLength(0);
+  });
+
+  it('never upgrades a present NULL ledger from the actual current snapshot after resume', async () => {
+    const p = await seedPerson(db()),
+      seeded = await accountingRun(p, [], false),
+      c = recording();
+    await toggle(p, 1, false);
+    await toggle(p, 2, true);
+    expect(
+      await withScope()(p.authority, (scope) =>
+        c.harness.readPersonalRunAccounting(scope, seeded.runId, (_scope, snapshot) =>
+          Promise.resolve({ ...seeded.binding, accountId: snapshot.accountId, privacyEpoch: snapshot.privacyEpoch }),
+        ),
+      ),
+    ).toMatchObject({ kind: 'entered', value: { kind: 'unavailable', reason: 'unproved' } });
+    expect(
+      await db()
+        .selectFrom('reasoning.business_runs')
+        .select(['recording_account_id', 'recording_generation'])
+        .where('universe_id', '=', p.universeId)
+        .where('id', '=', seeded.runId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ recording_account_id: null, recording_generation: null });
+    expect(await attemptsOf(db(), p.universeId)).toEqual([]);
     expect(c.model.calls).toHaveLength(0);
   });
 
