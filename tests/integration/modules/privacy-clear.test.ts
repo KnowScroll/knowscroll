@@ -927,6 +927,25 @@ describe('durable selective Clear', () => {
             support_refs: JSON.stringify([]),
           })
           .execute();
+        // Authored erasure-only actual creation tuple: populate the new registered delivery
+        // store, not a live formation, semantic approval or shown assertion.
+        const formationRecordedAt = new Date().toISOString();
+        const formationGeography = { revision: 1, structureRevision: 1, activityRevision: 0 };
+        const formationTarget = {
+          objectId: geographyObjectId,
+          parentId: person.universeId,
+          kind: 'system' as const,
+          objectRevision: 1,
+          label: 'Authored erasure-only system',
+          truthStatus: 'factual' as const,
+        };
+        const formationFact = {
+          transitionId: geographyTransitionId,
+          recordedAt: formationRecordedAt,
+          geography: formationGeography,
+          targets: [formationTarget],
+          sequence: { kind: 'final_still' },
+        };
         await tx
           .insertInto('geography.deltas')
           .values({
@@ -937,7 +956,39 @@ describe('durable selective Clear', () => {
             run_id: geographyRunId,
             policy_version: 'geography-passive.v1',
             input_sha256: 'a'.repeat(64),
-            payload: { fixture: 'Authored erasure-only delta' },
+            payload: {
+              fixture: 'Authored erasure-only delta',
+              recordedAt: formationRecordedAt,
+              geography: formationGeography,
+              operations: [
+                {
+                  kind: 'create_system',
+                  object: {
+                    id: geographyObjectId,
+                    parent: { id: person.universeId },
+                    kind: 'system',
+                    objectRevision: 1,
+                    label: formationTarget.label,
+                    truthStatus: 'factual',
+                  },
+                },
+              ],
+            },
+          })
+          .execute();
+        await tx
+          .insertInto('scenes.formation_presentations')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            transition_id: geographyTransitionId,
+            recorded_at: new Date(formationRecordedAt),
+            geography_revision: 1,
+            structure_revision: 1,
+            activity_revision: 0,
+            target_count: 1,
+            fact: JSON.stringify(formationFact),
+            limited: false,
           })
           .execute();
         await tx

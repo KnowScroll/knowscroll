@@ -98,3 +98,16 @@ remain an activation gate; unexpected-overage accounting alone never proves that
 root. It does not reconstruct bytes, forget liabilities or automatically release/refund a claim.
 This source exposes explicit operator expiry cleanup; it does not claim an additional automatic
 protected-byte GC scheduler.
+
+U05 (#363) normally registers the fixed `scenes.expire-formation` consumer and five-minute UTC
+`scenes.recover-formation` scheduled consumer. They finalize only the exact current due claim as
+skipped, never create formation, grant animation, consume content or invoke a model/provider.
+Expiry has120s/three10s-backoff retries; recovery180s/three15s-backoff retries; both concurrency1,
+7d queued/2d settled plus declared dead letters. Recovery re-enters owner/epoch/root/Clear fences
+with250ms locks/2s statements and at most30s between-op work per delivery. Generated bigint ordinal
+pages read101/process100 against a captured ceiling; one required fixed advancing child commits
+before any owner root acquisition. Live duplicate child cursors dedupe, final pages do not wake
+again, and overlapping scheduled passes may revisit due rows. Exhausted final delivery/root lock
+or crash leaves durable due state for the next finite pass. The ordinal-only global cursor has
+no personal UUID or per-account effect authority; full/Clear erases the personal row and all exact
+private expiry job states. Old late work cannot restore removed IDs or touch fresh-epoch data.

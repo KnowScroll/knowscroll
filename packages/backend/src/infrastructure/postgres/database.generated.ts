@@ -1099,6 +1099,26 @@ export interface ScenesChunks {
   universe_id: string;
 }
 
+export interface ScenesFormationPresentations {
+  activity_revision: number;
+  attempt_nonce: string | null;
+  claim_expires_at: Timestamp | null;
+  claim_id: string | null;
+  claimed_at: Timestamp | null;
+  disposition: string | null;
+  fact: Json | null;
+  geography_revision: number;
+  limited: boolean;
+  presentation_key: Generated<Int8>;
+  privacy_epoch: number;
+  recorded_at: Timestamp;
+  structure_revision: number;
+  target_count: number;
+  terminal_at: Timestamp | null;
+  transition_id: string;
+  universe_id: string;
+}
+
 export interface ScenesManifests {
   payload: Json;
   privacy_epoch: number;
@@ -1282,6 +1302,7 @@ export interface DB {
   "receipts.personal_commands": ReceiptsPersonalCommands;
   "receipts.shared_commands": ReceiptsSharedCommands;
   "scenes.chunks": ScenesChunks;
+  "scenes.formation_presentations": ScenesFormationPresentations;
   "scenes.manifests": ScenesManifests;
   "scenes.objects": ScenesObjects;
   "scenes.state": ScenesState;

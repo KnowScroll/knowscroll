@@ -161,3 +161,15 @@ or Geography read dependency. No historical bootstrap or read-triggered Scene jo
 ### Region navigation authority (U04)
 
 `READ_OWN_REGION_CONSTRAINT` reads the current live personal root, then exactly the requested indexed Region, its Planet and System. It verifies the displayed object/geography revisions, factual canonical catalogue lineage and stable semantic identities. Aliases, hypothetical branches, malformed snapshots and stale/foreign IDs never redirect to another Region. This read writes no cartography work, formation, activity or root revision. A formation snapshot remains a historical fact; an expired role claim is never authority for navigation.
+
+### U05 creation delivery boundary (#363)
+
+The actual applier passes only newly committed creation operations (system/star/planet/region)
+with the immutable delta time and component stamps to `GeographyApplied` in the same transaction.
+Scenes owns delivery/claim/expiry, not formation decisions. Label/activity/route-only transitions
+supply no creation candidate. The strict original projection job picks its existing fields and
+never receives this extra fact body. Migration0038's deferred consistency guard fails an older
+creation writer atomically if it omits the required Scenes fact; exact-schema coordinated
+activation is required, with no rolling downgrade or historical bootstrap. Existing qualified
+coverage, deterministic validation, root/epoch/account fences and default-disabled paid role
+permissions are unchanged. No authored fixture is a real formation or semantic approval.

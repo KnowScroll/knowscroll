@@ -1,3 +1,4 @@
+import { expireFormationQueue, recoverFormationQueue } from './modules/scenes/events.js';
 import { projectSceneQueue } from './modules/scenes/public.js';
 import { cartographyQueue, publishDeltaQueue } from './modules/geography/public.js';
 import { resolveSupplyQueue } from './modules/supply/public.js';
@@ -37,6 +38,8 @@ export const releaseQueues = queueRegistry([
   cutroomSettleQueue,
   recoverCutroomQueue,
   projectSceneQueue,
+  expireFormationQueue,
+  recoverFormationQueue,
   cartographyQueue,
   publishDeltaQueue,
   resolveSupplyQueue,
