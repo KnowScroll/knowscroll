@@ -1138,3 +1138,44 @@ before body/auth parsing and bounded output are mandatory in future adapters.
 synthetic contract fixtures only, run in Actions. Current database authority,
 finite scan/token security, installed HTTP, scoped UI/client pagination and a real
 two-account Friends journey remain required after this declaration prerequisite.
+
+## Original recording generation on necessary commands (#381 prerequisite)
+
+Seven original command schemas reserve optional `recordingGeneration` using the
+existing bounded integer schema (1..2147483647): ApplyAction, DirectActivate,
+ActivateOffer, OpenDiscovery, OpenRevisit, Navigate and RegionEncounterOpen.
+The field has no default, coercion or transform. A supplied malformed value,
+including an own property whose value is undefined, is refused; it must never be
+stripped through a legacy object or union fallback into an omitted legacy field.
+Omission preserves the literal old body, including unrelated legacy unknown-field
+stripping. New branches retain strictness. Legacy DirectOpen expressly forbids
+this reserved field, including own undefined, so a mixed command cannot downgrade
+into a nonevidence direct open. Success response schemas and route bindings stay unchanged.
+
+This is a declaration prerequisite only. The following backend must distinguish
+necessary requested effects from permission for NEW personal growth. A missing
+field can be growth-eligible only at actual initial generation1/on; after the first
+real toggle, absence never inherits resumed current generation. A supplied stale
+or off generation still allows necessary authorized action/navigation state and
+receipts but remains permanently growth-ineligible for that intent. Schema
+acceptance of an even generation is deliberate and grants no recording authority.
+The original supplied field must survive validation into the future receipt's
+canonical request hash. Omitted old bodies keep their original hash semantics;
+never insert a generation default before hashing or retry with a different body.
+
+Two-transaction preparation/navigation carries the ORIGINAL generation from Tx1
+through Tx2 and rechecks current on/generation after personal-root waits; do not
+stamp whatever resumed generation is current at commit. Horizontal/return growth
+requires the original intent AND its activation to be eligible under that same
+current generation. Later activation, reconciliation or an offline retry cannot
+relabel an old or paused intent as fresh growth. Necessary actions, Save/Like/Hide
+state, navigation, playback and Keep remain usable under their normal authority.
+Direct opens, media grants, presentation and Keep themselves remain nonevidence.
+These semantics need the separately allocated backend/worker/client consumers.
+
+The region error allowlist adds only the static `recordingGeneration` issue token,
+with no rejected values, dynamic paths or new error catalogue. Dedicated synthetic
+fixtures cover all seven absent/valid/max/even/malformed/explicit-undefined cases,
+wrong originals and actual union fallback. All existing assertions are retained.
+Automated suites run only in Actions; no runtime Pause, current eligibility,
+receipt-hash implementation or deployed journey is established by declarations.
