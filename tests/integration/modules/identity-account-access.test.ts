@@ -19,7 +19,14 @@ import {
   requestHash,
 } from '@knowscroll/backend/infrastructure/receipts';
 import { accountAccessProviders, accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
-import type { PersonalAuthority, PersonalScopeTx } from '@knowscroll/backend/modules/identity';
+import {
+  FENCE_ACCOUNT_PAIR,
+  FENCE_OWN_ACCOUNT,
+  INVALIDATE_OWN_ACCOUNT_ACCESS,
+  READ_RECORDING_LIFECYCLE,
+  type PersonalAuthority,
+  type PersonalScopeTx,
+} from '@knowscroll/backend/modules/identity';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { gate } from '../support/fixture-model.js';
 import { seedAsset, seedPerson } from '../support/fixtures.js';
@@ -441,6 +448,23 @@ describe('Identity account access fences (real PostgreSQL)', () => {
         .where('id', '=', a.accountId)
         .executeTakeFirst(),
     ).toEqual({ status: 'active' });
-    expect(accountAccessProviders({ useCases: Symbol('ci') })).toHaveLength(3);
+    const tokens = { useCases: Symbol('ci') };
+    const useCases = cases();
+    expect(
+      accountAccessProviders(tokens).map(({ provide, inject, useFactory }) => ({
+        provide,
+        inject,
+        useCase: useFactory(useCases),
+      })),
+    ).toEqual([
+      { provide: FENCE_ACCOUNT_PAIR, inject: [tokens.useCases], useCase: useCases.fenceAccountPair },
+      { provide: FENCE_OWN_ACCOUNT, inject: [tokens.useCases], useCase: useCases.fenceOwnAccount },
+      { provide: READ_RECORDING_LIFECYCLE, inject: [tokens.useCases], useCase: useCases.readRecordingLifecycle },
+      {
+        provide: INVALIDATE_OWN_ACCOUNT_ACCESS,
+        inject: [tokens.useCases],
+        useCase: useCases.invalidateOwnAccountAccess,
+      },
+    ]);
   });
 });
