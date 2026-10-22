@@ -102,7 +102,6 @@ function projection(caps = capabilities): UniverseSceneState {
       read: (() => {
         const value = SceneManifestReadSchema.parse({
           version: 'scene-manifest-read.v1',
-          readId: id(91),
           selection: { kind: 'universe' },
           capabilities: caps,
           scope: { universeId: account.universeId, privacyEpoch: 1, personalWatermark: 40 },
