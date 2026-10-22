@@ -10,6 +10,7 @@ export type ActivityProjectionResult =
         | 'already_applied'
         | 'exposure_not_active'
         | 'metadata_missing'
+        | 'no_current_source'
         | 'epoch_changed'
         | 'universe_unavailable';
     };

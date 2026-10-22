@@ -143,6 +143,7 @@ export function evidenceIntakeProviders(tokens: {
         READ_SCROLL_READING_FACTS,
         FENCE_OWN_ACCOUNT,
         FENCE_PERSONAL_RECORDING,
+        READ_RECORDING_SEGMENT,
       ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
@@ -151,8 +152,10 @@ export function evidenceIntakeProviders(tokens: {
         readReadingFacts: ReadScrollReadingFacts,
         fenceOwn: FenceOwnAccount,
         fenceRecording: FencePersonalRecording,
+        readSegment: ReadRecordingSegment,
       ) =>
         makeIngestObservations({
+          readSegment,
           withPersonalScope,
           fenceOwn,
           fenceRecording,

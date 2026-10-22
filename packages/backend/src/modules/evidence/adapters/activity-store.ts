@@ -16,8 +16,8 @@ export const readQualification: ActivityPorts['readQualification'] = async (cap,
     asset_id: string;
     asset_revision: number;
   }>`select id,recording_generation,revision,qualification,q,asset_id,asset_revision from evidence.encounter_evidence
-    where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} and exposure_id=${id}::uuid and recording_generation=${cap.generation} and committed_at>=${initializedAt}::timestamptz
-    and (${domain === 'legacy'} and policy_version in('scroll-qualification.v0','reel-qualification.v0') or ${domain === 'session'} and policy_version in('scroll-qualification.recording.v1','reel-qualification.recording.v1') and id=(select qualification_id from evidence.recording_segment_heads where universe_id=${scope.authority.universeId}::uuid and exposure_id=${id}::uuid and recording_generation=${cap.generation})) order by revision desc limit 1`.execute(
+    where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} and exposure_id=${id}::uuid and recording_generation=${cap.generation} and created_at>=${initializedAt}::timestamptz
+    and (${domain === 'legacy'} and policy_version in('scroll-qualification.v0','reel-qualification.v0') and id=(select nullif(source_vector->>'legacyQualificationId','')::uuid from evidence.recording_segment_heads where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} and exposure_id=${id}::uuid and recording_generation=${cap.generation}) or ${domain === 'session'} and policy_version in('scroll-qualification.recording.v1','reel-qualification.recording.v1') and id=(select qualification_id from evidence.recording_segment_heads where universe_id=${scope.authority.universeId}::uuid and exposure_id=${id}::uuid and recording_generation=${cap.generation})) order by revision desc limit 1`.execute(
     recordingTransactionOf(cap),
   );
   const r = rows.rows[0];
