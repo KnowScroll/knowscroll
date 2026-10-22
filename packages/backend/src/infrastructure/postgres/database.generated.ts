@@ -1185,6 +1185,16 @@ export interface SocialCommandBindings {
   pair_id: string;
 }
 
+export interface SocialInvites {
+  account_id: string;
+  created_at: Timestamp;
+  expires_at: Timestamp;
+  link_id: string;
+  revision: Int8;
+  revoked: Generated<boolean>;
+  token_hash: string;
+}
+
 export interface SocialPairs {
   accepted_lineage: string | null;
   current_request_id: string | null;
@@ -1217,6 +1227,23 @@ export interface SocialRequests {
   recipient_account_id: string;
   request_id: string;
   sender_account_id: string;
+}
+
+export interface SocialRosterEntries {
+  expires_at: Timestamp | null;
+  kind: string;
+  owner_account_id: string;
+  pair_id: string;
+  peer_account_id: string;
+  peer_person_id: string;
+  public_revision: Int8;
+  request_id: string | null;
+}
+
+export interface SocialRosterHeads {
+  kind: string;
+  owner_account_id: string;
+  revision: Generated<Int8>;
 }
 
 export interface SupplyRequests {
@@ -1340,10 +1367,13 @@ export interface DB {
   "scenes.objects": ScenesObjects;
   "scenes.state": ScenesState;
   "social.command_bindings": SocialCommandBindings;
+  "social.invites": SocialInvites;
   "social.pair_sides": SocialPairSides;
   "social.pairs": SocialPairs;
   "social.profiles": SocialProfiles;
   "social.requests": SocialRequests;
+  "social.roster_entries": SocialRosterEntries;
+  "social.roster_heads": SocialRosterHeads;
   "supply.requests": SupplyRequests;
   "supply.work": SupplyWork;
 }

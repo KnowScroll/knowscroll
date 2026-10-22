@@ -1,3 +1,4 @@
+import { inviteStatus } from '../domain/invites.js';
 import {
   AcceptFriendSchema,
   BlockFriendSchema,
@@ -30,7 +31,6 @@ export function makePairCommand(p: SocialPorts) {
     const parsed = schemas[operation].safeParse(input);
     if (!parsed.success) return refuse('invalid_input');
     const command = parsed.data;
-    if ('target' in command && command.target.kind === 'invite') return refuse('unsupported');
     const selectedPerson = 'expectedPeerPersonId' in command ? command.expectedPeerPersonId : command.peerPersonId;
     try {
       const result = await p.withScope(authority, async (scope): Promise<Result<FriendCommandAcceptance>> => {
@@ -51,6 +51,15 @@ export function makePairCommand(p: SocialPorts) {
           ('target' in command && command.target.kind === 'handle' && peer.person.handle !== command.target.handle)
         )
           return refuse('unavailable');
+        if ('target' in command && command.target.kind === 'invite') {
+          const invite = await p.invites.read(scope, { tokenHash: p.digest(command.target.token) });
+          if (
+            !invite ||
+            invite.accountId !== gate.peer.accountId ||
+            inviteStatus(invite, p.now().getTime()) !== 'active'
+          )
+            return refuse('unavailable');
+        }
         const locked = await p.store.lockPair(
           scope,
           gate.owner.accountId,
@@ -75,6 +84,9 @@ export function makePairCommand(p: SocialPorts) {
           outcomeVersion: 1,
           requestHash: p.hash(`social.friend-${operation}`, {
             ...command,
+            ...('target' in command && command.target.kind === 'invite'
+              ? { target: { kind: 'invite', tokenHash: p.digest(command.target.token) } }
+              : {}),
             actorPrivacyEpoch: scope.authority.privacyEpoch,
           }),
         };

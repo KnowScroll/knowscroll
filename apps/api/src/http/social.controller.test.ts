@@ -66,13 +66,32 @@ function fixture() {
       },
     }),
   );
+  const added = {
+    readFriends: vi.fn<SocialUseCases['readFriends']>(() => Promise.resolve({ kind: 'refused', code: 'unavailable' })),
+    readRequests: vi.fn<SocialUseCases['readRequests']>(() =>
+      Promise.resolve({ kind: 'refused', code: 'unavailable' }),
+    ),
+    readInvites: vi.fn<SocialUseCases['readInvites']>(() =>
+      Promise.resolve({ kind: 'ok', value: { ...envelope, invite: { status: 'none', inviteRevision: 0 } } }),
+    ),
+    createInvite: vi.fn<SocialUseCases['createInvite']>(() =>
+      Promise.resolve({ kind: 'refused', code: 'unavailable' }),
+    ),
+    revokeInvite: vi.fn<SocialUseCases['revokeInvite']>(() =>
+      Promise.resolve({ kind: 'refused', code: 'unavailable' }),
+    ),
+    resolveInvite: vi.fn<SocialUseCases['resolveInvite']>(() =>
+      Promise.resolve({ kind: 'ok', value: { ...envelope, status: 'unavailable' } }),
+    ),
+  };
   return {
+    ...added,
     readProfile,
     setProfile,
     lookup,
     readPair,
     command,
-    controller: new SocialController({ readProfile, setProfile, lookup, readPair, command }),
+    controller: new SocialController({ readProfile, setProfile, lookup, readPair, command, ...added }),
   };
 }
 const commandBase = { version: 'sharing.v1' as const, commandId, expectedPairRevision: 1, peerPersonId };
@@ -253,5 +272,81 @@ describe('Social thin adapters (authored transport fixtures, no mounted-runtime 
     await expect(call(f.controller.blockRoute({} as Request), command('block'))).rejects.toBeDefined();
     for (const port of [f.readProfile, f.setProfile, f.lookup, f.readPair, f.command])
       expect(port).not.toHaveBeenCalled();
+  });
+});
+
+describe('invitation thin adapter bindings', () => {
+  it('validates separate ephemeral delivery and exact accepted caller/command/revision', async () => {
+    const f = fixture(),
+      r = await admitted(),
+      input = { version: 'sharing.v1' as const, commandId, expectedInviteRevision: 0 };
+    const acceptanceValue = {
+      ...acceptance,
+      operation: 'invite.create' as const,
+      linkId: id(70),
+      baseInviteRevision: 0,
+      acceptedInviteRevision: 1,
+    };
+    const value = {
+      acceptance: acceptanceValue,
+      delivery: { status: 'available' as const, token: `ksfi_${'a'.repeat(43)}` },
+    };
+    f.createInvite.mockResolvedValue({ kind: 'ok', value });
+    expect(await call(f.controller.createInviteRoute(r), input)).toEqual(value);
+    expect(f.createInvite).toHaveBeenCalledExactlyOnceWith(authority, input);
+    for (const acceptance of [
+      { ...acceptanceValue, commandId: id(99) },
+      { ...acceptanceValue, scope: { accountId: id(99), privacyEpoch: 2 } },
+      { ...acceptanceValue, baseInviteRevision: 1, acceptedInviteRevision: 2 },
+      { ...acceptanceValue, replayed: true },
+    ]) {
+      f.createInvite.mockResolvedValue({ kind: 'ok', value: { ...value, acceptance } });
+      await expect(call(f.controller.createInviteRoute(r), input)).rejects.toMatchObject({ code: 'INTERNAL' });
+    }
+  });
+  it('reads own current state and private resolution without domain fallbacks', async () => {
+    const f = fixture(),
+      r = await admitted(),
+      input = { version: 'sharing.v1' as const, token: `ksfi_${'b'.repeat(43)}` };
+    expect(await call(f.controller.invitesRoute(r), {})).toMatchObject({
+      invite: { status: 'none', inviteRevision: 0 },
+    });
+    expect(await call(f.controller.resolveInviteRoute(r), input)).toEqual({ ...envelope, status: 'unavailable' });
+    expect(f.readInvites).toHaveBeenCalledExactlyOnceWith(authority);
+    expect(f.resolveInvite).toHaveBeenCalledExactlyOnceWith(authority, input);
+    expect(f.command).not.toHaveBeenCalled();
+  });
+});
+
+describe('bounded Friends page output correlation', () => {
+  it('binds scope/filter/request/head and retains honest empty continuation', async () => {
+    const f = fixture(),
+      r = await admitted(),
+      q = { version: 'friend-pages.v2' as const, requestId: id(90), filter: 'friends' as const, limit: 1 };
+    const next = { scope, filter: 'friends' as const, snapshotRevision: 2, token: 'opaque' };
+    const value = {
+      version: 'friend-pages.v2' as const,
+      requestId: q.requestId,
+      scope,
+      filter: q.filter,
+      snapshotRevision: 2,
+      items: [],
+      next,
+    };
+    f.readFriends.mockResolvedValue({ kind: 'ok', value });
+    expect(await call(f.controller.friendsPageRoute(r), q)).toEqual(value);
+    expect(f.readFriends).toHaveBeenCalledExactlyOnceWith(authority, q);
+    for (const wrong of [
+      { ...value, requestId: id(91) },
+      { ...value, scope: { accountId: id(91), privacyEpoch: 2 } },
+      { ...value, filter: 'blocked' as const, next: undefined },
+    ]) {
+      f.readFriends.mockResolvedValue({ kind: 'ok', value: wrong });
+      await expect(call(f.controller.friendsPageRoute(r), q)).rejects.toMatchObject({ code: 'INTERNAL' });
+    }
+    f.readFriends.mockResolvedValue({ kind: 'ok', value });
+    await expect(call(f.controller.friendsPageRoute(r), { ...q, cursor: next })).rejects.toMatchObject({
+      code: 'INTERNAL',
+    });
   });
 });

@@ -158,10 +158,28 @@ describe('the erasure registry (real database)', () => {
       expectedPairRevision: 0,
       target: { kind: 'handle', handle: 'erasure.friend' },
     });
+    await social.createInvite(a.authority, {
+      version: 'sharing.v1',
+      commandId: randomUUID(),
+      expectedInviteRevision: 0,
+    });
+    const accountBefore = await Promise.all([
+      database.db.selectFrom('social.invites').selectAll().execute(),
+      database.db.selectFrom('social.roster_heads').selectAll().execute(),
+      database.db.selectFrom('social.roster_entries').selectAll().execute(),
+    ]);
     const before = await database.db.selectFrom('social.pairs').selectAll().execute();
     expect(before.length).toBeGreaterThan(0);
     await withScope(a.authority, (scope) => eraseUniverse(scope, personalStores));
     expect(await database.db.selectFrom('social.pairs').selectAll().execute()).toEqual(before);
+    expect(
+      await Promise.all([
+        database.db.selectFrom('social.invites').selectAll().execute(),
+        database.db.selectFrom('social.roster_heads').selectAll().execute(),
+        database.db.selectFrom('social.roster_entries').selectAll().execute(),
+      ]),
+    ).toEqual(accountBefore);
+
     expect(
       (await social.readPair(a.authority, { version: 'sharing.v1', peerPersonId: profile.value.person.personId })).kind,
     ).toBe('ok');

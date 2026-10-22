@@ -76,8 +76,14 @@ describe('mounted Social serialization boundary before authentication and parsin
   it('selects only the eleven mounted methods and paths, including Express case/trailing slash aliases', () => {
     const mounted = [
       ['GET', '/v1/social/profile'],
+      ['GET', '/v1/social/invites'],
       ...[
         'profile',
+        'friends/page',
+        'requests/page',
+        'invites/resolve',
+        'invites/create',
+        'invites/revoke',
         'people/lookup',
         'pairs/read',
         'friends/request',

@@ -29,12 +29,12 @@ function isPrivacyClearRequest(request: Pick<Request, 'method' | 'path'>): boole
   return request.method === 'POST' && /^\/v1\/privacy\/clear-exploration(?:\/status)?\/?$/i.test(request.path);
 }
 
-/** Select only the eleven mounted methods/paths, never the wider declared Social surface. */
+/** Select only the mounted profile/pair/invite and versioned page methods/paths, never the wider declared Social surface. */
 function isSocialRequest(request: Pick<Request, 'method' | 'path'>): boolean {
   return (
-    (request.method === 'GET' && /^\/v1\/social\/profile\/?$/i.test(request.path)) ||
+    (request.method === 'GET' && /^\/v1\/social\/(?:profile|invites)\/?$/i.test(request.path)) ||
     (request.method === 'POST' &&
-      /^\/v1\/social\/(?:profile|people\/lookup|pairs\/read|friends\/(?:request|accept|decline|cancel|remove|block|unblock))\/?$/i.test(
+      /^\/v1\/social\/(?:profile|friends\/page|requests\/page|people\/lookup|pairs\/read|invites\/(?:resolve|create|revoke)|friends\/(?:request|accept|decline|cancel|remove|block|unblock))\/?$/i.test(
         request.path,
       ))
   );

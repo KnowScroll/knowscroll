@@ -193,7 +193,9 @@ export const socialStore: SocialStore = {
       })
       .where('pair_id', '=', pair.id)
       .execute();
-    for (const s of pair.sides)
+    for (const s of [...pair.sides].sort((a, b) =>
+      a.accountId < b.accountId ? -1 : a.accountId > b.accountId ? 1 : 0,
+    ))
       await trx
         .updateTable('social.pair_sides')
         .set({ own_blocked: s.blocked, public_revision: s.revision, public_state: s.state })

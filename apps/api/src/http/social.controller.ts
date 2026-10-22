@@ -4,6 +4,12 @@ import { z } from 'zod';
 import type { Request } from 'express';
 import {
   apiContract,
+  FriendsPageSchema,
+  FriendRequestsPageSchema,
+  OwnFriendInvitesSchema,
+  CreateFriendInviteResultSchema,
+  FriendInviteAcceptanceSchema,
+  ResolvedFriendInviteSchema,
   OwnSharingProfileSchema,
   SharingProfileAcceptanceSchema,
   SharingPersonLookupSchema,
@@ -195,6 +201,96 @@ export class SocialController {
     );
   }
 
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.sharing.invites)
+  invitesRoute(@Req() request: Request) {
+    return implement(apiContract.sharing.invites).handler(async () => {
+      const caller = admittedCaller(request);
+      return output(caller, OwnFriendInvitesSchema, await this.useCases.readInvites(authorityOf(caller)));
+    });
+  }
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.sharing.createInvite)
+  createInviteRoute(@Req() request: Request) {
+    return implement(apiContract.sharing.createInvite).handler(async ({ input }) => {
+      const caller = admittedCaller(request),
+        result = await this.useCases.createInvite(authorityOf(caller), input);
+      if (result.kind === 'refused') throw socialRefusal(result.code);
+      const parsed = CreateFriendInviteResultSchema.safeParse(result.value);
+      if (!parsed.success) throw socialProblem('INTERNAL');
+      output(
+        caller,
+        FriendInviteAcceptanceSchema,
+        { kind: 'ok', value: parsed.data.acceptance },
+        (v) =>
+          v.operation === 'invite.create' &&
+          v.commandId === input.commandId &&
+          v.baseInviteRevision === input.expectedInviteRevision,
+      );
+      return parsed.data;
+    });
+  }
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.sharing.revokeInvite)
+  revokeInviteRoute(@Req() request: Request) {
+    return implement(apiContract.sharing.revokeInvite).handler(async ({ input }) => {
+      const caller = admittedCaller(request);
+      return output(
+        caller,
+        FriendInviteAcceptanceSchema.safeExtend({ operation: z.literal('invite.revoke') }),
+        await this.useCases.revokeInvite(authorityOf(caller), input),
+        (v) =>
+          v.commandId === input.commandId &&
+          v.linkId.toLowerCase() === input.linkId.toLowerCase() &&
+          v.baseInviteRevision === input.expectedInviteRevision,
+      );
+    });
+  }
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.sharing.resolveInvite)
+  resolveInviteRoute(@Req() request: Request) {
+    return implement(apiContract.sharing.resolveInvite).handler(async ({ input }) => {
+      const caller = admittedCaller(request);
+      return output(caller, ResolvedFriendInviteSchema, await this.useCases.resolveInvite(authorityOf(caller), input));
+    });
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.friendPages.friends)
+  friendsPageRoute(@Req() request: Request) {
+    return implement(apiContract.friendPages.friends).handler(async ({ input }) => {
+      const caller = admittedCaller(request);
+      return output(
+        caller,
+        FriendsPageSchema,
+        await this.useCases.readFriends(authorityOf(caller), input),
+        (v) =>
+          v.requestId === input.requestId &&
+          v.filter === input.filter &&
+          v.items.length <= input.limit &&
+          (!input.cursor || v.snapshotRevision === input.cursor.snapshotRevision) &&
+          (!v.next || v.next.token !== input.cursor?.token),
+      );
+    });
+  }
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.friendPages.requests)
+  requestsPageRoute(@Req() request: Request) {
+    return implement(apiContract.friendPages.requests).handler(async ({ input }) => {
+      const caller = admittedCaller(request);
+      return output(
+        caller,
+        FriendRequestsPageSchema,
+        await this.useCases.readRequests(authorityOf(caller), input),
+        (v) =>
+          v.requestId === input.requestId &&
+          v.filter === input.filter &&
+          v.items.length <= input.limit &&
+          (!input.cursor || v.snapshotRevision === input.cursor.snapshotRevision) &&
+          (!v.next || v.next.token !== input.cursor?.token),
+      );
+    });
+  }
   private async friend<T extends FriendCommandAcceptance>(
     request: Request,
     operation: FriendOperation,

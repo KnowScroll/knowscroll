@@ -1,5 +1,10 @@
 import type { z } from 'zod';
 import type {
+  FriendPagesPageSchema,
+  OwnFriendInvitesSchema,
+  CreateFriendInviteResultSchema,
+  FriendInviteAcceptanceSchema,
+  ResolvedFriendInviteSchema,
   FriendCommandAcceptance,
   FriendPairResultSchema,
   OwnSharingProfileSchema,
@@ -9,10 +14,25 @@ import type {
 import type { PersonalAuthority } from '../identity/public.js';
 import type { Operation } from './domain/friends.js';
 import type { Result } from './application/ports.js';
-/** Backend-only ports. No HTTP routes, invitations, lists, presence or visitor implementation. */
+/** Friends ports; live presence and visitor publication remain separate. */
 export type { Result as SocialResult, SocialRefusal } from './application/ports.js';
 export type { Operation as FriendOperation } from './domain/friends.js';
 export interface SocialUseCases {
+  readFriends(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof FriendPagesPageSchema>>>;
+  readRequests(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof FriendPagesPageSchema>>>;
+  readInvites(authority: PersonalAuthority): Promise<Result<z.infer<typeof OwnFriendInvitesSchema>>>;
+  createInvite(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof CreateFriendInviteResultSchema>>>;
+  revokeInvite(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof FriendInviteAcceptanceSchema>>>;
+  resolveInvite(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof ResolvedFriendInviteSchema>>>;
   readProfile(authority: PersonalAuthority): Promise<Result<z.infer<typeof OwnSharingProfileSchema>>>;
   setProfile(
     authority: PersonalAuthority,

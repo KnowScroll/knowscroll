@@ -222,3 +222,21 @@ lookup has no prefix search or account/email inference. Invite input remains exp
 rosters, invitations, visibility/presence, visitor publication and conversations/content-share
 routes remain unmounted declarations. No contact action creates consumption evidence or model work.
 The installed disposable-account CI journey is not populated two-account dev/client acceptance.
+
+
+### Recoverable Friends pages and invitation links (#377)
+
+The existing Social controller additionally mounts `friend-pages.v2` POSTs at
+`/v1/social/friends/page` and `/v1/social/requests/page`, plus own `GET /v1/social/invites`
+and POST `/v1/social/invites/create`, `/revoke`, `/resolve`. Exact finite paths select private/no-store
+and closed Social errors before Origin/auth/body parsing. Legacy sharing.v1 list routes remain
+unmounted. DTOs bind current caller, requestId/filter/public head, command/link/revision and requested
+limits. Empty v2 items with next are scan progress; only next absence means captured scan exhausted.
+
+Existing own/pair Identity gates and sole pair authority remain owning. Roster reads have bounded
+current candidates and live eligibility/profile hydration; authenticated process-private cursors
+bind scope/filter/head/limit/anchor/ceiling/public-expiry bounds and refuse uniformly after restart.
+Invites deliver a secret once separately from a hash-only store/immutable acceptance. Exact retry
+never re-delivers it. Resolver and invite-target friend requests check current issuer/token/expiry
+before effects/replay. No HTTP model/provider/job, presence, evidence or consumption path is added.
+Schema40 and hosted synthetic fixtures remain separate from real populated two-account/client use.

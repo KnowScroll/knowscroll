@@ -6,6 +6,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   DEVELOPMENT_SESSION_COOKIE_NAME,
   OwnSharingProfileSchema,
+  CreateFriendInviteResultSchema,
+  OwnFriendInvitesSchema,
+  FriendInviteAcceptanceSchema,
+  ResolvedFriendInviteSchema,
+  FriendPagesPageSchema,
   SharingProfileAcceptanceSchema,
   SharingPersonLookupSchema,
   FriendPairResultSchema,
@@ -203,6 +208,9 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
   async function socialRows() {
     return (
       await sql<{ value: Record<string, unknown[]> }>`select jsonb_build_object(
+      'invites',(select coalesce(jsonb_agg(to_jsonb(r) order by account_id),'[]'::jsonb) from social.invites r),
+      'rosterHeads',(select coalesce(jsonb_agg(to_jsonb(r) order by owner_account_id,kind),'[]'::jsonb) from social.roster_heads r),
+      'rosterEntries',(select coalesce(jsonb_agg(to_jsonb(r) order by owner_account_id,peer_account_id),'[]'::jsonb) from social.roster_entries r),
       'profiles',(select coalesce(jsonb_agg(to_jsonb(r) order by account_id),'[]'::jsonb) from social.profiles r),
       'pairs',(select coalesce(jsonb_agg(to_jsonb(r) order by pair_id),'[]'::jsonb) from social.pairs r),
       'sides',(select coalesce(jsonb_agg(to_jsonb(r) order by pair_id,account_id),'[]'::jsonb) from social.pair_sides r),
@@ -245,7 +253,7 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
     for (const route of [
       'friends/read',
       'requests/read',
-      'invites/resolve',
+      'visibility',
       'conversations/start',
       'content-shares/create',
       'visits/read',
@@ -276,6 +284,18 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
     await accepted(b, 'accept', originalAccept, 1, true);
     const friends = await view(a, pb);
     expect(friends).toMatchObject({ state: 'friends', availability: { state: 'unknown' } });
+    const friendsPage = FriendPagesPageSchema.parse(
+      await ok(
+        await post(
+          root + 'friends/page',
+          { version: 'friend-pages.v2', requestId: randomUUID(), filter: 'friends', limit: 20 },
+          headers(a),
+        ),
+      ),
+    );
+    expect(friendsPage.items).toEqual([friends]);
+    expect(friendsPage.next).toBeUndefined();
+
     await accepted(a, 'remove', command(pb, friends.pairRevision));
     expect((await view(a, pb)).state).toBe('none');
     // An unchanged historical grant ACK does not restore a currently revoked lineage.
@@ -285,6 +305,17 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
     await accepted(a, 'block', command(pb, removed.pairRevision));
     const blocked = await view(a, pb);
     expect(blocked.state).toBe('blocked');
+    const blockedPage = FriendPagesPageSchema.parse(
+      await ok(
+        await post(
+          root + 'friends/page',
+          { version: 'friend-pages.v2', requestId: randomUUID(), filter: 'blocked', limit: 20 },
+          headers(a),
+        ),
+      ),
+    );
+    expect(blockedPage.items).toEqual([blocked]);
+
     await accepted(a, 'unblock', command(pb, blocked.pairRevision));
     expect((await view(a, pb)).state).toBe('none');
     // The old fixed seven-day window remains a cooldown after removal/unblock. Exercise cancel
@@ -422,12 +453,97 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
       expect(await socialRows()).toEqual(before);
     },
   );
+  it('mounts private versioned pages and revocable links; restart recovers receipts without re-delivering a secret', async () => {
+    const before = await nonEvidence(),
+      a = await person(),
+      b = await person(),
+      c = await person(),
+      pa = await claimProfile(a),
+      pc = await claimProfile(c);
+    await claimProfile(b);
+    const q = { version, commandId: randomUUID(), expectedInviteRevision: 0 };
+    const first = CreateFriendInviteResultSchema.parse(
+      await ok(await post(root + 'invites/create', q, headers(a, 1, true))),
+    );
+    if (first.delivery.status !== 'available') throw new Error('CI_INVITE_DELIVERY');
+    const token = first.delivery.token;
+    secrets.add(token);
+    const own = OwnFriendInvitesSchema.parse(
+      await ok(await fetch(origin + root + 'invites', { headers: headers(a), signal: AbortSignal.timeout(15000) })),
+    );
+    expect(own.invite).toMatchObject({ status: 'active', linkId: first.acceptance.linkId, inviteRevision: 1 });
+    expect(
+      ResolvedFriendInviteSchema.parse(await ok(await post(root + 'invites/resolve', { version, token }, headers(b)))),
+    ).toMatchObject({ status: 'available', issuer: pa, pairRevision: 0 });
+    await problem(
+      await post(root + 'invites/resolve', { version, token, [canary]: canary }, headers(b)),
+      'INVALID_REQUEST',
+    );
+    const requestA = { ...request(pa), target: { kind: 'invite', token } };
+    await accepted(b, 'request', requestA);
+    await accepted(b, 'request', request(pc));
+    const read = { version: 'friend-pages.v2', requestId: randomUUID(), filter: 'outgoing', limit: 1 };
+    const page = FriendPagesPageSchema.parse(await ok(await post(root + 'requests/page', read, headers(b))));
+    expect(page.requestId).toBe(read.requestId);
+    expect(page.items).toHaveLength(1);
+    expect(page.next).toBeDefined();
+    await problem(await post(root + 'friends/page', {}, {}), 'UNAUTHENTICATED');
+    await problem(
+      await post(root + 'requests/page', { ...read, limit: 2, cursor: page.next }, headers(b)),
+      'SHARING_UNAVAILABLE',
+    );
+    const beforeRestart = await socialRows();
+    expect(await api.stop()).toBe(0);
+    api = await startAPI();
+    const replay = CreateFriendInviteResultSchema.parse(await ok(await post(root + 'invites/create', q, headers(a))));
+    expect(replay).toEqual({
+      acceptance: { ...first.acceptance, replayed: true },
+      delivery: { status: 'unavailable' },
+    });
+    expect(await socialRows()).toEqual(beforeRestart);
+    await problem(
+      await post(root + 'requests/page', { ...read, requestId: randomUUID(), cursor: page.next }, headers(b)),
+      'SHARING_UNAVAILABLE',
+    );
+    const refresh = FriendPagesPageSchema.parse(
+      await ok(await post(root + 'requests/page', { ...read, requestId: randomUUID(), limit: 50 }, headers(b))),
+    );
+    expect(refresh.items).toHaveLength(2);
+    expect(refresh.next).toBeUndefined();
+    const revoke = { version, commandId: randomUUID(), linkId: first.acceptance.linkId, expectedInviteRevision: 1 };
+    expect(
+      FriendInviteAcceptanceSchema.parse(await ok(await post(root + 'invites/revoke', revoke, headers(a)))),
+    ).toMatchObject({ operation: 'invite.revoke', acceptedInviteRevision: 2 });
+    await problem(await post(root + 'friends/request', requestA, headers(b)), 'SHARING_UNAVAILABLE');
+    expect(
+      ResolvedFriendInviteSchema.parse(await ok(await post(root + 'invites/resolve', { version, token }, headers(b)))),
+    ).toMatchObject({ status: 'unavailable' });
+    const replacement = CreateFriendInviteResultSchema.parse(
+      await ok(
+        await post(root + 'invites/create', { ...q, commandId: randomUUID(), expectedInviteRevision: 2 }, headers(a)),
+      ),
+    );
+    if (replacement.delivery.status !== 'available') throw new Error('CI_INVITE_DELIVERY');
+    secrets.add(replacement.delivery.token);
+    await problem(await post(root + 'invites/create', q, headers(a)), 'SHARING_UNAVAILABLE');
+    expect(await nonEvidence()).toEqual(before);
+  });
   it('normal selective Clear preserves populated Social while old-epoch grant commands cannot replay', async () => {
     const a = await person(),
       b = await person(),
       pa = await claimProfile(a),
       pb = await claimProfile(b),
       connected = await connect(a, b, pa, pb);
+    const invite = CreateFriendInviteResultSchema.parse(
+      await ok(
+        await post(
+          root + 'invites/create',
+          { version, commandId: randomUUID(), expectedInviteRevision: 0 },
+          headers(b),
+        ),
+      ),
+    );
+    if (invite.delivery.status === 'available') secrets.add(invite.delivery.token);
     const before = await socialRows();
     for (const rows of Object.values(before)) expect(rows.length).toBeGreaterThan(0);
     const clear = {
