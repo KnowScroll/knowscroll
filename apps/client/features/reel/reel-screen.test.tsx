@@ -1,4 +1,5 @@
 import type * as React from 'react';
+import { AppState } from 'react-native';
 import type * as Ui from '@knowscroll/ui';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { QueryClient } from '@tanstack/react-query';
@@ -187,6 +188,7 @@ async function mount(
   } = {},
 ) {
   const paths: string[] = [];
+  let currentSaved = options.saved ?? false;
   const requests: Request[] = [];
   const manager = createAccountScopeManager({
     baseUrl: 'https://app.reel-screen.test',
@@ -218,8 +220,30 @@ async function mount(
             items: options.saved ? [{ assetId: ID, assetRevision: 1, savedAt: '2026-10-20T10:00:00.000Z' }] : [],
           }),
         );
-      if (path === '/v1/actions')
-        return options.action?.() ?? Promise.resolve(json({ ...action, kind: 'save', saved: true }));
+      if (path === '/v1/experience/keep/read')
+        return Promise.resolve(
+          json({
+            version: 'keep-place.v1',
+            scope: { accountId: account.accountId, privacyEpoch: account.privacyEpoch },
+            target: { assetId: ID, assetRevision: 1 },
+            status: currentSaved ? 'available' : 'not_saved',
+            ...(currentSaved
+              ? {
+                  entry: { assetId: ID, assetRevision: 1, savedEntryId: EXPOSURE },
+                  place: { status: 'none', placeRevision: 0 },
+                }
+              : {}),
+          }),
+        );
+      if (path === '/v1/actions') {
+        const response = options.action?.() ?? Promise.resolve(json({ ...action, kind: 'save', saved: true }));
+        return response.then(async (value) => {
+          const acknowledgement = (await value.clone().json()) as { kind: string; saved?: boolean };
+          if (acknowledgement.kind === 'save' && acknowledgement.saved !== undefined)
+            currentSaved = acknowledgement.saved;
+          return value;
+        });
+      }
       if (path === '/health')
         return Promise.resolve(
           json({
@@ -255,8 +279,15 @@ async function mount(
 }
 
 describe('direct Reel response boundaries', () => {
+  const originalAppState = Object.getOwnPropertyDescriptor(AppState, 'currentState');
   beforeEach(() => {
+    // The native Jest preset supplies a mock function here. This authored foreground fixture
+    // must supply the actual runtime state string before focus-gated Keep reads can start.
+    Object.defineProperty(AppState, 'currentState', { configurable: true, value: 'active' });
     jest.mocked(ReelPlayer).mockClear();
+  });
+  afterEach(() => {
+    if (originalAppState) Object.defineProperty(AppState, 'currentState', originalAppState);
   });
 
   it.each(discovery)('refuses discovery $status without minting a grant or activating', async (reply) => {
@@ -276,7 +307,8 @@ describe('direct Reel response boundaries', () => {
     await app.unmount();
   });
 
-  it.each([false, true])('continues valid direct Reel lineage and toggles initial saved=%s', async (saved) => {
+  it('continues valid direct Reel lineage and confirms Save after acknowledgement', async () => {
+    const saved = false;
     const app = await mount({
       saved,
       action: () => Promise.resolve(json({ ...action, kind: saved ? 'unsave' : 'save', saved: !saved })),
@@ -307,11 +339,8 @@ describe('direct Reel response boundaries', () => {
     await app.unmount();
   });
 
-  it('preserves Save state and shows a controlled failure for a Like outcome', async () => {
-    const app = await mount({
-      saved: true,
-      action: () => Promise.resolve(json({ ...action, kind: 'like', liked: true, hidden: false })),
-    });
+  it('offers cancellable exact Remove for a saved direct Reel without issuing asset-keyed Unsave', async () => {
+    const app = await mount({ saved: true });
     await screen.findByText(document.title);
     await waitFor(() =>
       expect(screen.getByRole('togglebutton', { name: 'Save' })).toHaveProp(
@@ -320,10 +349,31 @@ describe('direct Reel response boundaries', () => {
       ),
     );
     await fireEvent.press(screen.getByRole('togglebutton', { name: 'Save' }));
+    expect(await screen.findByRole('button', { name: 'Undo removal' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Undo removal' }));
+    expect(app.paths).toContain('/v1/experience/keep/read');
+    expect(app.paths).not.toContain('/v1/actions');
+    expect(app.paths).not.toContain('/v1/experience/keep/remove');
+    await app.unmount();
+  });
+
+  it('preserves Save state and shows a controlled failure for a Like outcome', async () => {
+    const app = await mount({
+      saved: false,
+      action: () => Promise.resolve(json({ ...action, kind: 'like', liked: true, hidden: false })),
+    });
+    await screen.findByText(document.title);
+    await waitFor(() =>
+      expect(screen.getByRole('togglebutton', { name: 'Save' })).toHaveProp(
+        'accessibilityState',
+        expect.objectContaining({ checked: false }),
+      ),
+    );
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Save' }));
     expect(await screen.findByText("Couldn't save")).toBeOnTheScreen();
     expect(screen.getByRole('togglebutton', { name: 'Save' })).toHaveProp(
       'accessibilityState',
-      expect.objectContaining({ checked: true }),
+      expect.objectContaining({ checked: false }),
     );
     await app.unmount();
   });
