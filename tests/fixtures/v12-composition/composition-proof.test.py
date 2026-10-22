@@ -53,7 +53,7 @@ def body(raw, mode='100644'):
 
 
 def entries(mapping):
-    return [{'path': name, 'body': value} for name, value in sorted(mapping.items())]
+    return [{'path': name, 'body': copy.deepcopy(value)} for name, value in sorted(mapping.items())]
 
 
 def git_tree(mapping):
@@ -126,7 +126,7 @@ def archive(commit, migrations, flavor, mutate=None):
 
 
 class Fixture:
-    def __init__(self, root, archive_mutations=None):
+    def __init__(self, root, archive_mutations=None, producer_drift=False):
         self.root = root
         self.mutations = archive_mutations or {}
         self.refs = []
@@ -146,6 +146,8 @@ class Fixture:
         second = copy.deepcopy(first)
         second[BASE + 'README.md'] = body(b'LATER REVIEWED README')
         second['apps/api/src/synthetic.ts'] = body(b'SYNTHETIC LATER FEATURE')
+        if producer_drift:
+            second[BASE + 'roles.ts'] = body(b'LATER UNACCEPTED PRODUCER DRIFT')
         final = copy.deepcopy(second)
         final['docs/CHECKPOINT.md'] = body(b'NEW REVIEWED ROOT CHECKPOINT')
         self.files = [self.baseline, first, second, final]
@@ -158,9 +160,10 @@ class Fixture:
             self.archive_refs[label] = self.write('archives/' + label + '.tar', raw)
         self.logs = {label: self.evidence(label) for label in (
             'baseline-review', 'producer-review', 'producer-source-logs', 'producer-pr-logs',
-            'later-review', 'later-source-logs', 'later-pr-logs', 'checkpoint-review', 'candidate-logs')}
+            'later-review', 'later-source-logs', 'later-pr-logs', 'checkpoint-review', 'candidate-logs', 'postflight')}
         producer = self.component('producer', first, PRODUCER, 336)
-        later_paths = sorted([BASE + 'README.md', 'apps/api/src/synthetic.ts'])
+        later_paths = sorted([BASE + 'README.md', 'apps/api/src/synthetic.ts'] +
+                             ([BASE + 'roles.ts'] if producer_drift else []))
         later = self.component('later', second, later_paths, 999)
         checkpoint = {
             'id': sha(b'SYNTHETIC checkpoint component'), 'kind': 'checkpoint',
@@ -174,7 +177,7 @@ class Fixture:
             before, after = self.files[index:index + 2]
             steps.append({'commit': self.commits[commit], 'parent': previous, 'tree': git_tree(after),
                           'component': component['id'], 'changes': [
-                              {'path': name, 'before': before.get(name), 'after': after.get(name)}
+                              {'path': name, 'before': copy.deepcopy(before.get(name)), 'after': copy.deepcopy(after.get(name))}
                               for name in component['paths']]})
             previous = self.commits[commit]
         candidate_ci = self.ci('candidate', final, 'push', 300, self.archive_refs['candidate'], 'candidate-logs')
@@ -183,7 +186,7 @@ class Fixture:
             'head': self.commits['candidate'], 'tree': git_tree(final),
             'artifactSha256': self.archive_refs['candidate']['sha256'],
             'operatorJsSha256': sha(b'SYNTHETIC OPERATOR NEVER EXECUTED'),
-            'actualPostflightSha256': sha(b'SYNTHETIC NOT ACTUAL POSTFLIGHT'),
+            'actualPostflightSha256': self.logs['postflight']['sha256'],
             'acceptedFeature': self.commits['producer-source'],
             'producerVersions': {'claims': 'scroll-claims.v4', 'writer': 'scroll-writer.v10',
                                  'policy': 'scroll-production.v12'},
@@ -202,7 +205,7 @@ class Fixture:
                 'worker': self.archive_record('reference', later['id'], 'pr', 'later-pr'),
                 'web': self.archive_record('reference', later['id'], 'pr', 'later-pr'),
                 'producer': self.archive_record('producer', producer['id'], 'source', 'producer-source')},
-            'evidence': self.refs}
+            'evidence': self.refs, 'postflight': self.logs['postflight']}
         self.config = {'releaseCommit': self.proof['head'], 'artifactSha256': self.proof['artifactSha256'],
                        'operatorJsSha256': self.proof['operatorJsSha256'], 'migrationRegistry': self.registry,
                        'review': {'reviewedFeatureCommit': self.proof['acceptedFeature'],
@@ -537,6 +540,60 @@ class CompositionProof(unittest.TestCase):
         self.fixture = Fixture(root, {'candidate': lambda files: files.__setitem__(
             'api/fixture-hardlink.txt', ('hard', 0o644, b'../outside'))})
         self.reject('path')
+
+    def test_later_feature_cannot_change_current_producer_code(self):
+        self.fixture = Fixture(Path(self.temporary.name) / 'other-agents', producer_drift=True)
+        self.reject('producer_body_drift')
+
+    def test_postflight_receipt_requires_pinned_actual_hash(self):
+        self.fixture.receipt['postflight'] = self.fixture.logs['candidate-logs']
+        self.reject('postflight_receipt')
+
+    def test_missing_required_job(self):
+        self.fixture.receipt['candidateCI']['jobs'].pop()
+        self.reject('sequence_bound')
+
+    def test_evidence_parent_symlink(self):
+        directory = self.fixture.root / 'evidence'
+        replacement = self.fixture.root / 'renamed-evidence'
+        directory.rename(replacement)
+        directory.symlink_to(replacement, target_is_directory=True)
+        self.reject('symlink_ancestor')
+
+    def test_evidence_path_depth_bound(self):
+        self.fixture.receipt['evidence'][0]['path'] = '/'.join(['x'] * 33)
+        self.reject('path')
+
+    def test_receipt_size_bound_before_json_parse(self):
+        self.fixture.seal()
+        target = self.fixture.root / self.fixture.proof['receipt']['path']
+        with target.open('ab') as stream:
+            stream.truncate(32 * 1024 * 1024 + 1)
+        with self.assertRaisesRegex(Refused, 'file_metadata'):
+            self.fixture.validator()(self.fixture.config)
+
+    def test_archive_hardlink_cycle(self):
+        root = Path(self.temporary.name) / 'other-agents'
+        def mutate(files):
+            files['api/fixture-hardlink.txt'] = ('hard', 0o644, b'api/fixture-hardlink2.txt')
+            files['api/fixture-hardlink2.txt'] = ('hard', 0o644, b'api/fixture-hardlink.txt')
+        self.fixture = Fixture(root, {'candidate': mutate})
+        self.reject('archive_hardlink_cycle')
+
+    def test_archive_symlink_escape(self):
+        root = Path(self.temporary.name) / 'other-agents'
+        self.fixture = Fixture(root, {'candidate': lambda files: files.__setitem__(
+            'api/fixture-symlink', ('link', 0o777, b'../../outside'))})
+        self.reject('archive_symlink_target')
+
+    def test_candidate_complete_body_map_cannot_omit_unchanged_file(self):
+        self.fixture.receipt['candidateFiles'] = [entry for entry in self.fixture.receipt['candidateFiles']
+                                                   if entry['path'] != 'untouched.txt']
+        self.reject('candidate_tree')
+
+    def test_declared_step_tree_must_be_reconstructed(self):
+        self.fixture.receipt['steps'][1]['tree'] = oid('WRONG TREE')
+        self.reject('step_tree')
 
     def test_frozen_inputs_and_derivative_inverse(self):
         raw = (HERE / 'launch-v12.proposed.py').read_bytes()

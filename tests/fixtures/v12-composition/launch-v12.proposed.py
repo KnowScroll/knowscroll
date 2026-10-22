@@ -249,7 +249,7 @@ def checked_integration_proof(c):
         positive(proof['candidatePushRun']); positive(proof['candidateArtifactId'])
         receipt_ref=proof['receipt']
         receipt=unique_json(read(receipt_ref,32*1024*1024))
-        shape(receipt,'schemaVersion context baseline steps components candidateFiles migrations candidateCI archives evidence')
+        shape(receipt,'schemaVersion context baseline steps components candidateFiles migrations candidateCI archives postflight evidence')
         check(receipt['schemaVersion']=='scroll-production-composition-receipt.v1' and
               receipt['context']==context, 'receipt_context')
         # A Root acceptance pins this entire object and all opaque evidence hashes. These
@@ -266,6 +266,8 @@ def checked_integration_proof(c):
         def cited(ref):
             shape(ref,'path sha256')
             check(evidence_map.get(ref['path'])==ref['sha256'], 'uncited_evidence')
+        cited(receipt['postflight'])
+        check(receipt['postflight']['sha256']==proof['actualPostflightSha256'], 'postflight_receipt')
         def body(value):
             shape(value,'mode gitBlob sha256')
             check(value['mode'] in {'100644','100755','120000'}, 'git_mode')
