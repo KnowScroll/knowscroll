@@ -445,6 +445,7 @@ def checked_integration_proof(c):
                         target=member.linkname
                         check(type(target) is str and 1<=len(target)<=500 and not target.startswith('/') and
                               '\\' not in target and target.isprintable() and target.isascii() and
+                              posixpath.normpath(posixpath.join(posixpath.dirname(name),target))!='..' and
                               not posixpath.normpath(posixpath.join(posixpath.dirname(name),target)).startswith('../'), 'archive_symlink_target')
                         value=target.encode()
                     else:

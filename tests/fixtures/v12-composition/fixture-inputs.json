@@ -2,7 +2,7 @@
   "schemaVersion": "synthetic-v12-composition-fixtures.v1",
   "evidenceLabel": "CI FIXTURE ONLY; fictional commits/receipts/archives; no runtime authority",
   "parentLauncherSha256": "ae074e5016bdb484ca28ef83a57d86958dabb319332b16a2c0a5b250881ddd52",
-  "derivativeLauncherSha256": "86498b24884cb19163ee6692725804c6bfd747674cf52cf61038bab525ef0c0a",
+  "derivativeLauncherSha256": "dcfeccfbbae8b9a635947e1a9008058d35d96b7ad9087f486520c62d73edd493",
   "jobs": [
     "integrity",
     "static",

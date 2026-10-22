@@ -586,6 +586,12 @@ class CompositionProof(unittest.TestCase):
             'api/fixture-symlink', ('link', 0o777, b'../../outside'))})
         self.reject('archive_symlink_target')
 
+    def test_archive_symlink_normalized_exact_parent_refuses(self):
+        root = Path(self.temporary.name) / 'other-agents'
+        self.fixture = Fixture(root, {'candidate': lambda files: files.__setitem__(
+            'api/fixture-symlink', ('link', 0o777, b'../..'))})
+        self.reject('archive_symlink_target')
+
     def test_candidate_complete_body_map_cannot_omit_unchanged_file(self):
         self.fixture.receipt['candidateFiles'] = [entry for entry in self.fixture.receipt['candidateFiles']
                                                    if entry['path'] != 'untouched.txt']
