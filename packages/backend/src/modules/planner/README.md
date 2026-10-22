@@ -186,3 +186,24 @@ match BOTH current claim ID and recovery marker with no competing normal marker.
 retire, clear or create a successor for B/C. Minimal accounting headers carry these IDs only;
 private context and hash bytes are not added to revoked cleanup. The hosted regressions preserve
 zero-retained absence separately from historical cost and preserve every unknown-liability fence.
+
+
+### Header-only persistence and hosted hash-shape diagnosis
+
+Existing run writes first update the exact `(universe_id, privacy_epoch, id)` row under the
+already-held personal root. Omitted context/version and paired hashes preserve their frozen SQL
+values without loading private bodies into metadata-only paths. Only actual absence proceeds to
+a fresh queued origin-only insert; an absent metadata header refuses with a fixed error and a
+cross-epoch PK conflict refuses rather than updating another epoch. A supplied changed
+origin/body/hash still reaches the existing immutable trigger and complete row CHECKs.
+
+The first full recording hosted Actions exposed a production persistence defect: a header-only
+claim-recovery write supplied retained hashes but no body to `INSERT ... ON CONFLICT`. PostgreSQL
+checks that proposed insert before conflict resolution, so it rejected null context with nonnull
+hashes before the intended update could preserve the frozen body. The same adapter served terminal
+metadata and resume. Direct existing-row update fixes that ordering; the schema/hash guards, original
+claim/wake protocol, admission/financial caps and all crash/rollback assertions remain unchanged.
+New hosted fixture source retains the genuine crash point, checks body/hash preservation for a real
+frozen header and necessary empty/provider-unavailable completion, and verifies changed frozen
+body/hash and hashes-without-context still refuse atomically. No local behavioral execution or
+hosted-green/runtime acceptance is inferred from static checks.

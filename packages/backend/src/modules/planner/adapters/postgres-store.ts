@@ -193,9 +193,35 @@ export const plannerStore: PlannerStore = {
   async writeRun(scope, r) {
     const { db, u, e } = identity(scope),
       o = r.recording?.source;
-    await sql`insert into planner.runs(universe_id,privacy_epoch,id,revision,status,claim_id,claim_until,context_version,context,outcome,recording_account_id,recording_generation,recording_origin_kind,recording_origin_command_id,recording_origin_source_revision,recording_context_sha256,recording_model_context_sha256,normal_wake_id,claim_wake_claim_id)
-   values(${u}::uuid,${e},${r.id}::uuid,${r.revision},${r.status},${r.claimId ?? null}::uuid,${r.claimUntil ?? null}::timestamptz,${r.context?.version ?? null},${r.context ? JSON.stringify(r.context) : null}::jsonb,${r.outcome ?? null},${r.recording?.accountId ?? null}::uuid,${o?.generation ?? null},${o?.kind ?? null},${o?.kind === 'command' ? o.commandId : null}::uuid,${o?.kind === 'material' ? o.sourceRevision : null},${r.contextSha256 ?? null},${r.modelContextSha256 ?? null},${r.normalWakeId ?? null}::uuid,${r.claimWakeClaimId ?? null}::uuid)
-   on conflict(universe_id,id) do update set revision=excluded.revision,status=excluded.status,claim_id=excluded.claim_id,claim_until=excluded.claim_until,context_version=coalesce(excluded.context_version,planner.runs.context_version),context=coalesce(excluded.context,planner.runs.context),outcome=excluded.outcome,recording_account_id=excluded.recording_account_id,recording_generation=excluded.recording_generation,recording_origin_kind=excluded.recording_origin_kind,recording_origin_command_id=excluded.recording_origin_command_id,recording_origin_source_revision=excluded.recording_origin_source_revision,recording_context_sha256=coalesce(excluded.recording_context_sha256,planner.runs.recording_context_sha256),recording_model_context_sha256=coalesce(excluded.recording_model_context_sha256,planner.runs.recording_model_context_sha256),normal_wake_id=excluded.normal_wake_id,claim_wake_claim_id=excluded.claim_wake_claim_id,updated_at=now()`.execute(
+    // Header-only metadata writes must not form an invalid INSERT candidate: PostgreSQL
+    // checks context/hash consistency before ON CONFLICT can preserve the stored context.
+    // All callers already hold the personal root; this exact epoch/run UPDATE preserves the
+    // frozen body in SQL without loading it into metadata-only/necessary accounting paths.
+    const updated = await sql`update planner.runs set
+     revision=${r.revision},status=${r.status},claim_id=${r.claimId ?? null}::uuid,claim_until=${r.claimUntil ?? null}::timestamptz,
+     context_version=coalesce(${r.context?.version ?? null},context_version),context=coalesce(${r.context ? JSON.stringify(r.context) : null}::jsonb,context),outcome=${r.outcome ?? null},
+     recording_account_id=${r.recording?.accountId ?? null}::uuid,recording_generation=${o?.generation ?? null},recording_origin_kind=${o?.kind ?? null},recording_origin_command_id=${o?.kind === 'command' ? o.commandId : null}::uuid,recording_origin_source_revision=${o?.kind === 'material' ? o.sourceRevision : null},
+     recording_context_sha256=coalesce(${r.contextSha256 ?? null},recording_context_sha256),recording_model_context_sha256=coalesce(${r.modelContextSha256 ?? null},recording_model_context_sha256),normal_wake_id=${r.normalWakeId ?? null}::uuid,claim_wake_claim_id=${r.claimWakeClaimId ?? null}::uuid,updated_at=now()
+     where universe_id=${u}::uuid and privacy_epoch=${e} and id=${r.id}::uuid returning id`.execute(db);
+    if (updated.rows.length === 1) return;
+    if (updated.rows.length !== 0) throw new Error('PLANNER_RUN_WRITE_CARDINALITY');
+    // A vanished/other-epoch header is not new-work authority and must not recreate a run.
+    if (
+      'hasContext' in r ||
+      !r.recording ||
+      r.status !== 'queued' ||
+      r.context !== undefined ||
+      r.contextSha256 !== undefined ||
+      r.modelContextSha256 !== undefined ||
+      r.claimId !== undefined ||
+      r.claimUntil !== undefined ||
+      r.normalWakeId !== undefined ||
+      r.claimWakeClaimId !== undefined ||
+      r.outcome !== undefined
+    )
+      throw new Error('PLANNER_NEW_RUN_SHAPE_INVALID');
+    await sql`insert into planner.runs(universe_id,privacy_epoch,id,revision,status,recording_account_id,recording_generation,recording_origin_kind,recording_origin_command_id,recording_origin_source_revision)
+     values(${u}::uuid,${e},${r.id}::uuid,${r.revision},'queued',${r.recording.accountId}::uuid,${o?.generation ?? null},${o?.kind ?? null},${o?.kind === 'command' ? o.commandId : null}::uuid,${o?.kind === 'material' ? o.sourceRevision : null})`.execute(
       db,
     );
   },

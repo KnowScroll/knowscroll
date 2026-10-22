@@ -27,6 +27,7 @@ import {
   makeRunPlanner,
   makeMaterialChange,
   type PlannerPorts,
+  type FrozenContext,
 } from '@knowscroll/backend/modules/planner/nest-providers';
 import { CHECK_PLANNER_RECORDING_RUN, type CheckPersonalRecordingRun } from '@knowscroll/backend/reasoning';
 import { personalRecordingReasoningHarnessFor } from '@knowscroll/backend/reasoning/nest-providers';
@@ -324,6 +325,93 @@ describe('Planner original recording provenance and exact wake ownership', () =>
     expect(await crash(ordinary, signal())).toMatchObject({ kind: 'entered', value: { kind: 'obsolete_wake' } });
     expect(await rows(p)).toEqual(pendingB);
     expect(await attemptsOf(database.db, p.universeId)).toEqual([]);
+  });
+  it('updates metadata-only frozen headers without an invalid insert candidate, retaining every hash/body guard', async () => {
+    const p = await seedPerson(database.db),
+      ordinary = await requestJob(p);
+    const crash = makeRunPlanner({
+      ...base,
+      store: { ...plannerStore, clearActiveRun: () => Promise.reject(new Error('CI_KEEP_PREPARED_FOR_METADATA')) },
+    });
+    await expect(crash(ordinary, signal())).rejects.toThrow('CI_KEEP_PREPARED_FOR_METADATA');
+    const frozen = (await rows(p)).runs[0]!;
+    expect(frozen.context_version).toBe('planner-context.v0');
+    expect(frozen.context).not.toBeNull();
+    expect(frozen.recording_context_sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(frozen.recording_model_context_sha256).toMatch(/^[0-9a-f]{64}$/);
+    const own = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount;
+    const update = (
+      change: (
+        header: NonNullable<Awaited<ReturnType<typeof plannerStore.header>>>,
+      ) => Parameters<typeof plannerStore.writeRun>[1],
+    ) =>
+      scope()(p.authority, async (s) => {
+        expect((await own(s)).kind).toBe('active');
+        const gate = await fencePersonalRecording(s, 1);
+        if (gate.kind !== 'recording') throw new Error('CI genuine recording authority unavailable');
+        const header = await plannerStore.header(s, ordinary.runId);
+        if (!header) throw new Error('CI exact prepared header missing');
+        expect(header.hasContext).toBe(true);
+        expect(header).not.toHaveProperty('context');
+        await plannerStore.writeRun(s, change(header));
+      });
+    expect(await update((header) => ({ ...header, status: 'blocked', outcome: 'CI_METADATA_ONLY' }))).toMatchObject({
+      kind: 'entered',
+    });
+    const metadata = (await rows(p)).runs[0]!;
+    expect(metadata).toMatchObject({
+      status: 'blocked',
+      outcome: 'CI_METADATA_ONLY',
+      context_version: frozen.context_version,
+      context: frozen.context,
+      recording_context_sha256: frozen.recording_context_sha256,
+      recording_model_context_sha256: frozen.recording_model_context_sha256,
+      recording_account_id: frozen.recording_account_id,
+      recording_generation: frozen.recording_generation,
+      claim_id: frozen.claim_id,
+      claim_wake_claim_id: frozen.claim_wake_claim_id,
+    });
+    await expect(update((header) => ({ ...header, contextSha256: '0'.repeat(64) }))).rejects.toThrow(
+      'PERSONAL_ROLE_RECORDING_CONTEXT_IMMUTABLE',
+    );
+    await expect(
+      scope()(p.authority, async (s) => {
+        expect((await own(s)).kind).toBe('active');
+        const gate = await fencePersonalRecording(s, 1);
+        if (gate.kind !== 'recording') throw new Error('CI genuine recording authority unavailable');
+        const header = await plannerStore.header(s, ordinary.runId);
+        const context: FrozenContext | undefined = await plannerStore.context(s, ordinary.runId);
+        if (!header || !context) throw new Error('CI real frozen body missing');
+        await plannerStore.writeRun(s, {
+          ...header,
+          context: { ...context, desiredRevision: context.desiredRevision + 1 },
+        });
+      }),
+    ).rejects.toThrow('PERSONAL_ROLE_RECORDING_CONTEXT_IMMUTABLE');
+    await expect(update((header) => ({ ...header, id: randomUUID() }))).rejects.toThrow(
+      'PLANNER_NEW_RUN_SHAPE_INVALID',
+    );
+    expect((await rows(p)).runs[0]).toEqual(metadata);
+    expect(await attemptsOf(database.db, p.universeId)).toEqual([]);
+    const unprepared = await seedPerson(database.db),
+      queued = await requestJob(unprepared);
+    const untouched = await rows(unprepared);
+    await expect(
+      scope()(unprepared.authority, async (s) => {
+        expect((await own(s)).kind).toBe('active');
+        const gate = await fencePersonalRecording(s, 1);
+        if (gate.kind !== 'recording') throw new Error('CI genuine recording authority unavailable');
+        const header = await plannerStore.header(s, queued.runId);
+        if (!header) throw new Error('CI exact queued header missing');
+        expect(header.hasContext).toBe(false);
+        await plannerStore.writeRun(s, {
+          ...header,
+          contextSha256: '0'.repeat(64),
+          modelContextSha256: '1'.repeat(64),
+        });
+      }),
+    ).rejects.toThrow('planner_run_recording_hash_shape');
+    expect(await rows(unprepared)).toEqual(untouched);
   });
   it('wakes metadata-only retirement of a disabled revoked head, without a toggle-only successor or private capture', async () => {
     const p = await seedPerson(database.db),

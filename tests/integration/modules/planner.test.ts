@@ -302,6 +302,11 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
         normal_wake_id: null,
         claim_wake_claim_id: null,
       });
+      // Necessary terminal metadata preserves the paired proof and body frozen before admission.
+      expect(head.context_version).toBe('planner-context.v0');
+      expect(head.context).not.toBeNull();
+      expect(head.recording_context_sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(head.recording_model_context_sha256).toMatch(/^[0-9a-f]{64}$/);
       expect((await state(p)).active_run_id).toBe(decision === 'empty' ? null : s.active_run_id);
       expect(await attemptsOf(database.db, p.universeId)).toEqual([]);
       expect(
