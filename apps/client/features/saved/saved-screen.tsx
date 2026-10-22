@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -12,46 +12,21 @@ import { readResume } from '../encounter/encounter-history';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
 import { ScreenFrame } from '../shell/screen-frame';
 import { EmptyKeepScreen } from './empty-keep-screen';
-import { SavedCard } from './saved-card';
+import { KeptSavedCard } from './saved-card';
 import { KeepDetail } from './keep-detail';
 import type { AvailableKeep } from './keep-place-bridge';
-import { createSavedRemoval, savedQueryOptions } from './saved-query';
+import { savedRemovalFor, savedQueryOptions } from './saved-query';
 
-const removals = new WeakMap<AccountScope, ReturnType<typeof createSavedRemoval>>();
-function removalFor(scope: AccountScope) {
-  let removal = removals.get(scope);
-  if (!removal) {
-    removal = createSavedRemoval(scope, newCommandId);
-    removals.set(scope, removal);
-  }
-  return removal;
-}
 export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
   const query = useQuery(savedQueryOptions(scope));
   const router = useRouter();
+  const [page, setPage] = useState(0);
   const [filter, setFilter] = useState<'all' | 'reel' | 'scroll'>('all');
-  const [failed, setFailed] = useState<ReadonlyMap<string, ListSavedResponse['items'][number]>>(new Map());
-  const [removing, setRemoving] = useState<ReadonlySet<string>>(new Set());
+  const removal = savedRemovalFor(scope, newCommandId);
+  const removalState = useSyncExternalStore(removal.subscribe, removal.getState, removal.getState);
   const [openFailed, setOpenFailed] = useState(false);
   const [selected, setSelected] = useState<ListSavedResponse['items'][number]>();
-  const remove = async (item: ListSavedResponse['items'][number]) => {
-    if (removing.has(item.assetId)) return;
-    setRemoving((values) => new Set(values).add(item.assetId));
-    const ok = await removalFor(scope)(item);
-    if (ok && scope.active) void encounterSessionFor(scope).refreshContext();
-    if (!scope.active) return;
-    setRemoving((values) => {
-      const next = new Set(values);
-      next.delete(item.assetId);
-      return next;
-    });
-    setFailed((values) => {
-      const next = new Map(values);
-      if (ok) next.delete(item.assetId);
-      else next.set(item.assetId, item);
-      return next;
-    });
-  };
+  const removing = ['preparing', 'grace', 'sending', 'unknown'].includes(removalState.status);
   const open = (
     item: ListSavedResponse['items'][number],
     assetRevision: number,
@@ -67,7 +42,9 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
     router.navigate('/explore');
   };
   const items = query.data?.items ?? [];
-  const visible = items.filter((item) => filter === 'all' || item.metadata?.kind === filter);
+  const filtered = items.filter((item) => filter === 'all' || item.metadata?.kind === filter);
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 20) - 1));
+  const visible = filtered.slice(currentPage * 20, currentPage * 20 + 20);
   return (
     <ScreenFrame tone="paper" title="Keep" bodyOffset={spacing[7]}>
       <View style={styles.body}>
@@ -81,6 +58,7 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
               toggled={filter === kind}
               onPress={() => {
                 setFilter(kind);
+                setPage(0);
                 setSelected(undefined);
               }}
             />
@@ -144,6 +122,38 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
         {items.length > 0 && visible.length === 0 ? (
           <StateBlock title="No saved encounters in this filter" body="Try All to see the rest of this list." />
         ) : null}
+        {removalState.status === 'grace' ? (
+          <View style={styles.body}>
+            <Text variant="bodyS">Removal starts in five seconds. Undo keeps this encounter in Keep.</Text>
+            <Button
+              label="Undo removal"
+              onPress={() => {
+                removal.undo();
+              }}
+            />
+          </View>
+        ) : null}
+        {removalState.status === 'preparing' ? <Text variant="meta">Checking this saved encounter…</Text> : null}
+        {removalState.status === 'sending' ? <Text variant="meta">Removing this saved encounter…</Text> : null}
+        {removalState.status === 'unknown' ? (
+          <View style={styles.body}>
+            <Text variant="bodyS">
+              Removal wasn't confirmed. Retry checks the same removal. Undo is no longer available.
+            </Text>
+            <Button
+              label="Retry removal"
+              onPress={() => {
+                removal.retry();
+              }}
+            />
+          </View>
+        ) : null}
+        {removalState.status === 'confirmed' ? (
+          <Text variant="meta">Removal confirmed. The latest Keep list is shown when refreshed.</Text>
+        ) : null}
+        {removalState.status === 'unavailable' ? (
+          <Text variant="bodyS">This removal couldn't be completed. Refresh Keep before choosing again.</Text>
+        ) : null}
         {selected ? (
           <KeepDetail
             key={`${selected.assetId}:${String(selected.assetRevision)}`}
@@ -155,14 +165,15 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
         ) : null}
         {!selected
           ? visible.map((item) => (
-              <SavedCard
+              <KeptSavedCard
+                scope={scope}
                 key={item.assetId}
                 item={item}
                 resume={readResume(scope, item.assetId, item.assetRevision)}
-                failed={failed.has(item.assetId)}
-                removing={removing.has(item.assetId)}
+                failed={removalState.status === 'unavailable' && removalState.item.assetId === item.assetId}
+                removing={removing && 'item' in removalState && removalState.item.assetId === item.assetId}
                 onRemove={() => {
-                  void remove(item);
+                  void removal.prepare(item);
                 }}
                 onOpen={(revision) => {
                   if (revision === item.assetRevision) setSelected(item);
@@ -171,6 +182,26 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
               />
             ))
           : null}
+        {!selected && filtered.length > 20 ? (
+          <View role="group" accessibilityLabel="Keep pages" style={styles.filters}>
+            <Text variant="meta">
+              Showing {currentPage * 20 + 1}–{Math.min(currentPage * 20 + 20, filtered.length)} of {filtered.length}{' '}
+              loaded encounters
+            </Text>
+            <Button
+              label="Previous 20 saved encounters"
+              variant="ghost"
+              disabled={currentPage === 0}
+              onPress={() => setPage(currentPage - 1)}
+            />
+            <Button
+              label="Next 20 saved encounters"
+              variant="ghost"
+              disabled={(currentPage + 1) * 20 >= filtered.length}
+              onPress={() => setPage(currentPage + 1)}
+            />
+          </View>
+        ) : null}
         {items.length >= 100 ? (
           <Text variant="meta">
             Showing the newest 100 saved encounters. This is a bounded list, not your complete library.

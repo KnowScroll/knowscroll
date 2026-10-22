@@ -1,11 +1,13 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createScrollRecorder, type AccountScope } from '@knowscroll/client-core';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import {
   Banner,
+  Button,
+  Text,
   ErrorState,
   IconButton,
   OfflineState,
@@ -16,6 +18,8 @@ import {
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
+import { useKeepSurface } from '../saved/use-keep-surface';
+import { KeepWriteStatus } from '../saved/keep-detail';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { combineObservers, createAnchorKeeper } from './anchor-keeper';
 import type { OpenedScroll } from './scroll-session';
@@ -72,6 +76,24 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
     }),
   );
   const positionRef = useRef<ScrollPositionHandle>(null);
+  const target = useMemo(() => ({ assetId: scroll.assetId, assetRevision: scroll.assetRevision }), [scroll]);
+  const capture = useCallback(() => {
+    const value = positionRef.current?.capture();
+    if (
+      !value ||
+      value.assetId !== scroll.assetId ||
+      value.revision !== scroll.assetRevision ||
+      !Number.isFinite(value.offsetWithinBlock) ||
+      value.offsetWithinBlock < 0 ||
+      !scroll.document.sections.some((section) => section.blocks.some((block) => block.id === value.blockId))
+    )
+      return undefined;
+    writeResume(scope, scroll.assetId, scroll.assetRevision, { kind: 'scroll', value });
+    return { kind: 'scroll' as const, blockId: value.blockId, offsetWithinBlock: value.offsetWithinBlock };
+  }, [scope, scroll]);
+  const kept = useKeepSurface(scope, target, scroll.exposureId, capture);
+  const isKept =
+    kept.state.place.snapshot?.status === 'available' || kept.state.place.snapshot?.status === 'saved_unavailable';
   const [resume] = useState(() => readResume(scope, scroll.assetId, scroll.assetRevision));
   useLayoutEffect(
     () => () => {
@@ -123,9 +145,44 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
         bottomInset={spacing[24] + insets.bottom}
         readingBottomInset={insets.bottom}
         afterHeader={
-          scroll.degradedEssential.length > 0 ? (
-            <Banner kind="info" lead="Part of this Scroll needs an app update." message="It is shown here as text." />
-          ) : undefined
+          <View style={{ gap: spacing[3] }}>
+            {scroll.degradedEssential.length > 0 ? (
+              <Banner kind="info" lead="Part of this Scroll needs an app update." message="It is shown here as text." />
+            ) : null}
+            <Button
+              label={kept.state.save === 'unknown' ? 'Retry Save' : isKept ? 'Saved in Keep' : 'Save to Keep'}
+              disabled={isKept && kept.state.save !== 'unknown'}
+              busy={kept.state.save === 'sending'}
+              onPress={() => {
+                capture();
+                void kept.surface.save();
+              }}
+            />
+            {kept.state.save === 'unavailable' ? (
+              <Text variant="bodyS">Save couldn't start because earlier Saves still need confirmation.</Text>
+            ) : null}
+            {kept.state.save === 'unknown' ? (
+              <Text variant="bodyS">Save wasn't confirmed. Retry checks the same Save.</Text>
+            ) : null}
+            <Button
+              label="Keep this place"
+              variant="ghost"
+              disabled={
+                kept.state.place.snapshot?.status !== 'available' ||
+                kept.state.place.write === 'unknown' ||
+                kept.state.place.write === 'conflict'
+              }
+              onPress={() => {
+                void kept.surface.captureFresh();
+              }}
+            />
+            <KeepWriteStatus
+              state={kept.state.place}
+              refresh={kept.surface.refresh}
+              retry={kept.surface.retry}
+              resolve={kept.surface.resolveConflict}
+            />
+          </View>
         }
       />
       <View style={[styles.floating, { top: insets.top + spacing[3] }]} pointerEvents="box-none">

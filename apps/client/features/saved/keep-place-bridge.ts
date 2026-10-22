@@ -18,7 +18,7 @@ const unavailable: KeepPlaceState = Object.freeze({
 });
 const bridges = new WeakMap<AccountScope, ReturnType<typeof makeBridge>>();
 
-/** App budget: selected detail + current open/checkpoint only. Core separately caps unknown commands. */
+/** App budget: twenty cards, forty retiring route/encounter writes and selected/current work. */
 function makeBridge(scope: AccountScope) {
   const session = createKeepPlaceSession({ scope, newCommandId });
   const leases = new Set<KeepPlaceHandle>();
@@ -30,9 +30,18 @@ function makeBridge(scope: AccountScope) {
   });
   return {
     retain(target: KeepAssetRef): KeepPlaceHandle | undefined {
-      if (!live || !scope.active || leases.size >= 2) return undefined;
+      if (!live || !scope.active || leases.size >= 64) return undefined;
       const handle = session.retain(target);
       if (!handle) return undefined;
+      const pending = retiringSurfaces.get(scope);
+      if (pending)
+        for (const [held, off] of pending) {
+          const ref = held.getState().snapshot?.target;
+          if (ref?.assetId !== target.assetId || ref.assetRevision !== target.assetRevision) continue;
+          off();
+          pending.delete(held);
+          held.release();
+        }
       const lease: KeepPlaceHandle = {
         ...handle,
         release() {
@@ -208,4 +217,36 @@ export function checkpointPosition(entry: EncounterEntry, capture: PrivatePositi
   )
     return { kind: 'scroll', blockId: capture.value.blockId, offsetWithinBlock: capture.value.offsetWithinBlock };
   return undefined;
+}
+
+const retiringSurfaces = new WeakMap<AccountScope, Map<KeepPlaceHandle, () => void>>();
+/** Let a submitted direct-surface write settle; retain unknown/conflict choices for a later visit. */
+export function retireKeep(scope: AccountScope, handle: KeepPlaceHandle) {
+  let pending = retiringSurfaces.get(scope);
+  if (!pending) {
+    pending = new Map();
+    retiringSurfaces.set(scope, pending);
+    const heldMap = pending;
+    scope.onEnd?.(() => {
+      for (const [held, off] of heldMap) {
+        off();
+        held.release();
+      }
+      heldMap.clear();
+    });
+  }
+  const current = handle.getState();
+  if (current.write === 'idle' || current.status === 'ended' || pending.size >= 20) {
+    handle.release();
+    return;
+  }
+  const complete = () => {
+    const value = handle.getState();
+    if (value.write !== 'idle' && value.status !== 'ended') return;
+    pending.get(handle)?.();
+    pending.delete(handle);
+    handle.release();
+  };
+  pending.set(handle, handle.subscribe(complete));
+  complete();
 }
