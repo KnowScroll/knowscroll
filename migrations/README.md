@@ -17,3 +17,9 @@ behaviour for older processes (blueprint §23 pattern 5).
 0040 adds Social's account-lifetime current public roster index/heads and latest hash-only invite.
 It backfills only existing explicit public sides and binds projection updates to the same pair transaction.
 All earlier SQL remains immutable; schema40 requires compatible writers and no backward activation.
+
+0041 is the Identity recording prerequisite: monotone on/generation fields on the existing root,
+SQL transition guards and immutable exact-body account-lifetime recording_commands receipts.
+Selective Clear preserves them. This schema does not activate Pause; every contribution owner
+must carry and fence original generations before exposing a controller/control. All previous40
+SQL files remain immutable. No new root, queue, provider/financial change or deletion executor.

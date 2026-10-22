@@ -329,3 +329,40 @@ may span many deliveries. Overlapping cron passes can inspect the same operation
 different ceilings; exact operation locks, live-delivery rechecks and capped counters still govern
 effects. This does not promise a global once-only scan or recovery while the queue/database stays
 unavailable. Missing/exhausted continuation deliveries are revisited by later scheduled passes.
+
+## Recording policy prerequisite (#381)
+
+`recordingPolicyFor(db,{lockTimeoutMs})` exposes opt-in `set` and `read` use cases over the strict
+recording-policy.v1 contracts. No controller, control, collection path or worker is installed.
+This prerequisite alone does not implement Pause: every evidence/growth owner must carry and
+fence original generations before the API and P02 can be exposed.
+
+0041 adds on/generation to the existing personal root, initial1/on, odd/on and even/off. A SQL
+trigger allows only identical fields or exactly one generation increment with a boolean flip;
+Clear/epoch changes leave both fields untouched. No reset/wrap is possible. New accepted commands,
+including no-ops, advance the existing root revision once. Reads and replay never advance it.
+
+Set enters the existing genuine personal root, then own-account UPDATE gate, then a fresh current
+root/account/epoch/barrier read BEFORE account-lifetime command lookup. The command key is
+(account,command UUID); it stores the exact original validated body (canonical hash, preserving
+UUID spelling), actual owner/root, requested epoch, from/to/on/changed/time and outcome version1.
+Changed bodies conflict. Fresh stale expectations refuse; an exact old authorized retry can
+recover its immutable ACK after later toggles or completed Clear without retoggling. An old ACK
+is not the current policy. Pure reads echo readId/target/current scope/root revision/policy and
+separate historical command receipt. Neither read nor replay repairs or enqueues anything.
+
+Identity's public `FencePersonalRecording(personal,originalGeneration)` is an additive capability
+for new durable personal contributions. Its Postgres implementation rechecks current root/owner,
+active account, epoch/barrier and original-current on generation under the already-held root.
+Undefined legacy generation is accepted ONLY initial1/on, and is permanently refused after any
+actual toggle. It takes no second root, account-gate upgrade or lease. `RecordingScopeTx` and
+`recordingTransactionOf` preserve genuine personal capability lifetime and reject copied/fabricated
+or closed objects. This capability must be freshly checked at each later personal application;
+never relabel delayed work with the latest generation. Necessary explicit commands retain their
+existing PersonalScopeTx authority while recording is off.
+
+recording_commands is an immutable account-lifetime receipt store in Identity's account-deletion
+inventory. Selective Clear preserves it and root policy. No account deletion/export executor,
+authentication bypass, shared-production suspension or provider/accounting permission follows.
+Authored synthetic lock/SQL/Clear fixtures run in Actions only; source/static/schema evidence is
+not deployed end-to-end Pause or disposable-account dev acceptance.

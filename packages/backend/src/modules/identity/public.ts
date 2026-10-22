@@ -414,3 +414,40 @@ export type WithClearMaintenance = <T>(
 export { ClearExplorationJobSchema, clearExplorationQueue, type ClearExplorationJob } from './events.js';
 
 export { ClearRecoveryJobSchema, recoverClearOperationsQueue, type ClearRecoveryJob } from './events.js';
+
+// Recording is separate from privacy epoch and ordinary command authority. Prerequisite only.
+import type { RecordingPolicyAcceptance, RecordingPolicyRead } from '@knowscroll/contracts';
+export type RecordingPolicyResult<T> =
+  | { readonly kind: 'ok'; readonly value: T }
+  | {
+      readonly kind: 'refused';
+      readonly code:
+        | 'invalid_input'
+        | 'unavailable'
+        | 'stale_policy'
+        | 'command_key_reused'
+        | 'generation_exhausted'
+        | 'revision_exhausted';
+    }
+  | { readonly kind: 'scope_refused'; readonly refusal: ScopeRefusal };
+export interface RecordingPolicyUseCases {
+  set(authority: PersonalAuthority, input: unknown): Promise<RecordingPolicyResult<RecordingPolicyAcceptance>>;
+  read(authority: PersonalAuthority, input: unknown): Promise<RecordingPolicyResult<RecordingPolicyRead>>;
+}
+declare const recordingScopeBrand: unique symbol;
+export interface RecordingScopeTx {
+  readonly [recordingScopeBrand]: true;
+  readonly personal: PersonalScopeTx;
+  /** The original generation, checked on/current under the already-held root. Never relabel old work. */
+  readonly generation: number;
+}
+export type FencePersonalRecording = (
+  scope: PersonalScopeTx,
+  originalGeneration: number | undefined,
+) => Promise<
+  | { readonly kind: 'recording'; readonly scope: RecordingScopeTx }
+  | { readonly kind: 'paused' | 'stale'; readonly currentGeneration: number }
+  | { readonly kind: 'generation_required' | 'unavailable' }
+>;
+export const RECORDING_POLICY_USE_CASES = Symbol('identity.recordingPolicy');
+export const FENCE_PERSONAL_RECORDING = Symbol('identity.fencePersonalRecording');

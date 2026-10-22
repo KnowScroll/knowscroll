@@ -638,6 +638,21 @@ export interface IdentityEmailAddresses {
   disposable: Generated<boolean>;
 }
 
+export interface IdentityRecordingCommands {
+  account_id: string;
+  changed: boolean;
+  command_id: string;
+  from_generation: number;
+  outcome_version: Generated<number>;
+  recorded_at: Timestamp;
+  request_body: Json;
+  request_hash: string;
+  requested_epoch: number;
+  requested_on: boolean;
+  scope_id: string;
+  to_generation: number;
+}
+
 export interface IdentitySessions {
   account_id: string;
   client: string;
@@ -669,6 +684,8 @@ export interface IdentityUniverses {
   created_at: Generated<Timestamp>;
   id: string;
   privacy_epoch: Generated<number>;
+  recording_generation: Generated<number>;
+  recording_on: Generated<boolean>;
   revision: Generated<number>;
   status: Generated<string>;
 }
@@ -1326,6 +1343,7 @@ export interface DB {
   "identity.clear_liabilities": IdentityClearLiabilities;
   "identity.clear_operations": IdentityClearOperations;
   "identity.email_addresses": IdentityEmailAddresses;
+  "identity.recording_commands": IdentityRecordingCommands;
   "identity.sessions": IdentitySessions;
   "identity.sign_in_links": IdentitySignInLinks;
   "identity.universes": IdentityUniverses;

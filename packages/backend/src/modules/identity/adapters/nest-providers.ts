@@ -274,3 +274,11 @@ export { clearExplorationFor, readClearRecoveryCandidates, clearStore } from './
 
 export { makeClearExploration } from '../application/clear-exploration.js';
 export type { ClearPorts, ClearOperation, ClearStore } from '../application/clear-ports.js';
+
+export {
+  recordingPolicyFor,
+  recordingPolicyProviders,
+  recordingStore,
+  makeRecordingPolicy,
+} from './recording-providers.js';
+export type { RecordingPorts, RecordingStore } from './recording-providers.js';
