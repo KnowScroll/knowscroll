@@ -5,6 +5,7 @@ import { AssetIdSchema, CommandIdSchema, UniverseIdSchema, UuidSchema } from './
 import { ExperienceSessionRefSchema, NavigationOutcomeSchema, EncounterMetadataSchema } from './navigation.js';
 import { SceneReadScopeSchema } from './scenes.js';
 import { problemCatalogue, problemTypeUri } from './problems.js';
+import { RecordingGenerationSchema } from './recording.js';
 
 const Version = z.literal('region-encounter-open.v1');
 const Counter = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
@@ -69,14 +70,20 @@ export const RegionEncounterPreviewResponseSchema = z
 /** Explicit Composer preparation command. Local map selection, Close and Back send no command.
  * Server derives the current owner/epoch and resolves canonical topic+facet through Geography.
  * Same command ID/body retries one intent; no camera, content override or consumption travels here. */
-export const RegionEncounterOpenRequestSchema = z.strictObject({
-  version: Version,
-  commandId: CommandIdSchema,
-  target: RegionEncounterTargetSchema,
-  session: ExperienceSessionRefSchema.extend({ expectedIntentRevision: Counter }).optional(),
-  capabilities: ClientCapabilities,
-  expectedEncounter: RegionEncounterExpectedSchema.optional(),
-});
+export const RegionEncounterOpenRequestSchema = z
+  .strictObject({
+    version: Version,
+    commandId: CommandIdSchema,
+    target: RegionEncounterTargetSchema,
+    session: ExperienceSessionRefSchema.extend({ expectedIntentRevision: Counter }).optional(),
+    capabilities: ClientCapabilities,
+    expectedEncounter: RegionEncounterExpectedSchema.optional(),
+    recordingGeneration: RecordingGenerationSchema.optional(),
+  })
+  .refine((r) => !Object.hasOwn(r, 'recordingGeneration') || r.recordingGeneration !== undefined, {
+    path: ['recordingGeneration'],
+    message: 'A supplied recording generation must be defined.',
+  });
 
 /** Reuse the real Composer outcome without creating another offer/activation protocol.
  * Syntax cannot prove current region membership, canonical meaning or Content eligibility:
@@ -128,6 +135,7 @@ export const RegionEncounterProblemIssueSchema = z.strictObject({
       z.enum([
         'version',
         'commandId',
+        'recordingGeneration',
         'readId',
         'expectedEncounter',
         'assetId',

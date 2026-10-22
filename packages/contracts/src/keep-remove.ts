@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { KeepEntryRefSchema } from './keep.js';
 import { CommandIdSchema, UuidSchema } from './ids.js';
 import { problemCatalogue, problemTypeUri } from './problems.js';
+import { RecordingGenerationSchema } from './recording.js';
 
 const Version = z.literal('keep-remove.v1');
 const Scope = z.strictObject({
@@ -11,11 +12,16 @@ const Scope = z.strictObject({
 });
 
 /** Removal names the actual Saved membership. An asset ID or Save receipt alone is insufficient. */
-export const RemoveKeepEntrySchema = z.strictObject({
-  version: Version,
-  commandId: CommandIdSchema,
-  entry: KeepEntryRefSchema,
-});
+export const RemoveKeepEntrySchema = z
+  .strictObject({
+    version: Version,
+    commandId: CommandIdSchema,
+    entry: KeepEntryRefSchema,
+    recordingGeneration: RecordingGenerationSchema.optional(),
+  })
+  .refine((r) => !Object.hasOwn(r, 'recordingGeneration') || r.recordingGeneration !== undefined, {
+    path: ['recordingGeneration'],
+  });
 
 /** Historical acknowledgement only. It never asserts that this asset is currently absent:
  * a later Save may have created another membership, which replay must leave untouched. */
@@ -33,7 +39,18 @@ export const KeepRemovalAcceptanceSchema = z.strictObject({
 /** Static tokens only; no positions, counts, unknown key names or current membership identifiers. */
 export const KeepRemovalProblemIssueSchema = z.strictObject({
   path: z
-    .array(z.enum(['version', 'commandId', 'entry', 'assetId', 'assetRevision', 'savedEntryId', 'unknown']))
+    .array(
+      z.enum([
+        'version',
+        'commandId',
+        'entry',
+        'assetId',
+        'assetRevision',
+        'savedEntryId',
+        'recordingGeneration',
+        'unknown',
+      ]),
+    )
     .max(8),
   code: z.enum([
     'invalid_type',
