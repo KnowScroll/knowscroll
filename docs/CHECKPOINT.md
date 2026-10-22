@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-22 22:01 UTC · **Phase:** RESUMED / original-generation contracts integrated / Friends candidate and recording recovery review · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-22 21:54 UTC · **Phase:** RESUMED / original-generation contracts integrated / Friends candidate and recording recovery review · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,7 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current authoritative phase — 22 Oct 2026 22:01 UTC
+## Current authoritative phase — 22 Oct 2026 21:54 UTC
 
 **Latest actual integration is `30c391902e8c3ef1d854b88b3b2b94b0b0d13cba`, tree `b612b753e762e23392f8c8f9a6d38eda06f750ec`, schema39.** PR385 is actually squash-merged on receiver553d5c00 after independent current-base composition162331d6 and complete source/actual-PR acceptance02252b5d. Exact source18ae699e and actual PRc2abc5e4 passed all six required checks (39856037642/39856046757), with full114 official logs and all102 step logs each, official artifact digests, all19,626 manifest entries/all39 immutable SQL and smoke29. Actual squash receipt63cea0ff verifies expected parent/tree and clean integration fast-forward. All eight original-generation command contracts remain declaration prerequisites; API/UI recording is not activated.
 
