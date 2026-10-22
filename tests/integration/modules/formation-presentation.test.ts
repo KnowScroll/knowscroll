@@ -757,7 +757,12 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
         await eraseExploration(s, explorationStores);
       },
     });
-    const q = { commandId: randomUUID(), version: 'clear-exploration.v1' as const, expectedPrivacyEpoch: 1 };
+    const q = {
+      commandId: randomUUID(),
+      version: 'clear-exploration.v1' as const,
+      expectedPrivacyEpoch: 1,
+      confirmation: 'clear-exploration-preserve-keep-and-social',
+    };
     const a = await clear.start({ accountId: p.accountId, universeId: p.universeId, privacyEpoch: 1 }, q);
     expect(a).toMatchObject({ kind: 'entered', value: { kind: 'ok' } });
     await clear.process({ v: 1, accountId: p.accountId, commandId: q.commandId });

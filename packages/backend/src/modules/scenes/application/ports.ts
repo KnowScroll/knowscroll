@@ -132,7 +132,7 @@ export interface FormationUseCases {
 
 export interface FormationReceiptKey {
   readonly commandId: string;
-  readonly operation: 'scenes.formation-claim.v1' | 'scenes.formation-acknowledge.v1';
+  readonly operation: 'scenes.formation-claim' | 'scenes.formation-acknowledge';
   readonly requestHash: string;
   readonly outcomeVersion: 1;
 }
