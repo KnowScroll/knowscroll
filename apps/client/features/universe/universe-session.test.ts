@@ -1,7 +1,9 @@
+import { createAccountScope, memoryStore } from '@knowscroll/client-core';
+import { encounterSessionFor } from '../encounter/use-encounter-session';
 import { waitFor } from '@testing-library/react-native';
 import { createUniverseViewSession } from './universe-session';
 import { universeSessionFor } from './use-universe-session';
-import { fixtureId, universeHarness } from './universe.fixture';
+import { fixtureId, fixtureAccount, sceneFixture, universeHarness } from './universe.fixture';
 const ready = async (session: ReturnType<typeof createUniverseViewSession>) =>
   waitFor(() => expect(session.getState().read.status).toBe('ready'));
 it('loads through the real core; hierarchy/travel/Back restore the precise private frame without commands', async () => {
@@ -150,4 +152,137 @@ it('Fit and Back preserve an exact matching canonical locator and camera frame',
   expect(s.getState().locator).toEqual(fitted.locator);
   expect(s.getState().locator?.frame).toEqual(s.getState().frame);
   h.scope.end();
+});
+
+// These are authored HTTP protocol fixtures, not a supported real region/mapping.
+function regionHarness() {
+  const world = sceneFixture(),
+    calls: { path: string; body: Record<string, unknown> }[] = [];
+  let sequence = 400,
+    gate: Promise<void> | undefined;
+  const scope = createAccountScope({
+    account: fixtureAccount,
+    baseUrl: 'https://region.fixture.test',
+    authorization: () => undefined,
+    store: memoryStore(),
+    fetch: async (request) => {
+      const path = new URL(request.url).pathname,
+        body = (await request.json()) as Record<string, unknown>;
+      calls.push({ path, body });
+      if (path.endsWith('/region/preview')) {
+        await gate;
+        return new Response(
+          JSON.stringify({
+            ...body,
+            status: 'available',
+            scope: { universeId: fixtureAccount.universeId, privacyEpoch: 1, personalWatermark: 40 },
+            geographyRevision: 3,
+            recordedAt: '2026-10-22T00:00:00.000Z',
+            encounter: {
+              assetId: fixtureId(900),
+              assetRevision: 1,
+              metadata: { kind: 'scroll', title: 'CI canonical card', summary: 'Fixture only', language: 'en' },
+            },
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (path.endsWith('/region/open'))
+        return new Response(
+          JSON.stringify({
+            version: body.version,
+            target: body.target,
+            expectedEncounter: body.expectedEncounter,
+            capabilities: body.capabilities,
+            universeId: fixtureAccount.universeId,
+            privacyEpoch: 1,
+            outcome: {
+              commandId: body.commandId,
+              sessionId: fixtureId(901),
+              decisionId: fixtureId(902),
+              intentRevision: 1,
+              revision: 40,
+              replayed: false,
+              status: 'exhausted',
+              reason: 'no_eligible_content',
+            },
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        );
+      return new Response(JSON.stringify(world.reply(path, body)), { headers: { 'content-type': 'application/json' } });
+    },
+  });
+  return {
+    scope,
+    calls,
+    session: createUniverseViewSession(scope, () => fixtureId(sequence++)),
+    gate: (value: Promise<void>) => {
+      gate = value;
+    },
+  };
+}
+it('opens only the displayed immutable card and returns exact scoped camera/history without recording map activity', async () => {
+  const h = regionHarness(),
+    s = h.session;
+  s.setForeground(true);
+  await ready(s);
+  s.focus(fixtureId(14));
+  s.camera({ x: 713.25, y: -28.75, scale: 0.75 });
+  const before = s.getState();
+  s.showOverlay('place');
+  await waitFor(() => expect(s.getState().regionPreview.status).toBe('available'));
+  const card = s.getState().regionPreview.preview!;
+  let returned = 0;
+  expect(
+    s.openRegion(card, () => {
+      returned++;
+    }),
+  ).toBe(true);
+  const encounter = encounterSessionFor(h.scope);
+  await waitFor(() => expect(encounter.getState().phase).toBe('exhausted'));
+  const open = h.calls.find((c) => c.path.endsWith('/region/open'))!.body;
+  expect(open.expectedEncounter).toEqual({ assetId: card.encounter.assetId, assetRevision: 1 });
+  expect(Object.keys(open).sort()).toEqual(['capabilities', 'commandId', 'expectedEncounter', 'target', 'version']);
+  s.setForeground(false);
+  expect(encounter.back()).toBe(true);
+  expect(returned).toBe(1);
+  expect(s.getState().frame).toEqual(before.frame);
+  expect(s.getState().locator).toEqual(before.locator);
+  expect(s.getState().focusId).toBe(before.focusId);
+  expect(s.getState().historyDepth).toBe(before.historyDepth);
+  expect(s.getState().overlay).toBeNull();
+  expect(h.calls.some((c) => /activate|observations|actions/.test(c.path))).toBe(false);
+  h.scope.end();
+});
+it('Close, background and pin changes cancel previews; a retained old card cannot open after replacement', async () => {
+  const h = regionHarness(),
+    s = h.session;
+  s.setForeground(true);
+  await ready(s);
+  s.focus(fixtureId(14));
+  s.showOverlay('place');
+  await waitFor(() => expect(s.getState().regionPreview.status).toBe('available'));
+  const old = s.getState().regionPreview.preview!;
+  s.back();
+  expect(s.getState().regionPreview.status).toBe('idle');
+  expect(s.openRegion(old, () => undefined)).toBe(false);
+  let release!: () => void;
+  h.gate(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  s.showOverlay('place');
+  await waitFor(() => expect(h.calls.filter((c) => c.path.endsWith('/preview'))).toHaveLength(2));
+  s.setForeground(false);
+  release();
+  await Promise.resolve();
+  expect(s.getState().regionPreview.preview).toBeUndefined();
+  s.setForeground(true);
+  await ready(s);
+  s.focus(fixtureId(12));
+  expect(s.openRegion(old, () => undefined)).toBe(false);
+  expect(h.calls.filter((c) => c.path.endsWith('/region/open'))).toEqual([]);
+  h.scope.end();
+  expect(s.getState().regionPreview.status).toBe('ended');
 });

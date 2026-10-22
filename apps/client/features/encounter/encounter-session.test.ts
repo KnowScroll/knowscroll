@@ -1,5 +1,14 @@
 import { waitFor } from '@testing-library/react-native';
-import { scopeOutbox, createAccountScope, memoryStore } from '@knowscroll/client-core';
+import {
+  scopeOutbox,
+  createAccountScope,
+  createApiClient,
+  memoryStore,
+  type AccountScope,
+  type AvailableRegionPreview,
+} from '@knowscroll/client-core';
+import { problemDetails, type RegionEncounterOpenRequest } from '@knowscroll/contracts';
+import { ENCOUNTER_CAPABILITIES } from './capabilities';
 import type { OpenExposureRequest } from '@knowscroll/contracts';
 import { createEncounterSession, type EncounterSession } from './encounter-session';
 import type { AvailableKeep } from '../saved/keep-place-bridge';
@@ -1074,4 +1083,188 @@ describe('checkpoint ownership across retained history transitions', () => {
       }
     },
   );
+});
+
+function regionEncounter() {
+  const h = harness(),
+    calls: RegionEncounterOpenRequest[] = [];
+  let failure: 'unknown' | 'authority' | undefined, wrong: 'asset' | 'target' | 'scope' | 'capabilities' | undefined;
+  const card: AvailableRegionPreview = {
+    version: 'region-encounter-preview.v1',
+    readId: id(700),
+    target: { kind: 'region', regionId: id(701), expectedObjectRevision: 1, expectedGeographyRevision: 3 },
+    scope: { universeId: h.scope.account.universeId, privacyEpoch: 1, personalWatermark: 0 },
+    capabilities: ENCOUNTER_CAPABILITIES,
+    recordedAt: '2026-10-22T00:00:00.000Z',
+    geographyRevision: 3,
+    status: 'available',
+    encounter: { assetId: offer(0).assetId, assetRevision: 2, metadata: offer(0).metadata },
+  };
+  const regionApi = createApiClient({
+    baseUrl: 'https://region.fixture.test',
+    fetch: async (request) => {
+      const input = (await request.json()) as RegionEncounterOpenRequest;
+      calls.push(input);
+      if (failure === 'unknown') throw new TypeError('CI unknown send');
+      if (failure === 'authority')
+        return new Response(JSON.stringify(problemDetails('UNAUTHENTICATED')), {
+          status: 401,
+          headers: { 'content-type': 'application/problem+json' },
+        });
+      return new Response(
+        JSON.stringify({
+          version: input.version,
+          target: wrong === 'target' ? { ...input.target, regionId: id(999) } : input.target,
+          expectedEncounter: input.expectedEncounter,
+          capabilities:
+            wrong === 'capabilities' ? { documentSchemas: ['scroll-document.v1'], blocks: {} } : input.capabilities,
+          universeId: wrong === 'scope' ? id(999) : h.scope.account.universeId,
+          privacyEpoch: 1,
+          outcome: {
+            commandId: input.commandId,
+            sessionId: id(1),
+            intentRevision: 1,
+            revision: 1,
+            decisionId: offer(0).decisionId,
+            replayed: false,
+            status: 'ready',
+            offer: wrong === 'asset' ? offer(1) : offer(0),
+            bufferedOffers: [],
+          },
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    },
+  });
+  // Region transport is authored here; all real activation/context/media/recording uses existing fixture transport.
+  const experience = new Proxy(h.scope.api.experience, {
+    get: (target, key) =>
+      key === 'openRegionEncounter' ? regionApi.experience.openRegionEncounter : (Reflect.get(target, key) as unknown),
+  });
+  const scope: AccountScope = {
+    ...h.scope,
+    get active() {
+      return h.scope.active;
+    },
+    api: new Proxy(h.scope.api, {
+      get: (target, key) => (key === 'experience' ? experience : (Reflect.get(target, key) as unknown)),
+    }),
+  };
+  let sequence = 800;
+  return {
+    ...h,
+    session: createEncounterSession(scope, () => id(sequence++)),
+    card,
+    regionCalls: calls,
+    fail: (value: typeof failure) => {
+      failure = value;
+    },
+    wrong: (value: typeof wrong) => {
+      wrong = value;
+    },
+  };
+}
+it('region Open enters the existing activation/recorder engine; map Back captures actual media place and makes no new encounter', async () => {
+  const h = regionEncounter();
+  let returned = 0;
+  expect(
+    h.session.openRegion(h.card, () => {
+      returned++;
+    }),
+  ).toBe(true);
+  await waitFor(() => expect(h.session.getState().phase).toBe('ready_offer'));
+  expect(commands(h, '/activate')).toHaveLength(0);
+  h.session.setForeground(true);
+  await waitFor(() => expect(h.session.getState().phase).toBe('active'));
+  const entry = h.session.getState().entry!;
+  h.session.mount(entry);
+  const pause = jest.fn();
+  h.session.bindSurface(entry, {
+    capture: () => ({ kind: 'reel', positionMs: 9876.125, playing: true, muted: false }),
+    pause,
+  });
+  const suspend = jest.spyOn(entry.recorder, 'suspend');
+  const before = h.calls.length;
+  expect(h.session.canBack()).toBe(true);
+  expect(h.session.back()).toBe(true);
+  expect(returned).toBe(1);
+  expect(pause).toHaveBeenCalledTimes(1);
+  expect(suspend).toHaveBeenCalledTimes(1);
+  expect(entry.position).toEqual({ kind: 'reel', positionMs: 9876.125, playing: true, muted: false });
+  expect(h.calls).toHaveLength(before);
+  expect(h.session.getState().entry?.recorder).toBe(entry.recorder);
+  expect(Object.keys(h.regionCalls[0]!).sort()).toEqual([
+    'capabilities',
+    'commandId',
+    'expectedEncounter',
+    'target',
+    'version',
+  ]);
+  expect(h.regionCalls[0]!.expectedEncounter).toEqual({ assetId: h.card.encounter.assetId, assetRevision: 2 });
+  h.scope.end();
+  expect(h.session.back()).toBe(false);
+  expect(h.session.getState().entry).toBeUndefined();
+});
+it('unknown region command retains exact A through an auth refusal, never auto-retries on focus and never adopts displayed B', async () => {
+  const h = regionEncounter();
+  h.fail('unknown');
+  h.session.openRegion(h.card, () => undefined);
+  await waitFor(() => expect(h.session.getState().phase).toBe('offline'));
+  h.session.setForeground(true);
+  await Promise.resolve();
+  expect(h.regionCalls).toHaveLength(1);
+  h.fail('authority');
+  h.session.retry();
+  await waitFor(() => expect(h.session.getState().phase).toBe('error'));
+  expect(h.regionCalls).toHaveLength(2);
+  expect(h.regionCalls[1]).toEqual(h.regionCalls[0]);
+  expect(
+    h.session.openRegion({ ...h.card, encounter: { ...h.card.encounter, assetId: offer(1).assetId } }, () => undefined),
+  ).toBe(false);
+  h.fail(undefined);
+  h.session.retry();
+  await waitFor(() => expect(h.session.getState().phase).toBe('active'));
+  expect(h.regionCalls).toHaveLength(3);
+  expect(h.regionCalls[2]).toEqual(h.regionCalls[0]);
+  expect(h.session.getState().entry?.offer.assetId).toBe(h.card.encounter.assetId);
+  expect(commands(h, '/activate')).toHaveLength(1);
+  h.scope.end();
+});
+it.each(['asset', 'target', 'scope', 'capabilities'] as const)(
+  'refuses a structurally plausible wrong region %s response before activation',
+  async (wrong) => {
+    const h = regionEncounter();
+    h.wrong(wrong);
+    h.session.setForeground(true);
+    h.session.openRegion(h.card, () => undefined);
+    await waitFor(() => expect(h.session.getState().phase).toBe('offline'));
+    expect(commands(h, '/activate')).toHaveLength(0);
+    expect(h.session.getState().entry).toBeUndefined();
+    h.session.retry();
+    await waitFor(() => expect(h.regionCalls).toHaveLength(2));
+    expect(h.regionCalls[1]).toEqual(h.regionCalls[0]);
+    h.scope.end();
+  },
+);
+it('still returns to the map after the original region entry is evicted from bounded encounter history', async () => {
+  const h = regionEncounter();
+  let returned = 0;
+  h.session.setForeground(true);
+  h.session.openRegion(h.card, () => {
+    returned++;
+  });
+  await waitFor(() => expect(h.session.getState().phase).toBe('active'));
+  const original = h.session.getState().entry!;
+  for (let n = 0; n < 21; n++) {
+    h.session.navigate({ mode: 'vertical', direction: 'next' });
+    await waitFor(() => expect(h.session.getState().phase).toBe('active'));
+  }
+  expect(original.disposed).toBe(true);
+  expect(h.session.getState().trail).toHaveLength(20);
+  const before = h.calls.length;
+  for (let n = 0; n < 20; n++) expect(h.session.back()).toBe(true);
+  expect(returned).toBe(1);
+  expect(h.session.canBack()).toBe(false);
+  expect(h.calls).toHaveLength(before);
+  h.scope.end();
 });

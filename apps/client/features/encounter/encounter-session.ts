@@ -4,11 +4,18 @@ import {
   createScrollRecorder,
   ScopeEndedError,
   type AccountScope,
+  type AvailableRegionPreview,
   type KeepPlaceHandle,
   type KeepPlaceState,
 } from '@knowscroll/client-core';
+import {
+  RegionEncounterOpenRequestSchema,
+  RegionEncounterOpenResponseSchema,
+  RegionEncounterPreviewResponseSchema,
+} from '@knowscroll/contracts';
 import type {
   ApplyActionRequest,
+  ClientCapabilities,
   EncounterOffer,
   ExposureContextResponse,
   KeepEntryRef,
@@ -63,6 +70,8 @@ type OfferActivation = Extract<
   { sessionId: string }
 >;
 interface Work {
+  region?: true;
+  uncertain?: boolean;
   keep?: { mode: 'resume' | 'top'; expected?: AvailableKeep; selected?: KeepEntryRef; handle?: KeepPlaceHandle };
   command: () => Promise<NavigationOutcome>;
   outcome?: NavigationOutcome;
@@ -70,6 +79,15 @@ interface Work {
   activation?: OfferActivation;
   entry?: EncounterEntry;
 }
+
+const capabilityKey = (value: ClientCapabilities | undefined) =>
+  value &&
+  JSON.stringify([
+    value.documentSchemas,
+    Object.keys(value.blocks)
+      .sort()
+      .map((key) => [key, value.blocks[key]]),
+  ]);
 
 /** One in-memory controller per AccountScope. Component unmounts park; only scope end disposes. */
 export function createEncounterSession(scope: AccountScope, newId: () => string) {
@@ -93,6 +111,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let foreground = false;
   let busy = false;
   let work: Work | undefined;
+  let regionOrigin: { returnToMap: () => void; entry?: string; returned: boolean } | undefined;
   let latestSession: { sessionId: string; intentRevision: number } | undefined;
   let action: { readonly input: ApplyActionRequest; readonly entry: EncounterEntry } | undefined;
   let actionRunning = false;
@@ -416,18 +435,29 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       }
       releaseCheckpoint();
       history.push(current.entry);
+      if (current.region && regionOrigin) regionOrigin.entry = current.entry.exposureId;
       work = undefined;
       publish({ phase: 'active', outcome: undefined });
     } catch (error) {
+      if (current.region && valid() && work === current) {
+        const problem = apiProblem(error);
+        if (!problem || problem.status >= 500) current.uncertain = true;
+        if (current.uncertain) {
+          // A later refusal does not prove an earlier ambiguous send was never committed.
+          history.park();
+          publish({ phase: problem ? 'error' : 'offline' });
+          return;
+        }
+      }
       if (current.keep && valid() && work === current) publish({ phase: 'keep_blocked' });
       else fail(error);
     } finally {
       busy = false;
     }
   }
-  const begin = (command: () => Promise<NavigationOutcome>, keep?: Work['keep']) => {
+  const begin = (command: () => Promise<NavigationOutcome>, keep?: Work['keep'], region = false) => {
     if (!valid() || work || busy || actionRunning) return;
-    work = { command, activateId: newId(), ...(keep ? { keep } : {}) };
+    work = { command, activateId: newId(), ...(keep ? { keep } : {}), ...(region ? { region: true } : {}) };
     void run();
   };
   const open = (
@@ -435,6 +465,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     keep?: Work['keep'],
   ) => {
     if (!valid() || work || busy || actionRunning || action !== undefined) return false;
+    regionOrigin = undefined;
     const commandId = newId();
     const session = latestSession
       ? { sessionId: latestSession.sessionId, expectedIntentRevision: latestSession.intentRevision }
@@ -571,6 +602,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     work?.keep?.handle?.release();
     work?.entry?.recorder.end();
     work = undefined;
+    regionOrigin = undefined;
     action = undefined;
     history.end();
     latestSession = undefined;
@@ -588,6 +620,54 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       };
     },
     open,
+    openRegion(displayed: AvailableRegionPreview, returnToMap: () => void) {
+      if (!valid() || work || busy || actionRunning || action !== undefined) return false;
+      const preview = RegionEncounterPreviewResponseSchema.safeParse(displayed);
+      if (
+        !preview.success ||
+        preview.data.status !== 'available' ||
+        preview.data.scope.universeId !== scope.account.universeId ||
+        preview.data.scope.privacyEpoch !== scope.account.privacyEpoch ||
+        capabilityKey(preview.data.capabilities) !== capabilityKey(ENCOUNTER_CAPABILITIES)
+      )
+        return false;
+      const card = preview.data;
+      const expectedEncounter = { assetId: card.encounter.assetId, assetRevision: card.encounter.assetRevision };
+      const input = RegionEncounterOpenRequestSchema.parse({
+        version: 'region-encounter-open.v1',
+        commandId: newId(),
+        target: card.target,
+        capabilities: ENCOUNTER_CAPABILITIES,
+        expectedEncounter,
+        ...(latestSession
+          ? { session: { sessionId: latestSession.sessionId, expectedIntentRevision: latestSession.intentRevision } }
+          : {}),
+      });
+      regionOrigin = { returnToMap, returned: false };
+      begin(
+        async () => {
+          const raw = await scope.api.experience.openRegionEncounter(input);
+          const reply = RegionEncounterOpenResponseSchema.parse(raw);
+          if (
+            reply.universeId !== scope.account.universeId ||
+            reply.privacyEpoch !== scope.account.privacyEpoch ||
+            JSON.stringify(reply.target) !== JSON.stringify(input.target) ||
+            JSON.stringify(reply.expectedEncounter) !== JSON.stringify(input.expectedEncounter) ||
+            capabilityKey(reply.capabilities) !== capabilityKey(input.capabilities) ||
+            reply.outcome.commandId !== input.commandId ||
+            reply.outcome.revision < card.scope.personalWatermark ||
+            (input.session && reply.outcome.intentRevision < input.session.expectedIntentRevision) ||
+            (reply.outcome.status === 'ready' && reply.outcome.offer.metadata.kind !== card.encounter.metadata.kind)
+          )
+            throw new Error('region_lineage');
+          return reply.outcome;
+        },
+        undefined,
+        true,
+      );
+      publish();
+      return true;
+    },
     openKept(
       target: { assetId: string; assetRevision: number },
       mode: 'resume' | 'top',
@@ -752,6 +832,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     setForeground(value: boolean) {
       const returning = value && !foreground;
       foreground = value;
+      if (value && regionOrigin) regionOrigin.returned = false;
       requests.visible(value && state.overlayOwner === 'request' && state.overlay);
       if (returning) {
         const entry = history.current();
@@ -762,7 +843,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         history.park();
         releaseCheckpoint();
       }
-      if (value && work && !busy) void run();
+      // Re-entering the route resumes a prepared offer, never an uncertain command automatically.
+      if (value && work && !busy && state.phase === 'ready_offer') void run();
     },
     bindSurface(entry: EncounterEntry, surface: NonNullable<EncounterEntry['surface']>) {
       if (valid() && !entry.disposed && foreground && history.current() === entry) {
@@ -803,6 +885,24 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         const entry = history.current();
         if (entry) entry.restored = true;
         setOverlay(false);
+        return true;
+      }
+      if (
+        regionOrigin &&
+        !regionOrigin.returned &&
+        (work?.region ||
+          !regionOrigin.entry ||
+          history.current()?.exposureId === regionOrigin.entry ||
+          !history.canBack())
+      ) {
+        const origin = regionOrigin;
+        origin.returned = true;
+        foreground = false;
+        requests.visible(false);
+        history.park();
+        releaseCheckpoint();
+        publish({ overlay: false, overlayOwner: undefined });
+        origin.returnToMap();
         return true;
       }
       if (work || busy) return false;
@@ -864,7 +964,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     retryAction() {
       void runAction();
     },
-    canBack: history.canBack,
+    canBack: () => valid() && (regionOrigin ? !regionOrigin.returned : history.canBack()),
     end,
   };
 }

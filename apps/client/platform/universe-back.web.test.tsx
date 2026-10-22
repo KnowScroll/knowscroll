@@ -19,6 +19,7 @@ it('Back closes the panel before restoring a camera and unregisters; history car
     detail: 'full',
     reducedMotion: true,
     historyDepth: 0,
+    regionPreview: { status: 'idle' },
   };
   const listeners = new Set<() => void>();
   const publish = () => listeners.forEach((listener) => listener());
