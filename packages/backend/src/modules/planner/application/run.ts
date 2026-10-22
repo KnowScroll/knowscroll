@@ -80,30 +80,46 @@ async function retireRevoked(
   payload: Parameters<RunPlanner>[0],
 ) {
   return p.withPersonalScope(authority, async (scope) => {
-    const original = payload.v === 1 ? 1 : payload.recordingGeneration!;
-    const observed: { header: PlannerAccountingHeader | undefined; mismatch: boolean; missing: boolean } = {
-      header: undefined,
-      mismatch: false,
-      missing: false,
-    };
-    const accounting = await p.harness.readPersonalRunAccounting(scope, payload.runId, async (gated) => {
+    const retirement = payload.kind === 'retire';
+    const original = retirement
+      ? (payload.recordingGeneration ?? null)
+      : payload.v === 1
+        ? 1
+        : payload.recordingGeneration!;
+    const observed: {
+      header: PlannerAccountingHeader | undefined;
+      mismatch: boolean;
+      missing: boolean;
+      valid: boolean;
+    } = { header: undefined, mismatch: false, missing: false, valid: false };
+    const accounting = await p.harness.readPersonalRunAccounting(scope, payload.runId, async (gated, own) => {
+      if (own.universeId !== gated.authority.universeId || own.privacyEpoch !== gated.authority.privacyEpoch)
+        return 'unavailable';
       const header = await p.store.accountingHeader(gated, payload.runId);
       observed.header = header;
       if (!header) {
         observed.missing = true;
         return 'unavailable';
       }
-      if (header.generation !== undefined ? header.generation !== original : payload.v !== 1) {
+      if (
+        retirement
+          ? (header.generation ?? null) !== original
+          : header.generation !== undefined
+            ? header.generation !== original
+            : !(header.legacyUnproved && original === 1 && (payload.v === 1 || header.normalWakeId === payload.wakeId))
+      ) {
         observed.mismatch = true;
         return 'unavailable';
       }
-      const accountId = await p.store.account(gated);
+      if (header.generation === undefined && !header.legacyUnproved) return 'unavailable';
+      const accountId = own.accountId;
       if (
         !accountId ||
         (header.generation !== undefined && !header.accountId) ||
         (header.accountId && header.accountId !== accountId)
       )
         return 'unavailable';
+      observed.valid = true;
       return {
         ownerModule: 'planner',
         purpose: 'personal-planner',
@@ -114,23 +130,37 @@ async function retireRevoked(
     });
     if (observed.missing) return { kind: 'not_active' } as const;
     if (observed.mismatch) return { kind: 'generation_mismatch' } as const;
-    if (accounting.kind === 'unavailable') return { kind: 'accounting_unavailable' } as const;
-    const header = observed.header;
+    if (!observed.valid) return { kind: 'accounting_unavailable' } as const;
+    const header = observed.header!;
+    if (retirement && header.normalWakeId !== payload.wakeId) return { kind: 'obsolete_wake' } as const;
     const state = await p.store.stateHeader(scope);
-    if (!header || state.activeRunId !== header.id) return { kind: 'not_active' } as const;
-    const gate = await p.fenceRecording(scope, original);
-    if (gate.kind === 'recording') return undefined;
-    if (header.generation === undefined) return { kind: 'revoked_accounting_unproved' } as const;
+    if (state.activeRunId !== header.id) return { kind: 'not_active' } as const;
+    const gate = await p.fenceRecording(scope, original ?? undefined);
+    if (gate.kind === 'recording')
+      return retirement
+        ? ({ kind: 'obsolete_retirement' } as const)
+        : accounting.kind === 'unavailable'
+          ? ({ kind: 'accounting_unavailable' } as const)
+          : undefined;
+    if (payload.v === 2 && payload.wakeId && header.normalWakeId !== payload.wakeId)
+      return { kind: 'obsolete_wake' } as const;
+    if (payload.expectedClaimId && header.normalWakeId) return { kind: 'obsolete_claim_wake' } as const;
+    const blocked = async (kind: 'accounting_unavailable' | 'revoked_accounting_unresolved') => {
+      // Only the delivered ordinary/retirement UUID is disposable. An old delivery cannot clear B.
+      if (payload.v === 2 && payload.wakeId) await p.store.consumeNormalWake(scope, header.id, payload.wakeId);
+      return { kind };
+    };
+    if (accounting.kind === 'unavailable') return blocked('accounting_unavailable');
     if (accounting.kind === 'accounted' && accounting.disposition === 'unresolved')
-      return { kind: 'revoked_accounting_unresolved' } as const;
+      return blocked('revoked_accounting_unresolved');
+    // NULL legacy with a present unproved parent refused above; exact absence means no RETAINED attempts only.
     if (!(await p.store.retire(scope, header.id))) return { kind: 'not_active' } as const;
-    const { activeRunId: _a, ...idle } = state;
+    const { activeRunId: _active, ...idle } = state;
     await p.store.writeState(scope, idle);
-    // A toggle creates no desired source. Only a separately retained eligible trigger can wake.
     if (state.desiredSource) {
       const current = await p.fenceRecording(scope, state.desiredSource.generation);
       if (current.kind === 'recording' && state.desiredSource.generation !== original)
-        await ensureRun(p, current.scope, await p.store.state(scope));
+        await ensureRun(p, current.scope, idle);
     }
     return { kind: 'recording_ineligible' } as const;
   });
@@ -147,6 +177,7 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
     const retired = await retireRevoked(p, authority, payload);
     if (retired.kind !== 'entered') return retired;
     if (retired.value !== undefined) return { kind: 'entered', value: retired.value };
+    if (payload.kind === 'retire') throw new Error('PLANNER_RETIREMENT_COLLECTION_FORBIDDEN');
     const preparation = await p.withPersonalScope(authority, async (scope) => {
       const owner = await p.fenceOwn(scope);
       if (owner.kind !== 'active') return { kind: 'universe_unavailable' } as const;
@@ -155,6 +186,7 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
       const cap = gate.scope,
         header = await p.store.header(scope, payload.runId);
       if (!header) return { kind: 'not_active' } as const;
+      if (!header.recording && header.hasRecordingMetadata) return { kind: 'recording_proof_unavailable' } as const;
       if (
         (header.recording?.source.generation ?? 1) !== original ||
         (header.recording && header.recording.accountId !== owner.owner.accountId)

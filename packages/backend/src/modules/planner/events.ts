@@ -8,16 +8,32 @@ const Shared = z.object({
 });
 export const PlannerJobSchema = Shared.extend({
   v: z.union([z.literal(1), z.literal(2)]),
+  kind: z.literal('retire').optional(),
   wakeId: z.uuid().optional(),
-  recordingGeneration: z.number().int().min(1).max(2147483647).optional(),
+  recordingGeneration: z
+    .number()
+    .int()
+    .min(1)
+    .max(2147483647)
+    .refine((g) => g % 2 === 1)
+    .nullable()
+    .optional(),
 })
   .strict()
   .superRefine((x, c) => {
     if (
-      (x.v === 1 && (Object.hasOwn(x, 'recordingGeneration') || Object.hasOwn(x, 'wakeId'))) ||
+      ['kind', 'wakeId', 'recordingGeneration', 'expectedClaimId'].some(
+        (key) => Object.hasOwn(x, key) && x[key as keyof typeof x] === undefined,
+      ) ||
+      (x.v === 1 &&
+        (Object.hasOwn(x, 'recordingGeneration') || Object.hasOwn(x, 'wakeId') || Object.hasOwn(x, 'kind'))) ||
       (x.v === 2 &&
-        (x.recordingGeneration === undefined ||
-          (x.expectedClaimId === undefined ? x.wakeId === undefined : Object.hasOwn(x, 'wakeId'))))
+        (x.kind === 'retire'
+          ? x.recordingGeneration === undefined || !x.wakeId || Object.hasOwn(x, 'expectedClaimId')
+          : x.recordingGeneration === null ||
+            x.recordingGeneration === undefined ||
+            Object.hasOwn(x, 'kind') ||
+            (x.expectedClaimId === undefined ? x.wakeId === undefined : Object.hasOwn(x, 'wakeId'))))
     )
       c.addIssue({ code: 'custom', message: 'Exact original recording generation required' });
   });

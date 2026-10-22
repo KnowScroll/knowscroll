@@ -1,3 +1,5 @@
+import { sql } from 'kysely';
+import type { RecordingScopeTx } from '../../identity/public.js';
 import { recordingTransactionOf } from '../../../infrastructure/postgres/recording-scope.js';
 import {
   FENCE_OWN_ACCOUNT,
@@ -54,6 +56,60 @@ const key = (commandId: string, requestHash: string) => ({
   operation: 'planner.request',
   outcomeVersion: 1,
 });
+/** Exact known queue PK only, under the producer's already-gated root. Never a JSON discovery scan. */
+async function prepareNormalWake(cap: RecordingScopeTx, runId: string): Promise<'ready' | 'busy' | 'unavailable'> {
+  const trx = recordingTransactionOf(cap),
+    root = await plannerStore.root(cap),
+    header = await plannerStore.accountingHeader(cap.personal, runId);
+  if (
+    !header ||
+    (header.accountId && header.accountId !== root.accountId) ||
+    (header.generation === undefined && !header.legacyUnproved) ||
+    (header.generation !== undefined && !header.accountId)
+  )
+    return 'unavailable';
+  const claim = (
+    await sql<{
+      claim_until: Date | null;
+    }>`select claim_until from planner.runs where universe_id=${cap.personal.authority.universeId}::uuid and privacy_epoch=${cap.personal.authority.privacyEpoch} and id=${runId}::uuid`.execute(
+      trx,
+    )
+  ).rows[0];
+  if (!claim) return 'unavailable';
+  if (claim.claim_until && claim.claim_until.getTime() > now().getTime()) return 'busy';
+  if (!header.normalWakeId) return 'ready';
+  const marker = header.normalWakeId,
+    original = header.generation ?? null;
+  const legacyInitial = header.legacyUnproved && cap.generation === 1;
+  const expected = {
+    v: 2,
+    universeId: cap.personal.authority.universeId,
+    privacyEpoch: cap.personal.authority.privacyEpoch,
+    runId,
+    recordingGeneration: legacyInitial ? 1 : original,
+    wakeId: marker,
+  };
+  const retirement = JSON.stringify({ ...expected, recordingGeneration: original, kind: 'retire' });
+  const legacyOrdinary =
+    original === null && header.legacyUnproved ? JSON.stringify({ ...expected, recordingGeneration: 1 }) : undefined;
+  const bound = legacyInitial
+    ? sql`data=${JSON.stringify(expected)}::jsonb`
+    : original === null
+      ? legacyOrdinary
+        ? sql`(data=${retirement}::jsonb or data=${legacyOrdinary}::jsonb)`
+        : sql`data=${retirement}::jsonb`
+      : sql`(data=${JSON.stringify(expected)}::jsonb or data=${retirement}::jsonb)`;
+  const row = (
+    await sql<{
+      state: string;
+      bound: boolean;
+    }>`select state,${bound} as bound from pgboss.job where name='planner.run' and id=${marker}::uuid`.execute(trx)
+  ).rows[0];
+  if (row && row.bound !== true) return 'unavailable';
+  if (row && ['created', 'retry', 'active'].includes(row.state)) return 'busy';
+  if (row && !['completed', 'cancelled', 'failed'].includes(row.state)) return 'unavailable';
+  return (await plannerStore.consumeNormalWake(cap.personal, runId, marker)) ? 'ready' : 'unavailable';
+}
 type RequestPorts = Parameters<typeof makeRequestPlanner>[0];
 /** Both API and worker install only this request facility; it contains no harness/provider. */
 export function plannerRequestProviders(t: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol }) {
@@ -75,15 +131,57 @@ export function plannerRequestProviders(t: { readonly withPersonalScope: symbol;
         canonicalHash: canonicalSha256,
         newId: () => uuidv7(),
         now,
+        prepareNormalWake,
+        enqueueRetirement: async (cap, runId) => {
+          recordingTransactionOf(cap);
+          const root = await plannerStore.root(cap),
+            header = await plannerStore.accountingHeader(cap.personal, runId);
+          if (
+            !header ||
+            (header.accountId && header.accountId !== root.accountId) ||
+            header.generation === cap.generation ||
+            (header.generation === undefined && cap.generation === 1)
+          )
+            return;
+          const ready = await prepareNormalWake(cap, runId);
+          if (ready === 'busy') return;
+          if (ready !== 'ready') throw new Error('PLANNER_NORMAL_WAKE_UNPROVED');
+          const wakeId = uuidv7();
+          await enqueue(
+            cap.personal,
+            plannerQueue,
+            {
+              v: 2,
+              kind: 'retire',
+              universeId: cap.personal.authority.universeId,
+              privacyEpoch: cap.personal.authority.privacyEpoch,
+              runId,
+              recordingGeneration: header.generation ?? null,
+              wakeId,
+            },
+            { jobId: wakeId },
+          );
+          const trx = recordingTransactionOf(cap);
+          const updated = await trx
+            .updateTable('planner.runs')
+            .set({ normal_wake_id: wakeId })
+            .where('universe_id', '=', cap.personal.authority.universeId)
+            .where('privacy_epoch', '=', cap.personal.authority.privacyEpoch)
+            .where('id', '=', runId)
+            .where('normal_wake_id', 'is', null)
+            .executeTakeFirst();
+          if (updated.numUpdatedRows !== 1n) throw new Error('PLANNER_RETIREMENT_WAKE_RACE');
+        },
         enqueue: async (cap, runId, delayed) => {
           recordingTransactionOf(cap);
           const scope = cap.personal,
             header = await plannerStore.header(scope, runId),
             root = await plannerStore.root(cap);
           if (
-            !header?.recording ||
-            header.recording.source.generation !== cap.generation ||
-            header.recording.accountId !== root.accountId
+            !header ||
+            (header.recording
+              ? header.recording.source.generation !== cap.generation || header.recording.accountId !== root.accountId
+              : cap.generation !== 1 || header.hasRecordingMetadata)
           )
             throw new Error('PLANNER_WAKE_ORIGIN_INVALID');
           if (delayed) {
@@ -104,16 +202,23 @@ export function plannerRequestProviders(t: { readonly withPersonalScope: symbol;
             );
             await plannerStore.writeRun(scope, { ...header, claimWakeClaimId: delayed.expectedClaimId });
           } else {
-            if (header.normalWakeId) return;
+            const ready = await prepareNormalWake(cap, runId);
+            if (ready === 'busy') return;
+            if (ready !== 'ready') throw new Error('PLANNER_NORMAL_WAKE_UNPROVED');
             const wakeId = uuidv7();
-            await enqueue(scope, plannerQueue, {
-              v: 2,
-              universeId: scope.authority.universeId,
-              privacyEpoch: scope.authority.privacyEpoch,
-              runId,
-              recordingGeneration: cap.generation,
-              wakeId,
-            });
+            await enqueue(
+              scope,
+              plannerQueue,
+              {
+                v: 2,
+                universeId: scope.authority.universeId,
+                privacyEpoch: scope.authority.privacyEpoch,
+                runId,
+                recordingGeneration: cap.generation,
+                wakeId,
+              },
+              { jobId: wakeId },
+            );
             await plannerStore.writeRun(scope, { ...header, normalWakeId: wakeId });
           }
         },

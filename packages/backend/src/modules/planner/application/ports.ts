@@ -70,8 +70,13 @@ export interface PlannerRun {
   readonly context?: FrozenContext;
   readonly outcome?: string;
 }
-export type PlannerRunHeader = Omit<PlannerRun, 'context'> & { readonly hasContext: boolean };
+export type PlannerRunHeader = Omit<PlannerRun, 'context'> & {
+  readonly hasContext: boolean;
+  readonly hasRecordingMetadata: boolean;
+};
 export interface PlannerAccountingHeader {
+  readonly legacyUnproved: boolean;
+  readonly normalWakeId?: string;
   readonly id: string;
   readonly status: PlannerRun['status'];
   readonly accountId?: string;
@@ -84,11 +89,11 @@ export interface PlannerRevision {
   readonly opportunities: readonly Opportunity[];
 }
 export interface PlannerStore {
+  readonly consumeNormalWake: (scope: PersonalScopeTx, id: string, wakeId: string) => Promise<boolean>;
   readonly accountingHeader: (scope: PersonalScopeTx, id: string) => Promise<PlannerAccountingHeader | undefined>;
   readonly retire: (scope: PersonalScopeTx, id: string) => Promise<boolean>;
   readonly state: (scope: PersonalScopeTx) => Promise<PlannerState>;
   readonly writeState: (scope: PersonalScopeTx, state: PlannerState) => Promise<void>;
-  readonly account: (scope: PersonalScopeTx) => Promise<string | undefined>;
   readonly stateHeader: (scope: PersonalScopeTx) => Promise<Omit<PlannerState, 'intent'>>;
   readonly header: (scope: PersonalScopeTx, id: string) => Promise<PlannerRunHeader | undefined>;
   readonly context: (scope: PersonalScopeTx, id: string) => Promise<FrozenContext | undefined>;
@@ -115,6 +120,8 @@ export interface PlannerPorts {
   readonly harness: RecordingReasoningHarness;
   /** Deployment config gate; does not replace provider allowance, harness budgets or quota. */
   readonly enabled: () => boolean;
+  readonly prepareNormalWake: (scope: RecordingScopeTx, runId: string) => Promise<'ready' | 'busy' | 'unavailable'>;
+  readonly enqueueRetirement: (scope: RecordingScopeTx, runId: string) => Promise<void>;
   readonly enqueue: (
     scope: RecordingScopeTx,
     runId: string,

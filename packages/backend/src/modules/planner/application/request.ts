@@ -1,19 +1,32 @@
 import { z } from 'zod';
-import { plannerContextHashes } from './role.js';
 import { IntentSchema } from '../domain/proposal.js';
 import type { PlannerMaterialChange, PlannerPorts, PlannerState, RequestPlanner } from './ports.js';
 import type { RecordingScopeTx } from '../../identity/public.js';
 
 /** Birth identity comes from an accepted source, never worker preparation or a resumed clock. */
 export async function ensureRun(
-  p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue'>,
+  p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement'>,
   cap: RecordingScopeTx,
   state: PlannerState,
 ): Promise<PlannerState & { readonly activeRunId: string }> {
   const root = await p.store.root(cap);
-  if (state.activeRunId) return { ...state, activeRunId: state.activeRunId };
   if (!state.desiredSource || state.desiredSource.generation !== cap.generation)
     throw new Error('PLANNER_DESIRED_SOURCE_REQUIRED');
+  if (state.activeRunId) {
+    const old = await p.store.accountingHeader(cap.personal, state.activeRunId);
+    if (
+      old &&
+      (old.generation !== undefined ? old.generation !== cap.generation : cap.generation !== 1) &&
+      (!old.accountId || old.accountId === root.accountId)
+    )
+      await p.enqueueRetirement(cap, old.id);
+    else if (old?.generation === cap.generation) {
+      const current = await p.store.header(cap.personal, old.id);
+      if (current && ['queued', 'prepared'].includes(current.status) && !current.claimId)
+        await p.enqueue(cap, current.id);
+    }
+    return { ...state, activeRunId: state.activeRunId };
+  }
   const runId = p.newId();
   await p.store.writeRun(cap.personal, {
     id: runId,
@@ -26,7 +39,9 @@ export async function ensureRun(
   await p.enqueue(cap, runId);
   return next;
 }
-export function makeMaterialChange(p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue'>): PlannerMaterialChange {
+export function makeMaterialChange(
+  p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement'>,
+): PlannerMaterialChange {
   return async (cap, input) => {
     const root = await p.store.root(cap);
     if (
@@ -57,6 +72,8 @@ export function makeRequestPlanner(
     | 'store'
     | 'newId'
     | 'enqueue'
+    | 'enqueueRetirement'
+    | 'prepareNormalWake'
     | 'receipts'
     | 'hash'
     | 'now'
@@ -104,13 +121,17 @@ export function makeRequestPlanner(
         if (
           state.activeRunId !== c.resumeRunId ||
           !run ||
-          run.normalWakeId !== undefined ||
           (run.recording && run.hasContext && (!run.contextSha256 || !run.modelContextSha256)) ||
-          (!run.recording && cap.generation !== 1) ||
+          (!run.recording && (cap.generation !== 1 || run.hasRecordingMetadata)) ||
           (run.recording &&
             (run.recording.source.generation !== cap.generation || run.recording.accountId !== root.accountId)) ||
-          (!['blocked', 'unknown'].includes(run.status) && !expired)
+          (!['blocked', 'unknown'].includes(run.status) && !expired && !(run.status === 'queued' && run.normalWakeId))
         ) {
+          const outcome = { kind: 'refused', reason: 'run_not_resumable' } as const;
+          await p.receipts.complete(scope, c.commandId, outcome);
+          return outcome;
+        }
+        if ((await p.prepareNormalWake(cap, run.id)) !== 'ready') {
           const outcome = { kind: 'refused', reason: 'run_not_resumable' } as const;
           await p.receipts.complete(scope, c.commandId, outcome);
           return outcome;
@@ -124,14 +145,8 @@ export function makeRequestPlanner(
           normalWakeId: _normal,
           ...released
         } = run;
-        const legacyContext = !run.recording && run.hasContext ? await p.store.context(scope, run.id) : undefined;
-        const legacyHashes = legacyContext ? plannerContextHashes(legacyContext, run.id, p.canonicalHash) : undefined;
         await p.store.writeRun(scope, {
           ...released,
-          ...(legacyHashes
-            ? { contextSha256: legacyHashes.contextSha256, modelContextSha256: legacyHashes.modelContextSha256 }
-            : {}),
-          recording: run.recording ?? { accountId: root.accountId, source: { generation: 1, kind: 'legacy1' } },
           status: run.hasContext ? 'prepared' : 'queued',
           ...(run.status === 'unknown' ? { outcome: 'unknown' } : {}),
         });

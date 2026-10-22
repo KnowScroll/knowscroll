@@ -53,6 +53,14 @@ async function state(scope: Parameters<PlannerStore['state']>[0], includeIntent:
   };
 }
 export const plannerStore: PlannerStore = {
+  async consumeNormalWake(scope, id, wakeId) {
+    const { db, u, e } = identity(scope);
+    const result = await sql`update planner.runs set normal_wake_id=null,updated_at=now()
+      where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and normal_wake_id=${wakeId}::uuid returning id`.execute(
+      db,
+    );
+    return result.rows.length === 1;
+  },
   async accountingHeader(scope, id) {
     const { db, u, e } = identity(scope);
     const row = (
@@ -61,7 +69,9 @@ export const plannerStore: PlannerStore = {
         status: PlannerRun['status'];
         recording_account_id: string | null;
         recording_generation: number | null;
-      }>`select id,status,recording_account_id,recording_generation from planner.runs where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid`.execute(
+        normal_wake_id: string | null;
+        legacy_unproved: boolean;
+      }>`select id,status,recording_account_id,recording_generation,normal_wake_id,(recording_account_id is null and recording_generation is null and recording_origin_kind is null and recording_origin_command_id is null and recording_origin_source_revision is null and recording_context_sha256 is null and recording_model_context_sha256 is null) as legacy_unproved from planner.runs where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid`.execute(
         db,
       )
     ).rows[0];
@@ -69,6 +79,8 @@ export const plannerStore: PlannerStore = {
       ? {
           id: row.id,
           status: row.status,
+          legacyUnproved: row.legacy_unproved,
+          ...(row.normal_wake_id ? { normalWakeId: row.normal_wake_id } : {}),
           ...(row.recording_account_id ? { accountId: row.recording_account_id } : {}),
           ...(row.recording_generation !== null ? { generation: row.recording_generation } : {}),
         }
@@ -82,14 +94,6 @@ export const plannerStore: PlannerStore = {
         db,
       );
     return result.rows.length === 1;
-  },
-  async account(scope) {
-    const { db, u, e } = identity(scope);
-    return (
-      await sql<{
-        account_id: string;
-      }>`select account_id from identity.universes where id=${u}::uuid and privacy_epoch=${e}`.execute(db)
-    ).rows[0]?.account_id;
   },
   state: (scope) => state(scope, true),
   stateHeader: (scope) => state(scope, false),
@@ -144,6 +148,15 @@ export const plannerStore: PlannerStore = {
       revision: row.revision,
       status: row.status,
       hasContext: row.has_context,
+      hasRecordingMetadata: [
+        row.recording_account_id,
+        row.generation,
+        row.origin_kind,
+        row.origin_command_id,
+        row.origin_source_revision,
+        row.recording_context_sha256,
+        row.recording_model_context_sha256,
+      ].some((x) => x !== null),
       ...(row.claim_id && row.claim_until ? { claimId: row.claim_id, claimUntil: row.claim_until.toISOString() } : {}),
       ...(row.outcome ? { outcome: row.outcome } : {}),
       ...(origin && row.recording_account_id

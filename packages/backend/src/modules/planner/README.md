@@ -124,3 +124,47 @@ All automated suites run in hosted Actions. Authored fixture model replies are C
 provider evidence. Local type/lint/format/build checks establish source consistency only. Full
 positive recording Evidence→PC→Planner/Geography composition, populated Clear, finite legacy
 certification, role grants and real journeys remain separate acceptance gates.
+
+
+A fresh non-resume command or material trigger may find a revoked active head whose ordinary wake
+was already consumed while disabled or blocked. It records the independent current-generation desired
+source and atomically queues one `v:2,kind:'retire'` delivery on the same queue, with the old exact
+nullable original generation and a fresh UUID in `normal_wake_id`. This is a metadata-only accounting
+wake. It cannot collect, read frozen intent/context, claim, propose or apply the old business. A current-
+generation explicit resume of an OLD run ID still refuses `run_not_resumable`; it cannot create a new
+desired source or adopt that run. Toggle alone creates no source or job.
+
+The retirement consumer enters only the accounting facade's current root/own gate and exact minimal
+owner callback. Unknown, unresolved or unproved accounting keeps the old business active and consumes
+only the exactly delivered ordinary/retirement UUID by SQL CAS. Stale A cannot clear pending B; there
+is no automatic poll/retry-created wake. Conclusive or distinctly proved zero-RETAINED-attempt absence
+may retire the exact old head, then independently fence the retained fresh desired generation to create
+one new business/ordinary UUID. Receipt/history/caps remain unchanged. Legacy NULL cleanup uses only the actual current own snapshot supplied by the Reasoning facade
+AFTER its own gate, to prove present-row ownership on a distinctly absent ledger. It keeps original
+generation NULL; a present NULL/partial ledger remains unavailable. No historical account/generation
+is inferred from that snapshot, and Planner copies no Identity SQL.
+
+
+Every newly written ordinary/retirement `normal_wake_id` is the actual pg-boss job UUID: enqueue
+supplies `jobId:wakeId`. Under an independently eligible fresh source or same-business explicit
+resume, `prepareNormalWake` checks only the exact `(name='planner.run',id=marker)` primary key.
+It returns state plus exact JSONB equality to a closed IDs-only expected ordinary/retirement payload;
+no raw job payload or unguarded numeric/UUID cast is selected. Created/retry/active is busy. Only
+completed/cancelled/failed or exact absence permits CAS clearing that old marker, with no live Role
+claim. Unknown state, mismatched payload, stale UUID or foreign account refuses. Replacement keeps
+the same business/original generation/ledger; it cannot bypass unknown or reopen a terminal business.
+Blocked/unknown still requires an explicit same-generation resume; queued/prepared without a claim
+may recover a lost normal delivery from a fresh source. Expired claims retain their separate exact
+claim-recovery/release protocol. No scan, background poll, paid retry or old non-ID-marker adoption
+is installed. Schema43 and this complete source preview remain unreleased prerequisites.
+
+
+The sole legacy queue alias is an ALL-NULL seven-field origin/hash header and an exact matching
+stored normal UUID. An actual initial1/on explicit resume emits ordinary v2 literal generation1
+with that actual job ID, preserving the NULL header until first real claim; the probe adopts nothing.
+After a toggle, that same literal1 delivery may enter necessary accounting cleanup with expected
+ORIGINAL NULL and the actual current-own snapshot. A terminal/missing probe can replace the old
+metadata with an explicit NULL-generation retirement wake; a live old delivery stays busy. Present
+NULL/partial ledger proof remains unavailable; distinct absence proves zero RETAINED attempts only.
+Only a separately retained fresh source can authorize a successor. Stale UUIDs, partial headers,
+ordinary post-toggle collection or generation1 stamping remain refused.
