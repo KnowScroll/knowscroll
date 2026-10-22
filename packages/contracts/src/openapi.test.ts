@@ -331,6 +331,8 @@ describe('the API contract', () => {
       '/v1/social/pairs/read': ['post'],
       '/v1/social/friends/read': ['post'],
       '/v1/social/requests/read': ['post'],
+      '/v1/social/friends/page': ['post'],
+      '/v1/social/requests/page': ['post'],
       '/v1/social/friends/request': ['post'],
       '/v1/social/friends/accept': ['post'],
       '/v1/social/friends/decline': ['post'],
