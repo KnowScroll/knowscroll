@@ -87,7 +87,7 @@ import {
   LIST_SAVED,
 } from '@knowscroll/backend/modules/experience/nest-providers';
 import type { WithPersonalScope, RecordingScopeTx } from '@knowscroll/backend/modules/identity';
-import { EXPERIENCE_RECORDING_EFFECTS } from '@knowscroll/backend/modules/experience';
+import { EXPERIENCE_RECORDING_EFFECTS, type ExperienceRecordingEffects } from '@knowscroll/backend/modules/experience';
 import type { TestDatabase } from './database.js';
 import { buildFromProviders } from './providers.js';
 
@@ -148,6 +148,8 @@ export async function scrollUseCases(
   readonly listSaved: ListSaved;
   /** Actual owning effect from this fixture graph, for delegation/failure wrappers. */
   readonly activityContextEffect: ActivityDerivedEffect;
+  /** Actual required Experience effects, exposed only for the selected recording fixture graph. */
+  readonly recordingEffects?: ExperienceRecordingEffects;
   readonly projectActivity: ProjectEncounterActivity;
   readonly reconcileActivity: ReconcileEncounterActivity;
   readonly readPrepared: ReadPreparedEvidenceInput;
@@ -258,6 +260,9 @@ export async function scrollUseCases(
     applyAction: build(APPLY_ACTION) as ApplyAction,
     listSaved: build(LIST_SAVED) as ListSaved,
     activityContextEffect: values.get(ACTIVITY_CONTEXT_EFFECT) as ActivityDerivedEffect,
+    ...(options.recording
+      ? { recordingEffects: build(EXPERIENCE_RECORDING_EFFECTS) as ExperienceRecordingEffects }
+      : {}),
     projectActivity: build(PROJECT_ENCOUNTER_ACTIVITY) as ProjectEncounterActivity,
     reconcileActivity: build(RECONCILE_ENCOUNTER_ACTIVITY) as ReconcileEncounterActivity,
     readPrepared: values.get(READ_PREPARED_ACTIVITY) as ReadPreparedEvidenceInput,
