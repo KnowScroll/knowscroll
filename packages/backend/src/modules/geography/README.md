@@ -173,3 +173,51 @@ creation writer atomically if it omits the required Scenes fact; exact-schema co
 activation is required, with no rolling downgrade or historical bootstrap. Existing qualified
 coverage, deterministic validation, root/epoch/account fences and default-disabled paid role
 permissions are unchanged. No authored fixture is a real formation or semantic approval.
+
+## Original-generation personal role prerequisite (#381)
+
+New desired sources and run birth origins retain the actual accepted account, generation and
+command/material source. Necessary request receipts preserve the original optional field; an
+omitted old request can collect only at actual initial1/on. Off/stale/missing-after-toggle requests
+create a fixed refusal receipt without retaining a future intent. Same-generation queued work may
+coalesce before context freeze; a resumed current generation never retags an old run/context.
+
+Run headers and minimal accounting headers are separate from private context. Preparation uses
+root → actual Identity own-account UPDATE/fresh authority → original-generation capability before
+context capture. The actual `CHECK_GEOGRAPHY_RECORDING_RUN` owner checks exact root/account/run,
+active prepared unexpired claim and both hashes before reading the context body. It recomputes
+canonical full frozen context and exact `{bundleRef,items}` model-context hashes. The shared
+Reasoning token is reused; no dummy Planner/Geography counterpart or optional proof exists.
+
+Each ordinary v2 delivery owns a fresh UUID stored on that exact run. Only the matching wake
+consumes it. Delayed recovery names the exact current claim, and every new claim atomically stores
+and enqueues its own recovery. Early matching delayed delivery throws the fixed bounded-retry
+error without clearing markers; old deliveries cannot steal later wakes. Queue names/policies
+stay unchanged, schemas remain objects for erasure inventory, and no pg-boss history scan remains.
+
+Private proposed output/apply enters only `RecordingReasoningHarness.withPersonalApply`; there
+is no outer/nested root or second own-account UPDATE. Current composite PC witnesses, full source
+facts and pure geometry validation precede ledger closure while the owner header is still prepared;
+closure and all semantic Geography/delta/root/required Scene effects share that same transaction.
+Scene hooks require the genuine original-generation capability. Already committed hierarchy,
+delta hints, Scene projections and U05 delivery remain display catch-up while paused and do not
+create new meaning or formation. Reads do not wake work or label revoked old work as loading.
+
+Revoked work uses only the actual Reasoning accounting callback, whose own-account gate precedes
+minimal owner-header access. Unknown/unproved liability remains blocked at its original business
+identity. Conclusive or verified parent absence proves at most zero retained attempts, never zero
+historical cost. Only exact revoked metadata may retire; a successor additionally needs an
+independently accepted currently eligible desired source. Toggle/read/resume alone is no source.
+
+This remains source-only and default-disabled. Positive actual Evidence/PC/Role/Clear fixture
+composition, all current source/PR Actions, API/worker/client activation and finite legacy
+certification remain separate. Old fixture assertions are retained; missing owner composition
+must be reported rather than replaced with successful empty effects or fake certificates.
+
+A fresh current-generation desired source may enqueue one explicit header-only `v:2,kind:retire` wake for a revoked active run. The payload retains that run's original nullable generation and its exact normal-wake UUID; no body, claim, or model work occurs. The actual Reasoning accounting facade acquires the own-account UPDATE before the minimal header callback. Unresolved/unproved accounting consumes only that delivered UUID by SQL comparison, leaves the business run/claims/ledger intact, and schedules no retry; a later explicit fresh producer can request another check. Conclusive or proved zero-retained disposition may retire exact revoked metadata, then separately fence retained desired provenance before creating a successor. Zero retained is not zero historical cost.
+
+Normal and retirement marker UUIDs are the actual required pg-boss job IDs. A fresh current desired producer or explicit current-business resume can perform one `(name,id)` primary-key probe, selecting only queue state and minimized scope/run/generation/wake metadata. Created/retry/active, mismatched, and unsupported rows block replacement. Exact missing or completed/cancelled/failed rows permit SQL-CAS replacement only with no live Role claim; old late deliveries cannot consume the new UUID. No queue-history scan, automatic drain, background resend, new business identity, or accounting-limit reset is involved. Delayed claim recovery remains separately bound to its exact claim ID. Hosted fixtures remain unexecuted source until Actions.
+
+The exact-PK probe has one bounded compatibility exception: a genuine actual initial1/on capability and an all-NULL legacy origin/hash header may match an ordinary literal1 payload issued by explicit initial1 resume. The probe does not adopt/stamp the old header or its private context; claim/adoption and the Reasoning ledger remain separately gated. A toggle revokes this exception. Retirement always retains NULL original generation for such a row; present NULL/partial Reasoning proof remains unavailable rather than being adopted. Partial stored origin or claim pairs refuse.
+
+Necessary cleanup recognizes an exact delivered ordinary literal1 UUID on an all-seven-fields-NULL legacy header after a toggle without adopting its birth. The minimal accounting callback reads only the stored pending UUID and a boolean NULL-shape proof in addition to ID/status/account/generation; it binds original NULL to the actual current-own snapshot. A stale UUID gets no alias exception. The same literal1 match can identify a terminal/missing old marker for retirement-mode metadata replacement; live rows stay busy. Present NULL ledger proof stays unproved, and zero retained remains distinct from historical cost.

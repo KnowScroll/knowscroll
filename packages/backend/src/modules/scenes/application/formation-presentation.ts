@@ -95,8 +95,11 @@ export function formationOfCommitted(input: Parameters<GeographyApplied>[1]): Ne
   });
   return { ...common, fact, limit: false };
 }
-/** The owning adapter invokes this inside Geography's actual delta/root transaction. */
-export function makeRecordFormation(store: Pick<FormationStore, 'record'>): GeographyApplied {
+/** Internal fact storage only: the owning adapter verifies the genuine recording capability
+ * and original generation before delegating already-committed creation facts in the same TX. */
+export function makeRecordFormation(
+  store: Pick<FormationStore, 'record'>,
+): (scope: PersonalScopeTx, input: Parameters<GeographyApplied>[1]) => Promise<void> {
   return async (scope: PersonalScopeTx, input) => {
     const record = formationOfCommitted(input);
     if (record) await store.record(scope, record);

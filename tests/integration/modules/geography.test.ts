@@ -9,11 +9,16 @@ import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import {
   makeWithPersonalScope,
+  fencePersonalRecording,
   transactionOf,
   insideTransaction,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
-import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
+import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
+import {
+  accountAccessUseCases,
+  identityScopeOwnerProviders,
+} from '@knowscroll/backend/modules/identity/nest-providers';
 import {
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
@@ -47,13 +52,16 @@ import {
   geographyStore,
   makeRunCartographer,
   applyProposal,
-  prepareGeography,
+  makeCheckGeographyRecordingRun,
   type GeographyPorts,
   type CartographerPorts,
   type GeographyContext,
 } from '@knowscroll/backend/modules/geography/nest-providers';
+import { plannerStore, makeCheckPlannerRecordingRun } from '@knowscroll/backend/modules/planner/nest-providers';
+import { personalRecordingReasoningHarnessFor } from '@knowscroll/backend/reasoning/nest-providers';
+import type { PersonalRecordingPurpose } from '@knowscroll/backend/reasoning';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { fixtureHarness, fixtureModel, attemptsOf, signal } from '../support/fixture-model.js';
+import { fixtureHarness, fixtureModel, fixtureSettings, silent, attemptsOf, signal } from '../support/fixture-model.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
@@ -72,7 +80,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
   const scope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
   beforeAll(async () => {
     database = await createTestDatabase<Database>('geography');
-    c = await scrollUseCases(database, { activityMaterialChange: (s, x) => material(s, x) });
+    c = await scrollUseCases(database, { recording: true, activityMaterialChange: (s, x) => material(s, x) });
     const SCOPE = Symbol('scope'),
       ENQUEUE = Symbol('enqueue'),
       providers = [
@@ -81,6 +89,8 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       ];
     const values = new Map<symbol, unknown>([
       [SCOPE, scope()],
+      [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
+      [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [ENQUEUE, makeEnqueueJob(c.boss)],
       [READ_TRUSTED_COVERAGE, c.readTrustedCoverage],
       [READ_COVERAGE_INPUTS, buildFromProviders(personalContextProviders(), READ_COVERAGE_INPUTS, new Map())],
@@ -220,12 +230,24 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         .executeTakeFirstOrThrow()
     ).context as unknown as GeographyContext;
   }
-  const job = (p: FixturePerson, runId: string) => ({
-    v: 1 as const,
-    universeId: p.universeId,
-    privacyEpoch: 1,
-    runId,
-  });
+  const job = async (p: FixturePerson, runId: string) => {
+    const h = await database.db
+      .selectFrom('geography.runs')
+      .select(['normal_wake_id', 'claim_wake_claim_id', 'recording_generation'])
+      .where('universe_id', '=', p.universeId)
+      .where('id', '=', runId)
+      .executeTakeFirstOrThrow();
+    if (!h.recording_generation || (!h.normal_wake_id && !h.claim_wake_claim_id))
+      throw new Error('CI exact durable wake absent');
+    return {
+      v: 2 as const,
+      universeId: p.universeId,
+      privacyEpoch: 1,
+      runId,
+      recordingGeneration: h.recording_generation,
+      ...(h.normal_wake_id ? { wakeId: h.normal_wake_id } : { expectedClaimId: h.claim_wake_claim_id! }),
+    };
+  };
   const formation = (ctx: GeographyContext, t = topic) => ({
     version: 'cartographer-proposal.v1' as const,
     operations: ctx.facts.candidates
@@ -268,9 +290,22 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       },
       { label: 'geography-authored-ci-only' },
     );
+    const fixture = fixtureHarness(database.db, { model }),
+      now = overrides.now ?? base.now;
+    const harness = personalRecordingReasoningHarnessFor({
+      db: database.db,
+      model: fixture.ports.model,
+      withPersonalScope: fixture.ports.withPersonalScope,
+      fenceOwn: base.fenceOwn,
+      settings: fixtureSettings,
+      logEvent: silent,
+      overrides: fixture.ports,
+      checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now }),
+      checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now }),
+    });
     const ports: CartographerPorts = {
       ...base,
-      harness: fixtureHarness(database.db, { model }).harness,
+      harness,
       enabled: () => true,
       permitted: () => Promise.resolve(true),
       ...overrides,
@@ -292,7 +327,69 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     proposal: ReturnType<typeof formation>,
     ports = base,
   ) {
-    return scope()(p.authority, (s) => applyProposal(ports, s, runId, ctx, proposal));
+    return scope()(p.authority, async (s) => {
+      if ((await ports.fenceOwn(s)).kind !== 'active') throw new Error('CI own');
+      const gate = await ports.fenceRecording(s, 1);
+      if (gate.kind !== 'recording') throw new Error('CI recording');
+      return applyProposal(ports, gate.scope, runId, ctx, proposal, () =>
+        Promise.reject(new Error('CI immutable replay must never close ledger')),
+      );
+    });
+  }
+  async function manualApply(
+    p: FixturePerson,
+    work: (
+      cap: Parameters<typeof applyProposal>[1],
+      ctx: GeographyContext,
+      runId: string,
+      close: () => Promise<void>,
+    ) => ReturnType<typeof applyProposal>,
+  ) {
+    const r = runner(p),
+      state0 = await state(p),
+      runId = state0.activeRunId!;
+    let entered!: () => void, release!: () => void, purpose!: PersonalRecordingPurpose;
+    const ready = new Promise<void>((resolve) => {
+        entered = resolve;
+      }),
+      held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    const running = makeRunCartographer({
+      ...r.ports,
+      harness: {
+        ...r.ports.harness,
+        withPersonalApply: () => Promise.reject(new Error('CI manual facade takeover')),
+        proposePersonal: async (input, abort) => {
+          const result = await r.ports.harness.proposePersonal(input, abort);
+          purpose = input.recordingPurpose;
+          entered();
+          await held;
+          return result;
+        },
+      },
+    })(await job(p, runId), signal());
+    await Promise.race([
+      ready,
+      running.then(() => {
+        throw new Error('CI actual proposal did not prepare');
+      }),
+    ]);
+    try {
+      const ctx = await context(p, runId);
+      return await r.ports.harness.withPersonalApply(p.authority, purpose, (cap) =>
+        work(cap, ctx, runId, async () => {
+          expect(
+            await r.ports.harness.closePersonalRun(cap, { runId, state: 'completed', recordingPurpose: purpose }),
+          ).toBe('closed');
+        }),
+      );
+    } finally {
+      release();
+      await running.catch((error) => {
+        if (!(error instanceof Error) || error.message !== 'CI manual facade takeover') throw error;
+      });
+    }
   }
   it('unviewed assets and readonly map visits create no work, coverage, model call or objects', async () => {
     const p = await seedPerson(database.db);
@@ -307,7 +404,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     const req = await request(p.authority, { commandId: randomUUID() });
     if (req.kind !== 'accepted') throw new Error('CI request refused');
     const r = runner(p);
-    await r.run(job(p, req.runId), signal());
+    await r.run(await job(p, req.runId), signal());
     expect(r.model.calls).toHaveLength(0);
     expect(await snapshot(p)).toMatchObject({ status: 'empty', geography: { revision: 0 } });
   });
@@ -319,7 +416,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     expect(await request(p.authority, c0)).toEqual(a);
     if (a.kind !== 'accepted') throw new Error('CI request refused');
     const r = runner(p, undefined, { enabled: () => false });
-    await r.run(job(p, a.runId), signal());
+    await r.run(await job(p, a.runId), signal());
     expect(r.model.calls).toHaveLength(0);
     expect(
       (
@@ -332,7 +429,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     ).toBe('disabled');
     await request(p.authority, { commandId: randomUUID(), resumeRunId: a.runId });
     await makeRunCartographer({ ...r.ports, enabled: () => true, permitted: () => Promise.resolve(false) })(
-      job(p, a.runId),
+      await job(p, a.runId),
       signal(),
     );
     expect(
@@ -354,7 +451,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       await observe(p, await fixture(unit, topic, [facet, otherFacet]), ['intro-short-version']);
     const r = runner(p),
       s = await state(p);
-    await r.run(job(p, s.activeRunId!), signal());
+    await r.run(await job(p, s.activeRunId!), signal());
     expect(r.model.calls).toHaveLength(2);
     expect(await snapshot(p)).toMatchObject({ status: 'empty', geography: { revision: 0 } });
     expect(
@@ -370,7 +467,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     for (let i = 0; i < 3; i++) await observe(p, await fixture());
     const r = runner(p),
       s = await state(p);
-    await r.run(job(p, s.activeRunId!), signal());
+    await r.run(await job(p, s.activeRunId!), signal());
     expect(r.model.calls).toHaveLength(2);
     expect(await snapshot(p)).toMatchObject({ status: 'empty', geography: { revision: 0 } });
     expect(
@@ -382,7 +479,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     await coherent(p);
     const s = await state(p),
       r = runner(p);
-    const runningJob = job(p, s.activeRunId!);
+    const runningJob = await job(p, s.activeRunId!);
     await Promise.all([r.run(runningJob, signal()), r.run(runningJob, signal())]);
     expect(r.model.calls).toHaveLength(1);
     const first = await snapshot(p);
@@ -485,7 +582,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     await coherent(p);
     const initial = runner(p),
       first = await state(p);
-    await initial.run(job(p, first.activeRunId!), signal());
+    await initial.run(await job(p, first.activeRunId!), signal());
     for (let i = 0; i < 3; i++)
       await observe(
         p,
@@ -493,7 +590,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       );
     const second = await state(p),
       tides = runner(p, (ctx) => ({ kind: 'success', text: JSON.stringify(formation(ctx, 'earth.tides')) }));
-    await tides.run(job(p, second.activeRunId!), signal());
+    await tides.run(await job(p, second.activeRunId!), signal());
     const connect = runner(p, (ctx) => {
       const planets = ctx.facts.objects.filter((o) => o.kind === 'planet');
       return {
@@ -513,7 +610,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     });
     const req = await request(p.authority, { commandId: randomUUID() });
     if (req.kind !== 'accepted') throw new Error('CI request refused');
-    await connect.run(job(p, req.runId), signal());
+    await connect.run(await job(p, req.runId), signal());
     const connected = await snapshot(p);
     if (connected.status !== 'ready') throw new Error('CI ready expected');
     expect(connected.page.routes).toHaveLength(1);
@@ -534,7 +631,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     }));
     const w = await request(p.authority, { commandId: randomUUID() });
     if (w.kind !== 'accepted') throw new Error('CI request refused');
-    await withdraw.run(job(p, w.runId), signal());
+    await withdraw.run(await job(p, w.runId), signal());
     const withdrawn = await snapshot(p);
     if (withdrawn.status !== 'ready') throw new Error('CI ready expected');
     expect(withdrawn.page.routes[0]).toMatchObject({
@@ -627,7 +724,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     });
     const r = runner(p),
       s = await state(p);
-    await r.run(job(p, s.activeRunId!), signal());
+    await r.run(await job(p, s.activeRunId!), signal());
     expect(r.model.calls).toHaveLength(0);
     expect(await snapshot(p)).toMatchObject({ status: 'empty' });
   });
@@ -649,7 +746,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       .select('revision')
       .where('id', '=', p.universeId)
       .executeTakeFirstOrThrow();
-    await expect(run(job(p, s.activeRunId!), signal())).rejects.toThrow('CI injected');
+    await expect(run(await job(p, s.activeRunId!), signal())).rejects.toThrow('CI injected');
     expect((await state(p)).revision).toBe(0);
     expect(
       await database.db.selectFrom('geography.objects').select('id').where('universe_id', '=', p.universeId).execute(),
@@ -683,30 +780,27 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     });
     // Recovery is claim-fenced. Explicit resume requires claim expiry, never a second remote run.
     const active = await scope()(p.authority, async (sc) => {
-      const old = await geographyStore.run(sc, s.activeRunId!);
+      const old = await geographyStore.header(sc, s.activeRunId!);
       if (!old) throw new Error('CI run absent');
       await geographyStore.writeRun(sc, { ...old, claimUntil: new Date(Date.now() - 1000).toISOString() });
     });
     expect(active.kind).toBe('entered');
     await request(p.authority, { commandId: randomUUID(), resumeRunId: s.activeRunId! });
-    await run(job(p, s.activeRunId!), signal());
+    await run(await job(p, s.activeRunId!), signal());
     expect(r.model.calls).toHaveLength(1);
     expect(await snapshot(p)).toMatchObject({ status: 'ready', geography: { revision: 1 } });
   });
   it('required Scene hook failure rolls back the actual Geography apply, root, delta and both required jobs', async () => {
     const p = await seedPerson(database.db);
     await coherent(p);
-    const s = await state(p);
     const before = await database.db
       .selectFrom('identity.universes')
       .select('revision')
       .where('id', '=', p.universeId)
       .executeTakeFirstOrThrow();
     await expect(
-      scope()(p.authority, async (sc) => {
-        const ctx = await prepareGeography(base, sc, await geographyStore.view(sc));
-        if (!ctx) throw new Error('CI trusted context absent');
-        return applyProposal(
+      manualApply(p, (cap, ctx, runId, close) =>
+        applyProposal(
           {
             ...base,
             applied: async (scope, input) => {
@@ -714,12 +808,13 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
               throw new Error('CI required Scene enqueue failure');
             },
           },
-          sc,
-          s.activeRunId!,
+          cap,
+          runId,
           ctx,
           formation(ctx),
-        );
-      }),
+          close,
+        ),
+      ),
     ).rejects.toThrow('CI required Scene enqueue failure');
     expect((await state(p)).revision).toBe(0);
     for (const table of ['geography.objects', 'geography.deltas'] as const)
@@ -759,7 +854,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         return { kind: 'hold', until: held };
       }),
       s = await state(p),
-      running = r.run(job(p, s.activeRunId!), signal());
+      running = r.run(await job(p, s.activeRunId!), signal());
     await ready;
     await database.db
       .updateTable('content.assets')
@@ -782,8 +877,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
   });
   it('trusted authority SHARE locks fence withdrawal through the complete atomic apply transaction', async () => {
     const p = await seedPerson(database.db),
-      assets = await coherent(p),
-      s = await state(p);
+      assets = await coherent(p);
     let locked!: () => void, release!: () => void;
     const ready = new Promise<void>((r) => {
         locked = r;
@@ -791,11 +885,8 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       held = new Promise<void>((r) => {
         release = r;
       });
-    const applying = scope()(p.authority, async (sc) => {
-      const view = await geographyStore.view(sc),
-        ctx = await prepareGeography(base, sc, view);
-      if (!ctx) throw new Error('CI trusted context absent');
-      const applied = await applyProposal(base, sc, s.activeRunId!, ctx, formation(ctx));
+    const applying = manualApply(p, async (cap, ctx, runId, close) => {
+      const applied = await applyProposal(base, cap, runId, ctx, formation(ctx), close);
       locked();
       await held;
       return applied;
@@ -829,7 +920,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     await coherent(p);
     const initial = runner(p),
       s = await state(p);
-    await initial.run(job(p, s.activeRunId!), signal());
+    await initial.run(await job(p, s.activeRunId!), signal());
     const before = await snapshot(p);
     if (before.status !== 'ready') throw new Error('CI ready expected');
     const planet = before.page.objects.find((o) => o.kind === 'planet')!;
@@ -853,7 +944,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     );
     const q = await request(p.authority, { commandId: randomUUID() });
     if (q.kind !== 'accepted') throw new Error('CI request refused');
-    await quiet.run(job(p, q.runId), signal());
+    await quiet.run(await job(p, q.runId), signal());
     const after = await snapshot(p);
     expect(after).toMatchObject({
       status: 'ready',
@@ -880,7 +971,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     }));
     const n = await request(p.authority, { commandId: randomUUID() });
     if (n.kind !== 'accepted') throw new Error('CI request refused');
-    await rename.run(job(p, n.runId), signal());
+    await rename.run(await job(p, n.runId), signal());
     const final = await snapshot(p);
     expect(final).toMatchObject({
       status: 'ready',
@@ -929,9 +1020,9 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     await coherent(p);
     const r = runner(p, () => ({ kind: 'timeout_after_dispatch' })),
       s = await state(p);
-    await r.run(job(p, s.activeRunId!), signal());
+    await r.run(await job(p, s.activeRunId!), signal());
     await request(p.authority, { commandId: randomUUID(), resumeRunId: s.activeRunId! });
-    await r.run(job(p, s.activeRunId!), signal());
+    await r.run(await job(p, s.activeRunId!), signal());
     expect(r.model.calls).toHaveLength(1);
     expect((await attemptsOf(database.db, p.universeId)).map((a) => a.state)).toEqual(['unknown']);
     const suspended = await seedPerson(database.db);
@@ -943,7 +1034,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       .set({ status: 'suspended' })
       .where('id', '=', suspended.accountId)
       .execute();
-    await susp.run(job(suspended, ss.activeRunId!), signal());
+    await susp.run(await job(suspended, ss.activeRunId!), signal());
     expect(susp.model.calls).toHaveLength(0);
     // Account revocation while the model is outside the transaction also fences completion.
     const revoked = await seedPerson(database.db);
@@ -962,7 +1053,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       return { kind: 'hold', until: pendingAnswer };
     });
     const revokedState = await state(revoked);
-    const pendingRun = revoking.run(job(revoked, revokedState.activeRunId!), signal());
+    const pendingRun = revoking.run(await job(revoked, revokedState.activeRunId!), signal());
     await dispatched;
     await database.db
       .updateTable('identity.accounts')
@@ -1007,7 +1098,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         return { kind: 'hold', until: held };
       }),
       ls = await state(late),
-      running = worker.run(job(late, ls.activeRunId!), signal());
+      running = worker.run(await job(late, ls.activeRunId!), signal());
     await ready;
     await database.db
       .updateTable('identity.universes')

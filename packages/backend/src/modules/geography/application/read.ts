@@ -69,8 +69,15 @@ export function makeReadGeography(p: GeographyPorts): ReadOwnGeography {
       const routes = view.routes.filter((r) => keys.has(r.fromKey) && keys.has(r.toKey)),
         aliases = view.aliases.filter((a) => ids.has(a.fromObjectId) && ids.has(a.toObjectId));
       if (routes.length > 100 || aliases.length > 100) return unavailable('limit');
-      const active = g.activeRunId ? await p.store.run(scope, g.activeRunId) : undefined;
-      const pending = active && ['queued', 'prepared'].includes(active.status);
+      const active = g.activeRunId ? await p.store.header(scope, g.activeRunId) : undefined;
+      const gate = await p.fenceRecording(scope, active?.recording?.source.generation);
+      const pending =
+        active &&
+        ['queued', 'prepared'].includes(active.status) &&
+        gate.kind === 'recording' &&
+        (!active.recording
+          ? gate.scope.generation === 1
+          : active.recording.source.generation === gate.scope.generation);
       if (!objects.length)
         return {
           kind: 'read',

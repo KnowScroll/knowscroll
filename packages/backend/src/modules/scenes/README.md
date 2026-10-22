@@ -172,3 +172,13 @@ real final pg-boss failure/dead letter/root lock, restart,100 blocked heads and 
 rollback/dedupe/ceiling/final-page bounds, full/Clear inventories and normal installed API/worker
 journey with private canaries. These are source/CI fixtures; actual deployed schema38, formation,
 client/native presentation and operational readiness require independent acceptance.
+
+### Recording origin at new Geography application (#381)
+
+The actual new Geography→Scenes hook requires a genuine live `RecordingScopeTx` and an exact
+matching original generation. It records only the just-applied committed creations and enqueues
+the existing minimized projection job in that same transaction. The original-generation field is
+not spread into the projection/display protocol. Already committed projection, publication,
+U05 claim/ACK/expiry and recovery keep their existing current-owner/epoch display semantics while
+recording is paused; none can mint new Geography meaning, activity or formation. New stale/off
+role output cannot reach this growth hook. Source-only; no runtime or complete Pause acceptance.

@@ -1,3 +1,4 @@
+import { recordingTransactionOf } from '../../../infrastructure/postgres/recording-scope.js';
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import type { PgBoss } from 'pg-boss';
@@ -48,7 +49,10 @@ export function sceneAppliedProviders(t: { readonly enqueueJob: symbol }) {
       inject: [t.enqueueJob],
       useFactory:
         (enqueue: EnqueueJob): GeographyApplied =>
-        async (scope, input) => {
+        async (cap, input) => {
+          recordingTransactionOf(cap);
+          if (input.recordingGeneration !== cap.generation) throw new Error('SCENE_RECORDING_GENERATION');
+          const scope = cap.personal;
           await makeRecordFormation(formationStore)(scope, input);
           await enqueue(scope, projectSceneQueue, {
             v: 1,
