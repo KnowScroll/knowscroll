@@ -102,7 +102,12 @@ export function makeCommissionPublication(p: CommissionPublicationPorts): Commis
       if (before.value.publication) {
         const old = before.value.publication;
         return before.value.operationId
-          ? { kind: 'published', ...old, operationId: before.value.operationId }
+          ? {
+              kind: 'published',
+              publicationId: old.publicationId,
+              assetId: old.assetId,
+              operationId: before.value.operationId,
+            }
           : held('identity');
       }
       const proof = await p.media.prepare(snapshot);
@@ -123,7 +128,9 @@ export function makeCommissionPublication(p: CommissionPublicationPorts): Commis
               actualCents: snapshot.report.cost.actualCents,
               financialReport: financialReportOfSnapshot(snapshot),
             });
-            return operationId ? { kind: 'published' as const, ...old, operationId } : held('identity');
+            return operationId
+              ? { kind: 'published' as const, publicationId: old.publicationId, assetId: old.assetId, operationId }
+              : held('identity');
           }
           const media = p.media.consume(proof, snapshot);
           if (!media) return held('media');
