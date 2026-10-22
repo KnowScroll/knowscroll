@@ -23,3 +23,25 @@ SQL transition guards and immutable exact-body account-lifetime recording_comman
 Selective Clear preserves them. This schema does not activate Pause; every contribution owner
 must carry and fence original generations before exposing a controller/control. All previous40
 SQL files remain immutable. No new root, queue, provider/financial change or deletion executor.
+
+0042 is the recording pipeline schema prerequisite. Eleven initially empty tables hold Experience
+command/offer provenance and generation segments, Evidence recorder sessions/source heads/effective
+credit, and PC source heads/effective structural and coverage contributions. Nine action-state
+columns track independently eligible Save/Like decisions; three Evidence audit columns retain
+literal generation 1 for historical rows. All new checks and foreign keys on existing tables are
+`NOT VALID`; this migration does not scan or certify historical contributions.
+
+Exact root, epoch, exposure, generation, action and activation bindings supplement the genuine
+runtime recording transaction capability. Current-generation writes cannot alter sealed heads;
+effective credit carries its previous committed value into an immutable generation baseline.
+Activation time is a nullable, set-once pair so a correction-only segment creates no activation
+fact. Eligible negative actions can correct earlier effective Save/Like credit through exact
+original lineage. A NULL channel state remains uncertified: no legacy initialization, replay
+backfill, event-cap reset or positive-growth certification is installed here.
+
+Clear/full erasure must delete PC coverage references, effective contributions and segment heads
+before Evidence heads/credit/sessions/audits, then Experience inputs/segments/origins before their
+referenced offers, actions, exposures and receipts. Account-lifetime Identity recording policy and
+receipts retain their existing lifecycle. Compatible owner adapters and deletion ordering must land
+before rollout; stop unfenced older writers before election. This source prerequisite activates no
+API, UI, worker role or provider operation. All previous 41 SQL files remain immutable.
