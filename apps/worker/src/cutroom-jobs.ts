@@ -25,6 +25,16 @@ export async function readCutroomSetup(
   settings: CutroomCommissioningSettings,
   world: string,
 ): Promise<CommissioningSetup> {
+  const raw = await readRootCutroomPacket(settings);
+  const setup = parseCommissioningSetup(raw);
+  if (!setup || setup.worldId !== world) throw new Error('CUTROOM_SETUP_UNAVAILABLE');
+  return setup;
+}
+/** Shared secure file intake, with separate caller-owned schemas and enablement settings. */
+export async function readRootCutroomPacket(settings: {
+  readonly enabled: boolean;
+  readonly packetPath?: string;
+}): Promise<unknown> {
   let file: Awaited<ReturnType<typeof open>> | undefined;
   try {
     const path = settings.packetPath;
@@ -69,9 +79,7 @@ export async function readCutroomSetup(
         for (const value of children) pending.push({ value, depth: item.depth + 1 });
       }
     }
-    const setup = parseCommissioningSetup(raw);
-    if (!setup || setup.worldId !== world) throw new Error('CUTROOM_SETUP_UNAVAILABLE');
-    return setup;
+    return raw;
   } catch {
     throw new Error('CUTROOM_SETUP_UNAVAILABLE');
   } finally {

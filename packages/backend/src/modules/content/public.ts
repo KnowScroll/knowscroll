@@ -364,3 +364,32 @@ export {
 
 export { parseCommissioningSetup } from './production/commissioning.js';
 export type { CommissioningSetup } from './production/commissioning.js';
+export {
+  CommissionReceiveSetupSchema,
+  CommissionReceivePayloadSchema,
+  CommissionReceiveBindingSchema,
+  ReceiveWorkSchema,
+  ReceiveRecoveryWorkSchema,
+  receiveCutroomQueue,
+  recoverReceiveCutroomQueue,
+} from './production/commission-receive-contracts.js';
+export type {
+  CommissionReceiveSetup,
+  CommissionReceivePayload,
+  CommissionReceiveBinding,
+} from './production/commission-receive-contracts.js';
+export type {
+  CommissionReceive,
+  CommissionReceivePorts,
+  ReceiveResult,
+  ReceiveEnvelope,
+  ReceiveReceipt,
+  ReceiveScopeTx,
+  WithReceiveScope,
+  ReceiveStore,
+  ReceiveRecord,
+  ReceiveMedia,
+  ReceiveMediaProof,
+  CommissionReceiveOrigin,
+} from './production/commission-receive-ports.js';
+export { makeCommissionReceiveExport } from './production/commission-receive-export.js';

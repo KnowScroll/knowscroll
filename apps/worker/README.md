@@ -81,8 +81,8 @@ immutable settlement receipt to establish claim closure.
 Source ships no corpus, human approval, principal, allowance, actual preflight, credential, root
 seed or runtime activation. Pool0004 installation/provenance/ACL and actual funds/sole-writer
 preflight remain separately reviewed Root operations. Old0014 imports and retained scripts are
-unchanged. CF62 cross-world0c receive is unimplemented and cannot order or settle the original
-claim. Actions synthetic worker/media journeys establish fixture behavior only, never paid
+unchanged. CF62 cross-world0c receiving uses the separate default-disabled target root described
+below; it cannot order or settle the original claim. Actions synthetic worker/media journeys establish fixture behavior only, never paid
 provider or real installed-profile acceptance.
 
 Bootstrap metadata is separate from human approval: trusted setup permits empty approval
@@ -111,3 +111,20 @@ again, and overlapping scheduled passes may revisit due rows. Exhausted final de
 or crash leaves durable due state for the next finite pass. The ordinal-only global cursor has
 no personal UUID or per-account effect authority; full/Clear erases the personal row and all exact
 private expiry job states. Old late work cannot restore removed IDs or touch fresh-epoch data.
+
+## CF62 zero-cost receiver (#373, default disabled)
+
+`operator.js cutroom receive` stages only the exact envelope in the configured Root-owned
+receiving packet; it accepts no arbitrary path, approval JSON, source URL or financial argument.
+Stage/required pg-boss work commit together. Normal fixed `content.receive-cutroom` and
+`content.recover-receive-cutroom` consumers use separate receiving configuration/root authority;
+they never compose Cutroom HTTP/pool connections or require the paid commissioning flag. Every
+delivery re-reads the bounded Root packet without renewing its timestamps. Local media/probe work
+runs outside transactions; admission and exact receipt are atomic. Unknown commit outcomes retry
+the original body, and a historical admitted receipt never restores later content eligibility.
+
+Three finite cooled recovery wakes and bounded leases/deliveries preserve held unknown work.
+Fixed-ceiling keyset continuation commits before individual operation waits, including busy first
+pages; final pages terminate. Root may explicitly refresh current-policy provenance for the SAME
+handoff within its original hard deadline. Source/Actions fixtures do not approve an actual export,
+transfer, individual script, corpus, provider call, receiving root or process flag.

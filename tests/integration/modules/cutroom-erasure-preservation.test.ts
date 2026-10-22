@@ -10,6 +10,14 @@ import { personalStores, explorationStores } from '@knowscroll/backend/erasure-r
 import { makeWithPersonalScope } from '@knowscroll/backend/infrastructure/postgres';
 import { applyQueueDeclarations } from '@knowscroll/backend/infrastructure/jobs';
 import { seedPerson } from '../support/fixtures.js';
+import { receiveFixture, receiveHash } from '../support/commission-receive-fixture.js';
+import { experienceUseCases } from '../support/experience.js';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { CommissionReceivePayload } from '@knowscroll/backend/modules/content';
+import { lockKeepPositionTarget } from '@knowscroll/backend/modules/content/nest-providers';
+import { keepPlaceUseCases } from '@knowscroll/backend/modules/experience/nest-providers';
+import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import {
   commissionFixture,
   fixturePublishedCommission,
@@ -98,5 +106,106 @@ describe('full and selective erasure preserve concrete world-owned commissioning
     expect((await f.owner.query('select state,spent_cents from public.pool_order')).rows).toEqual([
       { state: 'settled', spent_cents: 34 },
     ]);
+  });
+});
+
+describe('received public output survives full/selective owner erasure (populated PG/media)', () => {
+  let f: Awaited<ReturnType<typeof receiveFixture>>, legacy: Awaited<ReturnType<typeof experienceUseCases>>;
+  beforeAll(async () => {
+    f = await receiveFixture('erase');
+    const e = f.envelope!;
+    f.bind(e);
+    await f.transfer(e);
+    expect(await f.service.stage(e)).toEqual({ kind: 'pending' });
+    const p = JSON.parse(e.payloadUtf8) as CommissionReceivePayload;
+    expect(await f.service.receive({ v: 1, worldId: 'stage', handoffId: p.handoffId })).toMatchObject({
+      kind: 'admitted',
+    });
+    legacy = await experienceUseCases(f.target);
+    await applyQueueDeclarations(f.boss, [clearExplorationQueue, recoverClearOperationsQueue]);
+  });
+  afterAll(async () => {
+    await legacy?.close();
+    await f?.close();
+  });
+  it('preserves actual receiving root/receipt/media and exact Saved UUID/ref/fractional place', async () => {
+    const p = JSON.parse(f.envelope!.payloadUtf8) as CommissionReceivePayload,
+      db = f.target.db,
+      scope = makeWithPersonalScope(db, { lockTimeoutMs: 5000 });
+    const shared = async () => {
+      const result: Record<string, unknown> = {};
+      for (const { table } of [...contentCutroomStores, ...reasoningCutroomStores])
+        result[table] = (
+          await sql<{
+            v: unknown;
+          }>`select coalesce(jsonb_agg(to_jsonb(x) order by to_jsonb(x)::text),'[]'::jsonb) v from ${sql.table(table)} x`.execute(
+            db,
+          )
+        ).rows[0]!.v;
+      result['mediaBytesSha256'] = receiveHash((await readFile(join(f.mediaRoot, p.media.key))).toString('base64'));
+      return result;
+    };
+    const before = await shared();
+    expect(before['content.cutroom_receiving_state']).toHaveLength(1);
+    expect(before['content.cutroom_receive_receipts']).toHaveLength(1);
+    const full = await seedPerson(db);
+    await scope(full.authority, (s) => eraseUniverse(s, personalStores));
+    expect(await shared()).toEqual(before);
+    const person = await seedPerson(db),
+      ref = { assetId: p.document.assetId, assetRevision: 1 };
+    expect(
+      await legacy.applyAction(person.authority, { commandId: randomUUID(), kind: 'save', target: ref }),
+    ).toMatchObject({ kind: 'applied' });
+    const cases = keepPlaceUseCases({
+      withScope: scope,
+      fenceOwn: accountAccessUseCases({ db, lockTimeoutMs: 5000 }).fenceOwnAccount,
+      target: lockKeepPositionTarget,
+    });
+    const entry = await cases.readEntry(person.authority, { version: 'keep-place.v1', target: ref });
+    if (entry.kind !== 'ok' || entry.value.status !== 'available') throw new Error('FIXTURE_RECEIVED_KEEP');
+    expect(
+      await cases.setPlace(person.authority, {
+        version: 'keep-place.v1',
+        commandId: randomUUID(),
+        entry: entry.value.entry,
+        expectedPlaceRevision: 0,
+        position: { kind: 'reel', positionMs: 19167.769 },
+      }),
+    ).toMatchObject({ kind: 'ok', value: { outcome: 'accepted' } });
+    const saved = await db
+        .selectFrom('experience.saved_items')
+        .selectAll()
+        .where('universe_id', '=', person.universeId)
+        .execute(),
+      places = await db
+        .selectFrom('experience.saved_places')
+        .selectAll()
+        .where('universe_id', '=', person.universeId)
+        .execute();
+    const clear = clearExplorationFor(db, f.boss, {
+        reasoning: clearReasoning,
+        eraseCore: async (s) => {
+          await eraseExploration(s, explorationStores);
+        },
+      }),
+      commandId = randomUUID();
+    const started = await clear.start(
+      { accountId: person.accountId, universeId: person.universeId, privacyEpoch: 1 },
+      {
+        version: 'clear-exploration.v1',
+        commandId,
+        expectedPrivacyEpoch: 1,
+        confirmation: 'clear-exploration-preserve-keep-and-social',
+      },
+    );
+    expect(started).toMatchObject({ kind: 'entered', value: { kind: 'ok' } });
+    await clear.process({ v: 1, accountId: person.accountId, commandId });
+    expect(await shared()).toEqual(before);
+    expect(
+      await db.selectFrom('experience.saved_items').selectAll().where('universe_id', '=', person.universeId).execute(),
+    ).toEqual(saved);
+    expect(
+      await db.selectFrom('experience.saved_places').selectAll().where('universe_id', '=', person.universeId).execute(),
+    ).toEqual(places);
   });
 });

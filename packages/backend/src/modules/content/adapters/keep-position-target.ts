@@ -2,6 +2,7 @@ import { KeepAssetRefSchema, ReelDocumentSchema } from '@knowscroll/contracts';
 import { admitDocument } from '@knowscroll/scroll-model/admission';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { LockKeepPositionTarget } from '../public.js';
+import { readReelMediaBinding } from './media-access.js';
 
 /** Caller already holds its own Identity account gate and has checked the Saved membership.
  * AccountAccess is plain context, not proof of that gate. Content owns only its SHARE lock,
@@ -66,13 +67,7 @@ export const lockKeepPositionTarget: LockKeepPositionTarget = async (scope, owne
     return undefined;
   // Same immutable document/media-key binding as Content's existing media-access port.
   // No media URL/key leaves this adapter and no filesystem/probe/network I/O runs here.
-  const media = await trx
-    .selectFrom('content.reel_imports as imported')
-    .innerJoin('content.media_objects as media', 'media.id', 'imported.media_id')
-    .select('media.logical_key')
-    .where('imported.asset_id', '=', ref.assetId)
-    .where('imported.asset_revision', '=', ref.assetRevision)
-    .executeTakeFirst();
-  if (!media || media.logical_key !== result.data.mediaKey) return undefined;
+  const media = await readReelMediaBinding(trx, ref);
+  if (!media || media.key !== result.data.mediaKey) return undefined;
   return { kind: 'reel', durationMs: result.data.durationMs };
 };

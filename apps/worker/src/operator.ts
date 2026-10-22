@@ -9,7 +9,8 @@ import { cutroomBFor } from '@knowscroll/backend/reasoning/nest-providers';
 import { lockCommissionBusiness } from '@knowscroll/backend/modules/content/nest-providers';
 import { makeWithCutroomScope } from '@knowscroll/backend/reasoning/nest-providers';
 import { readCutroomSetup } from './cutroom-jobs.js';
-import { assembleCutroom } from './jobs.js';
+import { assembleCutroom, assembleReceiving } from './jobs.js';
+import { readReceiveSetup } from './cutroom-receive-jobs.js';
 import { makeCutroomReelImporter } from '@knowscroll/backend/modules/content/nest-providers';
 import { userInfo } from 'node:os';
 import { parseArgs } from 'node:util';
@@ -105,6 +106,38 @@ async function main(): Promise<number> {
     return 2;
   }
   const [area, command] = args.positionals;
+  if (area === 'cutroom' && command === 'receive' && args.positionals.length === 2) {
+    if (Object.values(args.values).some((value) => value !== undefined && value !== false)) {
+      print({ result: 'usage', usage: 'cutroom receive (configured Root packet only; no flags)' });
+      return 2;
+    }
+    let database: ReturnType<typeof createDatabase<Database>> | undefined;
+    let boss: ReturnType<typeof createBoss> | undefined;
+    try {
+      const config = readWorkerConfig(process.env);
+      if (!config.receiving?.enabled) {
+        print({ result: 'disabled' });
+        return 2;
+      }
+      const setup = await readReceiveSetup(config.receiving, config.world);
+      if (!setup.envelope) {
+        print({ result: 'setup_unavailable' });
+        return 2;
+      }
+      database = createDatabase<Database>(config.database, { onIdleClientError: () => undefined });
+      boss = createBoss(config.database, 'producer', { onError: () => undefined, onWarning: () => undefined });
+      await boss.start();
+      const result = await assembleReceiving(database.db, boss, config, setup).stage(setup.envelope);
+      print({ command: 'cutroom receive', result });
+      return result.kind === 'pending' || result.kind === 'admitted' ? 0 : 2;
+    } catch {
+      print({ result: 'receiving_unavailable' });
+      return 2;
+    } finally {
+      await boss?.stop({ graceful: true, timeout: 5000 });
+      await database?.close();
+    }
+  }
   if (
     area === 'cutroom' &&
     ['commission', 'import-corpus', 'prepare-review', 'purge', 'process-pool', 'follow', 'settle'].includes(

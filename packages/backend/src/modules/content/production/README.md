@@ -642,3 +642,22 @@ unchanged. The real v12 stop-on-first-failure remains in force. This source vers
 operator change, reservation, provider retry, new job or deployment. Authored Actions fixtures cover
 the three invalid cell cases, canonical grids outside this selection, actual HTTP/PG bounded repair
 and policy12 historical-byte preservation. They are not generated library content.
+
+## CF62 receiving production boundary (#373)
+
+The internal `cutroom-receive.v1` envelope is not an HTTP/browser approval contract. Its external
+SHA256 binds exact UTF8≤100000B; closed schemas reject unknown fields, invalid financial totals,
+noncompleted final chains, same-world targets, changed document/media identity and a new UUID for
+an existing publication/target. It contains public immutable origin provenance, exact six-fractional
+binding timestamps and original plus at most one child OWN costs, never pool credentials,
+provider responses/URLs, prompts or private staging paths. `receiverChargeCents:0` is provenance,
+not an origin accounting report and never a settlement instruction.
+
+`makeCommissionReceive` only accepts injected receiving scope/store, Root registry and local media
+ports. Reads of the external registry precede transactions; the captured certificate is rechecked
+after root/operation/asset waits and at final commit. Media proofs are private, single-use and
+short-lived, bound to exact payload/generation and actual probed bytes. No Cutroom HTTP or paid port
+is reachable. An unknown database acknowledgement is reconciled with the SAME body; no inline
+replacement or financial compensation runs. Already admitted receipt replay is historical and
+cannot restore withdrawn/corrected content. A Root current-source attestation is essential because
+this bounded operator handoff does not invent an automatic revocation bridge.
