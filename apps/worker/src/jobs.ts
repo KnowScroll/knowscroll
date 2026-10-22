@@ -27,6 +27,10 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { WorkerConfig } from '@knowscroll/backend/infrastructure/config';
 import type { createBoss } from '@knowscroll/backend/infrastructure/jobs';
+import { eraseExploration } from '@knowscroll/backend/infrastructure/erasure';
+import { explorationStores } from '@knowscroll/backend/erasure-registry';
+import { clearExplorationFor } from '@knowscroll/backend/modules/identity/nest-providers';
+import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { jobConsumer, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
@@ -148,7 +152,15 @@ export const jobWiring: Provider[] = [
       boss: ReturnType<typeof createBoss>,
       config: WorkerConfig,
     ): readonly JobConsumer<unknown>[] => [
-      clearExplorationConsumer(db, boss, config.scopeLockTimeoutMs),
+      clearExplorationConsumer(
+        clearExplorationFor(db, boss, {
+          reasoning: clearReasoning,
+          eraseCore: async (scope) => {
+            await eraseExploration(scope, explorationStores);
+          },
+          lockTimeoutMs: config.scopeLockTimeoutMs,
+        }),
+      ),
       jobConsumer(projectSceneQueue, async (payload) => {
         await projectScene(payload);
       }),
