@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-21 22:16 UTC · **Phase:** 2 real dev generation / 3–4 implementation · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-22 09:33 IST (04:03 UTC) · **Phase:** 2 real dev generation / 3–4 implementation · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,19 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current source and rollout status — 21 Oct, 22:16 UTC
+## Session handover — 22 Oct 2026 09:33 IST (04:03 UTC)
+
+The owner requested a new-session handover and phase-level delivery. Implementation/host/provider work remains stopped in this chat. Next orchestrator is gpt-6.1-sol/xhigh with Sol high/medium subagents, using parallel disjoint workstreams and coherent phase PRs/commits. Existing tracker/epics are retained; create meaningful child issues for missing phase work and defects. No PIO/SoftwareFactory/main/production authority. All five final requirements remain OPEN.
+
+Last product/evidence head is **b8269a21059dc0ffa5f9d8792ca0915bd957b3b6/treeaf8bc62c6b2383e06232d0f5d7fb3ebd968dc6d2/schema33**. Its exact PUSH39685359721 passed all six; Root captured full114 logs/archivef6c8f883/all33SQL/fullmanifest/29smoke. Previous merged96ec PUSH39685121055 failed global-token-cap concurrency (expected3proposed/9exhausted, actual5/7); complete113 logs are retained. The200ms fixture hold may fail to overlap all admissions, but diagnosis is unfinished: distinguish fixture timing from a real reservation bug before paid generation. Later green checks do not erase this failure. No rerun/fix was issued.
+
+Last accepted dev remains d10/schema30/archive6481; stage last observed legacy898. No32 rollout occurred. Refresh02 actual preservation22:23:51Oct21 had original deadline22:38:51UTC, now EXPIRED. The independently reviewed ninth metadata proposal was never executed (no issued/attempt); the new32 dispatch directory was never created. Every old operation window is expired and must not be replayed or timestamp-refreshed. Disabled accepted source can inform one newly reviewed phase rollout after all preparation is complete; an older frozen872 candidate may be honestly superseded.
+
+V12 operator four-source packet is frozen/disabled (claims4/writer10/policy12, strict43/dev31), pending independent/Root review. Selective Clear durable plan exists with37 proposed paths; no implementation/worktree/migration0034 was allocated. Ledger6b948d88 remains33used/0reserved/0unknown of43 (development11/dev22); owner broader232 permission persists, daily/token/brake controls and separate Cutroom/script controls remain. Zero accepted generated Scrolls and no new commission acceptance.
+
+Handover files are saved on the SSD under knowscroll-dev/v2/agents/coordinator/NEXT-SESSION.md and NEXT-SESSION-EVIDENCE.md; inventory is handoff-20261022T035819Z/. 92 worktrees were inspected: only owner checkout has its two unrelated edits; no in-progress rebase/merge/cherry-pick and no surviving agent writer. New session must recheck actual state. Continue whole product phases, real journeys and dev/stage acceptance rather than restarting source foundations or ending at one small change.
+
+## Earlier 21 Oct, 22:16 UTC source checkpoint
 
 Integration source is **96ec6aa3eb0afd0a91767ea810fe1b510bf4b54d/tree df8d422653175373341abbeb6d94ab22a2681666/schema33** after reviewed PR340, PR342 and PR341. These later changes do not replace frozen rollout candidate **87237ac63d7817f51845918352966190f66c9760/schema32/archive3d2aa0bb**. Actual accepted dev remains d10f4040/schema30/archive6481aa58; stage remains legacy8982391f. No schema32 deployment has been issued.
 
