@@ -107,6 +107,25 @@ export {
   type FormationPresentationSession,
 } from './formation-presentation';
 
+export { createFriendsSession } from './friends-session';
+export { createFriendsHttp, FriendsHttpError, FRIENDS_LIMITS } from './friends-http';
+export type {
+  FriendsSession,
+  FriendsState,
+  FriendsOperation,
+  FriendsCommandOperation,
+  FriendsInput,
+  FriendsOutput,
+  FriendsCommandDraft,
+  FriendsFilter,
+  FriendsPage,
+  FriendsCursor,
+  FriendsFailure,
+  FriendsReadState,
+  FriendsAcceptance,
+  FriendsCommandState,
+} from './friends-types';
+
 export {
   createRecordingPolicySession,
   recordingCommandFields,

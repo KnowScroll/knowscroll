@@ -98,7 +98,8 @@ export class SocialController {
         caller,
         FriendPairResultSchema,
         await this.useCases.readPair(authorityOf(caller), input),
-        (value) => value.status === 'unavailable' || value.pair.peer.personId === input.peerPersonId,
+        (value) =>
+          value.status === 'unavailable' || value.pair.peer.personId.toLowerCase() === input.peerPersonId.toLowerCase(),
       );
     });
   }

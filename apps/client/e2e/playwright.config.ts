@@ -28,6 +28,7 @@ export default defineConfig({
         'encounter-smoke.spec.ts',
         'recording-smoke.spec.ts',
         'keep-smoke.spec.ts',
+        'friends-smoke.spec.ts',
         'universe-smoke.spec.ts',
       ],
       use: { baseURL: `http://127.0.0.1:${production}` },

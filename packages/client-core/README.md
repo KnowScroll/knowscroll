@@ -220,6 +220,52 @@ installs no durable backend/API/worker, creates no supported Geography, approves
 proves no real cross-device, populated-dev or physical-device journey. Those remain acceptance
 requirements under363/238/237/222; models and paid roles remain separately controlled.
 
+## Friends profile, pairs and invites (#377)
+
+`createFriendsSession({ scope, newCommandId })` exposes `getState`/`subscribe` and explicit profile,
+exact-handle lookup, pair, invite-status and invite-resolution reads. Construction requires the
+actual active AccountScope and synchronous `onEnd`. Every request uses `scope.api`; schema parsing
+and scope/operation/command/reference/revision checks happen before publication. The transport
+retains at most 64 KiB of accepted decoded output per response; this is not a pre-decode allocation
+guarantee. Schema-validated UUID references compare case-insensitively without rewriting wire
+values; command/read correlation IDs, opaque cursors and invite secrets remain exact. State is deeply frozen, ephemeral and independent for each scope object. No response,
+receipt, cursor or invite token is a query-cache payload, storage record, URL or log entry.
+
+`command(operation, draft)` adds one UUID and the contract version only after an explicit caller
+selection. Profile and invite changes require a current corresponding read. Friend requests bind
+the exact selected handle or resolved invite issuer; pair actions bind the selected pair/request
+and caller-visible revision. A pending or unknown command prevents replacement. `retryCommand()`
+is deliberate and sends the identical validated body/UUID. There is no automatic mutating retry.
+A later definitive refusal cannot resolve an earlier ambiguous send. A valid immutable ACK clears
+current reads; it never becomes a claimed profile, current friendship or active invite. Consumers
+must explicitly read again. Stale/conflicting first attempts also discard stale current authority.
+
+Only `takeInviteToken()` can consume a first creation delivery, once. Observable state exposes only
+whether that delivery remains available and the separate immutable acceptance. Replay delivery is
+unavailable; losing first delivery requires deliberately reading status, revoking that exact link,
+and creating a new command after a fresh read. The UI may deliberately copy a link with the token
+in its fragment; this package builds no URL and sends no message. A resolved token is retained only
+in private ephemeral memory to bind the deliberate request, and an unknown invite request retains
+its original secret-bearing body only until ACK or disposal.
+
+At most one underlying read plus one latest queued selection and one command are in flight. Scope
+end, authority refusal and disposal synchronously purge reads, receipts, pending bodies, cursors,
+listeners and secrets. Generation/AbortSignal fences also reject late successful transports that
+ignore abort, including a pre-command read arriving after its ACK. No heartbeat, presence setting,
+visitor, visibility, conversation, player position or personal observation consumer is installed.
+
+Tests are authored HTTP/protocol fixtures and run only in GitHub Actions. They do not establish
+mounted Friends UI, actual backend availability, real friendships or a connected device journey.
+Roster reads use only the separately versioned `friend-pages.v2` namespace/routes, with a fresh
+`requestId` from the same UUID supplier (`newCommandId`); an ID on a read implies no mutation.
+The response must bind request ID, current scope, selected filter, cursor snapshot and requested
+limit. Only absence of `next` ends the captured scan: an empty page with `next` is a scan
+continuation, and Next makes exactly one more request. There is no automatic empty-page draining.
+The current page contains at most 50 items; eight opaque previous page-start cursors are retained,
+with no old page bodies. Previous traverses only that bounded window; Refresh restarts from the
+beginning. Stale/invalid continuations discard the window and require explicit Refresh. Repeated
+current/retained tokens are refused; the server authenticates finite advancing scan authority.
+Legacy `sharing.v1` contracts remain unchanged and are never a downgrade/fallback path.
 
 ## Personal recording policy (#381)
 

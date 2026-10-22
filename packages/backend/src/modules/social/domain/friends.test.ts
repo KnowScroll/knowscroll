@@ -66,6 +66,35 @@ describe('caller-public Friends views', () => {
       apply(unblocked, { actor: 'b', operation: 'accept', expected: 3, requestId: 'request' }, 2, 'other'),
     ).toEqual({ kind: 'refused', code: 'unavailable' });
   });
+  it.each(['accept', 'decline', 'cancel'] as const)(
+    'binds %s to UUID identity without rewriting lineage',
+    (operation) => {
+      const requestId = '0199f0a0-0000-7000-8000-abcdef012345';
+      const initial = apply(pair(), { actor: 'a', operation: 'request', expected: 0 }, 1, requestId);
+      if (initial.kind !== 'accepted') throw new Error('CI request setup');
+      const pending = initial.pair;
+      const actor = operation === 'cancel' ? 'a' : 'b';
+      expect(
+        apply(
+          pending,
+          { actor, operation, expected: 1, requestId: '0199F0A0-0000-7000-8000-ABCDEF012346' },
+          2,
+          'unused',
+        ),
+      ).toEqual({ kind: 'refused', code: 'unavailable' });
+      const accepted = apply(
+        pending,
+        { actor, operation, expected: 1, requestId: requestId.toUpperCase() },
+        2,
+        'unused',
+      );
+      expect(accepted.kind).toBe('accepted');
+      if (accepted.kind !== 'accepted') throw new Error('CI UUID identity admission');
+      expect(accepted.pair.window?.id).toBe(requestId);
+      expect(pending.window?.disposition).toBe('pending');
+      if (operation === 'accept') expect(accepted.pair.lineage).toBe(requestId);
+    },
+  );
   it('does not mutate input and checks public counter exhaustion', () => {
     const source = pair();
     source.sides[0].revision = Number.MAX_SAFE_INTEGER;
