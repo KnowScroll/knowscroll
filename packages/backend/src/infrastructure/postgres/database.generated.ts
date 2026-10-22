@@ -224,6 +224,14 @@ export interface ContentReelImports {
   script_name: string;
 }
 
+export interface ContentRegionBindings {
+  asset_id: string;
+  asset_revision: number;
+  facet_id: string;
+  head_revision: number;
+  topic_id: string;
+}
+
 export interface ContentScrollProductionRuns {
   asset_id: string | null;
   asset_revision: number | null;
@@ -432,6 +440,17 @@ export interface ExperienceNavigationTransitions {
 
 export interface ExperienceOfferActivations {
   exposure_id: string;
+  offer_id: string;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
+export interface ExperienceOfferRegionConstraints {
+  asset_id: string;
+  asset_revision: number;
+  constraint_payload: Json;
+  coverage_head_revision: number;
+  mapping_sha256: string;
   offer_id: string;
   privacy_epoch: number;
   universe_id: string;
@@ -1195,6 +1214,7 @@ export interface DB {
   "content.media_objects": ContentMediaObjects;
   "content.reel_commissions": ContentReelCommissions;
   "content.reel_imports": ContentReelImports;
+  "content.region_bindings": ContentRegionBindings;
   "content.scroll_production_runs": ContentScrollProductionRuns;
   "content.series_units": ContentSeriesUnits;
   "evidence.action_events": EvidenceActionEvents;
@@ -1212,6 +1232,7 @@ export interface DB {
   "experience.exposures": ExperienceExposures;
   "experience.navigation_transitions": ExperienceNavigationTransitions;
   "experience.offer_activations": ExperienceOfferActivations;
+  "experience.offer_region_constraints": ExperienceOfferRegionConstraints;
   "experience.offers": ExperienceOffers;
   "experience.saved_items": ExperienceSavedItems;
   "experience.saved_places": ExperienceSavedPlaces;

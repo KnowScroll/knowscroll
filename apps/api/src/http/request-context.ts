@@ -10,7 +10,7 @@ import type { LogEvent } from '@knowscroll/backend/infrastructure/observability'
 export interface RequestContext {
   readonly requestId: string;
   problemCode?: string;
-  readonly problemFamily?: 'keep-place' | 'keep-remove' | 'privacy-clear' | 'saved-list';
+  readonly problemFamily?: 'keep-place' | 'keep-remove' | 'privacy-clear' | 'saved-list' | 'region-encounter';
 }
 
 /** Finite serializer/cache selection only, never caller or operation authority. */
@@ -46,17 +46,20 @@ export function requestContextMiddleware(logEvent: LogEvent) {
     const removal = isKeepRemovalRequest(request);
     const privacy = isPrivacyClearRequest(request);
     const saved = request.method === 'GET' && /^\/v1\/saved\/?$/i.test(request.path);
+    const region = request.method === 'POST' && /^\/v1\/experience\/region\/(?:preview|open)\/?$/i.test(request.path);
     const context: RequestContext = {
       requestId: randomUUID(),
       ...(keep ? { problemFamily: 'keep-place' as const } : {}),
       ...(removal ? { problemFamily: 'keep-remove' as const } : {}),
       ...(privacy ? { problemFamily: 'privacy-clear' as const } : {}),
       ...(saved ? { problemFamily: 'saved-list' as const } : {}),
+      ...(region ? { problemFamily: 'region-encounter' as const } : {}),
     };
     if (keep) response.setHeader('cache-control', 'private, no-store');
     if (removal) response.setHeader('cache-control', 'private, no-store');
     if (privacy) response.setHeader('cache-control', 'private, no-store');
     if (saved) response.setHeader('cache-control', 'private, no-store');
+    if (region) response.setHeader('cache-control', 'private, no-store');
     const startedAt = performance.now();
     response.setHeader('x-request-id', context.requestId);
     let logged = false;

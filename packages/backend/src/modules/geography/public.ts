@@ -20,3 +20,6 @@ export const PUBLISH_GEOGRAPHY_DELTA = Symbol('geography.publishDelta');
 export type { GeographySceneInput, ReadGeographySceneInput, GeographyApplied } from './application/ports.js';
 export const READ_GEOGRAPHY_SCENE_INPUT = Symbol('geography.readSceneInput');
 export const GEOGRAPHY_APPLIED = Symbol('geography.applied');
+export type { GeographyRegionConstraint, ReadOwnRegionConstraint } from './application/ports.js';
+export const READ_OWN_REGION_CONSTRAINT = Symbol('geography.readOwnRegionConstraint');
+export { GeographyRegionConstraintSchema } from './application/region-constraint.js';

@@ -157,3 +157,7 @@ Actual new application invokes required `GeographyApplied` after effects/state/r
 publication enqueue, in the same transaction. Hook failure rolls everything back; transition
 replay returns before it. API/worker supply an enqueue-only Scene binding with no projector
 or Geography read dependency. No historical bootstrap or read-triggered Scene job is added.
+
+### Region navigation authority (U04)
+
+`READ_OWN_REGION_CONSTRAINT` reads the current live personal root, then exactly the requested indexed Region, its Planet and System. It verifies the displayed object/geography revisions, factual canonical catalogue lineage and stable semantic identities. Aliases, hypothetical branches, malformed snapshots and stale/foreign IDs never redirect to another Region. This read writes no cartography work, formation, activity or root revision. A formation snapshot remains a historical fact; an expired role claim is never authority for navigation.

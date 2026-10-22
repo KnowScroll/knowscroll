@@ -344,6 +344,65 @@ describe('the erasure registry (real database)', () => {
         },
       });
       if (activated.kind !== 'accepted') throw new Error('fixture offer activation refused');
+      // Authored erasure-only private constraint on this already-activated discovery offer.
+      // This exercises the new store without claiming actual Geography formation/navigation.
+      const coverageHead = await database.db
+        .selectFrom('content.coverage_revisions')
+        .select(['revision', 'mapping_sha256'])
+        .where('asset_id', '=', starter.assetId)
+        .where('asset_revision', '=', starter.revision)
+        .executeTakeFirstOrThrow();
+      const regionConstraint = {
+        version: 'offer-region-constraint.v1',
+        region: {
+          version: 'geography-region-constraint.v1',
+          target: { kind: 'region', regionId: randomUUID(), expectedObjectRevision: 1, expectedGeographyRevision: 1 },
+          planetId: randomUUID(),
+          planetObjectRevision: 1,
+          systemId: randomUUID(),
+          topicId: 'earth.seasons',
+          facetId: 'earth.seasons.axial-tilt',
+          truthStatus: 'factual',
+          catalogueVersion: 'content-concepts.v1',
+        },
+        coverage: {
+          assetId: starter.assetId,
+          assetRevision: starter.revision,
+          headRevision: coverageHead.revision,
+          mappingSha256: coverageHead.mapping_sha256,
+        },
+      };
+      // The existing return fixture is intentionally nonregional. Author a separate exact
+      // discovery descriptor in-place only in this owning CI fixture before adding its child.
+      // No production offer is relabelled: the new child uses a fresh parent inserted below.
+      const parent = await database.db
+        .selectFrom('experience.offers')
+        .selectAll()
+        .where('id', '=', o.offer.offerId)
+        .executeTakeFirstOrThrow();
+      const regionalId = randomUUID();
+      await database.db
+        .insertInto('experience.offers')
+        .values({
+          ...parent,
+          id: regionalId,
+          mode: 'vertical',
+          descriptor: { ...o.offer, offerId: regionalId, relation: { kind: 'discovery' } },
+        })
+        .execute();
+      await database.db
+        .insertInto('experience.offer_region_constraints')
+        .values({
+          universe_id: person.universeId,
+          privacy_epoch: 1,
+          offer_id: regionalId,
+          asset_id: starter.assetId,
+          asset_revision: starter.revision,
+          coverage_head_revision: coverageHead.revision,
+          mapping_sha256: coverageHead.mapping_sha256,
+          constraint_payload: regionConstraint,
+        })
+        .execute();
       await scroll.applyEncounterAction(person.authority, {
         commandId: randomUUID(),
         kind: 'like',
@@ -638,5 +697,36 @@ describe('closed Cutroom shared-public store inventory (real schema)', () => {
       ).rows;
       expect(dependencies, table).toEqual([]);
     }
+  });
+});
+
+import { contentRegionStores } from '@knowscroll/backend/modules/content/nest-providers';
+describe('Region shared projection inventory (real schema, Actions only)', () => {
+  let world: TestDatabase<Database>;
+  beforeAll(async () => {
+    world = await createTestDatabase<Database>('region_inventory');
+  });
+  afterAll(async () => {
+    await world.drop();
+  });
+  it('declares the actual projection and proves no direct/transitive personal dependency', async () => {
+    expect(contentRegionStores.map((x) => x.table)).toEqual(['content.region_bindings']);
+    const rows = await sql<{ name: string }>`with recursive owned(oid) as (
+      select to_regclass('content.region_bindings')::oid union select f.confrelid from pg_catalog.pg_constraint f join owned o on o.oid=f.conrelid where f.contype='f')
+      select distinct n.nspname||'.'||c.relname name from owned o join pg_catalog.pg_class c on c.oid=o.oid join pg_catalog.pg_namespace n on n.oid=c.relnamespace left join pg_catalog.pg_attribute a on a.attrelid=c.oid and not a.attisdropped and a.attnum>0
+      where (n.nspname='identity' and c.relname in('accounts','universes')) or a.attname='universe_id' or a.attname='account_id' or a.attname like '%\_account_id'`.execute(
+      world.db,
+    );
+    expect(rows.rows).toEqual([]);
+    const omitted = erasureRegistry(
+      personalStores.map((x) =>
+        x.module === 'experience'
+          ? { ...x, tables: x.tables.filter((t) => t.table !== 'offer_region_constraints') }
+          : x,
+      ),
+    );
+    expect(await checkErasureInventory(world.db, omitted)).toContain(
+      'experience.offer_region_constraints has a universe_id column but no module declares it in the erasure registry',
+    );
   });
 });

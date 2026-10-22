@@ -24,6 +24,40 @@ import type {
 import type { ReasoningHarness } from '../../../reasoning/public.js';
 import type { GeographyProposal, FormationFacts, Place, Route } from '../domain/policy.js';
 import type { CartographyJob, PublishDeltaJob } from '../events.js';
+import type { RegionEncounterTarget } from '@knowscroll/contracts';
+/** Current established own hierarchy only; no Scene label, evidence or renderer authority. */
+export interface GeographyRegionConstraint {
+  readonly version: 'geography-region-constraint.v1';
+  readonly target: RegionEncounterTarget;
+  readonly planetId: string;
+  readonly planetObjectRevision: number;
+  readonly systemId: string;
+  readonly topicId: string;
+  readonly facetId: string;
+  readonly truthStatus: 'factual';
+  readonly catalogueVersion: 'content-concepts.v1';
+}
+export type ReadOwnRegionConstraint = (
+  scope: PersonalScopeTx,
+  target: RegionEncounterTarget,
+) => Promise<
+  | { readonly kind: 'read'; readonly constraint: GeographyRegionConstraint }
+  | {
+      readonly kind: 'unavailable';
+      readonly reason: 'stale_target' | 'unsupported_region' | 'temporarily_unavailable';
+      readonly geographyRevision: number;
+    }
+  | { readonly kind: 'refused' }
+>;
+export interface RegionConstraintPorts {
+  readonly ownerActive: CheckPersonalOwnerActive;
+  readonly state: GeographyStore['state'];
+  /** One indexed own/epoch lookup per call, never the whole Geography view. */
+  readonly object: (
+    scope: PersonalScopeTx,
+    selector: { readonly id: string } | { readonly key: string },
+  ) => Promise<unknown>;
+}
 export interface GeographyState extends GeographyRevisions {
   readonly desiredRevision: number;
   readonly materialRevision: number;

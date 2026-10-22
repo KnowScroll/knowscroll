@@ -191,3 +191,7 @@ foreign/changed-filter tokens, real second-instance/restart rejection, and the
 actual selective Clear barrier. Synthetic codec fixtures additionally prove
 expiry boundaries and authenticated IV/ciphertext/tag binding. Source/CI tests
 are distinct from deployed disposable-account and native/media acceptance.
+
+### Private Region navigation (U04)
+
+The central `apiControllers` registry mounts `RegionEncounterController` exactly once. Both POST `/v1/experience/region/preview` and `/v1/experience/region/open` use the normal session/native caller and current scope guard, and receive `private, no-store` before Origin/auth/body parsing. Closed problem projection masks rejected values and unrecognized paths. Preview is provider-free and read-only; Open composes the existing session/offer/activation engine with actual Geography and canonical Content ports. The response must echo the exact caller scope, request target, capabilities, displayed expectation and command/session identity. No client geometry, renderer position, operational approval or global fallback enters this API.

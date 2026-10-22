@@ -2,6 +2,8 @@ import type { makeRemoveKeepEntry } from './application/keep-remove.js';
 import type { makeReadKeepEntry, makeSetKeepPlace } from './application/keep-place.js';
 import type { ActivityLineage, RoutingHistory } from './application/navigation-ports.js';
 import type { EncounterAttribution } from '../content/public.js';
+export type { RegionEncounterUseCases, RegionEncounterResult } from './application/region-encounter.js';
+export const REGION_ENCOUNTERS = Symbol('experience.regionEncounters');
 /**
  * Experience's public surface for other modules and the apps: operation types, outcome schema
  * and the read port the evidence job uses. Commands and queries are built by

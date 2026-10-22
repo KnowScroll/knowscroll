@@ -7,9 +7,16 @@ import {
   type ExposureContextResponse,
   type NavigationOutcome,
   type ProblemCode,
+  type RegionEncounterOpenRequest,
 } from '@knowscroll/contracts';
 import type { ComposerSnapshot } from '../../composer/public.js';
-import type { EncounterRef, EncounterSnapshot, ContinuityLink } from '../../content/public.js';
+import type {
+  EncounterRef,
+  EncounterSnapshot,
+  ContinuityLink,
+  RegionEncounterCandidate,
+} from '../../content/public.js';
+import type { GeographyRegionConstraint } from '../../geography/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import type { CommandKey, JsonValue } from './ports.js';
 import type {
@@ -20,8 +27,30 @@ import type {
   NavigationResult,
   ReadExposureContext,
   StoredOffer,
+  RegionActivationPermit,
 } from './navigation-ports.js';
+import { OfferRegionConstraintSchema } from './navigation-ports.js';
 const OFFER_TTL_MS = 15 * 60000;
+const regionPermits = new WeakMap<
+  RegionActivationPermit,
+  { readonly scope: PersonalScopeTx; readonly offerId: string }
+>();
+function issueRegionPermit(scope: PersonalScopeTx, offerId: string): RegionActivationPermit {
+  const permit = Object.freeze({}) as RegionActivationPermit;
+  regionPermits.set(permit, { scope, offerId });
+  return permit;
+}
+/** Adapter-only consumption. It must first verify the actual transaction is still open. */
+export function consumeRegionActivationPermit(
+  scope: PersonalScopeTx,
+  offerId: string,
+  permit: RegionActivationPermit,
+): boolean {
+  const binding = regionPermits.get(permit);
+  if (!binding || binding.scope !== scope || binding.offerId !== offerId) return false;
+  regionPermits.delete(permit);
+  return true;
+}
 const ref = (r: EncounterRef): EncounterRef => ({ assetId: r.assetId, assetRevision: r.assetRevision });
 const same = (a: EncounterRef, b: EncounterRef) => a.assetId === b.assetId && a.assetRevision === b.assetRevision;
 const json = (value: unknown): { readonly [key: string]: JsonValue } =>
@@ -29,9 +58,64 @@ const json = (value: unknown): { readonly [key: string]: JsonValue } =>
 const refuse = (code: ProblemCode): NavigationResult => ({ kind: 'refused', code });
 const scopeCode = (kind: string): ProblemCode =>
   kind === 'epoch_changed' ? 'PRIVACY_EPOCH_CHANGED' : 'UNIVERSE_UNAVAILABLE';
+const isRegionOpen = (c: NavigationCommand): c is RegionEncounterOpenRequest =>
+  !('intent' in c) && c.target.kind === 'region';
+const sameRegion = (p: NavigationPorts, a: GeographyRegionConstraint, b: GeographyRegionConstraint) =>
+  p.hashRequest('region-constraint', json(a)) === p.hashRequest('region-constraint', json(b));
+/** A vertical move inherits its actual source offer's immutable region, never mutable intent. */
+async function commandRegion(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  c: NavigationCommand,
+): Promise<{ kind: 'region'; value: GeographyRegionConstraint } | { kind: 'none' } | NavigationResult> {
+  let expected: GeographyRegionConstraint | undefined;
+  if ('intent' in c && c.intent.mode === 'vertical') {
+    const member = await p.readMember(scope, c.sessionId, c.from.offerId, c.from.exposureId);
+    expected = member?.offer.regionConstraint?.region;
+  }
+  const target = isRegionOpen(c) ? c.target : expected?.target;
+  if (!target) return { kind: 'none' };
+  const live = await p.readRegionConstraint(scope, target);
+  if (live.kind !== 'read') return refuse(live.kind === 'refused' ? 'UNIVERSE_UNAVAILABLE' : 'OFFER_UNAVAILABLE');
+  if (expected && !sameRegion(p, expected, live.constraint)) return refuse('OFFER_UNAVAILABLE');
+  return { kind: 'region', value: live.constraint };
+}
+/** Historical descriptors remain data, never a bypass of current region/mapping/access/Hide. */
+async function currentRegionOffers(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  offers: readonly StoredOffer[],
+  capabilities: unknown,
+) {
+  const first = offers[0]?.regionConstraint;
+  if (!first) return !offers.some((o) => o.regionConstraint !== undefined);
+  if (offers.some((o) => !o.regionConstraint || !sameRegion(p, first.region, o.regionConstraint.region))) return false;
+  const live = await p.readRegionConstraint(scope, first.region.target);
+  if (live.kind !== 'read' || !sameRegion(p, live.constraint, first.region)) return false;
+  if (
+    !(await p.lockRegionCandidates(scope, {
+      topicId: first.region.topicId,
+      facetId: first.region.facetId,
+      truthStatus: first.region.truthStatus,
+      capabilities,
+      candidates: offers.map((o) => ({ ref: ref(o.descriptor), coverage: o.regionConstraint!.coverage })),
+    }))
+  )
+    return false;
+  return !(
+    await p.readHidden(
+      scope,
+      offers.map((o) => o.descriptor.assetId),
+    )
+  ).length;
+}
 function keyOf(p: NavigationPorts, command: NavigationCommand): CommandKey {
   const { commandId, ...request } = command;
-  const operation = 'intent' in command ? 'experience.navigate-v0' : 'experience.compose-open-v0';
+  const operation = isRegionOpen(command)
+    ? 'experience.region-open-v1'
+    : 'intent' in command
+      ? 'experience.navigate-v0'
+      : 'experience.compose-open-v0';
   return { commandId, operation, requestHash: p.hashRequest(operation, json(request)), outcomeVersion: 1 };
 }
 // The private receipt holds only immutable result identity; public metadata lives in the same
@@ -68,6 +152,7 @@ async function receipt(
   p: NavigationPorts,
   scope: PersonalScopeTx,
   key: CommandKey,
+  requestedCapabilities?: unknown,
 ): Promise<NavigationResult | undefined> {
   const r = await p.findReceipt(scope, key);
   if (r.kind === 'new') return undefined;
@@ -91,6 +176,11 @@ async function receipt(
     )
   )
     return refuse('SERVICE_UNAVAILABLE');
+  if (offers.some((o) => o.regionConstraint)) {
+    const session = await p.readSession(scope, value.sessionId);
+    if (!session || !(await currentRegionOffers(p, scope, offers, requestedCapabilities ?? session.capabilities)))
+      return refuse('OFFER_UNAVAILABLE');
+  }
   const { offerId: _offerId, bufferedOfferIds: _bufferedOfferIds, ...common } = value;
   return {
     kind: 'accepted',
@@ -113,6 +203,11 @@ interface Prepared {
   readonly reason: Extract<NavigationOutcome, { status: 'exhausted' }>['reason'];
   readonly decisionId: string;
   readonly now: Date;
+  readonly region?: {
+    readonly constraint: GeographyRegionConstraint;
+    readonly candidates: readonly RegionEncounterCandidate[];
+    readonly hasMore: boolean;
+  };
 }
 async function prepare(
   p: NavigationPorts,
@@ -120,7 +215,9 @@ async function prepare(
   c: NavigationCommand,
   key: CommandKey,
 ): Promise<Prepared | NavigationResult> {
-  const old = await receipt(p, scope, key);
+  const region = await commandRegion(p, scope, c);
+  if (region.kind !== 'region' && region.kind !== 'none') return region;
+  const old = await receipt(p, scope, key, isRegionOpen(c) ? c.capabilities : undefined);
   if (old) return old;
   const isNav = 'intent' in c;
   const sessionRef = isNav ? { sessionId: c.sessionId, expectedIntentRevision: c.expectedIntentRevision } : c.session;
@@ -153,8 +250,26 @@ async function prepare(
   let links: readonly ContinuityLink[] = [];
   let reason: Prepared['reason'] = 'no_eligible_content';
   let exact: EncounterRef | undefined;
+  let regionCandidates: readonly RegionEncounterCandidate[] = [];
+  let regionHasMore = false;
   if (mode === 'vertical') {
-    if (formats.length)
+    if (region.kind === 'region') {
+      const result = await p.readRegionCandidates(scope, {
+        topicId: region.value.topicId,
+        facetId: region.value.facetId,
+        truthStatus: region.value.truthStatus,
+        capabilities,
+        ...(isRegionOpen(c) && c.expectedEncounter ? { expected: ref(c.expectedEncounter) } : {}),
+      });
+      if (result.kind !== 'read') return refuse('OFFER_UNAVAILABLE');
+      regionCandidates = result.candidates;
+      regionHasMore = result.hasMore;
+      candidates = result.candidates.map((x) => x.encounter);
+      if (isRegionOpen(c) && c.expectedEncounter) {
+        exact = ref(c.expectedEncounter);
+        if (!candidates.some((x) => same(x, exact!))) return refuse('OFFER_UNAVAILABLE');
+      }
+    } else if (formats.length)
       candidates = await p.readDiscoveryCandidates(scope, {
         languages: [sourceContent?.metadata.language ?? 'en'],
         formats,
@@ -267,6 +382,7 @@ async function prepare(
   // Keep the complete private decision under its durable byte bound, without inventing context.
   // Retrieval stays<=100; budget truncation is deterministic and reduces only the scoring pool.
   for (let budget = 0; budget < 100 && new TextEncoder().encode(JSON.stringify(snapshot)).length > 180000; budget++) {
+    if (region.kind === 'region') regionHasMore = true;
     const rows = snapshot.candidates.slice(0, -1);
     const units = new Set(rows.map((c) => c.encounter.explanationUnitId));
     const topics = new Set(rows.flatMap((c) => c.encounter.topics.map((t) => t.topicId)));
@@ -321,6 +437,9 @@ async function prepare(
     reason,
     decisionId: p.newId(),
     now,
+    ...(region.kind === 'region'
+      ? { region: { constraint: region.value, candidates: regionCandidates, hasMore: regionHasMore } }
+      : {}),
   };
 }
 async function variants(
@@ -355,7 +474,12 @@ export function makeNavigateEncounter(p: NavigationPorts) {
       const commit = await p.withPersonalScope(
         authority,
         async (scope): Promise<NavigationResult | { kind: 'drift' }> => {
-          const old = await receipt(p, scope, key);
+          if (prepared.region) {
+            const live = await p.readRegionConstraint(scope, prepared.region.constraint.target);
+            if (live.kind !== 'read' || !sameRegion(p, live.constraint, prepared.region.constraint))
+              return refuse('OFFER_UNAVAILABLE');
+          }
+          const old = await receipt(p, scope, key, isRegionOpen(c) ? c.capabilities : undefined);
           if (old) return old;
           const latest = await p.readSession(scope, prepared.session.id);
           if (prepared.creates ? latest !== undefined : latest?.intentRevision !== prepared.session.intentRevision - 1)
@@ -375,6 +499,24 @@ export function makeNavigateEncounter(p: NavigationPorts) {
               }))
             )
               return refuse('OFFER_UNAVAILABLE');
+          }
+          if (prepared.region) {
+            if (!decision.selection.length && (prepared.region.hasMore || (isRegionOpen(c) && c.expectedEncounter)))
+              return refuse('OFFER_UNAVAILABLE');
+            const captured = decision.selection.map((target) =>
+              prepared.region!.candidates.find((x) => same(x.encounter, target)),
+            );
+            if (captured.some((x) => !x)) throw new Error('REGION_SELECTION_INVALID');
+            if (
+              !(await p.lockRegionCandidates(scope, {
+                topicId: prepared.region.constraint.topicId,
+                facetId: prepared.region.constraint.facetId,
+                truthStatus: prepared.region.constraint.truthStatus,
+                capabilities: prepared.session.capabilities,
+                candidates: captured.map((x) => ({ ref: ref(x!.encounter), coverage: x!.coverage })),
+              }))
+            )
+              return { kind: 'drift' };
           }
           const selected: EncounterSnapshot[] = [];
           for (const target of decision.selection) {
@@ -432,6 +574,15 @@ export function makeNavigateEncounter(p: NavigationPorts) {
               ...(prepared.source ? { source: prepared.source } : {}),
               ...(link ? { link: { linkId: link.linkId, revision: link.revision } } : {}),
               expiresAt: new Date(prepared.now.getTime() + OFFER_TTL_MS).toISOString(),
+              ...(prepared.region
+                ? {
+                    regionConstraint: OfferRegionConstraintSchema.parse({
+                      version: 'offer-region-constraint.v1',
+                      region: prepared.region.constraint,
+                      coverage: prepared.region.candidates.find((x) => same(x.encounter, target))!.coverage,
+                    }),
+                  }
+                : {}),
             });
           }
           await p.insertReceipt(scope, key);
@@ -514,6 +665,8 @@ export function makeActivateOffer(p: NavigationPorts): ActivateOffer {
         return { kind: 'refused' as const, code: 'OFFER_UNAVAILABLE' as const };
       const exact = await p.readExactEncounter(scope, { ...ref(offer.descriptor), capabilities: session.capabilities });
       if (!exact) return { kind: 'refused' as const, code: 'OFFER_UNAVAILABLE' as const };
+      if (offer.regionConstraint && !(await currentRegionOffers(p, scope, [offer], session.capabilities)))
+        return { kind: 'refused' as const, code: 'OFFER_UNAVAILABLE' as const };
       if (lookup.kind === 'replay')
         return {
           kind: 'accepted' as const,
@@ -560,7 +713,12 @@ export function makeActivateOffer(p: NavigationPorts): ActivateOffer {
           openedAt: now,
         });
         await p.markActivated(scope, exposureId, now);
-        await p.bindOffer(scope, offer.id, exposureId);
+        await p.bindOffer(
+          scope,
+          offer.id,
+          exposureId,
+          offer.regionConstraint ? issueRegionPermit(scope, offer.id) : undefined,
+        );
         const metadata = await p.readAttribution(scope, ref(exact));
         if (metadata) await p.recordActivation(scope, exposureId, metadata, offer);
         await p.enqueueActivity(scope, exposureId);
