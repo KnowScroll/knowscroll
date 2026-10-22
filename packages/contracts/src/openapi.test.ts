@@ -18,6 +18,15 @@ import {
   RemoveKeepEntrySchema,
   KeepRemovalAcceptanceSchema,
   KeepRemovalProblemSchema,
+  RegionEncounterPreviewRequestSchema,
+  RegionEncounterPreviewResponseSchema,
+  ReadFormationPresentationSchema,
+  FormationPresentationReadSchema,
+  ClaimFormationPresentationSchema,
+  FormationPresentationClaimAcceptanceSchema,
+  AcknowledgeFormationPresentationSchema,
+  FormationPresentationAcknowledgementSchema,
+  FormationPresentationProblemSchema,
   RegionEncounterOpenRequestSchema,
   RegionEncounterOpenResponseSchema,
   RegionEncounterProblemSchema,
@@ -52,6 +61,7 @@ describe('the API contract', () => {
       ...Object.values(apiContract.keep),
       ...Object.values(apiContract.privacy),
       ...Object.values(apiContract.sharing),
+      ...Object.values(apiContract.formation),
       apiContract.scenes.manifest,
       apiContract.scenes.chunk,
       apiContract.geography.read,
@@ -69,6 +79,7 @@ describe('the API contract', () => {
       apiContract.experience.listSaved,
       apiContract.experience.openExposure,
       apiContract.experience.openRegionEncounter,
+      apiContract.experience.previewRegionEncounter,
       apiContract.experience.navigate,
       apiContract.experience.activateExposure,
       apiContract.experience.exposureDocument,
@@ -917,6 +928,145 @@ describe('Saved live paging declaration OpenAPI metadata', () => {
         'total',
       ])
         expect(encoded).not.toContain(`"${forbidden}"`);
+    }
+  });
+});
+
+describe('Universe357 declaration OpenAPI metadata', () => {
+  it('describes a strict read-only preview and compatible optional exact Open expectation', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const errors = apiContract.experience.previewRegionEncounter['~orpc'].errorMap;
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas: {
+        RegionPreviewRequest: { schema: RegionEncounterPreviewRequestSchema },
+        RegionPreviewResponse: { schema: RegionEncounterPreviewResponseSchema },
+        RegionOpenRequest: { schema: RegionEncounterOpenRequestSchema },
+        ...Object.fromEntries(
+          Object.entries(errors).map(([code, definition]) => [
+            `RegionPreviewProblem_${code}`,
+            { schema: definition.data },
+          ]),
+        ),
+      },
+    });
+    const path = document.paths?.['/v1/experience/region/preview'];
+    expect(Object.keys(path ?? {})).toEqual(['post']);
+    expect(path?.post?.parameters ?? []).toEqual([]);
+    expect(path?.post?.requestBody).toEqual({
+      required: true,
+      content: { 'application/json': { schema: { $ref: '#/components/schemas/RegionPreviewRequest' } } },
+    });
+    expect(path?.post?.responses?.['200']).toMatchObject({
+      content: { 'application/json': { schema: { $ref: '#/components/schemas/RegionPreviewResponse' } } },
+    });
+    expect(document.components?.schemas?.['RegionPreviewRequest']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'readId', 'target', 'capabilities'],
+    });
+    expect(document.components?.schemas?.['RegionOpenRequest']).toMatchObject({
+      required: ['version', 'commandId', 'target', 'capabilities'],
+      properties: { expectedEncounter: { additionalProperties: false, required: ['assetId', 'assetRevision'] } },
+    });
+    for (const status of new Set(Object.values(errors).map((e) => String(e.status)))) {
+      const response = path?.post?.responses?.[status];
+      expect(response && !('$ref' in response) && response.content).toEqual({
+        'application/problem+json': {
+          schema: {
+            oneOf: Object.entries(errors)
+              .filter(([, e]) => String(e.status) === status)
+              .map(([code]) => ({ $ref: `#/components/schemas/RegionPreviewProblem_${code}` })),
+          },
+        },
+      });
+    }
+  });
+
+  it('describes separate read, durable claim/current status and terminal acknowledgement with closed problems', async () => {
+    const errors = apiContract.formation.claim['~orpc'].errorMap;
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas: {
+        ReadFormation: { schema: ReadFormationPresentationSchema },
+        FormationRead: { schema: FormationPresentationReadSchema },
+        ClaimFormation: { schema: ClaimFormationPresentationSchema },
+        FormationClaim: { schema: FormationPresentationClaimAcceptanceSchema },
+        AcknowledgeFormation: { schema: AcknowledgeFormationPresentationSchema },
+        FormationAcknowledgement: { schema: FormationPresentationAcknowledgementSchema },
+        FormationProblem: { schema: FormationPresentationProblemSchema },
+        ...Object.fromEntries(
+          Object.entries(errors).map(([code, definition]) => [`FormationProblem_${code}`, { schema: definition.data }]),
+        ),
+      },
+    });
+    expect(
+      Object.keys(document.paths ?? {})
+        .filter((p) => p.startsWith('/v1/universe/formation/'))
+        .sort(),
+    ).toEqual(['/v1/universe/formation/acknowledge', '/v1/universe/formation/claim', '/v1/universe/formation/read']);
+    for (const [name, input, output] of [
+      ['read', 'ReadFormation', 'FormationRead'],
+      ['claim', 'ClaimFormation', 'FormationClaim'],
+      ['acknowledge', 'AcknowledgeFormation', 'FormationAcknowledgement'],
+    ] as const) {
+      const path = document.paths?.[`/v1/universe/formation/${name}`];
+      expect(Object.keys(path ?? {})).toEqual(['post']);
+      expect(path?.post?.parameters ?? []).toEqual([]);
+      expect(path?.post?.requestBody).toEqual({
+        required: true,
+        content: { 'application/json': { schema: { $ref: `#/components/schemas/${input}` } } },
+      });
+      expect(path?.post?.responses?.['200']).toMatchObject({
+        content: { 'application/json': { schema: { $ref: `#/components/schemas/${output}` } } },
+      });
+      for (const status of new Set(Object.values(errors).map((e) => String(e.status)))) {
+        const response = path?.post?.responses?.[status];
+        expect(response && !('$ref' in response) && response.content).toEqual({
+          'application/problem+json': {
+            schema: {
+              oneOf: Object.entries(errors)
+                .filter(([, e]) => String(e.status) === status)
+                .map(([code]) => ({ $ref: `#/components/schemas/FormationProblem_${code}` })),
+            },
+          },
+        });
+      }
+    }
+    const schemas = document.components?.schemas;
+    expect(schemas?.['ReadFormation']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'readId', 'target', 'capabilities'],
+    });
+    expect(schemas?.['ClaimFormation']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'commandId', 'transitionId', 'attemptNonce'],
+    });
+    expect(schemas?.['AcknowledgeFormation']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'commandId', 'transitionId', 'claimId', 'attemptNonce', 'disposition'],
+    });
+    expect(schemas?.['FormationClaim']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'scope', 'receipt', 'replayed', 'current'],
+    });
+    const read = JSON.stringify(schemas?.['FormationRead']);
+    for (const field of ['fact', 'targets', 'truthStatus', 'eligibility', 'claimable', 'final', 'durationMs', '2400'])
+      expect(read).toContain(field);
+    for (const [code, definition] of Object.entries(errors)) {
+      const schema = schemas?.[`FormationProblem_${code}`];
+      expect(schema).toMatchObject({
+        additionalProperties: false,
+        properties: {
+          code: { const: code },
+          status: { const: definition.status },
+          title: { const: definition.message },
+        },
+      });
+      expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty('transitionId');
+      expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty('claimId');
+      for (const field of ['defined', 'message', 'instance', 'camera', 'learned'])
+        expect(JSON.stringify(schema)).not.toContain(`"${field}"`);
     }
   });
 });

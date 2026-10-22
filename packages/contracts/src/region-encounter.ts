@@ -1,8 +1,9 @@
 import { oc, type OpenAPI } from '@orpc/contract';
 import { z } from 'zod';
 import { ClientCapabilities } from './content.js';
-import { CommandIdSchema, UniverseIdSchema, UuidSchema } from './ids.js';
-import { ExperienceSessionRefSchema, NavigationOutcomeSchema } from './navigation.js';
+import { AssetIdSchema, CommandIdSchema, UniverseIdSchema, UuidSchema } from './ids.js';
+import { ExperienceSessionRefSchema, NavigationOutcomeSchema, EncounterMetadataSchema } from './navigation.js';
+import { SceneReadScopeSchema } from './scenes.js';
 import { problemCatalogue, problemTypeUri } from './problems.js';
 
 const Version = z.literal('region-encounter-open.v1');
@@ -19,6 +20,52 @@ export const RegionEncounterTargetSchema = z
   })
   .refine((target) => target.expectedObjectRevision <= target.expectedGeographyRevision);
 
+/** Immutable displayed target is an expectation only; current admission/access is rechecked. */
+export const RegionEncounterExpectedSchema = z.strictObject({ assetId: AssetIdSchema, assetRevision: Revision });
+
+const PreviewVersion = z.literal('region-encounter-preview.v1');
+/** Read correlation is not a command/receipt key. Selection, Close and Back never prepare work.
+ * The authenticated own scope is derived by the server; camera and return state stay local. */
+export const RegionEncounterPreviewRequestSchema = z.strictObject({
+  version: PreviewVersion,
+  readId: UuidSchema,
+  target: RegionEncounterTargetSchema,
+  capabilities: ClientCapabilities,
+});
+const PreviewFields = {
+  version: PreviewVersion,
+  readId: UuidSchema,
+  scope: SceneReadScopeSchema,
+  target: RegionEncounterTargetSchema,
+  capabilities: ClientCapabilities,
+  recordedAt: z.iso.datetime(),
+  geographyRevision: Counter,
+};
+/** Read-only exact consumer card: no offer/session/receipt/exposure/evidence/demand/job/model.
+ * A bounded incomplete selection is selection_unavailable, never catalogue exhaustion.
+ * Caller must match initiating readId/target/capabilities and actual AccountScope, and reject
+ * regressive root/Geography watermarks. Syntax cannot attest canonical facet or access authority. */
+export const RegionEncounterPreviewResponseSchema = z
+  .discriminatedUnion('status', [
+    z.strictObject({
+      ...PreviewFields,
+      status: z.literal('available'),
+      encounter: RegionEncounterExpectedSchema.extend({ metadata: EncounterMetadataSchema }),
+    }),
+    z.strictObject({
+      ...PreviewFields,
+      status: z.literal('unavailable'),
+      reason: z.enum([
+        'stale_target',
+        'unsupported_region',
+        'selection_unavailable',
+        'no_eligible_content',
+        'temporarily_unavailable',
+      ]),
+    }),
+  ])
+  .refine((s) => s.status !== 'available' || s.target.expectedGeographyRevision === s.geographyRevision);
+
 /** Explicit Composer preparation command. Local map selection, Close and Back send no command.
  * Server derives the current owner/epoch and resolves canonical topic+facet through Geography.
  * Same command ID/body retries one intent; no camera, content override or consumption travels here. */
@@ -28,6 +75,7 @@ export const RegionEncounterOpenRequestSchema = z.strictObject({
   target: RegionEncounterTargetSchema,
   session: ExperienceSessionRefSchema.extend({ expectedIntentRevision: Counter }).optional(),
   capabilities: ClientCapabilities,
+  expectedEncounter: RegionEncounterExpectedSchema.optional(),
 });
 
 /** Reuse the real Composer outcome without creating another offer/activation protocol.
@@ -42,8 +90,18 @@ export const RegionEncounterOpenResponseSchema = z
     privacyEpoch: Revision,
     target: RegionEncounterTargetSchema,
     outcome: NavigationOutcomeSchema,
+    expectedEncounter: RegionEncounterExpectedSchema.optional(),
+    capabilities: ClientCapabilities.optional(),
   })
-  .superRefine(({ outcome }, ctx) => {
+  .superRefine(({ outcome, expectedEncounter, capabilities }, ctx) => {
+    if (
+      expectedEncounter &&
+      (!capabilities ||
+        (outcome.status === 'ready' &&
+          (outcome.offer.assetId !== expectedEncounter.assetId ||
+            outcome.offer.assetRevision !== expectedEncounter.assetRevision)))
+    )
+      ctx.addIssue({ code: 'custom', message: 'Displayed region target must remain exact.' });
     if (!Counter.safeParse(outcome.intentRevision).success || !Counter.safeParse(outcome.revision).success)
       ctx.addIssue({ code: 'custom', message: 'Invalid region encounter revisions.' });
     if (outcome.status === 'exhausted' && outcome.reason !== 'no_eligible_content')
@@ -70,6 +128,10 @@ export const RegionEncounterProblemIssueSchema = z.strictObject({
       z.enum([
         'version',
         'commandId',
+        'readId',
+        'expectedEncounter',
+        'assetId',
+        'assetRevision',
         'target',
         'kind',
         'regionId',
@@ -179,6 +241,19 @@ function problemResponses(operation: OpenAPI.OperationObject): OpenAPI.Operation
   }
   return operation;
 }
+/** Declaration only. This read POST has no command effects or installed backend consumer. */
+export const previewRegionEncounterContract = oc
+  .route({
+    method: 'POST',
+    path: '/v1/experience/region/preview',
+    successStatus: 200,
+    tags: ['experience'],
+    spec: problemResponses,
+  })
+  .errors(errors)
+  .input(RegionEncounterPreviewRequestSchema)
+  .output(RegionEncounterPreviewResponseSchema);
+
 export const openRegionEncounterContract = oc
   .route({
     method: 'POST',
@@ -195,3 +270,7 @@ export type RegionEncounterTarget = z.infer<typeof RegionEncounterTargetSchema>;
 export type RegionEncounterOpenRequest = z.infer<typeof RegionEncounterOpenRequestSchema>;
 export type RegionEncounterOpenResponse = z.infer<typeof RegionEncounterOpenResponseSchema>;
 export type RegionEncounterProblem = z.infer<typeof RegionEncounterProblemSchema>;
+
+export type RegionEncounterExpected = z.infer<typeof RegionEncounterExpectedSchema>;
+export type RegionEncounterPreviewRequest = z.infer<typeof RegionEncounterPreviewRequestSchema>;
+export type RegionEncounterPreviewResponse = z.infer<typeof RegionEncounterPreviewResponseSchema>;
