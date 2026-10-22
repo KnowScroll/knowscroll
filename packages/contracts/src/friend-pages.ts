@@ -42,7 +42,7 @@ export const FriendPagesPageSchema = z
   .superRefine((r, ctx) => {
     if (
       r.items.some((p) => p.state !== r.filter) ||
-      new Set(r.items.map((p) => p.peer.personId)).size !== r.items.length
+      new Set(r.items.map((p) => p.peer.personId.toLowerCase())).size !== r.items.length
     )
       ctx.addIssue({ code: 'custom', message: 'Page items must match the unique public filter.' });
     if (
