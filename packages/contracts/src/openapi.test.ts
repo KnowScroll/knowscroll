@@ -11,6 +11,7 @@ import {
   ResolveContentShareSchema,
   ResolvedContentShareSchema,
   SocialProblemSchema,
+  SocialProblemIssueSchema,
   CODE_CHALLENGE_PATTERN,
   CODE_VERIFIER_PATTERN,
   ProblemDetailsSchema,
@@ -329,6 +330,19 @@ describe('the API contract', () => {
       '/v1/social/visibility': ['get', 'post'],
       '/v1/social/presence/preference': ['get', 'post'],
       '/v1/social/visits/read': ['post'],
+      '/v1/social/conversations/start': ['post'],
+      '/v1/social/conversations/inbox': ['post'],
+      '/v1/social/conversations/read': ['post'],
+      '/v1/social/conversations/history': ['post'],
+      '/v1/social/conversations/changes': ['post'],
+      '/v1/social/conversations/send': ['post'],
+      '/v1/social/conversations/mark-read': ['post'],
+      '/v1/social/conversations/mute': ['post'],
+      '/v1/social/conversations/leave': ['post'],
+      '/v1/social/content-shares/create': ['post'],
+      '/v1/social/content-shares/revoke': ['post'],
+      '/v1/social/content-shares/read': ['post'],
+      '/v1/social/content-shares/resolve': ['post'],
     };
     expect(
       Object.keys(document.paths ?? {})
@@ -1080,6 +1094,9 @@ describe('Universe357 declaration OpenAPI metadata', () => {
         expect(JSON.stringify(schema)).not.toContain(`"${field}"`);
     }
   });
+});
+
+describe('Social370 declaration OpenAPI metadata', () => {
   it('declares finite direct conversations/full-content shares with JSON selectors and direct closed problems', async () => {
     const errors = apiContract.conversations.send['~orpc'].errorMap;
     const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
@@ -1095,6 +1112,7 @@ describe('Universe357 declaration OpenAPI metadata', () => {
         ResolveShare: { schema: ResolveContentShareSchema },
         ResolvedShare: { schema: ResolvedContentShareSchema },
         SocialProblem: { schema: SocialProblemSchema },
+        SocialIssue: { schema: SocialProblemIssueSchema },
         ...Object.fromEntries(
           Object.entries(errors).map(([code, definition]) => [`SocialProblem_${code}`, { schema: definition.data }]),
         ),
@@ -1140,6 +1158,15 @@ describe('Universe357 declaration OpenAPI metadata', () => {
       additionalProperties: false,
       required: ['version', 'readId', 'token'],
     });
+    const issue = document.components?.schemas?.['SocialIssue'];
+    expect(issue).toMatchObject({
+      additionalProperties: false,
+      required: ['path', 'code'],
+      properties: {
+        path: { type: 'array', maxItems: 8, items: { enum: expect.arrayContaining(['token', 'unknown']) as unknown } },
+      },
+    });
+    expect(issue && !('$ref' in issue) && Object.keys(issue.properties ?? {})).toEqual(['path', 'code']);
     const wire = JSON.stringify(document.components?.schemas?.['ResolvedShare']);
     for (const value of ['public_metadata', 'conversation', 'corrected', 'unavailable']) expect(wire).toContain(value);
     for (const field of [
@@ -1164,7 +1191,7 @@ describe('Universe357 declaration OpenAPI metadata', () => {
         },
       });
       for (const field of ['detail', 'instance', 'token', 'message', 'sender', 'blocked', 'defined'])
-        expect(JSON.stringify(schema)).not.toContain(`"${field}"`);
+        expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty(field);
     }
   });
 });
