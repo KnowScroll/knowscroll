@@ -1,7 +1,9 @@
 import { sql, type Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
-import { hasLivePrivacyJob } from '../../../infrastructure/jobs/enqueue-privacy.js';
+import { hasLivePrivacyJob, enqueueClearRecoveryContinuation } from '../../../infrastructure/jobs/enqueue-privacy.js';
+import type { PgBoss } from 'pg-boss';
+import { ClearRecoveryJobSchema, type ClearRecoveryJob } from '../events.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { revokeAccountSockets } from '../../../infrastructure/notices/index.js';
 import {
@@ -232,19 +234,42 @@ export const clearStore: ClearStore = {
 };
 
 /** Global maintenance discovery is a bounded IDs-only read; all mutation re-enters the exact root. */
-export function readClearRecoveryCandidates(db: Kysely<Database>) {
-  return () =>
+export function readClearRecoveryCandidates(db: Kysely<Database>, boss: PgBoss) {
+  return (input: ClearRecoveryJob) =>
     withTransaction(db, 'clear-recovery-index', async (trx) => {
-      await sql`select set_config('statement_timeout','2000ms',true)`.execute(trx);
+      const job = ClearRecoveryJobSchema.parse(input);
+      await sql`select set_config('statement_timeout','2000ms',true),set_config('lock_timeout','250ms',true)`.execute(
+        trx,
+      );
+      const through =
+        'cursor' in job
+          ? job.cursor.throughOperationId
+          : (
+              await trx
+                .selectFrom('identity.clear_operations')
+                .select('id')
+                .orderBy('id', 'desc')
+                .limit(1)
+                .executeTakeFirst()
+            )?.id;
+      if (!through) return [];
+      const after = 'cursor' in job ? job.cursor.afterOperationId : null;
       const result = await sql<{
+        operationId: string;
         accountId: string;
         commandId: string;
-      }>`select account_id as "accountId",command_id as "commandId"
-   from identity.clear_operations where
+      }>`select id as "operationId",account_id as "accountId",command_id as "commandId"
+   from identity.clear_operations where id<=${through}::uuid and (${after}::uuid is null or id>${after}::uuid) and (
     (completed_at is null and (recovery_attempts<3 or failure_code is null) and coalesce(recovery_after,recorded_at+interval '15 minutes')<=now())
     or (completed_at is not null and cleanup_due_at<=now() and cleanup_recovery_attempts<3
-      and coalesce(cleanup_recovery_after,cleanup_due_at)<=now())
-   order by coalesce(cleanup_recovery_after,cleanup_due_at,recovery_after,recorded_at),id limit 25`.execute(trx);
-      return result.rows;
+      and coalesce(cleanup_recovery_after,cleanup_due_at)<=now()))
+   order by id limit 26`.execute(trx);
+      const page = result.rows.slice(0, 25);
+      if (result.rows.length > 25)
+        await enqueueClearRecoveryContinuation(boss, trx, {
+          v: 1,
+          cursor: { afterOperationId: page[24]!.operationId, throughOperationId: through },
+        });
+      return page.map(({ accountId, commandId }) => ({ accountId, commandId }));
     });
 }

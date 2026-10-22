@@ -316,3 +316,16 @@ budget-window identities; it never reads or changes request/output bytes or fina
 
 Source remains opt-in. Normal queue/scheduled consumer registration and installed-release recovery
 are separately composed; neither status reads nor command replay perform recovery.
+
+Discovery uses immutable operation-ID keyset pages: read 26, process at most 25. A version-only
+scheduled job captures the current maximum operation ID. Before exact operation work, the same
+bounded discovery transaction persists at most one fixed-queue continuation carrying strictly
+advancing `afterOperationId` and that unchanged `throughOperationId`. Live or root-busy heads
+therefore cannot hide a later orphan. The final page never creates a child; accepted operations
+above the captured ceiling wait for a later cron pass. Identical live cursor/ceiling children
+are deduplicated under a bounded transaction advisory lock using pg-boss retention/lease/heartbeat
+semantics. This lock grants no personal authority. Each delivery is bounded; a whole finite pass
+may span many deliveries. Overlapping cron passes can inspect the same operations and can have
+different ceilings; exact operation locks, live-delivery rechecks and capped counters still govern
+effects. This does not promise a global once-only scan or recovery while the queue/database stays
+unavailable. Missing/exhausted continuation deliveries are revisited by later scheduled passes.

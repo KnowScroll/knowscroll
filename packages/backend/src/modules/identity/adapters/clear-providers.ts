@@ -28,7 +28,7 @@ export function clearExplorationFor(
     withPrivacyScope: makeWithPrivacyScope(db, timing),
     withMaintenance: makeWithClearMaintenance(db, timing),
     withRecoveryMaintenance: makeWithClearMaintenance(db, { lockTimeoutMs: 250, statementTimeoutMs: 2000 }),
-    readRecoveryCandidates: readClearRecoveryCandidates(db),
+    readRecoveryCandidates: readClearRecoveryCandidates(db, boss),
     store: clearStore,
     reasoning: options.reasoning,
     hash: (input) => requestHash('privacy.clear-exploration', input as Parameters<typeof requestHash>[1]),

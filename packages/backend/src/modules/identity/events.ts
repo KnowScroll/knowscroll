@@ -48,8 +48,16 @@ export const clearExplorationQueue = defineQueue({
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 2 },
 });
 
-/** Opt-in fixed cron. It discovers bounded existing operations; payload carries no user selection. */
-export const ClearRecoveryJobSchema = z.strictObject({ v: z.literal(1) });
+/** Fixed cron or a strictly advancing finite-pass continuation; neither selects user effects. */
+export const ClearRecoveryJobSchema = z.union([
+  z.strictObject({ v: z.literal(1) }),
+  z.strictObject({
+    v: z.literal(1),
+    cursor: z
+      .strictObject({ afterOperationId: z.uuid(), throughOperationId: z.uuid() })
+      .refine((cursor) => cursor.afterOperationId < cursor.throughOperationId),
+  }),
+]);
 export type ClearRecoveryJob = z.infer<typeof ClearRecoveryJobSchema>;
 export const recoverClearOperationsQueue = defineQueue({
   name: 'identity.recover-clear-operations',
