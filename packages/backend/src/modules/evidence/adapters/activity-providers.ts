@@ -1,3 +1,5 @@
+import { READ_RECORDING_LIFECYCLE, type ReadRecordingLifecycle } from '../../identity/public.js';
+import { READ_RECORDING_CHANNEL_SELECTION, type ReadRecordingChannelSelection } from '../../experience/public.js';
 import { z } from 'zod';
 import { canonicalJson, canonicalSha256, utf8ByteLength } from '@knowscroll/scroll-model';
 import { makePrepareObservedCoverage } from '../application/prepare-coverage.js';
@@ -89,6 +91,8 @@ export function activityProviders(t: {
         FENCE_OWN_ACCOUNT,
         FENCE_PERSONAL_RECORDING,
         READ_RECORDING_SEGMENT,
+        READ_RECORDING_LIFECYCLE,
+        READ_RECORDING_CHANNEL_SELECTION,
         READ_EXPOSURE_FOR_EVIDENCE,
         READ_ACTIVITY_LINEAGE,
         ENSURE_ACTIVITY_LINEAGE,
@@ -106,6 +110,8 @@ export function activityProviders(t: {
         fenceOwn: FenceOwnAccount,
         fenceRecording: FencePersonalRecording,
         readSegment: ReadRecordingSegment,
+        readLifecycle: ReadRecordingLifecycle,
+        readChannelSelection: ReadRecordingChannelSelection,
         readExposure: ReadExposureForEvidence,
         readLineage: ReadActivityLineage,
         ensureLineage: EnsureActivityLineage,
@@ -130,6 +136,8 @@ export function activityProviders(t: {
         fenceOwn,
         fenceRecording,
         readSegment,
+        readLifecycle,
+        readChannelSelection,
         readCredit: readExposureCredit,
         legacyCredit: legacyExposureCredit,
         readExposure,
@@ -216,13 +224,20 @@ export function makeExperienceRecordingEffects(
     typeof p.derived.isCurrent !== 'function' ||
     typeof p.derived.applyRecording !== 'function' ||
     typeof p.derived.isRecordingCurrent !== 'function' ||
-    !p.materialChange
+    !p.materialChange ||
+    typeof p.readChannelSelection !== 'function' ||
+    typeof p.readLifecycle !== 'function'
   )
     throw new Error('EXPERIENCE_RECORDING_EFFECTS_REQUIRED');
+  const requireCollection = async (cap: Parameters<ReadRecordingLifecycle>[0]) => {
+    const life = await p.readLifecycle(cap);
+    if (life.kind === 'unavailable' || life.kind === 'not_ready') throw new Error('RECORDING_COLLECTION_NOT_READY');
+  };
   const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
   return {
     async startSession(cap, input) {
       recordingTransactionOf(cap);
+      await requireCollection(cap);
       const segment = await p.readSegment(cap, input.exposureId);
       const serverStartedAt = p.now();
       const started = serverStartedAt.getTime();
@@ -240,6 +255,7 @@ export function makeExperienceRecordingEffects(
     },
     async enqueueActivity(cap, exposureId) {
       recordingTransactionOf(cap);
+      await requireCollection(cap);
       await enqueue(cap.personal, projectEncounterActivityQueue, {
         v: 2,
         recordingGeneration: cap.generation,
@@ -250,6 +266,7 @@ export function makeExperienceRecordingEffects(
     },
     async enqueueActionEvidence(cap, actionId) {
       recordingTransactionOf(cap);
+      await requireCollection(cap);
       await enqueue(cap.personal, applyActionEvidenceQueue, {
         v: 2,
         recordingGeneration: cap.generation,
@@ -260,6 +277,7 @@ export function makeExperienceRecordingEffects(
     },
     async applyChannels(cap, input) {
       recordingTransactionOf(cap);
+      await requireCollection(cap);
       input = ChannelEffectInput.parse(input);
       if (
         input.changes.length > 2 ||

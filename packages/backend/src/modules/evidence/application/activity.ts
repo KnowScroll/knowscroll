@@ -12,6 +12,7 @@ import type {
   WithPersonalScope,
   FenceOwnAccount,
   FencePersonalRecording,
+  ReadRecordingLifecycle,
 } from '../../identity/public.js';
 import type { ReadEncounterAttribution, EncounterAttribution } from '../../content/public.js';
 import type {
@@ -22,6 +23,7 @@ import type {
   ReadActivityReconcilePage,
   ActivityLineage,
   ReadRecordingSegment,
+  ReadRecordingChannelSelection,
 } from '../../experience/public.js';
 import type { ReadPreparedEvidenceInput } from '../../composer/public.js';
 import { ProjectScrollReadingPayloadSchema, type ProjectScrollReadingPayload } from '../events.js';
@@ -70,7 +72,9 @@ export interface ActivityPorts {
   readonly withPersonalScope: WithPersonalScope;
   readonly fenceOwn: FenceOwnAccount;
   readonly fenceRecording: FencePersonalRecording;
+  readonly readLifecycle: ReadRecordingLifecycle;
   readonly readSegment: ReadRecordingSegment;
+  readonly readChannelSelection: ReadRecordingChannelSelection;
   readonly readCredit: (
     scope: RecordingScopeTx,
     id: string,
@@ -129,6 +133,9 @@ async function inputs(
   evaluatedAt: string,
   domain: 'legacy' | 'session',
 ): Promise<ActivityProjection | { readonly kind: 'no_current_source' } | undefined> {
+  const lifecycle = await p.readLifecycle(cap);
+  if (lifecycle.kind === 'unavailable') throw new Error('RECORDING_LIFECYCLE_UNAVAILABLE');
+  if (lifecycle.kind === 'not_ready') return { kind: 'no_current_source' };
   const segment = await p.readSegment(cap, id);
   if (!segment || segment.recordingGeneration !== cap.generation) return undefined;
   const legacyQ =
@@ -193,6 +200,26 @@ async function inputs(
     likedOverride: segment.likedOverride,
     savedOverride: segment.savedOverride,
   });
+  // L/B selection is owned by Experience, not current necessary flags or Content metadata.
+  // Two exact channel probes; legacy unknown may retain its COMMITTED base, never add credit.
+  for (const [channel, key] of [
+    ['saved', 'B'],
+    ['liked', 'L'],
+  ] as const) {
+    if (!effective.channels[key]) continue;
+    const selected = await p.readChannelSelection(cap, { assetId: segment.exposure.assetId, channel });
+    if (
+      selected.kind === 'legacy_unknown' &&
+      base.channels[key] &&
+      (key === 'B' ? segment.savedOverride : segment.likedOverride) !== true
+    )
+      continue;
+    if (selected.kind !== 'tracked' || !selected.state || selected.originExposureId?.toLowerCase() !== id.toLowerCase())
+      throw new Error('RECORDING_CHANNEL_SELECTION_UNAVAILABLE');
+    const decision = channel === 'saved' ? segment.savedDecision : segment.likedDecision;
+    if (decision?.value && selected.originActionId?.toLowerCase() !== decision.originActionId.toLowerCase())
+      throw new Error('RECORDING_CHANNEL_SELECTED_ACTION_MISMATCH');
+  }
   // Choose only a factual source from THIS generation; inherited effective qualification is excluded.
   const q =
     sessionQ?.qualification === 'qualified'

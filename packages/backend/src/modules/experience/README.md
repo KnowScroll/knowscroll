@@ -323,3 +323,29 @@ journeys and complete Pause acceptance remain separate prerequisites. Remaining 
 include `apps/api/src/modules/experience.ts`, `apps/api/src/modules/evidence.ts`, worker job/owning
 Evidence provider selection and the recording-aware client/recorder wiring; none is activated by
 this source slice.
+
+## Fresh lifecycle channel certification (0044; source only)
+
+The separately allocated fresh-lifecycle protocol now enables genuinely new roots and verified
+current Clear cores, while retained legacy channel certification remains unavailable. A real
+eligible action can initialize one exact asset/channel certificate under the genuine original-g
+capability and actual Identity lifecycle read. certified_empty has no first decision and no
+pointer state; it is never a fabricated false action. The first real decision sets the pointer
+and immutable first-decision link. Independent Saved/Like channels do not initialize each other.
+Positive domain no-ops may persist only certified_empty metadata bound to that real eligible action; they create no pointer decision or credit. They do not backfill paused Save/Like, including Saved surviving Clear. Real
+negative commands can correct tracked credit, including a necessary-state no-op after paused
+removal. Legacy unknown is preserved, with no scan, newest-action guess or migration backfill.
+
+The producer captures old origin, prepares at most old/new two segment overrides, CASes the
+pointer and certificate BEFORE invoking the required grouped Evidence effect in the same TX.
+One derived revision/material change and the producer's one notice retain the existing protocol;
+all failure paths roll action, receipt, certificate, pointer, segments, aggregates and jobs back.
+READ_RECORDING_CHANNEL_SELECTION is a bounded pure exact-key owning read, supplied via real DI.
+Evidence validates positive effective L/B against the current selected exposure/action.
+
+Action/navigation/activation/Keep factories require the actual lifecycle read. A fresh eligible
+command in a legacy factory missing required recording effects refuses rather than stamping
+legacy growth. Off/stale necessary commands retain their behavior. Keep removal forwards the
+original optional generation without stamping or changing its position-free acknowledgement.
+Required API/worker/helper wiring and coordinated process replacement remain rollout work; no
+consumer control or installed recording journey is accepted by this source slice.

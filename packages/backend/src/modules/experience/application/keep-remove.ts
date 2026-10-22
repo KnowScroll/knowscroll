@@ -110,6 +110,9 @@ export function makeRemoveKeepEntry(p: KeepRemovalPorts) {
           assetRevision: command.entry.assetRevision,
           at,
           operation: KEEP_REMOVAL_OPERATION,
+          ...(Object.hasOwn(command, 'recordingGeneration')
+            ? { recordingGeneration: command.recordingGeneration }
+            : {}),
           necessaryChanged: true,
         },
         before,

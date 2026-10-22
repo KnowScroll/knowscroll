@@ -451,3 +451,18 @@ export type FencePersonalRecording = (
 >;
 export const RECORDING_POLICY_USE_CASES = Symbol('identity.recordingPolicy');
 export const FENCE_PERSONAL_RECORDING = Symbol('identity.fencePersonalRecording');
+
+/** Current lifecycle provenance, read only under the caller's genuine recording capability.
+ * This is metadata, not another account gate or a reusable authority token. */
+export const RECORDING_LIFECYCLE_PROTOCOL_SHA256 = 'c21cc86efaa179b73e7d217b7250cba320bdd402a362df1a19266e893649720a';
+export type RecordingLifecycle =
+  | {
+      readonly kind: 'fresh';
+      readonly protocolVersion: 1;
+      readonly registrySha256: typeof RECORDING_LIFECYCLE_PROTOCOL_SHA256;
+    }
+  | { readonly kind: 'legacy_unknown' }
+  | { readonly kind: 'not_ready' }
+  | { readonly kind: 'unavailable' };
+export type ReadRecordingLifecycle = (scope: RecordingScopeTx) => Promise<RecordingLifecycle>;
+export const READ_RECORDING_LIFECYCLE = Symbol('identity.readRecordingLifecycle');

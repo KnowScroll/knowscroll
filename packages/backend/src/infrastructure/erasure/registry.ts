@@ -72,12 +72,20 @@ export interface ModuleErasure {
 /** The complete registry. Refuses a table or store declared by two modules. */
 export function erasureRegistry(modules: readonly ModuleErasure[]): readonly ModuleErasure[] {
   const seen = new Set<string>();
+  const owners = new Set<string>();
   for (const declaration of modules) {
-    for (const name of [
-      ...declaration.tables.map((table) => `${table.schema}.${table.table}`),
-      ...(declaration.accountTables ?? []).map((table) => `${table.schema}.${table.table}`),
-      ...declaration.nonRowStores.map((store) => `store:${store.name}`),
+    if (owners.has(declaration.module)) throw new Error('ERASURE_OWNER_DUPLICATED');
+    owners.add(declaration.module);
+    const names = new Set<string>();
+    for (const group of [
+      declaration.tables.map((t) => `${t.schema}.${t.table}`),
+      (declaration.accountTables ?? []).map((t) => `${t.schema}.${t.table}`),
+      declaration.nonRowStores.map((s) => `store:${s.name}`),
     ]) {
+      if (new Set(group).size !== group.length) throw new Error('ERASURE_STORE_DUPLICATED');
+      for (const name of group) names.add(name);
+    }
+    for (const name of names) {
       if (seen.has(name)) throw new Error(`${name} is declared by two modules`);
       seen.add(name);
     }

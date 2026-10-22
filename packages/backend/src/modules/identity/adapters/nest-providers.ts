@@ -1,5 +1,7 @@
+import { READ_RECORDING_LIFECYCLE } from '../public.js';
+import { readRecordingLifecycle, fenceOwnRecordingLifecycle } from './recording-lifecycle.js';
 import { makeInvalidateOwnAccountAccess } from '../application/account-lifecycle.js';
-import { advanceAccountAccess, fenceAccountPair, fenceOwnAccount } from './account-access.js';
+import { advanceAccountAccess, fenceAccountPair } from './account-access.js';
 import { makeWithPersonalScope } from '../../../infrastructure/postgres/personal-scope.js';
 import { FENCE_ACCOUNT_PAIR, FENCE_OWN_ACCOUNT, INVALIDATE_OWN_ACCOUNT_ACCESS } from '../public.js';
 import { CHECK_PERSONAL_OWNER_ACTIVE } from '../public.js';
@@ -64,6 +66,7 @@ import { cryptoSecrets } from './secrets.js';
 /** Reusable outer wiring (blueprint §22): identity's read ports. Composition roots only. */
 export function identityProviders(tokens: { readonly database: symbol }) {
   return [
+    { provide: READ_RECORDING_LIFECYCLE, useValue: readRecordingLifecycle },
     {
       provide: READ_ACCOUNT_UNIVERSE,
       inject: [tokens.database],
@@ -246,10 +249,11 @@ export function identityScopeOwnerProviders() {
 export function accountAccessUseCases(deps: { readonly db: Kysely<Database>; readonly lockTimeoutMs: number }) {
   return {
     fenceAccountPair,
-    fenceOwnAccount,
+    fenceOwnAccount: fenceOwnRecordingLifecycle,
+    readRecordingLifecycle,
     invalidateOwnAccountAccess: makeInvalidateOwnAccountAccess({
       withScope: makeWithPersonalScope(deps.db, { lockTimeoutMs: deps.lockTimeoutMs }),
-      fenceOwn: fenceOwnAccount,
+      fenceOwn: fenceOwnRecordingLifecycle,
       advance: advanceAccountAccess,
     }),
   };
@@ -266,6 +270,7 @@ export function accountAccessProviders(tokens: { readonly useCases: symbol }) {
   return [
     pick(FENCE_ACCOUNT_PAIR, 'fenceAccountPair'),
     pick(FENCE_OWN_ACCOUNT, 'fenceOwnAccount'),
+    pick(READ_RECORDING_LIFECYCLE, 'readRecordingLifecycle'),
     pick(INVALIDATE_OWN_ACCOUNT_ACCESS, 'invalidateOwnAccountAccess'),
   ];
 }
@@ -282,3 +287,5 @@ export {
   makeRecordingPolicy,
 } from './recording-providers.js';
 export type { RecordingPorts, RecordingStore } from './recording-providers.js';
+
+export { readRecordingLifecycle } from './recording-lifecycle.js';

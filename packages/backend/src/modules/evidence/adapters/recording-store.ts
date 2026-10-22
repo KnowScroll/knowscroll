@@ -116,7 +116,9 @@ export async function readExposureCredit(
       }
     : undefined;
 }
-/** Only an existing COMMITTED own activity head plus <=16 exact topic rows may seed a base. */
+/** Only an existing COMMITTED own activity head plus <=16 exact topic rows may seed a base.
+ * Fresh lifecycle does not certify legacy attribution; absence is used only as empty baseline,
+ * while any retained legacy head still follows the explicit uncertified refusal below. */
 export async function legacyExposureCredit(
   scope: RecordingScopeTx,
   exposureId: string,

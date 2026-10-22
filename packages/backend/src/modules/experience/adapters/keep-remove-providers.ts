@@ -1,5 +1,11 @@
 import { requireRecordingEffects } from './recording-store.js';
-import { FENCE_OWN_ACCOUNT, type FenceOwnAccount, type WithPersonalScope } from '../../identity/public.js';
+import {
+  FENCE_OWN_ACCOUNT,
+  READ_RECORDING_LIFECYCLE,
+  type ReadRecordingLifecycle,
+  type FenceOwnAccount,
+  type WithPersonalScope,
+} from '../../identity/public.js';
 import { advanceScopeRevision } from '../../../infrastructure/postgres/personal-scope.js';
 import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
@@ -20,6 +26,7 @@ import { keepStore } from './keep-store.js';
 export function keepRemovalUseCase(
   deps: Pick<KeepRemovalPorts, 'withScope' | 'fenceOwn'> & {
     readonly enqueue: EnqueueJob;
+    readonly lifecycle: ReadRecordingLifecycle;
     readonly recordingEffects?: ExperienceRecordingEffects;
   } & Partial<
       Pick<
@@ -35,7 +42,7 @@ export function keepRemovalUseCase(
     beginReceipt: deps.beginReceipt ?? insertPersonalReceipt,
     completeReceipt: deps.completeReceipt ?? completePersonalReceipt,
     readChannels,
-    commitAction: makeCommitAction(deps.enqueue, deps.recordingEffects),
+    commitAction: makeCommitAction(deps.enqueue, deps.lifecycle, deps.recordingEffects),
     hash: (operation, input) => requestHash(operation, input as CanonicalJson),
     advance: deps.advance ?? advanceScopeRevision,
     notify: deps.notify ?? notifyScopeChanged,
@@ -53,12 +60,14 @@ export function keepRemovalProviders(
       inject: [
         tokens.withPersonalScope,
         FENCE_OWN_ACCOUNT,
+        READ_RECORDING_LIFECYCLE,
         tokens.enqueueJob,
         ...(options.recordingEffects ? [options.recordingEffects] : []),
       ],
       useFactory: (
         withScope: WithPersonalScope,
         fenceOwn: FenceOwnAccount,
+        lifecycle: ReadRecordingLifecycle,
         enqueue: EnqueueJob,
         effects?: ExperienceRecordingEffects,
       ) =>
@@ -66,6 +75,7 @@ export function keepRemovalProviders(
           withScope,
           fenceOwn,
           enqueue,
+          lifecycle,
           ...(options.recordingEffects ? { recordingEffects: requireRecordingEffects(effects) } : {}),
         }),
     },
