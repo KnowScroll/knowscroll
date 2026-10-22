@@ -35,6 +35,9 @@ export const problemCatalogue = {
   TOO_MANY_REQUESTS: { status: 429, title: 'Too many requests; try again shortly.' },
   INTERNAL: { status: 500, title: 'Something went wrong on our side.' },
   SERVICE_UNAVAILABLE: { status: 503, title: 'The service is temporarily unavailable.' },
+  RECORDING_POLICY_STALE: { status: 409, title: 'Recording settings changed; reload and try again.' },
+  RECORDING_GENERATION_REQUIRED: { status: 409, title: 'This recorder must be updated before recording again.' },
+  RECORDING_GENERATION_EXHAUSTED: { status: 409, title: 'Recording settings cannot accept another change.' },
 } as const satisfies Record<string, { status: number; title: string }>;
 
 export type ProblemCode = keyof typeof problemCatalogue;

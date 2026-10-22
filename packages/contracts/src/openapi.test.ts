@@ -44,6 +44,18 @@ import {
   problemCatalogue,
   scopeClaimOf,
   sceneWireJsonSchemas,
+  ReadRecordingPolicySchema,
+  RecordingPolicyReadSchema,
+  SetRecordingPolicySchema,
+  RecordingPolicyAcceptanceSchema,
+  RecordingPolicyReceiptSchema,
+  RecordingPolicySchema,
+  RecordingObservationBatchRequestSchema,
+  RecordingObservationBatchResponseSchema,
+  ReadFriendsPageSchema,
+  ReadFriendRequestsPageSchema,
+  FriendsPageSchema,
+  FriendRequestsPageSchema,
 } from './index.js';
 
 // Supported converter interception keeps canonical scene metadata out of shared runtime imports.
@@ -70,7 +82,9 @@ describe('the API contract', () => {
       apiContract.health,
       ...Object.values(apiContract.keep),
       ...Object.values(apiContract.privacy),
+      ...Object.values(apiContract.recording),
       ...Object.values(apiContract.sharing),
+      ...Object.values(apiContract.friendPages),
       ...Object.values(apiContract.conversations),
       ...Object.values(apiContract.contentShares),
       ...Object.values(apiContract.formation),
@@ -97,6 +111,7 @@ describe('the API contract', () => {
       apiContract.experience.exposureDocument,
       apiContract.experience.exposureContext,
       apiContract.observations.submit,
+      apiContract.observations.submitRecording,
       apiContract.diagnostics.evidence,
     ].map((procedure) => procedure['~orpc'].route);
     for (const route of routes) {
@@ -316,6 +331,8 @@ describe('the API contract', () => {
       '/v1/social/pairs/read': ['post'],
       '/v1/social/friends/read': ['post'],
       '/v1/social/requests/read': ['post'],
+      '/v1/social/friends/page': ['post'],
+      '/v1/social/requests/page': ['post'],
       '/v1/social/friends/request': ['post'],
       '/v1/social/friends/accept': ['post'],
       '/v1/social/friends/decline': ['post'],
@@ -417,6 +434,146 @@ describe('the API contract', () => {
     expect(CODE_VERIFIER_PATTERN.test('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk')).toBe(true);
     expect(CODE_VERIFIER_PATTERN.test('short')).toBe(false);
     expect(CODE_VERIFIER_PATTERN.test(`${'a'.repeat(42)} `)).toBe(false);
+  });
+});
+
+describe('recording376 declaration OpenAPI metadata', () => {
+  it('adds exactly three strict private POST declarations with closed direct problems', async () => {
+    const errors = apiContract.recording.set['~orpc'].errorMap;
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas: {
+        ReadRecordingPolicy: { schema: ReadRecordingPolicySchema },
+        RecordingPolicyRead: { schema: RecordingPolicyReadSchema },
+        SetRecordingPolicy: { schema: SetRecordingPolicySchema },
+        RecordingPolicyAcceptance: { schema: RecordingPolicyAcceptanceSchema },
+        RecordingPolicyReceipt: { schema: RecordingPolicyReceiptSchema },
+        RecordingPolicy: { schema: RecordingPolicySchema },
+        RecordingObservationBatchRequest: { schema: RecordingObservationBatchRequestSchema },
+        RecordingObservationBatchResponse: { schema: RecordingObservationBatchResponseSchema },
+        ...Object.fromEntries(
+          Object.entries(errors).map(([code, definition]) => [`RecordingProblem_${code}`, { schema: definition.data }]),
+        ),
+      },
+    });
+    const declarations = [
+      ['/v1/privacy/recording/read', 'ReadRecordingPolicy', 'RecordingPolicyRead'],
+      ['/v1/privacy/recording/set', 'SetRecordingPolicy', 'RecordingPolicyAcceptance'],
+      ['/v1/observations/recording-batch', 'RecordingObservationBatchRequest', 'RecordingObservationBatchResponse'],
+    ] as const;
+    const { recording, ...withoutRecording } = apiContract;
+    const { submitRecording, ...legacyObservations } = withoutRecording.observations;
+    expect(Object.values(recording)).toHaveLength(2);
+    expect(submitRecording).toBe(apiContract.observations.submitRecording);
+    const legacy = await generator.generate(
+      { ...withoutRecording, observations: legacyObservations },
+      {
+        info: { title: 'KnowScroll API', version: '1' },
+      },
+    );
+    expect(
+      Object.keys(document.paths ?? {})
+        .filter((p) => !(p in (legacy.paths ?? {})))
+        .sort(),
+    ).toEqual(declarations.map(([path]) => path).sort());
+    for (const path of Object.keys(legacy.paths ?? {})) expect(document.paths).toHaveProperty(path);
+    for (const [path, input, output] of declarations) {
+      const operation = document.paths?.[path]?.post;
+      expect(Object.keys(document.paths?.[path] ?? {})).toEqual(['post']);
+      expect(operation?.parameters ?? []).toEqual([]);
+      expect(operation?.requestBody).toEqual({
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: `#/components/schemas/${input}` },
+          },
+        },
+      });
+      expect(operation?.responses?.['200']).toMatchObject({
+        content: {
+          'application/json': {
+            schema: { $ref: `#/components/schemas/${output}` },
+          },
+        },
+      });
+      for (const status of new Set(Object.values(errors).map((e) => String(e.status)))) {
+        const response = operation?.responses?.[status];
+        expect(response && !('$ref' in response) && response.content).toEqual({
+          'application/problem+json': {
+            schema: {
+              oneOf: Object.entries(errors)
+                .filter(([, e]) => String(e.status) === status)
+                .map(([code]) => ({ $ref: `#/components/schemas/RecordingProblem_${code}` })),
+            },
+          },
+        });
+      }
+    }
+    const schemas = document.components?.schemas;
+    expect(schemas?.['SetRecordingPolicy']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'commandId', 'expectedPrivacyEpoch', 'expectedRecordingGeneration', 'on'],
+      properties: {
+        version: { const: 'recording-policy.v1' },
+        expectedRecordingGeneration: { minimum: 1, maximum: 2_147_483_647 },
+      },
+    });
+    expect(schemas?.['ReadRecordingPolicy']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'readId', 'target'],
+    });
+    expect(schemas?.['RecordingPolicyAcceptance']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'operation', 'outcome', 'receipt', 'replayed'],
+      properties: { operation: { const: 'privacy.recording-set' }, outcome: { const: 'accepted' } },
+    });
+    expect(schemas?.['RecordingObservationBatchRequest']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'recordingGeneration', 'instrumentationVersion', 'events'],
+      properties: {
+        version: { const: 'observation-batch.v2' },
+        recordingGeneration: { minimum: 1, maximum: 2_147_483_647 },
+        events: { minItems: 1, maxItems: 50 },
+      },
+    });
+    const response = JSON.stringify(schemas?.['RecordingObservationBatchResponse']);
+    for (const token of [
+      'processed',
+      'not_recorded',
+      'recording_paused',
+      'recording_generation_stale',
+      'currentGeneration',
+    ])
+      expect(response).toContain(token);
+    const read = JSON.stringify(schemas?.['RecordingPolicyRead']);
+    for (const token of ['current', 'command', 'recorded', 'not_recorded']) expect(read).toContain(token);
+    for (const [code, definition] of Object.entries(errors)) {
+      const schema = schemas?.[`RecordingProblem_${code}`];
+      expect(schema).toMatchObject({
+        additionalProperties: false,
+        properties: {
+          code: { const: code },
+          status: { const: definition.status },
+          title: { const: definition.message },
+        },
+      });
+      for (const field of ['detail', 'instance', 'received', 'generation', 'commandId', 'message', 'defined'])
+        expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty(field);
+    }
+    expect(document.paths?.['/v1/observations/batch']?.post).toBeDefined();
+    expect(
+      Object.keys(document.paths ?? {})
+        .filter((p) => p.startsWith('/v1/privacy/'))
+        .sort(),
+    ).toEqual([
+      '/v1/privacy/clear-exploration',
+      '/v1/privacy/clear-exploration/status',
+      '/v1/privacy/recording/read',
+      '/v1/privacy/recording/set',
+    ]);
+    expect(document.paths).not.toHaveProperty('/v1/privacy/export');
+    expect(document.paths).not.toHaveProperty('/v1/account/delete');
   });
 });
 
@@ -647,7 +804,12 @@ describe('Selective Clear exploration declaration OpenAPI metadata', () => {
       Object.keys(document.paths ?? {})
         .filter((path) => path.startsWith('/v1/privacy/'))
         .sort(),
-    ).toEqual(['/v1/privacy/clear-exploration', '/v1/privacy/clear-exploration/status']);
+    ).toEqual([
+      '/v1/privacy/clear-exploration',
+      '/v1/privacy/clear-exploration/status',
+      '/v1/privacy/recording/read',
+      '/v1/privacy/recording/set',
+    ]);
     const errorStatuses = ['400', '401', '403', '409', '413', '415', '422', '500', '503'];
     for (const [path, input, output, success] of [
       ['/v1/privacy/clear-exploration', 'ClearExploration', 'ClearExplorationAcceptance', '202'],
@@ -1193,5 +1355,116 @@ describe('Social370 declaration OpenAPI metadata', () => {
       for (const field of ['detail', 'instance', 'token', 'message', 'sender', 'blocked', 'defined'])
         expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty(field);
     }
+  });
+});
+
+describe('friend-pages378 bounded scan declaration OpenAPI metadata', () => {
+  it('adds exactly two strict private POSTs and direct closed Social problems without changing legacy routes', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const errors = apiContract.friendPages.friends['~orpc'].errorMap;
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas: {
+        ReadFriendsPage: { schema: ReadFriendsPageSchema },
+        ReadFriendRequestsPage: { schema: ReadFriendRequestsPageSchema },
+        FriendsPage: { schema: FriendsPageSchema },
+        FriendRequestsPage: { schema: FriendRequestsPageSchema },
+        ...Object.fromEntries(
+          Object.entries(errors).map(([code, definition]) => [
+            `FriendPagesProblem_${code}`,
+            { schema: definition.data },
+          ]),
+        ),
+      },
+    });
+    const { friendPages, ...withoutFriendPages } = apiContract;
+    expect(Object.keys(friendPages)).toEqual(['friends', 'requests']);
+    const legacy = await generator.generate(withoutFriendPages, { info: { title: 'KnowScroll API', version: '1' } });
+    const declarations = [
+      ['/v1/social/friends/page', 'ReadFriendsPage', 'FriendsPage', ['friends', 'blocked']],
+      ['/v1/social/requests/page', 'ReadFriendRequestsPage', 'FriendRequestsPage', ['incoming', 'outgoing']],
+    ] as const;
+    expect(
+      Object.keys(document.paths ?? {})
+        .filter((path) => !(path in (legacy.paths ?? {})))
+        .sort(),
+    ).toEqual(declarations.map(([path]) => path).sort());
+    for (const path of Object.keys(legacy.paths ?? {})) expect(document.paths).toHaveProperty(path);
+    for (const [path, input, output, filters] of declarations) {
+      const operation = document.paths?.[path]?.post;
+      expect(Object.keys(document.paths?.[path] ?? {})).toEqual(['post']);
+      expect(operation?.parameters ?? []).toEqual([]);
+      expect(operation?.requestBody).toEqual({
+        required: true,
+        content: { 'application/json': { schema: { $ref: `#/components/schemas/${input}` } } },
+      });
+      expect(operation?.responses?.['200']).toMatchObject({
+        content: { 'application/json': { schema: { $ref: `#/components/schemas/${output}` } } },
+      });
+      const schemas = document.components?.schemas;
+      expect(schemas?.[input]).toMatchObject({
+        additionalProperties: false,
+        required: ['version', 'requestId', 'limit', 'filter'],
+        properties: {
+          version: { const: 'friend-pages.v2' },
+          requestId: { type: 'string', format: 'uuid' },
+          limit: { minimum: 1, maximum: 50 },
+          filter: { enum: [...filters] },
+        },
+      });
+      const response = schemas?.[output];
+      expect(response).toMatchObject({
+        additionalProperties: false,
+        required: ['version', 'requestId', 'scope', 'filter', 'snapshotRevision', 'items'],
+        properties: {
+          version: { const: 'friend-pages.v2' },
+          requestId: { type: 'string', format: 'uuid' },
+          filter: { enum: [...filters] },
+          snapshotRevision: { minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+          items: { type: 'array', maxItems: 50 },
+        },
+      });
+      if (!response || '$ref' in response) throw new Error('Missing friend-pages output schema');
+      const items = response.properties?.['items'];
+      expect(items && !('$ref' in items) ? (items.minItems ?? 0) : undefined).toBe(0);
+      expect(response.required).not.toContain('next');
+      for (const field of [
+        'total',
+        'scanned',
+        'anchor',
+        'ceiling',
+        'peerEpoch',
+        'internalPairRevision',
+        'presenceRevision',
+      ])
+        expect(response.properties).not.toHaveProperty(field);
+      for (const status of new Set(Object.values(errors).map((e) => String(e.status)))) {
+        const error = operation?.responses?.[status];
+        expect(error && !('$ref' in error) && error.content).toEqual({
+          'application/problem+json': {
+            schema: {
+              oneOf: Object.entries(errors)
+                .filter(([, e]) => String(e.status) === status)
+                .map(([code]) => ({ $ref: `#/components/schemas/FriendPagesProblem_${code}` })),
+            },
+          },
+        });
+      }
+    }
+    for (const [code, definition] of Object.entries(errors)) {
+      const schema = document.components?.schemas?.[`FriendPagesProblem_${code}`];
+      expect(schema).toMatchObject({
+        additionalProperties: false,
+        properties: {
+          code: { const: code },
+          status: { const: definition.status },
+          title: { const: definition.message },
+        },
+      });
+      for (const field of ['detail', 'instance', 'token', 'requestId', 'filter', 'peerEpoch', 'message', 'defined'])
+        expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty(field);
+    }
+    expect(document.paths?.['/v1/social/friends/read']?.post).toBeDefined();
+    expect(document.paths?.['/v1/social/requests/read']?.post).toBeDefined();
   });
 });
