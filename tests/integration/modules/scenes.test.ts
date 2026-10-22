@@ -12,9 +12,14 @@ import { makeEnqueueJob, deadLetterQueueName } from '@knowscroll/backend/infrast
 import {
   makeWithPersonalScope,
   advanceScopeRevision,
+  fencePersonalRecording,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
-import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
+import {
+  accountAccessUseCases,
+  identityScopeOwnerProviders,
+} from '@knowscroll/backend/modules/identity/nest-providers';
+import type { PersonalScopeTx } from '@knowscroll/backend/modules/identity';
 import { READ_COVERAGE_INPUTS, READ_TRUSTED_COVERAGE } from '@knowscroll/backend/modules/personal-context';
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import {
@@ -71,6 +76,13 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     chunk: ReadOwnSceneChunk,
     input: ReadGeographySceneInput;
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
+  async function recording(scope: PersonalScopeTx) {
+    const own = await accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount(scope);
+    if (own.kind !== 'active') throw new Error('CI Scene owning account unavailable');
+    const gate = await fencePersonalRecording(scope, 1);
+    if (gate.kind !== 'recording') throw new Error('CI Scene original recording generation unavailable');
+    return gate.scope;
+  }
   beforeAll(async () => {
     database = await createTestDatabase<Database>('scenes');
     c = await scrollUseCases(database);
@@ -144,11 +156,13 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       activity: { availability: 'available' as const, state: 'active' as const },
     }));
     await withScope()(p.authority, async (s) => {
+      const cap = await recording(s);
       for (const o of places) await geographyStore.saveObject(s, o, ['ci-private-support-never-scene']);
       const old = await geographyStore.state(s);
       await geographyStore.writeState(s, { ...old, revision: 1, structureRevision: 1 });
       const watermark = await advanceScopeRevision(s);
-      await geo.applied(s, {
+      await geo.applied(cap, {
+        recordingGeneration: 1,
         transitionId: transition,
         geography: { revision: 1, structureRevision: 1, activityRevision: 0 },
         personalRevision: watermark,
@@ -284,6 +298,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     const stored = await withScope()(p.authority, (s) => sceneStore.objects(s));
     if (stored.kind !== 'entered') throw new Error('CI refused');
     await withScope()(p.authority, async (s) => {
+      const cap = await recording(s);
       const old = await geographyStore.state(s);
       const planet = p.places.find((o) => o.id === p.planet)!;
       await geographyStore.saveObject(
@@ -311,7 +326,8 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       );
       await geographyStore.writeState(s, { ...old, revision: 2, structureRevision: 2, activityRevision: 2 });
       const watermark = await advanceScopeRevision(s);
-      await geo.applied(s, {
+      await geo.applied(cap, {
+        recordingGeneration: 1,
         transitionId: randomUUID(),
         geography: { revision: 2, structureRevision: 2, activityRevision: 2 },
         personalRevision: watermark,
@@ -444,6 +460,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     await project(job);
     await project((await jobs(kept))[0]!.data);
     await withScope()(p.authority, async (scope) => {
+      const cap = await recording(scope);
       const planet = p.places.find((o) => o.id === p.planet)!;
       await geographyStore.saveObject(scope, { ...planet, label: 'Seasons retained history', objectRevision: 2 }, []);
       await geographyStore.writeState(scope, {
@@ -452,7 +469,8 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
         structureRevision: 2,
       });
       const personalRevision = await advanceScopeRevision(scope);
-      await geo.applied(scope, {
+      await geo.applied(cap, {
+        recordingGeneration: 1,
         transitionId: randomUUID(),
         geography: { revision: 2, structureRevision: 2, activityRevision: 0 },
         personalRevision,
@@ -513,9 +531,11 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       before = await root(fresh);
     await expect(
       withScope()(fresh.authority, async (s) => {
+        const cap = await recording(s);
         await geographyStore.writeState(s, { ...(await geographyStore.state(s)), revision: 1, structureRevision: 1 });
         const personalRevision = await advanceScopeRevision(s);
-        await geo.applied(s, {
+        await geo.applied(cap, {
+          recordingGeneration: 1,
           transitionId: randomUUID(),
           geography: { revision: 1, structureRevision: 1, activityRevision: 0 },
           personalRevision,

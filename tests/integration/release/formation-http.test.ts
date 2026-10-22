@@ -14,9 +14,11 @@ import {
   makeWithPersonalScope,
   transactionOf,
   advanceScopeRevision,
+  fencePersonalRecording,
   type Database,
   type DatabaseHandle,
 } from '@knowscroll/backend/infrastructure/postgres';
+import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import { createBoss, makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { geographyStore } from '@knowscroll/backend/modules/geography/nest-providers';
 import { sceneAppliedProviders, formationStore } from '@knowscroll/backend/modules/scenes/nest-providers';
@@ -179,6 +181,10 @@ describe('U05 normal installed API/worker journey (Actions fixtures)', () => {
         new Map([[ENQUEUE, makeEnqueueJob(boss)]]),
       ) as GeographyApplied;
     await scope(p.authority, async (s) => {
+      const own = await accountAccessUseCases({ db: db.db, lockTimeoutMs: 5000 }).fenceOwnAccount(s);
+      if (own.kind !== 'active') throw new Error('CI formation owning account unavailable');
+      const gate = await fencePersonalRecording(s, 1);
+      if (gate.kind !== 'recording') throw new Error('CI formation original recording generation unavailable');
       const tx = transactionOf(s);
       await tx
         .insertInto('geography.runs')
@@ -204,7 +210,8 @@ describe('U05 normal installed API/worker journey (Actions fixtures)', () => {
       await geographyStore.writeDelta(s, runId, 'a'.repeat(64), delta);
       await geographyStore.writeState(s, { ...(await geographyStore.state(s)), ...delta.geography });
       await advanceScopeRevision(s);
-      await applied(s, {
+      await applied(gate.scope, {
+        recordingGeneration: 1,
         transitionId,
         geography: delta.geography,
         personalRevision: 1,
