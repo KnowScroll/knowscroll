@@ -4,6 +4,11 @@ import { waitFor } from '@testing-library/react-native';
 import { createUniverseViewSession } from './universe-session';
 import { universeSessionFor } from './use-universe-session';
 import { fixtureId, fixtureAccount, sceneFixture, universeHarness } from './universe.fixture';
+// Authored valid UUIDs replace Expo's native Jest UUID stub; production IDs are unchanged.
+jest.mock('../../platform/command-id', () => {
+  let next = 30000;
+  return { newCommandId: () => `0199a000-0000-7000-8000-${(next++).toString(16).padStart(12, '0')}` };
+});
 const ready = async (session: ReturnType<typeof createUniverseViewSession>) =>
   waitFor(() => expect(session.getState().read.status).toBe('ready'));
 it('loads through the real core; hierarchy/travel/Back restore the precise private frame without commands', async () => {

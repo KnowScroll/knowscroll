@@ -8,6 +8,11 @@ import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
 import type { AccountScope } from '@knowscroll/client-core';
 let mockScope: AccountScope;
+// Authored valid UUIDs replace Expo's native Jest UUID stub; production IDs are unchanged.
+jest.mock('../../platform/command-id', () => {
+  let next = 30000;
+  return { newCommandId: () => `0199a000-0000-7000-8000-${(next++).toString(16).padStart(12, '0')}` };
+});
 const mockNavigate = jest.fn();
 jest.mock('../../providers/account-scope', () => ({
   useAccountScope: () => ({ state: { status: 'signed_in', scope: mockScope } }),

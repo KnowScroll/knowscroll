@@ -656,7 +656,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
             capabilityKey(reply.capabilities) !== capabilityKey(input.capabilities) ||
             reply.outcome.commandId !== input.commandId ||
             reply.outcome.revision < card.scope.personalWatermark ||
-            (input.session && reply.outcome.intentRevision < input.session.expectedIntentRevision) ||
+            (input.session &&
+              (reply.outcome.sessionId !== input.session.sessionId ||
+                reply.outcome.intentRevision < input.session.expectedIntentRevision)) ||
             (reply.outcome.status === 'ready' && reply.outcome.offer.metadata.kind !== card.encounter.metadata.kind)
           )
             throw new Error('region_lineage');

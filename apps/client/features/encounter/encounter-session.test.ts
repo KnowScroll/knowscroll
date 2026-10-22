@@ -1088,7 +1088,8 @@ describe('checkpoint ownership across retained history transitions', () => {
 function regionEncounter() {
   const h = harness(),
     calls: RegionEncounterOpenRequest[] = [];
-  let failure: 'unknown' | 'authority' | undefined, wrong: 'asset' | 'target' | 'scope' | 'capabilities' | undefined;
+  let failure: 'unknown' | 'authority' | undefined,
+    wrong: 'asset' | 'target' | 'scope' | 'capabilities' | 'session' | undefined;
   const card: AvailableRegionPreview = {
     version: 'region-encounter-preview.v1',
     readId: id(700),
@@ -1122,7 +1123,7 @@ function regionEncounter() {
           privacyEpoch: 1,
           outcome: {
             commandId: input.commandId,
-            sessionId: id(1),
+            sessionId: wrong === 'session' ? id(999) : id(1),
             intentRevision: 1,
             revision: 1,
             decisionId: offer(0).decisionId,
@@ -1246,6 +1247,33 @@ it.each(['asset', 'target', 'scope', 'capabilities'] as const)(
     h.scope.end();
   },
 );
+it('binds an existing region intent to the supplied session and retains its exact command on retry', async () => {
+  const h = regionEncounter();
+  try {
+    await ready(h);
+    const previous = h.session.getState().entry!;
+    const activations = commands(h, '/activate').length;
+    h.wrong('session');
+    expect(h.session.openRegion(h.card, () => undefined)).toBe(true);
+    await waitFor(() => expect(h.session.getState().phase).toBe('offline'));
+    expect(h.regionCalls[0]!.session).toEqual({ sessionId: id(1), expectedIntentRevision: 1 });
+    expect(commands(h, '/activate')).toHaveLength(activations);
+    expect(h.session.getState().entry).toBe(previous);
+    h.session.retry();
+    await waitFor(() => expect(h.regionCalls).toHaveLength(2));
+    expect(h.regionCalls[1]).toEqual(h.regionCalls[0]);
+    expect(commands(h, '/activate')).toHaveLength(activations);
+    await waitFor(() => expect(h.session.getState().phase).toBe('offline'));
+    h.wrong(undefined);
+    h.session.retry();
+    await waitFor(() => expect(h.session.getState().phase).toBe('active'));
+    expect(h.regionCalls[2]).toEqual(h.regionCalls[0]);
+    expect(commands(h, '/activate')).toHaveLength(activations + 1);
+    expect(h.session.getState().entry?.sessionId).toBe(id(1));
+  } finally {
+    h.scope.end();
+  }
+});
 it('still returns to the map after the original region entry is evicted from bounded encounter history', async () => {
   const h = regionEncounter();
   let returned = 0;
