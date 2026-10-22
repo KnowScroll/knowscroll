@@ -44,6 +44,8 @@ describe('route map', () => {
         '/account/privacy',
         '/conversations',
         '/explore',
+        '/friends',
+        '/friends/invite',
         '/gallery',
         '/gallery-scroll',
         '/recover',

@@ -28,8 +28,7 @@ function TwoBubbles() {
 
 /**
  * C01 "Empty · first visit to Talk". Real conversations only, so there is nothing to list. "Share
- * something" goes to Explore; "New message" and "Invite a friend" need the friends and
- * conversations backends, which do not exist yet, so they are not shown.
+ * something" goes to Explore; Friends opens its real roster/request interface. Conversations are not implemented yet.
  */
 export function EmptyTalkScreen() {
   const router = useRouter();
@@ -38,7 +37,7 @@ export function EmptyTalkScreen() {
       <StateBlock
         illustration={<TwoBubbles />}
         title="No conversations yet"
-        body="Share a Reel or Scroll with a friend and the conversation starts here."
+        body="Conversations aren’t available yet. You can manage friends by handle or invitation link."
         actionLayout="stretch"
         actions={[
           {
@@ -47,6 +46,13 @@ export function EmptyTalkScreen() {
             role: 'link',
             href: '/explore',
             onPress: () => router.navigate('/explore'),
+          },
+          {
+            label: 'Friends',
+            variant: 'default',
+            role: 'link',
+            href: '/friends',
+            onPress: () => router.push('/friends'),
           },
         ]}
       />
