@@ -64,6 +64,19 @@ describe('mounted Keep bridge using the real bounded client session', () => {
     expect(next).toBeDefined();
     next?.release();
   });
+  it('a displayed A view never exposes replacement B place or grants B conflict/retry choices', async () => {
+    const f = fixture(() => snapshot(id(5)));
+    const view = createKeepView(f.scope, target, id(4));
+    view.start();
+    try {
+      await waitFor(() => expect(view.getState().status).toBe('unavailable'));
+      expect(view.getState().snapshot).toBeUndefined();
+      expect(view.retry()).toBe(false);
+      expect(view.resolveConflict('candidate')).toBe(false);
+    } finally {
+      view.stop();
+    }
+  });
   it('requires a later read rather than treating cached state or a write ACK as fresh authority', async () => {
     let release!: (value: unknown) => void;
     let gated = false;

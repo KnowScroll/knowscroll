@@ -185,6 +185,7 @@ async function mount(
     grant?: () => Promise<Response>;
     action?: () => Promise<Response>;
     saved?: boolean;
+    keepRead?: () => Response;
   } = {},
 ) {
   const paths: string[] = [];
@@ -222,18 +223,19 @@ async function mount(
         );
       if (path === '/v1/experience/keep/read')
         return Promise.resolve(
-          json({
-            version: 'keep-place.v1',
-            scope: { accountId: account.accountId, privacyEpoch: account.privacyEpoch },
-            target: { assetId: ID, assetRevision: 1 },
-            status: currentSaved ? 'available' : 'not_saved',
-            ...(currentSaved
-              ? {
-                  entry: { assetId: ID, assetRevision: 1, savedEntryId: EXPOSURE },
-                  place: { status: 'none', placeRevision: 0 },
-                }
-              : {}),
-          }),
+          options.keepRead?.() ??
+            json({
+              version: 'keep-place.v1',
+              scope: { accountId: account.accountId, privacyEpoch: account.privacyEpoch },
+              target: { assetId: ID, assetRevision: 1 },
+              status: currentSaved ? 'available' : 'not_saved',
+              ...(currentSaved
+                ? {
+                    entry: { assetId: ID, assetRevision: 1, savedEntryId: EXPOSURE },
+                    place: { status: 'none', placeRevision: 0 },
+                  }
+                : {}),
+            }),
         );
       if (path === '/v1/actions') {
         const response = options.action?.() ?? Promise.resolve(json({ ...action, kind: 'save', saved: true }));
@@ -357,6 +359,38 @@ describe('direct Reel response boundaries', () => {
     await app.unmount();
   });
 
+  it('direct Reel removal rejects fresh B when the Save control displayed membership A', async () => {
+    let membership = EXPOSURE;
+    const app = await mount({
+      saved: true,
+      keepRead: () =>
+        json({
+          version: 'keep-place.v1',
+          scope: { accountId: ID, privacyEpoch: 1 },
+          target: { assetId: ID, assetRevision: 1 },
+          status: 'available',
+          entry: { assetId: ID, assetRevision: 1, savedEntryId: membership },
+          place: { status: 'none', placeRevision: 0 },
+        }),
+    });
+    try {
+      await screen.findByText(document.title);
+      await waitFor(() =>
+        expect(screen.getByRole('togglebutton', { name: 'Save' })).toHaveProp(
+          'accessibilityState',
+          expect.objectContaining({ checked: true }),
+        ),
+      );
+      membership = '0199a000-0000-7000-8000-0000000000b1';
+      await fireEvent.press(screen.getByRole('togglebutton', { name: 'Save' }));
+      await screen.findByText(/removal couldn't be completed/);
+      expect(screen.queryByRole('button', { name: 'Undo removal' })).toBeNull();
+      expect(app.paths).not.toContain('/v1/actions');
+      expect(app.paths).not.toContain('/v1/experience/keep/remove');
+    } finally {
+      await app.unmount();
+    }
+  });
   it('preserves Save state and shows a controlled failure for a Like outcome', async () => {
     const app = await mount({
       saved: false,

@@ -4,7 +4,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { DisplayProvider } from '@knowscroll/ui';
 import { KeepDetail, KeepWriteStatus } from './keep-detail';
-import type { ListSavedResponse } from '@knowscroll/contracts';
+import type { SavedPageResponse } from '@knowscroll/contracts';
 jest.mock('expo-router', () => ({
   useFocusEffect: (effect: () => (() => void) | undefined) => {
     const React = jest.requireActual<{ useEffect: typeof useEffect }>('react');
@@ -13,14 +13,16 @@ jest.mock('expo-router', () => ({
 }));
 const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
 const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
-const item: ListSavedResponse['items'][number] = {
+const item: Extract<SavedPageResponse['items'][number], { availability: 'available' }> = {
   assetId: id(3),
+  kind: 'reel',
+  savedEntryId: id(4),
   assetRevision: 1,
   savedAt: '2026-10-22T00:00:00.000Z',
   availability: 'available',
   metadata: { kind: 'reel', title: 'CI saved fixture', summary: 'Authored fixture only', language: 'en' },
 };
-function scopeFor(status: 'available' | 'saved_unavailable' | 'not_saved' = 'available') {
+function scopeFor(status: 'available' | 'saved_unavailable' | 'not_saved' = 'available', membership = id(4)) {
   const calls: string[] = [];
   const scope = createAccountScope({
     account: { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'detail@fixture.test' },
@@ -36,7 +38,7 @@ function scopeFor(status: 'available' | 'saved_unavailable' | 'not_saved' = 'ava
           target: { assetId: item.assetId, assetRevision: 1 },
           status,
           ...(status !== 'not_saved'
-            ? { entry: { assetId: item.assetId, assetRevision: 1, savedEntryId: id(4) } }
+            ? { entry: { assetId: item.assetId, assetRevision: 1, savedEntryId: membership } }
             : {}),
           ...(status === 'available'
             ? { place: { status: 'set', placeRevision: 1, position: { kind: 'reel', positionMs: 31250.5 } } }
@@ -63,9 +65,30 @@ describe('S02 selected real Keep detail', () => {
       expect(open.mock.calls[0]?.[0]).toBe('resume');
       expect(open.mock.calls[0]?.[1]?.entry.savedEntryId).toBe(id(4));
       await fireEvent.press(screen.getByRole('button', { name: 'Start from the top' }));
-      expect(open.mock.calls[1]).toEqual(['top']);
+      expect(open.mock.calls[1]?.[0]).toBe('top');
+      expect(open.mock.calls[1]?.[1]?.entry.savedEntryId).toBe(item.savedEntryId);
       await act(() => f.scope.end());
       expect(screen.queryByText('Paused at 0:31')).toBeNull();
+    } finally {
+      await screen.unmount();
+      f.scope.end();
+    }
+  });
+  it('selected A detail hides B place and disables top/resume until the library is refreshed', async () => {
+    const f = scopeFor('available', id(5));
+    const open = jest.fn();
+    const screen = await render(
+      <DisplayProvider value={{ width: 390, textScale: 1 }}>
+        <KeepDetail scope={f.scope} item={item} onBack={jest.fn()} onOpen={open} />
+      </DisplayProvider>,
+    );
+    try {
+      await screen.findByText(/saved place isn't available/);
+      expect(screen.queryByText('Paused at 0:31')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Resume saved place' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Start from the top' })).toBeDisabled();
+      await fireEvent.press(screen.getByRole('button', { name: 'Start from the top' }));
+      expect(open).not.toHaveBeenCalled();
     } finally {
       await screen.unmount();
       f.scope.end();

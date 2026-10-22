@@ -2,7 +2,7 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope, KeepPlaceState } from '@knowscroll/client-core';
-import type { ListSavedResponse } from '@knowscroll/contracts';
+import type { SavedItem } from './saved-query';
 import { spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Skeleton, Text } from '@knowscroll/ui';
 import { createKeepView, type AvailableKeep } from './keep-place-bridge';
@@ -56,13 +56,13 @@ export function KeepDetail({
   onOpen,
 }: {
   readonly scope: AccountScope;
-  readonly item: ListSavedResponse['items'][number];
+  readonly item: SavedItem;
   readonly onBack: () => void;
   readonly onOpen: (mode: 'resume' | 'top', snapshot?: AvailableKeep) => void;
 }) {
   const view = useMemo(
-    () => createKeepView(scope, { assetId: item.assetId, assetRevision: item.assetRevision }),
-    [scope, item.assetId, item.assetRevision],
+    () => createKeepView(scope, { assetId: item.assetId, assetRevision: item.assetRevision }, item.savedEntryId),
+    [scope, item.assetId, item.assetRevision, item.savedEntryId],
   );
   useFocusEffect(
     useCallback(() => {
@@ -110,7 +110,12 @@ export function KeepDetail({
         />
       ) : null}
       {item.availability !== 'withdrawn' ? (
-        <Button label="Start from the top" variant="ghost" onPress={() => onOpen('top')} />
+        <Button
+          label="Start from the top"
+          variant="ghost"
+          disabled={!snapshot || state.write !== 'idle'}
+          onPress={() => onOpen('top', snapshot)}
+        />
       ) : (
         <Banner kind="info" lead="This encounter was withdrawn." message="It can't be opened." />
       )}

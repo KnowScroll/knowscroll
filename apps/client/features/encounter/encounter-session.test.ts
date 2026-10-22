@@ -451,6 +451,7 @@ function keptFixture(kind: 'reel' | 'scroll' = 'reel') {
       ? { kind: 'reel' as const, positionMs: 12345.5 }
       : { kind: 'scroll' as const, blockId: block, offsetWithinBlock: 37.5 };
   let replaceOnDocument = false;
+  let unavailableSaved: { assetId: string; assetRevision: number } | undefined;
   let readGate: Promise<void> | undefined;
   const calls: { path: string; body: Record<string, unknown> }[] = [];
   const parsed = parseDocument({ ...scrollDocument, assetId: offer(0).assetId });
@@ -501,7 +502,17 @@ function keptFixture(kind: 'reel' | 'scroll' = 'reel') {
       };
       if (path.endsWith('/keep/read')) {
         await readGate;
-        return jsonFixture(snapshot());
+        return jsonFixture(
+          unavailableSaved
+            ? {
+                version: 'keep-place.v1',
+                scope: snapshot().scope,
+                target: unavailableSaved,
+                status: 'saved_unavailable',
+                entry: { ...unavailableSaved, savedEntryId: membership },
+              }
+            : snapshot(),
+        );
       }
       if (path.endsWith('/keep/place')) {
         const b = body as unknown as SetKeepPlace;
@@ -591,6 +602,9 @@ function keptFixture(kind: 'reel' | 'scroll' = 'reel') {
     chosen,
     calls,
     snapshot,
+    unavailableSaved: (value: { assetId: string; assetRevision: number }) => {
+      unavailableSaved = { assetId: value.assetId, assetRevision: value.assetRevision };
+    },
     setMembership: (value: string) => {
       membership = value;
     },
@@ -639,7 +653,7 @@ describe('explicit mounted Keep return and measured checkpoint', () => {
       }
     },
   );
-  it('blocks a replaced membership after activation before recorder start; explicit top reuses exact Work IDs', async () => {
+  it('blocks a replaced membership after activation and top cannot bypass the displayed membership', async () => {
     const f = keptFixture();
     const expected = f.snapshot();
     f.replaceOnDocument();
@@ -649,17 +663,96 @@ describe('explicit mounted Keep return and measured checkpoint', () => {
       await waitFor(() => expect(f.session.getState().phase).toBe('keep_blocked'));
       expect(f.session.getState().entry).toBeUndefined();
       expect(f.calls.filter((c) => c.path.includes('/observations/'))).toHaveLength(0);
+      const readsBeforeTop = f.calls.filter((c) => c.path.endsWith('/keep/read')).length;
       f.session.startKeepFromTop();
+      await waitFor(() =>
+        expect(f.calls.filter((c) => c.path.endsWith('/keep/read')).length).toBeGreaterThan(readsBeforeTop),
+      );
+      await waitFor(() => expect(f.session.getState().phase).toBe('keep_blocked'));
+      expect(f.session.getState().entry).toBeUndefined();
+      expect(f.calls.filter((c) => c.path.endsWith('/open'))).toHaveLength(1);
+      expect(f.calls.filter((c) => c.path.endsWith('/activate'))).toHaveLength(1);
+      expect(f.calls.filter((c) => c.path.endsWith('/keep/place'))).toHaveLength(0);
+    } finally {
+      f.scope.end();
+    }
+  });
+  it.each(['resume', 'top'] as const)('refuses selected A→B before a %s return issues Open', async (mode) => {
+    const f = keptFixture();
+    const expected = f.snapshot();
+    try {
+      f.setMembership(id(901));
+      f.session.setForeground(true);
+      expect(f.session.openKept(f.chosen, mode, mode === 'resume' ? expected : undefined, expected.entry)).toBe(true);
+      await waitFor(() => expect(f.session.getState().phase).toBe('keep_blocked'));
+      expect(f.calls.every((c) => c.path.endsWith('/keep/read'))).toBe(true);
+      expect(f.session.getState().entry).toBeUndefined();
+    } finally {
+      f.scope.end();
+    }
+  });
+  it('explicit updated TOP verifies unavailable old A, opens the chosen new revision and inherits no place', async () => {
+    const f = keptFixture();
+    const old = { assetId: f.chosen.assetId, assetRevision: 1, savedEntryId: id(900) };
+    f.unavailableSaved(old);
+    try {
+      f.session.setForeground(true);
+      expect(f.session.openKept(f.chosen, 'top', undefined, old)).toBe(true);
       await waitFor(() => expect(f.session.getState().phase).toBe('active'));
+      expect(f.calls.find((c) => c.path.endsWith('/open'))?.body.target).toEqual({
+        kind: 'return',
+        assetId: old.assetId,
+        assetRevision: f.chosen.assetRevision,
+      });
+      expect(f.calls.filter((c) => c.path.endsWith('/activate'))).toHaveLength(1);
       expect(f.session.getState().entry?.position).toEqual({
         kind: 'reel',
         positionMs: 0,
         playing: false,
         muted: false,
       });
-      expect(f.calls.filter((c) => c.path.endsWith('/open'))).toHaveLength(1);
-      expect(f.calls.filter((c) => c.path.endsWith('/activate'))).toHaveLength(1);
-      expect(f.calls.filter((c) => c.path.endsWith('/keep/place'))).toHaveLength(0);
+      expect(
+        f.calls
+          .filter((c) => c.path.endsWith('/keep/read'))
+          .every((c) => JSON.stringify(c.body.target) === JSON.stringify({ assetId: old.assetId, assetRevision: 1 })),
+      ).toBe(true);
+      expect(f.calls.some((c) => c.path.endsWith('/keep/place') || c.path.includes('/observations/'))).toBe(false);
+    } finally {
+      f.scope.end();
+    }
+  });
+  it('explicit updated TOP still refuses replacement B at the unavailable old ref before Open', async () => {
+    const f = keptFixture();
+    const old = { assetId: f.chosen.assetId, assetRevision: 1, savedEntryId: id(900) };
+    f.unavailableSaved(old);
+    f.setMembership(id(901));
+    try {
+      f.session.setForeground(true);
+      expect(f.session.openKept(f.chosen, 'top', undefined, old)).toBe(true);
+      await waitFor(() => expect(f.session.getState().phase).toBe('keep_blocked'));
+      expect(f.calls.every((c) => c.path.endsWith('/keep/read'))).toBe(true);
+      expect(f.session.getState().entry).toBeUndefined();
+    } finally {
+      f.scope.end();
+    }
+  });
+  it('Explore removal binds the displayed authoritative A and refuses a fresh replacement B', async () => {
+    const f = keptFixture();
+    try {
+      f.session.setForeground(true);
+      f.session.openKept(f.chosen, 'top');
+      await waitFor(() => expect(f.session.getState().phase).toBe('active'));
+      f.session.bindSurface(f.session.getState().entry!, {
+        capture: () => ({ kind: 'reel', positionMs: 0, playing: false, muted: false }),
+        pause: jest.fn(),
+      });
+      await waitFor(() => expect(f.session.getState().keepPlace?.snapshot?.status).toBe('available'));
+      expect(f.session.getState().keepPlace?.snapshot).toMatchObject({ entry: { savedEntryId: id(900) } });
+      f.setMembership(id(901));
+      f.session.act('unsave');
+      await waitFor(() => expect(f.session.getState().removal?.status).toBe('unavailable'));
+      expect(f.calls.some((c) => c.path.endsWith('/keep/remove') || c.path === '/v1/actions')).toBe(false);
+      expect(f.session.getState().removal).toMatchObject({ item: { savedEntryId: id(900) } });
     } finally {
       f.scope.end();
     }

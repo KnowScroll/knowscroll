@@ -11,6 +11,7 @@ import type {
   ApplyActionRequest,
   EncounterOffer,
   ExposureContextResponse,
+  KeepEntryRef,
   NavigateExperienceRequest,
   NavigationOutcome,
 } from '@knowscroll/contracts';
@@ -62,7 +63,7 @@ type OfferActivation = Extract<
   { sessionId: string }
 >;
 interface Work {
-  keep?: { mode: 'resume' | 'top'; expected?: AvailableKeep; handle?: KeepPlaceHandle };
+  keep?: { mode: 'resume' | 'top'; expected?: AvailableKeep; selected?: KeepEntryRef; handle?: KeepPlaceHandle };
   command: () => Promise<NavigationOutcome>;
   outcome?: NavigationOutcome;
   activateId: string;
@@ -313,10 +314,22 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     busy = true;
     const current = work;
     try {
-      if (current.keep?.mode === 'resume' && !current.outcome) {
-        const fresh = current.keep.handle && (await refreshKeep(scope, current.keep.handle));
+      if (current.keep && (current.keep.mode === 'resume' || current.keep.selected) && !current.outcome) {
+        const fresh =
+          current.keep.handle &&
+          (await (current.keep.mode === 'resume'
+            ? refreshKeep(scope, current.keep.handle)
+            : refreshKeep(scope, current.keep.handle, true)));
         if (!valid() || work !== current) return;
-        if (!fresh || !current.keep.expected || !sameKeep(fresh, current.keep.expected)) {
+        if (
+          !fresh ||
+          (current.keep.selected &&
+            (fresh.entry.assetId !== current.keep.selected.assetId ||
+              fresh.entry.assetRevision !== current.keep.selected.assetRevision ||
+              fresh.entry.savedEntryId !== current.keep.selected.savedEntryId)) ||
+          (current.keep.mode === 'resume' &&
+            (fresh.status !== 'available' || !current.keep.expected || !sameKeep(fresh, current.keep.expected)))
+        ) {
           publish({ phase: 'keep_blocked' });
           return;
         }
@@ -369,14 +382,29 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (current.keep) {
         await context(current.entry);
         if (!valid() || work !== current || !foreground) return;
-        if (current.keep.mode === 'resume') {
-          const fresh = current.keep.handle && (await refreshKeep(scope, current.keep.handle));
+        if (current.keep.mode === 'resume' || current.keep.selected) {
+          const fresh =
+            current.keep.handle &&
+            (await (current.keep.mode === 'resume'
+              ? refreshKeep(scope, current.keep.handle)
+              : refreshKeep(scope, current.keep.handle, true)));
           if (!valid() || work !== current) return;
-          if (!fresh || !current.keep.expected || !sameKeep(fresh, current.keep.expected)) {
+          if (
+            !fresh ||
+            (current.keep.selected &&
+              (fresh.entry.assetId !== current.keep.selected.assetId ||
+                fresh.entry.assetRevision !== current.keep.selected.assetRevision ||
+                fresh.entry.savedEntryId !== current.keep.selected.savedEntryId)) ||
+            (current.keep.mode === 'resume' &&
+              (fresh.status !== 'available' || !current.keep.expected || !sameKeep(fresh, current.keep.expected)))
+          ) {
             publish({ phase: 'keep_blocked' });
             return;
           }
-          current.entry.position = keepPositionFor(current.entry, fresh);
+          current.entry.position = keepPositionFor(
+            current.entry,
+            current.keep.mode === 'resume' && fresh.status === 'available' ? fresh : undefined,
+          );
         } else current.entry.position = keepPositionFor(current.entry);
         if (!current.entry.position) {
           publish({ phase: 'keep_blocked' });
@@ -560,7 +588,12 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       };
     },
     open,
-    openKept(target: { assetId: string; assetRevision: number }, mode: 'resume' | 'top', expected?: AvailableKeep) {
+    openKept(
+      target: { assetId: string; assetRevision: number },
+      mode: 'resume' | 'top',
+      expected?: AvailableKeep,
+      selected?: KeepEntryRef,
+    ) {
       if (!valid() || work || busy || actionRunning || action !== undefined) return false;
       if (
         mode === 'resume' &&
@@ -571,17 +604,28 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       )
         return false;
       const ref = { assetId: target.assetId, assetRevision: target.assetRevision };
-      const handle = mode === 'resume' ? keepBridgeFor(scope).retain(ref) : undefined;
-      if (mode === 'resume' && !handle) return false;
-      const accepted = open({ kind: 'return', ...ref }, { mode, expected, handle });
+      const membership = selected ?? expected?.entry;
+      if (membership && membership.assetId !== target.assetId) return false;
+      const handle =
+        mode === 'resume' || membership
+          ? keepBridgeFor(scope).retain({
+              assetId: membership?.assetId ?? ref.assetId,
+              assetRevision: membership?.assetRevision ?? ref.assetRevision,
+            })
+          : undefined;
+      if ((mode === 'resume' || membership) && !handle) return false;
+      const accepted = open({ kind: 'return', ...ref }, { mode, expected, selected: membership, handle });
       if (!accepted) handle?.release();
       return accepted;
     },
     startKeepFromTop() {
       if (!valid() || !work?.keep || busy || state.phase !== 'keep_blocked') return;
       work.keep.mode = 'top';
-      work.keep.handle?.release();
-      work.keep.handle = undefined;
+      // Starting at the top changes position choice, never the displayed membership binding.
+      if (!work.keep.selected) {
+        work.keep.handle?.release();
+        work.keep.handle = undefined;
+      }
       void run();
     },
     leaveKeep() {
@@ -786,7 +830,16 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (!entry || actionRunning || work || !valid()) return;
       if (kind === 'unsave') {
         if (action) return;
+        const displayed = state.keepPlace?.snapshot;
+        const savedEntryId =
+          displayed &&
+          displayed.status !== 'not_saved' &&
+          displayed.entry.assetId === entry.offer.assetId &&
+          displayed.entry.assetRevision === entry.offer.assetRevision
+            ? displayed.entry.savedEntryId
+            : undefined;
         void removal.prepare({
+          savedEntryId,
           assetId: entry.offer.assetId,
           assetRevision: entry.offer.assetRevision,
           metadata: entry.offer.metadata,

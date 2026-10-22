@@ -9,6 +9,7 @@ import type { EncounterEntry, PrivatePosition } from '../encounter/encounter-his
 import { newCommandId } from '../../platform/command-id';
 
 export type AvailableKeep = Extract<KeepEntrySnapshot, { status: 'available' }>;
+type SavedMembership = Exclude<KeepEntrySnapshot, { status: 'not_saved' }>;
 const loading: KeepPlaceState = Object.freeze({ status: 'loading', write: 'idle' });
 const ended: KeepPlaceState = Object.freeze({ status: 'ended', write: 'idle' });
 const unavailable: KeepPlaceState = Object.freeze({
@@ -64,17 +65,33 @@ export function keepBridgeFor(scope: AccountScope) {
 }
 
 /** Mount ownership is acquired in an effect, so StrictMode can release/reacquire the same view. */
-export function createKeepView(scope: AccountScope, target: KeepAssetRef) {
+export function createKeepView(scope: AccountScope, target: KeepAssetRef, savedEntryId?: string) {
   let handle: KeepPlaceHandle | undefined;
   let off: (() => void) | undefined;
   let endOff: (() => void) | undefined;
   let refused = false;
   const listeners = new Set<() => void>();
+  const boundState = () => {
+    if (!scope.active) return ended;
+    const state = handle?.getState() ?? (refused ? unavailable : loading);
+    const snapshot = state.snapshot;
+    // A new membership for the same asset is not the membership displayed by this card/detail.
+    if (
+      savedEntryId &&
+      snapshot &&
+      (snapshot.status === 'not_saved' ||
+        snapshot.entry.savedEntryId !== savedEntryId ||
+        snapshot.entry.assetId !== target.assetId ||
+        snapshot.entry.assetRevision !== target.assetRevision)
+    )
+      return unavailable;
+    return state;
+  };
   const emit = () => {
     for (const listener of [...listeners]) listener();
   };
   return {
-    getState: () => (!scope.active ? ended : (handle?.getState() ?? (refused ? unavailable : loading))),
+    getState: boundState,
     subscribe(this: void, listener: () => void) {
       listeners.add(listener);
       return () => {
@@ -105,19 +122,30 @@ export function createKeepView(scope: AccountScope, target: KeepAssetRef) {
       emit();
     },
     refresh: () => handle?.refresh(),
-    retry: () => handle?.retry() ?? false,
-    resolveConflict: (choice: 'server' | 'candidate') => handle?.resolveConflict(choice) ?? false,
+    retry: () => boundState() !== unavailable && (handle?.retry() ?? false),
+    resolveConflict: (choice: 'server' | 'candidate') =>
+      boundState() !== unavailable && (handle?.resolveConflict(choice) ?? false),
   };
 }
 
 /** A later authoritative read, never ACK state. Scope end/release/deadline cancels the wait. */
-export function refreshKeep(scope: AccountScope, handle: KeepPlaceHandle): Promise<AvailableKeep> {
+export function refreshKeep(scope: AccountScope, handle: KeepPlaceHandle): Promise<AvailableKeep>;
+export function refreshKeep(
+  scope: AccountScope,
+  handle: KeepPlaceHandle,
+  membershipOnly: true,
+): Promise<SavedMembership>;
+export function refreshKeep(
+  scope: AccountScope,
+  handle: KeepPlaceHandle,
+  membershipOnly = false,
+): Promise<SavedMembership> {
   const prior = handle.getState().snapshot;
   return new Promise((resolve, reject) => {
     let finished = false;
     const cleanups: (() => void)[] = [];
     const timer = setTimeout(() => finish(), 8000);
-    const finish = (snapshot?: AvailableKeep) => {
+    const finish = (snapshot?: SavedMembership) => {
       if (finished) return;
       finished = true;
       clearTimeout(timer);
@@ -132,7 +160,12 @@ export function refreshKeep(scope: AccountScope, handle: KeepPlaceHandle): Promi
         return;
       }
       if (state.status === 'ready' && state.snapshot !== prior) {
-        if (state.snapshot?.status === 'available') finish(state.snapshot);
+        // Corrected/withdrawn old memberships may still fence an explicit TOP choice; they grant no position.
+        if (
+          state.snapshot?.status === 'available' ||
+          (membershipOnly && state.snapshot?.status === 'saved_unavailable')
+        )
+          finish(state.snapshot);
         else finish();
       }
     };

@@ -149,8 +149,16 @@ async function encounterFixture(page: Page, kind: 'scroll' | 'reel') {
       return;
     }
     if (path === '/v1/saved') {
+      const url = new URL(request.url());
       await route.fulfill({
         json: {
+          pagination: 'saved-page.v1',
+          consistency: 'live',
+          filter: url.searchParams.get('filter'),
+          limit: 20,
+          scope: { accountId: id(1), privacyEpoch: 1 },
+          ...(url.searchParams.has('cursor') ? { requestCursor: url.searchParams.get('cursor') } : {}),
+          continuation: { status: 'end' },
           revision: 1,
           items: saved
             ? [
@@ -158,12 +166,8 @@ async function encounterFixture(page: Page, kind: 'scroll' | 'reel') {
                   assetId: id(990),
                   assetRevision: 2,
                   savedAt: '2026-10-20T10:00:00.000Z',
-                  metadata: {
-                    kind: 'reel',
-                    title: 'Withdrawn CI fixture',
-                    summary: 'HTTP fixture only',
-                    language: 'en',
-                  },
+                  savedEntryId: id(992),
+                  kind: 'reel',
                   availability: 'withdrawn',
                 },
               ]
@@ -245,7 +249,7 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
   await expect(page.getByRole('heading', { name: 'Your path', exact: true })).not.toBeVisible();
   expect(commands).toHaveLength(count);
   await page.getByRole('link', { name: 'Keep', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Withdrawn CI fixture' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved encounter' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open saved encounter' })).toHaveCount(0);
   // Freeze authored test time before the grace starts, so browser/network assertion latency
   // cannot consume any of the exact 4,999 ms + 1 ms boundary below.
@@ -257,7 +261,7 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
   await page.getByRole('button', { name: 'Undo removal' }).click();
   await page.clock.fastForward(5000);
   expect(commands.filter((call) => call.path.endsWith('/keep/remove'))).toHaveLength(0);
-  await expect(page.getByRole('heading', { name: 'Withdrawn CI fixture' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved encounter' })).toBeVisible();
   await page.getByRole('button', { name: 'Remove from Keep' }).click();
   await expect(page.getByRole('button', { name: 'Undo removal' })).toBeVisible();
   await page.clock.fastForward(4999);
@@ -324,4 +328,92 @@ test('the full Reel stage commits vertical and related swipes; dragging a player
     mode: 'related',
     expectedContinuation: { linkId: id(801), assetId: id(302), assetRevision: document.revision },
   });
+});
+
+// Authored paged transport over the actual exported Keep UI. No live account/library data.
+test('Keep traverses beyond one hundred items, revisits a page, resets filters and continues an empty live page', async ({
+  page,
+}) => {
+  await encounterFixture(page, 'reel');
+  const requests: URL[] = [];
+  const cursorFor = (n: number) => `ksp1_${'a'.repeat(43)}${String(n).padStart(4, '0')}`;
+  await page.route('**/v1/saved*', async (route) => {
+    const url = new URL(route.request().url());
+    requests.push(url);
+    const filter = url.searchParams.get('filter');
+    const cursor = url.searchParams.get('cursor');
+    const start = cursor ? Number(cursor.slice(-4)) : 0;
+    const empty = filter === 'reel' && !cursor;
+    await route.fulfill({
+      json: {
+        pagination: 'saved-page.v1',
+        consistency: 'live',
+        scope: { accountId: id(1), privacyEpoch: 1 },
+        filter,
+        limit: 20,
+        ...(cursor ? { requestCursor: cursor } : {}),
+        revision: 2,
+        items: empty
+          ? []
+          : Array.from({ length: 20 }, (_, offset) => ({
+              assetId: id(2000 + start + offset),
+              assetRevision: 1,
+              savedEntryId: id(4000 + start + offset),
+              savedAt: '2026-10-22T00:00:00.000Z',
+              kind: 'reel',
+              availability: 'available',
+              metadata: {
+                kind: 'reel',
+                title: `Paged CI fixture ${start + offset + 1}`,
+                summary: 'Authored paged fixture only',
+                language: 'en',
+              },
+            })),
+        continuation:
+          start + 20 < (filter === 'reel' ? 40 : 160)
+            ? { status: 'more', cursor: cursorFor(start + 20) }
+            : { status: 'end' },
+      },
+    });
+  });
+  await page.route('**/v1/experience/keep/read', async (route) => {
+    const { target } = route.request().postDataJSON() as { target: { assetId: string; assetRevision: number } };
+    await route.fulfill({
+      json: {
+        version: 'keep-place.v1',
+        scope: { accountId: id(1), privacyEpoch: 1 },
+        target,
+        status: 'available',
+        entry: { ...target, savedEntryId: id(Number(target.assetId.slice(-12)) + 2000) },
+        place: { status: 'none', placeRevision: 0 },
+      },
+    });
+  });
+  await page.goto('/saved');
+  await expect(page.getByRole('heading', { name: 'Paged CI fixture 1', exact: true })).toBeVisible();
+  for (let start = 20; start < 160; start += 20) {
+    await page.getByRole('button', { name: 'Next 20 saved encounters', exact: true }).click();
+    await expect(page.getByRole('heading', { name: `Paged CI fixture ${start + 1}`, exact: true })).toBeVisible();
+    await expect(page.getByTestId('saved-encounter-card')).toHaveCount(20);
+    await expect(page.getByRole('heading', { name: 'Paged CI fixture 1', exact: true })).toHaveCount(0);
+  }
+  await expect(page.getByRole('button', { name: 'Next 20 saved encounters', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Previous 20 saved encounters', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Paged CI fixture 121', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Reels', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
+  await expect(page.getByText('Nothing kept yet', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Previous 20 saved encounters', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Paged CI fixture 21', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh Keep', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'All', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Paged CI fixture 1', exact: true })).toBeVisible();
+  expect(
+    requests.every(
+      (url) => url.searchParams.get('pagination') === 'saved-page.v1' && url.searchParams.get('limit') === '20',
+    ),
+  ).toBe(true);
+  expect(requests.at(-1)?.searchParams.get('cursor')).toBeNull();
 });
