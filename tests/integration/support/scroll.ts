@@ -1,4 +1,8 @@
-import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
+import {
+  FENCE_OWN_ACCOUNT,
+  FENCE_PERSONAL_RECORDING,
+  READ_RECORDING_LIFECYCLE,
+} from '@knowscroll/backend/modules/identity';
 import {
   accountAccessUseCases,
   identityScopeOwnerProviders,
@@ -172,21 +176,31 @@ export async function scrollUseCases(
   await boss.start();
   const enqueue = makeEnqueueJob(boss);
   const scope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+  const identity = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 });
+  const experienceReads = experienceEvidenceReadProviders();
+  const experienceReadFactories = experienceReads.filter(
+    (provider): provider is Extract<typeof provider, { useFactory: unknown }> =>
+      typeof provider.useFactory === 'function',
+  );
   const values = new Map<symbol, unknown>([
     [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
-    [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
+    [FENCE_OWN_ACCOUNT, identity.fenceOwnAccount],
+    [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
     [DATABASE, database.db],
     [SCOPE, options.wrapScope ? options.wrapScope(scope) : scope],
     [ENQUEUE, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],
     ...(options.activityDerived ? [[ACTIVITY_CONTEXT_EFFECT, options.activityDerived] as [symbol, unknown]] : []),
     ...identityScopeOwnerProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),
-    ...experienceEvidenceReadProviders().map((provider) => [provider.provide, provider.useValue] as const),
+    ...experienceReads.flatMap((provider) =>
+      provider.useValue === undefined ? [] : [[provider.provide, provider.useValue] as const],
+    ),
   ]);
   values.set(RENDER_SCROLL, buildFromProviders(contentRenderProviders({ database: DATABASE }), RENDER_SCROLL, values));
   const composer = composerProviders({ isOperator: () => false });
   for (const p of composer) values.set(p.provide, p.useValue);
   const providers = [
+    ...experienceReadFactories,
     ...sceneAppliedProviders({ enqueueJob: ENQUEUE }),
     ...plannerRequestProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
     ...geographyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),

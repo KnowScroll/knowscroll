@@ -1,4 +1,5 @@
 import { SocialController } from './http/social.controller.js';
+import { RecordingController } from './http/recording.controller.js';
 import { FormationController } from './http/formation.controller.js';
 import { KeepRemoveController } from './http/keep-remove.controller.js';
 import { RegionEncounterController } from './http/region-encounter.controller.js';
@@ -22,6 +23,7 @@ export const apiControllers = [
   AuthController,
   ExperienceController,
   ObservationsController,
+  RecordingController,
   MediaController,
   SupplyController,
   GeographyController,

@@ -1,7 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { createBoss } from '@knowscroll/backend/infrastructure/jobs';
-import { eraseExploration } from '@knowscroll/backend/infrastructure/erasure';
-import { explorationStores } from '@knowscroll/backend/erasure-registry';
+import { eraseCurrentExploration } from '@knowscroll/backend/erasure-registry';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { clearExplorationFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
@@ -20,7 +19,7 @@ export function privacyWiring(lockTimeoutMs: number) {
         clearExplorationFor(db, boss, {
           reasoning: clearReasoning,
           eraseCore: async (scope) => {
-            await eraseExploration(scope, explorationStores);
+            await eraseCurrentExploration(scope);
           },
           lockTimeoutMs,
         }),

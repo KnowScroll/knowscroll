@@ -1,4 +1,4 @@
-import { FENCE_OWN_ACCOUNT } from '@knowscroll/backend/modules/identity';
+import { FENCE_OWN_ACCOUNT, READ_RECORDING_LIFECYCLE } from '@knowscroll/backend/modules/identity';
 import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import type { PgBoss } from 'pg-boss';
 import { createBoss, makeEnqueueJob, type EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
@@ -29,13 +29,20 @@ export async function experienceUseCases(
       recording: true,
       ...(options.wrapEnqueue ? { wrapEnqueue: options.wrapEnqueue } : {}),
     });
-    return { applyAction: actual.applyAction, listSaved: actual.listSaved, boss: actual.boss, close: actual.close };
+    return {
+      applyAction: actual.applyAction,
+      listSaved: actual.listSaved,
+      boss: actual.boss,
+      close: () => actual.close(),
+    };
   }
   const boss = createBoss(database.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
   await boss.start();
   const enqueue = makeEnqueueJob(boss);
+  const identity = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 });
   const values = new Map<symbol, unknown>([
-    [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
+    [FENCE_OWN_ACCOUNT, identity.fenceOwnAccount],
+    [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
     [DATABASE_TOKEN, database.db],
     [SCOPE_TOKEN, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
     [ENQUEUE_TOKEN, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],

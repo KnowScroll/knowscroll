@@ -65,6 +65,32 @@ backend output fails closed before success logging. These adapters and authored 
 fixtures establish source behavior only; complete production wiring, Actions and real
 recording journeys remain separate gates.
 
+## Recording control composition (#381)
+
+`POST /v1/privacy/recording/read` and `POST /v1/privacy/recording/set` mount the
+Identity-owned current-policy and immutable-command ports. Both use the existing
+Origin/session/current-scope guard. Read replies correlate the initiating read ID,
+target and account/epoch. Set replies correlate the exact original command, requested
+epoch, expected generation and requested boolean; an old replay acknowledgement is
+historical and never replaces an independently current policy snapshot. No provider or
+worker call occurs in either handler.
+
+These two controls and `/v1/observations/recording-batch` select a closed recording
+problem family and private/no-store caching before body parsing or authentication.
+Validation replies retain only fixed protocol tokens; numeric event indices, unknown
+keys, received values, arbitrary extensions and another family's privileged stale
+metadata are discarded. This serializer selection grants no scope exemption.
+
+The API selects the real required Experience recording effects for direct actions,
+navigation, activation and exact Keep removal. Evidence uses the real PC-owned derived
+effect and forwards the same original-generation capability to both Planner and
+Geography material owners. The actual lifecycle reader and owning-account barrier
+remain Identity-owned. Clear's existing factory binds the sealed current-registry
+eraser, while HTTP still only accepts/reads the durable operation. Complete worker
+wiring, hosted positive/negative composition, client controls and deployed journeys
+remain separate acceptance requirements. No source change toggles owner recording or
+authorizes a paid attempt.
+
 ## Media access (S2.4)
 
 Optional `KS_MEDIA_ROOT` enables local media delivery. The API never reads Cutroom settings/calls it.

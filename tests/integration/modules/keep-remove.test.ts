@@ -66,6 +66,7 @@ describe('exact Saved membership removal (real scoped PG/pg-boss)', () => {
     keepRemovalUseCase({
       withScope: makeWithPersonalScope(db, { lockTimeoutMs: 10000 }),
       fenceOwn: accountAccessUseCases({ db, lockTimeoutMs: 10000 }).fenceOwnAccount,
+      lifecycle: accountAccessUseCases({ db, lockTimeoutMs: 10000 }).readRecordingLifecycle,
       enqueue: makeEnqueueJob(c.boss),
       ...overrides,
     });
@@ -543,6 +544,7 @@ describe('exact Saved membership removal (real scoped PG/pg-boss)', () => {
     const call = keepRemovalUseCase({
       withScope: makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 }),
       fenceOwn: accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount,
+      lifecycle: accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).readRecordingLifecycle,
       enqueue: async (...args) => {
         await real(...args);
         throw new Error('CI_AFTER_JOB');
@@ -559,6 +561,7 @@ describe('exact Saved membership removal (real scoped PG/pg-boss)', () => {
     const call = keepRemovalUseCase({
       withScope: makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 }),
       fenceOwn: accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount,
+      lifecycle: accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).readRecordingLifecycle,
       enqueue: async (...args) => {
         await real(...args);
         if (++count === failAt) throw new Error('CI_ATTRIBUTED_JOB_ROLLBACK');
