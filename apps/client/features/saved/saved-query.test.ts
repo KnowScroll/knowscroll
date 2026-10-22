@@ -1,7 +1,7 @@
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { waitFor } from '@testing-library/react-native';
 import { problemDetails, type SavedPageResponse, type RemoveKeepEntry } from '@knowscroll/contracts';
-import { createSavedPages, createSavedRemoval, savedQueryOptions, REMOVE_GRACE_MS } from './saved-query';
+import { createSavedPages, savedPagesFor, createSavedRemoval, savedQueryOptions, REMOVE_GRACE_MS } from './saved-query';
 
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
@@ -342,6 +342,41 @@ describe('live Saved page admission and bounded traversal', () => {
     } finally {
       f.pages.stop();
       f.scope.end();
+    }
+  });
+  it('route remount reuses the one bounded scope traversal, while identical-text new scopes start empty', async () => {
+    const first = pageFixture();
+    const other = pageFixture();
+    const pages = savedPagesFor(first.scope);
+    try {
+      pages.start();
+      await waitFor(() => expect(pages.getState().status).toBe('ready'));
+      pages.next();
+      await waitFor(() => expect(pages.getState().page?.items[0]?.assetId).toBe(id(101)));
+      pages.select(pages.getState().page?.items[0]);
+      pages.stop();
+      expect(pages.getState().page).toBeUndefined();
+      expect(pages.getState().selected).toBeUndefined();
+      expect(first.scope.queryClient.getQueryCache().getAll()).toHaveLength(0);
+      const remounted = savedPagesFor(first.scope);
+      expect(remounted).toBe(pages);
+      remounted.start();
+      await waitFor(() => expect(remounted.getState().page?.items[0]?.assetId).toBe(id(101)));
+      expect(first.requests.at(-1)?.searchParams.get('cursor')).toBe(cursorFor(1));
+      first.scope.end();
+      expect(remounted.getState().status).toBe('ended');
+      expect(remounted.getState().page).toBeUndefined();
+      expect(other.scope.id).toBe(first.scope.id);
+      const replacement = savedPagesFor(other.scope);
+      expect(replacement).not.toBe(remounted);
+      replacement.start();
+      await waitFor(() => expect(replacement.getState().page?.items[0]?.assetId).toBe(id(100)));
+      expect(replacement.getState().canPrevious).toBe(false);
+      expect(other.requests.at(-1)?.searchParams.get('cursor')).toBeNull();
+    } finally {
+      pages.stop();
+      first.scope.end();
+      other.scope.end();
     }
   });
   it.each(['legacy', 'account', 'epoch', 'filter', 'limit', 'cursor'] as const)(

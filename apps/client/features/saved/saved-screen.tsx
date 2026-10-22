@@ -13,10 +13,10 @@ import { EmptyKeepScreen } from './empty-keep-screen';
 import { KeptSavedCard } from './saved-card';
 import { KeepDetail } from './keep-detail';
 import type { AvailableKeep } from './keep-place-bridge';
-import { savedRemovalFor, createSavedPages, type SavedItem } from './saved-query';
+import { savedRemovalFor, savedPagesFor, type SavedItem } from './saved-query';
 
 export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
-  const pages = useMemo(() => createSavedPages(scope), [scope]);
+  const pages = useMemo(() => savedPagesFor(scope), [scope]);
   useFocusEffect(
     useCallback(() => {
       pages.start();

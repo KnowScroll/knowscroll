@@ -198,6 +198,16 @@ export function createSavedPages(scope: AccountScope) {
     },
   };
 }
+const pageSessions = new WeakMap<AccountScope, ReturnType<typeof createSavedPages>>();
+/** Repeated route mounts share the same bounded scope resource, never another history allocation. */
+export function savedPagesFor(scope: AccountScope) {
+  let pages = pageSessions.get(scope);
+  if (!pages) {
+    pages = createSavedPages(scope);
+    pageSessions.set(scope, pages);
+  }
+  return pages;
+}
 type Item = Pick<SavedItem, 'assetId' | 'assetRevision'> & Partial<Pick<SavedItem, 'metadata' | 'savedEntryId'>>;
 export type SavedRemovalState =
   | { readonly status: 'idle' | 'ended' }
