@@ -1062,7 +1062,7 @@ describe('durable selective Clear', () => {
     const p = await seedPerson(db()),
       input = body();
     await cases().start(authority(p), input);
-    await expect(custom({ eraseCore: async () => undefined }).process(job(p, input.commandId))).rejects.toThrow(
+    await expect(custom({ eraseCore: () => Promise.resolve() }).process(job(p, input.commandId))).rejects.toThrow(
       'CLEAR_REMOVAL_UNVERIFIED',
     );
     const omitted = explorationStores.filter((d) => d.module !== 'experience');
