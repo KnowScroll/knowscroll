@@ -98,3 +98,5 @@ export {
 } from './keep-place';
 
 export { PRIVACY_CLEAR_ACKNOWLEDGEMENT, type PrivacyClearState, type PrivacyClearSession } from './privacy-clear';
+
+export { createRegionPreviewSession, type RegionPreviewState, type AvailableRegionPreview } from './region-preview';
