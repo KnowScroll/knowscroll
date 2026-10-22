@@ -2,7 +2,22 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { InteractionEvent } from '@knowscroll/contracts';
-import { type Database, makeWithPersonalScope, transactionOf } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  type Database,
+  makeWithPersonalScope,
+  fencePersonalRecording,
+  transactionOf,
+} from '@knowscroll/backend/infrastructure/postgres';
+import {
+  FENCE_OWN_ACCOUNT,
+  FENCE_PERSONAL_RECORDING,
+  type RecordingScopeTx,
+} from '@knowscroll/backend/modules/identity';
+import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
+import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
+import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
+import { ACTIVITY_PORTS, activityProviders } from '@knowscroll/backend/modules/evidence/nest-providers';
+import { buildFromProviders } from '../support/providers.js';
 import { recordingPolicyFor, accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import {
   ApplyActionEvidencePayloadSchema,
@@ -322,6 +337,63 @@ describe('recording Evidence intake and queued provenance', () => {
       release.open();
       await Promise.allSettled([holding, ...(pending ? [pending] : [])]);
     }
+  });
+  it('executes the real qualification adapter against created_at and excludes audits before descriptor initialization', async () => {
+    const { person, exposure } = await reader();
+    await legacy(person, [event(exposure, dwell([0, 1000]))]);
+    const projected = await useCases.projectScrollReading({
+      v: 1,
+      universeId: person.universeId,
+      privacyEpoch: 1,
+      exposureId: exposure.exposureId,
+    });
+    expect(projected).toMatchObject({ kind: 'applied', revision: 1 });
+    if (projected.kind !== 'applied') throw new Error('CI qualification fixture failed');
+    const SCOPE = Symbol('CI.actualScope'),
+      ENQUEUE = Symbol('CI.actualEnqueue');
+    const own = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount;
+    const values = new Map<symbol, unknown>([
+      [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
+      [ENQUEUE, makeEnqueueJob(useCases.boss)],
+      [FENCE_OWN_ACCOUNT, own],
+      [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
+      ...contentProviders().map((p) => [p.provide, p.useValue] as const),
+      ...experienceEvidenceReadProviders().map((p) => [p.provide, p.useValue] as const),
+    ]);
+    const ports = buildFromProviders(
+      activityProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
+      ACTIVITY_PORTS,
+      values,
+    ) as {
+      readQualification(
+        cap: RecordingScopeTx,
+        id: string,
+        domain: 'legacy',
+        initializedAt: string,
+      ): Promise<{ id: string; recordingGeneration: number; revision: number } | undefined>;
+    };
+    const before = await snapshot(person.universeId);
+    const result = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(
+      person.authority,
+      async (scope) => {
+        expect((await own(scope)).kind).toBe('active');
+        const gate = await fencePersonalRecording(scope, 1);
+        if (gate.kind !== 'recording') throw new Error('CI genuine recording scope failed');
+        expect(
+          await ports.readQualification(gate.scope, exposure.exposureId, 'legacy', '2000-01-01T00:00:00.000Z'),
+        ).toMatchObject({ id: projected.evidenceId, recordingGeneration: 1, revision: 1 });
+        expect(
+          await ports.readQualification(
+            gate.scope,
+            exposure.exposureId,
+            'legacy',
+            new Date(Date.now() + 60000).toISOString(),
+          ),
+        ).toBeUndefined();
+      },
+    );
+    expect(result.kind).toBe('entered');
+    expect(await snapshot(person.universeId)).toEqual(before);
   });
   it('keeps queue schemas as objects with inventory fields and rejects stripped or missing original generations', () => {
     const shared = { universeId: randomUUID(), privacyEpoch: 1 };
