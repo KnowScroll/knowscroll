@@ -81,8 +81,8 @@ immutable settlement receipt to establish claim closure.
 Source ships no corpus, human approval, principal, allowance, actual preflight, credential, root
 seed or runtime activation. Pool0004 installation/provenance/ACL and actual funds/sole-writer
 preflight remain separately reviewed Root operations. Old0014 imports and retained scripts are
-unchanged. CF62 cross-world0c receive is unimplemented and cannot order or settle the original
-claim. Actions synthetic worker/media journeys establish fixture behavior only, never paid
+unchanged. CF62 cross-world0c receiving uses the separate default-disabled target root described
+below; it cannot order or settle the original claim. Actions synthetic worker/media journeys establish fixture behavior only, never paid
 provider or real installed-profile acceptance.
 
 Bootstrap metadata is separate from human approval: trusted setup permits empty approval
