@@ -92,3 +92,7 @@ pending count. An ID absent from that capped array is not proof of absence or sa
 consumer unable to confirm its exact hold must retain blocked/unknown state, not regenerate a
 report, settle, release or authorize another send. Evidence-only reporting still retains every
 truthful report and existing conservative totals consider them all.
+
+Function-definition provenance uses `pg_get_functiondef` with the query search path explicitly
+set to `pg_catalog, public, pg_temp`, so visible type-name deparsing is reproducible. This query
+context does not change the function's own fixed `pg_catalog, pg_temp` security path.

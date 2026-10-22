@@ -244,6 +244,9 @@ describe('evidence-only global holds over the unchanged pool prefix (real dispos
   it('adds only the owner-only definer, preserves every prefix function/table, and exports fixture provenance', async () => {
     expect(await tableSnapshot()).toEqual(beforeInstall);
     expect((await functionSnapshot()).rows).toEqual(functionsBefore);
+    // pg_get_functiondef's type-name deparsing uses the query's visible schemas.
+    // Publish a reproducible consumer pin in this explicit canonical read context.
+    await owner.query('begin; set local search_path=pg_catalog,public,pg_temp');
     const metadata = await one<{ definition: string; safe: boolean; definer: boolean; owner_only: boolean }>(
       owner,
       `select pg_get_functiondef(p.oid) as definition,
@@ -252,6 +255,7 @@ describe('evidence-only global holds over the unchanged pool prefix (real dispos
       from pg_proc p where p.oid=$1::regprocedure`,
       [signature],
     );
+    await owner.query('commit');
     expect(metadata).toMatchObject({ safe: true, definer: true, owner_only: true });
     expect(metadata.definition).not.toContain('pool_v2_settle_core');
     expect(metadata.definition).not.toMatch(/\b(?:update|delete\s+from)\s+public\./i);
@@ -259,6 +263,7 @@ describe('evidence-only global holds over the unchanged pool prefix (real dispos
       JSON.stringify({
         label: 'Actions disposable PG function provenance only',
         function: signature,
+        definition_search_path: 'pg_catalog, public, pg_temp',
         definition_sha256: hash(metadata.definition),
         migration_sha256: hash(forward),
       }) + '\n',
