@@ -1,6 +1,6 @@
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { waitFor } from '@testing-library/react-native';
-import type { SavedPageResponse, RemoveKeepEntry } from '@knowscroll/contracts';
+import { problemDetails, type SavedPageResponse, type RemoveKeepEntry } from '@knowscroll/contracts';
 import { createSavedPages, createSavedRemoval, savedQueryOptions, REMOVE_GRACE_MS } from './saved-query';
 
 const json = (value: unknown, status = 200) =>
@@ -44,7 +44,7 @@ function fixture() {
         });
       bodies.push(body);
       if (fail) throw new Error('Unknown acknowledgement fixture');
-      if (rejection) return json({ code: 'UNAUTHORIZED', message: 'Authored refused retry' }, rejection);
+      if (rejection) return json(problemDetails(rejection === 403 ? 'FORBIDDEN' : 'UNAUTHENTICATED'), rejection);
       return json({
         version: 'keep-remove.v1',
         scope: scopeRef,
@@ -190,10 +190,10 @@ describe('exact Saved removal and cancellable grace', () => {
       f.scope.end();
     }
   });
-  it('a first definitive 401 refusal is unavailable without claiming a removal', async () => {
+  it.each([401, 403])('a first definitive %s refusal is unavailable without claiming a removal', async (status) => {
     const f = fixture();
     try {
-      f.reject(401);
+      f.reject(status);
       await f.remove.prepare(item);
       await jest.advanceTimersByTimeAsync(REMOVE_GRACE_MS);
       await waitFor(() => expect(f.remove.getState().status).toBe('unavailable'));
@@ -203,39 +203,42 @@ describe('exact Saved removal and cancellable grace', () => {
       f.scope.end();
     }
   });
-  it('unknown A → 401 retry keeps exact recovery until historical A ACK, with replacement B present', async () => {
-    const f = fixture();
-    try {
-      f.fail(true);
-      await f.remove.prepare(item);
-      await jest.advanceTimersByTimeAsync(REMOVE_GRACE_MS);
-      await waitFor(() => expect(f.remove.getState().status).toBe('unknown'));
-      f.replace();
-      const replacement = { ...item, savedEntryId: id(5) };
-      f.scope.queryClient.setQueryData(f.scope.queryKey('saved'), { revision: 2, items: [replacement] });
-      f.fail(false);
-      f.reject(401);
-      expect(f.remove.retry()).toBe(true);
-      await waitFor(() => expect(f.bodies).toHaveLength(2));
-      await waitFor(() => expect(f.remove.getState().status).toBe('unknown'));
-      expect(await f.remove.prepare(replacement)).toBe(false);
-      expect(f.remove.undo()).toBe(false);
-      expect(f.newId).toHaveBeenCalledTimes(1);
-      f.reject();
-      expect(f.remove.retry()).toBe(true);
-      await waitFor(() => expect(f.remove.getState().status).toBe('confirmed'));
-      expect(f.bodies).toEqual([f.bodies[0], f.bodies[0], f.bodies[0]]);
-      expect(f.bodies[0]?.entry.savedEntryId).toBe(id(4));
-      expect(f.newId).toHaveBeenCalledTimes(1);
-      expect(f.scope.queryClient.getQueryData(f.scope.queryKey('saved'))).toEqual({
-        revision: 2,
-        items: [replacement],
-      });
-      expect(f.paths.every((path) => path.includes('/keep/'))).toBe(true);
-    } finally {
-      f.scope.end();
-    }
-  });
+  it.each([401, 403])(
+    'unknown A → %s retry keeps exact recovery until historical A ACK, with replacement B present',
+    async (status) => {
+      const f = fixture();
+      try {
+        f.fail(true);
+        await f.remove.prepare(item);
+        await jest.advanceTimersByTimeAsync(REMOVE_GRACE_MS);
+        await waitFor(() => expect(f.remove.getState().status).toBe('unknown'));
+        f.replace();
+        const replacement = { ...item, savedEntryId: id(5) };
+        f.scope.queryClient.setQueryData(f.scope.queryKey('saved'), { revision: 2, items: [replacement] });
+        f.fail(false);
+        f.reject(status);
+        expect(f.remove.retry()).toBe(true);
+        await waitFor(() => expect(f.bodies).toHaveLength(2));
+        await waitFor(() => expect(f.remove.getState().status).toBe('unknown'));
+        expect(await f.remove.prepare(replacement)).toBe(false);
+        expect(f.remove.undo()).toBe(false);
+        expect(f.newId).toHaveBeenCalledTimes(1);
+        f.reject();
+        expect(f.remove.retry()).toBe(true);
+        await waitFor(() => expect(f.remove.getState().status).toBe('confirmed'));
+        expect(f.bodies).toEqual([f.bodies[0], f.bodies[0], f.bodies[0]]);
+        expect(f.bodies[0]?.entry.savedEntryId).toBe(id(4));
+        expect(f.newId).toHaveBeenCalledTimes(1);
+        expect(f.scope.queryClient.getQueryData(f.scope.queryKey('saved'))).toEqual({
+          revision: 2,
+          items: [replacement],
+        });
+        expect(f.paths.every((path) => path.includes('/keep/'))).toBe(true);
+      } finally {
+        f.scope.end();
+      }
+    },
+  );
   it('scope end cancels grace, clears private state and fences late abort-ignoring reads', async () => {
     const f = fixture();
     let release!: () => void;
