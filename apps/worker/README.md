@@ -14,7 +14,14 @@ Identity bounds each recovery wave, rechecks exact operation authority and live 
 and commits the recovery marker with its fixed-queue wake. Completed operations can recover
 only their due exact-set accounting cleanup; they never reacquire core-removal authority.
 
-This composition requires the durable core from PR348 and its installed schema/queue policy.
+The Clear core callback is the closed `eraseCurrentExploration` runner from the actual backend
+erasure root. It verifies the frozen current owner registry, runs those actual owner removals and
+marks that exact Clear transaction only after successful verification. The worker accepts no
+caller-provided registry, digest or lookalike callback as lifecycle proof. Exact-set accounting and
+recovery retain their separate existing authority; they cannot reacquire core removal.
+
+This composition requires the durable core from PR348 and the reviewed current lifecycle/schema
+prerequisites; older installed schemas or an incomplete lifecycle cannot be certified by wiring.
 Actions installed-release fixtures exercise the normal API and worker with disposable data
 and no provider. Actual dev/stage privacy journeys require separate deployment evidence.
 
@@ -128,3 +135,35 @@ Fixed-ceiling keyset continuation commits before individual operation waits, inc
 pages; final pages terminate. Root may explicitly refresh current-policy provenance for the SAME
 handoff within its original hard deadline. Source/Actions fixtures do not approve an actual export,
 transfer, individual script, corpus, provider call, receiving root or process flag.
+
+
+## Original-generation personal recording composition (#381)
+
+The worker binds Identity's actual own-account adapter and `FENCE_PERSONAL_RECORDING`. The
+own-account adapter supplies the branded current lifecycle reader through the same actual gate;
+root-only or pair-only authority cannot stand in for it. Each personal recording use case owns
+its existing fresh root → one account UPDATE → original-generation protocol. The composition root neither acquires
+a second gate nor creates a recording capability.
+
+Planner and Geography inject the required `RECORDING_REASONING_HARNESS` built by
+`personalRecordingReasoningProviders`, with BOTH actual module-owned run checkers. Its role
+header/purpose/account/original-generation/claim/full-context/model-context proof is required
+before private execution and apply. The generic compatibility harness and nonpersonal production
+harness remain separate; neither substitutes for a missing recording-role owner. Missing tokens
+or required owner effects fail construction rather than return a successful empty result.
+
+Evidence receives the actual Experience lineage/channel readers, lifecycle reader and PC's
+four-method activity effect. The required material callback passes the SAME genuine original-
+generation capability and source revision to actual Planner and Geography in the caller's
+transaction. Source intake, qualification and derived work retain their own finite bounds and
+original delivery identities. The explicit consumer registry, same-business attempt ledger,
+strict normal/retirement UUIDs and claim-fenced recovery remain owning; no additional queue,
+provider allowance, poller or automatic paid retry is introduced.
+
+These bindings preserve all feature/provider/production flags and paid permits, including their
+default-disabled behavior. The existing installed release boot fixture constructs the real Nest
+worker registry and checks start plus bounded SIGTERM drain; it is meaningful DI/process evidence
+only when run by hosted Actions on the final composed candidate. Full positive recording,
+paused/stale/cross-generation, retained-accounting and populated Clear behavior still require the
+actual complete API/client/worker graph and separate hosted/real-service acceptance. Local
+static checks and source review alone establish neither activation nor deployment.
