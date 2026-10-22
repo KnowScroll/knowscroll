@@ -1077,4 +1077,42 @@ describe('durable selective Clear', () => {
     expect((await root(p)).clear_operation_id).not.toBeNull();
     expect(await status(p)).toMatchObject({ value: { value: { status: 'pending', phase: 'removing_live_data' } } });
   });
+  it('treats completed delivery as an idempotent no-op and recovers a discarded ACK after later epochs', async () => {
+    const p = await seedPerson(db());
+    await seedAttempt(p, 'succeeded');
+    const a = body();
+    const accepted = await cases().start(authority(p), a); // caller can discard this ACK; receipt remains durable.
+    await cases().process(job(p, a.commandId));
+    const before = await db()
+      .selectFrom('identity.clear_operations')
+      .selectAll()
+      .where('command_id', '=', a.commandId)
+      .execute();
+    const jobs = async () =>
+      (
+        await sql<{
+          n: number;
+        }>`select count(*)::int n from pgboss.job where name=${clearExplorationQueue.name}`.execute(db())
+      ).rows[0]?.n;
+    const count = await jobs();
+    await cases().process(job(p, a.commandId));
+    await cases().process(job(p, a.commandId));
+    expect(await jobs()).toBe(count);
+    expect(
+      await db().selectFrom('identity.clear_operations').selectAll().where('command_id', '=', a.commandId).execute(),
+    ).toEqual(before);
+    const b = body(2);
+    await cases().start(authority(p, 2), b);
+    await cases().process(job(p, b.commandId));
+    const replay = await cases().start(authority(p, 3), a);
+    if (
+      accepted.kind !== 'entered' ||
+      accepted.value.kind !== 'ok' ||
+      replay.kind !== 'entered' ||
+      replay.value.kind !== 'ok'
+    )
+      throw new Error('fixture acceptance missing');
+    expect(replay.value.value).toEqual({ ...accepted.value.value, replayed: true });
+    expect((await root(p)).privacy_epoch).toBe(3);
+  });
 });

@@ -50,7 +50,7 @@ export function makeClearExploration(ports: ClearPorts) {
         // Bounded owner snapshot is captured before barrier publication, under root/run/attempt/receipt locks.
         const liabilities = await ports.reasoning.capture(scope);
         const op = await ports.store.create(scope, body.commandId, hash, liabilities);
-        await ports.enqueue(scope, { v: 1, accountId: authority.accountId, commandId: body.commandId });
+        await ports.enqueue(scope, { v: 1, accountId: scope.authority.accountId, commandId: body.commandId });
         return { kind: 'ok', value: acceptance(op, false) };
       });
     },
@@ -89,9 +89,11 @@ export function makeClearExploration(ports: ClearPorts) {
       await ports.withMaintenance(job.accountId, job.commandId, async (scope) => {
         if (ports.isCore(scope)) throw new Error('CLEAR_CORE_INCOMPLETE');
         const result = await ports.reasoning.verifyAndPrune(scope);
-        await ports.store.accountingDone(scope, result !== 'pending');
-        if (result === 'pending') await ports.enqueue(scope, job, new Date(ports.now().getTime() + 300000));
-        if (result === 'verified_retained') {
+        if (scope.completed && result === 'pending') throw new Error('CLEAR_ACCOUNTING_UNVERIFIED');
+        if (!scope.completed) await ports.store.accountingDone(scope, result !== 'pending');
+        if (!scope.completed && result === 'pending')
+          await ports.enqueue(scope, job, new Date(ports.now().getTime() + 300000));
+        if (!scope.completed && result === 'verified_retained') {
           const next = ports.now();
           next.setUTCHours(24, 0, 1, 0);
           // Bound to 24h; at midnight an immediate retry is safe and exact-set only.

@@ -174,7 +174,11 @@ export function makeWithClearMaintenance(
           }),
         ),
       );
-      const scope = Object.freeze({ binding, liabilities }) as unknown as ClearAccountingTx;
+      const scope = Object.freeze({
+        binding,
+        liabilities,
+        completed: op.completed_at !== null,
+      }) as unknown as ClearAccountingTx;
       accounting.set(scope, trx);
       try {
         return await work(scope);
