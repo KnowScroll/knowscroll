@@ -386,3 +386,5 @@ absent. Necessary commands remain available with no eligible origin/session/cred
 grants legacy fallback. Genuine authority/protocol/dependency failure remains a hard refusal. A private live scope brand is issued only by the actual successful own UPDATE/fresh read; root-only, pair-only and failed-own scopes are unavailable. Copied/closed scopes fail. Full erasure removes this exploration witness; account
 deletion also owns its account FK. No automatic recertification follows erasure or sign-in replay.
 No API/control, provider permission or complete Pause/runtime acceptance is introduced.
+
+The pending0044 hosted correction binds the fixed manifest to both actual personal-role recording_account_id links. It replaces the unaccepted c21 source digest consistently; it does not accept historical hashes, rewrite witnesses or implement a Conversations registry transition. Runtime audit identity checks retain the exact scope/epoch/exposure/generation/audit predicates with positional SQL arguments. No full Pause/runtime or deployment acceptance follows from static checks.

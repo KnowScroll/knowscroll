@@ -299,7 +299,7 @@ describe('Experience recording provenance and authority (Actions only)', () => {
       lockTimeoutMs: 5000,
       pattern: '*@fresh.test',
       world: 'ci',
-      operatorSource: 'fixture:fresh-lifecycle',
+      operatorSource: 'cli:ci-fresh-lifecycle',
     })({ email: `${randomUUID()}@fresh.test` });
     if (born.kind !== 'issued') throw new Error('CI real birth');
     const p = {
@@ -518,7 +518,7 @@ describe('Experience recording provenance and authority (Actions only)', () => {
           lockTimeoutMs: 5000,
           pattern: '*@keep-fresh.test',
           world: 'ci',
-          operatorSource: 'fixture:keep-recording',
+          operatorSource: 'cli:ci-keep-recording',
         })({ email: `${randomUUID()}@keep-fresh.test` });
         if (born.kind !== 'issued') throw new Error('CI actual account birth');
         const p = {

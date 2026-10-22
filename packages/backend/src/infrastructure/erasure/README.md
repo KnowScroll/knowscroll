@@ -43,7 +43,7 @@ creating an exemption by name. No new personal payload, provider output or erasu
 ## Current recording lifecycle closure
 
 The fixed backend eraseCurrentExploration runner closes over the actual imported frozen owner
-callbacks and current canonical literal registry/writer protocol v1 (SHA256 c21cc86efaa179b73e7d217b7250cba320bdd402a362df1a19266e893649720a).
+callbacks and current canonical literal registry/writer protocol v1 (SHA256 ebbec3bda043ab47c5566ebb29e80322e841f4dc15ef7940fc2ee4c053176dc1).
 Generic clearExplorationRegistry/eraseExploration retains basic verification but cannot issue the
 separate live current-registry proof required for lifecycle READY. No caller supplies a digest,
 version flag, replacement registry or successful callback to that runner. The lifetime proof is
@@ -56,3 +56,5 @@ until a separately authorized actual lifecycle transition. The witness is declar
 universe and account ownership. Registry deduplication permits that same-owner cross-kind
 declaration while still rejecting same-kind duplicates, duplicate owners and cross-owner stores.
 This is not an account-deletion executor or a mixed-version aggregate-write sandbox.
+
+Planner and Geography each declare runs.recording_account_id as an actual account-linked column. Their selective disposition erases the owning run row, including that link; no financial identity is nulled or reset. The pending0044 fixed protocol digest changes because the previous unaccepted c21 literal omitted these schema links. Old failed source/evidence is retained, with no generic hash compatibility or future Conversations extension elected.

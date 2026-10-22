@@ -71,7 +71,7 @@ an empty own SSD database/codegen is separate from behavioral CI and runtime acc
 Adds two empty eight-column stores and one nullable root mode (17 columns), with no historical
 initialization or existing table index. The canonical literal `fresh-recording-lifecycle.v1`
 registry/writer protocol hashes to
-`c21cc86efaa179b73e7d217b7250cba320bdd402a362df1a19266e893649720a`; its immutable literal
+`ebbec3bda043ab47c5566ebb29e80322e841f4dc15ef7940fc2ee4c053176dc1`; its immutable literal
 lives in `packages/backend/src/erasure-registry.ts`. It contains no circular code/SQL hashes.
 Birth is the actual mode1 root INSERT in createAccount. Existing NULL roots can elect mode1 only
 at verified current selective-Clear core completion, before releasing the barrier. Financial
@@ -86,3 +86,5 @@ this migration does not activate Pause or certify retained legacy channels.
 
 The two `prefer-bigint-over-smallint` exceptions in0044 cover only literal CHECK=1 format tags,
 not counters. No capacity or growing sequence relies on smallint.
+
+Pending0044 correction after hosted d5 failures: the fixed manifest includes the actual Planner and Geography runs.recording_account_id links, both erased with their owning run rows. The old c21 digest and failed source remain retained; no OLD/NEW compatibility or Conversations extension is installed. The exact0042 audit-identity function is replaced here using positional arguments solely to remove runtime PL/pgSQL name collisions; signatures, types and equality guards remain unchanged. All0001–0043 remain byte-exact.

@@ -238,3 +238,5 @@ finalizer uses actual accounting's sole own-account fence and zero-retained proo
 generation, current active prepared run and exact unexpired captured claim. It releases only that
 claim to blocked/provider_unavailable, without semantic apply, close, successor, credit, revision or
 new job. Present/unproved accounting refuses this cleanup; unknown liability is never inferred absent.
+
+Hosted-candidate persistence correction: existing run metadata uses an exact universe/epoch/run UPDATE before any insertion. Frozen context and its two hashes remain unchanged by omitted metadata, and the existing SQL guards still reject replacement. PostgreSQL validates proposed INSERT rows before ON CONFLICT, so metadata headers must never use that upsert shape. An absent row may be inserted only as a new queued marked run with no header/context/hash/claim/wake/outcome state; deleted/mismatched headers refuse. Existing all-NULL legacy rows are not recreated or adopted by this path. No claim/account gate, financial state or source generation changes.

@@ -104,6 +104,68 @@ describe('Geography original generation and exact wake ownership (Actions only)'
         database.db,
       )
     ).rows[0]!.n;
+  it('creates only fresh queued marked runs and refuses missing or foreign metadata headers without recreating them', async () => {
+    const a = await seedPerson(database.db),
+      b = await seedPerson(database.db),
+      commandId = randomUUID(),
+      first = await request(a.authority, { commandId, recordingGeneration: 1 });
+    if (first.kind !== 'accepted') throw new Error('CI actual new-run request');
+    const created = await header(a.universeId, first.runId);
+    expect(created).toMatchObject({
+      status: 'queued',
+      recording_account_id: a.accountId,
+      recording_generation: 1,
+      recording_origin_kind: 'command',
+      recording_origin_command_id: commandId,
+      context: null,
+      recording_context_sha256: null,
+      recording_model_context_sha256: null,
+    });
+    const read = await p.withScope(a.authority, async (scope) => {
+      if ((await p.fenceOwn(scope)).kind !== 'active') throw new Error('CI own');
+      if ((await p.fenceRecording(scope, 1)).kind !== 'recording') throw new Error('CI original generation');
+      return geographyStore.header(scope, first.runId);
+    });
+    if (read.kind !== 'entered' || !read.value) throw new Error('CI actual header');
+    const existing = read.value;
+    const missingId = randomUUID();
+    await expect(
+      p.withScope(a.authority, async (scope) => {
+        if ((await p.fenceOwn(scope)).kind !== 'active') throw new Error('CI own');
+        if ((await p.fenceRecording(scope, 1)).kind !== 'recording') throw new Error('CI original generation');
+        await geographyStore.writeRun(scope, { ...existing, id: missingId });
+      }),
+    ).rejects.toThrow('GEOGRAPHY_NEW_RUN_SHAPE_INVALID');
+    await expect(
+      p.withScope(b.authority, async (scope) => {
+        if ((await p.fenceOwn(scope)).kind !== 'active') throw new Error('CI own');
+        if ((await p.fenceRecording(scope, 1)).kind !== 'recording') throw new Error('CI original generation');
+        await geographyStore.writeRun(scope, existing);
+      }),
+    ).rejects.toThrow('GEOGRAPHY_NEW_RUN_SHAPE_INVALID');
+    await expect(
+      p.withScope(a.authority, async (scope) => {
+        if ((await p.fenceOwn(scope)).kind !== 'active') throw new Error('CI own');
+        if ((await p.fenceRecording(scope, 1)).kind !== 'recording') throw new Error('CI original generation');
+        await geographyStore.writeRun(scope, {
+          id: missingId,
+          desiredRevision: 1,
+          status: 'queued',
+          recording: existing.recording,
+          contextSha256: 'a'.repeat(64),
+          modelContextSha256: 'b'.repeat(64),
+        });
+      }),
+    ).rejects.toThrow('GEOGRAPHY_NEW_RUN_SHAPE_INVALID');
+    expect(await header(a.universeId, first.runId)).toEqual(created);
+    expect(await database.db.selectFrom('geography.runs').select('id').where('id', '=', missingId).execute()).toEqual(
+      [],
+    );
+    expect(
+      await database.db.selectFrom('geography.runs').select('id').where('universe_id', '=', b.universeId).execute(),
+    ).toEqual([]);
+  });
+
   it('retains omitted original receipt through pause, refuses malformed own generation and creates no future intent', async () => {
     const a = await seedPerson(database.db),
       command = { commandId: randomUUID() };
@@ -613,7 +675,17 @@ describe('Geography original generation and exact wake ownership (Actions only)'
       runId = randomUUID();
     await p.withScope(a.authority, async (scope) => {
       if ((await p.fenceOwn(scope)).kind !== 'active') throw new Error('CI own');
-      await geographyStore.writeRun(scope, { id: runId, desiredRevision: 1, status: 'blocked' });
+      // Authored CI snapshot of a pre-existing all-NULL legacy row, not a new production run.
+      await transactionOf(scope)
+        .insertInto('geography.runs')
+        .values({
+          universe_id: a.universeId,
+          privacy_epoch: 1,
+          id: runId,
+          desired_revision: 1,
+          status: 'blocked',
+        })
+        .execute();
       await geographyStore.writeState(scope, {
         ...(await geographyStore.state(scope)),
         desiredRevision: 1,
@@ -690,7 +762,17 @@ describe('Geography original generation and exact wake ownership (Actions only)'
         runId = randomUUID();
       await p.withScope(a.authority, async (scope) => {
         if ((await p.fenceOwn(scope)).kind !== 'active') throw new Error('CI own');
-        await geographyStore.writeRun(scope, { id: runId, desiredRevision: 1, status: 'blocked' });
+        // Authored CI snapshot of a pre-existing all-NULL legacy row, not a new production run.
+        await transactionOf(scope)
+          .insertInto('geography.runs')
+          .values({
+            universe_id: a.universeId,
+            privacy_epoch: 1,
+            id: runId,
+            desired_revision: 1,
+            status: 'blocked',
+          })
+          .execute();
         await geographyStore.writeState(scope, {
           ...(await geographyStore.state(scope)),
           desiredRevision: 1,
