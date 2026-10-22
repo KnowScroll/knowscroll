@@ -1056,11 +1056,13 @@ final application. A mixed-version writer that ignores the generation must fail 
 
 The new intake response echoes submitted generation separately from current generation,
 scope and root revision. `processed` has exactly counted ordered final event results,
-and requires equal current/submitted generations; it proves intake, never qualification
+and requires equal current/submitted odd (on) generations; it proves intake, never qualification
 or learning. `not_recorded` has only recording_paused/recording_generation_stale and no
 partial accepted results. Both are final for that exact batch. Consumers compare ordered
 event IDs for processed replies; remove refused events rather than relabelling/retrying
 them under a new generation. Missing authority/epoch/validation remains a private problem.
+The recording_paused branch requires an even current generation; requests may submit
+either parity so paused/stale batches can receive their final refusal.
 
 Pre-pause delayed work cannot apply after resume merely because on is true again.
 Resume starts fresh recording segments; paused/stale offline buffers never acquire a new

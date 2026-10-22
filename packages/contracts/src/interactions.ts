@@ -279,9 +279,12 @@ export const RecordingObservationBatchResponseSchema = z
   ])
   .refine((r) => {
     if (r.result === 'not_recorded')
-      return r.reason === 'recording_paused' || r.currentGeneration !== r.recordingGeneration;
+      return r.reason === 'recording_paused'
+        ? r.currentGeneration % 2 === 0
+        : r.currentGeneration !== r.recordingGeneration;
     return (
       r.currentGeneration === r.recordingGeneration &&
+      r.currentGeneration % 2 === 1 &&
       r.accepted === r.results.filter((x) => x.status === 'accepted').length &&
       r.duplicates === r.results.filter((x) => x.status === 'duplicate').length &&
       r.rejected === r.results.filter((x) => x.status === 'rejected').length

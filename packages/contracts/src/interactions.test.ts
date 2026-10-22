@@ -143,6 +143,10 @@ describe('observation-batch.v2 recording declaration (synthetic fixtures only)',
 
   it('has a separate strict generation-bearing route and keeps the legacy declaration/schema intact', () => {
     expect(RecordingObservationBatchRequestSchema.parse(request)).toEqual(request);
+    expect(RecordingObservationBatchRequestSchema.parse({ ...request, recordingGeneration: 2 })).toEqual({
+      ...request,
+      recordingGeneration: 2,
+    });
     expect(apiContract.observations.submit).toBe(submitObservationsContract);
     expect(apiContract.observations.submitRecording).toBe(submitRecordingObservationsContract);
     expect(submitRecordingObservationsContract['~orpc'].route).toMatchObject({
@@ -230,6 +234,7 @@ describe('observation-batch.v2 recording declaration (synthetic fixtures only)',
       { accepted: 0.5 },
       { results: [] },
       { currentGeneration: 4 },
+      { currentGeneration: 4, recordingGeneration: 4 },
       { qualified: true },
       { accepted: 51, results: Array(51).fill(result) },
       { results: [{ ...result, status: 'pending' }] },
@@ -238,8 +243,14 @@ describe('observation-batch.v2 recording declaration (synthetic fixtures only)',
   });
 
   it('has final all-batch not_recorded reasons, without partial acceptance or relabelled generations', () => {
-    const paused = { ...snapshot, result: 'not_recorded', reason: 'recording_paused' };
-    const stale = { ...paused, reason: 'recording_generation_stale', currentGeneration: 4 };
+    const paused = {
+      ...snapshot,
+      recordingGeneration: 4,
+      currentGeneration: 4,
+      result: 'not_recorded',
+      reason: 'recording_paused',
+    };
+    const stale = { ...paused, reason: 'recording_generation_stale', currentGeneration: 6 };
     expect(RecordingObservationBatchResponseSchema.parse(paused)).toEqual(paused);
     expect(RecordingObservationBatchResponseSchema.parse(stale)).toEqual(stale);
     expect(RecordingObservationBatchResponseSchema.parse({ ...stale, currentGeneration: 2 })).toBeDefined();
@@ -251,13 +262,16 @@ describe('observation-batch.v2 recording declaration (synthetic fixtures only)',
       { events: [event] },
       { retryGeneration: 4 },
       { currentGeneration: 0 },
+      { currentGeneration: 1 },
+      { currentGeneration: 3 },
+      { currentGeneration: 2_147_483_647 },
       { recordingGeneration: 0 },
     ])
       expect(RecordingObservationBatchResponseSchema.safeParse({ ...paused, ...extra }).success).toBe(false);
   });
 
   it('rejects private identity, event bodies and stale/unknown scope shapes in both outcome branches', () => {
-    const paused = { ...snapshot, result: 'not_recorded', reason: 'recording_paused' };
+    const paused = { ...snapshot, currentGeneration: 4, result: 'not_recorded', reason: 'recording_paused' };
     for (const response of [processed, paused])
       for (const extra of [
         { scope: { ...snapshot.scope, universeId: base.exposureId } },
