@@ -2,6 +2,16 @@ import { OpenAPIGenerator } from '@orpc/openapi';
 import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4';
 import { describe, expect, it } from 'vitest';
 import {
+  StartDirectConversationSchema,
+  DirectConversationAcceptanceSchema,
+  SendConversationMessageSchema,
+  ConversationMessageAcceptanceSchema,
+  ReadConversationChangesSchema,
+  ConversationChangesPageSchema,
+  ResolveContentShareSchema,
+  ResolvedContentShareSchema,
+  SocialProblemSchema,
+  SocialProblemIssueSchema,
   CODE_CHALLENGE_PATTERN,
   CODE_VERIFIER_PATTERN,
   ProblemDetailsSchema,
@@ -61,6 +71,8 @@ describe('the API contract', () => {
       ...Object.values(apiContract.keep),
       ...Object.values(apiContract.privacy),
       ...Object.values(apiContract.sharing),
+      ...Object.values(apiContract.conversations),
+      ...Object.values(apiContract.contentShares),
       ...Object.values(apiContract.formation),
       apiContract.scenes.manifest,
       apiContract.scenes.chunk,
@@ -318,6 +330,19 @@ describe('the API contract', () => {
       '/v1/social/visibility': ['get', 'post'],
       '/v1/social/presence/preference': ['get', 'post'],
       '/v1/social/visits/read': ['post'],
+      '/v1/social/conversations/start': ['post'],
+      '/v1/social/conversations/inbox': ['post'],
+      '/v1/social/conversations/read': ['post'],
+      '/v1/social/conversations/history': ['post'],
+      '/v1/social/conversations/changes': ['post'],
+      '/v1/social/conversations/send': ['post'],
+      '/v1/social/conversations/mark-read': ['post'],
+      '/v1/social/conversations/mute': ['post'],
+      '/v1/social/conversations/leave': ['post'],
+      '/v1/social/content-shares/create': ['post'],
+      '/v1/social/content-shares/revoke': ['post'],
+      '/v1/social/content-shares/read': ['post'],
+      '/v1/social/content-shares/resolve': ['post'],
     };
     expect(
       Object.keys(document.paths ?? {})
@@ -1067,6 +1092,106 @@ describe('Universe357 declaration OpenAPI metadata', () => {
       expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty('claimId');
       for (const field of ['defined', 'message', 'instance', 'camera', 'learned'])
         expect(JSON.stringify(schema)).not.toContain(`"${field}"`);
+    }
+  });
+});
+
+describe('Social370 declaration OpenAPI metadata', () => {
+  it('declares finite direct conversations/full-content shares with JSON selectors and direct closed problems', async () => {
+    const errors = apiContract.conversations.send['~orpc'].errorMap;
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas: {
+        StartDirect: { schema: StartDirectConversationSchema },
+        DirectAcceptance: { schema: DirectConversationAcceptanceSchema },
+        SendMessage: { schema: SendConversationMessageSchema },
+        MessageAcceptance: { schema: ConversationMessageAcceptanceSchema },
+        ReadChanges: { schema: ReadConversationChangesSchema },
+        ChangesPage: { schema: ConversationChangesPageSchema },
+        ResolveShare: { schema: ResolveContentShareSchema },
+        ResolvedShare: { schema: ResolvedContentShareSchema },
+        SocialProblem: { schema: SocialProblemSchema },
+        SocialIssue: { schema: SocialProblemIssueSchema },
+        ...Object.fromEntries(
+          Object.entries(errors).map(([code, definition]) => [`SocialProblem_${code}`, { schema: definition.data }]),
+        ),
+      },
+    });
+    const declarations = [...Object.values(apiContract.conversations), ...Object.values(apiContract.contentShares)];
+    expect(declarations).toHaveLength(13);
+    expect(new Set(declarations.map((x) => x['~orpc'].route.path)).size).toBe(13);
+    for (const declaration of declarations) {
+      const route = declaration['~orpc'].route;
+      expect(route.method).toBe('POST');
+      expect(route.path).not.toContain('{');
+      const path = document.paths?.[route.path ?? ''];
+      expect(Object.keys(path ?? {})).toEqual(['post']);
+      expect(path?.post?.parameters ?? []).toEqual([]);
+      expect(path?.post?.requestBody).toMatchObject({
+        required: true,
+        content: { 'application/json': { schema: expect.any(Object) as unknown } },
+      });
+      expect(path?.post?.responses?.['200']).toBeDefined();
+      for (const status of new Set(Object.values(errors).map((x) => String(x.status)))) {
+        const response = path?.post?.responses?.[status];
+        expect(response && !('$ref' in response) && response.content).toEqual({
+          'application/problem+json': {
+            schema: {
+              oneOf: Object.entries(errors)
+                .filter(([, x]) => String(x.status) === status)
+                .map(([code]) => ({ $ref: `#/components/schemas/SocialProblem_${code}` })),
+            },
+          },
+        });
+      }
+    }
+    expect(document.components?.schemas?.['SendMessage']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'commandId', 'conversation', 'body'],
+    });
+    expect(document.components?.schemas?.['ReadChanges']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'readId', 'conversation', 'limit', 'cursor'],
+    });
+    expect(document.components?.schemas?.['ResolveShare']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'readId', 'token'],
+    });
+    const issue = document.components?.schemas?.['SocialIssue'];
+    expect(issue).toMatchObject({
+      additionalProperties: false,
+      required: ['path', 'code'],
+      properties: {
+        path: { type: 'array', maxItems: 8, items: { enum: expect.arrayContaining(['token', 'unknown']) as unknown } },
+      },
+    });
+    expect(issue && !('$ref' in issue) && Object.keys(issue.properties ?? {})).toEqual(['path', 'code']);
+    const wire = JSON.stringify(document.components?.schemas?.['ResolvedShare']);
+    for (const value of ['public_metadata', 'conversation', 'corrected', 'unavailable']) expect(wire).toContain(value);
+    for (const field of [
+      'token',
+      'sender',
+      'playheadMs',
+      'seen',
+      'currentBranch',
+      'interests',
+      'mediaUrl',
+      'exposureId',
+    ])
+      expect(wire).not.toContain(`"${field}"`);
+    for (const [code, definition] of Object.entries(errors)) {
+      const schema = document.components?.schemas?.[`SocialProblem_${code}`];
+      expect(schema).toMatchObject({
+        additionalProperties: false,
+        properties: {
+          code: { const: code },
+          status: { const: definition.status },
+          title: { const: definition.message },
+        },
+      });
+      for (const field of ['detail', 'instance', 'token', 'message', 'sender', 'blocked', 'defined'])
+        expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty(field);
     }
   });
 });
