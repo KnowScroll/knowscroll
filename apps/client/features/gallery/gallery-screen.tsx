@@ -1,4 +1,6 @@
-import { useState, type ReactNode } from 'react';
+import { setStatusBarStyle } from 'expo-status-bar';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderWidth, content, radius, space, spacing, typeScale, type TypeRole } from '@knowscroll/design-tokens';
@@ -149,6 +151,11 @@ const iconNames = Object.keys(iconShapes) as IconName[];
 export function GalleryScreen() {
   const insets = useSafeAreaInsets();
   useDocumentTitle('Component gallery');
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle('dark');
+    }, []),
+  );
   const [format, setFormat] = useState<EncounterFormat>('reel');
   return (
     <ScrollView
