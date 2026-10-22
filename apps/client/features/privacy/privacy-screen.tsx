@@ -115,6 +115,7 @@ export function PrivacyScreen() {
             </Pressable>
             <Button
               label="Clear exploration"
+              variant="danger"
               disabled={!understood}
               onPress={() => {
                 if (!understood) return;
