@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { PersonalAuthority, ScopeRefusal } from '../../identity/public.js';
 import { decideActivation } from '../domain/exposures.js';
-import type { ActivateExposurePorts, JsonValue } from './ports.js';
+import { originalRecordingGeneration, recordingRequest, type ActivateExposurePorts, type JsonValue } from './ports.js';
 
 export const ACTIVATE_EXPOSURE_OPERATION = 'experience.activate-exposure';
 /** Version of the stored outcome below. A new shape gets a new version (blueprint §5). */
@@ -10,6 +10,7 @@ export const ACTIVATE_EXPOSURE_OUTCOME_VERSION = 1;
 export interface ActivateExposureCommand {
   readonly commandId: string;
   readonly exposureId: string;
+  readonly recordingGeneration?: number;
 }
 
 /** The stored and returned outcome of an accepted activation. Replays return it unchanged. */
@@ -50,7 +51,7 @@ export function makeActivateExposure(ports: ActivateExposurePorts) {
     authority: PersonalAuthority,
     command: ActivateExposureCommand,
   ): Promise<ActivateExposureResult> {
-    const request: JsonValue = { exposureId: command.exposureId };
+    const request: JsonValue = { ...recordingRequest(command), exposureId: command.exposureId };
     const key = {
       commandId: command.commandId,
       operation: ACTIVATE_EXPOSURE_OPERATION,
@@ -80,8 +81,20 @@ export function makeActivateExposure(ports: ActivateExposurePorts) {
         return { kind: 'refused', reason: 'exposure_not_found' };
 
       await ports.insertReceipt(scope, key);
-      const decision = decideActivation(exposure, ports.now());
-      if (decision.changed) await ports.markActivated(scope, exposure.id, decision.activatedAt);
+      const at = ports.now();
+      const gate = await ports.recording?.fence(scope, originalRecordingGeneration(command));
+      if (gate?.kind === 'unavailable') throw new Error('RECORDING_AUTHORITY_UNAVAILABLE');
+      await ports.recording?.remember(
+        scope,
+        key,
+        originalRecordingGeneration(command),
+        gate?.kind === 'recording' ? gate.scope.generation : undefined,
+        at,
+      );
+      const decision = decideActivation(exposure, at);
+      if (decision.changed)
+        await ports.markActivated(scope, exposure.id, decision.activatedAt, originalRecordingGeneration(command));
+      if (gate?.kind === 'recording') await ports.recording?.activation(gate.scope, exposure.id, command.commandId, at);
       const outcome: ActivateExposureOutcome = {
         exposureId: exposure.id,
         activatedAt: decision.activatedAt.toISOString(),

@@ -1,3 +1,4 @@
+import { requireRecordingEffects } from './recording-store.js';
 import { FENCE_OWN_ACCOUNT, type FenceOwnAccount, type WithPersonalScope } from '../../identity/public.js';
 import { advanceScopeRevision } from '../../../infrastructure/postgres/personal-scope.js';
 import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
@@ -11,7 +12,7 @@ import {
   type CanonicalJson,
 } from '../../../infrastructure/receipts/index.js';
 import { makeRemoveKeepEntry, type KeepRemovalPorts } from '../application/keep-remove.js';
-import { KEEP_REMOVAL_USE_CASE, type KeepRemovalUseCase } from '../public.js';
+import { KEEP_REMOVAL_USE_CASE, type KeepRemovalUseCase, type ExperienceRecordingEffects } from '../public.js';
 import { makeCommitAction, readChannels } from './action-store.js';
 import { keepStore } from './keep-store.js';
 
@@ -19,6 +20,7 @@ import { keepStore } from './keep-store.js';
 export function keepRemovalUseCase(
   deps: Pick<KeepRemovalPorts, 'withScope' | 'fenceOwn'> & {
     readonly enqueue: EnqueueJob;
+    readonly recordingEffects?: ExperienceRecordingEffects;
   } & Partial<
       Pick<
         KeepRemovalPorts,
@@ -33,7 +35,7 @@ export function keepRemovalUseCase(
     beginReceipt: deps.beginReceipt ?? insertPersonalReceipt,
     completeReceipt: deps.completeReceipt ?? completePersonalReceipt,
     readChannels,
-    commitAction: makeCommitAction(deps.enqueue),
+    commitAction: makeCommitAction(deps.enqueue, deps.recordingEffects),
     hash: (operation, input) => requestHash(operation, input as CanonicalJson),
     advance: deps.advance ?? advanceScopeRevision,
     notify: deps.notify ?? notifyScopeChanged,
@@ -41,13 +43,31 @@ export function keepRemovalUseCase(
     newId: deps.newId ?? (() => uuidv7()),
   });
 }
-export function keepRemovalProviders(tokens: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol }) {
+export function keepRemovalProviders(
+  tokens: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol },
+  options: { readonly recordingEffects?: symbol } = {},
+) {
   return [
     {
       provide: KEEP_REMOVAL_USE_CASE,
-      inject: [tokens.withPersonalScope, FENCE_OWN_ACCOUNT, tokens.enqueueJob],
-      useFactory: (withScope: WithPersonalScope, fenceOwn: FenceOwnAccount, enqueue: EnqueueJob) =>
-        keepRemovalUseCase({ withScope, fenceOwn, enqueue }),
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        tokens.enqueueJob,
+        ...(options.recordingEffects ? [options.recordingEffects] : []),
+      ],
+      useFactory: (
+        withScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        enqueue: EnqueueJob,
+        effects?: ExperienceRecordingEffects,
+      ) =>
+        keepRemovalUseCase({
+          withScope,
+          fenceOwn,
+          enqueue,
+          ...(options.recordingEffects ? { recordingEffects: requireRecordingEffects(effects) } : {}),
+        }),
     },
   ];
 }

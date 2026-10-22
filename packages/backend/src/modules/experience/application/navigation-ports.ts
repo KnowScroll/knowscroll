@@ -132,8 +132,9 @@ export interface NavigationPorts extends CommandPorts {
     exposureId: string,
     metadata: EncounterAttribution,
     offer?: StoredOffer,
+    originalGeneration?: number,
   ) => Promise<void>;
-  readonly enqueueActivity: (scope: PersonalScopeTx, exposureId: string) => Promise<void>;
+  readonly enqueueActivity: (scope: PersonalScopeTx, exposureId: string, originalGeneration?: number) => Promise<void>;
   readonly advanceRevision: (scope: PersonalScopeTx) => Promise<number>;
   readonly notify: (
     scope: PersonalScopeTx,

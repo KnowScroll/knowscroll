@@ -1,3 +1,5 @@
+import { FENCE_OWN_ACCOUNT } from '@knowscroll/backend/modules/identity';
+import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import type { PgBoss } from 'pg-boss';
 import { createBoss, makeEnqueueJob, type EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -25,6 +27,7 @@ export async function experienceUseCases(
   await boss.start();
   const enqueue = makeEnqueueJob(boss);
   const values = new Map<symbol, unknown>([
+    [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
     [DATABASE_TOKEN, database.db],
     [SCOPE_TOKEN, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
     [ENQUEUE_TOKEN, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],

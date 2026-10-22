@@ -267,4 +267,74 @@ describe('experience applyAction with real adapters (real database)', () => {
       await useCases.close();
     }
   });
+  it('keeps necessary actions and exact receipts while paused and never upgrades a legacy composition after resume', async () => {
+    const p = await seedPerson(database.db),
+      asset = await seedAsset(database.db),
+      c = await experienceUseCases(database);
+    try {
+      await sql`update identity.universes set recording_on=false,recording_generation=2 where id=${p.universeId}::uuid`.execute(
+        database.db,
+      );
+      const command = {
+        commandId: randomUUID(),
+        kind: 'save' as const,
+        target: { assetId: asset.assetId, assetRevision: 1 },
+        recordingGeneration: 2,
+      };
+      const first = await c.applyAction(p.authority, command);
+      expect(first).toMatchObject({ kind: 'applied', outcome: { saved: true, changed: true }, replayed: false });
+      expect(await jobCount(p.universeId)).toBe(0);
+      await sql`update identity.universes set recording_on=true,recording_generation=3 where id=${p.universeId}::uuid`.execute(
+        database.db,
+      );
+      expect(await c.applyAction(p.authority, command)).toEqual({ ...first, replayed: true });
+      expect(await c.applyAction(p.authority, { ...command, recordingGeneration: 3 })).toMatchObject({
+        kind: 'refused',
+        reason: 'command_key_reused',
+      });
+      expect(
+        await c.applyAction(p.authority, { ...command, commandId: randomUUID(), recordingGeneration: 3 }),
+      ).toMatchObject({ kind: 'applied', outcome: { changed: false } });
+      const origins = await sql<{
+        original_generation: number | null;
+        eligible_generation: number | null;
+      }>`select original_generation,eligible_generation from experience.recording_command_origins where universe_id=${p.universeId}::uuid order by recorded_at,command_id`.execute(
+        database.db,
+      );
+      expect(origins.rows).toHaveLength(2);
+      expect(origins.rows.every((r) => r.eligible_generation === null)).toBe(true);
+      expect(origins.rows.map((r) => r.original_generation).sort()).toEqual([2, 3]);
+      expect(await jobCount(p.universeId)).toBe(0);
+      const state = await sql<{
+        recording_saved_state: boolean | null;
+      }>`select recording_saved_state from experience.action_state where universe_id=${p.universeId}::uuid and asset_id=${asset.assetId}::uuid`.execute(
+        database.db,
+      );
+      expect(state.rows[0]?.recording_saved_state).toBeNull();
+    } finally {
+      await c.close();
+    }
+  });
+  it('preserves the omitted original hash and rejects a supplied generation under that same command key', async () => {
+    const p = await seedPerson(database.db),
+      asset = await seedAsset(database.db),
+      c = await experienceUseCases(database);
+    try {
+      const command = {
+        commandId: randomUUID(),
+        kind: 'save' as const,
+        target: { assetId: asset.assetId, assetRevision: 1 },
+      };
+      expect(await c.applyAction(p.authority, command)).toMatchObject({ kind: 'applied' });
+      const before = await counts(p.universeId);
+      expect(await c.applyAction(p.authority, { ...command, recordingGeneration: 1 })).toMatchObject({
+        kind: 'refused',
+        reason: 'command_key_reused',
+      });
+      expect(await c.applyAction(p.authority, command)).toMatchObject({ kind: 'applied', replayed: true });
+      expect(await counts(p.universeId)).toEqual(before);
+    } finally {
+      await c.close();
+    }
+  });
 });

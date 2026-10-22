@@ -937,4 +937,51 @@ describe('Experience navigation and actual routing activity (real PostgreSQL CI 
     ).toHaveLength(0);
     expect(ready(await c.navigate(p.authority, command)).replayed).toBe(false);
   });
+  it('keeps paused navigation/activation necessary, preserves original disposition through replay and does not revive H/R', async () => {
+    const p = await seedPerson(database.db);
+    await fixtureAsset(c);
+    await sql`update identity.universes set recording_on=false,recording_generation=2 where id=${p.universeId}::uuid`.execute(
+      database.db,
+    );
+    const request = { ...discovery(), recordingGeneration: 2 };
+    const selected = ready(await c.navigate(p.authority, request));
+    const command = { ...activation(selected), recordingGeneration: 2 };
+    const first = await c.activateOffer(p.authority, command);
+    expect(first).toMatchObject({ kind: 'accepted', outcome: { replayed: false } });
+    const origin = await sql<{
+      eligible_generation: number | null;
+    }>`select eligible_generation from experience.recording_offer_origins where universe_id=${p.universeId}::uuid and offer_id=${selected.offer.offerId}::uuid`.execute(
+      database.db,
+    );
+    expect(origin.rows[0]?.eligible_generation).toBeNull();
+    const flags = await database.db
+      .selectFrom('experience.encounter_activity_inputs')
+      .select(['horizontal', 'returned'])
+      .where('universe_id', '=', p.universeId)
+      .execute();
+    expect(flags.every((x) => !x.horizontal && !x.returned)).toBe(true);
+    await sql`update identity.universes set recording_on=true,recording_generation=3 where id=${p.universeId}::uuid`.execute(
+      database.db,
+    );
+    expect(await c.activateOffer(p.authority, command)).toMatchObject({
+      kind: 'accepted',
+      outcome: { replayed: true },
+    });
+    expect(await c.activateOffer(p.authority, { ...command, recordingGeneration: 3 })).toMatchObject({
+      kind: 'refused',
+      code: 'COMMAND_KEY_REUSED',
+    });
+    const durable = await sql<{
+      n: number;
+    }>`select count(*)::int as n from evidence.recording_sessions where universe_id=${p.universeId}::uuid`.execute(
+      database.db,
+    );
+    expect(durable.rows[0]?.n).toBe(0);
+    const jobs = await sql<{
+      n: number;
+    }>`select count(*)::int as n from pgboss.job where name='evidence.project-encounter-activity' and data->>'universeId'=${p.universeId}`.execute(
+      database.db,
+    );
+    expect(jobs.rows[0]?.n).toBe(0);
+  });
 });
