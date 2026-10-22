@@ -11,7 +11,7 @@ import {
 import type { RecordingActivityDerivedInput } from '@knowscroll/backend/modules/evidence';
 import { activityContextEffect } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import type { PersonalAuthority } from '@knowscroll/backend/modules/identity';
-import { recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-providers';
+import { recordingPolicyFor, accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
@@ -160,6 +160,8 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     const pc = personalStores.find((s) => s.module === 'personal-context');
     if (!pc) throw new Error('fixture_pc_owner_missing');
     const result = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, async (scope) => {
+      const own = await accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount(scope);
+      if (own.kind !== 'active') throw new Error('fixture_own_account_gate_missing');
       await pc.erase(scope);
       const gate = await fencePersonalRecording(scope, 1);
       if (gate.kind !== 'recording') throw new Error('fixture_recording_capability_missing');
