@@ -12,6 +12,7 @@ import {
   type MiniMaxSettings,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import { ScrollDraft, normaliseDraftInput, REPAIR_HINTS } from '@knowscroll/scroll-model/producer';
+import { ScrollDocument } from '@knowscroll/scroll-model';
 import {
   extractResearch,
   ResearchRefusal,
@@ -119,7 +120,7 @@ describe('writer semantic feedback contract (authored CI fixture; no provider ne
     expect(claimsRole([page]).version).toBe('scroll-claims.v4');
     expect(claimsRole([page]).nativeOutputSchema).toBe('zod-structural.v1');
     expect(role.id).toBe('content.scroll-writer');
-    expect(role.version).toBe('scroll-writer.v10');
+    expect(role.version).toBe('scroll-writer.v11');
     expect(role.nativeOutputSchema).toBe('zod-structural-json-string.v1');
   });
 
@@ -698,7 +699,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         })}\n`,
       );
       expect(wires.slice(0, 2).every((wire) => wire.system.includes('version scroll-claims.v4,'))).toBe(true);
-      expect(wires.slice(2).every((wire) => wire.system.includes('version scroll-writer.v10,'))).toBe(true);
+      expect(wires.slice(2).every((wire) => wire.system.includes('version scroll-writer.v11,'))).toBe(true);
       expect(wires[1]?.system).toContain('candidateIds: too_small (at least 4 items)');
       expect(wires[3]?.system).toContain(`copied_passage (${REPAIR_HINTS.copied_passage})`);
       expect(wires[3]?.system).not.toContain(passage);
@@ -714,8 +715,8 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       ).toEqual([
         ['content.scroll-claims', 'scroll-claims.v4', 'primary', 'hp4-tool-schema', 'OUTPUT_SCHEMA_MISMATCH'],
         ['content.scroll-claims', 'scroll-claims.v4', 'repair', 'hp4-tool-schema', 'SUCCEEDED'],
-        ['content.scroll-writer', 'scroll-writer.v10', 'primary', 'hp5-tool-json-string', 'OUTPUT_SCHEMA_MISMATCH'],
-        ['content.scroll-writer', 'scroll-writer.v10', 'repair', 'hp5-tool-json-string', 'SUCCEEDED'],
+        ['content.scroll-writer', 'scroll-writer.v11', 'primary', 'hp5-tool-json-string', 'OUTPUT_SCHEMA_MISMATCH'],
+        ['content.scroll-writer', 'scroll-writer.v11', 'repair', 'hp5-tool-json-string', 'SUCCEEDED'],
       ]);
       expect(attempts[0]?.output).toBeNull();
       expect(attempts[2]?.output).toBeNull();
@@ -748,7 +749,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .select(['policy_version', 'generation'])
         .execute();
       expect(runs).toHaveLength(2);
-      expect(runs.every((run) => run.policy_version === 'scroll-production.v12' && run.generation === 1)).toBe(true);
+      expect(runs.every((run) => run.policy_version === 'scroll-production.v13' && run.generation === 1)).toBe(true);
       for (const receipt of first.attempts?.filter((item) => item.role !== 'checks') ?? []) {
         expect(receipt).toMatchObject({ repaired: true, inputTokens: 40, outputTokens: 10 });
         expect(receipt.attempts?.map((item) => item.step)).toEqual(['primary', 'repair']);
@@ -760,7 +761,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .executeTakeFirstOrThrow();
       expect(provenance.provenance).toMatchObject({
         production: {
-          promptVersion: 'scroll-writer.v10',
+          promptVersion: 'scroll-writer.v11',
           model: 'MiniMax-M3',
           attemptIds: attempts.slice(2).map((attempt) => attempt.id),
         },
@@ -768,6 +769,60 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       expect(await p.produce(topic, false, signal(), true)).toEqual(first);
       expect(p.calls).toHaveLength(4);
       expect(p.quotaChecks()).toBe(4);
+    },
+  );
+
+  it.each(['grid_missing', 'grid_duplicate', 'flow_cells'] as const)(
+    'refuses the authored %s diagram on the selected wire, then accepts one canonical flow repair (native HTTP + PG)',
+    async (mode) => {
+      const good = draft(true);
+      const bad = ScrollDraft.parse(JSON.parse(JSON.stringify(good)));
+      const diagram = bad.sections.flatMap((section) => section.blocks).find((block) => block.type === 'diagram');
+      if (!diagram) throw new Error('CI_DIAGRAM_MISSING');
+      if (mode !== 'flow_cells') diagram.data.layout = 'grid';
+      if (mode !== 'grid_missing')
+        diagram.data.nodes = diagram.data.nodes.map((node, index) => ({
+          ...node,
+          cell: { column: mode === 'grid_duplicate' ? 0 : index, row: 0 },
+        }));
+      const inputs = [selection, bad, good];
+      const p = setupNative((sequence) => {
+        if (sequence > inputs.length) throw new Error('CI_UNEXPECTED_EXTRA_ATTEMPT');
+        return { input: inputs[sequence - 1] };
+      });
+      const result = await p.produce('seasons', false, signal());
+      expect(result.outcome).toBe('published');
+      expect(p.calls).toHaveLength(3);
+      expect(p.quotaChecks()).toBe(3);
+      const rows = await database.db
+        .selectFrom('reasoning.production_attempts')
+        .selectAll()
+        .where('role_id', '=', 'content.scroll-writer')
+        .orderBy('reserved_at')
+        .execute();
+      expect(rows).toHaveLength(2);
+      expect(rows.map((row) => [row.role_version, row.prompt_version, row.step, row.outcome_code])).toEqual([
+        ['scroll-writer.v11', 'hp5-tool-json-string', 'primary', 'OUTPUT_SCHEMA_MISMATCH'],
+        ['scroll-writer.v11', 'hp5-tool-json-string', 'repair', 'SUCCEEDED'],
+      ]);
+      expect(rows[0]?.output).toBeNull();
+      expect(rows[1]?.causation_attempt_id).toBe(rows[0]?.id);
+      const wire = JSON.parse(new TextDecoder().decode(p.calls[2])) as { system: string };
+      expect(wire.system).toContain('Use layout flow-lr and omit cell on every node');
+      const stored = await database.db
+        .selectFrom('content.asset_revisions')
+        .select('document')
+        .where('asset_id', '=', result.assetId ?? '')
+        .executeTakeFirstOrThrow();
+      const published = ScrollDocument.parse(stored.document);
+      const publishedDiagram = published.sections
+        .flatMap((section) => section.blocks)
+        .find((block) => block.type === 'diagram');
+      expect(publishedDiagram?.data.layout).toBe('flow-lr');
+      expect(publishedDiagram?.data.interaction.kind).toBe('toggle');
+      expect(publishedDiagram?.data.nodes.every((node) => node.cell === undefined)).toBe(true);
+      expect(await p.produce('seasons', false, signal(), true)).toEqual(result);
+      expect(p.calls).toHaveLength(3);
     },
   );
 
@@ -819,8 +874,8 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .execute();
       expect(rows).toHaveLength(2);
       expect(rows.map((row) => [row.role_version, row.prompt_version, row.step, row.outcome_code])).toEqual([
-        ['scroll-writer.v10', 'hp5-tool-json-string', 'primary', 'OUTPUT_SCHEMA_MISMATCH'],
-        ['scroll-writer.v10', 'hp5-tool-json-string', 'repair', 'SUCCEEDED'],
+        ['scroll-writer.v11', 'hp5-tool-json-string', 'primary', 'OUTPUT_SCHEMA_MISMATCH'],
+        ['scroll-writer.v11', 'hp5-tool-json-string', 'repair', 'SUCCEEDED'],
       ]);
       expect(rows[0]?.output).toBeNull();
       expect(rows[1]?.causation_attempt_id).toBe(rows[0]?.id);
@@ -889,7 +944,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       expect(
         writers.every(
           (r) =>
-            r.role_version === 'scroll-writer.v10' &&
+            r.role_version === 'scroll-writer.v11' &&
             r.prompt_version === 'hp5-tool-json-string' &&
             r.max_output_tokens === 12000,
         ),
@@ -1223,7 +1278,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
               id: randomUUID(),
               ownerModule: 'content',
               purpose: 'fixture-unsupported',
-              policyVersion: 'scroll-production.v12',
+              policyVersion: 'scroll-production.v13',
               authority: { scopeId: 'scroll-supply', generation: 1 },
             },
             role,
@@ -1288,14 +1343,14 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         .executeTakeFirstOrThrow();
       expect(result.assetId).toBe(TOPICS[topic].assetId);
       expect(exactRevision.explanation_unit_id).toBe(explanationUnitFor(topic));
-      expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v10,');
+      expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v11,');
       expect(
         await database.db
           .selectFrom('content.scroll_production_runs')
           .select('policy_version')
           .where('id', '=', result.runId ?? '')
           .executeTakeFirstOrThrow(),
-      ).toEqual({ policy_version: 'scroll-production.v12' });
+      ).toEqual({ policy_version: 'scroll-production.v13' });
       expect(
         await database.db
           .selectFrom('content.asset_provenance')
@@ -1303,7 +1358,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
           .where('asset_id', '=', result.assetId ?? '')
           .executeTakeFirstOrThrow(),
       ).toMatchObject({
-        provenance: { production: { promptVersion: 'scroll-writer.v10' } },
+        provenance: { production: { promptVersion: 'scroll-writer.v11' } },
       });
       expect(p.model.calls.every((call) => call.request.fixture === 'scroll-production-CI-fixture')).toBe(true);
       const projected = await database.db
@@ -1697,17 +1752,17 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       .select(['policy_version', 'claims_run_id', 'writer_run_id'])
       .where('id', '=', result.runId ?? '')
       .executeTakeFirstOrThrow();
-    expect(current.policy_version).toBe('scroll-production.v12');
+    expect(current.policy_version).toBe('scroll-production.v13');
     expect(ids).not.toContain(current.claims_run_id);
     expect(ids).not.toContain(current.writer_run_id);
     expect(p.model.calls[0]?.request.system).toContain('version scroll-claims.v4,');
-    expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v10,');
+    expect(p.model.calls[1]?.request.system).toContain('version scroll-writer.v11,');
     const provenance = await database.db
       .selectFrom('content.asset_provenance')
       .select('provenance')
       .where('asset_id', '=', result.assetId ?? '')
       .executeTakeFirstOrThrow();
-    expect(provenance.provenance).toMatchObject({ production: { promptVersion: 'scroll-writer.v10' } });
+    expect(provenance.provenance).toMatchObject({ production: { promptVersion: 'scroll-writer.v11' } });
     expect(await p.produce()('greenhouse', false, signal(), true)).toEqual(result);
     expect(p.model.calls).toHaveLength(2);
     expect(await previousBytes()).toEqual(before);
@@ -1717,8 +1772,9 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     ['scroll-production.v9', 'scroll-writer.v7'],
     ['scroll-production.v10', 'scroll-writer.v8'],
     ['scroll-production.v11', 'scroll-writer.v9'],
+    ['scroll-production.v12', 'scroll-writer.v10'],
   ] as const)(
-    'preserves terminal %s issues and protected bytes across policy12 publication and replay',
+    'preserves terminal %s issues and protected bytes across policy13 publication and replay',
     async (policy, historicalWriter) => {
       const jobId = randomUUID(),
         claimsId = randomUUID(),
@@ -1945,11 +2001,11 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     };
     await expect(p.produce(stopBeforeWriter)('greenhouse', false, signal())).rejects.toThrow('CI_STOP_BEFORE_WRITER');
     if (changed === 'claims')
-      await sql`update content.scroll_production_runs set claims=jsonb_set(claims,'{claims,0,quote}','"tampered CI quote"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v12'`.execute(
+      await sql`update content.scroll_production_runs set claims=jsonb_set(claims,'{claims,0,quote}','"tampered CI quote"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v13'`.execute(
         database.db,
       );
     else
-      await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v12'`.execute(
+      await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='greenhouse' and policy_version='scroll-production.v13'`.execute(
         database.db,
       );
     const resumed = await p.produce()('greenhouse', false, signal(), true);

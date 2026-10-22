@@ -100,6 +100,33 @@ describe('Scroll production roles (labelled CI fixture)', () => {
       expect(compiled.document).not.toHaveProperty(hidden);
     expect(compiled.explanationUnitId).toBe('legacy-cutroom-greenhouse');
   });
+  it('preserves general canonical grid admission and its cell checks while this writer selects flows', () => {
+    const input = fixtureDraft(true);
+    const format = input.sections.flatMap((section) => section.blocks).find((block) => block.type === 'diagram');
+    if (!format) throw new Error('CI_DIAGRAM_MISSING');
+    const original = format.data.nodes.map((node) => ({ ...node }));
+    format.data.layout = 'grid';
+    format.data.nodes = original.map((node, index) => ({ ...node, cell: { column: index, row: 0 } }));
+    // Other producers keep valid grids; the shared compiler and stored admission are unchanged.
+    expect(compileGeneratedDraft(input, provenance, true).kind).toBe('compiled');
+    expect(writerRole(provenance, true).outputSchema.safeParse(input).success).toBe(false);
+    for (const [layout, nodes] of [
+      ['grid', original],
+      ['grid', original.map((node) => ({ ...node, cell: { column: 0, row: 0 } }))],
+      ['flow-lr', original.map((node, index) => ({ ...node, cell: { column: index, row: 0 } }))],
+    ] as const) {
+      format.data.layout = layout;
+      format.data.nodes = [...nodes];
+      const result = compileGeneratedDraft(input, provenance, true);
+      expect(result.kind).toBe('refused');
+      if (result.kind === 'refused')
+        expect(result.issues).toContainEqual(expect.objectContaining({ code: 'diagram_cells_invalid' }));
+      expect(writerRole(provenance, true).outputSchema.safeParse(input).success).toBe(false);
+    }
+    format.data.layout = 'flow-lr';
+    format.data.nodes = original;
+    expect(writerRole(provenance, true).outputSchema.safeParse(input).success).toBe(true);
+  });
   it.each([false, true])(
     'embeds one valid fictional JSON draft for interactive=%s, authorized only by synthetic evidence',
     (interactive) => {
@@ -165,6 +192,7 @@ describe('Scroll production roles (labelled CI fixture)', () => {
       expect(role.instructions).toContain('finished 2–3 minute');
       expect(role.instructions).toContain('2–8 minute admission contract');
       expect(role.instructions.includes('columns[].points is nested')).toBe(!interactive);
+      expect(role.instructions.includes('Use layout flow-lr and omit cell on every node')).toBe(interactive);
       const parsed = ScrollDraft.parse(JSON.parse(json));
       expect(parsed.sections[0]?.blocks[1]?.type).toBe(interactive ? 'diagram' : 'comparison');
       expect(role.instructions).not.toContain(writerDraftExampleJson(!interactive));
@@ -242,7 +270,7 @@ describe('Scroll production roles (labelled CI fixture)', () => {
   it('clarifies complete native arrays and aggregate text bounds while keeping canonical schemas strict', () => {
     for (const interactive of [false, true]) {
       const role = writerRole(provenance, interactive);
-      expect(role.version).toBe('scroll-writer.v10');
+      expect(role.version).toBe('scroll-writer.v11');
       expect(role.instructions).toContain('sections and bindings must be JSON arrays');
       expect(role.instructions).toContain('including repair, must regenerate the complete draft object');
       expect(role.instructions).toContain('Serialize only the complete object once');
@@ -409,7 +437,7 @@ describe('code-owned explanation recipes (source declarations, not generated sem
   it('declares three independent same-subtopic units and two required interactive explanations', () => {
     const keys = ['greenhouse-radiation', 'greenhouse-balance', 'greenhouse-limits'] as const;
     const units = keys.map((key) => TOPICS[key]);
-    expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v12');
+    expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v13');
     expect(units.map(({ interactive }) => interactive)).toEqual([true, true, false]);
     expect(units.every(({ topicId }) => topicId === 'earth.greenhouse-effect')).toBe(true);
     expect(new Set(Object.values(TOPICS).map(({ assetId }) => assetId)).size).toBe(6);
