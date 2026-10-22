@@ -164,7 +164,35 @@ export async function applyProposal(
   await p.store.writeDelta(scope, runId, hash, delta);
   await p.store.writeState(scope, { ...view.state, ...geography });
   await p.enqueueDelta(scope, delta);
-  await p.applied(scope, { transitionId: delta.transitionId, geography, personalRevision: personalWatermark });
+  await p.applied(scope, {
+    transitionId: delta.transitionId,
+    geography,
+    personalRevision: personalWatermark,
+    committedCreations: {
+      recordedAt: delta.recordedAt,
+      targets: delta.operations.flatMap((operation) => {
+        if (
+          operation.kind !== 'create_system' &&
+          operation.kind !== 'establish_star' &&
+          operation.kind !== 'form_planet' &&
+          operation.kind !== 'add_region'
+        )
+          return [];
+        const object = operation.object;
+        return [
+          {
+            operation: operation.kind,
+            objectId: object.id,
+            parentId: object.parent.id,
+            kind: object.kind,
+            objectRevision: object.objectRevision,
+            label: object.label,
+            truthStatus: object.truthStatus,
+          },
+        ];
+      }),
+    },
+  });
   return { kind: 'applied', delta };
 }
 /** Validate retained hierarchy and relations before any public read. Aliases have no creation operation. */

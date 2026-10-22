@@ -49,4 +49,8 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
   { name: '0035_clear_recovery', sha256: '2d6f22bf117abb5f60f68589f1b461fa677267c5b0d11814005d40be513b0354' },
   { name: '0036_cutroom_commissioning', sha256: 'adc387eff8375945012dcd06f8ad7228272a9c2280d2753b15943876145314be' },
   { name: '0037_region_navigation', sha256: '46542a5f68064851a26d7d0caaa6bf0c405d5e6fa2af139cddb5dbcd616cf6d7' },
+  {
+    name: '0038_scene_formation_presentations',
+    sha256: '2ab9ba3a5c0765c96086486dc253658de24a0c26078de06b9d6b91b15ca82142',
+  },
 ];

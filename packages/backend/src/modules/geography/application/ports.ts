@@ -208,5 +208,19 @@ export type GeographyApplied = (
     readonly transitionId: string;
     readonly geography: GeographyRevisions;
     readonly personalRevision: number;
+    /** Actual creation operations from the just-committed delta, not model proposals or Scene
+     * inference. Optional only for old fixture/composition callers; apply always supplies it. */
+    readonly committedCreations?: {
+      readonly recordedAt: string;
+      readonly targets: readonly {
+        readonly operation: 'create_system' | 'establish_star' | 'form_planet' | 'add_region';
+        readonly objectId: string;
+        readonly parentId: string;
+        readonly kind: 'system' | 'star' | 'planet' | 'region';
+        readonly objectRevision: number;
+        readonly label: string;
+        readonly truthStatus: 'factual' | 'hypothetical';
+      }[];
+    };
   },
 ) => Promise<void>;
