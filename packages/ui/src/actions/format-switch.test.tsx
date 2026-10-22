@@ -49,3 +49,18 @@ describe('FormatSwitch', () => {
     expect(screen.getByRole('radio', { name: 'Scroll' })).toHaveStyle({ minHeight: 44 });
   });
 });
+
+describe('FormatSwitch bounded labels', () => {
+  it('allows complete unavailable/preparing labels to shrink and wrap at 200% text without shrinking targets', async () => {
+    await renderOn(
+      <FormatSwitch selected="reel" availability={{ scroll: 'unavailable' }} showIcons onSelect={() => undefined} />,
+      { width: 320, textScale: 2 },
+    );
+    expect(screen.getByLabelText('Format of this explanation')).toHaveStyle({ maxWidth: '100%', flexShrink: 1 });
+    const unavailable = screen.getByRole('radio', { name: 'Scroll · unavailable' });
+    expect(unavailable).toBeDisabled();
+    expect(unavailable).toHaveStyle({ minWidth: 0, minHeight: 44, flexShrink: 1 });
+    expect(screen.getByText('Scroll · unavailable')).toHaveStyle({ flexShrink: 1 });
+    expect(screen.getByRole('radio', { name: 'Reel', checked: true })).toHaveStyle({ minHeight: 44 });
+  });
+});

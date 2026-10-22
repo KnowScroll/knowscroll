@@ -25,9 +25,11 @@ import { KeepWriteStatus } from '../saved/keep-detail';
 import { readResume, writeResume } from '../encounter/encounter-history';
 import { savedRemovalFor } from '../saved/saved-query';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
+import { ReelPage, useReelPageStage } from './reel-page';
 import { ActivatedReelView } from './activated-reel-view';
 
 function OpenReel({ scope, assetId }: { scope: AccountScope; assetId: string }) {
+  const insets = useSafeAreaInsets();
   const [opened, setOpened] = useState<{ exposureId: string; document: ReelDocument }>();
   const [failed, setFailed] = useState(false);
   const [commands] = useState(() => ({ open: newCommandId(), activate: newCommandId() }));
@@ -59,7 +61,17 @@ function OpenReel({ scope, assetId }: { scope: AccountScope; assetId: string }) 
   }, [scope, assetId, commands]);
   if (failed) return <StateBlock title="This Reel isn't available" body="Check your connection, then open it again." />;
   if (!opened) return <Skeleton rows={3} label="Opening the Reel" />;
-  return <ReadyReel scope={scope} exposureId={opened.exposureId} document={opened.document} />;
+  return (
+    <ReelPage
+      testID="direct-reel-page"
+      topInset={insets.top}
+      bottomInset={insets.bottom}
+      leftInset={insets.left}
+      rightInset={insets.right}
+    >
+      <ReadyReel scope={scope} exposureId={opened.exposureId} document={opened.document} />
+    </ReelPage>
+  );
 }
 
 function ReadyReel({
@@ -72,12 +84,21 @@ function ReadyReel({
   document: ReelDocument;
 }) {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [active, setActive] = useState(AppState.currentState === 'active');
   const [saving, setSaving] = useState(false);
   const removal = useMemo(() => savedRemovalFor(scope, newCommandId), [scope]);
   const removalState = useSyncExternalStore(removal.subscribe, removal.getState, removal.getState);
   const positionRef = useRef<ReelPositionHandle>(null);
+  const pause = useCallback(() => positionRef.current?.pause(), []);
+  const visibility = useReelPageStage(scope, active, pause);
+  const renderStage = useCallback(
+    (stage: React.ReactNode) => (
+      <View ref={visibility.ref} onLayout={visibility.onLayout} style={styles.stage}>
+        {stage}
+      </View>
+    ),
+    [visibility.ref, visibility.onLayout],
+  );
   const target = useMemo(() => ({ assetId: document.assetId, assetRevision: document.revision }), [document]);
   const capture = useCallback(() => {
     const value = positionRef.current?.capture();
@@ -146,8 +167,8 @@ function ReadyReel({
     }
   };
   return (
-    <View style={styles.ground}>
-      <View style={[styles.top, { paddingTop: insets.top + spacing[2] }]}>
+    <View style={styles.page}>
+      <View style={[styles.top, { paddingTop: spacing[2] }]}>
         <IconButton
           icon="back"
           label="Back"
@@ -160,7 +181,9 @@ function ReadyReel({
         exposureId={exposureId}
         document={document}
         recorder={recorder}
-        active={active}
+        active={active && visibility.visible}
+        renderStage={renderStage}
+        stageMaxHeight={visibility.stageMaxHeight}
         positionRef={positionRef}
         initialPositionMs={resume?.kind === 'reel' ? resume.positionMs : undefined}
       />
@@ -246,9 +269,12 @@ export function ReelScreen() {
   return <OpenReel key={`${state.scope.id}:${id}`} scope={state.scope} assetId={id.toLowerCase()} />;
 }
 const styles = StyleSheet.create({
-  ground: { flex: 1, backgroundColor: content.paper },
+  page: { flexGrow: 1, backgroundColor: content.paper, paddingBottom: spacing[24] },
+  stage: { flex: 1, minHeight: 0 },
   top: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[2],
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: layout.gutter,
