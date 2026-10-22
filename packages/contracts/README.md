@@ -717,8 +717,11 @@ empty/limit-only request and ID-only response remain compatible, including
 unrelated legacy unknown-field stripping. Newly reserved paging fields cannot
 silently downgrade a malformed page into the first legacy list. New callers
 must explicitly parse `SavedPageResponseSchema` and bind its account/epoch,
-filter and numeric limit to their initiating scope/request: a valid legacy200
-response from an older server is insufficient. This contract-only phase does
+filter, numeric limit and `requestCursor` to their initiating scope/request: a valid legacy200
+response from an older server is insufficient. `requestCursor` is absent on the
+first page and must exactly echo the initiating opaque cursor on later pages;
+a response from a different same-filter page must not enter this page cache.
+A `more` token cannot equal that initiating token. This contract-only phase does
 not implement paging, a cursor codec, kind filtering or complete library access.
 
 A strict new page contains at most50 unique current Saved memberships (one per

@@ -887,7 +887,12 @@ describe('Saved live paging declaration OpenAPI metadata', () => {
         'items',
         'continuation',
       ]) as unknown,
-      properties: { consistency: { const: 'live' }, limit: { minimum: 1, maximum: 50 }, items: { maxItems: 50 } },
+      properties: {
+        requestCursor: { pattern: '^ksp1_[A-Za-z0-9_-]{43,1024}$' },
+        consistency: { const: 'live' },
+        limit: { minimum: 1, maximum: 50 },
+        items: { maxItems: 50 },
+      },
     });
     for (const [code, definition] of Object.entries(errors)) {
       const schema = schemas?.[`SavedListProblem_${code}`];

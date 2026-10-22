@@ -92,6 +92,7 @@ export const LegacyListSavedResponseSchema = z.object({
   items: z.array(LegacySavedItemSchema),
   pagination: z.never().optional(),
   consistency: z.never().optional(),
+  requestCursor: z.never().optional(),
   scope: z.never().optional(),
   filter: z.never().optional(),
   limit: z.never().optional(),
@@ -103,7 +104,7 @@ export const ListSavedResponseSchema = z.union([SavedPageResponseSchema, LegacyL
 export type ListSavedResponse = z.infer<typeof ListSavedResponseSchema>;
 
 /** Declaration only: new consumers must explicitly require SavedPageResponseSchema and compare
- * scope/filter/limit to the initiating request; a legacy reply is not a complete page. */
+ * scope/filter/limit/requestCursor to the initiating request; a legacy reply is not a complete page. */
 export const listSavedContract = oc
   .route({
     method: 'GET',

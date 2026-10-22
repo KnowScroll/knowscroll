@@ -103,6 +103,11 @@ describe('saved-page.v1 compatible GET declaration', () => {
 
   it('declares exact membership references and current available/corrected/withdrawn rows', () => {
     expect(SavedPageResponseSchema.parse(JSON.parse(JSON.stringify(page)))).toEqual(page);
+    const priorCursor = `ksp1_${'b'.repeat(80)}`;
+    const continued = { ...page, requestCursor: priorCursor };
+    expect(SavedPageResponseSchema.parse(continued)).toEqual(continued);
+    // Equality to the initiating request is a receiving-adapter obligation; parser preserves it.
+    expect(SavedPageResponseSchema.parse(continued).requestCursor).toBe(priorCursor);
     const corrected = { ...item, availability: 'corrected', currentAssetRevision: 1 };
     expect(SavedPageResponseSchema.parse({ ...page, items: [corrected] }).items).toEqual([corrected]);
     const withdrawn = { ...item, availability: 'withdrawn', metadata: undefined };
@@ -125,6 +130,8 @@ describe('saved-page.v1 compatible GET declaration', () => {
 
   it('rejects scope, filter, budget, duplicate membership and private-state violations', () => {
     for (const change of [
+      { requestCursor: cursor },
+      { requestCursor: 'not-a-cursor' },
       { scope: { ...page.scope, privacyEpoch: 0 } },
       { scope: { ...page.scope, universeId: id(4) } },
       { filter: 'scroll' },

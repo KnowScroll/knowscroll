@@ -73,6 +73,8 @@ export const SavedPageResponseSchema = z
   .strictObject({
     pagination: Pagination,
     consistency: z.literal('live'),
+    /** Exact initiating cursor echo; absent on the first page. Consumers compare before admission. */
+    requestCursor: SavedPageCursorSchema.optional(),
     scope: z.strictObject({
       accountId: UuidSchema,
       privacyEpoch: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
@@ -86,6 +88,10 @@ export const SavedPageResponseSchema = z
       z.strictObject({ status: z.literal('end') }),
     ]),
   })
+  .refine(
+    (page) => page.continuation.status !== 'more' || page.continuation.cursor !== page.requestCursor,
+    'A continuation cannot repeat the initiating cursor.',
+  )
   .refine((page) => page.items.length <= page.limit, 'A page cannot exceed its requested limit.')
   .refine(
     (page) => page.items.every((item) => page.filter === 'all' || item.kind === page.filter),
