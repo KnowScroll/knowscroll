@@ -99,8 +99,8 @@ export function makeClearExploration(ports: ClearPorts) {
       });
     },
     async recover(input: unknown = { v: 1 }): Promise<{ scheduled: number; skipped: number }> {
-      ClearRecoveryJobSchema.parse(input);
-      const candidates = await ports.readRecoveryCandidates();
+      const job = ClearRecoveryJobSchema.parse(input);
+      const candidates = await ports.readRecoveryCandidates(job);
       if (candidates.length > 25) throw new Error('CLEAR_RECOVERY_BATCH_INVALID');
       let scheduled = 0,
         skipped = 0;

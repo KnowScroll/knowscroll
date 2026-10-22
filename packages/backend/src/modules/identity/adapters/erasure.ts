@@ -29,7 +29,8 @@ export const identityErasure: ModuleErasure = {
   nonRowStores: [
     {
       name: 'pgboss/identity.recover-clear-operations',
-      description: 'Fixed global version-only recovery schedule; no per-account payload or second outbox.',
+      description:
+        'Fixed global version-only cron and finite operation-ID cursor continuations; bounded queue/terminal/dead-letter retention, no per-account effects or second outbox.',
     },
     {
       name: 'pgboss/identity.clear-exploration',

@@ -122,7 +122,7 @@ describe('durable selective Clear', () => {
       withPrivacyScope: makeWithPrivacyScope(db(), { lockTimeoutMs: 5000 }),
       withMaintenance: makeWithClearMaintenance(db(), { lockTimeoutMs: 5000 }),
       withRecoveryMaintenance: makeWithClearMaintenance(db(), { lockTimeoutMs: 250, statementTimeoutMs: 2000 }),
-      readRecoveryCandidates: readClearRecoveryCandidates(db()),
+      readRecoveryCandidates: readClearRecoveryCandidates(db(), boss),
       store: clearStore,
       reasoning: clearReasoning,
       hash: (input) => requestHash('privacy.clear-exploration', input as Parameters<typeof requestHash>[1]),
@@ -1495,6 +1495,151 @@ describe('durable selective Clear', () => {
     expect(await cases().recover()).toEqual({ scheduled: 1, skipped: 0 });
     expect(await cases().recover()).toEqual({ scheduled: 0, skipped: 0 });
     expect(await count()).toBe(52);
+  });
+  it('persists a finite continuation past25 live/busy heads, deduplicates it, and resumes its orphan tail after restart', async () => {
+    // This fixture drives only its explicit continuation; normal cron declaration is tested by release composition.
+    await boss.unschedule(recoverClearOperationsQueue.name);
+    const persons = new Map<string, FixturePerson>();
+    for (let i = 0; i < 26; i++) {
+      const p = await seedPerson(db()),
+        a = body();
+      persons.set(a.commandId, p);
+      await cases().start(authority(p), a);
+      await dueRecovery(a.commandId);
+    }
+    const operations = await db()
+      .selectFrom('identity.clear_operations')
+      .select(['id', 'command_id', 'scope_id'])
+      .orderBy('id')
+      .execute();
+    const tail = operations[25]!,
+      tailPerson = persons.get(tail.command_id)!;
+    await terminalDelivery(tail.command_id);
+    const continuations = async () =>
+      (
+        await sql<{ id: string; data: unknown; state: string }>`
+      select id,data,state from pgboss.job where name=${recoverClearOperationsQueue.name}`.execute(db())
+      ).rows;
+    // Authored SQL-failure fixture proves discovery cannot publish a partial continuation or operation effect.
+    await sql`create function public.ci_clear_continuation_failure() returns trigger language plpgsql as $$
+      begin if new.name='identity.recover-clear-operations' then
+        raise exception 'CI_CLEAR_CONTINUATION_FAILURE'; end if; return new; end $$;
+      create trigger ci_clear_continuation_failure before insert on pgboss.job
+      for each row execute function public.ci_clear_continuation_failure()`.execute(db());
+    try {
+      await expect(cases().recover()).rejects.toThrow('CI_CLEAR_CONTINUATION_FAILURE');
+    } finally {
+      await sql`drop trigger ci_clear_continuation_failure on pgboss.job;
+      drop function public.ci_clear_continuation_failure()`.execute(db());
+    }
+    expect(await continuations()).toHaveLength(0);
+    expect(
+      (await db().selectFrom('identity.clear_operations').select('recovery_attempts').execute()).every(
+        (x) => x.recovery_attempts === 0,
+      ),
+    ).toBe(true);
+    const locked = gate(),
+      release = gate();
+    const held = db()
+      .transaction()
+      .execute(async (trx) => {
+        await trx
+          .selectFrom('identity.universes')
+          .select('id')
+          .where(
+            'id',
+            'in',
+            operations.slice(12, 25).map((x) => x.scope_id),
+          )
+          .orderBy('id')
+          .forNoKeyUpdate()
+          .execute();
+        locked.open();
+        await release.promise;
+      });
+    await locked.promise;
+    let restarted: ReturnType<typeof createBoss> | undefined;
+    try {
+      // Authored page-abandonment failure: the next-page job has committed before any exact operation work.
+      await expect(
+        custom({
+          withRecoveryMaintenance: () => Promise.reject(new Error('fixture-page-abandoned')),
+        }).recover(),
+      ).rejects.toThrow('fixture-page-abandoned');
+      expect(await cases().recover()).toEqual({ scheduled: 0, skipped: 25 });
+      const [continuation] = await continuations();
+      expect(continuation).toBeDefined();
+      expect(await continuations()).toHaveLength(1);
+      expect(continuation!.data).toEqual({
+        v: 1,
+        cursor: { afterOperationId: operations[24]!.id, throughOperationId: tail.id },
+      });
+      // A newly accepted orphan is outside this pass's immutable captured ceiling.
+      const fresh = await seedPerson(db()),
+        freshCommand = body();
+      await cases().start(authority(fresh), freshCommand);
+      await dueRecovery(freshCommand.commandId);
+      await terminalDelivery(freshCommand.commandId);
+      restarted = createBoss(database.settings, 'consumer', { onError: () => undefined, onWarning: () => undefined });
+      await restarted.start();
+      await startConsumers(
+        restarted,
+        [
+          jobConsumer(
+            {
+              ...recoverClearOperationsQueue,
+              consumer: { ...recoverClearOperationsQueue.consumer, pollingIntervalSeconds: 0.5 },
+            },
+            async (payload) => {
+              await cases().recover(payload);
+            },
+          ),
+        ],
+        () => undefined,
+      );
+      await expect
+        .poll(async () => (await continuations())[0]?.state, { timeout: 15000, interval: 100 })
+        .toBe('completed');
+      await restarted.stop({ graceful: false });
+      expect(
+        await db()
+          .selectFrom('identity.clear_operations')
+          .select('recovery_attempts')
+          .where('id', '=', tail.id)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ recovery_attempts: 1 });
+      expect(
+        (
+          await db()
+            .selectFrom('identity.clear_operations')
+            .select('recovery_attempts')
+            .where(
+              'id',
+              'in',
+              operations.slice(0, 25).map((x) => x.id),
+            )
+            .execute()
+        ).every((x) => x.recovery_attempts === 0),
+      ).toBe(true);
+      expect(
+        await db()
+          .selectFrom('identity.clear_operations')
+          .select('recovery_attempts')
+          .where('command_id', '=', freshCommand.commandId)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ recovery_attempts: 0 });
+      expect(await cases().recover(continuation!.data)).toEqual({ scheduled: 0, skipped: 0 });
+      expect(await continuations()).toHaveLength(1); // final/replayed page does not create a child.
+      await expect(
+        cases().recover({ v: 1, cursor: { afterOperationId: tail.id, throughOperationId: tail.id } }),
+      ).rejects.toThrow();
+      await cases().process(job(tailPerson, tail.command_id));
+      expect(await status(tailPerson)).toMatchObject({ value: { value: { status: 'completed_live' } } });
+    } finally {
+      release.open();
+      await held;
+      await restarted?.stop({ graceful: false });
+    }
   });
   it('recovers an actually expired pg-boss claim without waiting for a lost worker to report failure', async () => {
     const p = await seedPerson(db()),

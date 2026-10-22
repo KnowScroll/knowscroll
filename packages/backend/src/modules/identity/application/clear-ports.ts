@@ -13,7 +13,7 @@ import type {
   WithPrivacyScope,
 } from '../public.js';
 import type { ClearReasoning } from '../../../reasoning/public.js';
-import type { ClearExplorationJob } from '../events.js';
+import type { ClearExplorationJob, ClearRecoveryJob } from '../events.js';
 export interface ClearOperation extends ClearBinding {
   readonly requestHash: string;
   readonly outcomeVersion: number;
@@ -47,7 +47,9 @@ export interface ClearPorts {
   readonly withPrivacyScope: WithPrivacyScope;
   readonly withMaintenance: WithClearMaintenance;
   readonly withRecoveryMaintenance: WithClearMaintenance;
-  readonly readRecoveryCandidates: () => Promise<readonly { readonly accountId: string; readonly commandId: string }[]>;
+  readonly readRecoveryCandidates: (
+    job: ClearRecoveryJob,
+  ) => Promise<readonly { readonly accountId: string; readonly commandId: string }[]>;
   readonly store: ClearStore;
   readonly reasoning: ClearReasoning;
   readonly hash: (input: unknown) => string;
