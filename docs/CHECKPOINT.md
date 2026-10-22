@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-22 09:33 IST (04:03 UTC) · **Phase:** 2 real dev generation / 3–4 implementation · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-22 11:53 IST (06:23 UTC) · **Phase:** personal lifecycle delivery / generation readiness · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,29 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Session handover — 22 Oct 2026 09:33 IST (04:03 UTC)
+## Resumed phase delivery — 22 Oct 2026
+
+The owner explicitly resumed the programme. SSD USB/APFS UUID AFAE8457-8861-427F-A8D0-5F2CC802E2B9 is mounted and writable. Initial fresh inspection of all92 worktrees found only the two known unrelated owner-checkout edits, with no Git operation in progress. Reconciled4fa9eb91 PUSH39720344020 has six successful jobs/full artifact acceptance98b43416; subsequent reliability integration is0378e516. The older96ec cap failure remains preserved and is now diagnosed and resolved by the separately reviewed deterministic fixture below. Only diagnosticPR264/265 were open at reconciliation; DO NOT MERGE.
+
+Fresh public health confirms devd10f4040/schema30/archive6481aa58 and legacy stage8982391f. This does not refresh private host preservation or any expired rollout window. Ledger6b948d88 remains33used/0reserved/0unknown of43, development11/dev22; zero accepted generated Scrolls. No host mutation, provider call or reservation has occurred in this resumed phase.
+
+New meaningful children are linked under222: [343](https://github.com/KnowScroll/knowscroll/issues/343) cap concurrency/generation readiness, [344](https://github.com/KnowScroll/knowscroll/issues/344) Save/park/return and exact Remove/Undo, and [345](https://github.com/KnowScroll/knowscroll/issues/345) durable selective Clear through API/worker/client. Three gpt-6.1-sol HIGH agents own disjoint343-cap-coordination,344-keep-lifecycle and345-selective-clear SSD worktrees, all from4fa9eb91. Root owns integration, operational reviews and the separate345-clear-composition worktree. No additional agent slots are available.
+
+Migration0034_clear_exploration.sql is now exclusively allocated to345, together with the existing37-path core plan. Root accepts the plan's minimal redacted current-window financial linkage to prevent scope-cap reset and its narrowly Identity-owned auth-resolution exception during the barrier; no generic bypass is allowed. The core remains opt-in until separately reviewed API/worker/client composition. Exact Saved/place/Social preservation, monotonic core_done and old-accounting replay fencing are mandatory.
+
+Root independently compared all four disabledv12 sources to acceptedv11 parents: only the allowed version/registry literals differ; credential HANDOFF, lock/sandbox/lifecycle, accounting bounds and strict43/dev31 remain exact. Different-author HIGH review0442dec6 independently inspected complete inverse/functions/SQL/history. Combined acceptanceb2ba9130 is **disabled schema32-only**. It grants no runtime readiness and cannot be used against33/34 without separate exact profile review. No freshness clock has started. Evidence/phase board: coordinator/session-20261022/, tracker comment6333640830.
+
+PR346 merged once06:00:55UTC as0378e516/treebaf5956e, exactly the reviewedb610 source/actualPR4c0 tree. Both full pipelines39730043566/39730050415 passed six checks; Root independently verified full114 logs each, whole19243-entry manifests/all33SQL/smoke29 in archives73589418/b669cc49. Corrected diagnostic39730043578 passed42positive fixtures and the lock-only mutation produced actual5/7 against expected3/9. Original96ec failure and the initial new diagnostic failure remain preserved. Production budget code is unchanged: the old200ms fixture allowed legitimate52-token settlement during705ms admissions. Root source acceptanceeddf2da7/merge receipt in session-20261022. Exact integrated PUSH39731338861 also passed all six; Root verified official114 logs/artifact12405627121/archive04aeb139/all19243 manifest entries/all33SQL/smoke29, acceptance0bb0bd34. This establishes source/CI reliability, without deployment or paid readiness.
+
+Keep347 now includes direct-route capture, bounded all-card stored-place summaries and exact-membership Remove with a cancellable five-second grace period. Independent review's valid same-scope wrong-target response finding is corrected with a regression. Actual Actions exposed inherited fixture state and the native AppState mock mismatch; ordinary corrections and failed runs remain recorded. Current34803715 passes native components but exported web smoke fails; author is diagnosing the exact failure. The existing server list ceiling100 remains explicit, so full S01/S02 and #344 are not complete.
+
+Privacy348 durable core uses exclusive0034 and has exact finalfcf source/PR checks pending final release evidence. Root composition349/c438 mounts HTTP/current authority/private errors and the normal worker, with three real installed-release fixtures. Independent HIGH review found final queue exhaustion plus a failed failure-recording transaction can orphan a pending operation/barrier; bounded durable-operation recovery is required before acceptance. Early queue binding and complete-owner erasure proof findings were corrected. Client350 implements the separate account/privacy screen and stable manager-owned purge/recovery lifecycle; its current source/PR Actions and independent review are pending. These branches are not merged or runtime-verified.
+
+Five superseded queued noncandidate runs were cancelled after rechecking their queued state; running, integration and current candidate checks were left intact. Metadata/job snapshots and exact retirement decisions are in session-20261022/superseded-queue-retirement.json. Cancelled checks are never passing evidence.
+
+Continue across the coherent phases: accepted reliability+Keep integration, durable Clear composition/real journey, then one honestly elected deployment candidate and guarded real generation/connected journeys. All five programme requirements remain OPEN. Main/production, owner-data, spending history and individual Reel-script approval boundaries are unchanged.
+
+## Historical session handover — 22 Oct 2026 09:33 IST (04:03 UTC)
 
 The owner requested a new-session handover and phase-level delivery. Implementation/host/provider work remains stopped in this chat. Next orchestrator is gpt-6.1-sol/xhigh with Sol high/medium subagents, using parallel disjoint workstreams and coherent phase PRs/commits. Existing tracker/epics are retained; create meaningful child issues for missing phase work and defects. No PIO/SoftwareFactory/main/production authority. All five final requirements remain OPEN.
 

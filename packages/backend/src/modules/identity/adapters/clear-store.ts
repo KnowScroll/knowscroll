@@ -1,4 +1,7 @@
-import { sql } from 'kysely';
+import { sql, type Kysely } from 'kysely';
+import type { Database } from '../../../infrastructure/postgres/database.js';
+import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
+import { hasLivePrivacyJob } from '../../../infrastructure/jobs/enqueue-privacy.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { revokeAccountSockets } from '../../../infrastructure/notices/index.js';
 import {
@@ -97,7 +100,12 @@ export const clearStore: ClearStore = {
       b = scope.binding;
     const updated = await trx
       .updateTable('identity.clear_operations')
-      .set({ core_done_at: sql`now()`, phase: 'waiting_for_accounting', failure_code: null })
+      .set({
+        core_done_at: sql`now()`,
+        phase: 'waiting_for_accounting',
+        failure_code: null,
+        recovery_after: sql`now()+interval '15 minutes'`,
+      })
       .where('id', '=', b.operationId)
       .where('core_done_at', 'is', null)
       .executeTakeFirst();
@@ -113,18 +121,104 @@ export const clearStore: ClearStore = {
     await revokeAccountSockets(trx, b.accountId);
     closeClearCore(scope);
   },
-  async accountingDone(scope, verified) {
+  async accountingDone(scope, result) {
     const trx = clearAccountingTransactionOf(scope);
-    await trx
+    if (result === 'pending') {
+      const updated = await trx
+        .updateTable('identity.clear_operations')
+        .set({ phase: 'waiting_for_accounting', failure_code: null, recovery_after: sql`now()+interval '15 minutes'` })
+        .where('id', '=', scope.binding.operationId)
+        .where('core_done_at', 'is not', null)
+        .where('completed_at', 'is', null)
+        .returning(sql<Date>`now()+interval '5 minutes'`.as('wake_at'))
+        .executeTakeFirstOrThrow();
+      return updated.wake_at;
+    }
+    const updated = await trx
       .updateTable('identity.clear_operations')
       .set({
-        phase: verified ? 'verifying_live_removal' : 'waiting_for_accounting',
+        phase: 'verifying_live_removal',
         failure_code: null,
-        ...(verified ? { completed_at: sql`coalesce(completed_at,now())` } : {}),
+        completed_at: sql`coalesce(completed_at,now())`,
+        recovery_after: null,
+        cleanup_due_at:
+          result === 'verified_retained'
+            ? sql`(date_trunc('day',now() at time zone 'UTC')+interval '1 day') at time zone 'UTC'`
+            : null,
       })
       .where('id', '=', scope.binding.operationId)
       .where('core_done_at', 'is not', null)
+      .where('completed_at', 'is', null)
+      .returning('cleanup_due_at')
+      .executeTakeFirstOrThrow();
+    return updated.cleanup_due_at ?? undefined;
+  },
+  async cleanupDone(scope) {
+    await clearAccountingTransactionOf(scope)
+      .updateTable('identity.clear_operations')
+      .set({ cleanup_due_at: null, cleanup_recovery_after: null })
+      .where('id', '=', scope.binding.operationId)
+      .where('completed_at', 'is not', null)
+      .where('cleanup_due_at', 'is not', null)
       .execute();
+  },
+  async claimRecovery(scope) {
+    const trx = isClearCore(scope) ? clearCoreTransactionOf(scope) : clearAccountingTransactionOf(scope);
+    const op = await trx
+      .selectFrom('identity.clear_operations')
+      .select([
+        'completed_at',
+        'failure_code',
+        'recorded_at',
+        'recovery_after',
+        'recovery_attempts',
+        'cleanup_due_at',
+        'cleanup_recovery_after',
+        'cleanup_recovery_attempts',
+        sql<Date>`now()`.as('clock'),
+      ])
+      .where('id', '=', scope.binding.operationId)
+      .executeTakeFirstOrThrow();
+    if (op.completed_at !== null) {
+      if (
+        op.cleanup_due_at === null ||
+        op.cleanup_recovery_attempts >= 3 ||
+        op.cleanup_due_at > op.clock ||
+        (op.cleanup_recovery_after !== null && op.cleanup_recovery_after > op.clock)
+      )
+        return false;
+    } else if ((op.recovery_after ?? new Date(op.recorded_at.getTime() + 900000)) > op.clock) return false;
+    if (await hasLivePrivacyJob(scope)) return false;
+    if (op.completed_at !== null) {
+      await trx
+        .updateTable('identity.clear_operations')
+        .set({
+          cleanup_recovery_after: sql`now()+interval '15 minutes'`,
+          cleanup_recovery_attempts: sql`cleanup_recovery_attempts+1`,
+        })
+        .where('id', '=', scope.binding.operationId)
+        .execute();
+    } else {
+      if (op.recovery_attempts >= 3) {
+        await trx
+          .updateTable('identity.clear_operations')
+          .set({ failure_code: 'temporarily_unavailable' })
+          .where('id', '=', scope.binding.operationId)
+          .where('failure_code', 'is', null)
+          .execute();
+        return false;
+      }
+      await trx
+        .updateTable('identity.clear_operations')
+        .set({
+          failure_code: 'temporarily_unavailable',
+          recovery_after: sql`now()+interval '15 minutes'`,
+          recovery_attempts: sql`recovery_attempts+1`,
+        })
+        .where('id', '=', scope.binding.operationId)
+        .execute();
+    }
+    return true;
   },
   async fail(scope, code) {
     const trx = isClearCore(scope) ? clearCoreTransactionOf(scope) : clearAccountingTransactionOf(scope);
@@ -136,3 +230,21 @@ export const clearStore: ClearStore = {
       .execute();
   },
 };
+
+/** Global maintenance discovery is a bounded IDs-only read; all mutation re-enters the exact root. */
+export function readClearRecoveryCandidates(db: Kysely<Database>) {
+  return () =>
+    withTransaction(db, 'clear-recovery-index', async (trx) => {
+      await sql`select set_config('statement_timeout','2000ms',true)`.execute(trx);
+      const result = await sql<{
+        accountId: string;
+        commandId: string;
+      }>`select account_id as "accountId",command_id as "commandId"
+   from identity.clear_operations where
+    (completed_at is null and (recovery_attempts<3 or failure_code is null) and coalesce(recovery_after,recorded_at+interval '15 minutes')<=now())
+    or (completed_at is not null and cleanup_due_at<=now() and cleanup_recovery_attempts<3
+      and coalesce(cleanup_recovery_after,cleanup_due_at)<=now())
+   order by coalesce(cleanup_recovery_after,cleanup_due_at,recovery_after,recorded_at),id limit 25`.execute(trx);
+      return result.rows;
+    });
+}

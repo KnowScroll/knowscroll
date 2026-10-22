@@ -24,7 +24,14 @@ import {
   clearExplorationRegistry,
   checkErasureInventory,
 } from '@knowscroll/backend/infrastructure/erasure';
-import { applyQueueDeclarations, createBoss, makeEnqueuePrivacyJob } from '@knowscroll/backend/infrastructure/jobs';
+import {
+  applyQueueDeclarations,
+  createBoss,
+  makeEnqueuePrivacyJob,
+  jobConsumer,
+  startConsumers,
+  deadLetterQueueName,
+} from '@knowscroll/backend/infrastructure/jobs';
 import { requestHash } from '@knowscroll/backend/infrastructure/receipts';
 import {
   makeWithPrivacyScope,
@@ -35,10 +42,15 @@ import {
   clearAccountingTransactionOf,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
-import { clearExplorationQueue, type PrivacyAuthority } from '@knowscroll/backend/modules/identity';
+import {
+  clearExplorationQueue,
+  recoverClearOperationsQueue,
+  type PrivacyAuthority,
+} from '@knowscroll/backend/modules/identity';
 import {
   clearExplorationFor,
   clearStore,
+  readClearRecoveryCandidates,
   identityUseCases,
   makeClearExploration,
   type ClearPorts,
@@ -109,6 +121,8 @@ describe('durable selective Clear', () => {
     makeClearExploration({
       withPrivacyScope: makeWithPrivacyScope(db(), { lockTimeoutMs: 5000 }),
       withMaintenance: makeWithClearMaintenance(db(), { lockTimeoutMs: 5000 }),
+      withRecoveryMaintenance: makeWithClearMaintenance(db(), { lockTimeoutMs: 250, statementTimeoutMs: 2000 }),
+      readRecoveryCandidates: readClearRecoveryCandidates(db()),
       store: clearStore,
       reasoning: clearReasoning,
       hash: (input) => requestHash('privacy.clear-exploration', input as Parameters<typeof requestHash>[1]),
@@ -126,7 +140,7 @@ describe('durable selective Clear', () => {
     database = await createTestDatabase<Database>('privacy_clear');
     boss = createBoss(database.settings, 'install', { onError: () => undefined, onWarning: () => undefined });
     await boss.start();
-    await applyQueueDeclarations(boss, [clearExplorationQueue]);
+    await applyQueueDeclarations(boss, [clearExplorationQueue, recoverClearOperationsQueue]);
   });
   afterEach(async () => {
     await boss.stop({ graceful: false });
@@ -1114,5 +1128,401 @@ describe('durable selective Clear', () => {
       throw new Error('fixture acceptance missing');
     expect(replay.value.value).toEqual({ ...accepted.value.value, replayed: true });
     expect((await root(p)).privacy_epoch).toBe(3);
+  });
+  /** Authored terminal/lost delivery fixture only. Actual exhaustion is tested separately below. */
+  const terminalDelivery = async (commandId: string) => {
+    await sql`update pgboss.job set state='failed',completed_on=now()
+      where name=${clearExplorationQueue.name} and data->>'commandId'=${commandId}`.execute(db());
+  };
+  const dueRecovery = async (commandId: string) => {
+    await db()
+      .updateTable('identity.clear_operations')
+      .set({ recovery_after: new Date(0) })
+      .where('command_id', '=', commandId)
+      .execute();
+  };
+  it('recovers actual exhausted/deadletter work after both process and final fail time out on the root', async () => {
+    const p = await seedPerson(db()),
+      a = body();
+    await cases().start(authority(p), a);
+    await dueRecovery(a.commandId);
+    // CI-only short delivery policy: the actual pg-boss exhaustion/dead-letter mechanism is unchanged.
+    const queue = {
+      ...clearExplorationQueue,
+      policy: { ...clearExplorationQueue.policy, retryLimit: 0, expireInSeconds: 2 },
+      consumer: { ...clearExplorationQueue.consumer, pollingIntervalSeconds: 0.1 },
+    };
+    await applyQueueDeclarations(boss, [queue]);
+    // The already-sent job keeps its original policy; make this authored fixture delivery terminal on first failure.
+    await sql`update pgboss.job set retry_limit=0 where name=${queue.name} and data->>'commandId'=${a.commandId}`.execute(
+      db(),
+    );
+    const clear = clearExplorationFor(db(), boss, { reasoning: clearReasoning, eraseCore: core, lockTimeoutMs: 50 });
+    const locked = gate(),
+      release = gate();
+    let processFailures = 0,
+      failedWrites = 0;
+    const held = db()
+      .transaction()
+      .execute(async (trx) => {
+        await trx
+          .selectFrom('identity.universes')
+          .select('id')
+          .where('id', '=', p.universeId)
+          .forNoKeyUpdate()
+          .execute();
+        locked.open();
+        await release.promise;
+      });
+    await locked.promise;
+    const worker = createBoss(database.settings, 'consumer', { onError: () => undefined, onWarning: () => undefined });
+    let restarted: ReturnType<typeof createBoss> | undefined;
+    try {
+      await worker.start();
+      await startConsumers(
+        worker,
+        [
+          jobConsumer(queue, async (payload) => {
+            try {
+              await clear.process(payload);
+            } catch (error) {
+              processFailures++;
+              try {
+                await clear.fail(payload, 'temporarily_unavailable');
+              } catch {
+                failedWrites++;
+              }
+              throw error;
+            }
+          }),
+        ],
+        () => undefined,
+      );
+      await expect
+        .poll(
+          async () =>
+            (
+              await sql<{ n: number }>`select count(*)::int n from pgboss.job
+        where name=${deadLetterQueueName(queue.name)} and data->>'commandId'=${a.commandId}`.execute(db())
+            ).rows[0]?.n,
+          { timeout: 15000, interval: 100 },
+        )
+        .toBeGreaterThan(0);
+      expect(processFailures).toBe(1);
+      expect(failedWrites).toBe(1);
+      expect(await clear.recover()).toEqual({ scheduled: 0, skipped: 1 });
+      expect(
+        await db()
+          .selectFrom('identity.clear_operations')
+          .select(['core_done_at', 'completed_at', 'failure_code', 'recovery_attempts'])
+          .where('command_id', '=', a.commandId)
+          .executeTakeFirst(),
+      ).toEqual({ core_done_at: null, completed_at: null, failure_code: null, recovery_attempts: 0 });
+      release.open();
+      await held;
+      await worker.stop({ graceful: false });
+      expect(await clear.recover()).toEqual({ scheduled: 1, skipped: 0 });
+      expect(
+        await db()
+          .selectFrom('identity.clear_operations')
+          .select(['failure_code', 'recovery_attempts'])
+          .where('command_id', '=', a.commandId)
+          .executeTakeFirst(),
+      ).toEqual({ failure_code: 'temporarily_unavailable', recovery_attempts: 1 });
+      expect(await clear.recover()).toEqual({ scheduled: 0, skipped: 0 });
+      restarted = createBoss(database.settings, 'consumer', { onError: () => undefined, onWarning: () => undefined });
+      await restarted.start();
+      await startConsumers(restarted, [jobConsumer(queue, (payload) => clear.process(payload))], () => undefined);
+      await expect
+        .poll(
+          async () =>
+            (
+              await db()
+                .selectFrom('identity.clear_operations')
+                .select('completed_at')
+                .where('command_id', '=', a.commandId)
+                .executeTakeFirst()
+            )?.completed_at,
+          { timeout: 15000, interval: 100 },
+        )
+        .not.toBeNull();
+      expect((await root(p)).clear_operation_id).toBeNull();
+      expect((await root(p)).privacy_epoch).toBe(2);
+      expect(await status(p)).toMatchObject({ value: { value: { status: 'completed_live' } } });
+    } finally {
+      release.open();
+      await held;
+      await worker.stop({ graceful: false });
+      await restarted?.stop({ graceful: false });
+    }
+  });
+  it('atomically claims recovery with its fixed job, deduplicates live work, and stops at three cooldown waves', async () => {
+    const p = await seedPerson(db()),
+      a = body();
+    await cases().start(authority(p), a);
+    await dueRecovery(a.commandId);
+    expect(await cases().recover()).toEqual({ scheduled: 0, skipped: 1 }); // original delivery is still live.
+    await terminalDelivery(a.commandId);
+    const before = await db()
+      .selectFrom('identity.clear_operations')
+      .selectAll()
+      .where('command_id', '=', a.commandId)
+      .executeTakeFirstOrThrow();
+    const enqueue = makeEnqueuePrivacyJob(boss, clearExplorationQueue);
+    await expect(
+      custom({
+        async enqueue(...args) {
+          await enqueue(...args);
+          throw new Error('fixture-recovery-job-crash');
+        },
+      }).recover(),
+    ).rejects.toThrow('fixture-recovery-job-crash');
+    expect(
+      await db()
+        .selectFrom('identity.clear_operations')
+        .selectAll()
+        .where('command_id', '=', a.commandId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual(before);
+    for (let wave = 1; wave <= 3; wave++) {
+      await dueRecovery(a.commandId);
+      expect(await cases().recover()).toEqual({ scheduled: 1, skipped: 0 });
+      const row = await db()
+        .selectFrom('identity.clear_operations')
+        .select(['recovery_after', 'recovery_attempts', 'failure_code'])
+        .where('command_id', '=', a.commandId)
+        .executeTakeFirstOrThrow();
+      expect(row.recovery_attempts).toBe(wave);
+      expect(row.failure_code).toBe('temporarily_unavailable');
+      expect(row.recovery_after!.getTime()).toBeGreaterThan(Date.now() + 890000);
+      expect(await cases().recover()).toEqual({ scheduled: 0, skipped: 0 });
+      await terminalDelivery(a.commandId);
+    }
+    await dueRecovery(a.commandId);
+    expect(await cases().recover()).toEqual({ scheduled: 0, skipped: 0 });
+    expect(await status(p)).toMatchObject({ value: { value: { status: 'failed', code: 'temporarily_unavailable' } } });
+    expect((await root(p)).clear_operation_id).not.toBeNull();
+    await expect(
+      db()
+        .updateTable('identity.clear_operations')
+        .set({ recovery_attempts: 0 })
+        .where('command_id', '=', a.commandId)
+        .execute(),
+    ).rejects.toThrow('clear_recovery_budget_monotonic');
+  });
+  it('recovers a lost completed UTC cleanup using only captured accounting, preserving a fresh B barrier and attempts', async () => {
+    const p = await seedPerson(db()),
+      old = await seedAttempt(p, 'succeeded');
+    // Authored previous-UTC-window fixture, never a clock change or financial receipt rewrite after capture.
+    await sql`update reasoning.external_attempts set budget_window=(now() at time zone 'UTC')::date-1 where id=${old.id}`.execute(
+      db(),
+    );
+    await sql`update reasoning.usage_receipts set budget_window=(now() at time zone 'UTC')::date-1 where attempt_id=${old.id}`.execute(
+      db(),
+    );
+    const a = body();
+    await cases().start(authority(p), a);
+    await makeWithClearMaintenance(db(), { lockTimeoutMs: 5000 })(p.accountId, a.commandId, async (scope) => {
+      if (!isClearCore(scope)) throw new Error('fixture expected core');
+      await core(scope);
+      await clearStore.coreDone(scope);
+    });
+    await makeWithClearMaintenance(db(), { lockTimeoutMs: 5000 })(p.accountId, a.commandId, async (scope) => {
+      if (isClearCore(scope)) throw new Error('fixture expected accounting');
+      // Authored legal prior-window completed-retention snapshot. Every SQL guard remains enabled.
+      await clearAccountingTransactionOf(scope)
+        .updateTable('identity.clear_operations')
+        .set({
+          completed_at: sql`now()`,
+          phase: 'verifying_live_removal',
+          failure_code: null,
+          cleanup_due_at: new Date(0),
+        })
+        .where('id', '=', scope.binding.operationId)
+        .execute();
+    });
+    const operation = await db()
+      .selectFrom('identity.clear_operations')
+      .selectAll()
+      .where('command_id', '=', a.commandId)
+      .executeTakeFirstOrThrow();
+    await terminalDelivery(a.commandId);
+    const fresh = await seedAttempt({ ...p, authority: { ...p.authority, privacyEpoch: 2 } }, 'succeeded');
+    const freshBefore = await db()
+      .selectFrom('reasoning.external_attempts')
+      .selectAll()
+      .where('id', '=', fresh.id)
+      .executeTakeFirstOrThrow();
+    const b = body(2);
+    await cases().start(authority(p, 2), b);
+    const rootBefore = await root(p);
+    const receiptBefore = await db().selectFrom('reasoning.usage_receipts').selectAll().orderBy('attempt_id').execute();
+    expect(await cases().recover()).toEqual({ scheduled: 1, skipped: 0 });
+    await cases().process(job(p, a.commandId));
+    const after = await db()
+      .selectFrom('identity.clear_operations')
+      .selectAll()
+      .where('id', '=', operation.id)
+      .executeTakeFirstOrThrow();
+    expect(after).toMatchObject({
+      completed_at: operation.completed_at,
+      core_done_at: operation.core_done_at,
+      failure_code: null,
+      cleanup_due_at: null,
+      cleanup_recovery_attempts: 1,
+    });
+    expect(await root(p)).toEqual(rootBefore);
+    expect(
+      await db().selectFrom('reasoning.external_attempts').select('id').where('id', '=', old.id).executeTakeFirst(),
+    ).toBeUndefined();
+    expect(
+      await db()
+        .selectFrom('reasoning.external_attempts')
+        .selectAll()
+        .where('id', '=', fresh.id)
+        .executeTakeFirstOrThrow(),
+    ).toEqual(freshBefore);
+    expect(await db().selectFrom('reasoning.usage_receipts').selectAll().orderBy('attempt_id').execute()).toEqual(
+      receiptBefore,
+    );
+    const count = await sql<{
+      n: number;
+    }>`select count(*)::int n from pgboss.job where name=${clearExplorationQueue.name}`.execute(db());
+    await cases().recover();
+    await cases().process(job(p, a.commandId));
+    expect(
+      (
+        await sql<{
+          n: number;
+        }>`select count(*)::int n from pgboss.job where name=${clearExplorationQueue.name}`.execute(db())
+      ).rows,
+    ).toEqual(count.rows);
+    await expect(
+      db()
+        .updateTable('identity.clear_operations')
+        .set({ cleanup_due_at: new Date() })
+        .where('id', '=', operation.id)
+        .execute(),
+    ).rejects.toThrow('clear_cleanup_cannot_reopen');
+  });
+  it('records failure after the last recovery wave loses a healthy accounting poll without granting a fourth wave', async () => {
+    const p = await seedPerson(db()),
+      attempt = await seedAttempt(p, 'dispatched'),
+      a = body();
+    await cases().start(authority(p), a);
+    for (let wave = 1; wave <= 3; wave++) {
+      await terminalDelivery(a.commandId);
+      await dueRecovery(a.commandId);
+      expect(await cases().recover()).toEqual({ scheduled: 1, skipped: 0 });
+    }
+    // Actual captured dispatched liability keeps accounting pending; a successful poll clears the failed marker.
+    await cases().process(job(p, a.commandId));
+    expect(await status(p)).toMatchObject({ value: { value: { status: 'pending' } } });
+    expect((await root(p)).clear_operation_id).toBeNull();
+    await terminalDelivery(a.commandId);
+    await dueRecovery(a.commandId);
+    const deliveries = async () =>
+      (
+        await sql<{ n: number }>`select count(*)::int n from pgboss.job where name=${clearExplorationQueue.name}
+          and data->>'commandId'=${a.commandId}`.execute(db())
+      ).rows[0]?.n;
+    const before = await deliveries();
+    expect(await cases().recover()).toEqual({ scheduled: 0, skipped: 1 });
+    expect(await status(p)).toMatchObject({ value: { value: { status: 'failed', code: 'temporarily_unavailable' } } });
+    expect(await cases().recover()).toEqual({ scheduled: 0, skipped: 0 });
+    expect(await deliveries()).toBe(before);
+    expect(
+      await db()
+        .selectFrom('identity.clear_operations')
+        .select('recovery_attempts')
+        .where('command_id', '=', a.commandId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ recovery_attempts: 3 });
+    const retained = await db()
+      .selectFrom('reasoning.external_attempts')
+      .select(['state', 'privacy_erased_at'])
+      .where('id', '=', attempt.id)
+      .executeTakeFirstOrThrow();
+    expect(retained.state).toBe('dispatched');
+    expect(retained.privacy_erased_at).toBeInstanceOf(Date);
+  });
+  it('uses pg-boss retention and heartbeat deadlines when checking same-operation live delivery', async () => {
+    const p = await seedPerson(db()),
+      a = body();
+    await cases().start(authority(p), a);
+    await dueRecovery(a.commandId);
+    expect(await cases().recover()).toEqual({ scheduled: 0, skipped: 1 });
+    // Authored lost-retention fixture; created/retry rows are live only before their actual keep_until deadline.
+    await sql`update pgboss.job set keep_until=pgboss.job_now()-interval '1 second'
+      where name=${clearExplorationQueue.name} and data->>'commandId'=${a.commandId}`.execute(db());
+    expect(await cases().recover()).toEqual({ scheduled: 1, skipped: 0 });
+    await terminalDelivery(a.commandId);
+    await dueRecovery(a.commandId);
+    // Authored heartbeat fixture: a live lease still counts as lost after its heartbeat deadline.
+    await sql`update pgboss.job set state='active',completed_on=null,started_on=pgboss.job_now(),expire_seconds=600,
+      heartbeat_seconds=5,heartbeat_on=pgboss.job_now()
+      where name=${clearExplorationQueue.name} and data->>'commandId'=${a.commandId}`.execute(db());
+    expect(await cases().recover()).toEqual({ scheduled: 0, skipped: 1 });
+    await sql`update pgboss.job set heartbeat_on=pgboss.job_now()-interval '10 seconds'
+      where name=${clearExplorationQueue.name} and data->>'commandId'=${a.commandId}`.execute(db());
+    expect(await cases().recover()).toEqual({ scheduled: 1, skipped: 0 });
+    await cases().process(job(p, a.commandId));
+    expect(await status(p)).toMatchObject({ value: { value: { status: 'completed_live' } } });
+  });
+  it('bounds discovery to25, recognizes expired active claims, and keeps status/replay mutation-free', async () => {
+    const persons = [];
+    for (let i = 0; i < 26; i++) {
+      const p = await seedPerson(db()),
+        a = body();
+      persons.push({ p, a });
+      await cases().start(authority(p), a);
+      await dueRecovery(a.commandId);
+    }
+    const first = persons[0]!;
+    await sql`update pgboss.job set state='active',started_on=now()-interval '1 hour'
+      where name=${clearExplorationQueue.name}`.execute(db());
+    const count = async () =>
+      (
+        await sql<{
+          n: number;
+        }>`select count(*)::int n from pgboss.job where name=${clearExplorationQueue.name}`.execute(db())
+      ).rows[0]?.n;
+    const before = await count();
+    await status(first.p);
+    await cases().start(authority(first.p, 2), first.a);
+    expect(await count()).toBe(before);
+    expect(await cases().recover()).toEqual({ scheduled: 25, skipped: 0 });
+    expect(await cases().recover()).toEqual({ scheduled: 1, skipped: 0 });
+    expect(await cases().recover()).toEqual({ scheduled: 0, skipped: 0 });
+    expect(await count()).toBe(52);
+  });
+  it('recovers an actually expired pg-boss claim without waiting for a lost worker to report failure', async () => {
+    const p = await seedPerson(db()),
+      a = body();
+    await cases().start(authority(p), a);
+    await dueRecovery(a.commandId);
+    // CI fixture shortens only this job's lease; claim/expiry use pg-boss's actual clock and state.
+    await sql`update pgboss.job set expire_seconds=1 where name=${clearExplorationQueue.name}
+      and data->>'commandId'=${a.commandId}`.execute(db());
+    const [claimed] = await boss.fetch(clearExplorationQueue.name, { batchSize: 1 });
+    expect(claimed).toBeDefined();
+    await expect
+      .poll(
+        async () =>
+          (
+            await sql<{
+              expired: boolean;
+            }>`select started_on+expire_seconds*interval '1 second'<pgboss.job_now() as expired
+      from pgboss.job where name=${clearExplorationQueue.name} and id=${claimed!.id}`.execute(db())
+          ).rows[0]?.expired,
+        { timeout: 5000, interval: 100 },
+      )
+      .toBe(true);
+    expect(await cases().recover()).toEqual({ scheduled: 1, skipped: 0 });
+    await cases().process(job(p, a.commandId));
+    expect(await status(p)).toMatchObject({ value: { value: { status: 'completed_live' } } });
+    const before = await root(p);
+    await cases().process(job(p, a.commandId));
+    expect(await root(p)).toEqual(before);
   });
 });

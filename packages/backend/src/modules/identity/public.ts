@@ -390,6 +390,7 @@ export interface ClearAccountingTx {
   readonly binding: ClearBinding;
   readonly liabilities: readonly ClearLiability[];
   readonly completed: boolean;
+  readonly cleanupDueAt: string | null;
 }
 export interface ClearLiability {
   readonly attemptId: string;
@@ -411,3 +412,5 @@ export type WithClearMaintenance = <T>(
   work: (scope: ClearCoreTx | ClearAccountingTx) => Promise<T>,
 ) => Promise<T | undefined>;
 export { ClearExplorationJobSchema, clearExplorationQueue, type ClearExplorationJob } from './events.js';
+
+export { ClearRecoveryJobSchema, recoverClearOperationsQueue, type ClearRecoveryJob } from './events.js';

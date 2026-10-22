@@ -113,6 +113,34 @@ export function EncounterActions({
         exposureId={entry.exposureId}
         onPress={() => session.openRequest(session.requests.getState().mode)}
       />
+      {state.removal?.status === 'grace' ? (
+        <View style={styles.message}>
+          <Text variant="bodyS">Removal starts in five seconds.</Text>
+          <Button
+            label="Undo removal"
+            onPress={() => {
+              session.undoRemoval();
+            }}
+          />
+        </View>
+      ) : null}
+      {state.removal?.status === 'preparing' || state.removal?.status === 'sending' ? (
+        <Text variant="meta">Checking your removal…</Text>
+      ) : null}
+      {state.removal?.status === 'unknown' ? (
+        <View style={styles.message}>
+          <Text variant="bodyS">Removal wasn't confirmed. Undo is no longer available.</Text>
+          <Button
+            label="Retry removal"
+            onPress={() => {
+              session.retryRemoval();
+            }}
+          />
+        </View>
+      ) : null}
+      {state.removal?.status === 'unavailable' ? (
+        <Text variant="bodyS">This removal couldn't be completed. Check Keep before choosing again.</Text>
+      ) : null}
       {state.actionFailed ? (
         <View style={styles.message}>
           <Text variant="bodyS">That change wasn't confirmed. Your previous state is shown.</Text>

@@ -6,7 +6,7 @@ import {
   type ClearExplorationAcceptance,
 } from '@knowscroll/contracts';
 import type { PrivacyAuthority } from '../public.js';
-import { ClearExplorationJobSchema } from '../events.js';
+import { ClearRecoveryJobSchema, ClearExplorationJobSchema } from '../events.js';
 import type { ClearAccepted, ClearOperation, ClearPorts, ClearRejected, ClearStatusRead } from './clear-ports.js';
 const version = 'clear-exploration.v1' as const;
 function receipt(op: ClearOperation) {
@@ -90,16 +90,47 @@ export function makeClearExploration(ports: ClearPorts) {
         if (ports.isCore(scope)) throw new Error('CLEAR_CORE_INCOMPLETE');
         const result = await ports.reasoning.verifyAndPrune(scope);
         if (scope.completed && result === 'pending') throw new Error('CLEAR_ACCOUNTING_UNVERIFIED');
-        if (!scope.completed) await ports.store.accountingDone(scope, result !== 'pending');
-        if (!scope.completed && result === 'pending')
-          await ports.enqueue(scope, job, new Date(ports.now().getTime() + 300000));
-        if (!scope.completed && result === 'verified_retained') {
-          const next = ports.now();
-          next.setUTCHours(24, 0, 1, 0);
-          // Bound to 24h; at midnight an immediate retry is safe and exact-set only.
-          await ports.enqueue(scope, job, new Date(Math.min(next.getTime(), ports.now().getTime() + 86399000)));
+        if (scope.completed) {
+          if (result === 'verified' && scope.cleanupDueAt !== null) await ports.store.cleanupDone(scope);
+          return;
         }
+        const wake = await ports.store.accountingDone(scope, result);
+        if (wake) await ports.enqueue(scope, job, new Date(Math.min(wake.getTime(), ports.now().getTime() + 86399000)));
       });
+    },
+    async recover(input: unknown = { v: 1 }): Promise<{ scheduled: number; skipped: number }> {
+      ClearRecoveryJobSchema.parse(input);
+      const candidates = await ports.readRecoveryCandidates();
+      if (candidates.length > 25) throw new Error('CLEAR_RECOVERY_BATCH_INVALID');
+      let scheduled = 0,
+        skipped = 0;
+      for (const candidate of candidates) {
+        try {
+          const applied = await ports.withRecoveryMaintenance(
+            candidate.accountId,
+            candidate.commandId,
+            async (scope) => {
+              if (!(await ports.store.claimRecovery(scope))) return false;
+              await ports.enqueue(scope, {
+                v: 1,
+                accountId: scope.binding.accountId,
+                commandId: scope.binding.commandId,
+              });
+              return true;
+            },
+          );
+          if (applied) scheduled++;
+          else skipped++;
+        } catch (error) {
+          const code = (error as { readonly code?: unknown }).code;
+          if (code === '55P03' || code === '57014' || code === 'SCOPE_BUSY') {
+            skipped++;
+            continue;
+          }
+          throw error;
+        }
+      }
+      return { scheduled, skipped };
     },
     async fail(input: unknown, code: 'temporarily_unavailable' | 'completion_unverified'): Promise<void> {
       const job = ClearExplorationJobSchema.parse(input);

@@ -12,7 +12,7 @@ import {
 import { makeEnqueuePrivacyJob } from '../../../infrastructure/jobs/enqueue-privacy.js';
 import { makeClearExploration } from '../application/clear-exploration.js';
 import { clearExplorationQueue } from '../events.js';
-import { clearStore } from './clear-store.js';
+import { readClearRecoveryCandidates, clearStore } from './clear-store.js';
 /** Unmounted: composition supplies closed owner ports and explicitly installs the queue/consumer. */
 export function clearExplorationFor(
   db: Kysely<Database>,
@@ -27,6 +27,8 @@ export function clearExplorationFor(
   return makeClearExploration({
     withPrivacyScope: makeWithPrivacyScope(db, timing),
     withMaintenance: makeWithClearMaintenance(db, timing),
+    withRecoveryMaintenance: makeWithClearMaintenance(db, { lockTimeoutMs: 250, statementTimeoutMs: 2000 }),
+    readRecoveryCandidates: readClearRecoveryCandidates(db),
     store: clearStore,
     reasoning: options.reasoning,
     hash: (input) => requestHash('privacy.clear-exploration', input as Parameters<typeof requestHash>[1]),
@@ -36,4 +38,4 @@ export function clearExplorationFor(
     now: () => new Date(),
   });
 }
-export { clearStore } from './clear-store.js';
+export { readClearRecoveryCandidates, clearStore } from './clear-store.js';

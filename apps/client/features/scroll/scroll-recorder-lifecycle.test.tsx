@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, type useEffect } from 'react';
 import { AppState } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import {
@@ -38,6 +38,8 @@ jest.mock('../../platform/command-id', () => {
   return { newCommandId: () => `0199a000-0000-7000-8000-${String(++next).padStart(12, '0')}` };
 });
 jest.mock('expo-router', () => ({
+  useFocusEffect: (effect: () => void | (() => void)) =>
+    jest.requireActual<{ useEffect: typeof useEffect }>('react').useEffect(effect, [effect]),
   useLocalSearchParams: () => ({ assetId: '0199a000-0000-7000-8000-0000000000a1' }),
   useRouter: () => ({ canGoBack: () => false, back: jest.fn(), replace: jest.fn() }),
 }));

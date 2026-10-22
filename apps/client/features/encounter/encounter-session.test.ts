@@ -244,8 +244,8 @@ describe('actual encounter controller over CI transport fixtures', () => {
       const previousActions = previous.context.actions;
       h.setActionFailure(false);
       h.session.retryAction();
-      // The optimistic update must also target the parked origin, before the reply arrives.
-      expect(origin.context.actions.saved).toBe(true);
+      // Save stays unconfirmed until the originating command acknowledges, even after Back.
+      expect(origin.context.actions.saved).toBe(false);
       expect(previous.context.actions).toBe(previousActions);
       await waitFor(() => expect(h.session.getState()).toMatchObject({ actionFailed: false, actionPending: false }));
       expect(origin.context.actions.saved).toBe(true);
@@ -691,6 +691,48 @@ describe('explicit mounted Keep return and measured checkpoint', () => {
       f.scope.end();
     }
   });
+  it.each(['reel', 'scroll'] as const)(
+    'automatically captures actual %s on background and never uploads restored state',
+    async (kind) => {
+      const f = keptFixture(kind);
+      try {
+        f.session.setForeground(true);
+        f.session.openKept(f.chosen, 'top');
+        await waitFor(() => expect(f.session.getState().phase).toBe('active'));
+        const entry = f.session.getState().entry!;
+        const capture =
+          kind === 'reel'
+            ? { kind: 'reel' as const, positionMs: 321.25, playing: false, muted: false }
+            : {
+                kind: 'scroll' as const,
+                value: {
+                  assetId: entry.offer.assetId,
+                  revision: entry.offer.assetRevision,
+                  blockId: scrollDocument.sections[0]!.blocks[0]!.id,
+                  offsetWithinBlock: 63.5,
+                },
+              };
+        f.session.bindSurface(entry, { capture: () => capture, pause: jest.fn() });
+        await waitFor(() => expect(f.session.getState().keepPlace?.status).toBe('ready'));
+        expect(f.calls.filter((c) => c.path.endsWith('/keep/place'))).toHaveLength(0);
+        f.session.setForeground(false);
+        await waitFor(() => expect(f.calls.filter((c) => c.path.endsWith('/keep/place'))).toHaveLength(1));
+        const sent = f.calls.find((c) => c.path.endsWith('/keep/place'))!.body;
+        expect(sent.entry).toEqual(f.snapshot().entry);
+        expect(sent.position).toEqual(
+          kind === 'reel'
+            ? { kind, positionMs: 321.25 }
+            : { kind, blockId: scrollDocument.sections[0]!.blocks[0]!.id, offsetWithinBlock: 63.5 },
+        );
+        await waitFor(() => expect(f.calls.at(-1)?.path).toMatch(/keep\/read$/));
+        expect(f.session.getState().keepPlace).toBeUndefined();
+        expect(f.calls.filter((c) => c.path.includes('/observations/'))).toHaveLength(0);
+      } finally {
+        f.scope.end();
+      }
+    },
+  );
+
   it('discards a late abort-ignoring restore read when the account scope ends', async () => {
     const f = keptFixture();
     let release!: () => void;
@@ -716,6 +758,7 @@ function historyKeepFixture() {
   let selected = 0;
   let gate: { target: number; promise: Promise<void> } | undefined;
   const revisions = [1, 1];
+  const positions = [0, 0];
   const calls: { path: string; body: Record<string, unknown> }[] = [];
   const offers = [0, 1].map((n) => ({ ...offer(n), relation: { kind: 'return' as const } }));
   const snapshot = (n: number): AvailableKeep => ({
@@ -724,7 +767,7 @@ function historyKeepFixture() {
     target: { assetId: offers[n]!.assetId, assetRevision: 2 },
     status: 'available',
     entry: { assetId: offers[n]!.assetId, assetRevision: 2, savedEntryId: id(900 + n) },
-    place: { status: 'set', placeRevision: revisions[n]!, position: { kind: 'reel', positionMs: 0 } },
+    place: { status: 'set', placeRevision: revisions[n]!, position: { kind: 'reel', positionMs: positions[n]! } },
   });
   const scope = createAccountScope({
     account: { accountId: id(3), universeId: id(4), privacyEpoch: 1, email: 'history@fixture.test' },
@@ -746,6 +789,7 @@ function historyKeepFixture() {
         const b = body as unknown as SetKeepPlace;
         const n = offers.findIndex((v) => v.assetId === b.entry.assetId);
         revisions[n] = b.expectedPlaceRevision + 1;
+        if (b.position.kind === 'reel') positions[n] = b.position.positionMs;
         return jsonFixture({
           version: 'keep-place.v1',
           scope: snapshot(n).scope,
