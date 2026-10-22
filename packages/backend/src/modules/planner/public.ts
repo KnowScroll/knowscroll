@@ -13,3 +13,5 @@ export const REQUEST_PLANNER = Symbol('planner.request');
 export const PLANNER_MATERIAL_CHANGE = Symbol('planner.material-change');
 export const READ_PLANNER_OPPORTUNITIES = Symbol('planner.read-opportunities');
 export const RUN_PLANNER = Symbol('planner.run');
+
+export type { PlannerSource } from './application/ports.js';
