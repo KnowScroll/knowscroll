@@ -204,3 +204,89 @@ describe('U04 declaration-only region encounter preparation', () => {
     expect(RegionEncounterProblemSchema.safeParse(problemDetails('KEEP_ENTRY_UNAVAILABLE')).success).toBe(false);
   });
 });
+
+// Preview is a separate read; these are wire fixtures, never preview-created offers/evidence.
+describe('U04 exact read preview and displayed immutable Open expectation', () => {
+  it('round-trips a correlated minimized card or honest unavailable without command effects', async () => {
+    const { RegionEncounterPreviewRequestSchema, RegionEncounterPreviewResponseSchema } = await import('./index.js');
+    const read = { version: 'region-encounter-preview.v1', readId: id(30), target, capabilities };
+    const available = {
+      ...read,
+      scope: { universeId: id(8), privacyEpoch: 1, personalWatermark: 4 },
+      recordedAt: '2026-10-22T00:00:00Z',
+      geographyRevision: 3,
+      status: 'available',
+      encounter: { assetId: id(105), assetRevision: 1, metadata: offer(5).metadata },
+    };
+    expect(apiContract.experience.previewRegionEncounter['~orpc'].route).toMatchObject({
+      method: 'POST',
+      path: '/v1/experience/region/preview',
+      successStatus: 200,
+    });
+    expect(RegionEncounterPreviewRequestSchema.parse(read)).toEqual(read);
+    expect(RegionEncounterPreviewResponseSchema.parse(available)).toEqual(available);
+    const { encounter: _encounter, ...base } = available;
+    for (const reason of [
+      'stale_target',
+      'unsupported_region',
+      'selection_unavailable',
+      'no_eligible_content',
+      'temporarily_unavailable',
+    ]) {
+      const value = { ...base, status: 'unavailable', reason };
+      expect(RegionEncounterPreviewResponseSchema.parse(value)).toEqual(value);
+    }
+    for (const key of [
+      'commandId',
+      'session',
+      'offerId',
+      'exposureId',
+      'evidence',
+      'jobId',
+      'camera',
+      'playheadMs',
+      'accountId',
+    ]) {
+      expect(RegionEncounterPreviewRequestSchema.safeParse({ ...read, [key]: id(99) }).success).toBe(false);
+      expect(RegionEncounterPreviewResponseSchema.safeParse({ ...available, [key]: id(99) }).success).toBe(false);
+    }
+    expect(RegionEncounterPreviewResponseSchema.safeParse({ ...available, geographyRevision: 4 }).success).toBe(false);
+    expect(
+      RegionEncounterPreviewResponseSchema.safeParse({
+        ...available,
+        encounter: { ...available.encounter, sources: [] },
+      }).success,
+    ).toBe(false);
+    expect(RegionEncounterPreviewRequestSchema.safeParse(request).success).toBe(false);
+    expect(RegionEncounterOpenRequestSchema.safeParse(read).success).toBe(false);
+  });
+
+  it('preserves legacy Open but never admits a replacement B as displayed A in a bound ready response', () => {
+    const expectedEncounter = { assetId: id(105), assetRevision: 1 };
+    expect(RegionEncounterOpenRequestSchema.parse(request)).toEqual(request);
+    const exact = { ...request, expectedEncounter };
+    expect(RegionEncounterOpenRequestSchema.parse(exact)).toEqual(exact);
+    const bound = { ...response(), expectedEncounter, capabilities };
+    expect(RegionEncounterOpenResponseSchema.parse(bound)).toEqual(bound);
+    for (const invalid of [
+      { ...bound, outcome: { ...ready, offer: { ...offer(5), assetId: id(999) } } },
+      { ...bound, outcome: { ...ready, offer: { ...offer(5), assetRevision: 2 } } },
+      { ...bound, capabilities: undefined },
+      { ...bound, expectedEncounter: { ...expectedEncounter, assetRevision: Number.MAX_SAFE_INTEGER + 1 } },
+      { ...bound, expectedEncounter: { ...expectedEncounter, camera: {} } },
+    ])
+      expect(RegionEncounterOpenResponseSchema.safeParse(invalid).success).toBe(false);
+    expect(
+      RegionEncounterOpenRequestSchema.safeParse({
+        ...exact,
+        expectedEncounter: { ...expectedEncounter, universeId: id(8) },
+      }).success,
+    ).toBe(false);
+    // Pending/exhausted retain exact request expectation, with no replacement offer or exposure.
+    for (const outcome of [
+      { ...common, status: 'pending', reason: 'buffer_preparing' },
+      { ...common, status: 'exhausted', reason: 'no_eligible_content' },
+    ])
+      expect(RegionEncounterOpenResponseSchema.parse({ ...bound, outcome })).toEqual({ ...bound, outcome });
+  });
+});

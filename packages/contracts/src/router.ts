@@ -1,3 +1,4 @@
+import { formationPresentationContract } from './formation-presentation.js';
 import { privacyContract } from './privacy.js';
 import { keepContract } from './keep.js';
 import { removeKeepEntryContract } from './keep-remove.js';
@@ -7,7 +8,7 @@ import { readGeographyContract, readUniverseDeltasContract } from './geography.j
 import { mediaGrantContract } from './media.js';
 import { cancelContentRequestContract, createContentRequestContract, readContentRequestContract } from './supply.js';
 import { exposureContextContract, navigateExperienceContract } from './navigation.js';
-import { openRegionEncounterContract } from './region-encounter.js';
+import { previewRegionEncounterContract, openRegionEncounterContract } from './region-encounter.js';
 import {
   activateExposureContract,
   applyActionContract,
@@ -25,13 +26,15 @@ import {
 } from './identity.js';
 import { evidenceDiagnosticsContract, submitObservationsContract } from './interactions.js';
 
-/** The complete HTTP contract of the KnowScroll API. Every route the API serves is listed here. */
+/** The HTTP declarations of the KnowScroll API, including explicitly documented future consumers.
+ * A declaration alone does not mount a controller or establish implemented behavior. */
 export const apiContract = {
   health: healthContract,
   privacy: privacyContract,
   keep: { ...keepContract, remove: removeKeepEntryContract },
   sharing: sharingContract,
   scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract },
+  formation: formationPresentationContract,
   geography: { read: readGeographyContract, deltas: readUniverseDeltasContract },
   media: { grant: mediaGrantContract },
   supply: {
@@ -47,6 +50,7 @@ export const apiContract = {
     signOut: signOutContract,
   },
   experience: {
+    previewRegionEncounter: previewRegionEncounterContract,
     openRegionEncounter: openRegionEncounterContract,
     applyAction: applyActionContract,
     listSaved: listSavedContract,
