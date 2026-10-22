@@ -191,7 +191,6 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
         object: {
           id: o.id,
           kind: o.kind,
-          conceptId: o.conceptId,
           parent: { kind: o.kind === 'system' ? 'universe' : 'system', id: o.parentId },
           label: o.label,
           truthStatus: 'factual',
