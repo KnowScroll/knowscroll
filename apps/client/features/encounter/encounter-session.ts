@@ -785,6 +785,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       const entry = history.current();
       if (!entry || actionRunning || work || !valid()) return;
       if (kind === 'unsave') {
+        if (action) return;
         void removal.prepare({
           assetId: entry.offer.assetId,
           assetRevision: entry.offer.assetRevision,

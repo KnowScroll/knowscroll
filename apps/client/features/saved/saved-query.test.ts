@@ -16,6 +16,7 @@ const item: ListSavedResponse['items'][number] = {
 /** Authored HTTP fixture. No live Saved membership or product activity. */
 function fixture() {
   let membership = id(4);
+  let wrongTarget = false;
   let fail = false;
   let gate: Promise<void> | undefined;
   const bodies: RemoveKeepEntry[] = [];
@@ -35,9 +36,9 @@ function fixture() {
         return json({
           version: 'keep-place.v1',
           scope: scopeRef,
-          target: { assetId: item.assetId, assetRevision: 2 },
+          target: { assetId: wrongTarget ? id(90) : item.assetId, assetRevision: 2 },
           status: 'saved_unavailable',
-          entry: { assetId: item.assetId, assetRevision: 2, savedEntryId: membership },
+          entry: { assetId: wrongTarget ? id(90) : item.assetId, assetRevision: 2, savedEntryId: membership },
         });
       bodies.push(body);
       if (fail) throw new Error('Unknown acknowledgement fixture');
@@ -61,6 +62,9 @@ function fixture() {
     paths,
     newId,
     remove: createSavedRemoval(scope, newId),
+    wrongTarget: () => {
+      wrongTarget = true;
+    },
     replace: () => {
       membership = id(5);
     },
@@ -112,6 +116,19 @@ describe('exact Saved removal and cancellable grace', () => {
           entry: { assetId: item.assetId, assetRevision: 2, savedEntryId: id(4) },
         },
       ]);
+    } finally {
+      f.scope.end();
+    }
+  });
+  it('rejects a valid same-scope snapshot for another target before binding any removal command', async () => {
+    const f = fixture();
+    try {
+      f.wrongTarget();
+      expect(await f.remove.prepare(item)).toBe(false);
+      expect(f.remove.getState().status).toBe('unavailable');
+      await jest.advanceTimersByTimeAsync(REMOVE_GRACE_MS);
+      expect(f.bodies).toEqual([]);
+      expect(f.newId).not.toHaveBeenCalled();
     } finally {
       f.scope.end();
     }

@@ -758,6 +758,7 @@ function historyKeepFixture() {
   let selected = 0;
   let gate: { target: number; promise: Promise<void> } | undefined;
   const revisions = [1, 1];
+  const positions = [0, 0];
   const calls: { path: string; body: Record<string, unknown> }[] = [];
   const offers = [0, 1].map((n) => ({ ...offer(n), relation: { kind: 'return' as const } }));
   const snapshot = (n: number): AvailableKeep => ({
@@ -766,7 +767,7 @@ function historyKeepFixture() {
     target: { assetId: offers[n]!.assetId, assetRevision: 2 },
     status: 'available',
     entry: { assetId: offers[n]!.assetId, assetRevision: 2, savedEntryId: id(900 + n) },
-    place: { status: 'set', placeRevision: revisions[n]!, position: { kind: 'reel', positionMs: 0 } },
+    place: { status: 'set', placeRevision: revisions[n]!, position: { kind: 'reel', positionMs: positions[n]! } },
   });
   const scope = createAccountScope({
     account: { accountId: id(3), universeId: id(4), privacyEpoch: 1, email: 'history@fixture.test' },
@@ -788,6 +789,7 @@ function historyKeepFixture() {
         const b = body as unknown as SetKeepPlace;
         const n = offers.findIndex((v) => v.assetId === b.entry.assetId);
         revisions[n] = b.expectedPlaceRevision + 1;
+        if (b.position.kind === 'reel') positions[n] = b.position.positionMs;
         return jsonFixture({
           version: 'keep-place.v1',
           scope: snapshot(n).scope,

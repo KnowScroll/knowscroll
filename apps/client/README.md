@@ -249,8 +249,8 @@ block/fractional offset before pause. Incoming resume values alone are never upl
 block state remains in the existing account/epoch/revision/block store, never in the place request.
 Reel restoration remains paused. Scope end purges and fences late replies.
 
-A parked write may finish after its surface leaves. At most twenty retiring writes plus current
-checkpoint/open and selected detail hold app leases; the core separately caps one hundred entries
+A parked write may finish after its surface leaves. At most twenty retiring Explore writes, twenty retiring direct-surface writes, twenty visible
+card reads and current/detail work share a sixty-four-lease app budget; the core separately caps one hundred entries
 and four reads. Unknown writes retain the identical command/body; CAS conflicts need explicit
 resolution. Returning to that target adopts its retained pending state, without resending it.
 An immutable ACK requires a new read. There is no new persistence, socket, polling or observation.
@@ -267,8 +267,13 @@ Retry, blocks replacement commands and offers no Undo. Late receipts never delet
 items: current list/context reads decide present status, so replacement memberships survive ABA.
 A scope switch cancels the grace timer and synchronously erases the pending private selection.
 
-Direct Reel also uses this exact removal controller; its independent Save flow remains supported.
-Full direct-route automatic server positions, all-card server positions and full S01/S02 visual/
-interaction parity remain follow-up work. Source/component/protocol fixtures in Actions establish
+Direct Reel and Scroll share an actual-surface controller for focus/background/unmount capture,
+post-Save fresh reads and explicit unknown/conflict UI. A direct Scroll now offers real Save with
+stable same-body retry. Actual SDK/renderer geometry is required; incoming local values alone never
+upload. Direct Reel keeps only its private playhead for a future paused visit. Keep cards display
+current scoped server places in pages of twenty, with at most four simultaneous readers; Previous/
+Next reaches all one hundred loaded entries without one hundred eager place reads. The API's
+existing hundred-item ceiling remains labelled; true unbounded library pagination needs a server
+cursor contract. Full S01/S02 visual/interaction parity remains follow-up work. Source/component/protocol fixtures in Actions establish
 client behavior only. Root owns real disposable-account endpoint/decoded media/device journeys
 and deployment acceptance; this source makes no runtime or final privacy acceptance claim.

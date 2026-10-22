@@ -47,6 +47,8 @@ export function createSavedRemoval(scope: AccountScope, newId: () => string) {
     );
     if (value.scope.accountId !== scope.account.accountId || value.scope.privacyEpoch !== scope.account.privacyEpoch)
       throw new Error('keep_scope');
+    if (value.target.assetId !== item.assetId || value.target.assetRevision !== item.assetRevision)
+      throw new Error('keep_target');
     return value.status === 'not_saved' ? undefined : value.entry;
   };
   const invalidate = async () => {

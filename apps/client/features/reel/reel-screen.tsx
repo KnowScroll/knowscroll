@@ -3,13 +3,26 @@ import { AppState, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createReelRecorder, type AccountScope } from '@knowscroll/client-core';
-import type { ApplyActionRequest, ReelDocument } from '@knowscroll/contracts';
+import type { ReelDocument } from '@knowscroll/contracts';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
-import { ActionRail, Banner, Button, FormatSwitch, IconButton, Skeleton, StateBlock, Text } from '@knowscroll/ui';
+import {
+  ActionRail,
+  Banner,
+  Button,
+  FormatSwitch,
+  IconButton,
+  Skeleton,
+  StateBlock,
+  Text,
+  type ReelPositionHandle,
+} from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { SCROLL_CAPABILITIES } from '../scroll/capabilities';
+import { useKeepSurface } from '../saved/use-keep-surface';
+import { KeepWriteStatus } from '../saved/keep-detail';
+import { readResume, writeResume } from '../encounter/encounter-history';
 import { savedRemovalFor } from '../saved/saved-query';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { ActivatedReelView } from './activated-reel-view';
@@ -78,7 +91,17 @@ function ReadyReel({
       live = false;
     };
   }, [scope, document, removalState]);
-  const saveIntent = useRef<ApplyActionRequest | undefined>(undefined);
+  const positionRef = useRef<ReelPositionHandle>(null);
+  const target = useMemo(() => ({ assetId: document.assetId, assetRevision: document.revision }), [document]);
+  const capture = useCallback(() => {
+    const value = positionRef.current?.capture();
+    if (!value || !Number.isFinite(value.positionMs) || value.positionMs < 0) return undefined;
+    const positionMs = Math.min(value.positionMs, document.durationMs);
+    writeResume(scope, document.assetId, document.revision, { kind: 'reel', ...value, positionMs });
+    return { kind: 'reel' as const, positionMs };
+  }, [scope, document]);
+  const kept = useKeepSurface(scope, target, exposureId, capture);
+  const [resume] = useState(() => readResume(scope, document.assetId, document.revision));
   const [saveFailed, setSaveFailed] = useState(false);
   useDocumentTitle(document.title);
   const recorder = useMemo(
@@ -120,24 +143,18 @@ function ReadyReel({
   );
   const save = async () => {
     if (saving || !scope.active) return;
-    if (saved && !saveIntent.current) {
+    if (saved && kept.state.save !== 'unknown') {
       await removal.prepare({ assetId: document.assetId, assetRevision: document.revision });
       return;
     }
+    capture();
     setSaving(true);
     setSaveFailed(false);
     try {
-      saveIntent.current ??= {
-        commandId: newCommandId(),
-        kind: 'save',
-        target: { assetId: document.assetId, assetRevision: document.revision },
-        exposureId,
-      };
-      const result = await scope.api.experience.applyAction(saveIntent.current);
-      if (result.kind !== 'save') throw new Error('unexpected_save_result');
+      const confirmed = await kept.surface.save();
       if (scope.active) {
-        setSaved(result.saved);
-        saveIntent.current = undefined;
+        if (confirmed) setSaved(kept.surface.getState().place.snapshot?.status !== 'not_saved');
+        else setSaveFailed(true);
       }
     } catch {
       if (scope.active) setSaveFailed(true);
@@ -161,6 +178,8 @@ function ReadyReel({
         document={document}
         recorder={recorder}
         active={active}
+        positionRef={positionRef}
+        initialPositionMs={resume?.kind === 'reel' ? resume.positionMs : undefined}
       />
       <View style={styles.caption}>
         <View style={styles.copy}>
@@ -208,6 +227,24 @@ function ReadyReel({
       {removalState.status === 'unavailable' ? (
         <Text variant="bodyS">This removal couldn't be completed. Check Keep before choosing again.</Text>
       ) : null}
+      <Button
+        label="Keep this place"
+        variant="ghost"
+        disabled={
+          kept.state.place.snapshot?.status !== 'available' ||
+          kept.state.place.write === 'unknown' ||
+          kept.state.place.write === 'conflict'
+        }
+        onPress={() => {
+          void kept.surface.captureFresh();
+        }}
+      />
+      <KeepWriteStatus
+        state={kept.state.place}
+        refresh={kept.surface.refresh}
+        retry={kept.surface.retry}
+        resolve={kept.surface.resolveConflict}
+      />
       {saveFailed ? <Banner kind="info" lead="Couldn't save" message="Try the Save button again." /> : null}
       <EvidencePanel scope={scope} exposureId={exposureId} />
     </View>

@@ -12,7 +12,7 @@ import { readResume } from '../encounter/encounter-history';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
 import { ScreenFrame } from '../shell/screen-frame';
 import { EmptyKeepScreen } from './empty-keep-screen';
-import { SavedCard } from './saved-card';
+import { KeptSavedCard } from './saved-card';
 import { KeepDetail } from './keep-detail';
 import type { AvailableKeep } from './keep-place-bridge';
 import { savedRemovalFor, savedQueryOptions } from './saved-query';
@@ -20,6 +20,7 @@ import { savedRemovalFor, savedQueryOptions } from './saved-query';
 export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
   const query = useQuery(savedQueryOptions(scope));
   const router = useRouter();
+  const [page, setPage] = useState(0);
   const [filter, setFilter] = useState<'all' | 'reel' | 'scroll'>('all');
   const removal = savedRemovalFor(scope, newCommandId);
   const removalState = useSyncExternalStore(removal.subscribe, removal.getState, removal.getState);
@@ -41,7 +42,9 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
     router.navigate('/explore');
   };
   const items = query.data?.items ?? [];
-  const visible = items.filter((item) => filter === 'all' || item.metadata?.kind === filter);
+  const filtered = items.filter((item) => filter === 'all' || item.metadata?.kind === filter);
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 20) - 1));
+  const visible = filtered.slice(currentPage * 20, currentPage * 20 + 20);
   return (
     <ScreenFrame tone="paper" title="Keep" bodyOffset={spacing[7]}>
       <View style={styles.body}>
@@ -55,6 +58,7 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
               toggled={filter === kind}
               onPress={() => {
                 setFilter(kind);
+                setPage(0);
                 setSelected(undefined);
               }}
             />
@@ -161,7 +165,8 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
         ) : null}
         {!selected
           ? visible.map((item) => (
-              <SavedCard
+              <KeptSavedCard
+                scope={scope}
                 key={item.assetId}
                 item={item}
                 resume={readResume(scope, item.assetId, item.assetRevision)}
@@ -177,6 +182,26 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
               />
             ))
           : null}
+        {!selected && filtered.length > 20 ? (
+          <View role="group" accessibilityLabel="Keep pages" style={styles.filters}>
+            <Text variant="meta">
+              Showing {currentPage * 20 + 1}–{Math.min(currentPage * 20 + 20, filtered.length)} of {filtered.length}{' '}
+              loaded encounters
+            </Text>
+            <Button
+              label="Previous 20 saved encounters"
+              variant="ghost"
+              disabled={currentPage === 0}
+              onPress={() => setPage(currentPage - 1)}
+            />
+            <Button
+              label="Next 20 saved encounters"
+              variant="ghost"
+              disabled={(currentPage + 1) * 20 >= filtered.length}
+              onPress={() => setPage(currentPage + 1)}
+            />
+          </View>
+        ) : null}
         {items.length >= 100 ? (
           <Text variant="meta">
             Showing the newest 100 saved encounters. This is a bounded list, not your complete library.
