@@ -172,7 +172,10 @@ with a version comment, as in `checks.yml`; Maestro and the Gradle distribution 
 `expo@58.0.14/bundledNativeModules.json` range `~58.0.11` (MIT; Expo native peer SDK58).
 The web export compiles the real web adapter; native playback requires the opt-in Android lane.
 Backend/build CI use the hosted runner's ffmpeg/ffprobe when present, otherwise install Ubuntu's
-ffmpeg package within a ten-minute setup deadline. Both executables report their versions before
+ffmpeg package without recommended extras within a ten-minute setup deadline. When the hosted
+runner provides `/etc/apt/apt-mirrors.txt`, setup selects Ubuntu's official HTTPS archive, retaining
+APT signature verification. Downloads have bounded retries/timeouts; any index failure is fatal.
+Both executables report their versions before
 the unchanged generated-MP4/import suites run; any setup failure fails the lane. Deployed import
 requires `/usr/bin/ffprobe`. This binary is an OS tool, not a Node dependency. Vendored Cutroom schemas
 are compiled by TypeScript at build, with `.ts` relative imports rewritten to `.js`, and exercised in
