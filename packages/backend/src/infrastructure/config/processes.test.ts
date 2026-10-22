@@ -459,10 +459,9 @@ describe('connected Cutroom worker activation is explicit and default-deny', () 
     KS_CUTROOM_POOL_DATABASE_URL: secretUrl,
   };
   it('has no implicit activation or pool credential when configuration is absent', () => {
-    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).cutroom).toMatchObject({
-      enabled: false,
-      poolDatabase: undefined,
-    });
+    const disabled = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).cutroom;
+    expect(disabled.enabled).toBe(false);
+    expect(disabled.poolDatabase).toBeUndefined();
     expect(readWorkerConfig(inputs).cutroom).toMatchObject({
       enabled: true,
       packetPath: '/etc/knowscroll/cutroom/approved.json',
