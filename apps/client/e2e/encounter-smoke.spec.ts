@@ -493,20 +493,39 @@ test('Reel controls reflow without overlap across actual phone, landscape and de
         );
       }),
     ).toBe(true);
-    // Bring Play/Retry just above the page's lower boundary: the stage must still be half-visible.
-    await page.getByTestId('encounter-page-scroll').evaluate((node) => {
-      const control = node.querySelector(
-        '[data-testid="reel-player-controls"] button, [data-testid="reel-player-controls"] [role="button"]',
-      );
-      if (!control) throw new Error('Real player control required');
+    // Align the actual primary playback control, then prove reachability and visibility together.
+    const primary = page.getByTestId('reel-player-controls').getByRole('button', { name: /^(Play|Retry|Pause)$/ });
+    const primaryHandle = await primary.elementHandle();
+    if (!primaryHandle) throw new Error('The actual primary playback control must be mounted');
+    await page.getByTestId('encounter-page-scroll').evaluate((node, control) => {
       node.scrollTop += control.getBoundingClientRect().bottom - (node.getBoundingClientRect().bottom - 8);
+    }, primaryHandle);
+    const usable = await primary.evaluate((node) => {
+      const control = node.getBoundingClientRect(),
+        stage = globalThis.document.querySelector('[data-testid="reel-video-stage"]')!.getBoundingClientRect(),
+        page = globalThis.document.querySelector('[data-testid="encounter-page"]')!.getBoundingClientRect();
+      const left = Math.max(0, page.left),
+        right = Math.min(innerWidth, page.right),
+        top = Math.max(0, page.top),
+        bottom = Math.min(innerHeight, page.bottom);
+      const area =
+        Math.max(0, Math.min(stage.right, right) - Math.max(stage.left, left)) *
+        Math.max(0, Math.min(stage.bottom, bottom) - Math.max(stage.top, top));
+      return {
+        stageVisibleFraction: area / (stage.width * stage.height),
+        insidePageAndViewport:
+          control.left >= left - 1 &&
+          control.right <= right + 1 &&
+          control.top >= top - 1 &&
+          control.bottom <= bottom + 1,
+        targetSize: control.width >= 44 && control.height >= 44,
+        hit: node.contains(
+          globalThis.document.elementFromPoint(control.left + control.width / 2, control.top + control.height / 2),
+        ),
+      };
     });
-    const overlap = await page.getByTestId('reel-video-stage').evaluate((node) => {
-      const s = node.getBoundingClientRect(),
-        p = globalThis.document.querySelector('[data-testid="encounter-page"]')!.getBoundingClientRect();
-      return Math.max(0, Math.min(s.bottom, p.bottom) - Math.max(s.top, p.top)) / s.height;
-    });
-    expect(overlap).toBeGreaterThanOrEqual(0.5);
+    expect(usable).toMatchObject({ insidePageAndViewport: true, targetSize: true, hit: true });
+    expect(usable.stageVisibleFraction).toBeGreaterThanOrEqual(0.5);
     expect(geometry.stage.bottom).toBeLessThanOrEqual(geometry.controls.top + 1);
     expect(geometry.controls.bottom).toBeLessThanOrEqual(geometry.caption.top + 1);
     expect(geometry.caption.bottom).toBeLessThanOrEqual(geometry.navigation.top + 1);
