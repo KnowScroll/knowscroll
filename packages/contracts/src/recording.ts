@@ -82,7 +82,7 @@ export const RecordingPolicyReadSchema = z
     (s) =>
       !('receipt' in s) ||
       (s.target.kind === 'command' &&
-        s.target.commandId === s.receipt.commandId &&
+        s.target.commandId.toLowerCase() === s.receipt.commandId.toLowerCase() &&
         s.receipt.requestedPrivacyEpoch <= s.scope.privacyEpoch &&
         s.receipt.toGeneration <= s.policy.generation &&
         (s.receipt.toGeneration < s.policy.generation || s.receipt.on === s.policy.on)),
