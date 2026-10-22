@@ -173,6 +173,16 @@ describe('friend-pages.v2 declarations (synthetic contract fixtures only)', () =
     ).toBe(false);
   });
 
+  it('compares UUID identity case-insensitively without transforming valid wire values', () => {
+    const lower = { ...pair('friends'), peer: { ...person(20), personId: '0199f0a0-0000-7000-8000-abcdef012345' } };
+    const upper = { ...lower, peer: { ...lower.peer, personId: lower.peer.personId.toUpperCase() } };
+    expect(FriendPairViewSchema.parse(lower)).toEqual(lower);
+    expect(FriendPairViewSchema.parse(upper)).toEqual(upper);
+    expect(FriendsPageSchema.parse({ ...page, items: [upper] }).items).toEqual([upper]);
+    expect(FriendsPageSchema.safeParse({ ...page, items: [lower, upper] }).success).toBe(false);
+    expect(FriendsPageSchema.safeParse({ ...page, items: [upper, lower] }).success).toBe(false);
+  });
+
   it('binds every continuation to current response scope, filter and public snapshot', () => {
     expect(FriendsPageSchema.parse({ ...page, next: cursor })).toEqual({ ...page, next: cursor });
     for (const extra of [
