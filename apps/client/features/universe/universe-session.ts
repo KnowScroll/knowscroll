@@ -87,8 +87,10 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     regionPreview: preview.getState(),
   };
   const live = () => !ended && scope.active;
+  let notificationDepth = 0;
   const publish = (patch: Partial<UniverseViewState>) => {
     state = { ...state, ...patch, historyDepth: history.length };
+    if (notificationDepth) return;
     for (const listener of [...listeners]) listener();
   };
   const formationOff = formation.subscribe(() => publish({}));
@@ -272,9 +274,18 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     descriptors,
     formation,
     dismissFormation(expected?: Parameters<typeof formation.dismiss>[0]) {
-      const fact = formation.dismiss(expected);
-      if (!fact || !live() || !foreground) return;
-      focus(fact.sequence.kind === 'planet' ? fact.sequence.planetId : fact.targets[0]!.objectId);
+      if (!live() || !foreground) return;
+      // Browser Back observes this view, not intermediate controller/preview callbacks.
+      // Hiding the story and focusing its real target must not briefly remove its marker
+      // (which would queue history.back before the new camera history was committed).
+      notificationDepth++;
+      try {
+        const fact = formation.dismiss(expected);
+        if (fact) focus(fact.sequence.kind === 'planet' ? fact.sequence.planetId : fact.targets[0]!.objectId);
+      } finally {
+        notificationDepth--;
+        if (!notificationDepth) publish({});
+      }
     },
     focus,
     back,

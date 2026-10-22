@@ -523,7 +523,7 @@ export function createFormationPresentationSession(options: {
     },
     dismiss(expected?: FormationPresentationFact) {
       const a = attempt;
-      if (!live() || !foreground || !a?.completed || (expected && a.fact !== expected)) return;
+      if (!live() || !foreground || !a?.display || !a.completed || (expected && a.fact !== expected)) return;
       a.display = false;
       show(state.status);
       return a.fact;
