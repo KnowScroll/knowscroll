@@ -30,13 +30,23 @@ Invite create/revoke uses current invite revisions. First delivery is held only 
 single deliberate Copy consumes it. A lost/replayed/copy-failed delivery requires deliberate revoke
 then new create; no token is reconstructed or silently minted. Clipboard writes happen only when
 requested; external clipboard copies cannot be recalled. Full links are never rendered or stored.
-Web links are `/friends/invite#invite=ksfi_…`; the fragment is removed from browser history at mount.
+Web links are `/friends/invite#invite=ksfi_…`; initial and same-document hashchange fragments are
+consumed and removed with replaceState, including invalid fragments and signed-out intake. Every
+new/invalid fragment clears prior checked issuer, local selection and form drafts before callback
+completion; intake never automatically checks or requests friendship.
 Only the token enters the sensitive JSON resolve/request body. Resolve is pure; a separately labelled
 Request action is mandatory. Editing/pasting/receiving another link invalidates the prior selection.
 Signed-out entry discards the secret and asks the person to paste again after signing in. Native
-uses the registered `knowscroll` scheme; actual native app-link handling remains unverified.
+uses the registered `knowscroll` scheme. Its OS initial-launch URL is consumed/discarded at most
+once per process through an account-independent boolean-only fence; there is no token/URL/promise
+cache or reset. Initial native links require deliberate paste again. StrictMode cleanup, account,
+epoch and session remounts never reread or deliver that launch capability. Only fresh URL events
+received by a current mounted active scope may fill its private input; removed/late handlers cannot
+revive it. Actual native app-link handling remains unverified.
 
 Meaningful authored fixtures cover empty scan advancement, unknown same-body command retry and fresh
-reads, pure invite resolution, secret purge, late unmount, fragment parsing and actual production
+reads, pure invite resolution, secret purge, native signed-out/account/epoch/session/StrictMode
+remount and late-launch/event fences, signed-out and mounted second/invalid web fragment changes,
+late prior resolution, fragment parsing and actual production
 export controls. They run only in hosted Actions. Source/static/export build are not live Social,
 native/physical, design-perfect or final privacy acceptance; Root owns connected journey acceptance.

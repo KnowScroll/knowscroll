@@ -1,34 +1,62 @@
 import type * as React from 'react';
+import { StrictMode } from 'react';
+import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
+import type { AccountScopeState } from '@knowscroll/client-core';
 import * as Clipboard from 'expo-clipboard';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { DisplayProvider } from '@knowscroll/ui';
-import { SignedInFriends } from './friends-screen';
+import { FriendsScreen, SignedInFriends } from './friends-screen';
 
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof React>('react');
   return {
-    useRouter: () => ({ navigate: jest.fn(), push: jest.fn(), replace: jest.fn() }),
+    useRouter: () => ({ navigate: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: () => false }),
     useFocusEffect: (effect: () => void | (() => void)) => useEffect(effect, [effect]),
   };
 });
+const mockNativeRemoved = jest.fn();
 jest.mock('expo-linking', () => ({
   createURL: () => 'knowscroll://friends/invite',
-  getInitialURL: () => Promise.resolve(null),
-  addEventListener: () => ({ remove: () => undefined }),
+  getInitialURL: jest.fn(() => Promise.resolve(null)),
+  addEventListener: jest.fn(() => ({
+    remove: () => {
+      mockNativeRemoved();
+    },
+  })),
 }));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve()) }));
+let mockAccountState: AccountScopeState = { status: 'signed_out', reason: 'none' };
+jest.mock('../../providers/account-scope', () => ({
+  useAccountScope: () => ({ state: mockAccountState, manager: { refresh: jest.fn() } }),
+  useAccountInitial: () => undefined,
+}));
+jest.mock('expo-status-bar', () => ({ setStatusBarStyle: jest.fn() }));
+
 jest.mock('../../platform/command-id', () => ({
   newCommandId: () => jest.requireActual<{ randomUUID: () => string }>('node:crypto').randomUUID(),
 }));
 const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const own = { kind: 'person', personId: id(3), handle: 'fixture.own', displayName: 'Own fixture' };
 const peer = { kind: 'person', personId: id(4), handle: 'fixture.peer', displayName: 'Peer fixture' };
-const wireScope = { accountId: id(1), privacyEpoch: 1 };
-const envelope = { version: 'sharing.v1', scope: wireScope };
 const token = `ksfi_${'A'.repeat(43)}`;
-function fixture(options: { emptyScan?: boolean; unknownAccept?: boolean; invite?: boolean; delay?: boolean } = {}) {
+const secondToken = `ksfi_${'B'.repeat(43)}`;
+const secondPeer = { ...peer, personId: id(8), handle: 'fixture.second', displayName: 'Second fixture' };
+function fixture(
+  options: {
+    emptyScan?: boolean;
+    unknownAccept?: boolean;
+    invite?: boolean;
+    delay?: boolean;
+    resolveDelay?: boolean;
+    account?: number;
+    epoch?: number;
+  } = {},
+) {
+  const wireScope = { accountId: id(options.account ?? 1), privacyEpoch: options.epoch ?? 1 };
+  const envelope = { version: 'sharing.v1', scope: wireScope };
   const calls: { path: string; body: Record<string, unknown> }[] = [];
   let failures = options.unknownAccept ? 1 : 0;
   let linked = false;
@@ -38,7 +66,7 @@ function fixture(options: { emptyScan?: boolean; unknownAccept?: boolean; invite
     release = resolve;
   });
   const scope = createAccountScope({
-    account: { ...wireScope, universeId: id(2), email: 'fixture@example.test' },
+    account: { ...wireScope, universeId: id((options.account ?? 1) + 1), email: 'fixture@example.test' },
     baseUrl: 'https://fixture.test',
     authorization: () => undefined,
     store: memoryStore(),
@@ -112,9 +140,15 @@ function fixture(options: { emptyScan?: boolean; unknownAccept?: boolean; invite
           },
           delivery: { status: 'available', token },
         };
-      } else if (path.endsWith('/invites/resolve'))
-        data = { ...envelope, status: 'available', issuer: peer, pairRevision: 0 };
-      else throw new Error('Unexpected fixture route');
+      } else if (path.endsWith('/invites/resolve')) {
+        if (options.resolveDelay) await gate;
+        data = {
+          ...envelope,
+          status: 'available',
+          issuer: body.token === secondToken ? secondPeer : peer,
+          pairRevision: 0,
+        };
+      } else throw new Error('Unexpected fixture route');
       return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } });
     },
   });
@@ -125,8 +159,118 @@ function fixture(options: { emptyScan?: boolean; unknownAccept?: boolean; invite
       </DisplayProvider>
     </QueryClientProvider>
   );
-  return { scope, calls, tree, release };
+  const entry = (
+    <QueryClientProvider client={scope.queryClient}>
+      <DisplayProvider value={{ width: 320, textScale: 2, reducedMotion: true }}>
+        <FriendsScreen invite />
+      </DisplayProvider>
+    </QueryClientProvider>
+  );
+  return { scope, calls, tree, entry, release };
 }
+
+/** Native Jest exercising the web branch with an authored same-document location/event port.
+ * This is not an actual browser/platform acceptance fixture. */
+function browserFixture(initialHash = '') {
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const previousOS = Object.getOwnPropertyDescriptor(Platform, 'OS');
+  const listeners = new Set<() => void>();
+  const location = { hash: initialHash, pathname: '/friends/invite', origin: 'https://fixture.test' };
+  const replaceState = jest.fn((_data: unknown, _title: string, _url: string) => {
+    location.hash = '';
+  });
+  const browser = {
+    location,
+    history: { replaceState },
+    addEventListener: (type: string, listener: () => void) => {
+      if (type === 'hashchange') listeners.add(listener);
+    },
+    removeEventListener: (type: string, listener: () => void) => {
+      if (type === 'hashchange') listeners.delete(listener);
+    },
+  };
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: browser });
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  return {
+    location,
+    replaceState,
+    listeners,
+    change(hash: string) {
+      location.hash = hash;
+      for (const listener of [...listeners]) listener();
+    },
+    restore() {
+      if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow);
+      else Reflect.deleteProperty(globalThis, 'window');
+      if (previousOS) Object.defineProperty(Platform, 'OS', previousOS);
+    },
+  };
+}
+
+// This first native mount owns the process launch fence. No test-only reset/export is introduced.
+it('discards native launch once while signed out and never replays it across account/epoch/session/StrictMode mounts', async () => {
+  let finishLaunch!: (value: string | null) => void;
+  jest.mocked(Linking.getInitialURL).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finishLaunch = resolve;
+    }),
+  );
+  const a = fixture({ invite: true });
+  mockAccountState = { status: 'signed_out', reason: 'none' };
+  let view = await render(a.entry);
+  await screen.findByText('Sign in to manage friends');
+  expect(Linking.getInitialURL).toHaveBeenCalledTimes(1);
+  await view.unmount();
+  mockAccountState = { status: 'signed_in', scope: a.scope };
+  view = await render(a.tree);
+  await screen.findByText('No people to show in this list.');
+  await fireEvent.press(screen.getByRole('button', { name: 'Check invitation' }));
+  expect(a.calls.some((c) => c.path.endsWith('/invites/resolve'))).toBe(false);
+  let late = jest.mocked(Linking.addEventListener).mock.calls.at(-1)![1];
+  await view.unmount();
+  a.scope.end();
+  for (const [index, epoch] of [
+    [20, 1],
+    [20, 2],
+    [20, 2],
+  ] as const) {
+    const h = fixture({ invite: true, account: index, epoch });
+    mockAccountState = { status: 'signed_in', scope: h.scope };
+    view = await render(<StrictMode>{h.tree}</StrictMode>);
+    let beforeCleanup: number;
+    try {
+      await screen.findByText('No people to show in this list.');
+      await act(async () => {
+        finishLaunch(`knowscroll://friends/invite#invite=${token}`);
+        late({ url: `knowscroll://friends/invite#invite=${token}` });
+        await Promise.resolve();
+      });
+      await fireEvent.press(screen.getByRole('button', { name: 'Check invitation' }));
+      expect(h.calls.some((c) => c.path.endsWith('/invites/resolve'))).toBe(false);
+      expect(screen.queryByRole('button', { name: 'Request friendship with Peer fixture' })).toBeNull();
+      expect(Linking.getInitialURL).toHaveBeenCalledTimes(1);
+      const current = jest.mocked(Linking.addEventListener).mock.calls.at(-1)![1];
+      await act(() => current({ url: `knowscroll://friends/invite#invite=${secondToken}` }));
+      expect(h.calls.some((c) => c.path.endsWith('/invites/resolve'))).toBe(false);
+      await fireEvent.press(screen.getByRole('button', { name: 'Check invitation' }));
+      await screen.findByRole('button', { name: 'Request friendship with Second fixture' });
+      expect(h.calls.filter((c) => c.path.endsWith('/invites/resolve')).map((c) => c.body.token)).toEqual([
+        secondToken,
+      ]);
+      expect(h.calls.some((c) => c.path.endsWith('/request'))).toBe(false);
+      late = current;
+      await act(() => h.scope.end());
+      await act(() => current({ url: `knowscroll://friends/invite#invite=${token}` }));
+      await screen.findByText('Friends session ended');
+      expect(screen.queryByText('Peer fixture')).toBeNull();
+    } finally {
+      beforeCleanup = mockNativeRemoved.mock.calls.length;
+      await view.unmount();
+      h.scope.end();
+    }
+    expect(mockNativeRemoved).toHaveBeenCalledTimes(beforeCleanup + 1);
+  }
+});
 
 // Real controller + authored HTTP fixtures, never live people or real-service evidence.
 it('advances an empty scan only after explicit Next and does not invent presence', async () => {
@@ -243,5 +387,117 @@ it('reads the current pair after exact handle lookup and compares semantic UUIDs
   } finally {
     await view.unmount();
     h.scope.end();
+  }
+});
+
+it('takes and scrubs mounted second/invalid web fragments and clears earlier checked choices without auto resolving', async () => {
+  const browser = browserFixture(`#invite=${token}`),
+    h = fixture({ invite: true });
+  const view = await render(h.tree);
+  try {
+    await screen.findByText('No people to show in this list.');
+    expect(browser.location.hash).toBe('');
+    expect(h.calls.some((c) => c.path.endsWith('/invites/resolve'))).toBe(false);
+    await fireEvent.press(screen.getByRole('button', { name: 'Check invitation' }));
+    await screen.findByRole('button', { name: 'Request friendship with Peer fixture' });
+    await fireEvent.changeText(screen.getByLabelText('Their handle'), 'fixture.peer');
+    await act(() => browser.change(`#invite=${secondToken}`));
+    expect(browser.location.hash).toBe('');
+    expect(browser.replaceState).toHaveBeenLastCalledWith(null, '', '/friends/invite');
+    expect(screen.getByLabelText('Their handle').props.value).toBe('');
+    expect(screen.getByLabelText('Friend invite link').props.value).toBe('');
+    expect(screen.queryByRole('button', { name: 'Request friendship with Peer fixture' })).toBeNull();
+    expect(h.calls.filter((c) => c.path.endsWith('/invites/resolve'))).toHaveLength(1);
+    await fireEvent.press(screen.getByRole('button', { name: 'Check invitation' }));
+    await screen.findByRole('button', { name: 'Request friendship with Second fixture' });
+    await act(() => browser.change('#invite=invalid&extra=authored-fixture'));
+    expect(browser.location.hash).toBe('');
+    expect(screen.queryByRole('button', { name: 'Request friendship with Second fixture' })).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Friend invite link'), `#invite=${token}`);
+    await act(() => browser.change('#still-invalid'));
+    expect(browser.location.hash).toBe('');
+    expect(screen.getByLabelText('Friend invite link').props.value).toBe('');
+    await fireEvent.press(screen.getByRole('button', { name: 'Check invitation' }));
+    expect(h.calls.filter((c) => c.path.endsWith('/invites/resolve'))).toHaveLength(2);
+    expect(h.calls.some((c) => c.path.endsWith('/request'))).toBe(false);
+    const late = [...browser.listeners][0]!;
+    await view.unmount();
+    expect(browser.listeners.size).toBe(0);
+    browser.location.hash = `#invite=${token}`;
+    const scrubs = browser.replaceState.mock.calls.length;
+    await act(() => late());
+    expect(browser.replaceState).toHaveBeenCalledTimes(scrubs);
+  } finally {
+    await view.unmount();
+    h.scope.end();
+    browser.restore();
+  }
+});
+
+it.each([false, true])(
+  'does not restore a prior issuer after a mounted replacement fragment (valid=%s)',
+  async (valid) => {
+    const browser = browserFixture(`#invite=${token}`),
+      h = fixture({ invite: true, resolveDelay: true });
+    const view = await render(h.tree);
+    try {
+      await screen.findByText('No people to show in this list.');
+      await fireEvent.press(screen.getByRole('button', { name: 'Check invitation' }));
+      await waitFor(() => expect(h.calls.filter((c) => c.path.endsWith('/invites/resolve'))).toHaveLength(1));
+      await act(() => browser.change(valid ? `#invite=${secondToken}` : '#invite=invalid'));
+      expect(browser.location.hash).toBe('');
+      await act(async () => {
+        h.release();
+        await Promise.resolve();
+      });
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Check invitation' })).toBeEnabled());
+      expect(screen.queryByText('Peer fixture')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Request friendship with Peer fixture' })).toBeNull();
+      expect(h.calls.filter((c) => c.path.endsWith('/invites/resolve'))).toHaveLength(1);
+      if (!valid) await act(() => browser.change(`#invite=${secondToken}`));
+      expect(browser.location.hash).toBe('');
+      expect(h.calls.filter((c) => c.path.endsWith('/invites/resolve'))).toHaveLength(1);
+      await fireEvent.press(screen.getByRole('button', { name: 'Check invitation' }));
+      await screen.findByRole('button', { name: 'Request friendship with Second fixture' });
+      expect(h.calls.filter((c) => c.path.endsWith('/invites/resolve')).map((c) => c.body.token)).toEqual([
+        token,
+        secondToken,
+      ]);
+      expect(h.calls.some((c) => c.path.endsWith('/request'))).toBe(false);
+    } finally {
+      h.release();
+      await view.unmount();
+      h.scope.end();
+      browser.restore();
+    }
+  },
+);
+
+it('scrubs and discards initial and same-route web fragments while signed out, before a new signed-in mount', async () => {
+  const browser = browserFixture(`#invite=${token}`),
+    h = fixture({ invite: true });
+  mockAccountState = { status: 'signed_out', reason: 'none' };
+  let view = await render(h.entry);
+  try {
+    await screen.findByText('Sign in to manage friends');
+    expect(browser.location.hash).toBe('');
+    await act(() => browser.change(`#invite=${secondToken}`));
+    expect(browser.location.hash).toBe('');
+    await act(() => browser.change('#invite=invalid'));
+    expect(browser.location.hash).toBe('');
+    expect(browser.replaceState).toHaveBeenCalledTimes(3);
+    expect(h.calls).toEqual([]);
+    await view.unmount();
+    expect(browser.listeners.size).toBe(0);
+    mockAccountState = { status: 'signed_in', scope: h.scope };
+    view = await render(h.tree);
+    await screen.findByText('No people to show in this list.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Check invitation' }));
+    expect(h.calls.some((c) => c.path.endsWith('/invites/resolve'))).toBe(false);
+    expect(h.calls.some((c) => c.path.endsWith('/request'))).toBe(false);
+  } finally {
+    await view.unmount();
+    h.scope.end();
+    browser.restore();
   }
 });

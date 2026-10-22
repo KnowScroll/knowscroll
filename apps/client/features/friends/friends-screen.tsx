@@ -16,7 +16,12 @@ import { Banner, IconButton, StateBlock, Text, useTypeStyle } from '@knowscroll/
 import { useAccountScope } from '../../providers/account-scope';
 import { ScreenFrame } from '../shell/screen-frame';
 import { FriendButton as Button, FriendControls, FriendIdentity, friendsStyles } from './friend-controls';
-import { friendInviteLink, friendTokenFromLink, takeBrowserFriendToken } from './friend-invite-link';
+import {
+  discardInitialNativeFriendLink,
+  friendInviteLink,
+  friendTokenFromLink,
+  takeBrowserFriendToken,
+} from './friend-invite-link';
 import { useFriendsSession } from './use-friends-session';
 
 const filters: readonly { value: FriendsFilter; label: string }[] = [
@@ -92,7 +97,19 @@ export function FriendsScreen({ invite = false }: { readonly invite?: boolean })
   const { state, manager } = useAccountScope();
   // Signed-out links are deliberately discarded: a capability never crosses an account remount.
   useEffect(() => {
-    if (invite && state.status !== 'signed_in') takeBrowserFriendToken();
+    if (!invite || state.status === 'signed_in') return undefined;
+    discardInitialNativeFriendLink();
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    let active = true;
+    const discard = () => {
+      if (active) takeBrowserFriendToken();
+    };
+    discard();
+    window.addEventListener('hashchange', discard);
+    return () => {
+      active = false;
+      window.removeEventListener('hashchange', discard);
+    };
   }, [invite, state.status]);
   const back = () => (router.canGoBack() ? router.back() : router.navigate('/conversations'));
   return (
@@ -227,30 +244,52 @@ function FriendsView({
       off?.();
     };
   }, [session, scope]);
-  // Native link events are scoped to this mounted view and are never passed to router params.
+  // New link events belong only to this mounted scope. Every fragment change first removes its
+  // URL secret and invalidates former choices; neither valid nor invalid intake starts a read.
   useEffect(() => {
     if (!invite) return undefined;
     let active = true;
-    const receive = (url: string | null) => {
-      if (!active || !scope.active || session.getState().status !== 'active' || url === null) return;
-      const token = friendTokenFromLink(url);
-      if (token) {
-        selectionSerial.current++;
-        resolvedToken.current = token;
-        setInviteChecked(false);
-        setNote('Invitation received. Choose Check invitation to see who it is from.');
-      }
+    const receive = (token: string | undefined) => {
+      if (!active || !scope.active || session.getState().status !== 'active') return;
+      selectionSerial.current++;
+      resolvedToken.current = token;
+      setPasted('');
+      setHandle('');
+      setProfileHandle('');
+      setDisplayName('');
+      setInviteChecked(false);
+      setPanel('add');
+      setNote(
+        token
+          ? 'Invitation received. Choose Check invitation to see who it is from.'
+          : 'Paste the invitation again, then choose Check invitation. Opening a link sends no request.',
+      );
     };
-    if (Platform.OS === 'web') {
-      resolvedToken.current = takeBrowserFriendToken();
+    const clear = () => {
+      active = false;
+      resolvedToken.current = undefined;
+      selectionSerial.current++;
+    };
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const take = () => {
+        if (!active) return;
+        // Even an ended scope discards the fragment; it cannot retain it for a later account.
+        receive(takeBrowserFriendToken());
+      };
+      take();
+      window.addEventListener('hashchange', take);
       return () => {
-        active = false;
+        clear();
+        window.removeEventListener('hashchange', take);
       };
     }
-    void Linking.getInitialURL().then(receive, () => undefined);
-    const subscription = Linking.addEventListener('url', ({ url }) => receive(url));
+    discardInitialNativeFriendLink();
+    receive(undefined);
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (active) receive(friendTokenFromLink(url));
+    });
     return () => {
-      active = false;
+      clear();
       subscription.remove();
     };
   }, [invite, scope, session]);
@@ -317,9 +356,10 @@ function FriendsView({
   }
   async function lookup() {
     if (!live() || disabled || !SharingHandleSchema.safeParse(handle).success) return;
+    const mine = ++selectionSerial.current;
     await session.lookup(handle);
     const result = session.getState().lookup;
-    if (live() && result.status === 'ready' && result.data.status === 'available')
+    if (mine === selectionSerial.current && live() && result.status === 'ready' && result.data.status === 'available')
       await session.readPair(result.data.person.personId);
   }
   async function resolve() {
