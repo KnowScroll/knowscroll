@@ -196,6 +196,8 @@ export interface PersonalRunAccountingBinding {
 /** Invoked once after the actual own-account gate; owner reads minimal header only. */
 export type ReadPersonalRunAccountingBinding = (
   scope: PersonalScopeTx,
+  /** Actual current owner read after the gate. Payload-free data, not historical provenance or a capability. */
+  own: Readonly<{ accountId: string; universeId: string; privacyEpoch: number }>,
 ) => Promise<PersonalRunAccountingBinding | 'unavailable'>;
 
 export interface PersonalAttemptAccounting {
