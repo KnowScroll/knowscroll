@@ -11,7 +11,7 @@ export interface RequestContext {
   readonly requestId: string;
   problemCode?: string;
   readonly problemFamily?:
-    'keep-place' | 'keep-remove' | 'privacy-clear' | 'saved-list' | 'region-encounter' | 'formation';
+    'keep-place' | 'keep-remove' | 'privacy-clear' | 'saved-list' | 'region-encounter' | 'formation' | 'social';
 }
 
 /** Finite serializer/cache selection only, never caller or operation authority. */
@@ -29,6 +29,17 @@ function isPrivacyClearRequest(request: Pick<Request, 'method' | 'path'>): boole
   return request.method === 'POST' && /^\/v1\/privacy\/clear-exploration(?:\/status)?\/?$/i.test(request.path);
 }
 
+/** Select only the eleven mounted methods/paths, never the wider declared Social surface. */
+function isSocialRequest(request: Pick<Request, 'method' | 'path'>): boolean {
+  return (
+    (request.method === 'GET' && /^\/v1\/social\/profile\/?$/i.test(request.path)) ||
+    (request.method === 'POST' &&
+      /^\/v1\/social\/(?:profile|people\/lookup|pairs\/read|friends\/(?:request|accept|decline|cancel|remove|block|unblock))\/?$/i.test(
+        request.path,
+      ))
+  );
+}
+
 const storage = new AsyncLocalStorage<RequestContext>();
 
 /** The context of the request being handled, if any. */
@@ -43,6 +54,7 @@ export function currentRequest(): RequestContext | undefined {
  */
 export function requestContextMiddleware(logEvent: LogEvent) {
   return (request: Request, response: Response, next: NextFunction): void => {
+    const social = isSocialRequest(request);
     const keep = isKeepPlaceRequest(request);
     const removal = isKeepRemovalRequest(request);
     const privacy = isPrivacyClearRequest(request);
@@ -52,6 +64,7 @@ export function requestContextMiddleware(logEvent: LogEvent) {
       request.method === 'POST' && /^\/v1\/universe\/formation\/(?:read|claim|acknowledge)\/?$/i.test(request.path);
     const context: RequestContext = {
       requestId: randomUUID(),
+      ...(social ? { problemFamily: 'social' as const } : {}),
       ...(formation ? { problemFamily: 'formation' as const } : {}),
       ...(keep ? { problemFamily: 'keep-place' as const } : {}),
       ...(removal ? { problemFamily: 'keep-remove' as const } : {}),
@@ -59,6 +72,7 @@ export function requestContextMiddleware(logEvent: LogEvent) {
       ...(saved ? { problemFamily: 'saved-list' as const } : {}),
       ...(region ? { problemFamily: 'region-encounter' as const } : {}),
     };
+    if (social) response.setHeader('cache-control', 'private, no-store');
     if (keep) response.setHeader('cache-control', 'private, no-store');
     if (removal) response.setHeader('cache-control', 'private, no-store');
     if (privacy) response.setHeader('cache-control', 'private, no-store');

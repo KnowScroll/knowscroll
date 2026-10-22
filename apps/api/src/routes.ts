@@ -1,3 +1,4 @@
+import { SocialController } from './http/social.controller.js';
 import { FormationController } from './http/formation.controller.js';
 import { KeepRemoveController } from './http/keep-remove.controller.js';
 import { RegionEncounterController } from './http/region-encounter.controller.js';
@@ -28,6 +29,7 @@ export const apiControllers = [
   KeepController,
   KeepRemoveController,
   PrivacyController,
+  SocialController,
   RegionEncounterController,
   FormationController,
 ];

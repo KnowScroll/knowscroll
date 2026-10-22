@@ -1,9 +1,9 @@
 # Social: Friends backend foundation (#241)
 
 Backend-only explicit profiles, exact handle lookup, current pair read and seven pair commands.
-No routes or application providers are mounted. Invite input is validated strictly then explicitly
-unsupported; lists, links, settings, presence, visitor publication, messaging and housekeeping are
-future slices. Available friends carry constant unknown presence. No fabricated contact, seed,
+The API #374 adapter mounts these eleven operations using the existing use-case/provider ports.
+Invite input is validated strictly then explicitly unsupported; lists, links, settings, presence,
+visitor publication, messaging and housekeeping are future slices. Available friends carry constant unknown presence. No fabricated contact, seed,
 world formation, grant, consumption or evidence follows from a command.
 
 `socialUseCases` takes existing scope and Identity309 gate ports. Own profile changes lock own root
@@ -42,4 +42,12 @@ shared-receipt purge capabilities. There are no scoped Social versions, jobs or 
 Any future scoped store must erase ALL versions/epochs and fence late workers before application.
 
 CI uses synthetic accounts in real disposable PostgreSQL. It is not two-account dev acceptance.
-Migration/source presence does not roll out schema28, enable HTTP, or finish #241.
+Migration/source presence does not roll out schema28 or finish #241. The installed API adapter
+and disposable HTTP fixtures are distinct from two-account dev/client acceptance.
+
+The API composition reuses Identity's existing own-account barrier and binds only the pair fence;
+it does not mount account invalidation/deletion. Each output is closed-schema checked and bound
+to current caller scope, original command/operation and selected public person. Central private
+problem projection runs before auth/parsing for exactly the mounted methods/paths. Receipts remain
+immutable and current pair/epoch/lineage authority is enforced by these owning use cases, not
+reconstructed by HTTP. There is no list scan, cursor/index, provider, job or evidence path added.

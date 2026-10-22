@@ -205,3 +205,20 @@ claim and required expiry work, with disposable root hints that may arrive befor
 The immutable receipt is not current animation permission; clients must use current status and
 actual validated targets. ACK records the client's actual shown/skipped statement, not learning
 or proof of rendering. No recovery, model or provider call is mounted on a read/status route.
+
+### Explicit Friends HTTP prerequisite (#374)
+
+The central controller index mounts exactly eleven existing profile/pair operations: own profile
+GET/POST, exact handle lookup, pair read and request/accept/decline/cancel/remove/block/unblock.
+They use actual session/native credentials, Origin/scope guards and root-held Identity own/pair
+barriers. Social reuses the sole private pair aggregate and existing own-account provider; it
+binds no invalidation/deletion capability. Current authority/epoch/lineage precedes historical
+receipt replay. An old ACK is not current friendship, presence or media authority.
+
+Only those exact mounted methods/paths select the closed Social problem family and private,
+no-store before parsing/authentication. Received keys/values and private peer reasons are masked;
+responses bind current caller scope, command/operation and selected public identity. Handle
+lookup has no prefix search or account/email inference. Invite input remains explicitly unsupported;
+rosters, invitations, visibility/presence, visitor publication and conversations/content-share
+routes remain unmounted declarations. No contact action creates consumption evidence or model work.
+The installed disposable-account CI journey is not populated two-account dev/client acceptance.

@@ -1,3 +1,4 @@
+import { socialDetails, socialIssues } from './social-problems.js';
 import { formationDetails, formationIssues } from './formation-problems.js';
 import { Catch, HttpException, Inject, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
 import { ORPCError } from '@orpc/server';
@@ -160,6 +161,7 @@ export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent
       context?.problemFamily === 'privacy-clear' ||
       context?.problemFamily === 'saved-list' ||
       context?.problemFamily === 'formation' ||
+      context?.problemFamily === 'social' ||
       context?.problemFamily === 'region-encounter'
     )
       return finish(trusted);
@@ -170,6 +172,12 @@ export function problemFromOrpcError(error: ORPCError<string, unknown>, logEvent
     const data = (error.data ?? {}) as ProblemData;
     return finish(problemDetails(error.code, data));
   }
+  if (error.code === 'BAD_REQUEST' && currentRequest()?.problemFamily === 'social')
+    return finish(
+      problemDetails('INVALID_REQUEST', {
+        issues: socialIssues((error.data as { issues?: unknown } | undefined)?.issues),
+      }),
+    );
   if (error.code === 'BAD_REQUEST' && currentRequest()?.problemFamily === 'formation')
     return finish(
       problemDetails('INVALID_REQUEST', {
@@ -272,6 +280,11 @@ function validationIssues(error: ORPCError<string, unknown>): ProblemIssue[] {
 
 function finish(details: ProblemDetails): ProblemDetails {
   const context = currentRequest();
+  if (context?.problemFamily === 'social') {
+    const closed = socialDetails(details);
+    context.problemCode = closed.code;
+    return closed;
+  }
   if (context?.problemFamily === 'formation') {
     const closed = formationDetails(details);
     context.problemCode = closed.code;
@@ -308,6 +321,12 @@ function logUnexpected(logEvent: LogEvent, error: unknown): void {
 
 /** Writes problem details with the RFC 9457 media type (and `Retry-After` on a 503). */
 export function sendProblem(response: Response, details: ProblemDetails): void {
+  if (currentRequest()?.problemFamily === 'social') {
+    details = socialDetails(details);
+    const context = currentRequest();
+    if (context !== undefined) context.problemCode = details.code;
+    response.setHeader('cache-control', 'private, no-store');
+  }
   if (currentRequest()?.problemFamily === 'formation') {
     details = formationDetails(details);
     response.setHeader('cache-control', 'private, no-store');
