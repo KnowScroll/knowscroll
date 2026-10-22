@@ -572,6 +572,7 @@ describe('Geography original generation and exact wake ownership (Actions only)'
       await geographyStore.writeRun(scope, {
         ...prior,
         claimId: claimC,
+        claimWakeClaimId: undefined,
         claimUntil: new Date(Date.now() + 60000).toISOString(),
       });
       await p.enqueue(gate.scope, first.runId, { expectedClaimId: claimC, startAfter: new Date() });
