@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-22 14:12 IST (08:42 UTC) · **Phase:** personal lifecycle integration / generation readiness · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-22 16:16 IST (10:46 UTC) · **Phase:** accepted dev schema35 / connected Cutroom validation · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,37 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Resumed phase delivery — 22 Oct 2026
+## Current programme phase — 22 Oct 2026
+
+**Latest product integration is `72f73cc332ce154e79be89c38a7a09ca27bb3b3c`, tree `3864c2147b047718d9e3f9ad2dabd802617a0f5c`, schema35.** PR355 adds the independent pool evidence-hold source after the complete personal lifecycle phase. This checkpoint changes documentation only. Integrated PUSH 39765230137 is in progress; its eventual result and this documentation head need exact verification.
+
+**Actual accepted dev is `476baec5acc5ad89fac8b7417085f446076ed20e`, tree `72596f67560232b79f611030bdbe7ab4966d879a`, schema35, artifact `8579c51b87e79926cbdaa75ff6f8dce196a7c3226a9f9cbdd5ccf25cebd5f7da`.** Source PUSH 39749766365 passed all six jobs. Root and independent review accepted the complete 114-entry logs, official artifact 12413213439, all 19,338 manifest hashes, all 35 SQL files, smoke 29 and the compiled overlay. Election 451526fe is immutable. The trusted workflow head was also476; deployment 39762965820 ran once and succeeded. Its complete 12-entry official logs bind the actual dump, five pending migrations through0035 and both outside health responses. Internal transaction/compatibility/queue/link ordering is source-proven; those internal boundaries were not separate log events.
+
+Actual preservation is accepted in `coordinator/dev35-actual-deployment-accepted.json`, SHA `4888ad1b7d665f6c61a38b7eabcce080e1eb80e04024c9c94cb9ce40e1e239a5`. The new round03 pair and ninth readings precede the deployment. A separately reviewed one-use postflight captured 13 complete records at10:35:32–35 UTC, raw91dd844f; independent review bd029da0/full verification bc90b0ea and Root e8c9d732 checked every record. All 73 prior complete projected table multisets, Saved five-table identities/places, all 22 paid attempts and linked objects, tools/both backups, three actual media files, pool, legacy services, closed operators, queues and privacy-safe absence gates are preserved. The exact35 registry hashes to 715e59a2; the actual 82-table/14-function catalogue hashes to abd29956. Nine new stores are empty and three new nullable markers remain NULL. New API PID 149473 / start 40359228 and worker PID 149474 / start 40359229 retain the full accepted security contexts. All six normal flag values are OFF predicates. The fresh root 0600 dump is 966,924 bytes, SHA 651cadd8, with a valid restore list; it was inspected, not restored. Previous dev is d10f4040. Stage remains the separately observed legacy8982391f/PID1063; no v2 stage acceptance follows.
+
+Two unused rollout packets were closed before the successful third request. The first ninth packet was retired without execution; the second dispatch was never issued because its final review arrived after the required 90-second reserve. Immutable retirements 1ffcdae1/e2b2fda9 and all observations/reviews remain retained. The third round used genuinely new observations, paths, clocks, receipts and intents; no old window was extended or replayed. The original96ec token-cap failure also remains retained: PR346 resolved the fixture-overlap diagnosis with 42 positives and a lock-only mutation, while live generation/cap exercising remains open.
+
+PR355 is squash-merged as 72f73cc3. Its exact source 4e850b6c and actual PR 9ae9cbb8 have the same whole tree as the merge. Both runs 39753756768/39753808682 passed all six; Root 48a39350 verified complete 114-entry logs each, official ZIP digests, all 19,338 hashes/35 world SQL, smoke 29, 770 PostgreSQL and 110 installed HTTP checks, plus canonical function digest 45b9a1b1. Root read all three changed files and the 651-line fixture. New pool0004 records exact pending evidence without settlement, release, grant mutation or automatic client rights; original0001–0003 stay immutable. Actual pool remains 700 cents total / 617 committed / 83 left. Pool0003/0004 are source only and unapplied. The first merge-mode request was refused without mutation because the repository permits squash only; settings and current PR state were rechecked before the successful corrected request. Both records are preserved.
+
+Connected Cutroom #240 has a complete 51-path source checkpoint 85542c40 and normal accepted pool dependency merge d9f2ef74; all 51 owned blobs remain exact, all 35 old world SQL remain unchanged, and exclusive0036/schema-only codegen/static checks pass. The complete phase is under a different-author HIGH review; PUSH/actual-PR validation begins after this integration-base checkpoint. It is not accepted runtime or complete architecture. The pinned 94ee04a1 Cutroom source proves intended original-plus-one-child budget semantics through unchanged request budget and cumulative provider guards. Actual installed revision/profile/rates, complete all-status corpus, dedicated pool principal/functions/ACLs, sole writer, unknown-send reconciliation, fresh funds and HUMAN approval of each exact Reel-script PR remain activation gates. Cross-world zero-cost receiving provenance is explicitly unimplemented. No new Cutroom commission is accepted.
+
+Native 39751173169 passed APK and emulator on exact476. Root 12ec1f41 checked the official artifacts, debug-signed APK 0803affd, four passing JUnit flows and all 22 screenshots. These are signed-out shell/gallery fixtures. A real visual gap remains: gallery status-bar clock/icons are white on cream. Authenticated native, physical-device and generated-Scroll evidence remain open. The grounded Universe238 plan 65a67b52 is ready for contracts-first implementation; proposed0037/0038 have not been allocated. The semantic approval registry remains empty/default-deny for real coverage admission.
+
+Provider ledger 6b948d88 is unchanged: **33 used, 0 reserved, 0 unknown of 43; development 11/12, dev 22/31.** A UTC rollover does not reset lifetime history. Harness 6 is exhausted and separate. The four disabled v12 schema35 sources are now under full independent review with actual35 receipt 4888; no new ready packet, reservation or paid job exists. Strict 43/dev31, claims 4/writer 10/policy 12 and every token/day/role/quota/brake/HANDOFF/FD4/sandbox limit remain. Zero accepted real generated Scrolls. Owner #232 finite-extension authority does not grant other roles or Cutroom spend.
+
+| Programme requirement | Current status |
+|---|---|
+| Architecture and design coverage implemented | OPEN — remaining privacy controls, Universe/Supply/Social/platform work and Cutroom receiving handoff |
+| Required checks for actual candidates | OPEN — accepted feature/source evidence is retained; each new integrated/PR candidate still needs its exact required pipelines |
+| Connected real-service journeys | OPEN — authenticated disposable-account Keep/Clear/media/interactive journeys remain |
+| Real Cutroom and interactive Scroll generation | OPEN — zero newly accepted commission and zero accepted generated Scrolls |
+| Verified dev and stage revisions/artifacts | OPEN — dev476/schema35 is accepted; D002 dev PR/mergeback and artifact-identical v2 stage remain |
+
+Continue across unblocked phases: publish/validate/review the connected Cutroom source, finish independent v12 operator review and one separately reserved bounded real generation job, exercise authenticated disposable-account journeys, implement the grounded remaining coverage, and reconcile dev/stage through their authorised routes. Never update main/deploy production, mutate owner data, reset spending history or bypass individual HUMAN Reel-script approval. Root owns checkpoint/integration/operations; agents own disjoint source/reviews. Root plus at most three active explicitly configured Sol agents respects the four-slot limit.
+
+## Historical resumed source checkpoint — 22 Oct 2026 08:42 UTC
+
+This section preserves the earlier source checkpoint. Its runtime and operational statements apply only to08:42 UTC; the current phase above governs continuation.
 
 The owner explicitly resumed all remaining phases. External USB/APFS SSD UUID AFAE8457-8861-427F-A8D0-5F2CC802E2B9 was verified mounted/writable and rechecked before new control-source writes. Initial reconciliation of92 worktrees found only the two known unrelated owner-checkout edits and no interrupted Git operation. Owner main checkout/database remain untouched. Initial4fa9 Actions39720344020/full release acceptance98b43416 is preserved. Only diagnostic264/265 were open initially; DO NOT MERGE.
 
@@ -130,7 +160,7 @@ Historical preflight: all five unchanged reviewed VPS readers completed05:19UTC 
 
 The old local PG/API/worker processes no longer run after disconnect; only the two old edge processes remain. No old cluster was restarted, repaired or reset. Scene codegen used a fresh owned56742 cluster and stopped it. Historical local process IDs below are dated evidence.
 
-## Current identities
+## Historical identities before the resumed schema35 rollout
 
 | State | Identity and limits |
 |---|---|
