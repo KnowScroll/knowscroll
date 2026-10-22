@@ -482,6 +482,64 @@ describe('Friends ephemeral scoped session (authored fixtures)', () => {
     expect(h.session.getState().lookup).toMatchObject({ status: 'ready', data: { person: { handle: 'last' } } });
     h.scope.end();
   });
+  it('retains the newest reentrant loading selection while an abort-ignoring read is held', async () => {
+    const delayed = gate<unknown>();
+    const h = fixture((_path, input) =>
+      input.handle === 'first' ? delayed.promise : { ...lookup, person: { ...peer, handle: input.handle } },
+    );
+    const first = h.session.lookup('first');
+    await until(() => h.calls.length === 1);
+    let selected = false;
+    let latest: Promise<void> | undefined;
+    h.session.subscribe(() => {
+      if (!selected && h.session.getState().lookup.status === 'loading') {
+        selected = true;
+        latest = h.session.lookup('last');
+      }
+    });
+    await h.session.lookup('middle');
+    expect(selected).toBe(true);
+    expect(h.calls).toHaveLength(1);
+    delayed.release({ ...lookup, person: { ...peer, handle: 'first' } });
+    await first;
+    await latest;
+    expect(h.calls.map((c) => c.input.handle)).toEqual(['first', 'last']);
+    expect(h.session.getState().lookup).toMatchObject({ status: 'ready', data: { person: { handle: 'last' } } });
+    h.scope.end();
+  });
+  it('does not publish an obsolete outer read after transport-abort reentrancy selects a newer read', async () => {
+    const delayed = gate<unknown>();
+    let latest: Promise<void> | undefined;
+    const h = fixture((_path, input, signal) => {
+      if (input.handle === 'first') {
+        signal.addEventListener(
+          'abort',
+          () => {
+            latest = h.session.lookup('last');
+          },
+          { once: true },
+        );
+        return delayed.promise;
+      }
+      return { ...lookup, person: { ...peer, handle: input.handle } };
+    });
+    const first = h.session.lookup('first');
+    await until(() => h.calls.length === 1);
+    const profileStates: string[] = [];
+    h.session.subscribe(() => {
+      profileStates.push(h.session.getState().profile.status);
+    });
+    await h.session.readProfile();
+    expect(latest).toBeDefined();
+    expect(profileStates).not.toContain('loading');
+    expect(h.calls).toHaveLength(1);
+    delayed.release({ ...lookup, person: { ...peer, handle: 'first' } });
+    await first;
+    await latest;
+    expect(h.calls.map((c) => c.input.handle)).toEqual(['first', 'last']);
+    expect(h.session.getState().lookup).toMatchObject({ status: 'ready', data: { person: { handle: 'last' } } });
+    h.scope.end();
+  });
   it('purges every resource and secret on authoritative refusal and survives a throwing subscriber', async () => {
     const h = fixture(
       () =>

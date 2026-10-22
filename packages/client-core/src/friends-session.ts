@@ -112,6 +112,8 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
     if (!live()) return;
     const serial = ++readSerial;
     readController?.abort();
+    // Aborting the previous transport can synchronously select a newer read.
+    if (!live() || serial !== readSerial) return;
     const controller = new AbortController();
     readController = controller;
     const next = { ...state };
@@ -121,6 +123,8 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
     if (field === 'roster') next.canNext = next.canPrevious = false;
     publish(next);
     const current = () => live() && serial === readSerial && !controller.signal.aborted;
+    // A loading subscriber may already have queued its newer selection; do not replace it.
+    if (!current()) return;
     await dispatch(async () => {
       if (!current()) return;
       try {
