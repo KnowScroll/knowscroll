@@ -86,7 +86,7 @@ export function makeSavedPage(p: SavedPagePorts) {
         return refused('SERVICE_UNAVAILABLE');
       const metadata = await p.metadata(
         scope,
-        window.items.map((item) => item.entry),
+        window.items.map((item) => ({ assetId: item.entry.assetId, assetRevision: item.entry.assetRevision })),
       );
       if (metadata.length !== window.items.length) return refused('SERVICE_UNAVAILABLE');
       const items: SavedPageResponse['items'] = [];

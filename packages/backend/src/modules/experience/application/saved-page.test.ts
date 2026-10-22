@@ -61,7 +61,7 @@ describe('current scoped bounded Saved pages', () => {
     );
     expect(f.p.metadata).toHaveBeenCalledWith(
       expect.anything(),
-      f.candidates.map((item) => item.entry),
+      f.candidates.map((item) => ({ assetId: item.entry.assetId, assetRevision: item.entry.assetRevision })),
     );
   });
   it('rechecks authority before unavailable cursors and never reads domain facts on refusal', async () => {
