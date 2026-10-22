@@ -8,6 +8,7 @@ const tables = ['deltas', 'relations', 'objects', 'state', 'runs'] as const;
 export const geographyErasure: ModuleErasure = {
   module: 'geography',
   tables: tables.map((table) => ({ schema: 'geography', table, ownerColumn: 'universe_id' })),
+  accountColumns: [{ schema: 'geography', table: 'runs', column: 'recording_account_id' }],
   nonRowStores: [cartographyQueue, publishDeltaQueue].map((q) => ({
     name: `pgboss/${q.name}`,
     description: 'All queued, active, settled and dead-lettered private geography IDs.',
@@ -29,6 +30,7 @@ export const geographyErasure: ModuleErasure = {
 geographyErasure.clearExploration = {
   dispositions: Object.fromEntries([
     ...geographyErasure.tables.map((t) => [`${t.schema}.${t.table}`, 'erase']),
+    ...(geographyErasure.accountColumns ?? []).map((t) => [`${t.schema}.${t.table}`, 'erase']),
     ...geographyErasure.nonRowStores.map((s) => [`store:${s.name}`, 'erase']),
   ]) as Record<string, 'erase' | 'preserve'>,
   async erase(scope) {

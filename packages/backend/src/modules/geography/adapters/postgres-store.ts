@@ -277,9 +277,44 @@ export const geographyStore: GeographyStore = {
   },
   async writeRun(scope, r) {
     const { tx, u, e } = owner(scope);
+    // Updating an existing exact row must not propose an incomplete INSERT tuple: PostgreSQL
+    // checks that tuple before ON CONFLICT, even when the old frozen context would be retained.
+    const updated = await sql`update geography.runs set
+ desired_revision=${r.desiredRevision},status=${r.status},claim_id=${r.claimId ?? null}::uuid,claim_until=${r.claimUntil ?? null}::timestamptz,
+ context=coalesce(${r.context ? JSON.stringify(r.context) : null}::jsonb,geography.runs.context),
+ proposal=coalesce(${r.proposal ? JSON.stringify(r.proposal) : null}::jsonb,geography.runs.proposal),
+ attempt_id=coalesce(${r.attemptId ?? null}::uuid,geography.runs.attempt_id),outcome=${r.outcome ?? null},
+ recording_account_id=coalesce(${r.recording?.accountId ?? null}::uuid,geography.runs.recording_account_id),
+ recording_generation=coalesce(${r.recording?.source.generation ?? null},geography.runs.recording_generation),
+ recording_origin_kind=coalesce(${r.recording?.source.kind ?? null},geography.runs.recording_origin_kind),
+ recording_origin_command_id=coalesce(${r.recording?.source.kind === 'command' ? r.recording.source.commandId : null}::uuid,geography.runs.recording_origin_command_id),
+ recording_origin_source_revision=coalesce(${r.recording?.source.kind === 'material' ? r.recording.source.sourceRevision : null},geography.runs.recording_origin_source_revision),
+ recording_context_sha256=coalesce(${r.contextSha256 ?? null},geography.runs.recording_context_sha256),
+ recording_model_context_sha256=coalesce(${r.modelContextSha256 ?? null},geography.runs.recording_model_context_sha256),
+ normal_wake_id=${r.normalWakeId ?? null}::uuid,claim_wake_claim_id=${r.claimWakeClaimId ?? null}::uuid,updated_at=now()
+ where universe_id=${u}::uuid and privacy_epoch=${e} and id=${r.id}::uuid`.execute(tx);
+    if (updated.numAffectedRows === 1n) return;
+    if (updated.numAffectedRows !== 0n) throw new Error('GEOGRAPHY_RUN_WRITE_CARDINALITY');
+    // Only ensureCartography's new queued marked run can be inserted. A deleted/mismatched
+    // metadata header must fail, never recreate a run or fetch/overwrite its private context.
+    if (
+      'hasContext' in r ||
+      r.status !== 'queued' ||
+      !r.recording ||
+      r.context !== undefined ||
+      r.contextSha256 !== undefined ||
+      r.modelContextSha256 !== undefined ||
+      r.claimId !== undefined ||
+      r.claimUntil !== undefined ||
+      r.normalWakeId !== undefined ||
+      r.claimWakeClaimId !== undefined ||
+      r.proposal !== undefined ||
+      r.attemptId !== undefined ||
+      r.outcome !== undefined
+    )
+      throw new Error('GEOGRAPHY_NEW_RUN_SHAPE_INVALID');
     await sql`insert into geography.runs(universe_id,privacy_epoch,id,desired_revision,status,claim_id,claim_until,context,proposal,attempt_id,outcome,recording_account_id,recording_generation,recording_origin_kind,recording_origin_command_id,recording_origin_source_revision,recording_context_sha256,recording_model_context_sha256,normal_wake_id,claim_wake_claim_id)
- values(${u}::uuid,${e},${r.id}::uuid,${r.desiredRevision},${r.status},${r.claimId ?? null}::uuid,${r.claimUntil ?? null}::timestamptz,${r.context ? JSON.stringify(r.context) : null}::jsonb,${r.proposal ? JSON.stringify(r.proposal) : null}::jsonb,${r.attemptId ?? null}::uuid,${r.outcome ?? null},${r.recording?.accountId ?? null}::uuid,${r.recording?.source.generation ?? null},${r.recording?.source.kind ?? null},${r.recording?.source.kind === 'command' ? r.recording.source.commandId : null}::uuid,${r.recording?.source.kind === 'material' ? r.recording.source.sourceRevision : null},${r.contextSha256 ?? null},${r.modelContextSha256 ?? null},${r.normalWakeId ?? null}::uuid,${r.claimWakeClaimId ?? null}::uuid)
- on conflict(universe_id,id) do update set desired_revision=excluded.desired_revision,status=excluded.status,claim_id=excluded.claim_id,claim_until=excluded.claim_until,context=coalesce(excluded.context,geography.runs.context),proposal=coalesce(excluded.proposal,geography.runs.proposal),attempt_id=coalesce(excluded.attempt_id,geography.runs.attempt_id),outcome=excluded.outcome,recording_account_id=coalesce(excluded.recording_account_id,geography.runs.recording_account_id),recording_generation=coalesce(excluded.recording_generation,geography.runs.recording_generation),recording_origin_kind=coalesce(excluded.recording_origin_kind,geography.runs.recording_origin_kind),recording_origin_command_id=coalesce(excluded.recording_origin_command_id,geography.runs.recording_origin_command_id),recording_origin_source_revision=coalesce(excluded.recording_origin_source_revision,geography.runs.recording_origin_source_revision),recording_context_sha256=coalesce(excluded.recording_context_sha256,geography.runs.recording_context_sha256),recording_model_context_sha256=coalesce(excluded.recording_model_context_sha256,geography.runs.recording_model_context_sha256),normal_wake_id=excluded.normal_wake_id,claim_wake_claim_id=excluded.claim_wake_claim_id,updated_at=now()`.execute(
+ values(${u}::uuid,${e},${r.id}::uuid,${r.desiredRevision},${r.status},${r.claimId ?? null}::uuid,${r.claimUntil ?? null}::timestamptz,${r.context ? JSON.stringify(r.context) : null}::jsonb,${r.proposal ? JSON.stringify(r.proposal) : null}::jsonb,${r.attemptId ?? null}::uuid,${r.outcome ?? null},${r.recording?.accountId ?? null}::uuid,${r.recording?.source.generation ?? null},${r.recording?.source.kind ?? null},${r.recording?.source.kind === 'command' ? r.recording.source.commandId : null}::uuid,${r.recording?.source.kind === 'material' ? r.recording.source.sourceRevision : null},${r.contextSha256 ?? null},${r.modelContextSha256 ?? null},${r.normalWakeId ?? null}::uuid,${r.claimWakeClaimId ?? null}::uuid)`.execute(
       tx,
     );
   },

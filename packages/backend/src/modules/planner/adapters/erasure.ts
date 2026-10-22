@@ -8,6 +8,7 @@ const tables = ['revisions', 'state', 'runs'] as const;
 export const plannerErasure: ModuleErasure = {
   module: 'planner',
   tables: tables.map((table) => ({ schema: 'planner', table, ownerColumn: 'universe_id' })),
+  accountColumns: [{ schema: 'planner', table: 'runs', column: 'recording_account_id' }],
   nonRowStores: [
     {
       name: `pgboss/${plannerQueue.name}`,
@@ -31,6 +32,7 @@ export const plannerErasure: ModuleErasure = {
 plannerErasure.clearExploration = {
   dispositions: Object.fromEntries([
     ...plannerErasure.tables.map((t) => [`${t.schema}.${t.table}`, 'erase']),
+    ...(plannerErasure.accountColumns ?? []).map((t) => [`${t.schema}.${t.table}`, 'erase']),
     ...plannerErasure.nonRowStores.map((s) => [`store:${s.name}`, 'erase']),
   ]) as Record<string, 'erase' | 'preserve'>,
   async erase(scope) {

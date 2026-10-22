@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { eraseCurrentExploration, personalStores } from '@knowscroll/backend/erasure-registry';
+import { eraseCurrentExploration, explorationStores, personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse, eraseExploration, clearExplorationRegistry } from '@knowscroll/backend/infrastructure/erasure';
 import {
   makeWithPersonalScope,
@@ -47,7 +47,7 @@ describe('fresh recording lifecycle certification (Actions only)', () => {
       lockTimeoutMs: 5000,
       pattern: '*@fresh.test',
       world: 'ci',
-      operatorSource: 'fixture:fresh-lifecycle',
+      operatorSource: 'cli:ci-fresh-lifecycle',
     })({ email: `${randomUUID()}@fresh.test` });
     if (result.kind !== 'issued') throw new Error('CI actual createAccount failed');
     const { accountId, universeId } = result.outcome;
@@ -133,6 +133,32 @@ describe('fresh recording lifecycle certification (Actions only)', () => {
     }
     return { asset, ids };
   }
+  it('checks non-NULL audit identities without confusing SQL arguments with Evidence columns', async () => {
+    const p = await born(),
+      exposureId = randomUUID();
+    await expect(
+      inRecording(p, 1, (cap) =>
+        sql`select evidence.require_recording_audits(${p.universeId}::uuid,1,${exposureId}::uuid,1,null,null)`.execute(
+          transactionOf(cap.personal),
+        ),
+      ),
+    ).resolves.toMatchObject({ kind: 'entered' });
+    await expect(
+      inRecording(p, 1, (cap) =>
+        sql`select evidence.require_recording_audits(${p.universeId}::uuid,1,${exposureId}::uuid,1,${randomUUID()}::uuid,null)`.execute(
+          transactionOf(cap.personal),
+        ),
+      ),
+    ).rejects.toThrow('recording_qualification_identity');
+    await expect(
+      inRecording(p, 1, (cap) =>
+        sql`select evidence.require_recording_audits(${p.universeId}::uuid,1,${exposureId}::uuid,1,null,${randomUUID()}::uuid)`.execute(
+          transactionOf(cap.personal),
+        ),
+      ),
+    ).rejects.toThrow('recording_activity_identity');
+  });
+
   it('issues birth only through actual account creation; pure reads reject copied and expired capabilities', async () => {
     const p = await born(),
       legacy = await seedPerson(database.db);
@@ -379,6 +405,29 @@ describe('fresh recording lifecycle certification (Actions only)', () => {
       const accepted = await c.applyEncounterAction(p.authority, save);
       expect(accepted).toMatchObject({ kind: 'applied', outcome: { changed: true } });
       expect((await certificates(p)).map((x) => x.channel)).toEqual(['saved']);
+      const audit = await database.db
+        .selectFrom('evidence.activity_revisions')
+        .select(['id', 'privacy_epoch', 'exposure_id', 'recording_generation'])
+        .where('universe_id', '=', p.universeId)
+        .where('exposure_id', '=', ids[0]!)
+        .orderBy('revision', 'desc')
+        .executeTakeFirstOrThrow();
+      expect(audit).toMatchObject({ privacy_epoch: 1, exposure_id: ids[0], recording_generation: 1 });
+      await expect(
+        inRecording(p, 1, (cap) =>
+          sql`select evidence.require_recording_audits(${p.universeId}::uuid,${audit.privacy_epoch},${audit.exposure_id}::uuid,${audit.recording_generation},null,${audit.id}::uuid)`.execute(
+            transactionOf(cap.personal),
+          ),
+        ),
+      ).resolves.toMatchObject({ kind: 'entered' });
+      await expect(
+        inRecording(p, 1, (cap) =>
+          sql`select evidence.require_recording_audits(${p.universeId}::uuid,${audit.privacy_epoch},${audit.exposure_id}::uuid,3,null,${audit.id}::uuid)`.execute(
+            transactionOf(cap.personal),
+          ),
+        ),
+      ).rejects.toThrow('recording_activity_identity');
+
       await expect(
         database.db
           .updateTable('experience.recording_channel_certificates')
@@ -638,7 +687,7 @@ describe('fresh recording lifecycle certification (Actions only)', () => {
   it('refuses generic lookalike callbacks as freshness proof and never recertifies after full erasure', async () => {
     const legacy = await seedPerson(database.db);
     const fake = clearExplorationRegistry(
-      personalStores.map((d) => ({
+      explorationStores.map((d) => ({
         ...d,
         clearExploration: {
           dispositions: { ...d.clearExploration!.dispositions },

@@ -8,6 +8,20 @@
 -- before making fresh roots reachable. These guards do not sandbox hostile old aggregate SQL.
 set local lock_timeout='5s';
 set local statement_timeout='60s';
+-- 0042 audit parameters share names with real evidence columns. Preserve its exact signature
+-- and predicates, qualifying every argument position so real non-NULL audit IDs remain checked.
+create or replace function evidence.require_recording_audits(u uuid, epoch integer, e uuid, g integer, q uuid, a uuid)
+ returns void language plpgsql set search_path=pg_catalog as $$
+begin
+ if $5 is not null and not exists(select 1 from evidence.encounter_evidence r where r.universe_id=$1 and r.id=$5
+  and r.privacy_epoch=$2 and r.exposure_id=$3 and r.recording_generation=$4) then
+  raise check_violation using message='recording_qualification_identity';
+ end if;
+ if $6 is not null and not exists(select 1 from evidence.activity_revisions r where r.universe_id=$1 and r.id=$6
+  and r.privacy_epoch=$2 and r.exposure_id=$3 and r.recording_generation=$4) then
+  raise check_violation using message='recording_activity_identity';
+ end if;
+end $$;
 -- Literal CHECK=1 format tag, never an increasing counter.
 -- squawk-ignore prefer-bigint-over-smallint
 alter table identity.universes add column recording_lifecycle_protocol smallint;
@@ -22,7 +36,7 @@ create table identity.recording_lifecycle_witnesses (
  protocol_version smallint not null check(protocol_version=1),
  origin_kind text not null check(origin_kind in('birth','clear_core')),
  clear_operation_id uuid references identity.clear_operations(id) on delete restrict,
- registry_sha256 text not null check(registry_sha256='c21cc86efaa179b73e7d217b7250cba320bdd402a362df1a19266e893649720a'),
+ registry_sha256 text not null check(registry_sha256='ebbec3bda043ab47c5566ebb29e80322e841f4dc15ef7940fc2ee4c053176dc1'),
  verified_at timestamptz not null,
  primary key(universe_id,privacy_epoch),
  check((origin_kind='birth')=(clear_operation_id is null))
@@ -87,7 +101,7 @@ create function identity.record_recording_birth() returns trigger language plpgs
 begin
  if new.recording_lifecycle_protocol=1 then
   insert into identity.recording_lifecycle_witnesses values(new.id,new.privacy_epoch,new.account_id,1,'birth',null,
-   'c21cc86efaa179b73e7d217b7250cba320bdd402a362df1a19266e893649720a',transaction_timestamp());
+   'ebbec3bda043ab47c5566ebb29e80322e841f4dc15ef7940fc2ee4c053176dc1',transaction_timestamp());
  end if;
  return new;
 end $$;
@@ -107,10 +121,10 @@ create constraint trigger recording_lifecycle_ready after insert or update on id
 create function experience.require_fresh_recording_lifecycle(u uuid, epoch integer, g integer)
  returns void language plpgsql set search_path=pg_catalog as $$
 begin
- perform experience.require_recording_generation(u,epoch,g);
+ perform experience.require_recording_generation($1,$2,$3);
  if not exists(select 1 from identity.universes r join identity.recording_lifecycle_witnesses w
   on w.universe_id=r.id and w.privacy_epoch=r.privacy_epoch and w.account_id=r.account_id
-  where r.id=u and r.privacy_epoch=epoch and r.recording_lifecycle_protocol=1 and w.protocol_version=1)
+  where r.id=$1 and r.privacy_epoch=$2 and r.recording_lifecycle_protocol=1 and w.protocol_version=1)
   then raise check_violation using message='recording_lifecycle_unavailable'; end if;
 end $$;
 create function experience.guard_recording_channel_certificate() returns trigger language plpgsql set search_path=pg_catalog as $$

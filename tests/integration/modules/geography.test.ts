@@ -852,12 +852,31 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       reason: 'run_not_resumable',
     });
     // Recovery is claim-fenced. Explicit resume requires claim expiry, never a second remote run.
+    const frozen = await database.db
+      .selectFrom('geography.runs')
+      .select(['context', 'recording_context_sha256', 'recording_model_context_sha256'])
+      .where('universe_id', '=', p.universeId)
+      .where('id', '=', s.activeRunId!)
+      .executeTakeFirstOrThrow();
+    expect(frozen.context).not.toBeNull();
+    expect(frozen.recording_context_sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(frozen.recording_model_context_sha256).toMatch(/^[a-f0-9]{64}$/);
     const active = await scope()(p.authority, async (sc) => {
+      if ((await base.fenceOwn(sc)).kind !== 'active') throw new Error('CI own');
+      if ((await fencePersonalRecording(sc, 1)).kind !== 'recording') throw new Error('CI original generation');
       const old = await geographyStore.header(sc, s.activeRunId!);
       if (!old) throw new Error('CI run absent');
       await geographyStore.writeRun(sc, { ...old, claimUntil: new Date(Date.now() - 1000).toISOString() });
     });
     expect(active.kind).toBe('entered');
+    expect(
+      await database.db
+        .selectFrom('geography.runs')
+        .select(['context', 'recording_context_sha256', 'recording_model_context_sha256'])
+        .where('universe_id', '=', p.universeId)
+        .where('id', '=', s.activeRunId!)
+        .executeTakeFirstOrThrow(),
+    ).toEqual(frozen);
     await request(p.authority, { commandId: randomUUID(), resumeRunId: s.activeRunId! });
     await run(await job(p, s.activeRunId!), signal());
     expect(r.model.calls).toHaveLength(1);

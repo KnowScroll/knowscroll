@@ -103,6 +103,28 @@ describe('the erasure registry (real database)', () => {
     expect(checkQueuePayloadStores(releaseQueues, personalStores)).toEqual([]);
   });
 
+  it('requires both actual personal-role account links in the migrated schema inventory', async () => {
+    for (const module of ['planner', 'geography']) {
+      expect(personalStores.find((owner) => owner.module === module)?.accountColumns).toContainEqual({
+        schema: module,
+        table: 'runs',
+        column: 'recording_account_id',
+      });
+    }
+    const omitted = personalStores.map((owner) =>
+      owner.module === 'planner' || owner.module === 'geography'
+        ? {
+            ...owner,
+            accountColumns: owner.accountColumns?.filter((column) => column.column !== 'recording_account_id'),
+          }
+        : owner,
+    );
+    expect(await checkErasureInventory(database.db, omitted)).toEqual([
+      'geography.runs.recording_account_id links to an account but no module declares it',
+      'planner.runs.recording_account_id links to an account but no module declares it',
+    ]);
+  });
+
   it('fails the inventory for an unregistered personal table, a cascading reference and an undeclared account link', async () => {
     await sql`create table experience.forgotten_personal (universe_id uuid not null references identity.universes (id) on delete cascade, owner_account_id uuid)`.execute(
       database.db,

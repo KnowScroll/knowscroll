@@ -239,7 +239,7 @@ const currentRecordingProtocol = {
         },
       ],
       accountTables: [],
-      accountColumns: [],
+      accountColumns: [{ table: 'geography.runs', column: 'recording_account_id' }],
       nonRowStores: ['pgboss/geography.cartograph', 'pgboss/geography.publish-delta'],
       clearDispositions: {
         'geography.deltas': 'erase',
@@ -284,7 +284,7 @@ const currentRecordingProtocol = {
         },
       ],
       accountTables: [],
-      accountColumns: [],
+      accountColumns: [{ table: 'planner.runs', column: 'recording_account_id' }],
       nonRowStores: ['pgboss/planner.run'],
       clearDispositions: {
         'planner.revisions': 'erase',
