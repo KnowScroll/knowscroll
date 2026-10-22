@@ -16,7 +16,8 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/saved-page.ts` | Versioned live Saved keyset pages, exact membership/format/availability rows and closed private list problems (#344 declaration prerequisite) |
 | `src/experience.ts` | `POST /v1/actions`, `GET /v1/saved`, and the exposure routes: `POST /v1/experience/open`, `POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document` |
 | `src/navigation.ts` | Composer session discovery, `POST /v1/experience/navigate`, semantic intents, prepared public offers, ready/pending/exhausted receipt outcomes and offer activation |
-| `src/region-encounter.ts` | U04 declaration-only exact own-region Composer preparation command, scoped offer outcome and closed problems |
+| `src/region-encounter.ts` | U04 declaration-only side-effect-free preview, exact displayed-target Open expectation, scoped Composer outcome and closed problems |
+| `src/formation-presentation.ts` | U05 declaration-only read, cross-device claim/current eligibility and shown/skipped terminal acknowledgement |
 | `src/supply.ts` | Declaration-only topic/format-variant requests, immutable acceptance/cancel receipts and current private request status; topic/variant HTTP declarations in `apiContract.supply` (#239 prerequisite; adapters pending) |
 | `src/geography.ts` | Declaration-only established geography pages, retained routes/aliases and typed applied universe deltas; not routed by `apiContract` (#237/#238 prerequisite) |
 | `src/interactions.ts` | `interaction.v1`: the observation envelope, three `scroll.*` payloads and bounded paired `reel.playback` intervals; `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
@@ -536,7 +537,9 @@ activation or map observation. The selected target is an exact Geography region
 UUID with expected object/Geography revisions; an optional existing Composer
 session carries its latest expected intent. ClientCapabilities are canonical.
 Owner/epoch come from the authenticated scope, never the input. No Scene identity,
-meaning/label/topic assertion, asset override, camera or playhead is accepted.
+meaning/label/topic assertion, asset override, camera or playhead is accepted. The optional
+`expectedEncounter:{assetId,assetRevision}` is solely a displayed-target expectation: it
+never overrides canonical region selection or grants admission.
 Future HTTP adapters require first-party Origin, current session and `X-KS-Scope`
 guards, private/no-store responses and body/output ceilings. Private IDs stay in
 the JSON body, never paths, general logs, cursors or diagnostic payloads.
@@ -588,8 +591,9 @@ They prove no established region, current target binding, runtime endpoint,
 provider compatibility, browser/native journey or #238 completion. A later client
 must preserve AccountScope disposal and its local exact camera/selection return,
 accessible dialog/focus/keyboard and truthful unavailable states. U05 durable
-per-account shown/skipped acknowledgement remains a separate missing prerequisite;
-origin IDs, this command receipt and local memory cannot replace it.
+per-account claim/disposition consumers remain separate unimplemented work. The new
+wire declarations below do not replace those consumers; origin IDs, an Open receipt
+and local memory cannot enforce cross-device uniqueness.
 
 
 ## Selective Clear exploration prerequisite (#246)
@@ -808,3 +812,89 @@ PostgreSQL >100/equal-timestamp/deleted-anchor/resave/kind/withdrawal tests,
 installed HTTP authority/private-error coverage, scoped client paging and the
 disposable-account deployed journey remain required after this prerequisite is
 accepted. This phase does not close #344 or full S01/S02/runtime acceptance.
+
+
+## Universe region preview and formation protocol (#357; contracts only)
+
+`apiContract.experience.previewRegionEncounter` declares read-only POST
+`/v1/experience/region/preview`. `region-encounter-preview.v1` binds a fresh readId,
+exact own-Geography selection and canonical capabilities to current own scope/root
+watermark, Geography revision, observation time and one immutable consumer card.
+Only asset/revision and ordinary kind/title/summary/language metadata travel. The read
+creates **no offer, session, command receipt, exposure, Evidence, demand, job or model
+call**. It provides no rendering/access authority. Missing approved canonical facet or
+unsupported framing stays unavailable. A bounded incomplete candidate window uses
+`selection_unavailable`; `no_eligible_content` requires genuine complete exhaustion.
+Never broaden to generic discovery, guessed title/topic or authored design activity.
+
+Legacy Region Open inputs/responses remain valid. A caller that displayed preview A
+must send `expectedEncounter` and require the exact expectation/capabilities echo;
+a bound ready response must choose that exact asset/revision. Current scope, readId,
+selection, capabilities and nonregressive root/Geography checks belong to consumers:
+no parser can compare an initiating request or prove current authority. Stale A must
+refresh/refuse, never paint or open replacement B. Buffered offers still need the
+actual canonical region constraint; foreground activation independently rechecks it.
+Camera, focus, map return and genuine player/block offsets remain private AccountScope
+state, absent from this wire and browser history. Close/Back/selection alone are reads
+or local actions, never implicit Open. Offline/unavailable states retain the map.
+
+`apiContract.formation` declares three private POSTs:
+`/v1/universe/formation/read`, `/claim`, and `/acknowledge` under
+`formation-presentation.v1`. These declarations install no backend, worker, storage,
+recovery, eraser or UI. Root accepted delivery policy is freshness300seconds,
+claim30seconds, full sequence2400ms and max8 target IDs; these are not formation
+thresholds or consumption/learning measures. The fact contains only an already
+committed transition/time/component stamps and bounded neutral creation labels,
+truth framing, object/parent identities and revisions. No model proposal, support
+refs, scores, source panel, geometry, seed or camera travels. Existing scene-core
+schemas/identity/families/generators remain unchanged. Only an actual created planet
+may select full planet beats; optional new-system beats require matching system and
+star creations in that same fact. Existing systems skip them; system/region-only
+facts use a final still. Hypothetical truth framing never silently becomes factual.
+The later backend must verify actual Geography authority and all selected current
+manifest/chunk targets before offering eligibility, without inventing projection.
+
+A formation read returns at most one candidate, or none/unavailable/unsupported.
+It echoes readId/selection/capabilities, scope/root and current Geography/Scene stamps.
+It creates no claim, receipt, expiry cleanup, job or shown mark. Claimable freshness
+is exactly300seconds from the original commit time, never renewed by reading.
+Late/reconnect/backlog, already claimed or terminal facts render the existing map's
+final state directly, without another story or invented shown acknowledgement.
+Reduced motion retains exact targets/framing and uses a still/caption only.
+
+Claim sends one commandId, transitionId and local attemptNonce. A later consumer must
+atomically acquire at most one claim across devices under current personal root,
+owner/epoch/Clear and projection gates, with receipt/root/required expiry work in the
+same transaction. Claim is eligibility, **not shown**. Unknown acknowledgement retries
+only that exact original body; never animate optimistically or mint a replacement
+claim after reload. Immutable receipt and **current** eligibility are separate:
+replay may retain an old `claimed` receipt while `current` is final/expired. Active
+must name that exact claim and unchanged30second expiry. Neither replay nor syntax
+proves a live server claim; the client also checks actual scope/expiry/foreground and
+synchronously marks its one local attempt started before callbacks or remounts.
+Expired or interrupted claims are never reissued for animation. No encounter is
+interrupted and no background story or burst of old presentations is permitted.
+
+Terminal command names exact transition/claim/attemptNonce and stable commandId.
+`shown` follows an actually completed sequence or actually mounted reduced-motion
+still/caption. Skip, leave, background or interruption sends `skipped` while the
+original scope remains live; scope end stops and purges locally, never dispatches
+under a replacement scope. Terminal receipt keeps the requested disposition separate
+from an already terminal actual one: a delayed shown cannot overwrite an expiry skip.
+No acknowledgement inserts a transition or contributes formation, learning, belief,
+mastery, consumption or personal evidence. Retry preserves the original body/receipt.
+
+Later consumers must enforce non-oracular current authority before lookup/replay,
+private/no-store before auth/body parsing, first-party Origin/scope guards and finite
+body/output limits. Closed problems reuse fixed existing catalogue codes; only static
+schema path tokens or `unknown` are allowed, never values, numeric positions, private
+IDs, dynamic capability keys, detail/instance text or provider messages. The OpenAPI
+hook describes direct RFC9457 error data only, not an installed error serializer.
+Expiry/restart/final-delivery recovery needs finite indexed advancing continuations
+committed before busy work, no status-read maintenance or second outbox, and concrete
+full/selective-Clear ownership across epochs/queues. A delayed old claim/job/erasure
+must not recreate cleared state or touch genuine new-epoch data. Those implementations,
+0037/0038 allocation, semantic approvals, real supported formation, cross-device/
+accessibility/browser/native journeys and #237/#238 completion remain separate gates.
+Only Actions run the authored contract/refinement/OpenAPI suites; fixtures are not
+actual claims, rendered worlds or runtime acceptance.
