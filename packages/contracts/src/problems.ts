@@ -17,6 +17,7 @@ export const problemCatalogue = {
   METHOD_NOT_ALLOWED: { status: 405, title: 'This method is not allowed here.' },
   SHARING_REVISION_STALE: { status: 409, title: 'Sharing settings changed; reload and try again.' },
   SHARING_UNAVAILABLE: { status: 404, title: 'This sharing resource is not available.' },
+  SAVED_CURSOR_UNAVAILABLE: { status: 409, title: 'This saved-list page is no longer available; refresh Keep.' },
   KEEP_ENTRY_UNAVAILABLE: { status: 404, title: 'This saved entry is not available.' },
   KEEP_PLACE_REVISION_STALE: { status: 409, title: 'Your saved place changed; reload and try again.' },
   KEEP_PLACE_COUNTER_EXHAUSTED: { status: 409, title: 'This saved place cannot accept another update.' },
