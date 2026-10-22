@@ -11,6 +11,7 @@ import type {
 import type { Database } from './database.js';
 import { ScopeClosedError, withTransaction } from './personal-scope.js';
 
+const acceptedOperations = new WeakMap<PrivacyScopeTx, ClearBinding>();
 const privacy = new WeakMap<PrivacyScopeTx, Transaction<Database>>();
 const core = new WeakMap<ClearCoreTx, Transaction<Database>>();
 const accounting = new WeakMap<ClearAccountingTx, Transaction<Database>>();
@@ -80,6 +81,7 @@ export function makeWithPrivacyScope(
         return { kind: 'entered', value: await work(scope) };
       } finally {
         privacy.delete(scope);
+        acceptedOperations.delete(scope);
       }
     });
   };
@@ -181,4 +183,24 @@ export function makeWithClearMaintenance(
 export function closeClearCore(scope: ClearCoreTx): void {
   clearCoreTransactionOf(scope);
   core.delete(scope);
+}
+
+/** Installed by Identity's store only after operation and barrier writes in this same live transaction. */
+export function bindPrivacyOperation(scope: PrivacyScopeTx, binding: ClearBinding): void {
+  privacyTransactionOf(scope);
+  if (
+    acceptedOperations.has(scope) ||
+    binding.accountId !== scope.authority.accountId ||
+    binding.universeId !== scope.authority.universeId ||
+    binding.fromEpoch !== scope.authority.privacyEpoch ||
+    binding.toEpoch !== binding.fromEpoch + 1
+  )
+    throw new ScopeClosedError('Privacy operation binding unavailable');
+  acceptedOperations.set(scope, Object.freeze({ ...binding }));
+}
+export function privacyOperationOf(scope: PrivacyScopeTx): ClearBinding {
+  privacyTransactionOf(scope);
+  const binding = acceptedOperations.get(scope);
+  if (!binding) throw new ScopeClosedError('Privacy operation binding unavailable');
+  return binding;
 }

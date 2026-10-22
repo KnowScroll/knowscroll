@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sql } from 'kysely';
 import { explorationStores } from '@knowscroll/backend/erasure-registry';
 import { eraseExploration } from '@knowscroll/backend/infrastructure/erasure';
@@ -112,6 +112,7 @@ describe('privacy capabilities and barriers', () => {
       makeWithPrivacyScope(db(), { lockTimeoutMs: 5000 })(
         { accountId: p.accountId, universeId: p.universeId, privacyEpoch: 1 },
         async (scope) => {
+          await clearStore.create(scope, payload.commandId, 'a'.repeat(64), []);
           await makeEnqueuePrivacyJob(boss, clearExplorationQueue)(scope, payload);
           const job = await sql<{
             n: number;
@@ -230,5 +231,47 @@ describe('privacy capabilities and barriers', () => {
       kind: 'entered',
       value: { accountId: p.accountId, universeId: p.universeId, privacyEpoch: 1 },
     });
+  });
+  it('rejects cross-operation/account and paid queues before send or SQL side effects', async () => {
+    const p = await seedPerson(db()),
+      a = input();
+    await cases().start({ accountId: p.accountId, universeId: p.universeId, privacyEpoch: 1 }, a);
+    await cases().process({ v: 1, accountId: p.accountId, commandId: a.commandId });
+    const spy = vi.spyOn(boss, 'send');
+    spy.mockClear();
+    expect(() => makeEnqueuePrivacyJob(boss, { ...clearExplorationQueue, name: 'reasoning.paid-dispatch' })).toThrow(
+      'PRIVACY_QUEUE_INVALID',
+    );
+    await maintenance()(p.accountId, a.commandId, async (scope) => {
+      if (isClearCore(scope)) throw new Error('fixture expected accounting');
+      for (const payload of [
+        { v: 1 as const, accountId: p.accountId, commandId: randomUUID() },
+        { v: 1 as const, accountId: randomUUID(), commandId: a.commandId },
+      ])
+        await expect(makeEnqueuePrivacyJob(boss, clearExplorationQueue)(scope, payload)).rejects.toThrow(
+          'PRIVACY_JOB_BINDING_INVALID',
+        );
+      await expect(
+        makeEnqueuePrivacyJob(boss, clearExplorationQueue)(
+          { ...scope },
+          { v: 1, accountId: p.accountId, commandId: a.commandId },
+        ),
+      ).rejects.toThrow();
+    });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+    const q = await seedPerson(db());
+    await makeWithPrivacyScope(db(), { lockTimeoutMs: 5000 })(
+      { accountId: q.accountId, universeId: q.universeId, privacyEpoch: 1 },
+      async (scope) => {
+        await expect(
+          makeEnqueuePrivacyJob(boss, clearExplorationQueue)(scope, {
+            v: 1,
+            accountId: q.accountId,
+            commandId: randomUUID(),
+          }),
+        ).rejects.toThrow('Privacy operation binding unavailable');
+      },
+    );
   });
 });

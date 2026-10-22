@@ -3,6 +3,7 @@ import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { revokeAccountSockets } from '../../../infrastructure/notices/index.js';
 import {
   privacyTransactionOf,
+  bindPrivacyOperation,
   clearCoreTransactionOf,
   clearAccountingTransactionOf,
   closeClearCore,
@@ -85,7 +86,9 @@ export const clearStore: ClearStore = {
       .executeTakeFirst();
     if (updated.numUpdatedRows !== 1n) throw new Error('CLEAR_BARRIER_INVALID');
     await revokeAccountSockets(trx, a.accountId);
-    return operation(row);
+    const accepted = operation(row);
+    bindPrivacyOperation(scope, accepted);
+    return accepted;
   },
   async coreDone(scope) {
     const trx = clearCoreTransactionOf(scope),
