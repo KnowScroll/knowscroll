@@ -6,13 +6,18 @@ export type ActivityProjectionResult =
   | {
       readonly kind: 'skipped';
       readonly reason:
-        'already_applied' | 'exposure_not_active' | 'metadata_missing' | 'epoch_changed' | 'universe_unavailable';
+        | 'recording_ineligible'
+        | 'already_applied'
+        | 'exposure_not_active'
+        | 'metadata_missing'
+        | 'epoch_changed'
+        | 'universe_unavailable';
     };
 export type ProjectEncounterActivity = (payload: ProjectScrollReadingPayload) => Promise<ActivityProjectionResult>;
 export type ReadPreparedActivity = ReadPreparedEvidenceInput;
 export type ReconcileEncounterActivity = (
   authority: PersonalAuthority,
-  query: { readonly after?: string; readonly limit: number },
+  query: { readonly after?: string; readonly limit: number; readonly recordingGeneration?: number },
 ) => Promise<
   ScopeOutcome<{
     readonly examined: number;

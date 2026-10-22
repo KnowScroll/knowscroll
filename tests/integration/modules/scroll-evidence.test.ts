@@ -6,6 +6,7 @@ import type { InteractionEvent } from '@knowscroll/contracts';
 import { createBoss, drainConsumers, jobConsumer, startConsumers } from '@knowscroll/backend/infrastructure/jobs';
 import { SCOPE_NOTICE_CHANNEL, ScopeNoticeSchema, type ScopeNotice } from '@knowscroll/backend/infrastructure/notices';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
+import { recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { projectScrollReadingQueue } from '@knowscroll/backend/modules/evidence';
 import { coverageOf, parseDocument } from '@knowscroll/scroll-model';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -71,6 +72,36 @@ describe('projection and §8 qualification of a Scroll reading (real database)',
         .where('id', '=', person.universeId)
         .executeTakeFirstOrThrow()
     ).revision;
+
+  it('retains a committed legacy qualification after toggles without replaying old work as current growth', async () => {
+    const { person, exposure } = await reader();
+    await ingest(person, [event(exposure, coverage(blocks, 4000)), event(exposure, dwell([0, 68000]))]);
+    expect(await project(person, exposure)).toMatchObject({ kind: 'applied', revision: 1, qualification: 'qualified' });
+    const before = await evidence(person, exposure);
+    const policy = recordingPolicyFor(database.db, { lockTimeoutMs: 5000 });
+    for (const [generation, on] of [
+      [1, false],
+      [2, true],
+    ] as const)
+      expect(
+        await policy.set(person.authority, {
+          version: 'recording-policy.v1',
+          commandId: randomUUID(),
+          expectedPrivacyEpoch: 1,
+          expectedRecordingGeneration: generation,
+          on,
+        }),
+      ).toMatchObject({ kind: 'ok' });
+    const revision = await universeRevision(person);
+    expect(await project(person, exposure)).toEqual({ kind: 'skipped', reason: 'recording_ineligible' });
+    expect(await evidence(person, exposure)).toEqual(before);
+    expect(await universeRevision(person)).toBe(revision);
+    expect(await useCases.readEvidenceDiagnostics(person.authority, exposure.exposureId)).toMatchObject({
+      kind: 'read',
+      diagnostics: { evidence: { revision: 1, qualification: 'qualified' } },
+    });
+    expect(await evidence(person, exposure)).toEqual(before);
+  });
 
   it('qualifies a full reading: code-set weights, the versioned policy and the §8 formula', async () => {
     const { person, exposure } = await reader();

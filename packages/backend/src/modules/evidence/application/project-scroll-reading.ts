@@ -1,8 +1,12 @@
-import { summariseReel, REEL_QUALIFICATION_POLICY_V0 } from '../domain/reel-summary.js';
-import { SCROLL_QUALIFICATION_POLICY_V0 } from '../domain/policy.js';
+import {
+  summariseReel,
+  REEL_QUALIFICATION_POLICY_V0,
+  REEL_RECORDING_QUALIFICATION_POLICY,
+} from '../domain/reel-summary.js';
+import { SCROLL_QUALIFICATION_POLICY_V0, SCROLL_RECORDING_QUALIFICATION_POLICY } from '../domain/policy.js';
 import { qualifyScrollReading } from '../domain/qualification.js';
-import { summariseReading, type ObservationRecord } from '../domain/reading-summary.js';
-import type { ProjectScrollReadingPayload } from '../events.js';
+import { summariseReading, summariseRecordingReading, type ObservationRecord } from '../domain/reading-summary.js';
+import { ProjectScrollReadingPayloadSchema, type ProjectScrollReadingPayload } from '../events.js';
 import { observationBody } from './observation-bodies.js';
 import type { ProjectScrollReadingPorts } from './ports.js';
 
@@ -16,6 +20,8 @@ export type ProjectScrollReadingResult =
   | {
       readonly kind: 'skipped';
       readonly reason:
+        | 'recording_ineligible'
+        | 'observation_limit'
         | 'already_applied'
         | 'exposure_missing'
         | 'exposure_not_active'
@@ -52,20 +58,46 @@ export function makeProjectScrollReading(ports: ProjectScrollReadingPorts) {
   return async function projectScrollReading(
     payload: ProjectScrollReadingPayload,
   ): Promise<ProjectScrollReadingResult> {
+    payload = ProjectScrollReadingPayloadSchema.parse(payload);
+    const domain = payload.v === 1 ? 'legacy' : 'session';
     const authority = {
       universeId: payload.universeId,
       privacyEpoch: payload.privacyEpoch,
       actor: { kind: 'system', purpose: 'evidence.project-scroll-reading' },
     } as const;
-    const policy = SCROLL_QUALIFICATION_POLICY_V0;
+    const policy = domain === 'legacy' ? SCROLL_QUALIFICATION_POLICY_V0 : SCROLL_RECORDING_QUALIFICATION_POLICY;
+    const reelPolicy = domain === 'legacy' ? REEL_QUALIFICATION_POLICY_V0 : REEL_RECORDING_QUALIFICATION_POLICY;
     const entered = await ports.withPersonalScope(authority, async (scope): Promise<ProjectScrollReadingResult> => {
+      if ((await ports.fenceOwn(scope)).kind !== 'active') return { kind: 'skipped', reason: 'universe_unavailable' };
+      const gate = await ports.fenceRecording(scope, payload.v === 2 ? payload.recordingGeneration : undefined);
+      if (gate.kind !== 'recording') return { kind: 'skipped', reason: 'recording_ineligible' };
+      const cap = gate.scope;
       const exposure = await ports.readExposure(scope, payload.exposureId);
       if (exposure === undefined || exposure.privacyEpoch !== payload.privacyEpoch)
         return { kind: 'skipped', reason: 'exposure_missing' };
       if (exposure.activatedAt === undefined) return { kind: 'skipped', reason: 'exposure_not_active' };
       const facts = await ports.readReadingFacts(scope, exposure.assetId, exposure.assetRevision);
       if (facts === undefined) return { kind: 'skipped', reason: 'facts_missing' };
-      const stored = await ports.readObservations(scope, exposure.id);
+      const read = await ports.readObservations(cap, exposure.id, domain);
+      if (read.kind === 'limit') return { kind: 'skipped', reason: 'observation_limit' };
+      const segment = await ports.readSegment(cap, exposure.id);
+      if (domain === 'session' && !segment?.firstEligibleActivationAt)
+        return { kind: 'skipped', reason: 'recording_ineligible' };
+      const stored = read.observations.filter(
+        (row) =>
+          !segment ||
+          (segment.firstEligibleActivationAt !== undefined &&
+            row.originalWireProved &&
+            row.receivedAt.getTime() >= Date.parse(segment.initializedAt)),
+      );
+      const elapsedMs =
+        domain === 'session' && stored.length
+          ? Math.max(
+              0,
+              Math.max(...stored.map((r) => r.receivedAt.getTime())) -
+                Math.min(...stored.map((r) => r.serverStartedAt?.getTime() ?? Number.POSITIVE_INFINITY)),
+            )
+          : undefined;
       const observations: ObservationRecord[] = [];
       for (const row of stored) {
         const body = observationBody(row.kind, row.payload);
@@ -81,20 +113,19 @@ export function makeProjectScrollReading(ports: ProjectScrollReadingPorts) {
       if (observations.length === 0) return { kind: 'skipped', reason: 'no_observations' };
 
       if (facts.reelDurationMs !== undefined) {
-        const reel = summariseReel(observations, facts.reelDurationMs);
-        const latest = await ports.readLatestEvidence(scope, exposure.id);
-        if (
-          latest?.inputWatermark === reel.inputWatermark &&
-          latest.policyVersion === REEL_QUALIFICATION_POLICY_V0.version
-        )
+        const reel = summariseReel(observations, facts.reelDurationMs, elapsedMs);
+        const latest = await ports.readLatestEvidence(cap, exposure.id, domain);
+        if (latest?.inputWatermark === reel.inputWatermark && latest.policyVersion === reelPolicy.version)
           return { kind: 'skipped', reason: 'already_applied' };
         const evidenceId = ports.newId();
-        const revision = (latest?.revision ?? 0) + 1;
-        const inserted = await ports.insertEvidence(scope, {
+        const revision = await ports.nextEvidenceRevision(cap, exposure.id);
+        const inserted = await ports.insertEvidence(cap, {
           id: evidenceId,
+          recordingGeneration: cap.generation,
+          clockDomain: domain,
           exposureId: exposure.id,
           revision,
-          policyVersion: REEL_QUALIFICATION_POLICY_V0.version,
+          policyVersion: reelPolicy.version,
           assetId: exposure.assetId,
           assetRevision: exposure.assetRevision,
           ...reel,
@@ -104,8 +135,11 @@ export function makeProjectScrollReading(ports: ProjectScrollReadingPorts) {
         await ports.notifyScopeChanged(scope, { revision: universeRevision, eventId: evidenceId });
         return { kind: 'applied', evidenceId, revision, qualification: reel.qualification };
       }
-      const summary = summariseReading(observations, facts, policy);
-      const latest = await ports.readLatestEvidence(scope, exposure.id);
+      const summary =
+        elapsedMs === undefined
+          ? summariseReading(observations, facts, policy)
+          : summariseRecordingReading(observations, facts, policy, elapsedMs);
+      const latest = await ports.readLatestEvidence(cap, exposure.id, domain);
       if (
         latest !== undefined &&
         latest.inputWatermark === summary.inputWatermark &&
@@ -115,9 +149,11 @@ export function makeProjectScrollReading(ports: ProjectScrollReadingPorts) {
 
       const result = qualifyScrollReading(summary, policy);
       const evidenceId = ports.newId();
-      const revision = (latest?.revision ?? 0) + 1;
-      const inserted = await ports.insertEvidence(scope, {
+      const revision = await ports.nextEvidenceRevision(cap, exposure.id);
+      const inserted = await ports.insertEvidence(cap, {
         id: evidenceId,
+        recordingGeneration: cap.generation,
+        clockDomain: domain,
         exposureId: exposure.id,
         revision,
         inputWatermark: summary.inputWatermark,

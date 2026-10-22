@@ -1,7 +1,8 @@
 import type { ObservedCoverage } from '../domain/coverage.js';
-import type { PersonalScopeTx } from '../../identity/public.js';
+import type { ActivityChannels } from '../domain/activity.js';
+import type { PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js';
 /** Minimal projection event contract, independent of Experience's implementation types. */
-export interface ActivityDerivedInput {
+export interface LegacyActivityDerivedInput {
   /** Actual current Evidence activity audit identity; unchanged activity reuses its ID. */
   readonly id?: string;
   readonly coverage?: ObservedCoverage;
@@ -22,9 +23,38 @@ export interface ActivityDerivedInput {
   readonly qualified: boolean;
   readonly inputVector: Readonly<Record<string, string | number>>;
 }
-export interface ActivityDerivedEffect {
-  readonly apply: (scope: PersonalScopeTx, projection: ActivityDerivedInput) => Promise<boolean>;
-  readonly isCurrent: (scope: PersonalScopeTx, projection: ActivityDerivedInput) => Promise<boolean>;
+/** Exact current segment proof is separate from carried exposure credit. */
+export interface RecordingActivityDerivedInput {
+  readonly version: 'recording-activity.v1';
+  readonly recordingGeneration: number;
+  readonly exposure: LegacyActivityDerivedInput['exposure'];
+  readonly metadata: LegacyActivityDerivedInput['metadata'];
+  readonly inputVector: LegacyActivityDerivedInput['inputVector'];
+  readonly currentSegment: {
+    readonly activity: { readonly id: string; readonly recordingGeneration: number; readonly revision: number };
+    readonly qualification: {
+      readonly id: string;
+      readonly recordingGeneration: number;
+      readonly revision: number;
+    } | null;
+    readonly measured: boolean;
+    readonly qualified: boolean;
+    readonly coverage?: ObservedCoverage;
+  };
+  readonly evidenceEffective: {
+    readonly channels: ActivityChannels;
+    readonly measured: boolean;
+    readonly qualified: boolean;
+  };
+}
+export type ActivityDerivedInput = LegacyActivityDerivedInput | RecordingActivityDerivedInput;
+export interface LegacyActivityDerivedEffect {
+  readonly apply: (scope: PersonalScopeTx, projection: LegacyActivityDerivedInput) => Promise<boolean>;
+  readonly isCurrent: (scope: PersonalScopeTx, projection: LegacyActivityDerivedInput) => Promise<boolean>;
+}
+export interface ActivityDerivedEffect extends LegacyActivityDerivedEffect {
+  readonly applyRecording: (scope: RecordingScopeTx, projection: RecordingActivityDerivedInput) => Promise<boolean>;
+  readonly isRecordingCurrent: (scope: RecordingScopeTx, projection: RecordingActivityDerivedInput) => Promise<boolean>;
 }
 export interface ActivityStatistics {
   readonly topicId: string;

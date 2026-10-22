@@ -3,12 +3,103 @@
 Owns: `evidence.action_events` (`0005`, the explicit-action channel: a Save is not a consumption
 encounter), `evidence.observations` and `evidence.encounter_evidence` (`0012_evidence_observations`).
 
+## Recording pipeline prerequisite (#381, schema0042)
+
+This source is a backend prerequisite, not installed Pause. HTTP/controller, client recorder,
+worker composition and Roles/Reasoning generation propagation remain separately allocated. Full
+positive Evidence→PC→Roles material-change acceptance and finite legacy attribution/channel
+certification are pending. No runtime activation or provider authority follows from this source.
+
+All intake and growth consumers enter the personal root, acquire the current own-account UPDATE
+barrier, then obtain Identity's genuine `RecordingScopeTx` for the ORIGINAL generation. Work that
+waited behind a toggle or Clear cannot apply afterward. Omitted-generation legacy wires/jobs are
+permitted only in actual initial1/on; v2 requires its submitted original generation. Queue schemas
+remain Zod objects exposing `.shape.universeId` for erasure inventory, refuse reserved generation
+fields on v1 (including explicit undefined), and never strip malformed v2 into a legacy branch.
+
+The separate strict `observation-batch.v2` requires a session whose ID is the actual accepted
+activation command ID. Experience owns the current descriptor and activation decision; Evidence
+registers the session in that same transaction, sampling its own server clock before ACK. A restart
+has a fresh activation command/session and may start later than the first eligible activation.
+Registration alone earns no qualification, activity, material revision or job. The SQL origin and
+deferred completed-receipt guards bind generation, exposure and activation. No client clock is
+server authority. Session-relative visibility intersects only that session's active dwell. Within
+the current generation, independently observed seen sets combine and session dwell is capped by
+one eligible server elapsed span. Legacy and session raw interval clocks never union together;
+recording qualification policies have distinct version strings.
+
+The event key remains global `(universe,eventId)`. Newly accepted bounded payloads have a reserved
+strict internal envelope with clock domain and a server-computed SHA-256 of the original event,
+instrumentation and generation. Exact unchanged retries count duplicate before the lifetime-cap
+check and change nothing. Reusing an ID with different wire content refuses `lineage_mismatch`.
+A historical pre-envelope row cannot prove its original body after timestamp/interval clamping:
+reuse of that ID also refuses `lineage_mismatch`, even for a plausible old retry. There is no
+reconstruction, backfill or guessed hash. The future client owner must discard that old scoped
+batch and require a deliberate fresh session, never automatically relabel or re-ID its intervals.
+Fresh v1-shaped IDs remain accepted only at actual initial1/on. Necessary encounter history is
+unchanged. A 1001-row lifetime probe precedes generation filtering; oversized inconsistent history
+returns a typed `observation_limit`, and the 1000-event lifetime budget never resets on toggles.
+
+`recording_segment_heads` keeps exact current-generation qualification/activity identities.
+Audit revisions allocate from an indexed global exposure/revision reverse seek; a new generation
+never reuses an audit revision. Activity requires an existing genuine Experience descriptor and
+never calls `ensureLineage` to manufacture eligibility. Old already-activated exposures without
+one confer no new activity until actual eligible activation. New segment factual proofs exclude
+pre-descriptor observations and pre-envelope legacy bodies; an old qualification audit is not a
+fresh current-segment proof. Committed legacy state remains retained independently.
+
+`recording-credit.v1` is one fixed exposure reducer/cache, with bounded independent legacy/session
+source slots, never a generation-history array. Advancing generation freezes the previous EFFECTIVE
+value, not an old source head. q uses maximum, qualification/measurement and H/R retain factual
+presence, and explicit current eligible false L/B overrides prevent resurrection. NULL channel
+state is uncertified and does not borrow necessary Save/Like truth. The immutable attribution
+fingerprint cannot change between generations. On first conversion, <=16 old committed topic rows
+are checked for exact weighted scalar/channel/Q/O consistency. Old storage lacks the full
+explanation/facet/attribution fingerprint, so this source still refuses uncertified conversion
+with `RECORDING_LEGACY_ATTRIBUTION_UNCERTIFIED`; it preserves old downstream credit rather than
+moving it to today's catalogue. No automatic legacy certification is installed.
+
+The `activity_revisions` audit stores ONLY current-generation segment channels scored by the
+unchanged `activity.v0` weights/cap. It contains no inherited effective channels. Its versioned
+input vector binds the exact current factual source IDs. The recording-credit cache and weighted
+topic replacements separately hold one-exposure EFFECTIVE channels/Q/O. Existing legacy
+`activity_current` heads are not rewritten; a missing parent is inserted once only to satisfy the
+unchanged topic-contribution FK. Modern current identity uses the generation-specific head.
+
+`RecordingActivityDerivedInput` separates `currentSegment` exact activity/qualification references
+and observed coverage from `evidenceEffective`. There is no recording top-level `qualified` alias.
+PC must use its OWN committed baseline and only current-segment factual proof; Evidence's inherited
+qualification is never new PC support. The composite `recording-coverage.v1` witness key includes
+source kind (legacy/segment), exposure, generation, activity, qualification and certificate digest.
+Retained exact audit checks never fall back to latest exposure identity; an existing committed
+legacy-g1 PC witness remains distinct from a new g1 segment. Content still owns current mapping,
+meaning and publication authority after any waits. Certificates remain factual static coverage,
+not learning or understanding, and Reel facet coverage remains unsupported.
+
+The required Experience effects factory implements all four methods with genuine recording
+transactions. It validates <=2 channel effects against owning action/command and exact persisted
+segment decisions, not caller-only pointer revisions. Derived Evidence/PC changes allocate exactly
+one root revision and one REQUIRED material-change carrying the same original generation; the
+consumer sends no notice. Experience reuses that revision and emits its one notice. Standalone
+activity projection owns its own one revision/notice. A required owner/job failure rolls the whole
+transaction back. Missing PC's four-method effect or material-change port is an error, never a
+successful empty fallback. Read/replay paths do not repair missing legacy state. Reconciliation
+visits <=100 stable IDs and current-generation descriptors only, with explicit original generation;
+old/absent/ineligible sources are not reconstructed.
+
+The erasure inventory now includes recording credit, segment heads and sessions before their
+referenced audits. PC must erase its dependent source/certificate rows first, then Evidence, then
+Experience descriptors/origins/receipts. All three ordinary/retained/dead queue inventories retain
+their existing names. Only source/static checks are allowed locally; authored behavior fixtures run
+in GitHub Actions after complete dependency composition. The older sections below describe the
+pre-recording slice and retained compatibility interfaces; this section governs recording writers.
+
 ## Operations
 
 | Operation | Trigger | Authority, effects, redelivery |
 |---|---|---|
 | `applyActionEvidence(payload)` | queue `evidence.apply-action` (worker) | `system` actor for the payload's universe at the payload's epoch, rechecked under the personal lock. One transaction: read the action (experience's `READ_ACTION_FOR_EVIDENCE` port) → insert the event keyed `(universe_id, action_id)`. Evidence changes nothing a client reads, so the job advances no revision and sends no hint. A redelivery finds the key and does nothing (`already_applied`); work from an older epoch is skipped (`epoch_changed`). |
-| `ingestObservations(authority, {instrumentationVersion, events})` | `POST /v1/observations/batch` | Durable intake of the recorder's `interaction.v1` events. Caller's authority under the personal lock; **idempotent per `(universe, event ID)`** (`ON CONFLICT DO NOTHING`: a retried batch counts nothing twice; the first writer wins). Per event, in order: the exposure exists in this universe and epoch (`exposure_unknown`; foreign and unknown are indistinguishable), the event names the exposure's asset and revision (`lineage_mismatch`), the exposure is activated (`exposure_not_active`), every block ID exists in that immutable revision (`block_unknown`), interaction kinds must be declared by scroll-model `INTERACTION_KINDS` for the stored block type (`interaction_kind_invalid`), the event is not older than a week (`too_old`) and the exposure's intake limit (1,000) is not reached (`exposure_event_limit`). **Client claims are bounded, not trusted** (`observation-bounds.v1`): a future `occurredAt` is clamped to receipt time, and intervals and offsets are clipped to the wall time elapsed since activation plus 2 s; the stored payload is the bounded one (`bounded` is recorded). Each accepted event gets the exposure's next `seq`, so the highest `seq` is its input watermark. In the **same transaction** one `evidence.project-scroll-reading` job is enqueued per exposure that gained an observation (pg-boss is the only outbox). A batch over 48 KiB is refused (`PAYLOAD_TOO_LARGE`); an older epoch is refused (`PRIVACY_EPOCH_CHANGED`). Acknowledgement means **stored**, never projected. No receipt (observations are not commands), no revision bump, no hint. |
+| `ingestObservations(authority, {instrumentationVersion, events})` | `POST /v1/observations/batch` | Durable intake of the recorder's `interaction.v1` events. Caller's authority under the personal lock; **idempotent per `(universe, event ID)`** (exact original-wire retry only: unchanged retries count nothing twice; changed-wire reuse refuses). Per event, in order: the exposure exists in this universe and epoch (`exposure_unknown`; foreign and unknown are indistinguishable), the event names the exposure's asset and revision (`lineage_mismatch`), the exposure is activated (`exposure_not_active`), every block ID exists in that immutable revision (`block_unknown`), interaction kinds must be declared by scroll-model `INTERACTION_KINDS` for the stored block type (`interaction_kind_invalid`), the event is not older than a week (`too_old`) and the exposure's intake limit (1,000) is not reached (`exposure_event_limit`). **Client claims are bounded, not trusted** (`observation-bounds.v1`): a future `occurredAt` is clamped to receipt time, and intervals and offsets are clipped to the wall time elapsed since activation plus 2 s; the stored payload is the bounded one (`bounded` is recorded). Each accepted event gets the exposure's next `seq`, so the highest `seq` is its input watermark. In the **same transaction** one `evidence.project-scroll-reading` job is enqueued per exposure that gained an observation (pg-boss is the only outbox). A batch over 48 KiB is refused (`PAYLOAD_TOO_LARGE`); an older epoch is refused (`PRIVACY_EPOCH_CHANGED`). Acknowledgement means **stored**, never projected. No receipt (observations are not commands), no revision bump, no hint. |
 | `projectScrollReading(payload)` | queue `evidence.project-scroll-reading` (worker) | `system` actor at the payload's epoch, rechecked under the lock. One transaction: read the exposure (must be activated), its revision's reading facts and its observations in `seq` order → stop if the latest revision already covers this watermark under this policy → summarise and qualify (below) → insert the revision keyed `(exposure, input watermark, policy version)` (a conflict is a redelivery: no-op) → advance the universe revision and `pg_notify` it (the disposable hint, `eventId` = the evidence ID) → commit. Always projects the exposure's **current** watermark, so a late or duplicate job reflects everything committed before it. |
 | `readEvidenceDiagnostics(authority, exposureId)` | `GET /v1/diagnostics/exposures/{id}/evidence` | **Dev-only operator surface.** Authority rechecked without a lock; reads the caller's own intake count, latest evidence revision and the universe revision. The route exists only in `OPERATOR_WORLDS` (`dev`, `stage`, `ci`, `local`) and answers `NOT_FOUND` anywhere else; the consumer UI never shows scores. |
 
@@ -42,7 +133,7 @@ version is a new revision over the same input. Interactions are counted once per
 
 Queues (`events.ts`): `evidence.apply-action` and `evidence.project-scroll-reading`, each expiry 60 s, 8
 retries with backoff from 2 s, dead letter `<name>.dead`, retained 7 days queued / 2 days completed.
-Lock order: personal root only (the exposure and facts are read inside the same scope). Erasure: the three
+Lock order for recording writers: personal root → own account UPDATE → fresh recording capability; exposure/facts are read inside that scope. Erasure: the three
 tables and both queues' payloads per universe (`adapters/erasure.ts`); raw observations are not promised
 replayable forever.
 
