@@ -1,3 +1,5 @@
+import { conversationsContract } from './conversations.js';
+import { contentSharesContract } from './content-shares.js';
 import { formationPresentationContract } from './formation-presentation.js';
 import { privacyContract } from './privacy.js';
 import { keepContract } from './keep.js';
@@ -33,6 +35,8 @@ export const apiContract = {
   privacy: privacyContract,
   keep: { ...keepContract, remove: removeKeepEntryContract },
   sharing: sharingContract,
+  conversations: conversationsContract,
+  contentShares: contentSharesContract,
   scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract },
   formation: formationPresentationContract,
   geography: { read: readGeographyContract, deltas: readUniverseDeltasContract },

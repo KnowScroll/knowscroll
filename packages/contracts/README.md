@@ -898,3 +898,107 @@ must not recreate cleared state or touch genuine new-epoch data. Those implement
 accessibility/browser/native journeys and #237/#238 completion remain separate gates.
 Only Actions run the authored contract/refinement/OpenAPI suites; fixtures are not
 actual claims, rendered worlds or runtime acceptance.
+
+
+## Direct conversation and whole-content sharing prerequisite (#370 / #241 / #242)
+
+`apiContract.conversations` declares nine private JSON POSTs under
+`/v1/social/conversations/`: deliberate `start`, `inbox`, `read`, `history`, `changes`,
+`send`, caller-only `mark-read`, `mute` and `leave`. A current accepted friend may start
+one direct two-human conversation. Existing Friends/profile/invite/visibility/presence/visitor
+contracts and their partial unmounted backend remain unchanged. These declarations mount
+nothing. Group/thread invitations, content threads, snippets/anchors/block settings, scenarios,
+rooms, typing, AI participants and Social sockets are separate phases. Never display authored
+contacts, messages or availability as real activity. Missing features stay explicitly unavailable.
+
+A future backend must enter the current personal root/account/epoch gates, then reuse the
+existing private pair aggregate as its **sole** shared locking authority for direct conversation
+work. The conversation has a separate opaque public ID; no private pair root or revision travels.
+Never acquire a pair root and then a second conversation root. Current accepted pair lineage,
+participation, block/revocation and Content access precede both current reads and historical
+receipt lookup. Lost access is coarse unavailable, with no private peer cause. Own participation
+has an immutable ID/revision; leave/withdrawal ends it, and later re-friending cannot silently
+restore the old conversation or command authority. Parsing does not prove any gate or lock.
+
+Messages have stable server-assigned sequence/UUID identity. A separate durable **visible**
+change sequence orders creation/redaction; redacting a body updates the original bubble rather
+than moving it. A message ID cannot change its original sequence or share one with a different
+ID. Peer read/mute/presence/private transitions never advance a caller-visible counter, change
+position or inbox order. Inbox order is last visible message commit time DESC, conversation ID
+ASC. Lists contain only actual authorized conversations, not suggestions or activity counts.
+Only the caller's read-through and notification preference travel; no peer seen marker, current
+branch, interests, playback or reading position is permitted. Human author labels are actual public
+person references. Deleted private bodies/attachments become minimal unavailable markers without
+old author/text. Shared public Content and another person's independent messages remain theirs.
+
+Initial snapshot plus catch-up position must be captured atomically under the aggregate root.
+Each purpose has a different opaque confidential cursor (`kci1_`, `kch1_`, `kcc1_`), bound to world,
+caller/account/epoch, membership/authority lineage, purpose, limit and finite traversal ceiling.
+Each request selects limit1..50 and returns at most that many items; each response echoes its readId, actual scope, limit and initiating
+cursor where applicable. Consumers compare these to the actual request/scope and reject
+regressive watermarks. Strict schemas check unique ordered bubbles, increasing bounded changes,
+finite-window completion and nonlooping continuations; they cannot authenticate a cursor or
+compare it to a separate request. Invalid/expired/rotated cursor means explicit refresh_required,
+never an implicit first page. Empty caught-up is a valid live result, not a claim that future
+messages cannot arrive. Each captured change window ends even under continuous new writes.
+History has its own cursor and never replaces the active catch-up cursor. Retention gaps require
+refresh; do not invent missing changes. Current privacy/access gates still apply on every page.
+
+Durable send accepts plain text<=2000 UTF-16 units or a whole exact asset/revision with an optional
+note. No snippet/player locator enters this phase. Commands keep one stable commandId and exact
+original body after an unknown outcome, including a later401/403 refusal that cannot reconcile the
+first attempt. Never mint a replacement or automatically reissue an ambiguous command. Receipts
+repeat only committed IDs/order and exact content identity, not message text, current membership,
+delivery/seen assertions or access grants. Same canonical body replays one outcome; a changed body
+under that key is COMMAND_KEY_REUSED. Receipt, message/domain effects and required pg-boss work
+must commit in one transaction. Disposable ID-only NOTIFY hints cannot acknowledge a send; missed
+hints repair through authorized bounded HTTP catch-up/foreground refresh. No second outbox,
+socket command path or model/provider work is introduced. Report/abuse handling remains future
+implementation, not a fabricated successful moderation action.
+
+`apiContract.contentShares` declares four JSON POSTs under `/v1/social/content-shares/`:
+`create`, `revoke`, current-own `read`, and sensitive `resolve`. Exact references never silently
+replace a corrected revision. A corrected projection names both the original and a different
+current revision of that same asset; a user deliberately chooses a new canonical Open, then the
+real activation/recorder path independently establishes any encounter. Received cards, message
+reads, sharing, link resolution, copy and platform intent create no consumption Evidence, learning,
+interest or formation. Confirmed in-app send is distinct from sheet-open/cancel, copied link or
+external delivery, which cannot be inferred.
+
+Audience is explicit: `public_metadata` or one authorized direct conversation. Public resolution
+returns the same current public Content allowlist for **all** callers, without sender, conversation,
+relationship, private body, source panel, token, media URL or playback grant. It never consults a
+peer-private block to change that public projection. Public audience cannot publish a private asset.
+Private possession alone grants nothing; current member/pair/block/source checks are mandatory.
+Unknown/expired/revoked/withdrawn/private-denied landing has one neutral shape, no title/poster,
+sender or reason. No link automatically joins a conversation/thread. Current Content correction,
+withdrawal or access change cannot be bypassed by a historical message or creation receipt.
+
+A `kssh_` bearer token is delivered once, separately from the immutable acceptance; replay can
+recover the same shareId but never another token. Lost delivery requires deliberate revoke of that
+link then a new command. Original expiry is captured once, finite, later enforced from server time;
+no read/replay renews it. Concrete TTL/key/retention policies require later backend review. Fresh
+same-account current-resource lookup by shareId or original creation command can recover a retained
+own link after Clear without replaying the old-epoch command or exposing its token. Private reads
+still require current relevant authority. The dedicated future `/s/:token` landing must isolate
+proxy/referrer/OpenGraph handling; sensitive API resolution uses JSON, not a general API path/query.
+No token in logs, ordinary receipts, notices, errors or persistent client storage. Metadata/card
+caches purge on scope end and revocation, and bounded foreground reads recover missed invalidations.
+No public response/OG metadata may reveal a private link's existence or data.
+
+Clear preserves account-lifetime Social membership/messages/shares but fences old-epoch commands
+and purges scoped clients/sockets. Full account deletion separately removes authored private
+message bodies/attachments, leaves minimal continuity markers and revokes private links; it must
+not delete other people's independent messages, retain erased text in summaries or promise recall
+of external copies/backups. Runtime erasers/account deletion are not implemented by this wire.
+All endpoints require current session/Origin/scope and private/no-store before parsing, except a
+future explicitly reviewed unscoped public landing/resolution composition; no current guard exemption
+is added here. The closed Social problem family reuses existing catalogue statuses/titles and only
+static issue tokens or unknown; it rejects raw values, numeric/dynamic paths, detail/instance and
+private cause/counter fields. OpenAPI describes direct RFC9457 data, not a mounted serializer.
+
+Authored strict schema/privacy/cursor/order/replay/first-secret-delivery and actual OpenAPI tests run
+only in Actions. SQL/lock/concurrency/recovery/erasure, real HTTP/cache/membership/content authority,
+scoped client unknown-retry/purge, two-account share/reconnect/revocation and independent real
+encounter evidence remain mandatory follow-up work. This prerequisite does not finish241/242 or
+claim mounted Social, delivery, public publication, media access or runtime acceptance.
