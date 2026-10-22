@@ -247,7 +247,10 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
   await page.getByRole('link', { name: 'Keep', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Withdrawn CI fixture' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open saved encounter' })).toHaveCount(0);
-  await page.clock.install();
+  // Freeze authored test time before the grace starts, so browser/network assertion latency
+  // cannot consume any of the exact 4,999 ms + 1 ms boundary below.
+  await page.clock.install({ time: new Date('2026-10-22T06:00:00.000Z') });
+  await page.clock.pauseAt(new Date('2026-10-22T06:00:01.000Z'));
   await page.getByRole('button', { name: 'Remove from Keep' }).click();
   await expect(page.getByRole('button', { name: 'Undo removal' })).toBeVisible();
   expect(commands.filter((call) => call.path.endsWith('/keep/remove'))).toHaveLength(0);
