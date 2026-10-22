@@ -91,3 +91,9 @@ export function plannerContextItems(c: FrozenContext): readonly ContextItem[] {
     throw new Error('PLANNER_CONTEXT_TOO_LARGE');
   return items;
 }
+
+/** Exact immutable module body and exact model framing inputs use independent canonical hashes. */
+export function plannerContextHashes(context: FrozenContext, runId: string, hash: (value: unknown) => string) {
+  const modelContext = { bundleRef: `planner:${runId}`, items: plannerContextItems(context) };
+  return { contextSha256: hash(context), modelContextSha256: hash(modelContext), modelContext };
+}

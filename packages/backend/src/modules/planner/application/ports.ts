@@ -1,14 +1,28 @@
-import type { PersonalAuthority, PersonalScopeTx, ScopeOutcome, WithPersonalScope } from '../../identity/public.js';
+import type {
+  PersonalAuthority,
+  PersonalScopeTx,
+  RecordingScopeTx,
+  FenceOwnAccount,
+  FencePersonalRecording,
+  WithPersonalScope,
+} from '../../identity/public.js';
 import type { ReadDiscoveryCandidates, ReadExactEncounter } from '../../content/public.js';
 import type {
   ReadExplorationSnapshot,
   ReadRecentContextTopics,
   ExplorationSnapshot,
 } from '../../personal-context/public.js';
-import type { ReasoningHarness } from '../../../reasoning/public.js';
+import type { RecordingReasoningHarness } from '../../../reasoning/public.js';
+import type { PlannerJob } from '../events.js';
 import type { Opportunity, PlannerIntent, ValidationFacts } from '../domain/proposal.js';
 
+export type PlannerSource = { readonly generation: number } & (
+  | { readonly kind: 'material'; readonly sourceRevision: number }
+  | { readonly kind: 'command'; readonly commandId: string }
+  | { readonly kind: 'legacy1' }
+);
 export interface PlannerState {
+  readonly desiredSource?: PlannerSource;
   readonly desiredRevision: number;
   readonly materialRevision: number;
   readonly activeRunId?: string;
@@ -43,6 +57,11 @@ export interface FrozenContext {
   }[];
 }
 export interface PlannerRun {
+  readonly recording?: { readonly accountId: string; readonly source: PlannerSource };
+  readonly contextSha256?: string;
+  readonly modelContextSha256?: string;
+  readonly normalWakeId?: string;
+  readonly claimWakeClaimId?: string;
   readonly claimId?: string;
   readonly claimUntil?: string;
   readonly id: string;
@@ -51,6 +70,13 @@ export interface PlannerRun {
   readonly context?: FrozenContext;
   readonly outcome?: string;
 }
+export type PlannerRunHeader = Omit<PlannerRun, 'context'> & { readonly hasContext: boolean };
+export interface PlannerAccountingHeader {
+  readonly id: string;
+  readonly status: PlannerRun['status'];
+  readonly accountId?: string;
+  readonly generation?: number;
+}
 export interface PlannerRevision {
   readonly runId: string;
   readonly revision: number;
@@ -58,9 +84,15 @@ export interface PlannerRevision {
   readonly opportunities: readonly Opportunity[];
 }
 export interface PlannerStore {
+  readonly accountingHeader: (scope: PersonalScopeTx, id: string) => Promise<PlannerAccountingHeader | undefined>;
+  readonly retire: (scope: PersonalScopeTx, id: string) => Promise<boolean>;
   readonly state: (scope: PersonalScopeTx) => Promise<PlannerState>;
   readonly writeState: (scope: PersonalScopeTx, state: PlannerState) => Promise<void>;
-  readonly run: (scope: PersonalScopeTx, id: string) => Promise<PlannerRun | undefined>;
+  readonly account: (scope: PersonalScopeTx) => Promise<string | undefined>;
+  readonly stateHeader: (scope: PersonalScopeTx) => Promise<Omit<PlannerState, 'intent'>>;
+  readonly header: (scope: PersonalScopeTx, id: string) => Promise<PlannerRunHeader | undefined>;
+  readonly context: (scope: PersonalScopeTx, id: string) => Promise<FrozenContext | undefined>;
+  readonly root: (scope: RecordingScopeTx) => Promise<{ readonly accountId: string; readonly revision: number }>;
   readonly writeRun: (scope: PersonalScopeTx, run: PlannerRun) => Promise<void>;
   readonly revisions: (scope: PersonalScopeTx, limit: number) => Promise<readonly PlannerRevision[]>;
   readonly accept: (
@@ -72,21 +104,24 @@ export interface PlannerStore {
 }
 export interface PlannerPorts {
   readonly withPersonalScope: WithPersonalScope;
+  readonly fenceOwn: FenceOwnAccount;
+  readonly fenceRecording: FencePersonalRecording;
   readonly store: PlannerStore;
   readonly readSnapshot: ReadExplorationSnapshot;
   readonly readRecentTopics: ReadRecentContextTopics;
   readonly readInventory: ReadDiscoveryCandidates;
   readonly readExact: ReadExactEncounter;
   readonly capabilities: unknown;
-  readonly harness: ReasoningHarness;
+  readonly harness: RecordingReasoningHarness;
   /** Deployment config gate; does not replace provider allowance, harness budgets or quota. */
   readonly enabled: () => boolean;
   readonly enqueue: (
-    scope: PersonalScopeTx,
+    scope: RecordingScopeTx,
     runId: string,
     delayed?: { readonly startAfter: Date; readonly expectedClaimId: string },
   ) => Promise<void>;
   readonly hash: (value: unknown) => string;
+  readonly canonicalHash: (value: unknown) => string;
   readonly newId: () => string;
   readonly now: () => Date;
   readonly receipts: {
@@ -107,15 +142,23 @@ export type PlannerReadPorts = Pick<
 >;
 export type RequestPlannerOutcome =
   | { readonly kind: 'accepted'; readonly revision: number; readonly runId: string }
-  | { readonly kind: 'refused'; readonly reason: 'command_key_reused' | 'scope_refused' | 'run_not_resumable' };
+  | {
+      readonly kind: 'refused';
+      readonly reason: 'command_key_reused' | 'scope_refused' | 'run_not_resumable' | 'recording_required';
+    };
 export type RequestPlanner = (
   authority: PersonalAuthority,
-  command: { readonly commandId: string; readonly intent?: PlannerIntent; readonly resumeRunId?: string },
+  command: {
+    readonly commandId: string;
+    readonly intent?: PlannerIntent;
+    readonly resumeRunId?: string;
+    readonly recordingGeneration?: number;
+  },
 ) => Promise<RequestPlannerOutcome>;
 /** Producer-owned same-transaction callback; sourceRevision is the committed-next scope revision. */
 export type PlannerMaterialChange = (
-  scope: PersonalScopeTx,
-  input: { readonly sourceRevision: number },
+  scope: RecordingScopeTx,
+  input: { readonly sourceRevision: number; readonly recordingGeneration: number },
 ) => Promise<void>;
 export type ReadPlannerOpportunities = (
   scope: PersonalScopeTx,
@@ -127,12 +170,9 @@ export type ReadPlannerOpportunities = (
   readonly availability: 'available' | 'absent' | 'stale';
 }>;
 export type RunPlanner = (
-  payload: {
-    readonly v: 1;
-    readonly universeId: string;
-    readonly privacyEpoch: number;
-    readonly runId: string;
-    readonly expectedClaimId?: string;
-  },
+  payload: PlannerJob,
   signal: AbortSignal,
-) => Promise<ScopeOutcome<{ readonly kind: string }>>;
+) => Promise<
+  | { readonly kind: 'entered'; readonly value: { readonly kind: string } }
+  | { readonly kind: 'refused'; readonly refusal: { readonly kind: string } }
+>;
