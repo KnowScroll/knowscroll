@@ -29,6 +29,9 @@ const paragraph = block('paragraph');
 const callout = block('callout');
 const canonicalDiagram = block('diagram');
 const diagramData = canonicalDiagram.shape.data;
+// This producer needs a process flow, not grid coordinates. Omitting the canonical optional cell
+// keeps every accepted node canonical while making layout/cell mismatches structurally impossible.
+const flowNode = diagramData.shape.nodes.element.omit({ cell: true });
 const toggle = onlyCanonicalOption(
   diagramData.shape.interaction.options,
   (
@@ -41,6 +44,8 @@ const toggle = onlyCanonicalOption(
 const diagram = canonicalDiagram
   .safeExtend({
     data: diagramData.safeExtend({
+      layout: diagramData.shape.layout.extract(['flow-lr']),
+      nodes: z.array(flowNode).min(2).max(LIMITS.diagramNodes),
       interaction: toggle,
       frames: diagramData.shape.frames.min(2).max(4),
     }),

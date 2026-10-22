@@ -618,3 +618,27 @@ next-send and one writer. Actual installed revision/profile/rates, lease suitabi
 send/receipt state remain separately mandatory Root activation facts. Unknown or unexpected
 provider billing is not proved away; the exact overage hold remains defensive accounting, not
 retroactive authorization. Source never widens, refunds or clips the approved ceiling.
+
+## Cell-free canonical flow selection in v13
+
+Policy `scroll-production.v13` and writer/provenance `scroll-writer.v11` select only canonical
+`flow-lr` diagrams with canonical nodes whose optional `cell` property is omitted. The selected
+schema still requires a toggle with two to four meaningful frames, all canonical arrays, accessible
+labels and fallback text. It reuses canonical node fields and bounds; valid grids and every other
+layout remain available to other producers. The shared DSL, compiler, semantic/admission checks,
+copy-nine, support/honesty/numeric/reading rules and comparative mode are unchanged.
+
+A real v12 job ended rejected with no asset after three settled requests. Its bounded safe metadata
+records only `unreadable` at the primary root and one `diagram_cells_invalid` at a masked repair
+path. Both failed bodies are absent. That rule covers missing/duplicate grid cells and cells on a
+non-grid layout; the retained evidence cannot distinguish these cases or reconstruct the discarded
+primary JSON. Selecting a cell-free canonical flow removes all three combinations from this writer's
+structural grammar. It does not prove the historical offending value, repair the primary carrier,
+or establish future provider/editorial success.
+
+Claims4/hp4, writer carrier hp5, topics/assets/explanation units, roles and generation remain stable.
+All request/output/token/quota/brake/max-four/one-repair limits and historical financial state remain
+unchanged. The real v12 stop-on-first-failure remains in force. This source version authorizes no
+operator change, reservation, provider retry, new job or deployment. Authored Actions fixtures cover
+the three invalid cell cases, canonical grids outside this selection, actual HTTP/PG bounded repair
+and policy12 historical-byte preservation. They are not generated library content.
