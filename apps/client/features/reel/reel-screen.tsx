@@ -78,19 +78,6 @@ function ReadyReel({
   const [saving, setSaving] = useState(false);
   const removal = useMemo(() => savedRemovalFor(scope, newCommandId), [scope]);
   const removalState = useSyncExternalStore(removal.subscribe, removal.getState, removal.getState);
-  useEffect(() => {
-    if (removalState.status !== 'confirmed' || removalState.item.assetId !== document.assetId) return;
-    let live = true;
-    void scope.api.keep
-      .read({ version: 'keep-place.v1', target: { assetId: document.assetId, assetRevision: document.revision } })
-      .then((snapshot) => {
-        if (live && scope.active) setSaved(snapshot.status !== 'not_saved');
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [scope, document, removalState]);
   const positionRef = useRef<ReelPositionHandle>(null);
   const target = useMemo(() => ({ assetId: document.assetId, assetRevision: document.revision }), [document]);
   const capture = useCallback(() => {
@@ -115,18 +102,13 @@ function ReadyReel({
     [scope, exposureId, document],
   );
   useEffect(() => {
-    let stopped = false;
-    void scope.api.experience
-      .listSaved({})
-      .then((response) => {
-        if (!stopped && scope.active) setSaved(response.items.some((item) => item.assetId === document.assetId));
-      })
-      .catch(() => undefined);
-    return () => {
-      stopped = true;
-      recorder.end();
-    };
-  }, [scope, recorder, document.assetId]);
+    if (kept.state.place.status !== 'ready' || !kept.state.place.snapshot) return;
+    setSaved(kept.state.place.snapshot.status !== 'not_saved');
+  }, [kept.state.place]);
+  useEffect(() => {
+    if (removalState.status === 'confirmed' && removalState.item.assetId === document.assetId) kept.surface.refresh();
+  }, [removalState, document.assetId, kept.surface]);
+  useEffect(() => () => recorder.end(), [recorder]);
   useFocusEffect(
     useCallback(() => {
       setActive(AppState.currentState === 'active');

@@ -133,6 +133,7 @@ export function createKeepSurface(options: {
         const ack = await scope.api.experience.applyAction(command);
         if (!live || !scope.active || pendingSave !== command) return;
         if (
+          ack.commandId !== command.commandId ||
           ack.kind !== 'save' ||
           ack.assetId !== target.assetId ||
           ack.assetRevision !== target.assetRevision ||

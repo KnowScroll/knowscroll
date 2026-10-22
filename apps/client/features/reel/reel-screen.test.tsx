@@ -187,6 +187,7 @@ async function mount(
   } = {},
 ) {
   const paths: string[] = [];
+  let currentSaved = options.saved ?? false;
   const requests: Request[] = [];
   const manager = createAccountScopeManager({
     baseUrl: 'https://app.reel-screen.test',
@@ -224,13 +225,24 @@ async function mount(
             version: 'keep-place.v1',
             scope: { accountId: account.accountId, privacyEpoch: account.privacyEpoch },
             target: { assetId: ID, assetRevision: 1 },
-            status: 'available',
-            entry: { assetId: ID, assetRevision: 1, savedEntryId: EXPOSURE },
-            place: { status: 'none', placeRevision: 0 },
+            status: currentSaved ? 'available' : 'not_saved',
+            ...(currentSaved
+              ? {
+                  entry: { assetId: ID, assetRevision: 1, savedEntryId: EXPOSURE },
+                  place: { status: 'none', placeRevision: 0 },
+                }
+              : {}),
           }),
         );
-      if (path === '/v1/actions')
-        return options.action?.() ?? Promise.resolve(json({ ...action, kind: 'save', saved: true }));
+      if (path === '/v1/actions') {
+        const response = options.action?.() ?? Promise.resolve(json({ ...action, kind: 'save', saved: true }));
+        return response.then(async (value) => {
+          const acknowledgement = (await value.clone().json()) as { kind: string; saved?: boolean };
+          if (acknowledgement.kind === 'save' && acknowledgement.saved !== undefined)
+            currentSaved = acknowledgement.saved;
+          return value;
+        });
+      }
       if (path === '/health')
         return Promise.resolve(
           json({
