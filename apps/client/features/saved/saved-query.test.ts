@@ -30,6 +30,24 @@ function fixture() {
     store: memoryStore(),
     fetch: async (request) => {
       const path = new URL(request.url).pathname;
+      // Explicit current-policy HTTP fixture; independent of the encounter/Keep command log.
+      if (path === '/v1/privacy/recording/read')
+        return request
+          .clone()
+          .json()
+          .then((input: { readId: string; target: unknown }) => {
+            const claim = request.headers.get('x-ks-scope')!.split(':');
+            return new Response(
+              JSON.stringify({
+                version: 'recording-policy.v1',
+                ...input,
+                scope: { accountId: claim[0], privacyEpoch: Number(claim[1]) },
+                revision: 0,
+                policy: { on: true, generation: 1 },
+              }),
+              { headers: { 'content-type': 'application/json' } },
+            );
+          });
       paths.push(path);
       const body = (await request.json()) as RemoveKeepEntry;
       await gate;
@@ -59,6 +77,7 @@ function fixture() {
   });
   scope.queryClient.setQueryData(scope.queryKey('saved'), { revision: 1, items: [item] });
   const newId = jest.fn(() => id(8));
+  scope.recording?.useIdSource(() => '0199a000-0000-7000-8000-000000000099');
   return {
     scope,
     bodies,
@@ -119,9 +138,28 @@ describe('exact Saved removal and cancellable grace', () => {
         {
           version: 'keep-remove.v1',
           commandId: id(8),
+          recordingGeneration: 1,
           entry: { assetId: item.assetId, assetRevision: 2, savedEntryId: id(4) },
         },
       ]);
+    } finally {
+      f.scope.end();
+    }
+  });
+  it('known paused Remove keeps its original generation through grace and unknown retry after Resume (CI fixture)', async () => {
+    const f = fixture();
+    try {
+      jest.spyOn(f.scope.recording!, 'generation').mockResolvedValue(2);
+      f.fail(true);
+      expect(await f.remove.prepare(item)).toBe(true);
+      jest.mocked(f.scope.recording!.generation).mockResolvedValue(3);
+      await jest.advanceTimersByTimeAsync(REMOVE_GRACE_MS);
+      await waitFor(() => expect(f.remove.getState().status).toBe('unknown'));
+      f.fail(false);
+      expect(f.remove.retry()).toBe(true);
+      await waitFor(() => expect(f.remove.getState().status).toBe('confirmed'));
+      expect(f.bodies[0]?.recordingGeneration).toBe(2);
+      expect(f.bodies[1]).toEqual(f.bodies[0]);
     } finally {
       f.scope.end();
     }
@@ -298,6 +336,7 @@ function pageFixture(change: (value: SavedPageResponse) => unknown = (value) => 
       );
     },
   });
+  scope.recording?.useIdSource(() => '0199a000-0000-7000-8000-000000000099');
   return {
     scope,
     requests,

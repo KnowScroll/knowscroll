@@ -4,7 +4,7 @@ import {
   type EncounterOffer,
   type ExposureContextResponse,
   type NavigationOutcome,
-  type ObservationBatchRequest,
+  type RecordingObservationBatchRequest,
 } from '@knowscroll/contracts';
 import { createEncounterSession } from './encounter-session';
 
@@ -27,6 +27,7 @@ export function offer(n: number): EncounterOffer {
 }
 export function harness() {
   let next = 1000;
+  let recordingGeneration = 1;
   let selected = 0;
   let outcomeSessionId = id(1);
   let revision = 1;
@@ -39,7 +40,7 @@ export function harness() {
   let contextGate: Promise<void> | undefined;
   let outcomeStatus: 'ready' | 'pending' | 'exhausted' = 'ready';
   const calls: { path: string; body: Record<string, unknown> }[] = [];
-  const batches: ObservationBatchRequest[] = [];
+  const batches: RecordingObservationBatchRequest[] = [];
   const store = memoryStore();
   const outcome = (commandId: string): NavigationOutcome => ({
     commandId,
@@ -75,6 +76,24 @@ export function harness() {
     store,
     fetch: async (request) => {
       const path = new URL(request.url).pathname;
+      // Explicit current-policy HTTP fixture; independent of the encounter/Keep command log.
+      if (path === '/v1/privacy/recording/read')
+        return request
+          .clone()
+          .json()
+          .then((input: { readId: string; target: unknown }) => {
+            const claim = request.headers.get('x-ks-scope')!.split(':');
+            return new Response(
+              JSON.stringify({
+                version: 'recording-policy.v1',
+                ...input,
+                scope: { accountId: claim[0], privacyEpoch: Number(claim[1]) },
+                revision: recordingGeneration,
+                policy: { on: recordingGeneration % 2 === 1, generation: recordingGeneration },
+              }),
+              { headers: { 'content-type': 'application/json' } },
+            );
+          });
       const body = request.method === 'POST' ? ((await request.clone().json()) as Record<string, unknown>) : {};
       calls.push({ path, body });
       if (path === '/v1/experience/open') {
@@ -148,10 +167,15 @@ export function harness() {
           replayed: false,
         });
       }
-      if (path === '/v1/observations/batch') {
-        const batch = body as unknown as ObservationBatchRequest;
+      if (path === '/v1/observations/recording-batch') {
+        const batch = body as unknown as RecordingObservationBatchRequest;
         batches.push(batch);
         return json({
+          version: 'observation-batch.v2',
+          result: 'processed',
+          recordingGeneration: batch.recordingGeneration,
+          currentGeneration: batch.recordingGeneration,
+          scope: { accountId: id(3), privacyEpoch: 1 },
           accepted: batch.events.length,
           duplicates: 0,
           rejected: 0,
@@ -162,6 +186,7 @@ export function harness() {
       return json({ revision, items: [] });
     },
   });
+  scope.recording?.useIdSource(() => id(++next));
   const session = createEncounterSession(scope, () => id(++next));
   return {
     scope,
@@ -169,6 +194,9 @@ export function harness() {
     session,
     calls,
     batches,
+    setRecordingGeneration: (value: number) => {
+      recordingGeneration = value;
+    },
     setOpenFailure: (value: boolean) => {
       openFailure = value;
     },

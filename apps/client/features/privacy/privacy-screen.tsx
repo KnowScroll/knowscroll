@@ -7,6 +7,7 @@ import { Button, IconButton, Text } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { newCommandId } from '../../platform/command-id';
 import { ScreenFrame } from '../shell/screen-frame';
+import { RecordingControl } from './recording-control';
 
 const message = (state: PrivacyClearState): string => {
   if (state.status === 'sending') return 'Sending your clear request…';
@@ -55,6 +56,7 @@ export function PrivacyScreen() {
       leading={<IconButton icon="back" label="Back to account" onPress={back} />}
     >
       <View style={styles.body}>
+        {scope ? <RecordingControl scope={scope} /> : null}
         <Text variant="title" heading={2}>
           Clear exploration
         </Text>
@@ -129,7 +131,7 @@ export function PrivacyScreen() {
           </View>
         ) : null}
         <Text variant="meta" color={content.ink2}>
-          Recording pause, history export and account deletion are not available from this page yet.
+          History export and account deletion are not available from this page yet.
         </Text>
       </View>
     </ScreenFrame>

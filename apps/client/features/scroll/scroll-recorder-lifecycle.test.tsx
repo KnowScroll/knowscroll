@@ -89,6 +89,8 @@ describe('the direct Scroll recorder lifecycle', () => {
       exposureId: '0199a000-0000-7000-8000-0000000000e1',
       assetId: '0199a000-0000-7000-8000-0000000000a1',
       assetRevision: 1,
+      recordingGeneration: 1,
+      recordingSessionId: '0199a000-0000-7000-8000-0000000000d1',
       document: parsed.document,
       degradedEssential: [],
     };
@@ -102,8 +104,24 @@ describe('the direct Scroll recorder lifecycle', () => {
       baseUrl: 'https://fixture.scroll.test',
       store: memoryStore(),
       authorization: () => undefined,
-      fetch: () => Promise.reject(new Error('No HTTP is expected in this fixture')),
+      fetch: async (request) => {
+        if (!request.url.endsWith('/v1/privacy/recording/read'))
+          throw new Error('Only the current-policy fixture is expected');
+        const input = (await request.json()) as { readId: string; target: unknown };
+        return new Response(
+          JSON.stringify({
+            version: 'recording-policy.v1',
+            ...input,
+            scope: { accountId: mockScroll.assetId, privacyEpoch: 1 },
+            revision: 0,
+            policy: { on: true, generation: 1 },
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        );
+      },
     });
+    mockScope.recording?.useIdSource(() => '0199a000-0000-7000-8000-0000000000d2');
+    await mockScope.recording?.refresh();
     try {
       const app = await render(
         <StrictMode>

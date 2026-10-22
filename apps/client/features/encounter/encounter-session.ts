@@ -1,5 +1,7 @@
 import {
   apiProblem,
+  recordingCommandFields,
+  freezeRecordingCommand,
   createReelRecorder,
   createScrollRecorder,
   ScopeEndedError,
@@ -9,12 +11,14 @@ import {
   type KeepPlaceState,
 } from '@knowscroll/client-core';
 import {
+  ActivateOfferResponseSchema,
   RegionEncounterOpenRequestSchema,
   RegionEncounterOpenResponseSchema,
   RegionEncounterPreviewResponseSchema,
 } from '@knowscroll/contracts';
 import type {
   ApplyActionRequest,
+  ActivateExposureRequest,
   ClientCapabilities,
   EncounterOffer,
   ExposureContextResponse,
@@ -73,7 +77,9 @@ interface Work {
   region?: true;
   uncertain?: boolean;
   keep?: { mode: 'resume' | 'top'; expected?: AvailableKeep; selected?: KeepEntryRef; handle?: KeepPlaceHandle };
-  command: () => Promise<NavigationOutcome>;
+  command: (fields: { recordingGeneration?: number }) => Promise<NavigationOutcome>;
+  commandFields?: { recordingGeneration?: number };
+  activationBody?: ActivateExposureRequest;
   outcome?: NavigationOutcome;
   activateId: string;
   activation?: OfferActivation;
@@ -295,7 +301,16 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       suspended: false,
       disposed: false,
     };
-    const exposure = { exposureId, assetId: offer.assetId, assetRevision: offer.assetRevision };
+    const exposure = {
+      exposureId,
+      assetId: offer.assetId,
+      assetRevision: offer.assetRevision,
+      // Both the offer's original producer and activation must belong to this generation.
+      ...(work?.commandFields?.recordingGeneration !== undefined &&
+      work.activationBody?.recordingGeneration === work.commandFields.recordingGeneration
+        ? { recordingGeneration: work.commandFields.recordingGeneration, recordingSessionId: work.activateId }
+        : {}),
+    };
     if (offer.metadata.kind === 'scroll') {
       const loaded = await scope.api.experience.exposureDocument({ exposureId });
       if (!valid()) throw new ScopeEndedError();
@@ -355,7 +370,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       }
       if (!current.outcome) {
         publish({ phase: 'opening', actionFailed: false });
-        current.outcome = await current.command();
+        current.commandFields ??= Object.freeze(await recordingCommandFields(scope));
+        if (!valid() || work !== current) return;
+        current.outcome = await current.command(current.commandFields);
         if (!valid() || work !== current) return;
         latest(current.outcome);
       }
@@ -372,7 +389,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       history.park();
       publish({ phase: 'activating' });
       if (!current.activation) {
-        const activated = await scope.api.experience.activateExposure({
+        current.activationBody ??= freezeRecordingCommand({
+          ...(await recordingCommandFields(scope)),
           commandId: current.activateId,
           target: {
             kind: 'offer',
@@ -382,7 +400,12 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
           },
         });
         if (!valid() || work !== current) return;
+        const activated = ActivateOfferResponseSchema.parse(
+          await scope.api.experience.activateExposure(current.activationBody),
+        );
+        if (!valid() || work !== current) return;
         if (
+          activated.commandId !== current.activateId ||
           activated.sessionId !== outcome.sessionId ||
           activated.intentRevision !== outcome.intentRevision ||
           activated.kind !== outcome.offer.metadata.kind ||
@@ -455,7 +478,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       busy = false;
     }
   }
-  const begin = (command: () => Promise<NavigationOutcome>, keep?: Work['keep'], region = false) => {
+  const begin = (command: Work['command'], keep?: Work['keep'], region = false) => {
     if (!valid() || work || busy || actionRunning) return;
     work = { command, activateId: newId(), ...(keep ? { keep } : {}), ...(region ? { region: true } : {}) };
     void run();
@@ -465,13 +488,19 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     keep?: Work['keep'],
   ) => {
     if (!valid() || work || busy || actionRunning || action !== undefined) return false;
+    target = freezeRecordingCommand(target);
     regionOrigin = undefined;
     const commandId = newId();
     const session = latestSession
       ? { sessionId: latestSession.sessionId, expectedIntentRevision: latestSession.intentRevision }
       : undefined;
-    begin(async () => {
-      const common = { commandId, ...(session ? { session } : {}), capabilities: ENCOUNTER_CAPABILITIES };
+    begin(async (fields) => {
+      const common = freezeRecordingCommand({
+        ...fields,
+        commandId,
+        ...(session ? { session } : {}),
+        capabilities: ENCOUNTER_CAPABILITIES,
+      });
       const result =
         target.kind === 'discover'
           ? await scope.api.experience.openExposure({ ...common, target })
@@ -537,14 +566,14 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       state.phase === 'revoked'
     )
       return;
-    const input = {
+    const input = freezeRecordingCommand({
       commandId: newId(),
       sessionId: entry.sessionId,
       expectedIntentRevision: latestSession.intentRevision,
       from: { offerId: entry.offer.offerId, exposureId: entry.exposureId },
       intent,
-    };
-    begin(() => scope.api.experience.navigate(input));
+    });
+    begin((fields) => scope.api.experience.navigate({ ...input, ...fields }));
   };
   async function runAction() {
     const pending = action;
@@ -561,6 +590,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       const result = await scope.api.experience.applyAction(input);
       if (!valid()) return;
       if (
+        result.commandId !== input.commandId ||
         result.assetId !== input.target.assetId ||
         result.assetRevision !== input.target.assetRevision ||
         result.kind !== input.kind
@@ -645,8 +675,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       });
       regionOrigin = { returnToMap, returned: false };
       begin(
-        async () => {
-          const raw = await scope.api.experience.openRegionEncounter(input);
+        async (fields) => {
+          const raw = await scope.api.experience.openRegionEncounter({ ...input, ...fields });
           const reply = RegionEncounterOpenResponseSchema.parse(raw);
           if (
             reply.universeId !== scope.account.universeId ||
@@ -949,17 +979,32 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         return;
       }
       if (kind === 'save') history.capture();
-      if (!action)
-        action = {
-          entry,
-          input: {
-            commandId: newId(),
-            kind,
-            target: { assetId: entry.offer.assetId, assetRevision: entry.offer.assetRevision },
-            exposureId: entry.exposureId,
-          },
-        };
-      void runAction();
+      if (action) {
+        void runAction();
+        return;
+      }
+      actionRunning = true;
+      void recordingCommandFields(scope)
+        .then((fields) => {
+          if (!valid() || history.current() !== entry || work) return;
+          action = {
+            entry,
+            input: freezeRecordingCommand({
+              ...fields,
+              commandId: newId(),
+              kind,
+              target: { assetId: entry.offer.assetId, assetRevision: entry.offer.assetRevision },
+              exposureId: entry.exposureId,
+            }),
+          };
+        })
+        .catch(() => {
+          if (valid()) publish({ actionFailed: true });
+        })
+        .finally(() => {
+          actionRunning = false;
+          if (action && valid()) void runAction();
+        });
     },
     undoRemoval: removal.undo,
     retryRemoval: removal.retry,

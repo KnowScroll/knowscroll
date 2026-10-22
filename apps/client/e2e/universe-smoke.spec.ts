@@ -21,6 +21,18 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
   );
   await page.route('**/v1/**', (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === '/v1/privacy/recording/read') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      expect(body).toMatchObject({ version: 'recording-policy.v1', target: { kind: 'current' } });
+      return route.fulfill({
+        json: {
+          ...body,
+          scope: { accountId: fixtureAccount.accountId, privacyEpoch: 1 },
+          revision: 0,
+          policy: { on: true, generation: 1 },
+        },
+      });
+    }
     calls.push(path);
     // Fail at the actual HTTP boundary; unrelated bodyless requests are never draft fixtures.
     expect({ method: route.request().method(), path }).toEqual({ method: 'POST', path: expect.any(String) });
@@ -100,6 +112,18 @@ test('canonical region card opens displayed A through actual activation, then Ba
   await page.route('**/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname,
       body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
+    if (path === '/v1/privacy/recording/read') {
+      expect(body).toMatchObject({ version: 'recording-policy.v1', target: { kind: 'current' } });
+      await route.fulfill({
+        json: {
+          ...body,
+          scope: { accountId: fixtureAccount.accountId, privacyEpoch: 1 },
+          revision: 0,
+          policy: { on: true, generation: 1 },
+        },
+      });
+      return;
+    }
     calls.push({ path, body });
     let value: unknown;
     if (path.endsWith('/formation/read'))
@@ -123,8 +147,16 @@ test('canonical region card opens displayed A through actual activation, then Ba
         encounter: { assetId, assetRevision: 1, metadata },
       };
     else if (path.endsWith('/region/open')) {
-      expect(Object.keys(body).sort()).toEqual(['capabilities', 'commandId', 'expectedEncounter', 'target', 'version']);
+      expect(Object.keys(body).sort()).toEqual([
+        'capabilities',
+        'commandId',
+        'expectedEncounter',
+        'recordingGeneration',
+        'target',
+        'version',
+      ]);
       expect(body.expectedEncounter).toEqual({ assetId, assetRevision: 1 });
+      expect(body.recordingGeneration).toBe(1);
       value = {
         version: body.version,
         target: body.target,
@@ -190,9 +222,14 @@ test('canonical region card opens displayed A through actual activation, then Ba
         document: { ...scrollDocument, assetId, title: metadata.title },
         degradedEssential: [],
       };
-    else if (path.endsWith('/observations/batch')) {
+    else if (path.endsWith('/observations/recording-batch')) {
       const events = body.events as { eventId: string }[];
       value = {
+        version: 'observation-batch.v2',
+        recordingGeneration: body.recordingGeneration,
+        currentGeneration: 1,
+        scope: { accountId: fixtureAccount.accountId, privacyEpoch: 1 },
+        result: 'processed',
         accepted: events.length,
         duplicates: 0,
         rejected: 0,
@@ -280,6 +317,18 @@ test('durable formation waits for an exact current claim after a lost reply, pre
   await page.route('**/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname,
       body = route.request().postDataJSON() as Record<string, unknown>;
+    if (path === '/v1/privacy/recording/read') {
+      expect(body).toMatchObject({ version: 'recording-policy.v1', target: { kind: 'current' } });
+      await route.fulfill({
+        json: {
+          ...body,
+          scope: { accountId: fixtureAccount.accountId, privacyEpoch: 1 },
+          revision: 0,
+          policy: { on: true, generation: 1 },
+        },
+      });
+      return;
+    }
     calls.push({ path, body });
     let value: unknown;
     if (path.endsWith('/formation/read'))

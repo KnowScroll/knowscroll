@@ -1,4 +1,8 @@
-import { OBSERVATION_LIMITS, type InteractionEvent, type ObservationBatchRequest } from '@knowscroll/contracts';
+import {
+  OBSERVATION_LIMITS,
+  type InteractionEvent,
+  type RecordingObservationBatchRequest,
+} from '@knowscroll/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   OUTBOX_STORAGE_KEY,
@@ -53,7 +57,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function setup(answers: SendOutcome[], options: { maxBatches?: number; maxBytes?: number } = {}) {
   const storage = memory();
-  const sent: ObservationBatchRequest[] = [];
+  const sent: RecordingObservationBatchRequest[] = [];
   const timer = manualTimers();
   let active = true;
   const outbox = createObservationOutbox({
@@ -72,7 +76,7 @@ function setup(answers: SendOutcome[], options: { maxBatches?: number; maxBytes?
 
 describe('the durable observation outbox', () => {
   it('delivers from memory when storage writes fail from quota exhaustion', async () => {
-    const sent: ObservationBatchRequest[] = [];
+    const sent: RecordingObservationBatchRequest[] = [];
     const outbox = createObservationOutbox({
       storage: {
         get: () => undefined,
@@ -90,16 +94,18 @@ describe('the durable observation outbox', () => {
       },
     });
     const original = dwellEvent();
-    expect(() => outbox.enqueue([original], 1)).not.toThrow();
+    expect(() => outbox.enqueue([original], 1, 1)).not.toThrow();
     await settle();
-    expect(sent).toEqual([{ instrumentationVersion: 1, events: [original] }]);
+    expect(sent).toEqual([
+      { version: 'observation-batch.v2', recordingGeneration: 1, instrumentationVersion: 1, events: [original] },
+    ]);
     expect(outbox.status().pendingEvents).toBe(0);
   });
 
   it('persists a batch, sends it, and forgets it once the API stored it', async () => {
     const { storage, sent, outbox } = setup([]);
     const events = [dwellEvent(), dwellEvent()];
-    outbox.enqueue(events, 1);
+    outbox.enqueue(events, 1, 1);
     expect(storage.values.has(OUTBOX_STORAGE_KEY)).toBe(true);
     await settle();
     expect(sent).toHaveLength(1);
@@ -112,7 +118,7 @@ describe('the durable observation outbox', () => {
   it("forms bounded batches: at most the contract's event count, in order", async () => {
     const { sent, outbox } = setup([]);
     const events = Array.from({ length: OBSERVATION_LIMITS.maxEventsPerBatch * 2 + 5 }, () => dwellEvent());
-    outbox.enqueue(events, 1);
+    outbox.enqueue(events, 1, 1);
     await settle();
     await settle();
     expect(sent.map((batch) => batch.events.length)).toEqual([
@@ -141,7 +147,7 @@ describe('the durable observation outbox', () => {
           })),
         },
       });
-    outbox.enqueue(Array.from({ length: 12 }, heavy), 1);
+    outbox.enqueue(Array.from({ length: 12 }, heavy), 1, 1);
     for (let index = 0; index < 6; index += 1) await settle();
     expect(sent.length).toBeGreaterThan(1);
     for (const batch of sent)
@@ -154,13 +160,13 @@ describe('the durable observation outbox', () => {
   it('retries the SAME batch (same event IDs) with backoff after a failure, and only then forgets it', async () => {
     const { storage, sent, timer, outbox } = setup([{ kind: 'retry' }, { kind: 'retry' }]);
     const events = [dwellEvent(), dwellEvent()];
-    outbox.enqueue(events, 1);
+    outbox.enqueue(events, 1, 1);
     await settle();
     expect(sent).toHaveLength(1);
     expect(timer.scheduled).toHaveLength(1);
     expect(timer.scheduled[0]?.ms).toBe(outboxRetryDelay(0, () => 0));
     // New events do not hurry a delivery that must wait.
-    outbox.enqueue([dwellEvent()], 1);
+    outbox.enqueue([dwellEvent()], 1, 1);
     await settle();
     expect(sent).toHaveLength(1);
     timer.fire();
@@ -185,9 +191,9 @@ describe('the durable observation outbox', () => {
   it('drops a batch the API refused as malformed or too large, and goes on with the next', async () => {
     const { sent, outbox } = setup([{ kind: 'drop' }]);
     const first = [dwellEvent()];
-    outbox.enqueue(first, 1);
+    outbox.enqueue(first, 1, 1);
     await settle();
-    outbox.enqueue([dwellEvent()], 1);
+    outbox.enqueue([dwellEvent()], 1, 1);
     await settle();
     expect(sent).toHaveLength(2);
     expect(outbox.status().dropped).toBe(1);
@@ -203,10 +209,10 @@ describe('the durable observation outbox', () => {
       send: () => Promise.resolve({ kind: 'retry' }),
       timers: manualTimers().timers,
     });
-    first.enqueue(events, 1);
+    first.enqueue(events, 1, 1);
     await settle();
     first.dispose();
-    const sent: ObservationBatchRequest[] = [];
+    const sent: RecordingObservationBatchRequest[] = [];
     createObservationOutbox({
       storage,
       isActive: () => true,
@@ -223,13 +229,13 @@ describe('the durable observation outbox', () => {
 
   it('writes nothing and sends nothing once its scope has ended (sign-out, account switch, privacy reset)', async () => {
     const { storage, sent, outbox, end } = setup([{ kind: 'retry' }]);
-    outbox.enqueue([dwellEvent()], 1);
+    outbox.enqueue([dwellEvent()], 1, 1);
     await settle();
     expect(storage.values.has(OUTBOX_STORAGE_KEY)).toBe(true);
     // The scope ends: its storage is purged by the scope itself, and the outbox must not refill it.
     end();
     storage.values.clear();
-    outbox.enqueue([dwellEvent()], 1);
+    outbox.enqueue([dwellEvent()], 1, 1);
     await settle();
     expect(storage.values.size).toBe(0);
     expect(sent).toHaveLength(1);
@@ -239,9 +245,9 @@ describe('the durable observation outbox', () => {
 
   it("stops for good when the API says the scope is no longer this client's", async () => {
     const { sent, outbox, timer } = setup([{ kind: 'scope_ended' }]);
-    outbox.enqueue([dwellEvent()], 1);
+    outbox.enqueue([dwellEvent()], 1, 1);
     await settle();
-    outbox.enqueue([dwellEvent()], 1);
+    outbox.enqueue([dwellEvent()], 1, 1);
     await settle();
     expect(sent).toHaveLength(1);
     expect(timer.scheduled).toHaveLength(0);
@@ -253,7 +259,7 @@ describe('the durable observation outbox', () => {
       Array.from({ length: 10 }, (): SendOutcome => ({ kind: 'retry' })),
       { maxBatches: 2 },
     );
-    for (let index = 0; index < 4; index += 1) outbox.enqueue([dwellEvent()], 1);
+    for (let index = 0; index < 4; index += 1) outbox.enqueue([dwellEvent()], 1, 1);
     await settle();
     expect(outbox.status().pendingBatches).toBe(2);
     expect(outbox.status().dropped).toBe(2);
@@ -262,7 +268,7 @@ describe('the durable observation outbox', () => {
   it('discards a stored queue it cannot read instead of failing', async () => {
     const storage = memory();
     storage.set(OUTBOX_STORAGE_KEY, '{ this is not json');
-    const sent: ObservationBatchRequest[] = [];
+    const sent: RecordingObservationBatchRequest[] = [];
     const outbox = createObservationOutbox({
       storage,
       isActive: () => true,
@@ -277,7 +283,18 @@ describe('the durable observation outbox', () => {
     expect(outbox.status().pendingBatches).toBe(0);
     storage.set(
       OUTBOX_STORAGE_KEY,
-      JSON.stringify({ v: 1, dropped: 0, batches: [{ instrumentationVersion: 1, events: [{ nonsense: true }] }] }),
+      JSON.stringify({
+        v: 2,
+        dropped: 0,
+        batches: [
+          {
+            version: 'observation-batch.v2',
+            recordingGeneration: 1,
+            instrumentationVersion: 1,
+            events: [{ nonsense: true }],
+          },
+        ],
+      }),
     );
     const again = createObservationOutbox({
       storage,
@@ -285,5 +302,65 @@ describe('the durable observation outbox', () => {
       send: () => Promise.resolve({ kind: 'delivered' }),
     });
     expect(again.status()).toMatchObject({ pendingBatches: 0, dropped: 1 });
+  });
+});
+
+describe('immutable generation-bearing v2 persistence (CI fixtures)', () => {
+  it('never mixes or relabels original generations across transport retry and reload', async () => {
+    const f = setup([{ kind: 'retry' }]);
+    const old = dwellEvent();
+    f.outbox.enqueue([old], 1, 1);
+    await settle();
+    f.outbox.enqueue([dwellEvent()], 1, 3);
+    expect(Object.isFrozen(f.sent[0])).toBe(true);
+    expect(Object.isFrozen(f.sent[0]?.events[0]?.payload)).toBe(true);
+    const original = JSON.stringify(f.sent[0]);
+    f.timer.fire();
+    await settle();
+    expect(JSON.stringify(f.sent[1])).toBe(original);
+    expect(f.sent.map((batch) => batch.recordingGeneration)).toEqual([1, 1, 3]);
+    expect(old).not.toBe(f.sent[0]?.events[0]);
+  });
+  it('drops and counts legacy v1 without inventing a generation and keeps an existing v2 queue', async () => {
+    const storage = memory();
+    storage.set(
+      'recorder.outbox.v1',
+      JSON.stringify({ v: 1, dropped: 2, batches: [{ instrumentationVersion: 1, events: [dwellEvent()] }] }),
+    );
+    const current = {
+      version: 'observation-batch.v2' as const,
+      recordingGeneration: 3,
+      instrumentationVersion: 1,
+      events: [dwellEvent()],
+    };
+    storage.set(OUTBOX_STORAGE_KEY, JSON.stringify({ v: 2, dropped: 0, batches: [current] }));
+    const sent: RecordingObservationBatchRequest[] = [];
+    const first = createObservationOutbox({
+      storage,
+      isActive: () => true,
+      send: (batch) => {
+        sent.push(batch);
+        return Promise.resolve({ kind: 'retry' });
+      },
+      timers: manualTimers().timers,
+    });
+    await settle();
+    expect(sent).toEqual([current]);
+    expect(first.status().dropped).toBe(3);
+    expect(storage.get('recorder.outbox.v1')).toBeUndefined();
+    first.dispose();
+    const second = createObservationOutbox({
+      storage,
+      isActive: () => true,
+      send: () => Promise.resolve({ kind: 'delivered' }),
+    });
+    await settle();
+    expect(second.status().dropped).toBe(3);
+  });
+  it('missing original generation is counted, never sent through legacy intake', () => {
+    const f = setup([]);
+    f.outbox.enqueue([dwellEvent()], 1);
+    expect(f.outbox.status().dropped).toBe(1);
+    expect(f.sent).toEqual([]);
   });
 });

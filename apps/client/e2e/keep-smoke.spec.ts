@@ -38,6 +38,16 @@ async function keptUI(page: Page, kind: 'reel' | 'scroll') {
     const req = route.request();
     const path = new URL(req.url()).pathname;
     const body = req.method() === 'POST' ? (req.postDataJSON() as Record<string, unknown>) : {};
+    if (path === '/v1/privacy/recording/read')
+      return route.fulfill({
+        json: {
+          version: 'recording-policy.v1',
+          ...body,
+          scope,
+          revision: 0,
+          policy: { on: true, generation: 1 },
+        },
+      });
     calls.push({ path, body });
     if (path === '/v1/saved')
       return route.fulfill({
@@ -177,9 +187,23 @@ async function keptUI(page: Page, kind: 'reel' | 'scroll') {
           expiresAt: '2099-10-22T00:00:00.000Z',
         },
       });
-    if (path === '/v1/observations/batch')
+    if (path === '/v1/observations/recording-batch')
       return route.fulfill({
-        json: { accepted: (body.events as unknown[]).length, duplicates: 0, rejected: 0, revision: 1 },
+        json: {
+          version: 'observation-batch.v2',
+          recordingGeneration: body.recordingGeneration,
+          currentGeneration: 1,
+          scope,
+          result: 'processed',
+          accepted: (body.events as { eventId: string }[]).length,
+          duplicates: 0,
+          rejected: 0,
+          revision: 1,
+          results: (body.events as { eventId: string }[]).map((event) => ({
+            eventId: event.eventId,
+            status: 'accepted',
+          })),
+        },
       });
     return route.fulfill({ status: 404, json: {} });
   });
