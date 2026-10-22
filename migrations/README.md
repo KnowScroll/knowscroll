@@ -45,3 +45,23 @@ referenced offers, actions, exposures and receipts. Account-lifetime Identity re
 receipts retain their existing lifecycle. Compatible owner adapters and deletion ordering must land
 before rollout; stop unfenced older writers before election. This source prerequisite activates no
 API, UI, worker role or provider operation. All previous 41 SQL files remain immutable.
+
+0043 is the personal-role provenance prerequisite: 30 additive columns on existing Planner,
+Geography and personal Reasoning rows, with no new table, index, outbox or data backfill.
+Twelve old-table checks/foreign keys stay NOT VALID. Origins retain the accepted account,
+original generation and command/material source; queued coalescing cannot rewrite birth identity.
+Recorded non-NULL context requires both complete-context and exact model-item hashes in the same
+write; that pair, context JSON and Planner context version are set once. Unmarked legacy context
+remains unknown. Existing exact run keys bind ordinary wake UUIDs and delayed claim UUIDs instead
+of scanning pg-boss history. Only an exact matching delivery consumes its own wake marker; an old
+retry cannot consume a newer wake.
+
+Runtime genuine root/account/epoch/recording capabilities and actual owner-purpose checks remain
+mandatory before any private context, protected request, kept answer or personal growth. NULL
+is unknown legacy; old prepared work is never stamped with a resumed current generation.
+The four Reasoning proof columns redact only with its irreversible privacy marker; minimal
+usage, unknown settlement and financial identity remain independently accountable while paused.
+Role rows retain their existing all-epoch erasure. No controller, UI, role flag, model call,
+paid allowance or deployment is activated. Compatible whole consumers and current-candidate
+Actions must precede election; all previous42SQL stay byte exact. Source schema application to
+an empty own SSD database/codegen is separate from behavioral CI and runtime acceptance.
