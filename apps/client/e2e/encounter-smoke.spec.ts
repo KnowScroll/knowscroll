@@ -425,6 +425,17 @@ test('Keep traverses beyond one hundred items, revisits a page, resets filters a
 test('Reel controls reflow without overlap across actual phone, landscape and desktop bounds, retaining the same video', async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    const observed = window as typeof window & { __ksLayoutObserved?: Element[] };
+    observed.__ksLayoutObserved = [];
+    const NativeObserver = IntersectionObserver;
+    window.IntersectionObserver = class extends NativeObserver {
+      override observe(target: Element) {
+        if (target.getAttribute('data-testid')?.startsWith('reel-')) observed.__ksLayoutObserved?.push(target);
+        super.observe(target);
+      }
+    };
+  });
   const { commands } = await encounterFixture(page, 'reel');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.route('**/media/gesture-fixture', (route) =>
@@ -456,6 +467,7 @@ test('Reel controls reflow without overlap across actual phone, landscape and de
         return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
       };
       return {
+        page: rect('encounter-page'),
         stage: rect('reel-video-stage'),
         controls: rect('reel-player-controls'),
         caption: rect('encounter-reel-caption'),
@@ -463,7 +475,38 @@ test('Reel controls reflow without overlap across actual phone, landscape and de
         edges: rect('encounter-continuation-edges'),
       };
     });
-    expect(geometry.stage.height).toBeGreaterThanOrEqual(160);
+    expect(geometry.stage.height).toBeGreaterThan(50);
+    await expect
+      .poll(() =>
+        page.getByTestId('reel-video-stage').evaluate((node) => {
+          const page = globalThis.document.querySelector('[data-testid="encounter-page"]')!.getBoundingClientRect();
+          return node.getBoundingClientRect().height <= page.height / 2 + 1;
+        }),
+      )
+      .toBe(true);
+    expect(
+      await page.getByTestId('reel-video-stage').evaluate((node) => {
+        const observed = window as typeof window & { __ksLayoutObserved?: Element[] };
+        return (
+          observed.__ksLayoutObserved?.includes(node) &&
+          !observed.__ksLayoutObserved?.some((n) => n.getAttribute('data-testid') === 'reel-player')
+        );
+      }),
+    ).toBe(true);
+    // Bring Play/Retry just above the page's lower boundary: the stage must still be half-visible.
+    await page.getByTestId('encounter-page-scroll').evaluate((node) => {
+      const control = node.querySelector(
+        '[data-testid="reel-player-controls"] button, [data-testid="reel-player-controls"] [role="button"]',
+      );
+      if (!control) throw new Error('Real player control required');
+      node.scrollTop += control.getBoundingClientRect().bottom - (node.getBoundingClientRect().bottom - 8);
+    });
+    const overlap = await page.getByTestId('reel-video-stage').evaluate((node) => {
+      const s = node.getBoundingClientRect(),
+        p = globalThis.document.querySelector('[data-testid="encounter-page"]')!.getBoundingClientRect();
+      return Math.max(0, Math.min(s.bottom, p.bottom) - Math.max(s.top, p.top)) / s.height;
+    });
+    expect(overlap).toBeGreaterThanOrEqual(0.5);
     expect(geometry.stage.bottom).toBeLessThanOrEqual(geometry.controls.top + 1);
     expect(geometry.controls.bottom).toBeLessThanOrEqual(geometry.caption.top + 1);
     expect(geometry.caption.bottom).toBeLessThanOrEqual(geometry.navigation.top + 1);

@@ -183,6 +183,7 @@ function ReadyReel({
         recorder={recorder}
         active={active && visibility.visible}
         renderStage={renderStage}
+        stageMaxHeight={visibility.stageMaxHeight}
         positionRef={positionRef}
         initialPositionMs={resume?.kind === 'reel' ? resume.positionMs : undefined}
       />

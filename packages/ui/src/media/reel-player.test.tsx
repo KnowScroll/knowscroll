@@ -785,6 +785,16 @@ describe('Reel noninteractive stage wrapper', () => {
     expect(loadSource).toHaveBeenCalledTimes(1);
     expect(replaceAsync).toHaveBeenCalledTimes(1);
     expect(positionRef.current?.capture()?.positionMs).toBe(3250);
+    await rendered.rerender(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ReelPlayer {...props} stageMaxHeight={120} />
+      </DisplayProvider>,
+    );
+    expect(screen.getByTestId('reel-video-stage')).toHaveStyle({ height: 120, minHeight: 120 });
+    expect(screen.getByRole('button', { name: 'Back 10s' })).toBeTruthy();
+    expect(loadSource).toHaveBeenCalledTimes(1);
+    expect(replaceAsync).toHaveBeenCalledTimes(1);
+    expect(positionRef.current?.capture()?.positionMs).toBe(3250);
     await rendered.unmount();
   });
 });

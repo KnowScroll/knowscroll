@@ -91,6 +91,7 @@ export function EncounterView({
         active={playable && visibility.visible}
         retainedGrant={retainedGrant}
         renderStage={renderStage}
+        stageMaxHeight={visibility.stageMaxHeight}
         positionRef={reelPosition}
         initialPositionMs={entry.position?.kind === 'reel' ? entry.position.positionMs : entry.restored ? 0 : undefined}
         initialMuted={entry.muted ?? (entry.position?.kind === 'reel' ? entry.position.muted : false)}

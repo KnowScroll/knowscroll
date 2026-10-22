@@ -291,7 +291,7 @@ and deployment acceptance; this source makes no runtime or final privacy accepta
 ### Responsive media flow (#359)
 
 Explore Reel and direct Reel pages scroll in normal flow: the shared player measures its actual
-frame width for a bounded video stage, then lays out wrapping playback controls, captions, actions
+frame width and at most half the actual measured page height for a bounded video stage, then lays out wrapping playback controls, captions, actions
 and subject navigation below. Stage resize preserves the mounted SDK player, exposure, grant and
 private sound/place. Ready continuation edges are anchored to the video stage and remain outside
 its gesture responder. The encounter header gives the complete format labels their own row;
@@ -311,5 +311,5 @@ its current page viewport after safe/tab exclusions. Scroll/layout invalidation 
 pauses playback; only a current mounted-stage measurement with at least half the stage visible
 can re-enable the existing active fence. Monotonic callbacks, route/background and scope-end
 cleanup prevent late geometry from reviving an old encounter. Returning to view does not restore
-play intent. Web retains its existing IntersectionObserver. Native geometry tests use labelled
+play intent. Web retains its existing IntersectionObserver, anchored to the video stage. Native geometry tests use labelled
 callbacks; real native visibility and status pixels remain a separate hosted runtime gate.
