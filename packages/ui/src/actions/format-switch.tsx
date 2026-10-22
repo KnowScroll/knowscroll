@@ -86,7 +86,7 @@ function Option({
         </View>
       ) : null}
       {showIcons ? <Icon name={format} size={14} color={foreground} /> : null}
-      <Text variant="uiS" color={foreground}>
+      <Text variant="uiS" color={foreground} style={styles.label}>
         {formatLabel[format]}
         {suffix}
       </Text>
@@ -135,6 +135,8 @@ const styles = StyleSheet.create({
   group: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
+    maxWidth: '100%',
+    flexShrink: 1,
     padding: dimension.segmentInset,
     gap: spacing['0.5'],
     borderRadius: radius.pill,
@@ -143,6 +145,8 @@ const styles = StyleSheet.create({
     backgroundColor: content.paper,
   },
   option: {
+    minWidth: 0,
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing['1.5'],
@@ -152,6 +156,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     cursor: 'pointer' as const,
   },
+  label: { flexShrink: 1 },
   stripe: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: radius.pill, overflow: 'hidden' },
   unavailable: { opacity: opacity.disabled, cursor: 'auto' as const },
 });

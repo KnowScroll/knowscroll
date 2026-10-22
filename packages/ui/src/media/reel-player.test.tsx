@@ -771,6 +771,27 @@ describe('Reel noninteractive stage wrapper', () => {
         <ReelPlayer {...props} renderStage={(children) => <View testID="fixture-stage-wrapper">{children}</View>} />
       </DisplayProvider>,
     );
+    // Real measured frame width changes only the video stage, never the mounted SDK/source/position.
+    await fireEvent(screen.getByTestId('reel-player'), 'layout', {
+      nativeEvent: { layout: { width: 355, height: 600 } },
+    });
+    expect(screen.getByTestId('reel-video-stage')).toHaveStyle({ height: 480 });
+    await fireEvent(screen.getByTestId('reel-player'), 'layout', {
+      nativeEvent: { layout: { width: 240, height: 600 } },
+    });
+    expect(screen.getByTestId('reel-video-stage')).toHaveStyle({ height: 240 * (16 / 9) });
+    expect(within(screen.getByTestId('reel-video-stage')).queryByRole('button')).toBeNull();
+    expect(within(screen.getByTestId('reel-player-controls')).getByRole('button', { name: 'Back 10s' })).toBeTruthy();
+    expect(loadSource).toHaveBeenCalledTimes(1);
+    expect(replaceAsync).toHaveBeenCalledTimes(1);
+    expect(positionRef.current?.capture()?.positionMs).toBe(3250);
+    await rendered.rerender(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ReelPlayer {...props} stageMaxHeight={120} />
+      </DisplayProvider>,
+    );
+    expect(screen.getByTestId('reel-video-stage')).toHaveStyle({ height: 120, minHeight: 120 });
+    expect(screen.getByRole('button', { name: 'Back 10s' })).toBeTruthy();
     expect(loadSource).toHaveBeenCalledTimes(1);
     expect(replaceAsync).toHaveBeenCalledTimes(1);
     expect(positionRef.current?.capture()?.positionMs).toBe(3250);

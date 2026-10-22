@@ -196,3 +196,17 @@ capture their gestures. The default keeps the existing direct-player layout. Thi
 source, grant, position or recorder lifecycle; the app owns axis/edge/child arbitration. SDK stand-in
 CI verifies the stage/control boundary and source/playhead continuity across wrapper rerenders;
 actual full-stage gestures and decoding require consumer browser/native evidence.
+
+### Responsive Reel geometry (#359)
+
+ReelPlayer sizes only its video stage from the measured frame width (portrait ratio, capped480px,
+minimum160px until a smaller measured page budget is supplied); scrolling consumers cap it at
+half their actual viewport. Playback controls have their own natural height below it. Its page consumer must
+provide reachable vertical overflow for captions/actions/navigation. The frame no longer assumes a
+whole-window-minus300px space budget. Layout changes do not replace the SDK player/source or reset
+sound/playhead. renderStage still receives video/poster only; app continuation buttons are siblings
+of the gesture responder inside the measured stage, never over the playback controls. FormatSwitch
+bounds its full state labels to the parent width and permits wrapping while preserving44px targets.
+
+Web visibility observes the video stage itself, excluding the wrapping controls from its half-visible
+threshold. A short-page height cap changes geometry only; the SDK/source/playhead remain mounted.

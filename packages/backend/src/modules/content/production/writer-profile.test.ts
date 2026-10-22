@@ -83,6 +83,36 @@ describe('canonical production writer profiles (CI fixtures)', () => {
     },
   );
 
+  it('accepts cell-free canonical flows and refuses every grid/cell combination on this writer wire', () => {
+    const example = ScrollDraft.parse(JSON.parse(writerDraftExampleJson(true)));
+    const section = example.sections[0];
+    const format = section?.blocks[1];
+    if (!section || format?.type !== 'diagram') throw new Error('CI_DIAGRAM_MISSING');
+    const profile = writerDraftProfile(true);
+    const value = (data: typeof format.data) => ({
+      ...example,
+      sections: [{ ...section, blocks: [{ ...format, data }] }],
+    });
+    expect(profile.safeParse(value(format.data)).success).toBe(true);
+    for (const layout of ['flow-tb', 'radial', 'cycle', 'layers', 'grid'] as const) {
+      const input = value({ ...format.data, layout });
+      expect(ScrollDraft.safeParse(input).success).toBe(true);
+      expect(profile.safeParse(input).success).toBe(false);
+    }
+    const cells = format.data.nodes.map((node, index) => ({ ...node, cell: { column: index, row: 0 } }));
+    for (const nodes of [cells, cells.map((node) => ({ ...node, cell: { column: 0, row: 0 } }))]) {
+      for (const layout of ['flow-lr', 'grid'] as const) {
+        const input = value({ ...format.data, layout, nodes });
+        expect(ScrollDraft.safeParse(input).success).toBe(true);
+        expect(profile.safeParse(input).success).toBe(false);
+      }
+    }
+    const first = format.data.nodes[0];
+    if (!first) throw new Error('CI_NODE_MISSING');
+    for (const nodes of [format.data.nodes.slice(0, 1), Array.from({ length: LIMITS.diagramNodes + 1 }, () => first)])
+      expect(profile.safeParse(value({ ...format.data, nodes })).success).toBe(false);
+  });
+
   it.each([false, true])(
     'keeps strict native arrays, combined RichText and canonical root/section bounds, interactive=%s',
     (interactive) => {
