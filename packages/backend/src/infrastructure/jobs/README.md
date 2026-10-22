@@ -32,3 +32,17 @@ The optional fourth `EnqueueJob` argument `{startAfter: Date}` schedules within 
 Dates must be finite and no more than24h ahead; pg-boss accepts Date and converts it to ISO itself.
 Planner uses this only for a same-business-run wake at claim expiry, carrying an expected claim ID.
 It is durable pg-boss work, not a timer or a second outbox. Existing three-argument calls are unchanged.
+
+The fourth argument also accepts an independently optional `jobId`, a canonical lowercase UUID
+chosen by the server before enqueue. It is sent as pg-boss's actual job ID; a missing creation
+or a different returned ID throws in the caller's transaction. Explicit undefined, accessor or
+unknown option fields refuse rather than silently dropping a wake fence. `startAfter` retains
+its finite Date/24-hour bound; three-argument calls retain their behavior.
+
+Personal role normal/retirement wake markers use this exact ID. Their owning adapters may seek
+one `(queue name, id)` primary key and verify its closed scope/run/generation metadata before
+recovering a terminal or missing delivery. A live delivery or unproved match stays busy/refused;
+no JSON job-history scan, new queue, second outbox or paid permission is introduced. Replacement
+still needs the role's current authority, original generation, no live claim and real source or
+explicit eligible resume; it preserves the business run and attempt ledger. Actual queue-ID,
+expiry, stale-delivery, unknown-accounting and rollback fixtures run in hosted Actions.
