@@ -1150,7 +1150,7 @@ describe('durable selective Clear', () => {
     const queue = {
       ...clearExplorationQueue,
       policy: { ...clearExplorationQueue.policy, retryLimit: 0, expireInSeconds: 2 },
-      consumer: { ...clearExplorationQueue.consumer, pollingIntervalSeconds: 0.1 },
+      consumer: { ...clearExplorationQueue.consumer, pollingIntervalSeconds: 0.5 },
     };
     await applyQueueDeclarations(boss, [queue]);
     // The already-sent job keeps its original policy; make this authored fixture delivery terminal on first failure.
