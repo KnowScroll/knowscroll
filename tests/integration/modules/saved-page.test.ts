@@ -44,10 +44,7 @@ async function library(db: Kysely<Database>, count = 160) {
   await sql`insert into content.assets(id,kind,revision,status) select id,kind,1,'admitted' from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) x(id uuid,kind text)`.execute(
     db,
   );
-  await sql`insert into content.asset_revisions(asset_id,revision,provenance_kind,document_version,document,document_sha256,explanation_unit_id,language,title,reading_facts) select id,1,'authored_editorial',kind||'-document.v1','{"fixture":true}'::jsonb,repeat('a',64),'fixture-saved-metadata','en',title,'{}'::jsonb from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) x(id uuid,kind text,title text)`.execute(
-    db,
-  );
-  await sql`insert into content.discovery_revisions(asset_id,asset_revision,summary,search_text) select id,1,'Authored metadata fixture only',to_tsvector('simple',title) from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) x(id uuid,title text)`.execute(
+  await sql`insert into content.asset_revisions(asset_id,revision,provenance_kind,document_version,document,document_sha256,explanation_unit_id,language,title,reading_facts) select id,1,'authored_editorial',kind||'-document.v1','{"fixture":true,"summary":"Authored metadata fixture only"}'::jsonb,repeat('a',64),'fixture-saved-metadata','en',title,'{}'::jsonb from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) x(id uuid,kind text,title text)`.execute(
     db,
   );
   await sql`insert into experience.saved_items(universe_id,asset_id,asset_revision,saved_at) select ${person.universeId}::uuid,id,1,at::timestamptz from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) x(id uuid,at text)`.execute(
