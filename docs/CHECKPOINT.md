@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-22 23:27 UTC · **Phase:** RESUMED / Identity integrated, full recording hosted failures under correction · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-22 23:45 UTC · **Phase:** RESUMED / full recording correction and necessary-accounting recovery · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,23 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current authoritative phase — 2026-10-22 23:07 UTC
+## Current authoritative phase — 2026-10-22 23:45 UTC
+
+**Actual integration remains7ebacf02/schema41; PR388 published head remains failedd5b3b761. No deployment or paid operation.** Complete source/actual-PR failure archives and exact counts below remain retained. Tracker update [6353701531](https://github.com/KnowScroll/knowscroll/issues/222#issuecomment-6353701531) records the failure and corrective phase. No unchanged rerun or required-check override.
+
+Root combined reviewed corrections normally at local09e6ec54: clientb956 (independentd8b2d2f6), Identity fixturesb163 (e39e61df), Plannerafb170e0 (e894059c), lifecycle/inventory/Geo05f04b1d (13dcc986), Root genuine graphd971 (726c0467), installed operator policy2a431 (cfff43c3) and sealed positive Clear6f930 (bf57e3c7). The last closes the inherited Region Clear finding; generic expired-capability negative tests remain exact. Corrected0044 SQL is372cf62c and actual12-owner inventory digestebbec3bd;0001–0043/generated remain unchanged. Earlier43c77b38/c21 source below is historical, never integrated/deployed. Full current production build passes locally; that is static evidence only.
+
+Residual full-log audit006d8f78 identifies genuine fixture provenance gaps and a necessary-accounting liveness defect. Old positive navigation/PC fixtures use unmarked lineage/seeded legacy roots, so cannot invent current birth/segment evidence; they need actual Identity birth, activation and required recording effects. Revoked outputs and busy-root reads must remain private/minimal while preserving exact financial settlement and one-send replay. A reserved-before-dispatch retry can refuse at protected lookup before reaching old cleanup: a new payload-free exact run/attempt/request/matching-held-receipt CAS is under implementation. Dispatched/unknown/unproved/mismatched/overflow cases must refuse; no assertion-only financial release or generic settle shortcut. One HIGH owner has literal10-path allocation; no local behavioral suite/SQL, publication or acceptance yet. The deadletter failure retains uncertainty until fresh hosted execution; corrected inventory alone is not claimed to prove it.
+
+Native39870087217 passed APK/emulator gallery for oldd5. All3 official artifact digests and71 member hashes are retainedda2c54dc; Root visually inspected illustrative slider and diagram screenshotsa671b4b4. This proves no authenticated recording, native restart durability, connected-service or generated-Scroll acceptance. ZERO accepted generated Scrolls remains unchanged.
+
+Conversations11 shared5f5e82dc has complete independent94c8f9bd; actual-current-base composition/Actions/consumers pending. Corrected44→Conversations registry-transitionv2fa5b19b2 is a conditional design, not allocated SQL/NEWdigest/current compatibility proof. Privacyv2's original findings close59c1c143; fullv3ca9ca44b adds bounded admission-key/anchor lookup and exact codec, now under different-author review. AcceptedP1/P6 direction remains inherited; only concrete new policy choices remain, no blanket reapproval.
+
+Disabled v13 operator18-file8049649c adapts exact44/writer11/policy13 with all operational pins unset and preimport refusal; independent whole-source review is pending. No reservation/extension/launch follows. Disabled rollout preparation650ebc3d has no elected candidate/artifact/host proof/window/intent. Actual dev remains last-observed476baec5/schema35 and stagelegacy8982391f. All old windows remain consumed/expired. Existing ledgerdf1d36used/0held/0unknown of43, v12terminalfailure,22unexplained owner-consumer deltas,2prejob exposures/Saved revision uncertainty and exact approved379oneorder≤75c remain intact. No owner-data/history, pool/spend reset, main or production action.
+
+Next: independently review the financial/fixture correction, compose all exact reviewed bytes, run fresh source and actual-PR all-six Actions/full artifacts, then integrate actual compatible head. Continue remaining implementation, D002 dev PR/mergeback, real disposable-account journeys, separately gated real Cutroom/interactive Scroll evidence and identical-artifact stage. **All five programme requirements remain OPEN.**
+
+## Earlier authoritative phase — 2026-10-22 23:07 UTC
 
 **Actual integration is `7ebacf02c5520732026c7fe7ecea9892499ec3ef`, tree `a8989fbed1665e7eb492341feac4e16d9786ac67`, schema41.** Identity PR387 is actually squash-merged on exact3c167cd9 after independent whole-source/current-base reviewa9fc3046 and complete source/actual-PR acceptanced10b1450. Source38ab5fd9/run39867099929 and actualPR29c00464/run39867145564 passed all six checks, each full114 official logs/102 successful step logs, official artifact digests, every19,724 manifest entry, all41 SQL and smoke29. Hosted849 PostgreSQL/129 installed HTTP cases pass. Actual-squash receipt6f29062f verifies exact parent/tree and clean integration fast-forward. This prerequisite mounts no recording HTTP/UI and proves no deployment.
 
