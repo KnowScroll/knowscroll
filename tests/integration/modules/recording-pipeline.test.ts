@@ -9,7 +9,11 @@ import {
   transactionOf,
   recordingTransactionOf,
 } from '@knowscroll/backend/infrastructure/postgres';
-import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
+import {
+  FENCE_OWN_ACCOUNT,
+  FENCE_PERSONAL_RECORDING,
+  READ_RECORDING_LIFECYCLE,
+} from '@knowscroll/backend/modules/identity';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import {
@@ -397,7 +401,13 @@ describe('recording Evidence intake and queued provenance', () => {
       ENQUEUE = Symbol('CI.actualEnqueue'),
       DATABASE = Symbol('CI.actualDatabase'),
       EFFECTS = Symbol('CI.realSessionEffects');
-    const own = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount;
+    const identity = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 });
+    const own = identity.fenceOwnAccount;
+    const experienceReads = experienceEvidenceReadProviders();
+    const experienceReadFactories = experienceReads.filter(
+      (provider): provider is Extract<typeof provider, { useFactory: unknown }> =>
+        typeof provider.useFactory === 'function',
+    );
     const enqueue = makeEnqueueJob(useCases.boss);
     const values = new Map<symbol, unknown>([
       [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
@@ -405,9 +415,14 @@ describe('recording Evidence intake and queued provenance', () => {
       [DATABASE, database.db],
       [FENCE_OWN_ACCOUNT, own],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
+      [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
-      ...experienceEvidenceReadProviders().map((p) => [p.provide, p.useValue] as const),
+      ...experienceReads.flatMap((provider) =>
+        provider.useValue === undefined ? [] : [[provider.provide, provider.useValue] as const],
+      ),
     ]);
+    for (const provider of experienceReadFactories)
+      values.set(provider.provide, buildFromProviders(experienceReadFactories, provider.provide, values));
     const ports = buildFromProviders(
       activityProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
       ACTIVITY_PORTS,

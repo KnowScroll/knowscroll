@@ -29,9 +29,17 @@ import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-cont
 import { READ_OWN_REGION_CONSTRAINT } from '@knowscroll/backend/modules/geography';
 import { geographyProviders } from '@knowscroll/backend/modules/geography/nest-providers';
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
-import { clearExplorationQueue, recoverClearOperationsQueue } from '@knowscroll/backend/modules/identity';
+import {
+  clearExplorationQueue,
+  recoverClearOperationsQueue,
+  FENCE_OWN_ACCOUNT,
+  READ_RECORDING_LIFECYCLE,
+} from '@knowscroll/backend/modules/identity';
 import { clearExplorationFor } from '@knowscroll/backend/modules/identity/nest-providers';
-import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
+import {
+  accountAccessUseCases,
+  identityScopeOwnerProviders,
+} from '@knowscroll/backend/modules/identity/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource, baselineCapabilities } from '../support/scroll.js';
@@ -56,8 +64,11 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
     await applyQueueDeclarations(privacyBoss, [clearExplorationQueue, recoverClearOperationsQueue]);
     const SCOPE = Symbol('scope'),
       ENQUEUE = Symbol('enqueue');
+    const identity = accountAccessUseCases({ db: database.db, lockTimeoutMs: 2000 });
     const values = new Map<symbol, unknown>([
       [SCOPE, scope()],
+      [FENCE_OWN_ACCOUNT, identity.fenceOwnAccount],
+      [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
       [ENQUEUE, makeEnqueueJob(c.boss)],
       [READ_COMPOSER_CONTEXT, c.readComposerContext],
       ...contentProviders().map((x) => [x.provide, x.useValue] as const),
