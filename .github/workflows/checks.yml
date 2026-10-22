@@ -125,8 +125,10 @@ jobs:
         # Fail visibly on a stalled package mirror or lock before any test is claimed to run.
         timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes ffmpeg
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install --yes ffmpeg
+          fi
           ffmpeg -version
           ffprobe -version
       - name: PostgreSQL server version
@@ -176,8 +178,10 @@ jobs:
         # Fail visibly on a stalled package mirror or lock before any test is claimed to run.
         timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes ffmpeg
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install --yes ffmpeg
+          fi
           ffmpeg -version
           ffprobe -version
       - name: Build packages, API and worker (nest build)
