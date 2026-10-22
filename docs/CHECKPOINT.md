@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-22 22:38 UTC · **Phase:** RESUMED / Friends integrated, Identity current-base candidate and full recording composition · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-22 23:12 UTC · **Phase:** RESUMED / Identity integrated, full recording and client review · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,23 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current authoritative phase — 2026-10-22 22:38 UTC
+## Current authoritative phase — 2026-10-22 23:12 UTC
+
+**Actual integration is `7ebacf02c5520732026c7fe7ecea9892499ec3ef`, tree `a8989fbed1665e7eb492341feac4e16d9786ac67`, schema41.** Identity PR387 is actually squash-merged on exact3c167cd9 after independent whole-source/current-base reviewa9fc3046 and complete source/actual-PR acceptanced10b1450. Source38ab5fd9/run39867099929 and actualPR29c00464/run39867145564 passed all six checks, each full114 official logs/102 successful step logs, official artifact digests, every19,724 manifest entry, all41 SQL and smoke29. Hosted849 PostgreSQL/129 installed HTTP cases pass. Actual-squash receipt6f29062f verifies exact parent/tree and clean integration fast-forward. This prerequisite mounts no recording HTTP/UI and proves no deployment.
+
+**Full recording42–44 is a local source candidate.** Reviewed full-sourcec8594811/whole-composition9ce34f25 is composed with actual accepted Identity41 without changing any reviewed non-checkpoint source bytes. Earlier workerbac327e9/whole3 review0fa793d8, Root API/control4c0e1505/whole15 review8760d9a6 and installed fixtureac855306/review6f592e35 remain bound. Lifecycle SQL44/43c77b38 and canonical12-owner protocolc21cc86e remain exact. Genuine own/lifecycle, actual material owners, sealed Clear, bounded role delivery/accounting and immutable original generation are prerequisites; legacy NULL stays unknown. No history adoption/backfill/owner Clear or mixed-version sandbox claim.
+
+**Client source is not accepted yet.** Original237a684e full38 reviewd4ca89bf found four P2s (explicit Reel policy fixture, end while unknown, background authority latch, Scroll start while checking). Corrected6d7afb9a retains all1543 foreign/30 other-owned paths and passes static/build checks, but independent6b477201 found resume dead-scope cleanup and a timer fixture masking its target bug. Both frozen rounds are retained CHANGES_REQUIRED; the author is correcting the complete batch before new independent closure. No behavioral suite ran locally. Final full-current-base composition, source/actual-PR Actions and full artifacts precede integration.
+
+Privacy proposal v1 b2c22bf8/closed JSON2120bd10 has full independent1696f9a0, two P2s: mutating Resume correlation/exact replay and blanket approval language. D001/D006q/P02/D023 already authorize accepted messages-you-sent/unavailable-marker/peer-independent semantics and honest layered completion; do not request redundant blanket approval. Concrete new financial-link/anti-reset/receipt/backup durations and proof-only capability choices remain to be specified. No export/delete endpoint, destructive operation, SQL45 or new privacy policy is accepted. Conversations/direct-share preparation is disjoint source design, not implementation or real participation.
+
+Latest actual public health909d8aaf at22:37UTC remains dev476baec5/schema35/archive8579c51b and stagelegacy8982391f; dev source106c4701 is not deployed, main e5fdc319 is unchanged. Every earlier operation window is consumed/expired. Private read-only browser evidence016131dc now observes credit and exact configured legacy fal routes showing0.05USD per second at768P; it does not bind the deployed service principal, define output-versus-compute units, rounding/retry liability or establish the75cent ceiling. Do not substitute newer family rates. No paid request/settings/credentials action occurred.
+
+Ledgerdf1dd4d5 remains36used/0held/0unknown of43. Retain v12 terminal rejected/noasset after3 settled requests, NULL failed bodies,22 unexplained own-consumer deltas and ZERO accepted generated Scrolls. Exact Sun-angle script379 approval79c26473 is ONE future order≤75cents; no new order/job/reservation. Current entitlement/principal, exact all-in billing bound, corpus/pool/sole writer and fresh finite exact-runtime plans remain open. No owner data/history, spending reset, main or production action.
+
+Continue: (1) independently close and host-test full recording/client; (2) implement remaining social/privacy/design/native/operator journeys in disjoint phases; (3) exact D002 dev PR/mergeback, real-service journeys and separately gated genuine Cutroom/interactive Scroll attempts; (4) identical-artifact stage via scripts/promote.sh. **All five programme requirements remain OPEN.**
+
+## Earlier authoritative phase — 2026-10-22 22:38 UTC
 
 **Actual integration is `3c167cd907482870101fb014a9d0d6d918f685a6`, tree `03d23921f84f80c14f598131465ff4af99212f3c`, schema40.** Complete Friends PR386 is squash-merged on exact30c39190 after full source/current-base independent reviews and all six checks on both exactsourcee3990987/run39864208408 and actualPRfbf2da59/run39864218060. Acceptancefef0128e verifies each full114 official logs/102 successful step logs, official artifact digests, all19,683 manifest entries/40 immutable SQL/smoke29. Actual-squash receipt993b9b07 binds exact parent/tree and clean integration fast-forward. Both f33 and60e failure rounds and complete archives remain retained. Child377/parent241 real two-account/native evidence stays open; no real Social activity or deployment is inferred.
 
