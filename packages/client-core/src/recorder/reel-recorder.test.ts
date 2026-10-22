@@ -403,3 +403,29 @@ it('Reel end and suspension remain locally fenced when checking ends with the sa
   expect(events).toHaveLength(1);
   expect(events[0]?.payload).toEqual({ samples: [{ activeMs: [1000, 1500], mediaMs: [1000, 1500] }] });
 });
+
+it.each(['resume', 'suspend'] as const)(
+  'Reel %s observes actual dead scope before running/parked/ended intent guards (CI matrix)',
+  (operation) => {
+    for (const state of ['running', 'parked', 'ended'] as const) {
+      const f = retainedReel();
+      f.tick(0);
+      f.advance(250);
+      f.tick(250);
+      if (state === 'parked') f.recorder.suspend();
+      if (state === 'ended') f.recorder.end();
+      const before = [...f.events];
+      f.setActive(false);
+      f.recorder[operation]();
+      f.setActive(true); // An observed actual scope death is terminal despite a faulty adapter.
+      f.recorder.resume();
+      f.tick(500);
+      f.advance(250);
+      f.tick(750);
+      f.recorder.discontinuity();
+      f.recorder.flush();
+      f.recorder.end();
+      expect(f.events).toEqual(before);
+    }
+  },
+);

@@ -748,8 +748,7 @@ it('Scroll start while checking retains periodic flush intent and arms exactly o
   expect(f.sink.events()).toEqual([]);
   expect(f.timers.running()).toBe(0);
   policy.current(true);
-  policy.current(true);
-  f.recorder.start();
+  // No new start() after release: this must be the saved start intent's subscription auto-arm.
   expect(f.timers.running()).toBe(1);
   f.recorder.observer.onActivity({ active: true, at: f.clock.now() });
   f.recorder.observer.onBlockVisibility({ blockId: 'actual', visibleFraction: 1, at: f.clock.now() });
@@ -761,6 +760,11 @@ it('Scroll start while checking retains periodic flush intent and arms exactly o
       .filter((event) => event.kind === 'scroll.block_coverage')
       .map((event) => event.payload),
   ).toEqual([{ blocks: [{ blockId: 'actual', intervalsMs: [[15000, 16000]], peakFraction: 1 }] }]);
+  // Only AFTER the actual periodic flush do repeated starts/current notifications test idempotence.
+  f.recorder.start();
+  f.recorder.start();
+  policy.current(true);
+  expect(f.timers.running()).toBe(1);
   const before = f.sink.events().length;
   policy.current(false);
   expect(f.timers.running()).toBe(0);
@@ -779,3 +783,34 @@ it('Scroll start while checking retains periodic flush intent and arms exactly o
   f.recorder.end();
   expect(f.timers.running()).toBe(0);
 });
+
+it.each(['resume', 'suspend'] as const)(
+  'Scroll %s observes actual dead scope before running/parked/ended intent guards (CI matrix)',
+  (operation) => {
+    for (const state of ['running', 'parked', 'ended'] as const) {
+      let active = true;
+      const f = build({ active: () => active });
+      f.recorder.start();
+      f.recorder.observer.onBlockVisibility({ blockId: 'before', visibleFraction: 1, at: f.clock.now() });
+      f.clock.advance(500);
+      if (state === 'parked') f.recorder.suspend();
+      if (state === 'ended') f.recorder.end();
+      const before = [...f.sink.events()];
+      active = false;
+      f.recorder[operation]();
+      expect(f.timers.running()).toBe(0);
+      active = true; // Faulty adapter resurrection must not undo an already observed scope death.
+      f.recorder.start();
+      f.recorder.resume();
+      f.recorder.observer.onActivity({ active: true, at: f.clock.now() });
+      f.recorder.observer.onBlockVisibility({ blockId: 'late', visibleFraction: 1, at: f.clock.now() });
+      f.recorder.observer.onBlockInteraction({ blockId: 'late', kind: 'expanded', at: f.clock.now() });
+      f.clock.advance(1000);
+      f.timers.tick();
+      f.recorder.flush();
+      f.recorder.end();
+      expect(f.timers.running()).toBe(0);
+      expect(f.sink.events()).toEqual(before);
+    }
+  },
+);

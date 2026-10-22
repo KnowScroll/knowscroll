@@ -343,8 +343,8 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
       if (scopeActive()) startTimer();
     },
     suspend() {
-      if (ended || suspended) return;
       const authorized = scopeActive();
+      if (ended || suspended) return;
       suspended = true;
       stopTimer();
       if (authorized) {
@@ -353,13 +353,15 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
       } else tracker = new ReadingTracker({ startedAt });
     },
     resume() {
-      if (ended || !suspended || !options.scope.active || scopeEnded) return;
+      const authorized = scopeActive();
+      if (ended || !suspended || scopeEnded) return;
       acceptAfter = clock.monotonicMs();
       suspended = false;
-      if (scopeActive()) startTimer();
+      if (authorized) startTimer();
     },
     flush,
     end() {
+      const authorized = scopeActive();
       policyOff?.();
       policyOff = undefined;
       if (ended) return;
@@ -367,7 +369,7 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
       started = false;
       suspended = false;
       stopTimer();
-      if (scopeActive()) {
+      if (authorized) {
         tracker.suspend(clock.monotonicMs());
         report();
       }
