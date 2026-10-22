@@ -271,7 +271,12 @@ export function makePersonalReasoningAccess(p: {
       if (own.kind !== 'active') return { kind: 'unavailable', reason: 'authority' };
       // The fixed owner callback runs only after the actual own-account gate, once, in this root transaction.
       // It reads ONLY the owning minimal header, and may retain that header locally for necessary retirement.
-      const expected = parsePersonalRunAccountingBinding(await readExpectedBinding(scope));
+      const owner = Object.freeze({
+        accountId: own.owner.accountId,
+        universeId: own.owner.universeId,
+        privacyEpoch: own.owner.privacyEpoch,
+      });
+      const expected = parsePersonalRunAccountingBinding(await readExpectedBinding(scope, owner));
       if (
         !expected ||
         !same(expected.accountId, own.owner.accountId) ||
