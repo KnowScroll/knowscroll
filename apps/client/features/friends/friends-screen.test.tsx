@@ -295,8 +295,9 @@ it('retains the exact unknown accept retry and refreshes instead of treating the
   const view = await render(h.tree);
   try {
     await screen.findByText('No people to show in this list.');
-    await fireEvent.press(screen.getByRole('button', { name: 'Incoming requests' }));
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Incoming requests', checked: false }));
     await screen.findByText('Peer fixture');
+    expect(screen.getByRole('togglebutton', { name: 'Incoming requests', checked: true })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Accept Peer fixture' }));
     await screen.findByRole('button', { name: 'Retry the same request' });
     expect(screen.getByRole('button', { name: 'Accept Peer fixture' })).toBeDisabled();
