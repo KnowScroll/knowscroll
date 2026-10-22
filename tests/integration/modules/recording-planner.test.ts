@@ -269,10 +269,8 @@ describe('Planner original recording provenance and exact wake ownership', () =>
       ordinary = await requestJob(p);
     const crash = makeRunPlanner({
       ...base,
-      harness: {
-        ...base.harness,
-        withPersonalApply: () => Promise.reject(new Error('CI_CRASH_AFTER_DURABLE_CLAIM')),
-      },
+      // Actual empty-context accounting finalizer rolls back; the earlier durable claim remains.
+      store: { ...plannerStore, clearActiveRun: () => Promise.reject(new Error('CI_CRASH_AFTER_DURABLE_CLAIM')) },
     });
     await expect(crash(ordinary, signal())).rejects.toThrow('CI_CRASH_AFTER_DURABLE_CLAIM');
     let current = (await rows(p)).runs[0]!;
@@ -752,6 +750,127 @@ describe('Planner original recording provenance and exact wake ownership', () =>
     assertNull(second);
     expect(second.normal_wake_id).not.toBe(first.normal_wake_id);
     expect((await rows(p)).runs).toHaveLength(1);
+    expect(await attemptsOf(database.db, p.universeId)).toEqual([]);
+  });
+  it('keeps a zero-retained all-NULL legacy head and pending v2 retirement B exact when old v1 is delivered', async () => {
+    const p = await seedPerson(database.db),
+      runId = randomUUID();
+    await scope()(p.authority, async (s) => {
+      expect((await accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount(s)).kind).toBe(
+        'active',
+      );
+      await transactionOf(s)
+        .insertInto('planner.runs')
+        .values({ universe_id: p.universeId, privacy_epoch: 1, id: runId, revision: 1, status: 'blocked' })
+        .execute();
+      await transactionOf(s)
+        .insertInto('planner.state')
+        .values({ universe_id: p.universeId, privacy_epoch: 1, desired_revision: 1, active_run_id: runId })
+        .execute();
+    });
+    await toggle(p, 1, false);
+    await toggle(p, 2, true);
+    expect(await request(p.authority, { commandId: randomUUID(), recordingGeneration: 3 })).toMatchObject({
+      kind: 'accepted',
+      runId,
+    });
+    const before = await rows(p),
+      marker = before.runs[0]!.normal_wake_id!;
+    expect(marker).toBeTruthy();
+    const queueBefore = (
+      await database.pool.query(
+        "select id,data,state from pgboss.job where name='planner.run' and data->>'universeId'=$1 order by id",
+        [p.universeId],
+      )
+    ).rows;
+    expect(queueBefore).toHaveLength(1);
+    const forbidden = () => Promise.reject(new Error('CI_OLD_V1_PRIVATE_READ'));
+    const run = makeRunPlanner({
+      ...base,
+      store: { ...plannerStore, context: forbidden, state: forbidden },
+      readSnapshot: forbidden,
+    });
+    expect(await run({ v: 1, universeId: p.universeId, privacyEpoch: 1, runId }, signal())).toMatchObject({
+      kind: 'entered',
+      value: { kind: 'obsolete_wake' },
+    });
+    expect(await rows(p)).toEqual(before);
+    expect(
+      (
+        await database.pool.query(
+          "select id,data,state from pgboss.job where name='planner.run' and data->>'universeId'=$1 order by id",
+          [p.universeId],
+        )
+      ).rows,
+    ).toEqual(queueBefore);
+    expect(
+      await database.db
+        .selectFrom('reasoning.business_runs')
+        .select('id')
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toEqual([]);
+    expect(await attemptsOf(database.db, p.universeId)).toEqual([]);
+  });
+  it('refuses stale delayed A against an actually renewed current claim C after toggle with zero retained ledger rows', async () => {
+    const p = await seedPerson(database.db),
+      old = await requestJob(p);
+    const crash = makeRunPlanner({
+      ...base,
+      store: { ...plannerStore, clearActiveRun: () => Promise.reject(new Error('CI_CRASH_BEFORE_EMPTY_TERMINAL')) },
+    });
+    await expect(crash(old, signal())).rejects.toThrow('CI_CRASH_BEFORE_EMPTY_TERMINAL');
+    const claimA = (await rows(p)).runs[0]!.claim_id!;
+    const delayedA = PlannerJobSchema.parse({
+      v: 2,
+      universeId: p.universeId,
+      privacyEpoch: 1,
+      runId: old.runId,
+      recordingGeneration: 1,
+      expectedClaimId: claimA,
+    });
+    await database.db
+      .updateTable('planner.runs')
+      .set({ claim_until: new Date(Date.now() - 1000) })
+      .where('universe_id', '=', p.universeId)
+      .where('id', '=', old.runId)
+      .execute();
+    await expect(crash(delayedA, signal())).rejects.toThrow('CI_CRASH_BEFORE_EMPTY_TERMINAL');
+    const claimC = (await rows(p)).runs[0]!.claim_id!;
+    expect(claimC).not.toBe(claimA);
+    expect((await rows(p)).runs[0]!.claim_wake_claim_id).toBe(claimC);
+    await toggle(p, 1, false);
+    await toggle(p, 2, true);
+    const before = await rows(p),
+      forbidden = () => Promise.reject(new Error('CI_STALE_DELAY_PRIVATE_READ'));
+    const jobsBefore = (
+      await database.pool.query(
+        "select id,data,state from pgboss.job where name='planner.run' and data->>'universeId'=$1 order by id",
+        [p.universeId],
+      )
+    ).rows;
+    const run = makeRunPlanner({
+      ...base,
+      store: { ...plannerStore, context: forbidden, state: forbidden },
+      readSnapshot: forbidden,
+    });
+    expect(await run(delayedA, signal())).toMatchObject({ kind: 'entered', value: { kind: 'obsolete_claim_wake' } });
+    expect(await rows(p)).toEqual(before);
+    expect(
+      (
+        await database.pool.query(
+          "select id,data,state from pgboss.job where name='planner.run' and data->>'universeId'=$1 order by id",
+          [p.universeId],
+        )
+      ).rows,
+    ).toEqual(jobsBefore);
+    expect(
+      await database.db
+        .selectFrom('reasoning.business_runs')
+        .select('id')
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toEqual([]);
     expect(await attemptsOf(database.db, p.universeId)).toEqual([]);
   });
   it.each(['delivered', 'terminal'] as const)(

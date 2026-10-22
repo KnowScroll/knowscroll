@@ -168,3 +168,21 @@ metadata with an explicit NULL-generation retirement wake; a live old delivery s
 NULL/partial ledger proof remains unavailable; distinct absence proves zero RETAINED attempts only.
 Only a separately retained fresh source can authorize a successor. Stale UUIDs, partial headers,
 ordinary post-toggle collection or generation1 stamping remain refused.
+
+
+Necessary pre-admission completion is separate from semantic apply. For available-but-empty
+context, or the real engine's `provider_unavailable` refusal before admission, a fresh root enters
+the accounting port's actual own-account gate once. Its fixed callback fences original generation
+before reading only the exact prepared owner header, active ID, unexpired current claim/recovery
+marker and frozen hash identity. Only the accounting port's actual absent-parent result permits
+terminal metadata: empty becomes insufficient and clears that exact active ID; provider unavailable
+becomes blocked on the same business. It creates no successor, semantic effect, ledger row, attempt,
+close or monetary-zero receipt. Present, partial or unresolved ledger proof cannot use this path.
+Actual admitted quota/unknown decisions still require the genuine semantic apply facade.
+
+Retirement delivery ownership is strict even for conclusive accounting. Old v1 refuses every stored
+normal UUID. Ordinary/retirement delivery must own its exact current UUID; a delayed delivery must
+match BOTH current claim ID and recovery marker with no competing normal marker. Stale A cannot
+retire, clear or create a successor for B/C. Minimal accounting headers carry these IDs only;
+private context and hash bytes are not added to revoked cleanup. The hosted regressions preserve
+zero-retained absence separately from historical cost and preserve every unknown-liability fence.

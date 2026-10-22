@@ -75,6 +75,8 @@ export type PlannerRunHeader = Omit<PlannerRun, 'context'> & {
   readonly hasRecordingMetadata: boolean;
 };
 export interface PlannerAccountingHeader {
+  readonly claimId?: string;
+  readonly claimWakeClaimId?: string;
   readonly legacyUnproved: boolean;
   readonly normalWakeId?: string;
   readonly id: string;
@@ -89,6 +91,7 @@ export interface PlannerRevision {
   readonly opportunities: readonly Opportunity[];
 }
 export interface PlannerStore {
+  readonly clearActiveRun: (scope: PersonalScopeTx, id: string) => Promise<void>;
   readonly consumeNormalWake: (scope: PersonalScopeTx, id: string, wakeId: string) => Promise<boolean>;
   readonly accountingHeader: (scope: PersonalScopeTx, id: string) => Promise<PlannerAccountingHeader | undefined>;
   readonly retire: (scope: PersonalScopeTx, id: string) => Promise<boolean>;

@@ -16,6 +16,7 @@ import { requestHash } from '@knowscroll/backend/infrastructure/receipts';
 import { readDiscoveryCandidates, readExactEncounter } from '@knowscroll/backend/modules/content/nest-providers';
 import {
   plannerQueue,
+  PlannerJobSchema,
   REQUEST_PLANNER,
   PLANNER_MATERIAL_CHANGE,
   type PlannerMaterialChange,
@@ -33,7 +34,11 @@ import {
   type FrozenContext,
 } from '@knowscroll/backend/modules/planner/nest-providers';
 import { geographyStore, makeCheckGeographyRecordingRun } from '@knowscroll/backend/modules/geography/nest-providers';
-import { personalRecordingReasoningHarnessFor } from '@knowscroll/backend/reasoning/nest-providers';
+import {
+  guardedModelPort,
+  personalRecordingReasoningHarnessFor,
+  type ModelPort,
+} from '@knowscroll/backend/reasoning/nest-providers';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureHarness, fixtureModel, fixtureSettings, silent, attemptsOf, signal } from '../support/fixture-model.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -50,7 +55,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
   const topic = `ci.planner.${randomUUID()}`;
   beforeAll(async () => {
     database = await createTestDatabase<Database>('planner');
-    c = await scrollUseCases(database, { activityMaterialChange: (s, x) => material(s, x) });
+    c = await scrollUseCases(database, { recording: true, activityMaterialChange: (s, x) => material(s, x) });
     const SCOPE = Symbol('scope'),
       ENQUEUE = Symbol('enqueue');
     const values = new Map<symbol, unknown>([
@@ -142,6 +147,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
   function runner(
     p: FixturePerson,
     script?: (context: FrozenContext, sequence: number) => FixtureScenario | Promise<FixtureScenario>,
+    options: { readonly providerUnavailable?: boolean; readonly observeQuota?: ModelPort['observeQuota'] } = {},
   ) {
     const model = fixtureModel(
       async (sequence) => {
@@ -151,7 +157,12 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       },
       { label: 'planner-authored-ci-fixture' },
     );
-    const fixture = fixtureHarness(database.db, { model });
+    const provider = options.providerUnavailable
+      ? undefined
+      : options.observeQuota
+        ? guardedModelPort({ ...model, observeQuota: options.observeQuota })
+        : model;
+    const fixture = fixtureHarness(database.db, { model: provider });
     let enabled = true;
     let clock: Date | undefined;
     const harness = personalRecordingReasoningHarnessFor({
@@ -255,6 +266,87 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       ).context,
     ).toMatchObject({ intent: { availability: 'unavailable' }, selection: { completeness: 'not_asserted' } });
   });
+  it('finishes actual available-but-empty and pre-admission provider-unavailable decisions without semantic apply or invented ledger', async () => {
+    for (const decision of ['empty', 'provider_unavailable'] as const) {
+      const p = await seedPerson(database.db);
+      if (decision === 'provider_unavailable') await qualify(p);
+      else expect(await request(p.authority, { commandId: randomUUID() })).toMatchObject({ kind: 'accepted' });
+      const r = runner(p, undefined, { providerUnavailable: decision === 'provider_unavailable' }),
+        s = await state(p),
+        payload = await job(p, s.active_run_id!),
+        forbidden = () => Promise.reject(new Error('CI_NO_ADMISSION_SEMANTIC_APPLY')),
+        run = makeRunPlanner({
+          ...r.ports,
+          harness: { ...r.ports.harness, withPersonalApply: forbidden, closePersonalRun: forbidden },
+        });
+      const before = await database.db
+        .selectFrom('identity.universes')
+        .select('revision')
+        .where('id', '=', p.universeId)
+        .executeTakeFirstOrThrow();
+      expect(await run(payload, signal())).toMatchObject({
+        kind: 'entered',
+        value: { kind: decision === 'empty' ? 'insufficient' : 'blocked' },
+      });
+      const head = await database.db
+        .selectFrom('planner.runs')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .where('id', '=', s.active_run_id!)
+        .executeTakeFirstOrThrow();
+      expect(head).toMatchObject({
+        status: decision === 'empty' ? 'insufficient' : 'blocked',
+        outcome: decision === 'empty' ? 'insufficient_evidence' : 'provider_unavailable',
+        claim_id: null,
+        claim_until: null,
+        normal_wake_id: null,
+        claim_wake_claim_id: null,
+      });
+      expect((await state(p)).active_run_id).toBe(decision === 'empty' ? null : s.active_run_id);
+      expect(await attemptsOf(database.db, p.universeId)).toEqual([]);
+      expect(
+        await database.db
+          .selectFrom('reasoning.business_runs')
+          .select('id')
+          .where('universe_id', '=', p.universeId)
+          .execute(),
+      ).toEqual([]);
+      expect(
+        await database.db
+          .selectFrom('planner.revisions')
+          .select('revision')
+          .where('universe_id', '=', p.universeId)
+          .execute(),
+      ).toEqual([]);
+      expect(
+        await database.db
+          .selectFrom('identity.universes')
+          .select('revision')
+          .where('id', '=', p.universeId)
+          .executeTakeFirstOrThrow(),
+      ).toEqual(before);
+      expect(r.model.calls).toHaveLength(0);
+      const recovery = (
+        await database.pool.query<{ data: unknown }>(
+          "select data from pgboss.job where name='planner.run' and data->>'runId'=$1 and data?'expectedClaimId'",
+          [s.active_run_id],
+        )
+      ).rows;
+      expect(recovery).toHaveLength(1);
+      expect(await run(PlannerJobSchema.parse(recovery[0]!.data), signal())).toMatchObject({
+        kind: 'entered',
+        value: { kind: decision === 'empty' ? 'not_active' : 'obsolete_claim_wake' },
+      });
+      expect(
+        await database.db
+          .selectFrom('planner.runs')
+          .selectAll()
+          .where('universe_id', '=', p.universeId)
+          .where('id', '=', head.id)
+          .executeTakeFirstOrThrow(),
+      ).toEqual(head);
+    }
+  });
   it('runs after actual material PC/Evidence change, ignores replay, preserves the source audit, and accepts unadmitted opportunities only', async () => {
     const p = await seedPerson(database.db),
       payload = await qualify(p),
@@ -338,12 +430,26 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
   it('rolls actual Evidence, PC, scope revision and required Planner job back together when the trigger fails', async () => {
     const p = await seedPerson(database.db),
       exposure = await openActive(c, p, asset);
+    await activatedAgo(database.db, exposure.exposureId, 3);
+    await c.ingestObservations(p.authority, {
+      instrumentationVersion: 1,
+      events: [event(exposure, coverage(blocks, 4000)), event(exposure, dwell([0, 68000]))],
+    });
+    expect(
+      await c.projectScrollReading({
+        v: 1,
+        universeId: p.universeId,
+        privacyEpoch: 1,
+        exposureId: exposure.exposureId,
+      }),
+    ).toMatchObject({ kind: 'applied', qualification: 'qualified' });
     const before = await database.db
       .selectFrom('identity.universes')
       .select('revision')
       .where('id', '=', p.universeId)
       .executeTakeFirstOrThrow();
     const failing = await scrollUseCases(database, {
+      recording: true,
       activityMaterialChange: async (scoped, input) => {
         await material(scoped, input);
         throw new Error('CI_MATERIAL_FAILURE');
@@ -681,24 +787,33 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       const enteredPromise = new Promise<void>((resolve) => {
         entered = resolve;
       });
-      const r = runner(p, async (context) => {
-        entered();
-        await hold;
-        return decision === 'unknown'
-          ? { kind: 'timeout_after_dispatch' }
-          : { kind: 'success', text: JSON.stringify(answer(context)) };
-      });
-      const s = await state(p);
-      // Authored harness admission outcome for quota: no model invocation or invented provider output.
-      const pausedQuota: PlannerPorts['harness'] = {
-        ...r.ports.harness,
-        proposePersonal: async () => {
+      const r = runner(
+        p,
+        async (context) => {
           entered();
           await hold;
-          return { kind: 'quota_unavailable', attemptId: randomUUID() };
+          return decision === 'unknown'
+            ? { kind: 'timeout_after_dispatch' }
+            : { kind: 'success', text: JSON.stringify(answer(context)) };
         },
-      };
-      const owner = decision === 'quota' ? makeRunPlanner({ ...r.ports, harness: pausedQuota }) : r.run;
+        decision === 'quota'
+          ? {
+              observeQuota: async () => {
+                entered();
+                await hold;
+                return {
+                  verdict: 'unavailable',
+                  intervalRemainingPercent: null,
+                  weeklyRemainingPercent: null,
+                  reasonCode: 'CI_QUOTA_UNAVAILABLE',
+                };
+              },
+            }
+          : {},
+      );
+      const s = await state(p);
+      // The real guarded model quota observation occurs AFTER actual admission/reservation.
+      const owner = r.run;
       const [first] = await c.boss.fetch<Parameters<RunPlanner>[0]>('planner.run');
       const running = owner(first!.data, signal());
       await enteredPromise;
@@ -732,6 +847,18 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
         value: { kind: decision === 'accepted' ? 'not_active' : 'obsolete_wake' },
       });
       expect(r.model.calls).toHaveLength(decision === 'quota' ? 0 : 1);
+      if (decision === 'quota') {
+        expect(await attemptsOf(database.db, p.universeId)).toMatchObject([
+          { state: 'not_sent', quota_observation: { verdict: 'unavailable' } },
+        ]);
+        expect(
+          await database.db
+            .selectFrom('reasoning.business_runs')
+            .select(['id', 'state'])
+            .where('universe_id', '=', p.universeId)
+            .execute(),
+        ).toEqual([{ id: s.active_run_id, state: 'admitted' }]);
+      }
     }
   });
   it('rolls back delayed jobs with their scope transaction and fences a scheduled wake across privacy reset', async () => {

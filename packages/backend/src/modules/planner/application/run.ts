@@ -18,6 +18,7 @@ import type {
   PlannerReadPorts,
   PlannerRun,
   PlannerAccountingHeader,
+  PlannerRunHeader,
   ReadPlannerOpportunities,
   RunPlanner,
 } from './ports.js';
@@ -101,6 +102,15 @@ async function retireRevoked(
         observed.missing = true;
         return 'unavailable';
       }
+      if (payload.v === 1 && header.normalWakeId) return 'unavailable';
+      if (payload.wakeId && header.normalWakeId !== payload.wakeId) return 'unavailable';
+      if (
+        payload.expectedClaimId &&
+        (header.normalWakeId ||
+          header.claimId !== payload.expectedClaimId ||
+          header.claimWakeClaimId !== payload.expectedClaimId)
+      )
+        return 'unavailable';
       if (
         retirement
           ? (header.generation ?? null) !== original
@@ -130,11 +140,21 @@ async function retireRevoked(
     });
     if (observed.missing) return { kind: 'not_active' } as const;
     if (observed.mismatch) return { kind: 'generation_mismatch' } as const;
-    if (!observed.valid) return { kind: 'accounting_unavailable' } as const;
-    const header = observed.header!;
+    const header = observed.header;
+    if (!header) return { kind: 'accounting_unavailable' } as const;
     if (retirement && header.normalWakeId !== payload.wakeId) return { kind: 'obsolete_wake' } as const;
     const state = await p.store.stateHeader(scope);
     if (state.activeRunId !== header.id) return { kind: 'not_active' } as const;
+    if ((payload.v === 1 && header.normalWakeId) || (payload.wakeId && header.normalWakeId !== payload.wakeId))
+      return { kind: 'obsolete_wake' } as const;
+    if (
+      payload.expectedClaimId &&
+      (header.normalWakeId ||
+        header.claimId !== payload.expectedClaimId ||
+        header.claimWakeClaimId !== payload.expectedClaimId)
+    )
+      return { kind: 'obsolete_claim_wake' } as const;
+    if (!observed.valid) return { kind: 'accounting_unavailable' } as const;
     const gate = await p.fenceRecording(scope, original ?? undefined);
     if (gate.kind === 'recording')
       return retirement
@@ -163,6 +183,65 @@ async function retireRevoked(
         await ensureRun(p, current.scope, idle);
     }
     return { kind: 'recording_ineligible' } as const;
+  });
+}
+/** No-admission owner bookkeeping only. The accounting adapter owns the one fresh account gate;
+ * its actual absent-parent proof is required, never an inferred zero-cost/close result. */
+async function finishUnadmitted(
+  p: PlannerPorts,
+  authority: Parameters<PlannerPorts['withPersonalScope']>[0],
+  purpose: PersonalRecordingPurpose,
+  kind: 'insufficient' | 'provider_unavailable',
+) {
+  return p.withPersonalScope(authority, async (scope) => {
+    let header: PlannerRunHeader | undefined;
+    const accounting = await p.harness.readPersonalRunAccounting(scope, purpose.businessRunId, async (gated, own) => {
+      if (
+        own.accountId !== purpose.accountId ||
+        own.universeId !== purpose.universeId ||
+        own.privacyEpoch !== purpose.privacyEpoch
+      )
+        return 'unavailable';
+      const gate = await p.fenceRecording(gated, purpose.recordingGeneration);
+      if (gate.kind !== 'recording') return 'unavailable';
+      const current = await p.store.header(gated, purpose.businessRunId);
+      if (
+        !current ||
+        current.id !== purpose.businessRunId ||
+        current.status !== 'prepared' ||
+        current.recording?.accountId !== purpose.accountId ||
+        current.recording.source.generation !== purpose.recordingGeneration ||
+        current.claimId !== purpose.claimId ||
+        current.claimWakeClaimId !== purpose.claimId ||
+        !current.claimUntil ||
+        Date.parse(current.claimUntil) <= p.now().getTime() ||
+        current.normalWakeId !== undefined ||
+        !current.hasContext ||
+        current.contextSha256 !== purpose.contextSha256 ||
+        current.modelContextSha256 !== purpose.modelContextSha256 ||
+        (await p.store.stateHeader(gated)).activeRunId !== current.id
+      )
+        return 'unavailable';
+      header = current;
+      return {
+        ownerModule: 'planner',
+        purpose: 'personal-planner',
+        accountId: purpose.accountId,
+        privacyEpoch: purpose.privacyEpoch,
+        recordingGeneration: purpose.recordingGeneration,
+      };
+    });
+    if (!header || accounting.kind !== 'not_found') return { kind: 'accounting_unavailable' } as const;
+    const { claimId: _c, claimUntil: _u, claimWakeClaimId: _w, normalWakeId: _n, ...released } = header;
+    await p.store.writeRun(scope, {
+      ...released,
+      status: kind === 'insufficient' ? 'insufficient' : 'blocked',
+      outcome: kind === 'insufficient' ? 'insufficient_evidence' : kind,
+    });
+    if (kind === 'insufficient') {
+      await p.store.clearActiveRun(scope, header.id);
+    }
+    return { kind: kind === 'insufficient' ? 'insufficient' : 'blocked' } as const;
   });
 }
 export function makeRunPlanner(p: PlannerPorts): RunPlanner {
@@ -301,25 +380,25 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
       modelContextSha256: run.modelContextSha256,
       claimId: run.claimId,
     };
-    const outcome =
-      context.facts.evidence.length === 0
-        ? undefined
-        : await p.harness.proposePersonal(
-            {
-              run: {
-                id: run.id,
-                authority,
-                ownerModule: 'planner',
-                purpose: 'personal-planner',
-                policyVersion: PLANNER_POLICY,
-              },
-              role: plannerRole(context),
-              context: { bundleRef: `planner:${run.id}`, items: plannerContextItems(context) },
-              limits: { allowRepair: true },
-              recordingPurpose: purpose,
-            },
-            signal,
-          );
+    if (context.facts.evidence.length === 0) return finishUnadmitted(p, authority, purpose, 'insufficient');
+    const outcome = await p.harness.proposePersonal(
+      {
+        run: {
+          id: run.id,
+          authority,
+          ownerModule: 'planner',
+          purpose: 'personal-planner',
+          policyVersion: PLANNER_POLICY,
+        },
+        role: plannerRole(context),
+        context: { bundleRef: `planner:${run.id}`, items: plannerContextItems(context) },
+        limits: { allowRepair: true },
+        recordingPurpose: purpose,
+      },
+      signal,
+    );
+    if (outcome.kind === 'refused' && outcome.reason === 'provider_unavailable')
+      return finishUnadmitted(p, authority, purpose, 'provider_unavailable');
     // Sole facade entry owns root/account/originalg and actual owner/ledger header proof. No nested
     // root and no repeated Identity account gate. Close while owner is still prepared/claimed.
     return p.harness.withPersonalApply(authority, purpose, async (cap) => {
@@ -335,7 +414,7 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
         normalWakeId: _normal,
         ...released
       } = current;
-      if (outcome?.kind === 'unknown' || outcome?.kind === 'quota_unavailable') {
+      if (outcome.kind === 'unknown' || outcome.kind === 'quota_unavailable') {
         await p.store.writeRun(scope, {
           ...released,
           status: outcome.kind === 'unknown' ? 'unknown' : 'blocked',
@@ -343,7 +422,7 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
         });
         return { kind: outcome.kind };
       }
-      if (outcome?.kind === 'budget_exhausted' || outcome?.kind === 'refused') {
+      if (outcome.kind === 'budget_exhausted' || outcome.kind === 'refused') {
         await p.store.writeRun(scope, {
           ...released,
           status: current.outcome === 'unknown' ? 'unknown' : 'blocked',
@@ -355,9 +434,9 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
         await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'blocked_disabled' });
         return { kind: 'blocked_disabled' };
       }
-      let status: PlannerRun['status'] = outcome ? 'rejected' : 'insufficient';
+      let status: PlannerRun['status'] = 'rejected';
       let accepted: readonly Opportunity[] = [];
-      if (outcome?.kind === 'proposed') {
+      if (outcome.kind === 'proposed') {
         const fresh = await currentFacts(p, scope, context, outcome.output.opportunities);
         if (!fresh) {
           await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'proof_unavailable' });
@@ -369,17 +448,15 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
           status = 'accepted';
         }
       }
-      const closed = outcome
-        ? await p.harness.closePersonalRun(cap, {
-            runId: run.id,
-            state: status === 'accepted' ? 'completed' : 'cancelled',
-            recordingPurpose: purpose,
-          })
-        : 'not_open';
+      const closed = await p.harness.closePersonalRun(cap, {
+        runId: run.id,
+        state: status === 'accepted' ? 'completed' : 'cancelled',
+        recordingPurpose: purpose,
+      });
       if (status === 'accepted' && closed !== 'closed') throw new Error('PLANNER_REASONING_CLOSE_FAILED');
-      if (status === 'accepted' && outcome?.kind === 'proposed')
+      if (status === 'accepted' && outcome.kind === 'proposed')
         await p.store.accept(scope, run, accepted, outcome.attemptId);
-      await p.store.writeRun(scope, { ...released, status, outcome: outcome?.kind ?? 'insufficient_evidence' });
+      await p.store.writeRun(scope, { ...released, status, outcome: outcome.kind });
       const { activeRunId: _a, ...idle } = state,
         next = { ...idle, acceptedRevision: status === 'accepted' ? run.revision : state.acceptedRevision };
       await p.store.writeState(scope, next);
