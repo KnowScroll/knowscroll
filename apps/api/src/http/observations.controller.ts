@@ -1,7 +1,7 @@
 import { Controller, Inject, Req } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import type { Request } from 'express';
-import { apiContract, type ProblemCode } from '@knowscroll/contracts';
+import { apiContract, RecordingObservationBatchResponseSchema, type ProblemCode } from '@knowscroll/contracts';
 import type { ApiConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import type {
@@ -19,6 +19,8 @@ import { admittedCaller } from './scope-guard.js';
 
 const refusalProblems: Record<Extract<IngestObservationsResult, { kind: 'refused' }>['reason'], ProblemCode> = {
   batch_too_large: 'PAYLOAD_TOO_LARGE',
+  invalid_input: 'INVALID_REQUEST',
+  recording_required: 'RECORDING_GENERATION_REQUIRED',
   epoch_changed: 'PRIVACY_EPOCH_CHANGED',
   universe_unavailable: 'UNIVERSE_UNAVAILABLE',
 };
@@ -45,6 +47,7 @@ export class ObservationsController {
       const caller = admittedCaller(request);
       const result = await this.ingestObservations(authorityOf(caller), input);
       if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
+      if (result.kind === 'not_recorded') throw problem('RECORDING_GENERATION_REQUIRED');
       // After commit, counts and codes only (D-017): never an event, block or exposure.
       this.logEvent('evidence.observations_ingested', {
         ...(currentRequest() === undefined ? {} : { requestId: currentRequest()?.requestId ?? '' }),
@@ -63,6 +66,57 @@ export class ObservationsController {
         results: [...result.results],
         revision: result.revision,
       };
+    });
+  }
+
+  @Implement(apiContract.observations.submitRecording)
+  submitRecordingRoute(@Req() request: Request) {
+    return implement(apiContract.observations.submitRecording).handler(async ({ input }) => {
+      const caller = admittedCaller(request);
+      const result = await this.ingestObservations(authorityOf(caller), input);
+      if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
+      // A retry keeps the original body. Never turn an old batch into current recording.
+      if (result.recordingGeneration !== input.recordingGeneration) throw problem('INTERNAL');
+      const snapshot = {
+        version: input.version,
+        recordingGeneration: input.recordingGeneration,
+        currentGeneration: result.kind === 'not_recorded' ? result.currentGeneration : result.recordingGeneration,
+        scope: { accountId: caller.accountId, privacyEpoch: caller.privacyEpoch },
+        revision: result.revision,
+      };
+      const response = RecordingObservationBatchResponseSchema.safeParse(
+        result.kind === 'not_recorded'
+          ? { ...snapshot, result: 'not_recorded', reason: result.reason }
+          : {
+              ...snapshot,
+              result: 'processed',
+              accepted: result.accepted,
+              duplicates: result.duplicates,
+              rejected: result.rejected,
+              results: [...result.results],
+            },
+      );
+      if (
+        !response.success ||
+        (response.data.result === 'processed' &&
+          (response.data.results.length !== input.events.length ||
+            response.data.results.some((event, index) => event.eventId !== input.events[index]?.eventId)))
+      )
+        throw problem('INTERNAL');
+      if (response.data.result === 'processed') {
+        // After commit, counts and fixed codes only. Scope, event IDs and payloads stay private.
+        this.logEvent('evidence.observations_ingested', {
+          ...(currentRequest() === undefined ? {} : { requestId: currentRequest()?.requestId ?? '' }),
+          count: response.data.accepted,
+          outcome: 'ingested',
+          ...(response.data.rejected > 0
+            ? { reasonCode: 'some_rejected' }
+            : response.data.duplicates > 0
+              ? { reasonCode: 'some_duplicates' }
+              : {}),
+        });
+      }
+      return response.data;
     });
   }
 

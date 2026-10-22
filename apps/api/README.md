@@ -38,7 +38,7 @@ sign-in link for a disposable test account, D-007; `content import-editorial --f
 | `src/realtime/scope.gateway.ts` | Socket.IO on `/socket.io`: authenticated connections (native: the bearer token in `auth.token`; web: the session cookie, only from `KS_PUBLIC_ORIGIN`); `subscribe_scope` joins first, then checks session validity and current access and leaves when refused (error ack on failure); every relayed hint re-authorised per socket (session and access, cache ≤ 30 s): `scope_revoked` for a dropped subscription, a disconnect for an invalid session; `revokeAccountSockets` notices disconnect an account's sockets; after a relay reconnect every socket is closed and must authenticate again; no socket commands |
 | `src/http/supply.controller.ts` | Scoped create/read/cancel adapters: immutable command receipts, current private request status and exhaustive sanitised refusal mapping |
 | `src/http/geography.controller.ts` | Current own-world snapshot/catch-up reads; admitted caller authority only, no Cartographer request or transition acknowledgement |
-| `src/http/observations.controller.ts` | `POST /v1/observations/batch` (stored, not projected) and the dev-only evidence diagnostics read (world allow-list; 404 elsewhere) |
+| `src/http/observations.controller.ts` | Legacy `POST /v1/observations/batch` and versioned `POST /v1/observations/recording-batch` (stored, not projected), plus the dev-only evidence diagnostics read (world allow-list; 404 elsewhere) |
 | `src/modules/*.ts` | Feature wiring: identity (read ports, sign-in use cases and the mail sender chosen by configuration, the operator use case), content (read ports, the document renderer, the import use case), experience and evidence (intake) providers bound to this app's tokens |
 | `src/queues.ts` | The backend's `releaseQueues` (applied by `migrate.js`) |
 | `src/migrate.ts` | Migration command |
@@ -52,6 +52,18 @@ and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` (404 outside `dev
 request context → `Cache-Control: no-store` under `/auth` → origin guard (403) → JSON-only bodies
 (415 otherwise) → size-limited JSON parser (413) → body error handler → session/scope guard → Nest routes → oRPC handler
 → problem encoder.
+
+The strict `observation-batch.v2` intake mounts the shared recording contract at
+`POST /v1/observations/recording-batch`. It passes the original generation and events to
+Evidence under the guard-admitted authority and returns the initiating account/epoch,
+submitted generation and independently current generation. A processed answer correlates
+ordered event IDs and exact counts. A paused/stale answer is final `not_recorded`, with no
+ingestion log or successful storage claim; an unknown response is retried with the same
+body. The legacy route maps `recording_required` to the existing fixed409 and never
+converts a paused batch into a successful acknowledgement. Malformed or uncorrelated
+backend output fails closed before success logging. These adapters and authored controller
+fixtures establish source behavior only; complete production wiring, Actions and real
+recording journeys remain separate gates.
 
 ## Media access (S2.4)
 
