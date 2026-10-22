@@ -1141,9 +1141,10 @@ two-account Friends journey remain required after this declaration prerequisite.
 
 ## Original recording generation on necessary commands (#381 prerequisite)
 
-Seven original command schemas reserve optional `recordingGeneration` using the
+Eight original command schemas reserve optional `recordingGeneration` using the
 existing bounded integer schema (1..2147483647): ApplyAction, DirectActivate,
-ActivateOffer, OpenDiscovery, OpenRevisit, Navigate and RegionEncounterOpen.
+ActivateOffer, OpenDiscovery, OpenRevisit, Navigate, RegionEncounterOpen and
+RemoveKeepEntry.
 The field has no default, coercion or transform. A supplied malformed value,
 including an own property whose value is undefined, is refused; it must never be
 stripped through a legacy object or union fallback into an omitted legacy field.
@@ -1173,9 +1174,19 @@ state, navigation, playback and Keep remain usable under their normal authority.
 Direct opens, media grants, presentation and Keep themselves remain nonevidence.
 These semantics need the separately allocated backend/worker/client consumers.
 
-The region error allowlist adds only the static `recordingGeneration` issue token,
+Saved-list removal also carries its original generation so a genuinely eligible
+negative decision can correct its own previously committed Save credit. Removal
+still requires the exact Saved membership and remains usable while paused or stale;
+it creates no encounter, positive credit or passive evidence. A missing field after
+the first toggle remains necessary-only. Its historical acknowledgement does not
+echo a generation or claim current recording policy. Keep reads and position-only
+writes gain no field or growth authority. Consumers must preserve the original
+removal body through retries and canonical receipt hashing, never stamp server-current
+generation onto an old command.
+
+The region and Keep-removal error allowlists add only the static `recordingGeneration` issue token,
 with no rejected values, dynamic paths or new error catalogue. Dedicated synthetic
-fixtures cover all seven absent/valid/max/even/malformed/explicit-undefined cases,
+fixtures cover all eight absent/valid/max/even/malformed/explicit-undefined cases,
 wrong originals and actual union fallback. All existing assertions are retained.
 Automated suites run only in Actions; no runtime Pause, current eligibility,
 receipt-hash implementation or deployed journey is established by declarations.

@@ -13,6 +13,11 @@ import {
   RegionEncounterOpenRequestSchema,
   RegionEncounterProblemIssueSchema,
   RegionEncounterProblemSchema,
+  RemoveKeepEntrySchema,
+  KeepRemovalAcceptanceSchema,
+  KeepRemovalProblemIssueSchema,
+  SetKeepPlaceSchema,
+  ReadKeepEntrySchema,
   problemDetails,
 } from './index.js';
 
@@ -21,6 +26,11 @@ const id = (n: number) => `0199f0a0-0000-7000-8000-${String(n).padStart(12, '0')
 const capabilities = { documentSchemas: ['scroll-document.v1'], blocks: { fallback: [1] } };
 const action = { commandId: id(1), kind: 'save', target: { assetId: id(2), assetRevision: 1 }, exposureId: id(3) };
 const directActivation = { commandId: id(1), exposureId: id(3) };
+const keepRemoval = {
+  version: 'keep-remove.v1',
+  commandId: id(1),
+  entry: { assetId: id(2), assetRevision: 1, savedEntryId: id(7) },
+};
 const offerActivation = {
   commandId: id(1),
   target: { kind: 'offer', sessionId: id(4), offerId: id(5), expectedIntentRevision: 0 },
@@ -54,6 +64,7 @@ const commands = [
   ['OpenRevisit', OpenRevisitRequestSchema, revisit],
   ['Navigate', NavigateExperienceRequestSchema, navigation],
   ['RegionEncounterOpen', RegionEncounterOpenRequestSchema, region],
+  ['RemoveKeepEntry', RemoveKeepEntrySchema, keepRemoval],
 ] as const;
 const invalidGenerations = [0, -1, 2_147_483_648, 1.5, '1', null, undefined, true, {}, [], NaN, Infinity];
 
@@ -109,6 +120,7 @@ describe('recording-generation command prerequisite381 (synthetic declarations o
       [OpenRevisitRequestSchema, revisit],
       [NavigateExperienceRequestSchema, navigation],
       [RegionEncounterOpenRequestSchema, region],
+      [RemoveKeepEntrySchema, keepRemoval],
     ] as const)
       expect(schema.safeParse({ ...original, recordingGeneration: 3, futureLegacyField: true }).success).toBe(false);
   });
@@ -125,6 +137,52 @@ describe('recording-generation command prerequisite381 (synthetic declarations o
         expect(schema.parse({ ...original, recordingGeneration })).toEqual({ ...original, recordingGeneration });
       for (const recordingGeneration of invalidGenerations)
         expect(schema.safeParse({ ...original, recordingGeneration }).success).toBe(false);
+    }
+  });
+
+  it('keeps Saved removal membership-bound and its immutable acknowledgement free of current policy', () => {
+    const accepted = {
+      ...keepRemoval,
+      scope: { accountId: id(8), privacyEpoch: 1 },
+      recordedAt: '2026-10-22T20:00:00Z',
+      replayed: false,
+      outcome: 'accepted',
+      operation: 'keep.entry.remove',
+    };
+    expect(KeepRemovalAcceptanceSchema.parse(accepted)).toEqual(accepted);
+    for (const recordingGeneration of [1, 2, 3, undefined]) {
+      expect(KeepRemovalAcceptanceSchema.safeParse({ ...accepted, recordingGeneration }).success).toBe(false);
+      expect(
+        RemoveKeepEntrySchema.safeParse({ ...keepRemoval, recordingGeneration, entry: action.target }).success,
+      ).toBe(false);
+      expect(RemoveKeepEntrySchema.safeParse({ ...keepRemoval, recordingGeneration, exposureId: id(3) }).success).toBe(
+        false,
+      );
+    }
+    const replacement = {
+      ...keepRemoval,
+      recordingGeneration: 3,
+      entry: { ...keepRemoval.entry, savedEntryId: id(9) },
+    };
+    expect(RemoveKeepEntrySchema.parse(replacement)).toEqual(replacement);
+    expect(replacement.entry).not.toEqual(keepRemoval.entry);
+    expect(KeepRemovalAcceptanceSchema.parse({ ...accepted, replayed: true })).toEqual({ ...accepted, replayed: true });
+  });
+
+  it('does not add recording authority to Keep reads or position-only writes', () => {
+    const read = { version: 'keep-place.v1', target: action.target };
+    const place = {
+      version: 'keep-place.v1',
+      commandId: id(1),
+      entry: keepRemoval.entry,
+      expectedPlaceRevision: 0,
+      position: { kind: 'reel', positionMs: 12 },
+    };
+    expect(ReadKeepEntrySchema.parse(read)).toEqual(read);
+    expect(SetKeepPlaceSchema.parse(place)).toEqual(place);
+    for (const recordingGeneration of [1, 2, 3, undefined]) {
+      expect(ReadKeepEntrySchema.safeParse({ ...read, recordingGeneration }).success).toBe(false);
+      expect(SetKeepPlaceSchema.safeParse({ ...place, recordingGeneration }).success).toBe(false);
     }
   });
 
@@ -151,6 +209,7 @@ describe('recording-generation command prerequisite381 (synthetic declarations o
       [OpenRevisitRequestSchema, { ...revisit, target: discovery.target }],
       [NavigateExperienceRequestSchema, { ...navigation, intent: { mode: 'pause' } }],
       [RegionEncounterOpenRequestSchema, { ...region, target: { ...region.target, kind: 'scroll' } }],
+      [RemoveKeepEntrySchema, { ...keepRemoval, entry: action.target }],
       [ActivateExposureRequestSchema, { ...offerActivation, exposureId: id(3) }],
       [
         OpenExposureRequestSchema,
@@ -166,6 +225,7 @@ describe('recording-generation command prerequisite381 (synthetic declarations o
   it('allows only the added static region problem token, with no rejected value or dynamic path disclosure', () => {
     const issue = { path: ['recordingGeneration'], code: 'custom' };
     expect(RegionEncounterProblemIssueSchema.parse(issue)).toEqual(issue);
+    expect(KeepRemovalProblemIssueSchema.parse(issue)).toEqual(issue);
     const problem = { ...problemDetails('INVALID_REQUEST'), issues: [issue] };
     expect(RegionEncounterProblemSchema.parse(problem)).toEqual(problem);
     for (const path of [
@@ -174,6 +234,13 @@ describe('recording-generation command prerequisite381 (synthetic declarations o
       ['recordingGeneration', '0'],
     ])
       expect(RegionEncounterProblemIssueSchema.safeParse({ ...issue, path }).success).toBe(false);
+    for (const path of [
+      ['recordingGeneration', 0],
+      ['recordingGeneration', 'private-key'],
+      ['recordingGeneration', '0'],
+    ])
+      expect(KeepRemovalProblemIssueSchema.safeParse({ ...issue, path }).success).toBe(false);
     expect(RegionEncounterProblemIssueSchema.safeParse({ ...issue, received: 'private' }).success).toBe(false);
+    expect(KeepRemovalProblemIssueSchema.safeParse({ ...issue, received: 'private' }).success).toBe(false);
   });
 });
