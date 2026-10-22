@@ -41,6 +41,7 @@ describe('route map', () => {
         '/+not-found',
         '/account',
         '/account',
+        '/account/privacy',
         '/conversations',
         '/explore',
         '/gallery',

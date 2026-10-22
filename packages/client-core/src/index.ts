@@ -96,3 +96,5 @@ export {
   type KeepPlaceHandle,
   type KeepPlaceSession,
 } from './keep-place';
+
+export { PRIVACY_CLEAR_ACKNOWLEDGEMENT, type PrivacyClearState, type PrivacyClearSession } from './privacy-clear';
