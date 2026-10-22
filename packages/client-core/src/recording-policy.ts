@@ -37,6 +37,8 @@ export interface RecordingPolicySession {
   subscribe(this: void, listener: () => void): () => void;
   refresh(this: void): Promise<boolean>;
   invalidate(this: void): void;
+  /** The mounted owner latches background/blur; only foreground followed by a fresh read releases it. */
+  setForeground(this: void, foreground: boolean): Promise<boolean>;
   checkOriginal(this: void): Promise<boolean>;
   set(this: void, on: boolean): Promise<boolean>;
   retryOriginal(this: void): Promise<boolean>;
@@ -54,6 +56,7 @@ export function createRecordingPolicySession(
   let newId = initialIdSource;
   let state: RecordingPolicyState = { status: 'checking', retryOriginal: false, collecting: false };
   let live = true;
+  let foreground = true;
   let serial = 0;
   let revision = -1;
   let pending: SetRecordingPolicy | undefined;
@@ -135,7 +138,7 @@ export function createRecordingPolicySession(
       publish({
         status: pending || unresolvedStorage ? 'unknown' : 'current',
         policy: answer.policy,
-        collecting: !pending && !unresolvedStorage && answer.policy.on,
+        collecting: foreground && !pending && !unresolvedStorage && answer.policy.on,
       });
       return !pending && !unresolvedStorage;
     } catch {
@@ -189,6 +192,13 @@ export function createRecordingPolicySession(
         ++serial;
         publish({ status: 'unknown', collecting: false });
       }
+    },
+    setForeground(value) {
+      if (!active()) return Promise.resolve(false);
+      foreground = value;
+      ++serial;
+      publish({ status: 'unknown', collecting: false });
+      return value ? read({ kind: 'current' }) : Promise.resolve(false);
     },
     checkOriginal: () =>
       pending && !sending ? read({ kind: 'command', commandId: pending.commandId }) : Promise.resolve(false),

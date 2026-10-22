@@ -12,6 +12,7 @@ function fixture() {
   let failSet = false;
   let failRead = false;
   let gate: Promise<void> | undefined;
+  let setGate: Promise<void> | undefined;
   let rewrite = (value: RecordingPolicyRead): RecordingPolicyRead => value;
   const commands: SetRecordingPolicy[] = [];
   const reads: ReadRecordingPolicy[] = [];
@@ -84,6 +85,7 @@ function fixture() {
               };
               receipts.set(input.commandId, receipt);
             }
+            await setGate;
             if (failSet) throw new Error('fixture lost response');
             return {
               version: 'recording-policy.v1',
@@ -106,6 +108,9 @@ function fixture() {
     advance: (g: number) => {
       generation = g;
       revision++;
+    },
+    holdSet: (value?: Promise<void>) => {
+      setGate = value;
     },
     setFail: (value: boolean) => {
       failSet = value;
@@ -304,4 +309,39 @@ it('restores only the exact unresolved command after reload, never an authority 
   expect(await corrupt.refresh()).toBe(false);
   expect(corrupt.getState().collecting).toBe(false);
   await expect(corrupt.generation()).rejects.toThrow();
+});
+
+it('holds background inhibition through a Resume ACK and later current reads until foreground plus fresh read (CI fixture)', async () => {
+  const f = fixture();
+  f.advance(2);
+  await f.session.refresh();
+  let releaseAck!: () => void;
+  f.holdSet(
+    new Promise<void>((resolve) => {
+      releaseAck = resolve;
+    }),
+  );
+  const resume = f.session.set(true);
+  await Promise.resolve();
+  await f.session.setForeground(false);
+  releaseAck();
+  await resume;
+  expect(f.session.getState()).toMatchObject({ policy: { on: true, generation: 3 }, collecting: false });
+  const backgroundReads = f.reads.length;
+  await f.session.refresh();
+  expect(f.reads).toHaveLength(backgroundReads + 1);
+  expect(f.session.getState().collecting).toBe(false);
+  // A genuine foreground transition still cannot reuse that background snapshot.
+  let releaseRead!: () => void;
+  f.gate(
+    new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    }),
+  );
+  const foreground = f.session.setForeground(true);
+  expect(f.session.getState().collecting).toBe(false);
+  expect(f.reads.at(-1)?.target).toEqual({ kind: 'current' });
+  releaseRead();
+  await foreground;
+  expect(f.session.getState()).toMatchObject({ policy: { generation: 3 }, collecting: true });
 });

@@ -156,7 +156,13 @@ describe('continuous visible Reel recording', () => {
     const recorder = createReelRecorder({
       exposure: { exposureId: 'e', assetId: 'a', assetRevision: 1, recordingGeneration: 1, recordingSessionId: '1' },
       durationMs: 30000,
-      scope: { active: true } as AccountScope,
+      scope: {
+        active: true,
+        recording: {
+          getState: () => ({ collecting: true, policy: { on: true, generation: 1 } }),
+          subscribe: () => () => undefined,
+        },
+      } as unknown as AccountScope,
       outbox,
       newId: () => 'fixture',
       clock: { monotonicMs: () => 0, wallIso: () => '2026-10-20T00:00:00.000Z' },
@@ -175,10 +181,14 @@ describe('continuous visible Reel recording', () => {
     let active = true;
     let id = 0;
     const scope = {
+      recording: {
+        getState: () => ({ collecting: true, policy: { on: true, generation: 1 } }),
+        subscribe: () => () => undefined,
+      },
       get active() {
         return active;
       },
-    } as AccountScope;
+    } as unknown as AccountScope;
     const outbox: ObservationOutbox = {
       enqueue: (batch) => {
         events.push(...batch);
@@ -311,4 +321,85 @@ it('unknown and paused intervals never bridge, and Resume cannot revive the old 
   fresh.end();
   expect(events.at(-1)?.sessionId).toBe('new-eligible-activation5');
   expect(events).toHaveLength(2);
+});
+
+it('Reel end and suspension remain locally fenced when checking ends with the same-generation current policy (CI fixture)', () => {
+  let now = 0;
+  let collecting = true;
+  const listeners = new Set<() => void>();
+  const events: InteractionEvent[] = [];
+  let id = 0;
+  const policy = {
+    getState: () => ({ collecting, policy: { on: true, generation: 1 } }),
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+  const build = () =>
+    createReelRecorder({
+      exposure: {
+        exposureId: 'e',
+        assetId: 'a',
+        assetRevision: 1,
+        recordingGeneration: 1,
+        recordingSessionId: 'actual-activation',
+      },
+      durationMs: 30000,
+      scope: { active: true, recording: policy } as unknown as AccountScope,
+      newId: () => String(++id),
+      clock: { monotonicMs: () => now, wallIso: () => '2026-10-23T00:00:00.000Z' },
+      outbox: {
+        enqueue: (batch) => {
+          events.push(...batch);
+        },
+        drain: () => Promise.resolve(),
+        status: () => ({ pendingBatches: 0, pendingEvents: 0, dropped: 0, stopped: false }),
+        dispose: () => undefined,
+      },
+    });
+  const current = (value: boolean) => {
+    collecting = value;
+    listeners.forEach((listener) => listener());
+  };
+  const tick = (recorder: ReturnType<typeof createReelRecorder>, position: number) =>
+    recorder.sample({ monotonicMs: now, positionMs: position, playing: true, visible: true, buffering: false });
+  const ended = build();
+  tick(ended, 0);
+  now += 500;
+  tick(ended, 500);
+  current(false);
+  ended.end();
+  current(true);
+  ended.resume();
+  tick(ended, 500);
+  now += 500;
+  tick(ended, 1000);
+  ended.discontinuity();
+  ended.flush();
+  ended.end();
+  expect(events).toEqual([]);
+  const parked = build();
+  tick(parked, 0);
+  now += 500;
+  tick(parked, 500);
+  current(false);
+  parked.suspend();
+  current(true);
+  tick(parked, 500);
+  now += 500;
+  tick(parked, 1000);
+  parked.flush();
+  expect(events).toEqual([]);
+  current(false);
+  parked.resume();
+  current(true);
+  tick(parked, 1000);
+  now += 500;
+  tick(parked, 1500);
+  parked.end();
+  expect(events).toHaveLength(1);
+  expect(events[0]?.payload).toEqual({ samples: [{ activeMs: [1000, 1500], mediaMs: [1000, 1500] }] });
 });

@@ -78,35 +78,44 @@ export function AccountScopeProvider({
     const policy = scope?.recording;
     if (!scope || !policy) return;
     policy.useIdSource(newCommandId);
+    let appActive = AppState.currentState === 'active';
+    let focused = typeof document === 'undefined' || document.hasFocus();
     const foreground = () =>
-      AppState.currentState === 'active' && (typeof document === 'undefined' || document.visibilityState !== 'hidden');
+      appActive && focused && (typeof document === 'undefined' || document.visibilityState !== 'hidden');
     const refresh = () => {
-      if (scope.active && foreground()) void policy.refresh();
-      else policy.invalidate();
+      void policy.setForeground(scope.active && foreground());
+    };
+    const focus = () => {
+      focused = true;
+      refresh();
+    };
+    const background = () => {
+      focused = false;
+      void policy.setForeground(false);
     };
     const appState = AppState.addEventListener('change', (value) => {
-      if (value === 'active') refresh();
-      else policy.invalidate();
+      appActive = value === 'active';
+      refresh();
     });
-    const background = () => policy.invalidate();
     const storage = (event: StorageEvent) => {
       if (event.key === `ks.scope.${scope.id}.recording.policy.signal`) {
         policy.invalidate();
-        refresh();
+        if (scope.active && foreground()) void policy.refresh();
+        else void policy.setForeground(false);
       }
     };
     if (typeof window !== 'undefined') {
-      window.addEventListener('focus', refresh);
+      window.addEventListener('focus', focus);
       window.addEventListener('blur', background);
       window.addEventListener('storage', storage);
       document.addEventListener('visibilitychange', refresh);
     }
     refresh();
     return () => {
-      policy.invalidate();
+      void policy.setForeground(false);
       appState.remove();
       if (typeof window !== 'undefined') {
-        window.removeEventListener('focus', refresh);
+        window.removeEventListener('focus', focus);
         window.removeEventListener('blur', background);
         window.removeEventListener('storage', storage);
         document.removeEventListener('visibilitychange', refresh);

@@ -675,3 +675,107 @@ it('Scroll discards unreported/unknown intervals and never revives old activatio
   expect(f.sink.events()).toHaveLength(count);
   f.recorder.end();
 });
+
+function mutableReadingPolicy(collecting: boolean) {
+  let state = { collecting, policy: { on: true, generation: 1 } };
+  const listeners = new Set<() => void>();
+  return {
+    policy: {
+      getState: () => state,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
+    } as unknown as NonNullable<AccountScope['recording']>,
+    current(value: boolean) {
+      state = { ...state, collecting: value };
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+it('Scroll end while checking stops timers and fences late callbacks after the same-generation read; explicit start remains separate (CI fixture)', () => {
+  const policy = mutableReadingPolicy(true);
+  const f = build({ recording: policy.policy });
+  f.recorder.start();
+  expect(f.timers.running()).toBe(1);
+  f.recorder.observer.onBlockVisibility({ blockId: 'unreported', visibleFraction: 1, at: f.clock.now() });
+  f.clock.advance(500);
+  policy.current(false);
+  f.recorder.end();
+  expect(f.timers.running()).toBe(0);
+  const before = f.sink.events().length;
+  policy.current(true);
+  f.clock.advance(500);
+  f.recorder.resume();
+  f.recorder.flush();
+  f.recorder.observer.onActivity({ active: true, at: f.clock.now() });
+  f.recorder.observer.onBlockVisibility({ blockId: 'late', visibleFraction: 1, at: f.clock.now() });
+  f.recorder.observer.onBlockInteraction({ blockId: 'late', kind: 'expanded', at: f.clock.now() });
+  f.clock.advance(1000);
+  f.timers.tick();
+  f.recorder.flush();
+  expect(f.sink.events()).toHaveLength(before);
+  expect(f.timers.running()).toBe(0);
+  // Only the explicitly documented remount/start path reopens a Scroll handle.
+  f.recorder.start();
+  f.recorder.start();
+  expect(f.timers.running()).toBe(1);
+  f.recorder.observer.onActivity({ active: true, at: f.clock.now() });
+  f.recorder.observer.onBlockVisibility({ blockId: 'new-mount', visibleFraction: 1, at: f.clock.now() });
+  f.clock.advance(1000);
+  f.timers.tick();
+  expect(
+    f.sink
+      .events()
+      .some(
+        (event) =>
+          event.kind === 'scroll.block_coverage' && event.payload.blocks.some((block) => block.blockId === 'new-mount'),
+      ),
+  ).toBe(true);
+  f.recorder.end();
+  expect(f.timers.running()).toBe(0);
+});
+it('Scroll start while checking retains periodic flush intent and arms exactly one timer on current authority (CI fixture)', () => {
+  const policy = mutableReadingPolicy(false);
+  const f = build({ recording: policy.policy });
+  f.recorder.start();
+  f.recorder.start();
+  f.recorder.observer.onBlockVisibility({ blockId: 'ignored', visibleFraction: 1, at: f.clock.now() });
+  f.clock.advance(15000);
+  f.timers.tick();
+  expect(f.sink.events()).toEqual([]);
+  expect(f.timers.running()).toBe(0);
+  policy.current(true);
+  policy.current(true);
+  f.recorder.start();
+  expect(f.timers.running()).toBe(1);
+  f.recorder.observer.onActivity({ active: true, at: f.clock.now() });
+  f.recorder.observer.onBlockVisibility({ blockId: 'actual', visibleFraction: 1, at: f.clock.now() });
+  f.clock.advance(1000);
+  f.timers.tick();
+  expect(
+    f.sink
+      .events()
+      .filter((event) => event.kind === 'scroll.block_coverage')
+      .map((event) => event.payload),
+  ).toEqual([{ blocks: [{ blockId: 'actual', intervalsMs: [[15000, 16000]], peakFraction: 1 }] }]);
+  const before = f.sink.events().length;
+  policy.current(false);
+  expect(f.timers.running()).toBe(0);
+  f.recorder.suspend();
+  policy.current(true);
+  f.recorder.observer.onBlockVisibility({ blockId: 'parked', visibleFraction: 1, at: f.clock.now() });
+  f.clock.advance(1000);
+  f.timers.tick();
+  f.recorder.flush();
+  expect(f.sink.events()).toHaveLength(before);
+  expect(f.timers.running()).toBe(0);
+  policy.current(false);
+  f.recorder.resume();
+  policy.current(true);
+  expect(f.timers.running()).toBe(1);
+  f.recorder.end();
+  expect(f.timers.running()).toBe(0);
+});

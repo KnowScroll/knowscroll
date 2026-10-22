@@ -214,6 +214,17 @@ it('native background inhibits recording and foreground rereads without remounti
       change?.('background');
     });
     expect(scope.recording!.getState().collecting).toBe(false);
+    generation = 3;
+    // Reconnect begins a NEW read after the background callback, not just an old fenced response.
+    await act(() => {
+      scope.reconnect();
+    });
+    await waitFor(() => expect(scope.recording!.getState().policy?.generation).toBe(3));
+    expect(scope.recording!.getState().collecting).toBe(false);
+    await act(async () => {
+      await scope.recording!.refresh();
+    });
+    expect(scope.recording!.getState().collecting).toBe(false);
     let release!: () => void;
     wait = new Promise<void>((resolve) => {
       release = resolve;

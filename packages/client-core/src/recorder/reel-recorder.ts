@@ -125,22 +125,26 @@ export function createReelRecorder(options: ReelRecorderOptions): ReelRecorder {
     },
     flush,
     suspend() {
-      if (!accepts()) return;
+      if (ended || suspended) return;
+      const authorized = scopeActive();
       previous = undefined;
       suspended = true;
-      report();
+      if (authorized) report();
+      else samples = [];
     },
     resume() {
-      if (!scopeActive() || ended || !suspended) return;
+      if (ended || !suspended || !options.scope.active || scopeEnded) return;
       acceptAfter = clock.monotonicMs();
       suspended = false;
+      scopeActive();
     },
     end() {
       policyOff?.();
-      if (!scopeActive() || ended) return;
-      previous = undefined;
+      if (ended) return;
       ended = true;
-      report();
+      previous = undefined;
+      if (scopeActive()) report();
+      samples = [];
     },
   };
 }

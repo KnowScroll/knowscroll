@@ -204,12 +204,6 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
   let handle: unknown;
 
   let policyOff: (() => void) | undefined;
-  const watchPolicy = () => {
-    policyOff ??= options.scope.recording?.subscribe(() => {
-      scopeActive();
-    });
-  };
-  watchPolicy();
 
   const stopTimer = (): void => {
     if (handle !== undefined) timers.clearInterval(handle);
@@ -217,7 +211,7 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
   };
   const scopeActive = (): boolean => {
     if (!options.scope.active) scopeEnded = true;
-    if (scopeEnded) stopTimer();
+
     const policy = options.scope.recording?.getState();
     if (policy?.policy && policy.policy.generation !== options.exposure.recordingGeneration) revoked = true;
     const allowed =
@@ -232,6 +226,7 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
       tracker = new ReadingTracker({ startedAt });
       acceptAfter = clock.monotonicMs();
     }
+    if (!allowed) stopTimer();
     return !scopeEnded && eligible;
   };
   const accepts = (at?: number): boolean =>
@@ -306,8 +301,15 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
     if (tracker.hasContent()) flush();
   };
   const startTimer = (): void => {
-    if (started && !suspended) handle ??= timers.setInterval(tick, options.flushIntervalMs ?? 15_000);
+    if (started && !ended && !suspended && eligible && !scopeEnded)
+      handle ??= timers.setInterval(tick, options.flushIntervalMs ?? 15_000);
   };
+  const watchPolicy = () => {
+    policyOff ??= options.scope.recording?.subscribe(() => {
+      if (scopeActive()) startTimer();
+    });
+  };
+  watchPolicy();
 
   const observer: ReadingObserver = {
     onBlockVisibility: (event) => {
@@ -330,36 +332,46 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
       return sessionId;
     },
     start() {
-      watchPolicy();
-      if (!scopeActive()) return;
+      if (!options.scope.active || scopeEnded) {
+        scopeActive();
+        return;
+      }
       if (ended) acceptAfter = clock.monotonicMs();
       ended = false;
       started = true;
-      startTimer();
+      watchPolicy();
+      if (scopeActive()) startTimer();
     },
     suspend() {
-      if (!accepts()) return;
-      tracker.suspend(clock.monotonicMs());
+      if (ended || suspended) return;
+      const authorized = scopeActive();
       suspended = true;
       stopTimer();
-      report();
+      if (authorized) {
+        tracker.suspend(clock.monotonicMs());
+        report();
+      } else tracker = new ReadingTracker({ startedAt });
     },
     resume() {
-      if (!scopeActive() || ended || !suspended) return;
+      if (ended || !suspended || !options.scope.active || scopeEnded) return;
       acceptAfter = clock.monotonicMs();
       suspended = false;
-      startTimer();
+      if (scopeActive()) startTimer();
     },
     flush,
     end() {
       policyOff?.();
       policyOff = undefined;
-      if (!scopeActive() || ended) return;
-      tracker.suspend(clock.monotonicMs());
+      if (ended) return;
       ended = true;
+      started = false;
       suspended = false;
       stopTimer();
-      report();
+      if (scopeActive()) {
+        tracker.suspend(clock.monotonicMs());
+        report();
+      }
+      tracker = new ReadingTracker({ startedAt });
     },
   };
 }
