@@ -28,3 +28,5 @@ export * from './region-encounter.js';
 
 export * from './privacy.js';
 export * from './keep-remove.js';
+
+export * from './saved-page.js';
