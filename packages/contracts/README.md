@@ -13,6 +13,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/privacy.ts` | Declaration-only selective Clear exploration intent/acceptance, current coarse status and closed local problems |
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |
 | `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) and `ClientCapabilities` from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
+| `src/saved-page.ts` | Versioned live Saved keyset pages, exact membership/format/availability rows and closed private list problems (#344 declaration prerequisite) |
 | `src/experience.ts` | `POST /v1/actions`, `GET /v1/saved`, and the exposure routes: `POST /v1/experience/open`, `POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document` |
 | `src/navigation.ts` | Composer session discovery, `POST /v1/experience/navigate`, semantic intents, prepared public offers, ready/pending/exhausted receipt outcomes and offer activation |
 | `src/region-encounter.ts` | U04 declaration-only exact own-region Composer preparation command, scoped offer outcome and closed problems |
@@ -706,3 +707,101 @@ serializer. Existing Keep place/read schemas, global problems and legacy strippi
 unchanged. Actions-only synthetic wire and actual generator tests cover declarations.
 A backend receipt/locking implementation, mounted consumer migration and real two-device
 remove/resave/unknown-ACK verification remain required before claiming ABA-safe removal.
+
+## Complete Keep paging prerequisite (#344 / #234)
+
+The existing GET `/v1/saved` gains an explicit `pagination=saved-page.v1` branch.
+It requires `filter=all|reel|scroll` and string `limit=1..50`; `cursor` is optional
+on the first page. No coercion/default is applied on the wire. The existing
+empty/limit-only request and ID-only response remain compatible, including
+unrelated legacy unknown-field stripping. Newly reserved paging fields cannot
+silently downgrade a malformed page into the first legacy list. New callers
+must explicitly parse `SavedPageResponseSchema` and bind its account/epoch,
+filter and numeric limit to their initiating scope/request: a valid legacy200
+response from an older server is insufficient. This contract-only phase does
+not implement paging, a cursor codec, kind filtering or complete library access.
+
+A strict new page contains at most50 unique current Saved memberships (one per
+asset), their exact Saved UUID/immutable asset revision, actual Reel/Scroll kind,
+saved time, current availability and allowlisted consumer metadata. Corrected
+rows retain the original saved revision and name a different current revision;
+withdrawn rows retain identity/kind but contain no metadata or replacement.
+Never infer kind from a title or omit withdrawn rows because hydration is absent.
+The list carries no position: current own places continue through the existing
+exact Keep read, bounded client cache and four-read admission. Canonical opening,
+exact Remove/grace/Undo, place CAS and unknown-command semantics are unchanged.
+No peer position, seen marker, observation, exposure, activation, job, consumption
+or provider work results from paging/filtering/detail inspection.
+
+`consistency: live` deliberately makes no retained snapshot promise. Each page
+rechecks current account/universe/epoch, memberships and shared Content
+availability. `revision` is the personal catch-up watermark at this read, not a
+Saved-only revision or shared Content snapshot. It may change between pages;
+unrelated root/place/evidence changes do not invalidate traversal. Clients must
+not merge pages as one immutable library. They can replace the visible page,
+retain bounded cursor history and offer Refresh for changes; no total is given.
+Account switch/logout/privacy reset synchronously purge cursors/history/pages
+and fence every in-flight response. Old replies cannot repopulate another scope.
+
+Ordering is full database-precision `saved_at DESC, asset_id ASC`, matching the
+existing recent index. Equal timestamps use the stable asset UUID tie-breaker.
+A future server encodes the exact last consumed database key; it never rebuilds
+an anchor from a millisecond-truncated JavaScript Date or checks that the anchor
+membership still exists. Deleting an anchor must allow continuation. Membership
+references/times are immutable, and resave creates a new UUID/time. Concurrent
+new/resaved entries follow their actual keys: those newer than the current
+anchor are visible after Refresh, not secretly injected above the traversed
+window. Current rows can disappear or change availability across pages. Static
+collections larger than100 must remain fully traversable. Live writes do not
+promise a complete frozen inventory or exactly-once enumeration.
+
+`more` means another server traversal window can be read, not a count or proof
+that a matching row exists later. Bounded filtering may yield an empty page with
+`more`; it must not claim an empty library. Only `end` terminates this traversal.
+Kind filtering must use actual trusted Content kind through an allowed public
+port or reviewed owned projection/index, before selecting output rows. It must
+not filter only the newest100. A bounded candidate implementation may inspect
+at most100 references per request plus one IDs-only lookahead; it advances only
+past consumed candidates, never skips an unreturned matching row. No full-library
+SQL/materialization, unbounded hydration loop or eager client fetch is allowed.
+The client default remains20 displayed rows, at most four concurrent real Keep
+place reads, and bounded cursor/page retention. Efficient selective-kind indexing
+remains an explicit later backend seam; no migration is included here.
+
+`ksp1_` cursors have43..1024 base64url characters after the prefix. Parsing proves
+syntax only. A future server must authenticate **and keep confidential** the
+private envelope, bound to purpose/world, account/universe, epoch, filter, limit,
+full-precision key and a short expiry. It rechecks current authority before
+consulting the token; a cursor grants no access. No positions, peer facts or
+counts belong inside it. Tokens stay ephemeral: never persistent client storage,
+general logs, traces, diagnostics or error values. GET queries carry only the
+opaque token, never plaintext private IDs/anchors. A changed kind/limit starts a
+fresh traversal. Deleted anchors and ordinary membership changes do not alone
+make an otherwise valid live cursor stale.
+
+The current API media grant adapter uses a per-instance random signing key that
+rotates on restart. A **separate** Saved AEAD key can follow that lifecycle without
+an environment secret or new table; this is a permitted future codec design, not
+implemented encryption. The current deployment runs one API instance. Restart,
+rotation, expiry, another instance, tampering or scope/filter/limit/purpose binding
+failure must uniformly answer fixed409 `SAVED_CURSOR_UNAVAILABLE`; the UI offers
+Refresh and discards that traversal. No multi-instance portability or restart
+continuity is promised. Domain/application code sees only an opaque codec port;
+key creation stays outside personal transactions and is composed at the API seam.
+Consumers still need full codec expiry/tamper/cross-binding/rotation tests.
+
+All GET success and error responses must be private/no-store, selected before
+query/body/auth parsing. Current session and `X-KS-Scope` guards remain mandatory;
+a cursor never replaces them. `SavedListProblemSchema` declares14 closed problem
+codes and bounded schema-owned issue tokens; no rejected token/private value,
+unknown key name, decoder exception, detail, instance or count can escape. Bad
+wire syntax uses INVALID_REQUEST; syntactically valid unavailable tokens use the
+same fixed cursor409. The OpenAPI hook describes direct application/problem+json;
+it installs no HTTP serializer/cache guard. Per-parameter GET metadata cannot
+express all union correlations; the actual wire parser remains authoritative.
+
+Synthetic schema/actual OpenAPI-generator fixtures run only in Actions. Real
+PostgreSQL >100/equal-timestamp/deleted-anchor/resave/kind/withdrawal tests,
+installed HTTP authority/private-error coverage, scoped client paging and the
+disposable-account deployed journey remain required after this prerequisite is
+accepted. This phase does not close #344 or full S01/S02/runtime acceptance.

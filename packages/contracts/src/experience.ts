@@ -1,11 +1,17 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
 import { ClientCapabilities, LocalId, ScrollDocument } from './content.js';
+import {
+  LegacySavedItemSchema,
+  SavedPageRequestSchema,
+  SavedPageResponseSchema,
+  savedListErrors,
+  savedListProblemResponses,
+} from './saved-page.js';
 import { AssetIdSchema, CommandIdSchema, UuidSchema } from './ids.js';
 import {
   ActivateOfferRequestSchema,
   ActivateOfferResponseSchema,
-  EncounterMetadataSchema,
   NavigationOutcomeSchema,
   OpenDiscoveryRequestSchema,
   OpenRevisitRequestSchema,
@@ -70,46 +76,43 @@ export const applyActionContract = oc
   .input(ApplyActionRequestSchema)
   .output(ApplyActionResponseSchema);
 
-/**
- * `GET /v1/saved`: the caller's saved items, newest first (at most `limit`, default 50, max 100).
- * Query values arrive as strings; the schema validates the text and the handler converts it
- * (no transforms at the wire boundary, blueprint §6).
- */
-export const ListSavedRequestSchema = z.object({
+/** Original list (default50, maximum100) stays compatible. Newly reserved paging fields cannot silently strip
+ * into the first legacy page. Unrelated legacy unknown fields still strip. */
+export const LegacyListSavedRequestSchema = z.object({
   limit: z
     .string()
     .regex(/^(?:[1-9][0-9]?|100)$/)
     .optional(),
+  pagination: z.never().optional(),
+  filter: z.never().optional(),
+  cursor: z.never().optional(),
 });
-
-export const ListSavedResponseSchema = z.object({
-  /** Universe revision the list was read at; compare with `scope_changed` hints. */
+export const LegacyListSavedResponseSchema = z.object({
   revision: z.number().int().min(0),
-  items: z.array(
-    z
-      .object({
-        assetId: AssetIdSchema,
-        assetRevision: z.number().int().min(1),
-        savedAt: z.iso.datetime(),
-        /** Absent on the interim ID-only adapter; consumer metadata is allowlisted, never provenance. */
-        metadata: EncounterMetadataSchema.optional(),
-        availability: z.enum(['available', 'corrected', 'withdrawn']).optional(),
-        /** Only when corrected and different; never replaces the immutable revision originally saved. */
-        currentAssetRevision: z.number().int().min(1).optional(),
-      })
-      .refine(
-        (item) =>
-          item.currentAssetRevision === undefined ||
-          (item.availability === 'corrected' && item.currentAssetRevision !== item.assetRevision),
-        'A current revision is only supplied for a correction to a different saved revision.',
-      ),
-  ),
+  items: z.array(LegacySavedItemSchema),
+  pagination: z.never().optional(),
+  consistency: z.never().optional(),
+  scope: z.never().optional(),
+  filter: z.never().optional(),
+  limit: z.never().optional(),
+  continuation: z.never().optional(),
 });
-
+/** GET query values remain strings; no defaults, coercion or transforms at the wire boundary. */
+export const ListSavedRequestSchema = z.union([SavedPageRequestSchema, LegacyListSavedRequestSchema]);
+export const ListSavedResponseSchema = z.union([SavedPageResponseSchema, LegacyListSavedResponseSchema]);
 export type ListSavedResponse = z.infer<typeof ListSavedResponseSchema>;
 
+/** Declaration only: new consumers must explicitly require SavedPageResponseSchema and compare
+ * scope/filter/limit to the initiating request; a legacy reply is not a complete page. */
 export const listSavedContract = oc
-  .route({ method: 'GET', path: '/v1/saved', successStatus: 200, tags: ['experience'] })
+  .route({
+    method: 'GET',
+    path: '/v1/saved',
+    successStatus: 200,
+    tags: ['experience'],
+    spec: savedListProblemResponses,
+  })
+  .errors(savedListErrors)
   .input(ListSavedRequestSchema)
   .output(ListSavedResponseSchema);
 
