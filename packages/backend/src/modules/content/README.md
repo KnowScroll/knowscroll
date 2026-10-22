@@ -314,3 +314,43 @@ or runtime completeness is claimed by this source.
 `content.region_bindings` is a shared derived lookup owned by Content, maintained atomically by the coverage-head trigger for admission, correction and retraction. The `(topic_id, facet_id, asset_id, asset_revision)` key supports an exact canonical Region query with 100 hydrated candidates and one key-only lookahead; an explicitly displayed asset is looked up directly. Each result independently revalidates current admitted Scroll revision, complete canonical mapping/document/provenance and render capabilities. There is no topic-label, global-pool or model fallback, and no semantic approval is added by this feature. Current production coverage review remains default-deny.
 
 `contentRegionStores` concretely inventories this shared projection: at most 16 bindings per mapping head, retained with immutable coverage history, no account/universe dependency, preserved by full and selective personal erasure. It is not personal state or admission authority. Up to three actual decision candidates are fenced under current Content asset/head SHARE locks through the personal commit.
+
+## CF62 zero-cost receiving (#373, source)
+
+`makeCommissionReceiveExport` exports one eligible current commissioned publication through a
+server-enforced readonly repeatable-read origin snapshot and Reasoning's narrow confirmed normal
+settlement port. Pending/held/evidence-only/contradictory accounting, revoked review, withdrawn or
+corrected assets refuse. Source commit/artifact are trusted composition inputs requiring separate
+Root release verification; schema version is also checked against the actual migrated database.
+The export neither settles nor transfers bytes. Its external SHA256 covers the exact bounded
+UTF8 payload; there is no self-digest field. The UUID is stable for origin publication and target.
+
+Receiving has its own default-disabled `content.cutroom_receiving_state` root and expiring
+ReceiveScope capability, disjoint from paid, accounting, preparation and personal scopes. An
+independently reviewed Root-file registry binds the exact payload to target world/generation and
+a short current-policy/nonwithdrawal window. Root reads and filesystem/probe waits happen outside
+transactions. Enabled/generation, lease, original deadline and attestation are checked after waits.
+Changing current admission authority requires a receiving-root generation change; a file replacement
+alone cannot atomically revoke a transaction already holding that root.
+
+Stage commits the immutable handoff with required fixed pg-boss work. The worker reads only target
+staging, verifies exact bytes and actual H264/AAC Reel profile, fsyncs the content-addressed object,
+then commits normal immutable asset/revision/media/provenance and an exact admission receipt. The
+existing0016 trigger owns discovery. There is no fake `reel_imports`, local paid business, attempt,
+pool principal, settlement or release. Normal media/Keep adapters resolve exactly one immutable
+legacy import, commissioned publication or admitted receive receipt; commissioned/received media
+must also match retained original SHA/bytes. Ambiguous sources refuse.
+
+The hard deadline is conservatively bound to the immutable original claim time plus720 elapsed
+hours, so re-export, collection and new Root windows cannot renew it. Root may revalidate the SAME
+pending body; admitted replay returns its historical receipt without changing assets or later
+content status. Recovery is bounded25+1 fixed-ceiling keyset discovery; continuation commits before
+operation locks, at most three15-minute-cooled recovery wakes, bounded deliveries/leases and no
+paid fallback. Exhaustion remains held for explicit operator reconciliation. Personal erasure
+preserves the closed shared-public inventory and target public bytes. Staging originals and
+unreferenced committed objects require explicit operator cleanup; no garbage collector is shipped.
+
+Fixtures are authored, labelled, disposable PostgreSQL/media/installed-process evidence only.
+Fixture receiving additionally requires test composition and an actual fixture database name.
+Actual cross-world export/transfer, original individual HUMAN/corpus approval and fresh Root
+nonwithdrawal verification remain separate operational prerequisites; source/CI does not grant them.

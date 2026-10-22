@@ -492,3 +492,36 @@ describe('connected Cutroom worker activation is explicit and default-deny', () 
     expect(() => readWorkerConfig({ ...inputs, KS_CUTROOM_APPROVAL_PACKET: '/tmp/untrusted.json' })).toThrow();
   });
 });
+
+describe('CF62 receiving is separately default-deny and has no financial configuration dependency', () => {
+  const input = {
+    DATABASE_URL: secretUrl,
+    KS_WORLD: 'stage',
+    KS_CUTROOM_RECEIVING_ENABLED: '1',
+    KS_CUTROOM_RECEIVING_PACKET: '/etc/knowscroll/receiving/approved.json',
+    KS_CUTROOM_RECEIVING_STAGING_ROOT: '/srv/knowscroll/receive-staging',
+    KS_CUTROOM_RECEIVING_MEDIA_ROOT: '/srv/knowscroll/media',
+  };
+  it('keeps commissioning/provider disabled when receiving alone is configured', () => {
+    const disabled = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev' });
+    expect(disabled.receiving?.enabled).toBe(false);
+    const config = readWorkerConfig(input);
+    expect(config.receiving).toMatchObject({ enabled: true, ffprobePath: '/usr/bin/ffprobe' });
+    expect(config.cutroom.enabled).toBe(false);
+    expect(config.cutroom.poolDatabase).toBeUndefined();
+    expect(config.reasoning.provider).toBe('none');
+  });
+  it('refuses absent trusted roots, unsupported worlds and untrusted packet paths without values in errors', () => {
+    for (const key of [
+      'KS_CUTROOM_RECEIVING_PACKET',
+      'KS_CUTROOM_RECEIVING_STAGING_ROOT',
+      'KS_CUTROOM_RECEIVING_MEDIA_ROOT',
+    ]) {
+      const error = configurationError(() => readWorkerConfig({ ...input, [key]: undefined }));
+      expect(error.problems.join(' ')).not.toContain('hunter2');
+    }
+    for (const world of ['local', 'ci', 'live'])
+      expect(() => readWorkerConfig({ ...input, KS_WORLD: world })).toThrow();
+    expect(() => readWorkerConfig({ ...input, KS_CUTROOM_RECEIVING_PACKET: '/tmp/approval.json' })).toThrow();
+  });
+});

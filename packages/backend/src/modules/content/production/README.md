@@ -618,3 +618,22 @@ next-send and one writer. Actual installed revision/profile/rates, lease suitabi
 send/receipt state remain separately mandatory Root activation facts. Unknown or unexpected
 provider billing is not proved away; the exact overage hold remains defensive accounting, not
 retroactive authorization. Source never widens, refunds or clips the approved ceiling.
+
+## CF62 receiving production boundary (#373)
+
+The internal `cutroom-receive.v1` envelope is not an HTTP/browser approval contract. Its external
+SHA256 binds exact UTF8≤100000B; closed schemas reject unknown fields, invalid financial totals,
+noncompleted final chains, same-world targets, changed document/media identity and a new UUID for
+an existing publication/target. It contains public immutable origin provenance, exact six-fractional
+binding timestamps and original plus at most one child OWN costs, never pool credentials,
+provider responses/URLs, prompts or private staging paths. `receiverChargeCents:0` is provenance,
+not an origin accounting report and never a settlement instruction.
+
+`makeCommissionReceive` only accepts injected receiving scope/store, Root registry and local media
+ports. Reads of the external registry precede transactions; the captured certificate is rechecked
+after root/operation/asset waits and at final commit. Media proofs are private, single-use and
+short-lived, bound to exact payload/generation and actual probed bytes. No Cutroom HTTP or paid port
+is reachable. An unknown database acknowledgement is reconciled with the SAME body; no inline
+replacement or financial compensation runs. Already admitted receipt replay is historical and
+cannot restore withdrawn/corrected content. A Root current-source attestation is essential because
+this bounded operator handoff does not invent an automatic revocation bridge.

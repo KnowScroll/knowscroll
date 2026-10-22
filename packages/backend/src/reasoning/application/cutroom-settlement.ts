@@ -4,6 +4,7 @@ import type {
   CutroomSettlementPermit,
   CutroomSettlementPorts,
   CutroomSettlementRecord,
+  CutroomConfirmedSettlement,
 } from './cutroom-settlement-ports.js';
 
 const permits = new WeakMap<CutroomSettlementPermit, CutroomSettlementRecord>();
@@ -66,6 +67,39 @@ const Financial = z
 export function parseCutroomFinancialReport(input: unknown) {
   const p = Financial.safeParse(input);
   return p.success ? p.data : undefined;
+}
+/** Validate the immutable receipt/report join without trusting a mutable confirmed flag alone. */
+export function confirmedSettlementValid(value: CutroomConfirmedSettlement, h: (utf8: string) => string): boolean {
+  const report = parseCutroomFinancialReport(value.financialReport);
+  if (
+    !report ||
+    report.outcome !== 'completed' ||
+    report.actualCents > 75 ||
+    h(JSON.stringify(report)) !== value.financialReportSha256 ||
+    new TextEncoder().encode(value.receiptUtf8).byteLength > 8192 ||
+    h(value.receiptUtf8) !== value.receiptSha256
+  )
+    return false;
+  try {
+    const receipt = z
+      .strictObject({
+        version: z.literal('cutroom-settlement-receipt.v1'),
+        operationId: z.uuid(),
+        evidenceSha256: digest,
+        evidenceId: digest,
+        receipt: Financial.shape.poolReceipt,
+      })
+      .safeParse(JSON.parse(value.receiptUtf8));
+    return (
+      receipt.success &&
+      receipt.data.operationId === value.operationId &&
+      receipt.data.evidenceSha256 === value.financialReportSha256 &&
+      receipt.data.evidenceId === value.poolEvidenceId &&
+      JSON.stringify(receipt.data.receipt) === JSON.stringify(report.poolReceipt)
+    );
+  } catch {
+    return false;
+  }
 }
 const targetSchema = z.strictObject({
   worldId: z.enum(['dev', 'stage']),

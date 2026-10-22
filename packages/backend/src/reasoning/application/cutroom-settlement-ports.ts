@@ -3,6 +3,7 @@ import type {
   CutroomAccountingScopeTx,
   CutroomAccountingTarget,
   WithCutroomAccountingScope,
+  CutroomPreparationScopeTx,
 } from './cutroom-execution-ports.js';
 
 export interface CutroomSettlementDraft {
@@ -91,4 +92,23 @@ export interface CutroomMaintenance {
   begin(target: CutroomAccountingTarget): Promise<string | undefined>;
   end(target: CutroomAccountingTarget, leaseId: string): Promise<void>;
   recover(input: unknown): Promise<{ readonly scanned: number; readonly woken: number }>;
+}
+
+/** Read-only proof of NORMAL settlement; never an evidence-only hold or pool operation. */
+export interface CutroomConfirmedSettlement {
+  readonly operationId: string;
+  readonly publicationId: string;
+  readonly snapshotId: string;
+  readonly snapshotSha256: string;
+  readonly financialReport: CutroomFinancialReport;
+  readonly financialReportSha256: string;
+  readonly receiptUtf8: string;
+  readonly receiptSha256: string;
+  readonly poolEvidenceId: string;
+}
+export interface CutroomConfirmedSettlementReader {
+  readConfirmed(
+    scope: CutroomPreparationScopeTx,
+    publicationId: string,
+  ): Promise<CutroomConfirmedSettlement | undefined>;
 }

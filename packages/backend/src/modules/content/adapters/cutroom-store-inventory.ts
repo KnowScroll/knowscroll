@@ -4,6 +4,17 @@
  * Script/source/corpus provenance is immutable; no client or encounter evidence is stored. */
 export const contentCutroomStores = [
   {
+    table: 'content.cutroom_receiving_state',
+    owner: 'target world',
+    retention: 'independent default-disabled receiving root; no personal or financial authority',
+  },
+  {
+    table: 'content.cutroom_receive_receipts',
+    owner: 'target world/origin publication/handoff',
+    retention:
+      'immutable public handoff/admission receipt and finite delivery metadata; hard30day admission deadline never renews',
+  },
+  {
     table: 'content.reel_commissions',
     owner: 'world/business',
     retention: 'immutable public business; protected bytes remain in Reasoning',
@@ -32,6 +43,23 @@ export const contentCutroomStores = [
 ] as const;
 /** Public media is content-addressed shared output, never personal voice/images/input. */
 export const contentCutroomNonRowStores = [
+  {
+    name: 'media/received-reel',
+    owner: 'shared asset',
+    retention: 'target-owned content-addressed public bytes; personal erasure preserves',
+  },
+  {
+    name: 'staging/received-reel',
+    owner: 'target shared staging',
+    retention:
+      'Root-transferred immutable input; temporary failed copies discarded, originals/unreferenced installed public bytes require explicit operator cleanup; no GC shipped',
+  },
+  {
+    name: 'pgboss/receiving',
+    owner: 'target world/handoff',
+    retention:
+      'fixed IDs-only receiving/recovery payloads; queue retention only, never a financial or personal work outbox',
+  },
   {
     name: 'media/commissioned-reel',
     owner: 'shared asset',

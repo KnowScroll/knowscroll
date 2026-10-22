@@ -91,6 +91,11 @@ export type {
   CutroomFinancialReport,
 } from './application/cutroom-settlement-ports.js';
 export { parseCutroomFinancialReport } from './application/cutroom-settlement.js';
+export { confirmedSettlementValid } from './application/cutroom-settlement.js';
+export type {
+  CutroomConfirmedSettlement,
+  CutroomConfirmedSettlementReader,
+} from './application/cutroom-settlement-ports.js';
 
 /** B only: shared transaction/reservation metadata. No full dispatch implementation. */
 export type {

@@ -4,8 +4,13 @@ import { createHash, randomUUID } from 'node:crypto';
 import { sql, type Transaction } from 'kysely';
 import { cutroomTransactionOf, cutroomAccountingTransactionOf } from '../../infrastructure/postgres/cutroom-scope.js';
 import type { EnqueueCutroom } from '../../infrastructure/jobs/enqueue-cutroom.js';
-import type { CutroomSettlementStore, CutroomFinancialReport } from '../application/cutroom-settlement-ports.js';
-import { parseCutroomFinancialReport } from '../application/cutroom-settlement.js';
+import type {
+  CutroomSettlementStore,
+  CutroomFinancialReport,
+  CutroomConfirmedSettlementReader,
+} from '../application/cutroom-settlement-ports.js';
+import { parseCutroomFinancialReport, confirmedSettlementValid } from '../application/cutroom-settlement.js';
+import { cutroomPreparationTransactionOf } from '../../infrastructure/postgres/cutroom-scope.js';
 import { canTransition } from '../domain/attempts.js';
 import type { AttemptState } from '../domain/attempts.js';
 import { cutroomSettleQueue } from '../events.js';
@@ -18,7 +23,7 @@ const refOf = (digest: string) => `cutroom-financial:${digest}`;
 export function postgresCutroomSettlement(
   enqueue: EnqueueCutroom,
   enqueueAccounting: ReturnType<typeof makeEnqueueCutroomMaintenance>,
-): CutroomSettlementStore {
+): CutroomSettlementStore & CutroomConfirmedSettlementReader {
   async function reportIn(
     trx: Transaction<Database>,
     world: string,
@@ -92,6 +97,53 @@ export function postgresCutroomSettlement(
     return { id, digest, report };
   }
   return {
+    async readConfirmed(scope, publicationId) {
+      const trx = cutroomPreparationTransactionOf(scope);
+      const row = (
+        await sql<{
+          id: string;
+          publication_id: string;
+          snapshot_id: string;
+          snapshot_sha256: string;
+          report_utf8: string;
+          evidence_sha256: string;
+          receipt_utf8: string;
+          receipt_sha256: string;
+          pool_evidence_id: string;
+        }>`
+        select s.id,s.publication_id,s.snapshot_id,s.snapshot_sha256,f.report_utf8,f.evidence_sha256,r.receipt_utf8,r.receipt_sha256,r.pool_evidence_id
+        from reasoning.cutroom_settlements s join reasoning.cutroom_settlement_receipts r on r.settlement_id=s.id
+        join reasoning.cutroom_financial_reports f on f.id=s.financial_report_id
+        join reasoning.cutroom_attempts a on a.id=s.attempt_id and a.world_id=s.world_id and a.business_run_id=s.business_run_id
+        join reasoning.cutroom_execution e on e.attempt_id=a.id
+        where s.publication_id=${publicationId}::uuid and s.world_id=${scope.authority.worldId} and s.state='confirmed'
+          and s.evidence_sha256=f.evidence_sha256 and s.actual_cents=f.actual_cents and s.actual_cents<=a.ceiling_cents and s.actual_cents<=75
+          and f.outcome='completed' and f.final_run_id=s.final_run_id
+          and s.binding_id=a.binding_id and s.binding_id=e.binding_id and s.claimed_at=a.claimed_at and s.claimed_at=e.claimed_at and s.bound_at=a.bound_at and s.bound_at=e.bound_at
+          and f.report_utf8::jsonb->'poolReceipt'->>'bindingId'=a.binding_id::text
+          and f.report_utf8::jsonb->'poolReceipt'->>'claimedAt'=to_char(a.claimed_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+          and f.report_utf8::jsonb->'poolReceipt'->>'boundAt'=to_char(a.bound_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+          and f.report_utf8::jsonb->>'requestId'=a.request_id and f.report_utf8::jsonb->>'requestSha256'=a.request_sha256 and f.report_utf8::jsonb->>'dispatchId'=e.dispatch_id::text
+          and not exists(select 1 from reasoning.cutroom_financial_reports other where other.attempt_id=a.id and other.evidence_sha256<>f.evidence_sha256)`.execute(
+          trx,
+        )
+      ).rows[0];
+      if (!row) return;
+      const report = parseCutroomFinancialReport(JSON.parse(row.report_utf8));
+      if (!report) return;
+      const result = {
+        operationId: row.id,
+        publicationId: row.publication_id,
+        snapshotId: row.snapshot_id,
+        snapshotSha256: row.snapshot_sha256,
+        financialReport: report,
+        financialReportSha256: row.evidence_sha256,
+        receiptUtf8: row.receipt_utf8,
+        receiptSha256: row.receipt_sha256,
+        poolEvidenceId: row.pool_evidence_id,
+      };
+      return confirmedSettlementValid(result, hash) ? result : undefined;
+    },
     async create(scope, attemptId, draft) {
       const trx = cutroomTransactionOf(scope);
       if (
