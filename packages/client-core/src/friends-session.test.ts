@@ -6,7 +6,7 @@ import { createFriendsSession } from './friends-session';
 // Authored HTTP/state fixtures only. These do not establish actual social journeys.
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const account = { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'friends@fixture.test' };
-const peer = { kind: 'person' as const, personId: id(3), handle: 'fixture-peer', displayName: 'Authored fixture' };
+const peer = { kind: 'person' as const, personId: id(3), handle: 'fixture.peer', displayName: 'Authored fixture' };
 const token = `ksfi_${'s'.repeat(43)}`;
 const envelope = { version: 'sharing.v1', scope: { accountId: id(1), privacyEpoch: 1 } };
 const lookup = { ...envelope, status: 'available', person: peer, pairRevision: 0 };
@@ -279,13 +279,13 @@ describe('Friends ephemeral scoped session (authored fixtures)', () => {
     await h.session.readProfile();
     await h.session.command('setProfile', {
       expectedProfileRevision: 1,
-      handle: 'fixture-own',
+      handle: 'fixture.own',
       displayName: 'Fixture',
     });
     expect(h.calls).toHaveLength(1);
     await h.session.command('setProfile', {
       expectedProfileRevision: 0,
-      handle: 'fixture-own',
+      handle: 'fixture.own',
       displayName: 'Fixture',
     });
     expect(h.session.getState().profile.status).toBe('idle');
