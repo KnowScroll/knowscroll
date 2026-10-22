@@ -1,4 +1,5 @@
 import type * as React from 'react';
+import { AppState } from 'react-native';
 import type * as Ui from '@knowscroll/ui';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { QueryClient } from '@tanstack/react-query';
@@ -278,8 +279,15 @@ async function mount(
 }
 
 describe('direct Reel response boundaries', () => {
+  const originalAppState = Object.getOwnPropertyDescriptor(AppState, 'currentState');
   beforeEach(() => {
+    // The native Jest preset supplies a mock function here. This authored foreground fixture
+    // must supply the actual runtime state string before focus-gated Keep reads can start.
+    Object.defineProperty(AppState, 'currentState', { configurable: true, value: 'active' });
     jest.mocked(ReelPlayer).mockClear();
+  });
+  afterEach(() => {
+    if (originalAppState) Object.defineProperty(AppState, 'currentState', originalAppState);
   });
 
   it.each(discovery)('refuses discovery $status without minting a grant or activating', async (reply) => {
