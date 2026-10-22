@@ -590,7 +590,10 @@ export async function fixturePublishedCommission(f: CommissionFixture, label: st
       { enabled: true, withScope: f.service().withScope, review: c.review.recheck, snapshots, settlement: financial },
       { origin: media.origin, artifactRoot: media.artifactRoot, mediaRoot: media.mediaRoot, fixture: true },
     );
-    const published = await publication.publish(c.input.authority, c.target, stored);
+    const published = await publication.publish(c.input.authority, c.target, {
+      snapshotId: stored.snapshotId,
+      snapshotSha256: stored.snapshotSha256,
+    });
     if (published.kind !== 'published') throw new Error(`FIXTURE_VIDEO_${published.code}`);
     return {
       c,
