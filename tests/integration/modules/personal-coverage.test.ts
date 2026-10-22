@@ -30,7 +30,7 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
   const approvals = new Map<string, string>();
   beforeAll(async () => {
     database = await createTestDatabase<Database>('personal_coverage');
-    c = await scrollUseCases(database);
+    c = await scrollUseCases(database, { recording: true });
   });
   afterAll(async () => {
     await c.close();
@@ -593,6 +593,7 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
       .where('universe_id', '=', p.universeId)
       .execute();
     const failing = await scrollUseCases(database, {
+      recording: true,
       wrapScope: (scope) => (authority, work) =>
         scope(authority, async (s) => {
           const result = await work(s);

@@ -8,6 +8,7 @@ import type { ApplyAction, ListSaved } from '@knowscroll/backend/modules/experie
 import { APPLY_ACTION, LIST_SAVED, experienceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import type { TestDatabase } from './database.js';
 import { buildFromProviders } from './providers.js';
+import { scrollUseCases } from './scroll.js';
 
 /**
  * Builds experience's real use cases from its real providers (the same factories the API's
@@ -16,13 +17,20 @@ import { buildFromProviders } from './providers.js';
  */
 export async function experienceUseCases(
   database: TestDatabase<Database>,
-  options: { readonly wrapEnqueue?: (enqueue: EnqueueJob) => EnqueueJob } = {},
+  options: { readonly wrapEnqueue?: (enqueue: EnqueueJob) => EnqueueJob; readonly recording?: true } = {},
 ): Promise<{
   readonly applyAction: ApplyAction;
   readonly listSaved: ListSaved;
   readonly boss: PgBoss;
   close(): Promise<void>;
 }> {
+  if (options.recording) {
+    const actual = await scrollUseCases(database, {
+      recording: true,
+      ...(options.wrapEnqueue ? { wrapEnqueue: options.wrapEnqueue } : {}),
+    });
+    return { applyAction: actual.applyAction, listSaved: actual.listSaved, boss: actual.boss, close: actual.close };
+  }
   const boss = createBoss(database.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
   await boss.start();
   const enqueue = makeEnqueueJob(boss);

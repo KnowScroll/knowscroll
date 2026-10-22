@@ -27,7 +27,7 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
   const encounterTime = new Date(evaluation.getTime() - 90 * 60000);
   beforeAll(async () => {
     database = await createTestDatabase<Database>('personal_context');
-    c = await scrollUseCases(database, { activityNow: () => evaluation });
+    c = await scrollUseCases(database, { recording: true, activityNow: () => evaluation });
     async function asset() {
       const src = starterSource() as { assetId: string; publication: { explanationUnitId: string } };
       src.assetId = randomUUID();
@@ -104,7 +104,17 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     // carried aggregate is authored true to exercise the forbidden cross-owner shortcut.
     const p = await seedPerson(database.db),
       e = await openActive(c, p, first);
-    await c.projectActivity(job(p, e.exposureId));
+    // Activation alone has no factual activity source. Accept a real nonqualifying observation
+    // before asking the real projector for the audit used by this explicit owner-port case.
+    expect(await c.projectActivity(job(p, e.exposureId))).toMatchObject({
+      kind: 'skipped',
+      reason: 'no_current_source',
+    });
+    expect(
+      await c.ingestObservations(p.authority, { instrumentationVersion: 1, events: [event(e, dwell([0, 1]))] }),
+    ).toMatchObject({ kind: 'ingested', accepted: 1 });
+    await c.projectScrollReading(job(p, e.exposureId));
+    expect(await c.projectActivity(job(p, e.exposureId))).toMatchObject({ kind: 'applied' });
     const audit = await database.db
       .selectFrom('evidence.activity_revisions')
       .selectAll()
@@ -207,23 +217,44 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
           on,
         }),
       ).toMatchObject({ kind: 'ok' });
+    const sessionId = randomUUID();
     expect(
       await c.activateExposure(p.authority, {
-        commandId: randomUUID(),
+        commandId: sessionId,
         exposureId: r.exposure.exposureId,
         recordingGeneration: 3,
       }),
     ).toMatchObject({ kind: 'activated' });
-    expect(await c.projectActivity({ ...job(p, r.exposure.exposureId), v: 2, recordingGeneration: 3 })).toMatchObject({
-      kind: 'applied',
-    });
+    const currentJob = { ...job(p, r.exposure.exposureId), v: 2 as const, recordingGeneration: 3 };
+    expect(await c.projectActivity(currentJob)).toMatchObject({ kind: 'skipped', reason: 'no_current_source' });
+    expect(
+      await database.db
+        .selectFrom('personal_context.recording_segment_heads')
+        .select('exposure_id')
+        .where('universe_id', '=', p.universeId)
+        .where('recording_generation', '=', 3)
+        .execute(),
+    ).toEqual([]);
+    // One actual accepted current-session observation creates an unknown Q source. It cannot
+    // requalify from generation1's raw events, and activation by itself still creates no head.
+    const currentEvent = event(r.exposure, dwell([0, 1]), { sessionId });
+    expect(
+      await c.ingestObservations(p.authority, {
+        version: 'observation-batch.v2',
+        recordingGeneration: 3,
+        instrumentationVersion: 1,
+        events: [currentEvent],
+      }),
+    ).toMatchObject({ kind: 'ingested', accepted: 1 });
+    expect(await c.projectScrollReading(currentJob)).toMatchObject({ kind: 'applied', qualification: 'unknown' });
+    expect(await c.projectActivity(currentJob)).toMatchObject({ kind: 'applied' });
     const current = await database.db
       .selectFrom('personal_context.recording_segment_heads')
       .selectAll()
       .where('universe_id', '=', p.universeId)
       .where('recording_generation', '=', 3)
       .executeTakeFirstOrThrow();
-    expect(current.qualification_id).toBeNull();
+    expect(current.qualification_id).toEqual(expect.any(String));
     expect(current.qualified).toBe(false);
     const effective = await database.db
       .selectFrom('personal_context.recording_exposure_contributions')
@@ -247,7 +278,17 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
         .selectAll()
         .where('universe_id', '=', p.universeId)
         .execute(),
-    ).toEqual(observations);
+    ).toEqual(expect.arrayContaining(observations));
+    const allObservations = await database.db
+      .selectFrom('evidence.observations')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .execute();
+    expect(allObservations).toHaveLength(observations.length + 1);
+    expect(
+      allObservations.filter((row) => row.recording_generation === 1).sort((a, b) => a.id.localeCompare(b.id)),
+    ).toEqual([...observations].sort((a, b) => a.id.localeCompare(b.id)));
+    expect(allObservations.filter((row) => row.recording_generation === 3)).toHaveLength(1);
   });
   it('keeps pending observations separate, then incrementally consumes real qualification without metadata facet invention', async () => {
     const p = await seedPerson(database.db),
@@ -403,7 +444,12 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
   it('rolls Evidence, derived support and revision back together when the required context effect fails', async () => {
     const p = await seedPerson(database.db),
       exposure = await openActive(c, p, first);
+    expect(
+      await c.ingestObservations(p.authority, { instrumentationVersion: 1, events: [event(exposure, dwell([0, 1]))] }),
+    ).toMatchObject({ kind: 'ingested', accepted: 1 });
+    await c.projectScrollReading(job(p, exposure.exposureId));
     const failing = await scrollUseCases(database, {
+      recording: true,
       activityNow: () => evaluation,
       activityDerived: {
         isRecordingCurrent: c.activityContextEffect.isRecordingCurrent,
