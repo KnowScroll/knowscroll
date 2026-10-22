@@ -146,7 +146,7 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
   });
   expect(mockNavigate).toHaveBeenCalledWith('/universe');
   expect(screen.queryByRole('dialog')).toBeNull();
-  expect(screen.getByRole('heading', { name: /^CI region 4$/ })).toBeOnTheScreen();
+  expect(screen.getByRole('header', { name: /^CI region 4$/ })).toBeOnTheScreen();
   await act(() => scope.end());
   await view.unmount();
 });
