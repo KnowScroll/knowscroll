@@ -2,6 +2,7 @@ import { oc } from '@orpc/contract';
 import { INTERACTION_KINDS, LocalId } from '@knowscroll/scroll-model';
 import { z } from 'zod';
 import { AssetIdSchema, UuidSchema } from './ids.js';
+import { RecordingGenerationSchema, RecordingScopeSchema, recordingPost } from './recording.js';
 
 /**
  * Observations (blueprint §6 "An observation example", §18 "Shared interaction recorder", §19).
@@ -235,3 +236,61 @@ export const evidenceDiagnosticsContract = oc
   })
   .input(EvidenceDiagnosticsRequestSchema)
   .output(EvidenceDiagnosticsResponseSchema);
+
+/** Separate strict protocol: no optional generation or downgrade to the unversioned intake.
+ * Retry the same generation/events after an unknown response. Never relabel paused/stale events.
+ * The later backend permits the old route only in initial generation1/on, permanently refusing
+ * that legacy wire after the first actual toggle. This declaration installs no such enforcement. */
+export const RecordingObservationBatchRequestSchema = z
+  .strictObject({
+    version: z.literal('observation-batch.v2'),
+    recordingGeneration: RecordingGenerationSchema,
+    instrumentationVersion: ObservationBatchRequestSchema.shape.instrumentationVersion,
+    events: ObservationBatchRequestSchema.shape.events,
+  })
+  .refine((batch) => new TextEncoder().encode(JSON.stringify(batch)).length <= OBSERVATION_LIMITS.maxBatchBytes);
+const RecordingBatchSnapshot = {
+  version: z.literal('observation-batch.v2'),
+  /** Echo the submitted generation separately from current server state. */
+  recordingGeneration: RecordingGenerationSchema,
+  currentGeneration: RecordingGenerationSchema,
+  scope: RecordingScopeSchema,
+  revision: z.number().int().min(0).max(2_147_483_647),
+};
+const BatchCount = z.number().int().min(0).max(OBSERVATION_LIMITS.maxEventsPerBatch);
+/** All results are final for this exact batch. processed means intake, never qualified growth.
+ * Consumers correlate the scope, generation and ordered result IDs with their original request.
+ * not_recorded creates no evidence; remove those events, never silently retry under a new generation. */
+export const RecordingObservationBatchResponseSchema = z
+  .discriminatedUnion('result', [
+    z.strictObject({
+      ...RecordingBatchSnapshot,
+      result: z.literal('processed'),
+      accepted: BatchCount,
+      duplicates: BatchCount,
+      rejected: BatchCount,
+      results: z.array(ObservationResultSchema).min(1).max(OBSERVATION_LIMITS.maxEventsPerBatch),
+    }),
+    z.strictObject({
+      ...RecordingBatchSnapshot,
+      result: z.literal('not_recorded'),
+      reason: z.enum(['recording_paused', 'recording_generation_stale']),
+    }),
+  ])
+  .refine((r) => {
+    if (r.result === 'not_recorded')
+      return r.reason === 'recording_paused' || r.currentGeneration !== r.recordingGeneration;
+    return (
+      r.currentGeneration === r.recordingGeneration &&
+      r.accepted === r.results.filter((x) => x.status === 'accepted').length &&
+      r.duplicates === r.results.filter((x) => x.status === 'duplicate').length &&
+      r.rejected === r.results.filter((x) => x.status === 'rejected').length
+    );
+  });
+export const submitRecordingObservationsContract = recordingPost(
+  '/v1/observations/recording-batch',
+  RecordingObservationBatchRequestSchema,
+  RecordingObservationBatchResponseSchema,
+);
+export type RecordingObservationBatchRequest = z.infer<typeof RecordingObservationBatchRequestSchema>;
+export type RecordingObservationBatchResponse = z.infer<typeof RecordingObservationBatchResponseSchema>;

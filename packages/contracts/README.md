@@ -11,6 +11,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/health.ts` | `GET /health` response and contract |
 | `src/identity.ts` | `/auth/*` sign-in and session routes, the link and session token shapes, the session cookie names (D-022) |
 | `src/privacy.ts` | Declaration-only selective Clear exploration intent/acceptance, current coarse status and closed local problems |
+| `src/recording.ts` | Declaration-only recording policy read/set, immutable original receipts, current generation and closed private problems (#376) |
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |
 | `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) and `ClientCapabilities` from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
 | `src/saved-page.ts` | Versioned live Saved keyset pages, exact membership/format/availability rows and closed private list problems (#344 declaration prerequisite) |
@@ -1002,3 +1003,74 @@ only in Actions. SQL/lock/concurrency/recovery/erasure, real HTTP/cache/membersh
 scoped client unknown-retry/purge, two-account share/reconnect/revocation and independent real
 encounter evidence remain mandatory follow-up work. This prerequisite does not finish241/242 or
 claim mounted Social, delivery, public publication, media access or runtime acceptance.
+
+## Pause personal recording prerequisite (#376)
+
+`recording-policy.v1` declares two scoped private JSON POSTs in `apiContract.recording`:
+`/v1/privacy/recording/read` and `/set`. They are declarations only: no policy table,
+recording gate, API controller, worker, recorder behavior or account mutation is installed.
+Existing selective Clear schemas and contract bindings are unchanged. Export and account
+deletion remain separate unimplemented lifecycle work; this adds no authentication exception.
+
+Pause stops new durable passive encounter evidence and NEW derived personal growth,
+including growth inferred from explicit actions. Explicitly requested commands still need
+their own necessary records. Existing history, Keep and current universe remain visible.
+Recording generation is distinct from privacy epoch, starts at1/on, is bounded by2147483647
+and never wraps or resets across Clear. An actual on/off transition increments it once;
+an accepted no-op retains it. Clear preserves the preference and generation.
+
+Set requires one stable commandId, expected privacy epoch/generation and desired boolean on.
+The receipt's two-component operation is `privacy.recording-set`; outcome-version storage
+is a separate infrastructure concern. Unknown transport outcomes retain the exact original
+body/ID; never mint a replacement or silently queue an offline toggle. The historical receipt
+records its requested epoch, from/to generation, desired on, changed flag and server time.
+It is not the current policy. After current authenticated owner/root/epoch/Clear-barrier
+checks, replay returns that receipt without retoggling, renewing or undoing a newer policy.
+
+Pure read echoes readId and exact current/command target with the current account/epoch,
+root revision and on/generation. A command target separately says recorded/not_recorded;
+only recorded contains its matching immutable receipt. At equal generations the receipt
+must match current on; older receipts may differ. A recorded old on receipt cannot authorize
+collection while the current snapshot is paused. A not_recorded snapshot does not prove
+an in-flight command cannot still arrive. Reads create no work or repair effects. Consumers
+must correlate actual scope/readId/target and reject stale generations/root watermarks;
+schema validation alone cannot authenticate a request or compare another response.
+
+`observation-batch.v2` adds the separate declaration
+`POST /v1/observations/recording-batch` (`apiContract.observations.submitRecording`).
+Its strict input requires version and recordingGeneration plus the original bounded event
+shapes/instrumentationVersion, with the complete encoded batch capped at49152bytes.
+No generation is optional. Malformed new input cannot downgrade into old input. The existing
+unversioned `/v1/observations/batch` input/output schemas and route remain unchanged.
+The separate new route prevents today's mounted old controller from parsing and then
+silently ignoring a new generation field during a contracts-only release.
+
+The FOLLOWING backend must allow old unversioned batches ONLY in initial generation1/on.
+After the first actual recording toggle that legacy wire is permanently refused with
+`RECORDING_GENERATION_REQUIRED`, including after resume; no legacy backlog may enter a new
+generation. Do not activate Pause until this guard covers the normal legacy controller,
+every delayed projection/reconciliation path, personal growth preparation/dispatch and
+final application. A mixed-version writer that ignores the generation must fail closed.
+
+The new intake response echoes submitted generation separately from current generation,
+scope and root revision. `processed` has exactly counted ordered final event results,
+and requires equal current/submitted generations; it proves intake, never qualification
+or learning. `not_recorded` has only recording_paused/recording_generation_stale and no
+partial accepted results. Both are final for that exact batch. Consumers compare ordered
+event IDs for processed replies; remove refused events rather than relabelling/retrying
+them under a new generation. Missing authority/epoch/validation remains a private problem.
+
+Pre-pause delayed work cannot apply after resume merely because on is true again.
+Resume starts fresh recording segments; paused/stale offline buffers never acquire a new
+generation. Client collection stops under pause/unknown scope, but no scope-wide suspension
+or history reset is implied. Already irreversibly authorized external effects may still
+return/bill: preserve accounting and prevent stale personal application, never invent a refund.
+No model/provider permission follows this policy or its schemas.
+
+Closed recording problems expose fixed catalogue title/status/type and bounded static issue
+tokens only. No event values, dynamic/numeric paths, generation counters, detail/instance,
+private causes or operation body appears in errors. OpenAPI describes direct RFC9457 data,
+not a mounted serializer/cache/Origin/auth guard. Authored synthetic schema/OpenAPI fixtures
+run in Actions only. Durable state/locks/unknown replay, real mixed-version intake/worker
+fences, scoped client callbacks/offline buffers, deployed pause/resume and preservation
+remain mandatory following work; this contract prerequisite does not finish #246.

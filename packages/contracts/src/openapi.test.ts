@@ -44,6 +44,14 @@ import {
   problemCatalogue,
   scopeClaimOf,
   sceneWireJsonSchemas,
+  ReadRecordingPolicySchema,
+  RecordingPolicyReadSchema,
+  SetRecordingPolicySchema,
+  RecordingPolicyAcceptanceSchema,
+  RecordingPolicyReceiptSchema,
+  RecordingPolicySchema,
+  RecordingObservationBatchRequestSchema,
+  RecordingObservationBatchResponseSchema,
 } from './index.js';
 
 // Supported converter interception keeps canonical scene metadata out of shared runtime imports.
@@ -70,6 +78,7 @@ describe('the API contract', () => {
       apiContract.health,
       ...Object.values(apiContract.keep),
       ...Object.values(apiContract.privacy),
+      ...Object.values(apiContract.recording),
       ...Object.values(apiContract.sharing),
       ...Object.values(apiContract.conversations),
       ...Object.values(apiContract.contentShares),
@@ -97,6 +106,7 @@ describe('the API contract', () => {
       apiContract.experience.exposureDocument,
       apiContract.experience.exposureContext,
       apiContract.observations.submit,
+      apiContract.observations.submitRecording,
       apiContract.diagnostics.evidence,
     ].map((procedure) => procedure['~orpc'].route);
     for (const route of routes) {
@@ -417,6 +427,146 @@ describe('the API contract', () => {
     expect(CODE_VERIFIER_PATTERN.test('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk')).toBe(true);
     expect(CODE_VERIFIER_PATTERN.test('short')).toBe(false);
     expect(CODE_VERIFIER_PATTERN.test(`${'a'.repeat(42)} `)).toBe(false);
+  });
+});
+
+describe('recording376 declaration OpenAPI metadata', () => {
+  it('adds exactly three strict private POST declarations with closed direct problems', async () => {
+    const errors = apiContract.recording.set['~orpc'].errorMap;
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas: {
+        ReadRecordingPolicy: { schema: ReadRecordingPolicySchema },
+        RecordingPolicyRead: { schema: RecordingPolicyReadSchema },
+        SetRecordingPolicy: { schema: SetRecordingPolicySchema },
+        RecordingPolicyAcceptance: { schema: RecordingPolicyAcceptanceSchema },
+        RecordingPolicyReceipt: { schema: RecordingPolicyReceiptSchema },
+        RecordingPolicy: { schema: RecordingPolicySchema },
+        RecordingObservationBatchRequest: { schema: RecordingObservationBatchRequestSchema },
+        RecordingObservationBatchResponse: { schema: RecordingObservationBatchResponseSchema },
+        ...Object.fromEntries(
+          Object.entries(errors).map(([code, definition]) => [`RecordingProblem_${code}`, { schema: definition.data }]),
+        ),
+      },
+    });
+    const declarations = [
+      ['/v1/privacy/recording/read', 'ReadRecordingPolicy', 'RecordingPolicyRead'],
+      ['/v1/privacy/recording/set', 'SetRecordingPolicy', 'RecordingPolicyAcceptance'],
+      ['/v1/observations/recording-batch', 'RecordingObservationBatchRequest', 'RecordingObservationBatchResponse'],
+    ] as const;
+    const { recording, ...withoutRecording } = apiContract;
+    const { submitRecording, ...legacyObservations } = withoutRecording.observations;
+    expect(Object.values(recording)).toHaveLength(2);
+    expect(submitRecording).toBe(apiContract.observations.submitRecording);
+    const legacy = await generator.generate(
+      { ...withoutRecording, observations: legacyObservations },
+      {
+        info: { title: 'KnowScroll API', version: '1' },
+      },
+    );
+    expect(
+      Object.keys(document.paths ?? {})
+        .filter((p) => !(p in (legacy.paths ?? {})))
+        .sort(),
+    ).toEqual(declarations.map(([path]) => path).sort());
+    for (const path of Object.keys(legacy.paths ?? {})) expect(document.paths).toHaveProperty(path);
+    for (const [path, input, output] of declarations) {
+      const operation = document.paths?.[path]?.post;
+      expect(Object.keys(document.paths?.[path] ?? {})).toEqual(['post']);
+      expect(operation?.parameters ?? []).toEqual([]);
+      expect(operation?.requestBody).toEqual({
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: `#/components/schemas/${input}` },
+          },
+        },
+      });
+      expect(operation?.responses?.['200']).toMatchObject({
+        content: {
+          'application/json': {
+            schema: { $ref: `#/components/schemas/${output}` },
+          },
+        },
+      });
+      for (const status of new Set(Object.values(errors).map((e) => String(e.status)))) {
+        const response = operation?.responses?.[status];
+        expect(response && !('$ref' in response) && response.content).toEqual({
+          'application/problem+json': {
+            schema: {
+              oneOf: Object.entries(errors)
+                .filter(([, e]) => String(e.status) === status)
+                .map(([code]) => ({ $ref: `#/components/schemas/RecordingProblem_${code}` })),
+            },
+          },
+        });
+      }
+    }
+    const schemas = document.components?.schemas;
+    expect(schemas?.['SetRecordingPolicy']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'commandId', 'expectedPrivacyEpoch', 'expectedRecordingGeneration', 'on'],
+      properties: {
+        version: { const: 'recording-policy.v1' },
+        expectedRecordingGeneration: { minimum: 1, maximum: 2_147_483_647 },
+      },
+    });
+    expect(schemas?.['ReadRecordingPolicy']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'readId', 'target'],
+    });
+    expect(schemas?.['RecordingPolicyAcceptance']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'operation', 'outcome', 'receipt', 'replayed'],
+      properties: { operation: { const: 'privacy.recording-set' }, outcome: { const: 'accepted' } },
+    });
+    expect(schemas?.['RecordingObservationBatchRequest']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'recordingGeneration', 'instrumentationVersion', 'events'],
+      properties: {
+        version: { const: 'observation-batch.v2' },
+        recordingGeneration: { minimum: 1, maximum: 2_147_483_647 },
+        events: { minItems: 1, maxItems: 50 },
+      },
+    });
+    const response = JSON.stringify(schemas?.['RecordingObservationBatchResponse']);
+    for (const token of [
+      'processed',
+      'not_recorded',
+      'recording_paused',
+      'recording_generation_stale',
+      'currentGeneration',
+    ])
+      expect(response).toContain(token);
+    const read = JSON.stringify(schemas?.['RecordingPolicyRead']);
+    for (const token of ['current', 'command', 'recorded', 'not_recorded']) expect(read).toContain(token);
+    for (const [code, definition] of Object.entries(errors)) {
+      const schema = schemas?.[`RecordingProblem_${code}`];
+      expect(schema).toMatchObject({
+        additionalProperties: false,
+        properties: {
+          code: { const: code },
+          status: { const: definition.status },
+          title: { const: definition.message },
+        },
+      });
+      for (const field of ['detail', 'instance', 'received', 'generation', 'commandId', 'message', 'defined'])
+        expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty(field);
+    }
+    expect(document.paths?.['/v1/observations/batch']?.post).toBeDefined();
+    expect(
+      Object.keys(document.paths ?? {})
+        .filter((p) => p.startsWith('/v1/privacy/'))
+        .sort(),
+    ).toEqual([
+      '/v1/privacy/clear-exploration',
+      '/v1/privacy/clear-exploration/status',
+      '/v1/privacy/recording/read',
+      '/v1/privacy/recording/set',
+    ]);
+    expect(document.paths).not.toHaveProperty('/v1/privacy/export');
+    expect(document.paths).not.toHaveProperty('/v1/account/delete');
   });
 });
 
