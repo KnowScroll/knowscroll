@@ -16,7 +16,10 @@ import {
   type CoverageCommand,
   type CoverageMapping,
 } from '@knowscroll/backend/modules/content';
+import { READ_COVERAGE_INPUTS, type ReadCoverageInputs } from '@knowscroll/backend/modules/personal-context';
+import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
+import { buildFromProviders } from '../support/providers.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
@@ -153,6 +156,114 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
       .orderBy('revision')
       .execute();
   }
+  const readInputs = buildFromProviders(
+    personalContextProviders(),
+    READ_COVERAGE_INPUTS,
+    new Map(),
+  ) as ReadCoverageInputs;
+  async function discovery(p: FixturePerson) {
+    const result = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, readInputs);
+    if (result.kind !== 'entered') throw new Error('fixture_scope_refused');
+    return result.value;
+  }
+  async function seedDiscoveryReferences(legacyCount: number, recordingCount: number) {
+    const p = await seedPerson(database.db),
+      f = await fixture(),
+      e = await openActive(c, p, f);
+    await activatedAgo(database.db, e.exposureId, 20);
+    expect(
+      await c.ingestObservations(p.authority, {
+        instrumentationVersion: 1,
+        events: [event(e, coverage(f.blocks, 1000)), event(e, dwell([0, 700000]))],
+      }),
+    ).toMatchObject({ kind: 'ingested', accepted: 2 });
+    const q = await c.projectScrollReading(job(p, e.exposureId));
+    expect(q).toMatchObject({ kind: 'applied', qualification: 'qualified' });
+    if (q.kind !== 'applied') throw new Error('fixture_qualification_refused');
+    // Synthetic PREPARED INDEX rows only, not a successful recording pipeline/certificate.
+    // Discovery must not hydrate these deliberately incomplete certificate bodies. Each duplicate
+    // has its own exposure/audits and passes actual FKs/guards; no trigger or effect is disabled.
+    await database.db.transaction().execute(async (tx) => {
+      const seed = await sql<{ exposure: string; activity: string; qualification: string; recording: boolean }>`
+        select gen_random_uuid() exposure,gen_random_uuid() activity,gen_random_uuid() qualification,
+          n>${legacyCount} recording from generate_series(1,${legacyCount + recordingCount}) n`.execute(tx);
+      const source = sql`(select * from jsonb_to_recordset(${JSON.stringify(seed.rows)}::jsonb)
+        as s(exposure uuid,activity uuid,qualification uuid,recording boolean))`;
+      await sql`with seed as ${source} insert into experience.exposures
+        select (jsonb_populate_record(null::experience.exposures,to_jsonb(base)||
+          jsonb_build_object('id',seed.exposure,'command_id',gen_random_uuid()))).*
+        from experience.exposures base cross join seed where base.universe_id=${p.universeId}::uuid and base.id=${e.exposureId}::uuid`.execute(
+        tx,
+      );
+      await sql`with seed as ${source} insert into evidence.encounter_evidence
+        select (jsonb_populate_record(null::evidence.encounter_evidence,to_jsonb(base)||
+          jsonb_build_object('id',seed.qualification,'exposure_id',seed.exposure))).*
+        from evidence.encounter_evidence base cross join seed where base.universe_id=${p.universeId}::uuid and base.id=${q.evidenceId}::uuid`.execute(
+        tx,
+      );
+      await sql`with seed as ${source} insert into evidence.activity_revisions(universe_id,privacy_epoch,id,exposure_id,revision,input_sha256,input_vector,channels,activity,policy_version)
+        select ${p.universeId}::uuid,1,activity,exposure,1,repeat('0',64),'{}'::jsonb,'{}'::jsonb,0,'activity.v0' from seed`.execute(
+        tx,
+      );
+      await sql`with seed as ${source} insert into personal_context.coverage_contributions(universe_id,privacy_epoch,exposure_id,activity_id,input_sha256,payload)
+        select ${p.universeId}::uuid,1,exposure,activity,repeat('0',64),
+          jsonb_build_object('version','observed-static-coverage.v1','evidence',jsonb_build_object('id',qualification::text)) from seed`.execute(
+        tx,
+      );
+      await sql`with seed as ${source} insert into experience.recording_segments(universe_id,privacy_epoch,exposure_id,recording_generation,asset_id,asset_revision,kind,explanation_unit_id,attribution_sha256,attribution_payload,initialized_at)
+        select ${p.universeId}::uuid,1,exposure,1,${f.assetId}::uuid,1,'scroll',${f.unit},repeat('0',64),'{"topics":[],"facets":[]}'::jsonb,now() from seed where recording`.execute(
+        tx,
+      );
+      await sql`with seed as ${source} insert into personal_context.recording_coverage_contributions(universe_id,privacy_epoch,exposure_id,working_generation,input_sha256,witnesses)
+        select ${p.universeId}::uuid,1,exposure,1,repeat('0',64),'[]'::jsonb from seed where recording`.execute(tx);
+      await sql`with seed as ${source} insert into personal_context.recording_coverage_references(universe_id,privacy_epoch,exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,source_kind,source_generation,source_activity_id,source_qualification_id,source_certificate_sha256,source_legacy_exposure_id)
+        select ${p.universeId}::uuid,1,exposure,${topic},${facet},repeat('0',64),${f.unit},repeat('0',64),'legacy',1,activity,qualification,repeat('0',64),exposure from seed where recording`.execute(
+        tx,
+      );
+      await sql`with seed as ${source} insert into personal_context.coverage_references(universe_id,privacy_epoch,exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256)
+        select ${p.universeId}::uuid,1,exposure,${topic},${facet},repeat('0',64),${f.unit},repeat('0',64) from seed where not recording`.execute(
+        tx,
+      );
+    });
+    return { p, f };
+  }
+  it.each([
+    { legacy: 1001, recording: 0 },
+    { legacy: 0, recording: 1001 },
+    { legacy: 600, recording: 401 },
+  ])(
+    'refuses raw discovery overflow before duplicate-key reduction: $legacy legacy/$recording recording',
+    async ({ legacy, recording }) => {
+      const { p } = await seedDiscoveryReferences(legacy, recording);
+      expect(await discovery(p)).toEqual({
+        revision: 0,
+        completeness: 'not_asserted',
+        availability: 'unavailable',
+        reason: 'limit',
+        probes: [],
+      });
+    },
+  );
+  it('deduplicates a complete bounded discovery prefix without certifying its prepared keys', async () => {
+    const { p, f } = await seedDiscoveryReferences(2, 2);
+    expect(await discovery(p)).toEqual({
+      revision: 0,
+      completeness: 'not_asserted',
+      availability: 'available',
+      reason: 'bounded',
+      probes: [{ topicId: topic, facetId: facet, explanationUnitId: f.unit }],
+    });
+  });
+  it('keeps the full1000 raw-reference budget available when it contains one duplicated discovery key', async () => {
+    const { p, f } = await seedDiscoveryReferences(500, 500);
+    expect(await discovery(p)).toEqual({
+      revision: 0,
+      completeness: 'not_asserted',
+      availability: 'available',
+      reason: 'bounded',
+      probes: [{ topicId: topic, facetId: facet, explanationUnitId: f.unit }],
+    });
+  });
   it('requires actual ALL-OF leaves despite qualification, and never crosses facets into other attributed topics', async () => {
     const p = await seedPerson(database.db),
       f = await fixture(),

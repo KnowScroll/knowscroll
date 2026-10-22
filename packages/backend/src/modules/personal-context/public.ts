@@ -34,6 +34,7 @@ export type ReadCoverageInputs = (scope: PersonalScopeTx) => Promise<{
   readonly revision: number;
   readonly completeness: 'not_asserted';
   readonly availability: 'available' | 'unavailable';
+  readonly reason: 'bounded' | 'limit';
   readonly probes: TrustedCoverageQuery['probes'];
 }>;
 export const READ_COVERAGE_INPUTS = Symbol('personal-context.readCoverageInputs');

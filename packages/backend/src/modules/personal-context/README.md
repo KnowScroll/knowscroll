@@ -161,9 +161,13 @@ CI fixtures use synthetic semantic approvals only; no live map, observed dev cov
 geography, planet, native/browser journey or deployment acceptance is established by source/CI.
 
 `READ_COVERAGE_INPUTS` (#237/0025 consumer) supplies a separate bounded candidate-discovery port:
-current PC revision plus deterministic DISTINCT topic/facet/explanation-unit triples from the
-existing indexed `coverage_references`, at most100 /64KiB with101-row overflow sentinel. Overflow
-returns unavailable and no probes; completeness is always not_asserted. These retained index keys
+current PC revision plus deterministic topic/facet/explanation-unit triples. Each legacy/recording
+index supplies an ordered raw prefix of at most1001 references, using its existing probe index.
+The combined raw budget is1000, checked BEFORE bounded in-memory key deduplication; duplicate keys
+cannot hide an oversized history. No DISTINCT, grouping, shadow filtering or refill precedes the
+raw limit. At most100 probes/64KiB are returned. Overflow returns `availability: unavailable`,
+`reason: limit` and no probes; a complete bounded prefix says `reason: bounded`, while completeness
+is always not_asserted. These retained index keys
 are NOT trusted supports, unit counts or formation authority. Geography must call current
 `ReadTrustedCoverage` under the SAME live root through apply, preserving Evidence/Content SHARE
 checks. No legacy coveredFacets, support arithmetic or semantic approval changes are made.
@@ -210,7 +214,8 @@ arbitrary legacy history to fill a page. Supporting-unit reads use the same fixe
 candidate budget for at most100 requested units. Overflow returns explicit backend
 `proofAvailability: unavailable` / `proofReason: limit`, empty qualified/supporting proofs and
 `completeness: not_asserted`; prepared statistics and routing remain usable. Coverage discovery
-independently unions at most101 keys per index, refusing above100 combined probes/64KiB. Trusted
+independently reads at most1001 raw references per index (2002 total), refuses above1000 combined raw
+references before deduplication, then enforces100 probes/64KiB. Trusted
 coverage output retains its128KiB bound and does not claim historical completeness.
 
 Clear/full erasure deletes recording coverage references first, then effective coverage and
