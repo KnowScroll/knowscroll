@@ -16,12 +16,14 @@ export function ActivatedReelView({
   positionRef,
   retainedGrant,
   renderStage,
+  stageMaxHeight,
 }: {
   readonly scope: AccountScope;
   readonly exposureId: string;
   readonly document: ReelDocument;
   readonly recorder: ReelRecorder;
   readonly active: boolean;
+  readonly stageMaxHeight?: number;
   readonly renderStage?: (stage: ReactNode) => ReactNode;
   readonly initialPositionMs?: number;
   readonly initialMuted?: boolean;
@@ -53,6 +55,7 @@ export function ActivatedReelView({
       {document.fixture ? <Banner kind="info" lead="Fixture video" message="Local or CI demonstration media." /> : null}
       <ReelPlayer
         renderStage={renderStage}
+        stageMaxHeight={stageMaxHeight}
         title={document.title}
         durationMs={document.durationMs}
         active={active && scope.active}

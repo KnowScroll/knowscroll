@@ -8,7 +8,7 @@ import {
   type ReactNode,
   type Ref,
 } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { VideoView, useVideoPlayer, type VideoSource, type VideoPlayer } from 'expo-video';
 import { spacing, content } from '@knowscroll/design-tokens';
 import { Text } from '../text/text';
@@ -57,6 +57,8 @@ function playbackStatus(status: VideoPlayer['status'], playing: boolean): Playba
 
 export interface ReelPlayerProps {
   readonly title: string;
+  /** Actual page viewport budget, supplied by scrolling consumers; layout only. */
+  readonly stageMaxHeight?: number;
   readonly durationMs: number;
   readonly active: boolean;
   /** Mount-only restore intent in milliseconds. Non-finite values become zero. */
@@ -85,6 +87,7 @@ export interface ReelPlayerProps {
  * AccountScope. A grant renews before expiry without opening/activating another exposure. */
 export function ReelPlayer({
   title,
+  stageMaxHeight,
   durationMs,
   active,
   initialPositionMs,
@@ -97,7 +100,11 @@ export function ReelPlayer({
   onDiscontinuity,
   registerEnd,
 }: ReelPlayerProps) {
-  const window = useWindowDimensions();
+  const [stageWidth, setStageWidth] = useState(0);
+  const stageLimit =
+    typeof stageMaxHeight === 'number' && Number.isFinite(stageMaxHeight) && stageMaxHeight > 0
+      ? Math.min(480, stageMaxHeight)
+      : 480;
   const [muted, setMuted] = useState(initialMuted === true);
   const muteIntent = useRef(initialMuted === true);
   const player = useVideoPlayer(null, (instance) => {
@@ -428,9 +435,25 @@ export function ReelPlayer({
     </>
   );
   return (
-    <View ref={view} style={[styles.frame, { height: Math.max(300, window.height - 300) }]}>
-      {renderStage ? <View style={styles.stage}>{renderStage(stage)}</View> : stage}
-      <View style={styles.controls}>
+    <View
+      testID="reel-player"
+      style={styles.frame}
+      onLayout={(event) => {
+        const width = event.nativeEvent.layout.width;
+        if (Number.isFinite(width) && width > 0) setStageWidth(width);
+      }}
+    >
+      <View
+        ref={view}
+        testID="reel-video-stage"
+        style={[
+          styles.stage,
+          { height: Math.min(stageLimit, stageWidth * (16 / 9)), minHeight: Math.min(160, stageLimit) },
+        ]}
+      >
+        {renderStage ? renderStage(stage) : stage}
+      </View>
+      <View testID="reel-player-controls" style={styles.controls}>
         <Text variant="uiS" color={content.paper}>
           {Math.floor(position)} / {Math.round(durationMs / 1000)} s · Captions in video
         </Text>
@@ -486,8 +509,8 @@ export function ReelPlayer({
   );
 }
 const styles = StyleSheet.create({
-  frame: { width: '100%', maxWidth: 480, alignSelf: 'center', backgroundColor: '#151515' },
-  stage: { flex: 1, minHeight: 0, width: '100%' },
+  frame: { width: '100%', maxWidth: 480, flexShrink: 0, alignSelf: 'center', backgroundColor: '#151515' },
+  stage: { width: '100%', position: 'relative', overflow: 'hidden' },
   video: { flex: 1, width: '100%', minHeight: 0, height: '100%' },
   poster: { position: 'absolute', top: '40%', left: spacing[5], right: spacing[5], alignItems: 'center' },
   controls: { padding: spacing[3], gap: spacing[2], backgroundColor: '#151515' },
