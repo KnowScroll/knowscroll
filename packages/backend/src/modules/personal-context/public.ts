@@ -1,6 +1,11 @@
 import type { PersonalScopeTx } from '../identity/public.js';
 /** Backend-only prepared context. No consumer scores, source metadata or peer positions. */
-export { CONTEXT_POLICY, ContributionSchema, ContextQuerySchema } from './domain/context.js';
+export {
+  CONTEXT_POLICY,
+  ContributionSchema,
+  ContextQuerySchema,
+  RecordingContributionEnvelopeSchema,
+} from './domain/context.js';
 export type { Contribution, ContextQuery } from './domain/context.js';
 export type {
   ApplyProjectedEncounter,

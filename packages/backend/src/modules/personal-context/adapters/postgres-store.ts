@@ -1,10 +1,20 @@
 import { sql } from 'kysely';
 import { requestHash } from '../../../infrastructure/receipts/index.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import { CONTEXT_POLICY, ContributionSchema, supportChanges, type Contribution } from '../domain/context.js';
+import { fencePersonalRecording } from '../../../infrastructure/postgres/recording-scope.js';
+import {
+  CONTEXT_POLICY,
+  ContributionSchema,
+  ContextQuerySchema,
+  RecordingContributionEnvelopeSchema,
+  supportChanges,
+  type Contribution,
+} from '../domain/context.js';
 import type { ApplyProjectedEncounter, ContextPorts } from '../application/ports.js';
 
 export const applyProjectedEncounter: ApplyProjectedEncounter = async (scope, input) => {
+  const gate = await fencePersonalRecording(scope, undefined);
+  if (gate.kind !== 'recording') throw new Error('PERSONAL_CONTEXT_RECORDING_REQUIRED');
   const next = ContributionSchema.parse(input);
   const db = transactionOf(scope),
     u = scope.authority.universeId,
@@ -16,8 +26,31 @@ export const applyProjectedEncounter: ApplyProjectedEncounter = async (scope, in
   }>`select input_sha256,payload from personal_context.contributions where universe_id=${u}::uuid and privacy_epoch=${e} and exposure_id=${next.exposureId}::uuid`.execute(
     db,
   );
+  const converted = await db
+    .selectFrom('personal_context.recording_exposure_contributions')
+    .select('exposure_id')
+    .where('universe_id', '=', u)
+    .where('exposure_id', '=', next.exposureId)
+    .executeTakeFirst();
+  if (converted) throw new Error('PERSONAL_CONTEXT_RECORDING_REQUIRED');
   if (old.rows[0]?.input_sha256 === digest) return false;
   const previous = old.rows[0] ? ContributionSchema.parse(old.rows[0].payload) : undefined;
+  await replaceStructuralSupports(scope, previous, next);
+  await sql`insert into personal_context.contributions(universe_id,privacy_epoch,exposure_id,explanation_unit_id,qualified,input_sha256,payload_version,payload) values(${u}::uuid,${e},${next.exposureId}::uuid,${next.explanationUnitId},${next.qualified},${digest},${next.version},${JSON.stringify(next)}::jsonb) on conflict(universe_id,exposure_id) do update set privacy_epoch=excluded.privacy_epoch,explanation_unit_id=excluded.explanation_unit_id,qualified=excluded.qualified,input_sha256=excluded.input_sha256,payload_version=excluded.payload_version,payload=excluded.payload,projected_at=now()`.execute(
+    db,
+  );
+  await advanceContextState(scope);
+  return true;
+};
+/** One effective exposure/key reference, shared by legacy and genuine recording writers. */
+export async function replaceStructuralSupports(
+  scope: Parameters<ApplyProjectedEncounter>[0],
+  previous: Contribution | undefined,
+  next: Contribution,
+) {
+  const db = transactionOf(scope),
+    u = scope.authority.universeId,
+    e = scope.authority.privacyEpoch;
   for (const change of supportChanges(previous, next)) {
     const row = await sql<{
       reference_count: number;
@@ -48,12 +81,7 @@ export const applyProjectedEncounter: ApplyProjectedEncounter = async (scope, in
       );
     }
   }
-  await sql`insert into personal_context.contributions(universe_id,privacy_epoch,exposure_id,explanation_unit_id,qualified,input_sha256,payload_version,payload) values(${u}::uuid,${e},${next.exposureId}::uuid,${next.explanationUnitId},${next.qualified},${digest},${next.version},${JSON.stringify(next)}::jsonb) on conflict(universe_id,exposure_id) do update set privacy_epoch=excluded.privacy_epoch,explanation_unit_id=excluded.explanation_unit_id,qualified=excluded.qualified,input_sha256=excluded.input_sha256,payload_version=excluded.payload_version,payload=excluded.payload,projected_at=now()`.execute(
-    db,
-  );
-  await advanceContextState(scope);
-  return true;
-};
+}
 export const readContextRevision: ContextPorts['readRevision'] = async (scope) => {
   const r = await sql<{
     revision: number;
@@ -64,6 +92,7 @@ export const readContextRevision: ContextPorts['readRevision'] = async (scope) =
   return { revision: r.rows[0]?.revision ?? 0, projected: r.rows[0]?.projected_scope_revision ?? 0 };
 };
 export const readStructure: ContextPorts['readStructure'] = async (scope, q) => {
+  ContextQuerySchema.parse(q);
   const db = transactionOf(scope),
     u = scope.authority.universeId,
     e = scope.authority.privacyEpoch;
@@ -88,16 +117,61 @@ export const readStructure: ContextPorts['readStructure'] = async (scope, q) => 
           db,
         )
       : { rows: [] };
-  // One indexed current source per exact candidate, in one bounded query rather than N+1.
-  const proofRows = units.length
-    ? await sql<{
-        payload: unknown;
-      }>`select p.payload from unnest(${units}::text[]) as candidate(unit) cross join lateral (select payload from personal_context.contributions where universe_id=${u}::uuid and privacy_epoch=${e} and explanation_unit_id=candidate.unit and qualified order by exposure_id limit 1) p limit 100`.execute(
-        db,
-      )
+  // Fixed candidate budgets precede shadow resolution. Never anti-join arbitrary legacy
+  // history to fill a page after an exposure has converted to the effective recording cache.
+  const legacyProofs = units.length
+    ? await sql<{ exposure_id: string; payload: unknown }>`
+    select p.exposure_id,p.payload from unnest(${units}::text[]) candidate(unit)
+    cross join lateral(select exposure_id,payload from personal_context.contributions
+      where universe_id=${u}::uuid and privacy_epoch=${e} and explanation_unit_id=candidate.unit and qualified
+      order by exposure_id limit 1001) p limit 1001`.execute(db)
     : { rows: [] };
-  const proofs: Contribution[] = proofRows.rows.map((r) => ContributionSchema.parse(r.payload));
+  const effectiveProofs = units.length
+    ? await sql<{ exposure_id: string; payload: unknown }>`
+    select p.exposure_id,p.payload from unnest(${units}::text[]) candidate(unit)
+    cross join lateral(select exposure_id,payload from personal_context.recording_exposure_contributions
+      where universe_id=${u}::uuid and privacy_epoch=${e} and explanation_unit_id=candidate.unit and qualified
+      order by exposure_id limit 1001) p limit 1001`.execute(db)
+    : { rows: [] };
+  const overflow =
+    legacyProofs.rows.length > 1000 ||
+    effectiveProofs.rows.length > 1000 ||
+    legacyProofs.rows.length + effectiveProofs.rows.length > 1000;
+  const proofs: Contribution[] = [];
+  const certified = new Set<string>();
+  if (!overflow) {
+    const ids = legacyProofs.rows.map((r) => r.exposure_id);
+    const shadow = ids.length
+      ? await db
+          .selectFrom('personal_context.recording_exposure_contributions')
+          .select('exposure_id')
+          .where('universe_id', '=', u)
+          .where('privacy_epoch', '=', e)
+          .where('exposure_id', 'in', ids)
+          .limit(1000)
+          .execute()
+      : [];
+    const shadowed = new Set(shadow.map((r) => r.exposure_id));
+    const candidates = [
+      ...effectiveProofs.rows.map((r) => RecordingContributionEnvelopeSchema.parse(r.payload).contribution),
+      ...legacyProofs.rows.filter((r) => !shadowed.has(r.exposure_id)).map((r) => ContributionSchema.parse(r.payload)),
+    ];
+    const selected = new Set<string>();
+    for (const c of candidates)
+      if (c?.qualified) {
+        for (const t of c.topics)
+          if (t.role !== 'incidental') certified.add(JSON.stringify([c.explanationUnitId, t.topicId]));
+        if (!selected.has(c.explanationUnitId)) {
+          selected.add(c.explanationUnitId);
+          proofs.push(c);
+        }
+      }
+  }
+  const unresolved = rows.rows.some((r) => !certified.has(JSON.stringify([r.support_key, r.topic_id])));
+  const unavailable = overflow || unresolved;
   return {
+    proofAvailability: unavailable ? 'unavailable' : 'available',
+    proofReason: overflow ? 'limit' : unresolved ? 'unresolved' : 'bounded',
     topics: topics.rows.map((t) => ({
       topicId: t.topic_id,
       qualifiedExplanationUnits: t.qualified_units,
@@ -105,11 +179,19 @@ export const readStructure: ContextPorts['readStructure'] = async (scope, q) => 
     })),
     qualified: q.candidates.map((c) => ({
       explanationUnitId: c.explanationUnitId,
-      topicIds: rows.rows.filter((r) => r.support_key === c.explanationUnitId).map((r) => r.topic_id),
+      topicIds: unavailable
+        ? []
+        : rows.rows
+            .filter(
+              (r) =>
+                r.support_key === c.explanationUnitId &&
+                certified.has(JSON.stringify([c.explanationUnitId, r.topic_id])),
+            )
+            .map((r) => r.topic_id),
       // No trusted facet-coverage mapper exists yet. Metadata tags are routing-only.
       facets: c.facets.map((facetId) => ({ facetId, topicIds: [] })),
     })),
-    supportingEvidence: proofs,
+    supportingEvidence: unavailable ? [] : proofs,
   };
 };
 

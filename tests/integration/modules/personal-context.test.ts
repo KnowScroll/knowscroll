@@ -2,9 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  makeWithPersonalScope,
+  fencePersonalRecording,
+  advanceScopeRevision,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
+import type { RecordingActivityDerivedInput } from '@knowscroll/backend/modules/evidence';
 import { activityContextEffect } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import type { PersonalAuthority } from '@knowscroll/backend/modules/identity';
+import { recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
@@ -92,11 +99,166 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     });
     expect(await c.projectActivity(job(p, exposureId))).toMatchObject({ kind: 'applied' });
   }
+  it('does not fill absent committed PC support from carried qualified Evidence in an action-only segment', async () => {
+    // Explicit owner-port fixture: real activated exposure/audit/root capability; only the
+    // carried aggregate is authored true to exercise the forbidden cross-owner shortcut.
+    const p = await seedPerson(database.db),
+      e = await openActive(c, p, first);
+    await c.projectActivity(job(p, e.exposureId));
+    const audit = await database.db
+      .selectFrom('evidence.activity_revisions')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .where('exposure_id', '=', e.exposureId)
+      .orderBy('revision', 'desc')
+      .executeTakeFirstOrThrow();
+    const exposure = await database.db
+      .selectFrom('experience.exposures')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .where('id', '=', e.exposureId)
+      .executeTakeFirstOrThrow();
+    const input: RecordingActivityDerivedInput = {
+      version: 'recording-activity.v1',
+      recordingGeneration: 1,
+      exposure: {
+        exposureId: e.exposureId,
+        assetId: first.assetId,
+        assetRevision: first.revision,
+        activatedAt: new Date(exposure.activated_at!).toISOString(),
+      },
+      metadata: { explanationUnitId: unit, topics: [{ topicId: topicA, role: 'primary', weight: 1 }] },
+      inputVector: {
+        qualificationRevision: 0,
+        actionRevision: 0,
+        navigationRevision: 0,
+        attribution: 'ci-owned-absent-pc-base',
+        policy: 'recording-credit.v1',
+      },
+      currentSegment: {
+        activity: { id: audit.id, revision: audit.revision, recordingGeneration: 1 },
+        qualification: null,
+        measured: false,
+        qualified: false,
+      },
+      evidenceEffective: {
+        channels: { q: 1, L: false, B: false, S: 0, H: false, R: false },
+        measured: true,
+        qualified: true,
+      },
+    };
+    const pc = personalStores.find((s) => s.module === 'personal-context');
+    if (!pc) throw new Error('fixture_pc_owner_missing');
+    const result = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, async (scope) => {
+      await pc.erase(scope);
+      const gate = await fencePersonalRecording(scope, 1);
+      if (gate.kind !== 'recording') throw new Error('fixture_recording_capability_missing');
+      expect(await c.activityContextEffect.applyRecording(gate.scope, input)).toBe(true);
+      expect(await c.activityContextEffect.applyRecording(gate.scope, input)).toBe(false);
+      expect(await c.activityContextEffect.isRecordingCurrent(gate.scope, input)).toBe(true);
+      await advanceScopeRevision(scope);
+    });
+    expect(result.kind).toBe('entered');
+    expect(
+      await database.db
+        .selectFrom('personal_context.supports')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toEqual([]);
+    const stored = await database.db
+      .selectFrom('personal_context.recording_exposure_contributions')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .executeTakeFirstOrThrow();
+    expect(stored.qualified).toBe(false);
+    expect(stored.frozen_base).toEqual({ version: 'recording-personal-contribution.v1', contribution: null });
+    expect((await snapshot(p)).topics[0]?.qualifiedExplanationUnits).toBe(0);
+  });
+  it.each([false, true])('resumes with only its own committed PC baseline (baseline present=%s)', async (committed) => {
+    const p = await seedPerson(database.db),
+      r = await read(p);
+    await qualify(p, r.exposure.exposureId);
+    const pc = personalStores.find((s) => s.module === 'personal-context');
+    if (!pc) throw new Error('fixture_pc_owner_missing');
+    const sealed = await database.db
+      .selectFrom('personal_context.recording_segment_heads')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .where('recording_generation', '=', 1)
+      .execute();
+    const observations = await database.db
+      .selectFrom('evidence.observations')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .execute();
+    if (!committed) await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, (s) => pc.erase(s));
+    const policy = recordingPolicyFor(database.db, { lockTimeoutMs: 5000 });
+    for (const [expectedRecordingGeneration, on] of [
+      [1, false],
+      [2, true],
+    ] as const)
+      expect(
+        await policy.set(p.authority, {
+          version: 'recording-policy.v1',
+          commandId: randomUUID(),
+          expectedPrivacyEpoch: 1,
+          expectedRecordingGeneration,
+          on,
+        }),
+      ).toMatchObject({ kind: 'ok' });
+    expect(
+      await c.activateExposure(p.authority, {
+        commandId: randomUUID(),
+        exposureId: r.exposure.exposureId,
+        recordingGeneration: 3,
+      }),
+    ).toMatchObject({ kind: 'activated' });
+    expect(await c.projectActivity({ ...job(p, r.exposure.exposureId), v: 2, recordingGeneration: 3 })).toMatchObject({
+      kind: 'applied',
+    });
+    const current = await database.db
+      .selectFrom('personal_context.recording_segment_heads')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .where('recording_generation', '=', 3)
+      .executeTakeFirstOrThrow();
+    expect(current.qualification_id).toBeNull();
+    expect(current.qualified).toBe(false);
+    const effective = await database.db
+      .selectFrom('personal_context.recording_exposure_contributions')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .executeTakeFirstOrThrow();
+    expect(effective.qualified).toBe(committed);
+    expect((await snapshot(p)).topics[0]?.qualifiedExplanationUnits).toBe(Number(committed));
+    if (committed)
+      expect(
+        await database.db
+          .selectFrom('personal_context.recording_segment_heads')
+          .selectAll()
+          .where('universe_id', '=', p.universeId)
+          .where('recording_generation', '=', 1)
+          .execute(),
+      ).toEqual(sealed);
+    expect(
+      await database.db
+        .selectFrom('evidence.observations')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toEqual(observations);
+  });
   it('keeps pending observations separate, then incrementally consumes real qualification without metadata facet invention', async () => {
     const p = await seedPerson(database.db),
       r = await read(p);
     const pending = await snapshot(p);
     expect(pending.provisional).toMatchObject({ purpose: 'routing_only', hasMore: false });
+    expect(pending).toMatchObject({
+      proofAvailability: 'available',
+      proofReason: 'bounded',
+      completeness: 'not_asserted',
+    });
     expect(pending.provisional.entries.map((e) => e.eventId).sort()).toEqual(r.events.map((e) => e.eventId).sort());
     expect(pending.topics[0]).toMatchObject({
       qualifiedExplanationUnits: 0,
@@ -144,7 +306,52 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     });
     expect((await snapshot(p)).revision).toBe(before);
   });
-  it('counts two actual encounters of one unit once; reversible topic corrections preserve source Q/O and activity at the same evaluation time', async () => {
+  it('keeps recording encounter attribution pinned when later Content topic metadata changes', async () => {
+    const source = starterSource() as { assetId: string; publication: { explanationUnitId: string } };
+    source.assetId = randomUUID();
+    source.publication.explanationUnitId = unit;
+    const asset = await c.importScroll(source);
+    if (asset.kind !== 'imported') throw new Error('fixture_import_refused');
+    await database.db.deleteFrom('content.encounter_topics').where('asset_id', '=', asset.assetId).execute();
+    await database.db
+      .insertInto('content.encounter_topics')
+      .values({ asset_id: asset.assetId, asset_revision: asset.revision, topic_id: topicA, role: 'primary', weight: 1 })
+      .execute();
+    const p = await seedPerson(database.db),
+      r = await read(p, asset);
+    await qualify(p, r.exposure.exposureId);
+    const before = await snapshot(p),
+      descriptor = await database.db
+        .selectFrom('experience.recording_segments')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .where('exposure_id', '=', r.exposure.exposureId)
+        .where('recording_generation', '=', 1)
+        .executeTakeFirstOrThrow();
+    await database.db
+      .updateTable('content.encounter_topics')
+      .set({ topic_id: topicB })
+      .where('asset_id', '=', asset.assetId)
+      .execute();
+    await c.projectActivity(job(p, r.exposure.exposureId));
+    const after = await snapshot(p);
+    expect(after.topics[0]).toEqual(before.topics[0]);
+    expect(after.topics[1]).toMatchObject({
+      qualifiedExplanationUnits: 0,
+      activity: 0,
+      statisticsAvailability: 'not_observed',
+    });
+    expect(
+      await database.db
+        .selectFrom('experience.recording_segments')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .where('exposure_id', '=', r.exposure.exposureId)
+        .where('recording_generation', '=', 1)
+        .executeTakeFirstOrThrow(),
+    ).toEqual(descriptor);
+  });
+  it('deduplicates actual encounters while pinning A→B→A metadata changes; only a new B encounter earns B support', async () => {
     const p = await seedPerson(database.db),
       a = await read(p),
       b = await read(p, twin);
@@ -164,26 +371,33 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     await c.projectActivity(job(p, a.exposure.exposureId));
     await c.projectActivity(job(p, b.exposure.exposureId));
     const corrected = await snapshot(p);
-    expect(corrected.topics[0]).toMatchObject({
+    expect(corrected.topics[0]).toEqual(original.topics[0]);
+    expect(corrected.topics[1]).toMatchObject({
       qualifiedExplanationUnits: 0,
       activity: 0,
-      statisticsAvailability: 'available',
+      statisticsAvailability: 'not_observed',
     });
-    expect(corrected.topics[1]).toMatchObject({
+    // A real newly activated encounter pins the new B attribution. Same explanation identity
+    // contributes one unit per actual attributed topic, never two units for its A variants.
+    const freshB = await read(p, first);
+    await qualify(p, freshB.exposure.exposureId);
+    const withB = await snapshot(p);
+    expect(withB.topics[0]).toEqual(original.topics[0]);
+    expect(withB.topics[1]).toMatchObject({
       qualifiedExplanationUnits: 1,
-      formats: [{ measured: 0 }, { measured: 2, qualified: 2 }],
+      formats: [{ measured: 0 }, { measured: 1, qualified: 1 }],
     });
+    expect(withB.supportingEvidence.every((c) => c.explanationUnitId === unit)).toBe(true);
     for (const asset of [first, twin])
       await database.db
         .updateTable('content.encounter_topics')
         .set({ topic_id: topicA })
         .where('asset_id', '=', asset.assetId)
         .execute();
-    await c.projectActivity(job(p, a.exposure.exposureId));
-    await c.projectActivity(job(p, b.exposure.exposureId));
+    for (const e of [a.exposure, b.exposure, freshB.exposure]) await c.projectActivity(job(p, e.exposureId));
     const restored = await snapshot(p);
     expect(restored.topics[0]).toEqual(original.topics[0]);
-    expect(restored.topics[1]).toMatchObject({ qualifiedExplanationUnits: 0, activity: 0 });
+    expect(restored.topics[1]).toEqual(withB.topics[1]);
     expect(restored.revision).toBeGreaterThan(corrected.revision);
   });
   it('rolls Evidence, derived support and revision back together when the required context effect fails', async () => {
@@ -192,6 +406,11 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     const failing = await scrollUseCases(database, {
       activityNow: () => evaluation,
       activityDerived: {
+        isRecordingCurrent: c.activityContextEffect.isRecordingCurrent,
+        applyRecording: async (s, x) => {
+          await c.activityContextEffect.applyRecording(s, x);
+          throw new Error('CI_FIXTURE_CONTEXT_FAILURE');
+        },
         isCurrent: activityContextEffect.isCurrent,
         apply: async (s, x) => {
           await activityContextEffect.apply(s, x);
@@ -267,7 +486,8 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
       .orderBy('revision')
       .execute();
     const current = await database.db
-      .selectFrom('evidence.activity_current')
+      .selectFrom('evidence.recording_segment_heads')
+      .where('recording_generation', '=', 1)
       .select('activity_id')
       .where('universe_id', '=', p.universeId)
       .where('exposure_id', '=', r.exposure.exposureId)

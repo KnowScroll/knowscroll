@@ -36,6 +36,30 @@ export const ContributionSchema = z
       c.addIssue({ code: 'custom', message: 'Inconsistent structural support' });
   });
 export type Contribution = z.infer<typeof ContributionSchema>;
+/** PC's own committed baseline is the only inherited structural authority. */
+export function recordingContribution(base: Contribution | null, current: Contribution): Contribution {
+  if (
+    base &&
+    (base.exposureId !== current.exposureId ||
+      base.assetId !== current.assetId ||
+      base.assetRevision !== current.assetRevision ||
+      base.explanationUnitId !== current.explanationUnitId)
+  )
+    throw new Error('PERSONAL_CONTEXT_RECORDING_IDENTITY');
+  // An action-only correction cannot fill a missing PC row from Evidence's carried qualification.
+  if (!current.qualified) return base ?? current;
+  if (!base?.qualified) return current;
+  const topics = new Map(base.topics.map((t) => [t.topicId, t]));
+  for (const t of current.topics) {
+    const old = topics.get(t.topicId);
+    if (!old || old.role === 'incidental') topics.set(t.topicId, t);
+  }
+  return ContributionSchema.parse({ ...current, topics: [...topics.values()], coveredFacets: [] });
+}
+export const RecordingContributionEnvelopeSchema = z.strictObject({
+  version: z.literal('recording-personal-contribution.v1'),
+  contribution: ContributionSchema.nullable(),
+});
 export interface Support {
   readonly topicId: string;
   readonly kind: 'unit' | 'facet';

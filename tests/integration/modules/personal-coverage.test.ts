@@ -211,7 +211,8 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
       eb = await read(p, b);
     const before = await activityRows(p);
     const current = await database.db
-      .selectFrom('evidence.activity_current')
+      .selectFrom('evidence.recording_segment_heads')
+      .where('recording_generation', '=', 1)
       .select('activity_id')
       .where('universe_id', '=', p.universeId)
       .where('exposure_id', '=', ea.exposureId)
@@ -225,6 +226,18 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     expect(await counts()).toMatchObject([{ reference_count: 2, explanation_unit_id: a.unit, facet_id: facet }]);
     const initial = await proof(p, a.unit);
     expect(initial.witnesses).toHaveLength(2);
+    for (const w of initial.witnesses) {
+      expect(w).toMatchObject({ sourceKind: 'segment', recordingGeneration: 1 });
+      expect(
+        initial.certificates.some(
+          (c) =>
+            c.witnessKey === w.witnessKey &&
+            c.activityId === w.activityId &&
+            c.qualificationId === w.qualificationId &&
+            c.certificateSha256 === w.certificateSha256,
+        ),
+      ).toBe(true);
+    }
     expect(initial.supports).toEqual([
       {
         topicId: topic,
@@ -257,6 +270,12 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     expect(await activityRows(p)).toEqual(before);
     expect(await counts()).toHaveLength(2);
     const mapped = await proof(p, a.unit);
+    const original = initial.witnesses.find((w) => w.exposureId === ea.exposureId)!,
+      replacement = mapped.witnesses.find((w) => w.exposureId === ea.exposureId)!;
+    expect(replacement.activityId).toBe(original.activityId);
+    expect(replacement.qualificationId).toBe(original.qualificationId);
+    expect(replacement.witnessKey).not.toBe(original.witnessKey);
+    expect(replacement.certificateSha256).not.toBe(original.certificateSha256);
     expect(mapped.witnesses.map((w) => w.facetId).sort()).toEqual([facet, otherFacet].sort());
     expect(mapped.supports.map((s) => s.facetId)).toEqual([facet, otherFacet].sort());
     expect(new Set(mapped.supports.map((s) => s.explanationUnitId))).toEqual(new Set([a.unit]));
@@ -382,25 +401,65 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     await correction;
     expect((await proof(p, f.unit)).witnesses).toEqual([]);
   });
+  async function seedLegacyOverflow(p: FixturePerson, exposureId: string, clones: number) {
+    const actual = await database.db
+      .selectFrom('evidence.recording_segment_heads')
+      .where('recording_generation', '=', 1)
+      .select('activity_id')
+      .where('universe_id', '=', p.universeId)
+      .where('exposure_id', '=', exposureId)
+      .executeTakeFirstOrThrow();
+    const source = await database.db
+      .selectFrom('personal_context.recording_segment_heads')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .where('exposure_id', '=', exposureId)
+      .where('recording_generation', '=', 1)
+      .executeTakeFirstOrThrow();
+    if (!source.coverage) throw new Error('fixture_certificate_missing');
+    await database.db
+      .insertInto('personal_context.coverage_contributions')
+      .values({
+        universe_id: p.universeId,
+        privacy_epoch: 1,
+        exposure_id: exposureId,
+        activity_id: actual.activity_id!,
+        input_sha256: canonicalSha256({ activityId: actual.activity_id, certificate: source.coverage }),
+        payload: source.coverage,
+      })
+      .execute();
+    await sql`insert into personal_context.coverage_references(universe_id,privacy_epoch,exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256)
+      select universe_id,privacy_epoch,exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256 from personal_context.recording_coverage_references
+      where universe_id=${p.universeId}::uuid and exposure_id=${exposureId}::uuid`.execute(database.db);
+    // Deliberate prepared-row overflow fixture. Cloned payloads are NOT valid observed certificates;
+    // the limit must refuse BEFORE validating or returning any such row as a witness.
+    await sql`with seed as materialized (select gen_random_uuid() exposure,gen_random_uuid() activity from generate_series(1,${clones})),
+      exposures as (insert into experience.exposures select (jsonb_populate_record(null::experience.exposures,to_jsonb(base)||jsonb_build_object('id',seed.exposure,'command_id',gen_random_uuid()))).* from experience.exposures base cross join seed where base.universe_id=${p.universeId}::uuid and base.id=${exposureId}::uuid returning id),
+      activities as (insert into evidence.activity_revisions select (jsonb_populate_record(null::evidence.activity_revisions,to_jsonb(base)||jsonb_build_object('id',seed.activity,'exposure_id',seed.exposure))).* from evidence.activity_revisions base cross join seed join exposures on exposures.id=seed.exposure where base.universe_id=${p.universeId}::uuid and base.id=${actual.activity_id}::uuid returning exposure_id,id),
+      certificates as (insert into personal_context.coverage_contributions(universe_id,privacy_epoch,exposure_id,activity_id,input_sha256,payload) select base.universe_id,base.privacy_epoch,activities.exposure_id,activities.id,base.input_sha256,base.payload from personal_context.coverage_contributions base cross join activities where base.universe_id=${p.universeId}::uuid and base.exposure_id=${exposureId}::uuid returning exposure_id)
+      insert into personal_context.coverage_references(universe_id,privacy_epoch,exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256) select base.universe_id,base.privacy_epoch,certificates.exposure_id,base.topic_id,base.facet_id,base.meaning_sha256,base.explanation_unit_id,base.truth_sha256 from personal_context.coverage_references base cross join certificates where base.universe_id=${p.universeId}::uuid and base.exposure_id=${exposureId}::uuid`.execute(
+      database.db,
+    );
+  }
+  it('bounds the combined legacy/new candidate budget before hydrating shadowed or malformed legacy certificates', async () => {
+    const p = await seedPerson(database.db),
+      f = await fixture(),
+      e = await read(p, f);
+    await seedLegacyOverflow(p, e.exposureId, 999);
+    // Each individual budget is within1000; the1000legacy+1recording sum must still refuse.
+    expect(await proof(p, f.unit)).toMatchObject({
+      availability: 'unavailable',
+      reason: 'limit',
+      supports: [],
+      witnesses: [],
+      certificates: [],
+    });
+  });
   it('refuses an overflowing indexed reference probe without returning truncated witnesses', async () => {
     const p = await seedPerson(database.db),
       f = await fixture(),
       e = await read(p, f);
-    const actual = await database.db
-      .selectFrom('evidence.activity_current')
-      .select('activity_id')
-      .where('universe_id', '=', p.universeId)
-      .where('exposure_id', '=', e.exposureId)
-      .executeTakeFirstOrThrow();
-    // Deliberate prepared-row overflow fixture. Cloned payloads are NOT valid observed certificates;
-    // the limit must refuse BEFORE validating or returning any such row as a witness.
-    await sql`with seed as materialized (select gen_random_uuid() exposure,gen_random_uuid() activity from generate_series(1,1001)),
-      exposures as (insert into experience.exposures select (jsonb_populate_record(null::experience.exposures,to_jsonb(base)||jsonb_build_object('id',seed.exposure,'command_id',gen_random_uuid()))).* from experience.exposures base cross join seed where base.universe_id=${p.universeId}::uuid and base.id=${e.exposureId}::uuid returning id),
-      activities as (insert into evidence.activity_revisions select (jsonb_populate_record(null::evidence.activity_revisions,to_jsonb(base)||jsonb_build_object('id',seed.activity,'exposure_id',seed.exposure))).* from evidence.activity_revisions base cross join seed join exposures on exposures.id=seed.exposure where base.universe_id=${p.universeId}::uuid and base.id=${actual.activity_id}::uuid returning exposure_id,id),
-      certificates as (insert into personal_context.coverage_contributions(universe_id,privacy_epoch,exposure_id,activity_id,input_sha256,payload) select base.universe_id,base.privacy_epoch,activities.exposure_id,activities.id,base.input_sha256,base.payload from personal_context.coverage_contributions base cross join activities where base.universe_id=${p.universeId}::uuid and base.exposure_id=${e.exposureId}::uuid returning exposure_id)
-      insert into personal_context.coverage_references(universe_id,privacy_epoch,exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256) select base.universe_id,base.privacy_epoch,certificates.exposure_id,base.topic_id,base.facet_id,base.meaning_sha256,base.explanation_unit_id,base.truth_sha256 from personal_context.coverage_references base cross join certificates where base.universe_id=${p.universeId}::uuid and base.exposure_id=${e.exposureId}::uuid`.execute(
-      database.db,
-    );
+    await seedLegacyOverflow(p, e.exposureId, 1001);
     expect(await proof(p, f.unit)).toEqual({
       version: 'trusted-coverage-read.v1',
       availability: 'unavailable',
@@ -418,7 +477,7 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
       e = await read(p, f);
     await admit()(approved({ ...f.command, expectedHeadRevision: 1, change: { kind: 'retract' } }));
     const before = await database.db
-      .selectFrom('personal_context.coverage_contributions')
+      .selectFrom('personal_context.recording_coverage_contributions')
       .selectAll()
       .where('universe_id', '=', p.universeId)
       .execute();
@@ -438,7 +497,7 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     }
     expect(
       await database.db
-        .selectFrom('personal_context.coverage_contributions')
+        .selectFrom('personal_context.recording_coverage_contributions')
         .selectAll()
         .where('universe_id', '=', p.universeId)
         .execute(),
@@ -464,7 +523,15 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
       .where('id', '=', p.universeId)
       .execute();
     expect(await c.projectActivity(job(p, e.exposureId))).toEqual({ kind: 'skipped', reason: 'epoch_changed' });
-    for (const table of ['coverage_references', 'coverage_supports', 'coverage_contributions'] as const)
+    for (const table of [
+      'coverage_references',
+      'coverage_supports',
+      'coverage_contributions',
+      'recording_coverage_references',
+      'recording_coverage_contributions',
+      'recording_exposure_contributions',
+      'recording_segment_heads',
+    ] as const)
       expect(
         await database.db
           .selectFrom(`personal_context.${table}`)

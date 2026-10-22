@@ -38,6 +38,46 @@ export function coverageSupports(c: CoverageObservationSupport): readonly Covera
 }
 export const coverageSupportKey = (s: CoverageSupport) =>
   JSON.stringify([s.topicId, s.facetId, s.meaningSha256, s.explanationUnitId, s.truthSha256]);
+export const RecordingWitnessPointerSchema = z.strictObject({
+  topicId: Ref,
+  facetId: Ref,
+  meaningSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+  explanationUnitId: Ref,
+  truthSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+  sourceKind: z.enum(['legacy', 'segment']),
+  recordingGeneration: z
+    .number()
+    .int()
+    .positive()
+    .max(2147483647)
+    .refine((g) => g % 2 === 1),
+  activityId: z.uuid(),
+  qualificationId: z.uuid(),
+  certificateSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+});
+export type RecordingWitnessPointer = z.infer<typeof RecordingWitnessPointerSchema>;
+/** One binding slot, with its immutable per-generation base and replaceable current proof. */
+export const RecordingCoverageSlotsSchema = z
+  .array(
+    z.strictObject({
+      base: RecordingWitnessPointerSchema.nullable(),
+      current: RecordingWitnessPointerSchema.nullable(),
+    }),
+  )
+  .max(16)
+  .superRefine((slots, c) => {
+    const keys = slots.map((s) => JSON.stringify([(s.current ?? s.base)?.topicId, (s.current ?? s.base)?.facetId]));
+    if (
+      slots.some((s) => !s.base && !s.current) ||
+      new Set(keys).size !== keys.length ||
+      slots.some(
+        (s) => s.base && s.current && (s.base.topicId !== s.current.topicId || s.base.facetId !== s.current.facetId),
+      )
+    )
+      c.addIssue({ code: 'custom', message: 'Inconsistent effective binding slots' });
+  });
+export const selectedWitnesses = (slots: z.infer<typeof RecordingCoverageSlotsSchema>) =>
+  slots.map((s) => (s.current ?? s.base)!);
 export type TrustedCoverageRead<Certificate = unknown> = {
   readonly version: 'trusted-coverage-read.v1';
   readonly completeness: 'not_asserted';
@@ -57,8 +97,21 @@ export type TrustedCoverageRead<Certificate = unknown> = {
       readonly supports: readonly (CoverageSupport & { readonly witnessExposureIds: readonly string[] })[];
       readonly witnesses: readonly (CoverageSupport & {
         readonly exposureId: string;
+        readonly witnessKey: string;
+        readonly sourceKind: 'legacy' | 'segment';
+        readonly recordingGeneration: number;
+        readonly activityId: string;
+        readonly qualificationId: string;
         readonly certificateSha256: string;
       })[];
-      readonly certificates: readonly { readonly certificateSha256: string; readonly certificate: Certificate }[];
+      readonly certificates: readonly {
+        readonly witnessKey: string;
+        readonly sourceKind: 'legacy' | 'segment';
+        readonly recordingGeneration: number;
+        readonly activityId: string;
+        readonly qualificationId: string;
+        readonly certificateSha256: string;
+        readonly certificate: Certificate;
+      }[];
     }
 );

@@ -16,6 +16,8 @@ const query = {
 function snapshot(): ExplorationSnapshot {
   return {
     version: 'exploration-snapshot.v0',
+    proofAvailability: 'available',
+    proofReason: 'bounded',
     universeId: id,
     privacyEpoch: 1,
     evaluatedAt: query.evaluatedAt,

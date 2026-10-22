@@ -6,6 +6,7 @@ import {
   supportChanges,
   supports,
   type Contribution,
+  recordingContribution,
 } from './context.js';
 const contribution = (patch: Partial<Contribution> = {}): Contribution => ({
   version: 'personal-contribution.v0',
@@ -28,6 +29,27 @@ const contribution = (patch: Partial<Contribution> = {}): Contribution => ({
   ...patch,
 });
 describe('personal structural support (labelled source fixtures)', () => {
+  it('inherits only a committed PC baseline; a current action-only segment cannot manufacture support', () => {
+    const current = contribution({ qualified: false, input: { ...contribution().input, qualificationRevision: 0 } });
+    expect(supports(recordingContribution(null, current))).toEqual([]);
+    expect(recordingContribution(contribution(), current)).toEqual(contribution());
+    // Carried Evidence qualification is deliberately absent from the reducer's interface.
+    expect(recordingContribution(null, contribution()).qualified).toBe(true);
+    const frozen: Contribution | null = null;
+    expect(supports(recordingContribution(frozen, contribution()))).toHaveLength(1);
+    expect(supports(recordingContribution(frozen, current))).toEqual([]);
+  });
+  it('refuses cross-exposure baseline inheritance and keeps resumed variants one structural key', () => {
+    expect(() =>
+      recordingContribution(contribution(), contribution({ exposureId: '10000000-0000-4000-8000-000000000002' })),
+    ).toThrow('PERSONAL_CONTEXT_RECORDING_IDENTITY');
+    const next = recordingContribution(
+      contribution(),
+      contribution({ input: { ...contribution().input, qualificationRevision: 2 } }),
+    );
+    expect(supportChanges(contribution(), next)).toEqual([]);
+    expect(supports(next)).toHaveLength(1);
+  });
   it('does not derive variety from likes, incidental tags or unqualified encounters', () => {
     expect(supports(contribution({ qualified: false }))).toEqual([]);
     expect(supports(contribution({ topics: [{ topicId: 'incidental', role: 'incidental' }] }))).toEqual([]);

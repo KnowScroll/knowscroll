@@ -1,4 +1,5 @@
 import { personalStores } from '@knowscroll/backend/erasure-registry';
+import { CONTEXT_POLICY, RecordingContributionEnvelopeSchema } from '@knowscroll/backend/modules/personal-context';
 import { socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
 import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
@@ -744,6 +745,54 @@ describe('durable selective Clear', () => {
           exposureId: exposure.exposureId,
         }),
       ).toMatchObject({ kind: 'applied' });
+      // Erasure-only coexistence fixture: retain exact valid legacy-shaped copies of the
+      // freshly committed PC source. Production performs no history initialization/copy.
+      // Both generations of stores must be populated; the every-store>0 assertion stays exact.
+      const effective = await database.db
+        .selectFrom('personal_context.recording_exposure_contributions')
+        .selectAll()
+        .where('universe_id', '=', person.universeId)
+        .where('exposure_id', '=', exposure.exposureId)
+        .executeTakeFirstOrThrow();
+      const contribution = RecordingContributionEnvelopeSchema.parse(effective.payload).contribution;
+      if (!contribution?.qualified) throw new Error('fixture_pc_recording_support_missing');
+      await database.db
+        .insertInto('personal_context.contributions')
+        .values({
+          universe_id: person.universeId,
+          privacy_epoch: 1,
+          exposure_id: exposure.exposureId,
+          explanation_unit_id: contribution.explanationUnitId,
+          qualified: true,
+          input_sha256: requestHash(CONTEXT_POLICY, contribution),
+          payload_version: contribution.version,
+          payload: contribution,
+        })
+        .execute();
+      const source = await database.db
+        .selectFrom('personal_context.recording_segment_heads')
+        .selectAll()
+        .where('universe_id', '=', person.universeId)
+        .where('exposure_id', '=', exposure.exposureId)
+        .where('recording_generation', '=', 1)
+        .executeTakeFirstOrThrow();
+      if (!source.coverage || !source.coverage_sha256) throw new Error('fixture_pc_recording_certificate_missing');
+      await database.db
+        .insertInto('personal_context.coverage_contributions')
+        .values({
+          universe_id: person.universeId,
+          privacy_epoch: 1,
+          exposure_id: exposure.exposureId,
+          activity_id: source.activity_id,
+          input_sha256: canonicalSha256({ activityId: source.activity_id, certificate: source.coverage }),
+          payload: source.coverage,
+        })
+        .execute();
+      await sql`insert into personal_context.coverage_references(universe_id,privacy_epoch,exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256)
+        select universe_id,privacy_epoch,exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256
+        from personal_context.recording_coverage_references where universe_id=${person.universeId}::uuid and exposure_id=${exposure.exposureId}::uuid`.execute(
+        database.db,
+      );
     };
     const seed = async (person: FixturePerson) => {
       await withPersonalScope(person.authority, (scope) =>

@@ -1,4 +1,4 @@
-import type { ObservedCoverage, CheckCoverageEvidence } from '../../evidence/public.js';
+import type { ObservedCoverage, CheckCoverageEvidence, CheckRecordingCoverageEvidence } from '../../evidence/public.js';
 import type { ReadAdmittedCoverageMapping, LockCurrentCoverageAuthorities } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { TrustedCoverageQuery, TrustedCoverageRead } from '../domain/coverage.js';
@@ -8,6 +8,7 @@ export type ReadTrustedCoverage = (
 ) => Promise<TrustedCoverageRead<ObservedCoverage>>;
 export interface CoverageDependencies {
   readonly checkEvidence: CheckCoverageEvidence;
+  readonly checkRecordingEvidence: CheckRecordingCoverageEvidence;
   readonly readMapping: ReadAdmittedCoverageMapping;
   readonly lockAuthorities: LockCurrentCoverageAuthorities;
 }
