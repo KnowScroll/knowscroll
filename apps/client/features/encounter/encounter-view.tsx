@@ -4,6 +4,7 @@ import type { AccountScope } from '@knowscroll/client-core';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Text, type ReelPositionHandle, type ScrollPositionHandle } from '@knowscroll/ui';
 import { ActivatedScrollView } from '../scroll/activated-scroll-view';
+import { useReelPageStage } from '../reel/reel-page';
 import { ActivatedReelView } from '../reel/activated-reel-view';
 import { EncounterEdges } from './encounter-edges';
 import { EncounterActions } from './encounter-chrome';
@@ -30,11 +31,18 @@ export function EncounterView({
   const reelPosition = useRef<ReelPositionHandle>(null);
   const retainedGrant = useMemo(() => session.mediaGrant(entry), [entry, session]);
   const onMove = useCallback((move: EncounterGestureMove) => session.gesture(move), [session]);
-  const renderStage = useCallback(
-    (stage: React.ReactNode) => <ReelGestureStage onMove={onMove}>{stage}</ReelGestureStage>,
-    [onMove],
-  );
   const playable = foreground && !state.overlay && state.phase === 'active';
+  const pause = useCallback(() => reelPosition.current?.pause(), []);
+  const visibility = useReelPageStage(scope, playable, pause);
+  const renderStage = useCallback(
+    (stage: React.ReactNode) => (
+      <View ref={visibility.ref} onLayout={visibility.onLayout} style={styles.mediaStage}>
+        <ReelGestureStage onMove={onMove}>{stage}</ReelGestureStage>
+        <EncounterEdges entry={entry} session={session} disabled={state.phase !== 'active'} />
+      </View>
+    ),
+    [onMove, entry, session, state.phase, visibility.ref, visibility.onLayout],
+  );
   const onMutedChange = useCallback(
     (muted: boolean) => {
       retainReelMuted(scope, entry, muted);
@@ -80,15 +88,16 @@ export function EncounterView({
         exposureId={entry.exposureId}
         document={entry.document}
         recorder={entry.recorder}
-        active={playable}
+        active={playable && visibility.visible}
         retainedGrant={retainedGrant}
         renderStage={renderStage}
+        stageMaxHeight={visibility.stageMaxHeight}
         positionRef={reelPosition}
         initialPositionMs={entry.position?.kind === 'reel' ? entry.position.positionMs : entry.restored ? 0 : undefined}
         initialMuted={entry.muted ?? (entry.position?.kind === 'reel' ? entry.position.muted : false)}
         onMutedChange={onMutedChange}
       />
-      <View style={styles.caption}>
+      <View testID="encounter-reel-caption" style={styles.caption}>
         <Text variant="title" color={content.paper}>
           {entry.document.title}
         </Text>
@@ -97,11 +106,11 @@ export function EncounterView({
         </Text>
       </View>
       <EncounterActions state={state} session={session} />
-      <EncounterEdges entry={entry} session={session} disabled={state.phase !== 'active'} />
     </View>
   );
 }
 const styles = StyleSheet.create({
-  reel: { flex: 1 },
+  reel: { flexShrink: 0 },
+  mediaStage: { flex: 1, minHeight: 0, position: 'relative' },
   caption: { padding: spacing[3], gap: spacing[2], backgroundColor: content.ink },
 });
