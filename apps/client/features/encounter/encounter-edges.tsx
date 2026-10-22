@@ -64,14 +64,23 @@ export function EncounterEdges({
   const continuations = entry.context.continuations;
   const next = continuations.seriesNext.status === 'ready' ? continuations.seriesNext : continuations.related;
   return (
-    <View style={styles.edges} pointerEvents="box-none">
+    <View testID="encounter-continuation-edges" style={styles.edges} pointerEvents="box-none">
       <Edge state={continuations.seriesPrevious} previous session={session} disabled={disabled} />
       <Edge state={next} session={session} disabled={disabled} />
     </View>
   );
 }
 const styles = StyleSheet.create({
-  edges: { position: 'absolute', top: '40%', left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between' },
+  edges: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   edge: { maxWidth: '48%' },
   previous: { marginRight: 'auto' },
   next: { marginLeft: 'auto' },
