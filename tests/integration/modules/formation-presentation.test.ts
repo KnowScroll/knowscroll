@@ -100,6 +100,28 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
         clearExplorationQueue,
         recoverClearOperationsQueue,
       ]);
+      expect(await installer.getSchedules(recoverFormationQueue.name)).toEqual([
+        expect.objectContaining({
+          name: recoverFormationQueue.name,
+          key: '',
+          cron: '*/5 * * * *',
+          timezone: 'UTC',
+          data: { v: 1 },
+        }),
+      ]);
+      // These cases explicitly deliver recovery roots/children. Remove only this fixture's
+      // recurring trigger BEFORE any consumer starts: pg-boss can forward the preceding
+      // minute's cron occurrence at startup, and unschedule does not retract forwarded jobs.
+      await installer.unschedule(recoverFormationQueue.name);
+      expect(await installer.getSchedules(recoverFormationQueue.name)).toEqual([]);
+      expect(
+        (
+          await database.pool.query(
+            "select id from pgboss.job where name=$1 or(name='__pgboss__send-it' and data->>'name'=$1)",
+            [recoverFormationQueue.name],
+          )
+        ).rowCount,
+      ).toBe(0);
     } finally {
       await installer.stop({ graceful: false });
     }
@@ -573,6 +595,8 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
     );
     return { ...p, claimId };
   }
+  const deliveryState = async (id: string | null) =>
+    (await database.pool.query<{ state: string }>('select state from pgboss.job where id=$1', [id])).rows[0]?.state;
   it('exhausted/dead-lettered final delivery plus root-lock failure recovers after restart through normal consumer', async () => {
     const p = await overdue(),
       job = { v: 1 as const, universeId: p.universeId, privacyEpoch: 1, transitionId: p.t, claimId: p.claimId };
@@ -629,23 +653,28 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
       await held;
     }
     const worker = createBoss(database.settings, 'consumer', { onError: () => undefined, onWarning: () => undefined });
+    const deliveries: string[] = [];
+    let recoveryId: string | null = null;
     await worker.start();
     try {
-      await worker.unschedule(recoverFormationQueue.name);
       await startConsumers(
         worker,
         [
-          jobConsumer(recoverFormationQueue, async (input) => {
+          jobConsumer(recoverFormationQueue, async (input, context) => {
+            deliveries.push(context.jobId);
             await api().recover(input);
           }),
         ],
         () => undefined,
       );
-      await c.boss.send(recoverFormationQueue.name, { v: 1 });
+      recoveryId = await c.boss.send(recoverFormationQueue.name, { v: 1 });
+      expect(recoveryId).toBeTruthy();
       await waitUntil(async () => Boolean((await row(p, p.t))?.terminal));
+      await waitUntil(async () => (await deliveryState(recoveryId)) === 'completed');
     } finally {
       await worker.stop({ graceful: false });
     }
+    expect(deliveries).toEqual([recoveryId]);
     expect((await row(p, p.t))?.terminal?.disposition).toBe('skipped');
     await api().expire(job);
     expect((await row(p, p.t))?.terminal?.disposition).toBe('skipped');
@@ -692,23 +721,32 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
     }
     const future = await overdue();
     const follow = initial[0]!.data;
+    expect(follow).toEqual({
+      v: 1,
+      afterKey: (await row(heads[99]!, heads[99]!.t))!.key,
+      throughKey: (await row(tail, tail.t))!.key,
+    });
     const worker = createBoss(database.settings, 'consumer', { onError: () => undefined, onWarning: () => undefined });
+    const deliveries: { jobId: string; input: unknown }[] = [];
     await worker.start();
     try {
-      await worker.unschedule(recoverFormationQueue.name);
       await startConsumers(
         worker,
         [
-          jobConsumer(recoverFormationQueue, async (input) => {
+          jobConsumer(recoverFormationQueue, async (input, context) => {
+            deliveries.push({ jobId: context.jobId, input });
             await api().recover(input);
           }),
         ],
         () => undefined,
       );
       await waitUntil(async () => Boolean((await row(tail, tail.t))?.terminal));
+      await waitUntil(async () => (await deliveryState(initial[0]!.id)) === 'completed');
     } finally {
       await worker.stop({ graceful: false });
     }
+    expect(deliveries).toEqual([{ jobId: initial[0]!.id, input: follow }]);
+    expect(await children()).toHaveLength(0);
     expect((await row(future, future.t))?.terminal).toBeUndefined();
     expect((await row(heads[0]!, heads[0]!.t))?.terminal).toBeUndefined();
     const before = await database.pool.query<{ n: number }>('select count(*)::int as n from pgboss.job where name=$1', [
