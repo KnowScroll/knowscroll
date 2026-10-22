@@ -74,7 +74,6 @@ function ReadyReel({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [active, setActive] = useState(AppState.currentState === 'active');
-  const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const removal = useMemo(() => savedRemovalFor(scope, newCommandId), [scope]);
   const removalState = useSyncExternalStore(removal.subscribe, removal.getState, removal.getState);
@@ -88,6 +87,8 @@ function ReadyReel({
     return { kind: 'reel' as const, positionMs };
   }, [scope, document]);
   const kept = useKeepSurface(scope, target, exposureId, capture);
+  const saved =
+    kept.state.place.snapshot?.status === 'available' || kept.state.place.snapshot?.status === 'saved_unavailable';
   const [resume] = useState(() => readResume(scope, document.assetId, document.revision));
   const [saveFailed, setSaveFailed] = useState(false);
   useDocumentTitle(document.title);
@@ -101,10 +102,6 @@ function ReadyReel({
       }),
     [scope, exposureId, document],
   );
-  useEffect(() => {
-    if (kept.state.place.status !== 'ready' || !kept.state.place.snapshot) return;
-    setSaved(kept.state.place.snapshot.status !== 'not_saved');
-  }, [kept.state.place]);
   useEffect(() => {
     if (removalState.status === 'confirmed' && removalState.item.assetId === document.assetId) kept.surface.refresh();
   }, [removalState, document.assetId, kept.surface]);
@@ -135,8 +132,7 @@ function ReadyReel({
     try {
       const confirmed = await kept.surface.save();
       if (scope.active) {
-        if (confirmed) setSaved(kept.surface.getState().place.snapshot?.status !== 'not_saved');
-        else setSaveFailed(true);
+        if (!confirmed) setSaveFailed(true);
       }
     } catch {
       if (scope.active) setSaveFailed(true);
