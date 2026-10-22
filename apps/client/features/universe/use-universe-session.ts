@@ -14,5 +14,7 @@ export function useUniverseSession(scope: AccountScope, reducedMotion: boolean) 
   const session = universeSessionFor(scope),
     state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   useEffect(() => session.configure({ detail: state.detail, reducedMotion }), [session, state.detail, reducedMotion]);
+  // The scope-owned formation controller survives route remounts; React owns only its mounted surface.
+  useEffect(() => () => session.formation.setForeground(false), [session]);
   return { session, state };
 }
