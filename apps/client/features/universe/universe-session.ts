@@ -1,5 +1,12 @@
-import { createUniverseSceneSession, type AccountScope, type UniverseSceneState } from '@knowscroll/client-core';
-import type { SceneClientCapabilities } from '@knowscroll/contracts';
+import {
+  createRegionPreviewSession,
+  createUniverseSceneSession,
+  type AvailableRegionPreview,
+  type RegionPreviewState,
+  type AccountScope,
+  type UniverseSceneState,
+} from '@knowscroll/client-core';
+import type { RegionEncounterTarget, SceneClientCapabilities } from '@knowscroll/contracts';
 import {
   buildSceneGeometry,
   type SceneDescriptor,
@@ -14,6 +21,9 @@ import {
   returnLocator,
   type UniverseFrame,
 } from './universe-camera';
+import { newCommandId } from '../../platform/command-id';
+import { ENCOUNTER_CAPABILITIES } from '../encounter/capabilities';
+import { encounterSessionFor } from '../encounter/use-encounter-session';
 export interface UniversePlace {
   readonly id: string;
   readonly parentId: string;
@@ -33,6 +43,7 @@ export interface UniverseViewState extends CameraEntry {
   readonly reducedMotion: boolean;
   readonly notice?: 'place_unavailable';
   readonly historyDepth: number;
+  readonly regionPreview: RegionPreviewState;
 }
 export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean): SceneClientCapabilities {
   return {
@@ -46,14 +57,16 @@ export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean
     reducedMotion,
   };
 }
-/** Map actions perform no writes, recording, socket creation or semantic target resolution. */
-export function createUniverseViewSession(scope: AccountScope) {
+/** Focus/camera/preview stay read-only; deliberate Open delegates to the real encounter engine. */
+export function createUniverseViewSession(scope: AccountScope, newId = newCommandId) {
   let detail: 'full' | 'low' = 'full',
     reducedMotion = true,
     foreground = false,
     ended = false;
   let core = createUniverseSceneSession({ scope, capabilities: sceneCapabilities(detail, reducedMotion) });
   let history: CameraEntry[] = [];
+  const preview = createRegionPreviewSession({ scope, capabilities: ENCOUNTER_CAPABILITIES, newReadId: newId });
+  let returnPoint: { camera: CameraEntry; history: CameraEntry[] } | undefined;
   const listeners = new Set<() => void>(),
     cache = new Map<string, { key: string; geometry: SceneGeometry }>();
   let state: UniverseViewState = {
@@ -64,11 +77,42 @@ export function createUniverseViewSession(scope: AccountScope) {
     detail,
     reducedMotion,
     historyDepth: 0,
+    regionPreview: preview.getState(),
   };
   const live = () => !ended && scope.active;
   const publish = (patch: Partial<UniverseViewState>) => {
     state = { ...state, ...patch, historyDepth: history.length };
     for (const listener of [...listeners]) listener();
+  };
+  const previewOff = preview.subscribe(() => publish({ regionPreview: preview.getState() }));
+  const cancelPreview = () => preview.cancel();
+  const target = (): RegionEncounterTarget | undefined => {
+    const read = core.getState(),
+      geography = read.geography;
+    const object = geography?.objects.find((o) => o.id === state.focusId && o.kind === 'region');
+    if (
+      !object ||
+      !geography ||
+      read.status !== 'ready' ||
+      !read.snapshot ||
+      read.snapshot.read.manifest.revisions.geographyRevision !== geography.geography.revision
+    )
+      return;
+    return {
+      kind: 'region',
+      regionId: object.id,
+      expectedObjectRevision: object.objectRevision,
+      expectedGeographyRevision: geography.geography.revision,
+    };
+  };
+  const readPreview = () => {
+    cancelPreview();
+    const selected = target();
+    if (live() && foreground && state.overlay === 'place' && selected)
+      void preview.read(selected, {
+        personalWatermark: state.read.geography!.personalWatermark,
+        geographyRevision: selected.expectedGeographyRevision,
+      });
   };
   const descriptors = () => (live() ? (state.read.snapshot?.chunks.flatMap((c) => c.objects) ?? []) : []);
   const places = (): readonly UniversePlace[] => {
@@ -109,6 +153,8 @@ export function createUniverseViewSession(scope: AccountScope) {
       hadSnapshot = Boolean(state.read.snapshot);
     if (read.status === 'ended' || read.reason === 'authority') {
       history = [];
+      returnPoint = undefined;
+      cancelPreview();
       cache.clear();
       publish({
         read,
@@ -120,6 +166,7 @@ export function createUniverseViewSession(scope: AccountScope) {
       });
       return;
     }
+    cancelPreview();
     publish({
       read,
       ...(!hadSnapshot && read.snapshot && !state.focusId
@@ -148,11 +195,16 @@ export function createUniverseViewSession(scope: AccountScope) {
       locator: undefined,
       overlay: null,
     });
+    previewOff();
+    preview.dispose();
+    returnPoint = undefined;
+    state = { ...state, regionPreview: { status: 'ended' } };
     listeners.clear();
   };
   scope.onEnd?.(end);
   const focus = (id: string) => {
     if (!live() || !foreground || !places().some((p) => p.id === id)) return false;
+    cancelPreview();
     history.push({ frame: { ...state.frame }, focusId: state.focusId, locator: state.locator });
     if (history.length > DRAW_LIMITS.history) history.shift();
     const all = descriptors(),
@@ -171,9 +223,11 @@ export function createUniverseViewSession(scope: AccountScope) {
   const back = () => {
     if (!live() || !foreground) return false;
     if (state.overlay) {
+      cancelPreview();
       publish({ overlay: null });
       return true;
     }
+    cancelPreview();
     const entry = history.pop();
     if (!entry) return false;
     if (!validCamera(entry)) {
@@ -206,10 +260,14 @@ export function createUniverseViewSession(scope: AccountScope) {
       if (!live()) return;
       foreground = value;
       if (value) core.resume();
-      else core.pause();
+      else {
+        cancelPreview();
+        core.pause();
+      }
     },
     configure(next: { detail: 'full' | 'low'; reducedMotion: boolean }) {
       if (!live() || (next.detail === detail && next.reducedMotion === reducedMotion)) return;
+      cancelPreview();
       detail = next.detail;
       reducedMotion = next.reducedMotion;
       unsubscribe();
@@ -221,7 +279,43 @@ export function createUniverseViewSession(scope: AccountScope) {
       if (foreground) core.start();
     },
     showOverlay(overlay: UniverseViewState['overlay']) {
-      if (live() && foreground && (overlay !== 'place' || state.focusId)) publish({ overlay });
+      if (live() && foreground && (overlay !== 'place' || state.focusId)) {
+        cancelPreview();
+        publish({ overlay });
+        if (overlay === 'place') readPreview();
+      }
+    },
+    refreshRegionPreview: readPreview,
+    openRegion(displayed: AvailableRegionPreview, onReturn: () => void) {
+      const selected = target();
+      if (
+        !live() ||
+        !foreground ||
+        state.overlay !== 'place' ||
+        preview.getState().preview !== displayed ||
+        !selected ||
+        JSON.stringify(selected) !== JSON.stringify(displayed.target)
+      )
+        return false;
+      const saved = {
+        camera: { frame: { ...state.frame }, focusId: state.focusId, locator: state.locator },
+        history: history.map((e) => ({ ...e, frame: { ...e.frame } })),
+      };
+      const accepted = encounterSessionFor(scope).openRegion(displayed, () => {
+        if (!live() || returnPoint !== saved) return;
+        history = saved.history;
+        if (validCamera(saved.camera)) publish({ ...saved.camera, overlay: null, notice: undefined });
+        else {
+          history = [];
+          publish({ focusId: null, locator: undefined, overlay: null, notice: 'place_unavailable' });
+        }
+        onReturn();
+      });
+      if (!accepted) return false;
+      returnPoint = saved;
+      cancelPreview();
+      publish({ overlay: null });
+      return true;
     },
     camera(frame: UniverseFrame) {
       if (live() && foreground) {
