@@ -172,20 +172,32 @@ async function encounterFixture(page: Page, kind: 'scroll' | 'reel') {
       });
       return;
     }
-    if (path === '/v1/actions') {
+    if (path === '/v1/experience/keep/read') {
+      const target = body.target as { assetId: string; assetRevision: number };
+      await route.fulfill({
+        json: {
+          version: 'keep-place.v1',
+          scope: { accountId: id(1), privacyEpoch: 1 },
+          target,
+          status: saved ? 'saved_unavailable' : 'not_saved',
+          ...(saved ? { entry: { ...target, savedEntryId: id(992) } } : {}),
+        },
+      });
+      return;
+    }
+    if (path === '/v1/experience/keep/remove') {
       commands.push({ path, body });
       saved = false;
       await route.fulfill({
         json: {
+          version: 'keep-remove.v1',
+          scope: { accountId: id(1), privacyEpoch: 1 },
           commandId: body.commandId,
-          actionId: id(991),
-          kind: 'unsave',
-          assetId: id(990),
-          assetRevision: 2,
-          saved: false,
-          changed: true,
-          revision: 2,
+          recordedAt: '2026-10-22T00:00:00.000Z',
           replayed: false,
+          outcome: 'accepted',
+          operation: 'keep.entry.remove',
+          entry: body.entry,
         },
       });
       return;
@@ -235,9 +247,27 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
   await page.getByRole('link', { name: 'Keep', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Withdrawn CI fixture' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open saved encounter' })).toHaveCount(0);
+  await page.clock.install();
   await page.getByRole('button', { name: 'Remove from Keep' }).click();
+  await expect(page.getByRole('button', { name: 'Undo removal' })).toBeVisible();
+  expect(commands.filter((call) => call.path.endsWith('/keep/remove'))).toHaveLength(0);
+  await page.getByRole('button', { name: 'Undo removal' }).click();
+  await page.clock.fastForward(5000);
+  expect(commands.filter((call) => call.path.endsWith('/keep/remove'))).toHaveLength(0);
+  await expect(page.getByRole('heading', { name: 'Withdrawn CI fixture' })).toBeVisible();
+  await page.getByRole('button', { name: 'Remove from Keep' }).click();
+  await expect(page.getByRole('button', { name: 'Undo removal' })).toBeVisible();
+  await page.clock.fastForward(4999);
+  expect(commands.filter((call) => call.path.endsWith('/keep/remove'))).toHaveLength(0);
+  await page.clock.fastForward(1);
   await expect(page.getByText('Nothing kept yet', { exact: true })).toBeVisible();
-  expect(commands.at(-1)?.body).toMatchObject({ kind: 'unsave', target: { assetId: id(990), assetRevision: 2 } });
+  expect(commands.at(-1)?.path).toBe('/v1/experience/keep/remove');
+  expect(commands.at(-1)?.body).toEqual({
+    version: 'keep-remove.v1',
+    commandId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+    entry: { assetId: id(990), assetRevision: 2, savedEntryId: id(992) },
+  });
+  expect(commands.filter((call) => call.path === '/v1/actions')).toHaveLength(0);
 });
 
 // The actual ReelPlayer stage and sibling controls are used. This fixture intentionally makes no decoded-playback claim.
