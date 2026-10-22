@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { InteractionEvent } from '@knowscroll/contracts';
 import {
   type Database,
@@ -8,15 +8,24 @@ import {
   fencePersonalRecording,
   transactionOf,
 } from '@knowscroll/backend/infrastructure/postgres';
-import {
-  FENCE_OWN_ACCOUNT,
-  FENCE_PERSONAL_RECORDING,
-  type RecordingScopeTx,
-} from '@knowscroll/backend/modules/identity';
+import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
-import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
-import { ACTIVITY_PORTS, activityProviders } from '@knowscroll/backend/modules/evidence/nest-providers';
+import {
+  READ_ACTION_FOR_EVIDENCE,
+  type ReadActionForEvidence,
+  type ActivateExposure,
+} from '@knowscroll/backend/modules/experience';
+import {
+  ACTIVATE_EXPOSURE,
+  experienceProviders,
+  experienceEvidenceReadProviders,
+} from '@knowscroll/backend/modules/experience/nest-providers';
+import {
+  ACTIVITY_PORTS,
+  activityProviders,
+  makeExperienceRecordingEffects,
+} from '@knowscroll/backend/modules/evidence/nest-providers';
 import { buildFromProviders } from '../support/providers.js';
 import { recordingPolicyFor, accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import {
@@ -26,7 +35,7 @@ import {
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson } from '../support/fixtures.js';
 import { admitStarter, scrollUseCases } from '../support/scroll.js';
-import { activatedAgo, dwell, event, openActive } from '../support/observations.js';
+import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 import { gate } from '../support/fixture-model.js';
 
 /** Actions-only disposable PG. These fixtures prove intake/qualification fences; full positive
@@ -338,23 +347,53 @@ describe('recording Evidence intake and queued provenance', () => {
       await Promise.allSettled([holding, ...(pending ? [pending] : [])]);
     }
   });
-  it('executes the real qualification adapter against created_at and excludes audits before descriptor initialization', async () => {
+  it('uses exact descriptor-qualified legacy Q lineage, never same-millisecond observation/audit timestamps', async () => {
     const { person, exposure } = await reader();
-    await legacy(person, [event(exposure, dwell([0, 1000]))]);
-    const projected = await useCases.projectScrollReading({
+    const facts = await database.db
+      .selectFrom('content.asset_revisions')
+      .select('reading_facts')
+      .where('asset_id', '=', starter.assetId)
+      .where('revision', '=', starter.revision)
+      .executeTakeFirstOrThrow();
+    const blocks = (facts.reading_facts as { blocks: { id: string }[] }).blocks.map((b) => b.id);
+    const oldEvents = [event(exposure, coverage(blocks, 4000)), event(exposure, dwell([0, 68000]))];
+    expect(await legacy(person, oldEvents)).toMatchObject({ accepted: 2 });
+    const oldProjection = await useCases.projectScrollReading({
       v: 1,
       universeId: person.universeId,
       privacyEpoch: 1,
       exposureId: exposure.exposureId,
     });
-    expect(projected).toMatchObject({ kind: 'applied', revision: 1 });
-    if (projected.kind !== 'applied') throw new Error('CI qualification fixture failed');
+    expect(oldProjection).toMatchObject({ kind: 'applied', revision: 1, qualification: 'qualified' });
+    if (oldProjection.kind !== 'applied') throw new Error('CI old qualification fixture failed');
+    // Deliberate ordering fixture: both old rows and Q committed before the descriptor, but their
+    // SQL timestamps would pass the later JS millisecond initialization comparison.
+    const fixed = new Date(Date.now() - 60000);
+    fixed.setUTCMilliseconds(123);
+    await sql`update evidence.observations set received_at=${fixed}::timestamptz,
+      payload=case when event_id=${oldEvents[1]!.eventId}::uuid then payload #- '{recording,descriptorEligible}' #- '{recording,descriptorSha256}' else payload end
+      where universe_id=${person.universeId}::uuid`.execute(database.db);
+    await sql`update evidence.encounter_evidence set created_at=${fixed}::timestamptz+interval '0.456 milliseconds' where universe_id=${person.universeId}::uuid and id=${oldProjection.evidenceId}::uuid`.execute(
+      database.db,
+    );
+    const oldRows = await database.db
+      .selectFrom('evidence.observations')
+      .selectAll()
+      .where('universe_id', '=', person.universeId)
+      .orderBy('seq')
+      .execute();
+    expect(oldRows[0]?.payload).toMatchObject({ recording: { descriptorEligible: false } });
+    expect(Object.hasOwn((oldRows[1]!.payload as { recording: object }).recording, 'descriptorEligible')).toBe(false);
     const SCOPE = Symbol('CI.actualScope'),
-      ENQUEUE = Symbol('CI.actualEnqueue');
+      ENQUEUE = Symbol('CI.actualEnqueue'),
+      DATABASE = Symbol('CI.actualDatabase'),
+      EFFECTS = Symbol('CI.realSessionEffects');
     const own = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount;
+    const enqueue = makeEnqueueJob(useCases.boss);
     const values = new Map<symbol, unknown>([
       [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
-      [ENQUEUE, makeEnqueueJob(useCases.boss)],
+      [ENQUEUE, enqueue],
+      [DATABASE, database.db],
       [FENCE_OWN_ACCOUNT, own],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
@@ -364,36 +403,138 @@ describe('recording Evidence intake and queued provenance', () => {
       activityProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
       ACTIVITY_PORTS,
       values,
-    ) as {
-      readQualification(
-        cap: RecordingScopeTx,
-        id: string,
-        domain: 'legacy',
-        initializedAt: string,
-      ): Promise<{ id: string; recordingGeneration: number; revision: number } | undefined>;
+    ) as Parameters<typeof makeExperienceRecordingEffects>[0];
+    let unexpectedDerivedCalls = 0;
+    const forbidden = () => {
+      unexpectedDerivedCalls++;
+      throw new Error('CI bare session must not invoke PC/material growth');
     };
-    const before = await snapshot(person.universeId);
-    const result = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(
-      person.authority,
-      async (scope) => {
+    // Hard-throw canaries are NOT successful empty effects. This fixture accepts only the real
+    // no-growth activation/session path; complete positive Evidence/PC/Role remains pending.
+    const guarded = {
+      ...ports,
+      derived: { apply: forbidden, isCurrent: forbidden, applyRecording: forbidden, isRecordingCurrent: forbidden },
+      materialChange: forbidden,
+    };
+    values.set(
+      EFFECTS,
+      makeExperienceRecordingEffects(guarded, enqueue, values.get(READ_ACTION_FOR_EVIDENCE) as ReadActionForEvidence),
+    );
+    const activate = buildFromProviders(
+      experienceProviders(
+        { database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE },
+        { recordingEffects: EFFECTS },
+      ),
+      ACTIVATE_EXPOSURE,
+      values,
+    ) as ActivateExposure;
+    const activationCommand = randomUUID();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(fixed);
+    try {
+      expect(
+        await activate(person.authority, {
+          commandId: activationCommand,
+          exposureId: exposure.exposureId,
+          recordingGeneration: 1,
+        }),
+      ).toMatchObject({ kind: 'activated', replayed: false });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(unexpectedDerivedCalls).toBe(0);
+    const scalar = (
+      await sql<{
+        would_pass: boolean;
+      }>`select q.created_at>=s.initialized_at would_pass from evidence.encounter_evidence q join experience.recording_segments s on s.universe_id=q.universe_id and s.exposure_id=q.exposure_id and s.recording_generation=q.recording_generation where q.universe_id=${person.universeId}::uuid and q.id=${oldProjection.evidenceId}::uuid`.execute(
+        database.db,
+      )
+    ).rows[0];
+    expect(scalar?.would_pass).toBe(true);
+    const session = await database.db
+      .selectFrom('evidence.recording_sessions')
+      .selectAll()
+      .where('universe_id', '=', person.universeId)
+      .executeTakeFirstOrThrow();
+    expect(session).toMatchObject({
+      session_id: activationCommand,
+      activation_command_id: activationCommand,
+      exposure_id: exposure.exposureId,
+      recording_generation: 1,
+    });
+    const readQ = async (since: string) =>
+      makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(person.authority, async (scope) => {
         expect((await own(scope)).kind).toBe('active');
         const gate = await fencePersonalRecording(scope, 1);
         if (gate.kind !== 'recording') throw new Error('CI genuine recording scope failed');
-        expect(
-          await ports.readQualification(gate.scope, exposure.exposureId, 'legacy', '2000-01-01T00:00:00.000Z'),
-        ).toMatchObject({ id: projected.evidenceId, recordingGeneration: 1, revision: 1 });
-        expect(
-          await ports.readQualification(
-            gate.scope,
-            exposure.exposureId,
-            'legacy',
-            new Date(Date.now() + 60000).toISOString(),
-          ),
-        ).toBeUndefined();
-      },
-    );
-    expect(result.kind).toBe('entered');
+        return ports.readQualification(gate.scope, exposure.exposureId, 'legacy', since);
+      });
+    expect(await readQ(fixed.toISOString())).toEqual({ kind: 'entered', value: undefined });
+    const before = await snapshot(person.universeId);
+    expect(
+      await useCases.projectScrollReading({
+        v: 1,
+        universeId: person.universeId,
+        privacyEpoch: 1,
+        exposureId: exposure.exposureId,
+      }),
+    ).toEqual({ kind: 'skipped', reason: 'no_observations' });
+    expect(await legacy(person, oldEvents)).toMatchObject({ accepted: 0, duplicates: 2, rejected: 0 });
     expect(await snapshot(person.universeId)).toEqual(before);
+    expect(
+      await database.db
+        .selectFrom('evidence.observations')
+        .selectAll()
+        .where('universe_id', '=', person.universeId)
+        .orderBy('seq')
+        .execute(),
+    ).toEqual(oldRows);
+    const fresh = [event(exposure, coverage(blocks, 4000)), event(exposure, dwell([0, 68000]))];
+    expect(await legacy(person, fresh)).toMatchObject({ accepted: 2, duplicates: 0 });
+    const freshRows = await database.db
+      .selectFrom('evidence.observations')
+      .select('payload')
+      .where('universe_id', '=', person.universeId)
+      .where('seq', '>', 2)
+      .execute();
+    expect(freshRows).toHaveLength(2);
+    expect(
+      freshRows.every(
+        (r) =>
+          (r.payload as { recording: { descriptorEligible: boolean; descriptorSha256: string } }).recording
+            .descriptorEligible,
+      ),
+    ).toBe(true);
+    const next = await useCases.projectScrollReading({
+      v: 1,
+      universeId: person.universeId,
+      privacyEpoch: 1,
+      exposureId: exposure.exposureId,
+    });
+    expect(next).toMatchObject({ kind: 'applied', revision: 2, qualification: 'qualified' });
+    if (next.kind !== 'applied') throw new Error('CI fresh descriptor projection failed');
+    const audit = await database.db
+      .selectFrom('evidence.encounter_evidence')
+      .selectAll()
+      .where('universe_id', '=', person.universeId)
+      .where('id', '=', next.evidenceId)
+      .executeTakeFirstOrThrow();
+    expect(audit.summary).toMatchObject({ coverageEvents: 1, dwellEvents: 1 });
+    const head = await database.db
+      .selectFrom('evidence.recording_segment_heads')
+      .selectAll()
+      .where('universe_id', '=', person.universeId)
+      .where('exposure_id', '=', exposure.exposureId)
+      .where('recording_generation', '=', 1)
+      .executeTakeFirstOrThrow();
+    expect(head.source_vector).toMatchObject({ legacyQualificationId: next.evidenceId });
+    expect(head.qualification_id).toBeNull(); // The session-domain qualification slot is separate.
+    expect(await readQ(fixed.toISOString())).toMatchObject({
+      kind: 'entered',
+      value: { id: next.evidenceId, recordingGeneration: 1, revision: 2 },
+    });
+    expect(await readQ(new Date(Date.now() + 60000).toISOString())).toEqual({ kind: 'entered', value: undefined });
+    expect(unexpectedDerivedCalls).toBe(0);
   });
   it('keeps queue schemas as objects with inventory fields and rejects stripped or missing original generations', () => {
     const shared = { universeId: randomUUID(), privacyEpoch: 1 };

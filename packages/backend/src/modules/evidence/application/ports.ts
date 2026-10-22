@@ -104,6 +104,7 @@ export interface IntakeState {
 
 /** Capabilities of `ingestObservations`. Adapters implement them; Nest wires them. */
 export interface IngestObservationsPorts extends RecordingAuthorityPorts {
+  readonly readSegment: ReadEvidenceRecordingSegment;
   readonly withPersonalScope: WithPersonalScope;
   /** The exposure's lineage, read inside the locked scope (experience's public port). */
   readonly readExposure: (scope: PersonalScopeTx, exposureId: string) => Promise<ExposureLineage | undefined>;
@@ -145,6 +146,8 @@ export interface StoredObservation {
   readonly clockDomain: 'legacy' | 'session';
   readonly receivedAt: Date;
   readonly originalWireProved: boolean;
+  readonly descriptorEligible: boolean;
+  readonly descriptorSha256?: string;
   readonly serverStartedAt?: Date;
 }
 
@@ -161,6 +164,7 @@ export interface NewEvidenceRevision {
   readonly id: string;
   readonly recordingGeneration: number;
   readonly clockDomain: 'legacy' | 'session';
+  readonly descriptorQualified: boolean;
   readonly exposureId: string;
   readonly revision: number;
   readonly inputWatermark: number;

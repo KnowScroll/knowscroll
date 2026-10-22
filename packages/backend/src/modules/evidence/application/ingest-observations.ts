@@ -49,6 +49,7 @@ export type IngestObservationsResult =
 interface ExposureState {
   readonly exposure: ExposureLineage;
   readonly facts: ReadingFacts | undefined;
+  readonly descriptorSha256?: string;
   count: number;
   nextSeq: number;
   accepted: number;
@@ -122,7 +123,23 @@ export function makeIngestObservations(ports: IngestObservationsPorts) {
         if (exposure !== undefined && exposure.privacyEpoch === scope.authority.privacyEpoch) {
           const facts = await ports.readReadingFacts(scope, exposure.assetId, exposure.assetRevision);
           const intake = await ports.readIntakeState(scope, exposure.id);
-          state = { exposure, facts, count: intake.count, nextSeq: intake.maxSeq + 1, accepted: 0 };
+          const descriptor = await ports.readSegment(cap, exposure.id);
+          const descriptorSha256 =
+            descriptor?.recordingGeneration === cap.generation &&
+            descriptor.exposure.exposureId === exposure.id &&
+            descriptor.exposure.assetId === exposure.assetId &&
+            descriptor.exposure.assetRevision === exposure.assetRevision &&
+            descriptor.firstEligibleActivationAt !== undefined
+              ? descriptor.attributionSha256
+              : undefined;
+          state = {
+            exposure,
+            facts,
+            ...(descriptorSha256 ? { descriptorSha256 } : {}),
+            count: intake.count,
+            nextSeq: intake.maxSeq + 1,
+            accepted: 0,
+          };
         }
         states.set(exposureId, state);
         return state;
@@ -194,7 +211,13 @@ export function makeIngestObservations(ports: IngestObservationsPorts) {
           receivedAt,
           bounded: bounded.bounded || occurred.clamped,
           payload: {
-            recording: { v: 1, clockDomain: versioned ? 'session' : 'legacy', wireSha256 },
+            recording: {
+              v: 1,
+              clockDomain: versioned ? 'session' : 'legacy',
+              wireSha256,
+              descriptorEligible: state.descriptorSha256 !== undefined,
+              ...(state.descriptorSha256 ? { descriptorSha256: state.descriptorSha256 } : {}),
+            },
             body: bounded.payload,
           },
           recordingGeneration: cap.generation,

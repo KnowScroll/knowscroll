@@ -6,11 +6,22 @@ import type { RecordingScopeTx } from '../../identity/public.js';
 import { recordingTransactionOf } from '../../../infrastructure/postgres/recording-scope.js';
 import { RecordingCreditSchema, emptyRecordingCredit, type RecordingCredit } from '../domain/recording-credit.js';
 const InternalObservation = z.strictObject({
-  recording: z.strictObject({
-    v: z.literal(1),
-    clockDomain: z.enum(['legacy', 'session']),
-    wireSha256: z.string().regex(/^[a-f0-9]{64}$/),
-  }),
+  recording: z
+    .strictObject({
+      v: z.literal(1),
+      clockDomain: z.enum(['legacy', 'session']),
+      wireSha256: z.string().regex(/^[a-f0-9]{64}$/),
+      descriptorEligible: z.boolean().optional(),
+      descriptorSha256: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/u)
+        .optional(),
+    })
+    .refine(
+      (r) =>
+        (!Object.hasOwn(r, 'descriptorEligible') || typeof r.descriptorEligible === 'boolean') &&
+        (r.descriptorEligible === true ? r.descriptorSha256 !== undefined : !Object.hasOwn(r, 'descriptorSha256')),
+    ),
   body: z.unknown(),
 });
 /** Reserved stored envelope cannot downgrade into a legacy payload on malformed metadata. */
@@ -21,9 +32,15 @@ export function storedObservation(payload: unknown) {
     (Object.hasOwn(payload, 'recording') || Object.hasOwn(payload, 'body'))
   ) {
     const parsed = InternalObservation.parse(payload);
-    return { ...parsed.recording, body: parsed.body };
+    return { ...parsed.recording, descriptorEligible: parsed.recording.descriptorEligible === true, body: parsed.body };
   }
-  return { clockDomain: 'legacy' as const, body: payload, wireSha256: undefined };
+  return {
+    clockDomain: 'legacy' as const,
+    body: payload,
+    wireSha256: undefined,
+    descriptorEligible: false,
+    descriptorSha256: undefined,
+  };
 }
 export async function findRecordedEvent(scope: RecordingScopeTx, eventId: string) {
   const row = (
