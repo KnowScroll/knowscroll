@@ -13,16 +13,27 @@ import { uuidv7 } from '../../infrastructure/ids/index.js';
 import type { LogEvent } from '../../infrastructure/observability/index.js';
 import {
   makeAuthorityHolds,
+  fencePersonalRecording,
   makeWithProductionScope,
   makeProductionAuthorityHolds,
   type Database,
 } from '../../infrastructure/postgres/index.js';
-import type { WithPersonalScope } from '../../modules/identity/public.js';
+import { FENCE_OWN_ACCOUNT, type FenceOwnAccount, type WithPersonalScope } from '../../modules/identity/public.js';
+import { makePersonalReasoningAccess } from './personal-recording.js';
+import {
+  makePersonalRecordingReasoningHarness,
+  recordingOwnerDispatcher,
+  type PersonalRecordingHarnessPorts,
+} from '../application/personal-recording.js';
+import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { makeReasoningOperator } from '../application/operator.js';
 import type { HarnessPorts, HarnessSettings, ModelPort, ExecutionPorts } from '../application/ports.js';
 import { makeReasoningHarness, makeScopedReasoningHarness } from '../application/propose.js';
 import {
   PURGE_EXPIRED_REQUESTS,
+  RECORDING_REASONING_HARNESS,
+  CHECK_PLANNER_RECORDING_RUN,
+  CHECK_GEOGRAPHY_RECORDING_RUN,
   PRODUCTION_REASONING_HARNESS,
   WITH_PRODUCTION_SCOPE,
   REASONING_HARNESS,
@@ -125,12 +136,21 @@ export function postgresHarnessPorts(options: {
   readonly logEvent: LogEvent;
   readonly settings: HarnessSettings;
   readonly overrides?: Partial<HarnessPorts>;
+  readonly fenceOwn: FenceOwnAccount;
 }): HarnessPorts {
+  const ledger = options.overrides?.ledger ?? makeAttemptLedger(options.db);
+  const withScope = options.overrides?.withPersonalScope ?? options.withPersonalScope;
   return {
+    personalAccess: makePersonalReasoningAccess({
+      withScope,
+      fenceOwn: options.fenceOwn,
+      fenceRecording: fencePersonalRecording,
+      ledger,
+    }),
     withPersonalScope: options.withPersonalScope,
     authorityHolds: makeAuthorityHolds(options.db),
     model: options.model === undefined ? undefined : guardedModelPort(options.model),
-    ledger: makeAttemptLedger(options.db),
+    ledger,
     hashBytes: sha256Hex,
     redactRecorded,
     newId: () => uuidv7(),
@@ -139,6 +159,70 @@ export function postgresHarnessPorts(options: {
     settings: options.settings,
     ...options.overrides,
   };
+}
+
+/** Explicit unmounted recording boundary: both actual role owners are required. */
+export function personalRecordingReasoningHarnessFor(
+  options: Parameters<typeof postgresHarnessPorts>[0] &
+    Pick<PersonalRecordingHarnessPorts, 'checkPlanner' | 'checkGeography'>,
+) {
+  const engine = postgresHarnessPorts(options);
+  const checkOwner = recordingOwnerDispatcher(options);
+  return makePersonalRecordingReasoningHarness({
+    engine: {
+      ...engine,
+      personalAccess: makePersonalReasoningAccess({
+        withScope: engine.withPersonalScope,
+        fenceOwn: options.fenceOwn,
+        fenceRecording: fencePersonalRecording,
+        ledger: engine.ledger,
+        checkOwner,
+      }),
+    },
+    checkPlanner: options.checkPlanner,
+    checkGeography: options.checkGeography,
+    hashContext: canonicalSha256,
+  });
+}
+export { makePersonalRecordingReasoningHarness, recordingOwnerDispatcher } from '../application/personal-recording.js';
+export type { PersonalRecordingHarnessPorts } from '../application/personal-recording.js';
+
+/** Future composition opts in explicitly; missing actual owner providers fail DI/construction. */
+export function personalRecordingReasoningProviders(
+  tokens: { readonly database: symbol; readonly withPersonalScope: symbol; readonly logEvent: symbol },
+  settings: ReasoningSettings,
+) {
+  return [
+    {
+      provide: RECORDING_REASONING_HARNESS,
+      inject: [
+        tokens.database,
+        tokens.withPersonalScope,
+        tokens.logEvent,
+        FENCE_OWN_ACCOUNT,
+        CHECK_PLANNER_RECORDING_RUN,
+        CHECK_GEOGRAPHY_RECORDING_RUN,
+      ],
+      useFactory: (
+        db: Kysely<Database>,
+        withPersonalScope: WithPersonalScope,
+        logEvent: LogEvent,
+        fenceOwn: FenceOwnAccount,
+        checkPlanner: PersonalRecordingHarnessPorts['checkPlanner'],
+        checkGeography: PersonalRecordingHarnessPorts['checkGeography'],
+      ) =>
+        personalRecordingReasoningHarnessFor({
+          db,
+          withPersonalScope,
+          logEvent,
+          fenceOwn,
+          checkPlanner,
+          checkGeography,
+          model: configuredModelPort(settings),
+          settings: harnessSettings(settings, `worker:${process.pid}`),
+        }),
+    },
+  ];
 }
 
 /** Production execution ports plus one deliberately payload-free accounting read. */
@@ -275,8 +359,13 @@ export function reasoningProviders(
   return [
     {
       provide: REASONING_HARNESS,
-      inject: [tokens.database, tokens.withPersonalScope, tokens.logEvent],
-      useFactory: (db: Kysely<Database>, withPersonalScope: WithPersonalScope, logEvent: LogEvent) => {
+      inject: [tokens.database, tokens.withPersonalScope, tokens.logEvent, FENCE_OWN_ACCOUNT],
+      useFactory: (
+        db: Kysely<Database>,
+        withPersonalScope: WithPersonalScope,
+        logEvent: LogEvent,
+        fenceOwn: FenceOwnAccount,
+      ) => {
         const model = configuredModelPort(settings);
         logEvent('reasoning.provider_configured', {
           provider: model?.provider ?? 'none',
@@ -286,6 +375,7 @@ export function reasoningProviders(
           postgresHarnessPorts({
             db,
             withPersonalScope,
+            fenceOwn,
             model,
             logEvent,
             settings: harnessSettings(settings, `worker:${process.pid}`),
