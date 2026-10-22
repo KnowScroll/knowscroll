@@ -29,6 +29,7 @@ import { PRIVACY_ACCOUNTING_CODES } from './ledger-values.js';
  */
 export const reasoningErasure: ModuleErasure = {
   module: 'reasoning',
+  accountColumns: [{ schema: 'reasoning', table: 'business_runs', column: 'recording_account_id' }],
   tables: [
     { schema: 'reasoning', table: 'protected_requests', ownerColumn: 'universe_id' },
     { schema: 'reasoning', table: 'external_attempts', ownerColumn: 'universe_id' },
@@ -87,7 +88,9 @@ export const reasoningErasure: ModuleErasure = {
 
     await sql`update reasoning.business_runs
       set privacy_erased_at = coalesce(privacy_erased_at, now()), purpose = 'privacy-erased',
-          context_bundle_ref = null, context_refs = null
+          context_bundle_ref = null, context_refs = null,
+          recording_account_id = null, recording_generation = null,
+          recording_context_sha256 = null, recording_model_context_sha256 = null
       where universe_id = ${universeId}`.execute(trx);
     await sql`update reasoning.external_attempts
       set privacy_erased_at = coalesce(privacy_erased_at, now()), output = null,
@@ -191,7 +194,9 @@ reasoningErasure.clearExploration = {
 
     await sql`update reasoning.business_runs
       set privacy_erased_at = coalesce(privacy_erased_at, now()), purpose = 'privacy-erased',
-          context_bundle_ref = null, context_refs = null
+          context_bundle_ref = null, context_refs = null,
+          recording_account_id = null, recording_generation = null,
+          recording_context_sha256 = null, recording_model_context_sha256 = null
       where universe_id = ${universeId}`.execute(trx);
     await sql`update reasoning.external_attempts
       set privacy_erased_at = coalesce(privacy_erased_at, now()), output = null,

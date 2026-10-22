@@ -153,3 +153,18 @@ export interface ClearReasoning {
   capture(scope: PrivacyScopeTx): Promise<readonly ClearLiability[]>;
   verifyAndPrune(scope: ClearAccountingTx): Promise<'pending' | 'verified' | 'verified_retained'>;
 }
+
+/** Required personal-recording boundary; no factory, ledger or transport is exposed here. */
+export type {
+  PersonalRecordingPurpose,
+  CheckPersonalRecordingRun,
+  PersonalRunAccounting,
+  PersonalRunAccountingBinding,
+  ReadPersonalRunAccountingBinding,
+  PersonalRecordingProposeInput,
+  RecordingReasoningHarness,
+} from './application/personal-recording.js';
+export const RECORDING_REASONING_HARNESS = Symbol('reasoning.recording-harness');
+export const CHECK_PLANNER_RECORDING_RUN = Symbol('planner.check-recording-run');
+export const CHECK_GEOGRAPHY_RECORDING_RUN = Symbol('geography.check-recording-run');
+export { parsePersonalRecordingPurpose } from './application/personal-recording.js';

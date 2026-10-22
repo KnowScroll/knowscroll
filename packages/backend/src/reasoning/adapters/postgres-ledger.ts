@@ -50,24 +50,38 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
     async admitRun(scope, run) {
       const trx = transactionOf(scope);
       const universeId = scope.authority.universeId;
-      await trx
-        .insertInto('reasoning.business_runs')
-        .values({
-          universe_id: universeId,
-          id: run.id,
-          owner_module: run.ownerModule,
-          purpose: run.purpose,
-          privacy_epoch: scope.authority.privacyEpoch,
-          role_id: run.roleId,
-          role_version: run.roleVersion,
-          policy_version: run.policyVersion,
-          provider: run.provider,
-          model: run.model,
-          context_bundle_ref: run.contextBundleRef,
-          context_refs: JSON.stringify(run.contextRefs),
-        })
-        .onConflict((conflict) => conflict.columns(['universe_id', 'id']).doNothing())
-        .execute();
+      if (run.recording) {
+        // Schema43 is a separately frozen prerequisite. Bind all proof fields in the first INSERT;
+        // never admit an unproved row then relabel it to a resumed generation.
+        const proof = run.recording;
+        await sql`insert into reasoning.business_runs
+          (universe_id,id,owner_module,purpose,privacy_epoch,role_id,role_version,policy_version,
+           provider,model,context_bundle_ref,context_refs,recording_account_id,recording_generation,
+           recording_context_sha256,recording_model_context_sha256)
+          values(${universeId}::uuid,${run.id}::uuid,${run.ownerModule},${run.purpose},${scope.authority.privacyEpoch},
+            ${run.roleId},${run.roleVersion},${run.policyVersion},${run.provider},${run.model},${run.contextBundleRef},
+            ${JSON.stringify(run.contextRefs)}::jsonb,${proof.accountId}::uuid,${proof.generation},
+            ${proof.contextSha256},${proof.modelContextSha256}) on conflict(universe_id,id) do nothing`.execute(trx);
+      } else {
+        await trx
+          .insertInto('reasoning.business_runs')
+          .values({
+            universe_id: universeId,
+            id: run.id,
+            owner_module: run.ownerModule,
+            purpose: run.purpose,
+            privacy_epoch: scope.authority.privacyEpoch,
+            role_id: run.roleId,
+            role_version: run.roleVersion,
+            policy_version: run.policyVersion,
+            provider: run.provider,
+            model: run.model,
+            context_bundle_ref: run.contextBundleRef,
+            context_refs: JSON.stringify(run.contextRefs),
+          })
+          .onConflict((conflict) => conflict.columns(['universe_id', 'id']).doNothing())
+          .execute();
+      }
       const row = await trx
         .selectFrom('reasoning.business_runs')
         .select([
@@ -101,6 +115,27 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
         // A run admitted at epoch N is not the same run at epoch N+1 (a privacy reset in between).
         row.privacy_epoch === scope.authority.privacyEpoch;
       if (!same) return { kind: 'mismatch' };
+      if (run.recording) {
+        const proof = (
+          await sql<{
+            account: string | null;
+            generation: number | null;
+            context: string | null;
+            model_context: string | null;
+          }>`
+          select recording_account_id as account,recording_generation as generation,
+            recording_context_sha256 as context,recording_model_context_sha256 as model_context
+          from reasoning.business_runs where universe_id=${universeId}::uuid and id=${run.id}::uuid`.execute(trx)
+        ).rows[0];
+        if (
+          !proof ||
+          proof.account?.toLowerCase() !== run.recording.accountId.toLowerCase() ||
+          proof.generation !== run.recording.generation ||
+          proof.context !== run.recording.contextSha256 ||
+          proof.model_context !== run.recording.modelContextSha256
+        )
+          return { kind: 'mismatch' };
+      }
       if (row.state !== 'admitted') return { kind: 'closed' };
       return { kind: 'admitted', fence: row.fence };
     },

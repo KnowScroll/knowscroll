@@ -1,3 +1,4 @@
+import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
@@ -65,6 +66,7 @@ export function fixtureHarness(
 ) {
   const ports = postgresHarnessPorts({
     db,
+    fenceOwn: accountAccessUseCases({ db, lockTimeoutMs: 5000 }).fenceOwnAccount,
     withPersonalScope: makeWithPersonalScope(db, { lockTimeoutMs: 5_000 }),
     model: options.model,
     logEvent: options.logEvent ?? silent,
