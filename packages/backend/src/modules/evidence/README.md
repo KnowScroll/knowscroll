@@ -281,3 +281,5 @@ Evidence's `CheckCoverageEvidence` capability batch-checks<=1000 exact current c
 indexed latest-row probes; other owners never read Evidence tables directly. PC's live trusted
 proof read additionally revalidates/locks Content authority until caller commit. Stored reference
 counts alone never authorize geography after a correction/retraction/withdrawal.
+
+A current descriptor or accepted activation/session alone is not an activity source. Explicit projection returns `no_current_source`, and reconciliation examines without queuing or changing metadata-gap counts, until an exact current qualification pointer (including an actual unknown qualification), non-NULL channel decision, or actual same-generation H/R exists. This refusal precedes credit/cache reads and preserves committed heads and effective credit. An explicit false channel decision remains a correction source; NULL does not become zero credit.

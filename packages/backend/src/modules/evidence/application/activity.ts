@@ -128,7 +128,7 @@ async function inputs(
   id: string,
   evaluatedAt: string,
   domain: 'legacy' | 'session',
-): Promise<ActivityProjection | undefined> {
+): Promise<ActivityProjection | { readonly kind: 'no_current_source' } | undefined> {
   const segment = await p.readSegment(cap, id);
   if (!segment || segment.recordingGeneration !== cap.generation) return undefined;
   const legacyQ =
@@ -146,6 +146,17 @@ async function inputs(
         q.assetRevision !== segment.exposure.assetRevision)
     )
       throw new Error('ACTIVITY_QUALIFICATION_LINEAGE_INVALID');
+  // A descriptor/session is authority to receive evidence, not evidence itself. In particular,
+  // an explicit false decision is a real correction source; NULL without a decision is not.
+  if (
+    !legacyQ &&
+    !sessionQ &&
+    !(segment.savedOverride !== null && segment.savedDecision !== null) &&
+    !(segment.likedOverride !== null && segment.likedDecision !== null) &&
+    !segment.horizontal &&
+    !segment.returned
+  )
+    return { kind: 'no_current_source' };
   const prior = await p.readCredit(cap, id);
   if (prior && prior.attributionSha256 !== segment.attributionSha256) throw new Error('ACTIVITY_ATTRIBUTION_CHANGED');
   if (prior && prior.generation > cap.generation) throw new Error('ACTIVITY_GENERATION_REGRESSION');
@@ -282,7 +293,7 @@ export async function applyRecordingActivity(
   evaluatedAt: string,
 ) {
   const x = await inputs(p, cap, id, evaluatedAt, domain);
-  if (!x) return undefined;
+  if (!x || 'kind' in x) return x;
   const derived = recordingEffects(p);
   const current = await p.currentActivity(cap, id);
   const activityChanged = current?.inputHash !== x.inputHash;
@@ -316,6 +327,7 @@ export function makeProjectEncounterActivity(p: ActivityPorts) {
           p.now().toISOString(),
         );
         if (!x) return { kind: 'skipped', reason: 'metadata_missing' };
+        if ('kind' in x) return { kind: 'skipped', reason: x.kind };
         if (!x.changed) return { kind: 'skipped', reason: 'already_applied' };
         const revision = await p.advance(scope);
         await p.materialChange!(gate.scope, { sourceRevision: revision, recordingGeneration: gate.scope.generation });
@@ -403,6 +415,7 @@ export function makeReconcileEncounterActivity(p: ActivityPorts) {
           gaps++;
           continue;
         }
+        if ('kind' in x) continue;
         const current = await p.currentActivity(cap, id);
         if (
           current?.inputHash === x.inputHash &&

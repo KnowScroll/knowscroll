@@ -7,6 +7,7 @@ import {
   makeWithPersonalScope,
   fencePersonalRecording,
   transactionOf,
+  recordingTransactionOf,
 } from '@knowscroll/backend/infrastructure/postgres';
 import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
@@ -29,6 +30,10 @@ import {
 import { buildFromProviders } from '../support/providers.js';
 import { recordingPolicyFor, accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import {
+  PROJECT_ENCOUNTER_ACTIVITY,
+  RECONCILE_ENCOUNTER_ACTIVITY,
+  type ProjectEncounterActivity,
+  type ReconcileEncounterActivity,
   ApplyActionEvidencePayloadSchema,
   ProjectScrollReadingPayloadSchema,
 } from '@knowscroll/backend/modules/evidence';
@@ -65,12 +70,16 @@ describe('recording Evidence intake and queued provenance', () => {
         observations: number;
         qualifications: number;
         activities: number;
+        heads: number;
+        credits: number;
         jobs: number;
         revision: number;
       }>`select
       (select count(*)::int from evidence.observations where universe_id=${universeId}::uuid) observations,
       (select count(*)::int from evidence.encounter_evidence where universe_id=${universeId}::uuid) qualifications,
       (select count(*)::int from evidence.activity_revisions where universe_id=${universeId}::uuid) activities,
+      (select count(*)::int from evidence.recording_segment_heads where universe_id=${universeId}::uuid) heads,
+      (select count(*)::int from evidence.recording_exposure_credit where universe_id=${universeId}::uuid) credits,
       (select count(*)::int from pgboss.job where data->>'universeId'=${universeId}) jobs,
       revision from identity.universes where id=${universeId}::uuid`.execute(database.db)
     ).rows[0];
@@ -428,6 +437,80 @@ describe('recording Evidence intake and queued provenance', () => {
       ACTIVATE_EXPOSURE,
       values,
     ) as ActivateExposure;
+    values.set(ACTIVITY_PORTS, guarded);
+    const projectActivity = buildFromProviders(
+      activityProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
+      PROJECT_ENCOUNTER_ACTIVITY,
+      values,
+    ) as ProjectEncounterActivity;
+    const reconcileActivity = buildFromProviders(
+      activityProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
+      RECONCILE_ENCOUNTER_ACTIVITY,
+      values,
+    ) as ReconcileEncounterActivity;
+    // A real accepted activation/session, with no Q, channel decision or H/R, is not a zero
+    // activity source. Explicit projection and reconciliation must leave all growth stores alone.
+    const bare = await reader();
+    expect(
+      await activate(bare.person.authority, {
+        commandId: randomUUID(),
+        exposureId: bare.exposure.exposureId,
+        recordingGeneration: 1,
+      }),
+    ).toMatchObject({ kind: 'activated', replayed: false });
+    const barePayload = {
+      v: 2 as const,
+      universeId: bare.person.universeId,
+      privacyEpoch: 1,
+      exposureId: bare.exposure.exposureId,
+      recordingGeneration: 1,
+    };
+    const bareBefore = await snapshot(bare.person.universeId);
+    expect(bareBefore).toMatchObject({ activities: 0, heads: 0, credits: 0 });
+    expect(await projectActivity(barePayload)).toEqual({ kind: 'skipped', reason: 'no_current_source' });
+    expect(await reconcileActivity(bare.person.authority, { limit: 100, recordingGeneration: 1 })).toMatchObject({
+      kind: 'entered',
+      value: { examined: 1, queued: 0, pending: 0, metadataGaps: 0 },
+    });
+    expect(await snapshot(bare.person.universeId)).toEqual(bareBefore);
+    expect(unexpectedDerivedCalls).toBe(0);
+
+    // Real necessary action receipts establish the negative decision/origin pair. This constrained
+    // fixture installs that exact pair under genuine authority; it is not a certification executor.
+    const save = await useCases.applyEncounterAction(bare.person.authority, {
+      commandId: randomUUID(),
+      kind: 'save',
+      target: { assetId: starter.assetId, assetRevision: starter.revision },
+      exposureId: bare.exposure.exposureId,
+    });
+    const unsave = await useCases.applyEncounterAction(bare.person.authority, {
+      commandId: randomUUID(),
+      kind: 'unsave',
+      target: { assetId: starter.assetId, assetRevision: starter.revision },
+      exposureId: bare.exposure.exposureId,
+    });
+    if (save.kind !== 'applied' || unsave.kind !== 'applied') throw new Error('CI negative source actions failed');
+    expect(save.outcome.changed).toBe(true);
+    expect(unsave.outcome.changed).toBe(true);
+    await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(bare.person.authority, async (scope) => {
+      if ((await own(scope)).kind !== 'active') throw new Error('CI own authority failed');
+      const gate = await fencePersonalRecording(scope, 1);
+      if (gate.kind !== 'recording') throw new Error('CI original recording scope failed');
+      await sql`update experience.recording_segment_inputs set saved_override=false,
+        saved_decision_action_id=${unsave.outcome.actionId}::uuid,
+        saved_origin_action_id=${save.outcome.actionId}::uuid,saved_origin_generation=1,
+        action_revision=action_revision+1 where universe_id=${bare.person.universeId}::uuid
+        and exposure_id=${bare.exposure.exposureId}::uuid and recording_generation=1`.execute(
+        recordingTransactionOf(gate.scope),
+      );
+    });
+    const negativeBefore = await snapshot(bare.person.universeId);
+    // No Q exists: false+exact decision must reach the required real derived seam, not the skip.
+    // Its hard failure proves rollback; successful PC/Role effects await actual owner composition.
+    await expect(projectActivity(barePayload)).rejects.toThrow('CI bare session must not invoke PC/material growth');
+    expect(unexpectedDerivedCalls).toBe(1);
+    expect(await snapshot(bare.person.universeId)).toEqual(negativeBefore);
+    unexpectedDerivedCalls = 0;
     const activationCommand = randomUUID();
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(fixed);

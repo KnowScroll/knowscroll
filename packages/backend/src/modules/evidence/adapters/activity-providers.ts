@@ -307,6 +307,7 @@ export function makeExperienceRecordingEffects(
       for (const change of input.changes) {
         const result = await applyRecordingActivity(p, cap, change.exposureId, 'session', at);
         if (!result) throw new Error('RECORDING_CHANNEL_SEGMENT_MISSING');
+        if ('kind' in result) throw new Error('RECORDING_CHANNEL_CURRENT_SOURCE_MISSING');
         changed ||= result.changed;
       }
       if (!changed) return { changed: false };
