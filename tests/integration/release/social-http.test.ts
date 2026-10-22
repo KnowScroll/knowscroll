@@ -330,6 +330,32 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
     expect((await view(a, pc)).state).toBe('none');
     expect(await nonEvidence()).toEqual(before);
   });
+  it('accepts UUID-case aliases through installed pair reads and exact request-reference commands', async () => {
+    const before = await nonEvidence();
+    for (const operation of ['accept', 'decline', 'cancel'] as const) {
+      const a = await person(),
+        b = await person();
+      const pa = await claimProfile(a),
+        pb = await claimProfile(b);
+      const original = { ...request(pb), expectedPeerPersonId: pb.personId.toUpperCase() };
+      expect(await accepted(a, 'request', original)).toMatchObject({ peerPersonId: original.expectedPeerPersonId });
+      const actor = operation === 'cancel' ? a : b;
+      const peer = operation === 'cancel' ? pb : pa;
+      const alias = { ...peer, personId: peer.personId.toUpperCase() };
+      const current = await view(actor, alias);
+      if (current.state !== 'incoming' && current.state !== 'outgoing') throw new Error('CI pending request');
+      const input = command(alias, current.pairRevision, current.requestId.toUpperCase());
+      expect(await accepted(actor, operation, input)).toMatchObject({
+        peerPersonId: input.peerPersonId,
+        replayed: false,
+      });
+      expect(await accepted(actor, operation, input)).toMatchObject({
+        peerPersonId: input.peerPersonId,
+        replayed: true,
+      });
+    }
+    expect(await nonEvidence()).toEqual(before);
+  });
   it('a private decline/block preserves the complete pending sender projection, revision and expiry', async () => {
     const a = await person(),
       b = await person(),
