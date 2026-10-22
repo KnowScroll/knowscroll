@@ -1,3 +1,4 @@
+import type { Invite } from '../domain/invites.js';
 import type { PublicPersonRef } from '@knowscroll/contracts';
 import type {
   PersonalScopeTx,
@@ -47,6 +48,46 @@ export interface SocialStore {
   beginReceipt(scope: PersonalScopeTx | PairLock, key: ReceiptKey): Promise<void>;
   receipt(scope: PersonalScopeTx | PairLock, key: ReceiptKey, outcome: object): Promise<void>;
 }
+export type RosterKind = 'friends' | 'incoming' | 'outgoing' | 'blocked';
+export interface RosterCertificate {
+  accountId: string;
+  universeId: string;
+  epoch: number;
+  filter: RosterKind;
+  revision: number;
+  limit: number;
+  after: string;
+  ceiling: string;
+  started: number;
+  until: number;
+}
+export interface RosterCursorCodec {
+  encode(c: RosterCertificate): string;
+  decode(token: string): RosterCertificate | undefined;
+}
+export interface RosterCandidate {
+  person: PublicPersonRef;
+  revision: number;
+  requestId: string | null;
+  expiresAt: string | null;
+  eligible: boolean;
+}
+export interface RosterStore {
+  head(scope: PersonalScopeTx, filter: RosterKind): Promise<number>;
+  ceiling(scope: PersonalScopeTx, filter: RosterKind): Promise<string | undefined>;
+  scan(
+    scope: PersonalScopeTx,
+    filter: RosterKind,
+    after: string | undefined,
+    ceiling: string,
+    limit: number,
+  ): Promise<RosterCandidate[]>;
+  deadline(scope: PersonalScopeTx, filter: RosterKind, now: Date): Promise<Date | undefined>;
+}
+export interface InviteStore {
+  read(scope: PersonalScopeTx, by: { accountId: string } | { tokenHash: string }): Promise<Invite | undefined>;
+  save(scope: PersonalScopeTx, value: Invite): Promise<void>;
+}
 export interface SocialPorts {
   withScope: WithPersonalScope;
   fencePair: FenceAccountPair;
@@ -55,6 +96,11 @@ export interface SocialPorts {
   newId(): string;
   hash(operation: string, input: unknown): string;
   now(): Date;
+  invites: InviteStore;
+  rosters: RosterStore;
+  cursor: RosterCursorCodec;
+  secret(): string;
+  digest(secret: string): string;
 }
 export const refuse = (code: SocialRefusal): Result<never> => ({ kind: 'refused', code });
 export const ownEnvelope = (scope: PersonalScopeTx) => {

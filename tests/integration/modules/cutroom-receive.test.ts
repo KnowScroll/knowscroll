@@ -24,7 +24,12 @@ import {
 import { makeCommissionReceiveExport } from '@knowscroll/backend/modules/content';
 import type { CommissionReceivePayload, ReceiveScopeTx, WithReceiveScope } from '@knowscroll/backend/modules/content';
 import { seedPerson } from '../support/fixtures.js';
-import { receiveFixture, receiveVariant, receiveHash } from '../support/commission-receive-fixture.js';
+import {
+  receiveFixture,
+  receiveVariant,
+  receiveHash,
+  receivingFixtureSchemaVersion,
+} from '../support/commission-receive-fixture.js';
 
 describe('CF62 separate zero-cost receiving (actual disposable PostgreSQL)', () => {
   let f: Awaited<ReturnType<typeof receiveFixture>>;
@@ -542,11 +547,31 @@ describe('CF62 separate zero-cost receiving (actual disposable PostgreSQL)', () 
         authority: { worldId: 'dev', generation: 2 },
         withScope: makeWithCutroomPreparationScope(f.origin.world.db, { enabled: true }),
         financial,
-        source: { commit: 'a'.repeat(40), artifactSha256: receiveHash('fixture-archive'), schemaVersion: 39 },
+        source: {
+          commit: 'a'.repeat(40),
+          artifactSha256: receiveHash('fixture-archive'),
+          schemaVersion: receivingFixtureSchemaVersion,
+        },
         fixture: true,
       }),
     );
     const before = (await f.origin.owner.query('select * from public.pool_v2_order order by request_id')).rows;
+    const wrongSchemaExport = makeCommissionReceiveExport(
+      postgresCommissionReceiveOrigin({
+        authority: { worldId: 'dev', generation: 2 },
+        withScope: makeWithCutroomPreparationScope(f.origin.world.db, { enabled: true }),
+        financial,
+        source: {
+          commit: 'a'.repeat(40),
+          artifactSha256: receiveHash('fixture-archive'),
+          schemaVersion: receivingFixtureSchemaVersion - 1,
+        },
+        fixture: true,
+      }),
+    );
+    expect(
+      await wrongSchemaExport({ publicationId: f.published.published.publicationId, targetWorld: 'stage' }),
+    ).toBeUndefined();
     expect(await exportPayload({ publicationId: f.published.published.publicationId, targetWorld: 'stage' })).toEqual(
       f.envelope,
     );

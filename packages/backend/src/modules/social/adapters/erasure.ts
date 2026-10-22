@@ -6,6 +6,9 @@ export const socialErasure: ModuleErasure = {
   tables: [],
   nonRowStores: [],
   accountTables: [
+    { schema: 'social', table: 'roster_heads', ownerColumn: 'owner_account_id' },
+    { schema: 'social', table: 'roster_entries', ownerColumn: 'owner_account_id,peer_account_id' },
+    { schema: 'social', table: 'invites', ownerColumn: 'account_id' },
     { schema: 'social', table: 'profiles', ownerColumn: 'account_id' },
     { schema: 'social', table: 'pairs', ownerColumn: 'low_account_id,high_account_id' },
     { schema: 'social', table: 'pair_sides', ownerColumn: 'account_id' },
@@ -13,6 +16,10 @@ export const socialErasure: ModuleErasure = {
     { schema: 'social', table: 'command_bindings', ownerColumn: 'actor_account_id' },
   ],
   accountColumns: [
+    { schema: 'social', table: 'roster_heads', column: 'owner_account_id' },
+    { schema: 'social', table: 'roster_entries', column: 'owner_account_id' },
+    { schema: 'social', table: 'roster_entries', column: 'peer_account_id' },
+    { schema: 'social', table: 'invites', column: 'account_id' },
     { schema: 'social', table: 'profiles', column: 'account_id' },
     { schema: 'social', table: 'pairs', column: 'low_account_id' },
     { schema: 'social', table: 'pairs', column: 'high_account_id' },

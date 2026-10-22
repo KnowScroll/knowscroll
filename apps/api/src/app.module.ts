@@ -29,6 +29,7 @@ import { evidenceWiring } from './modules/evidence.js';
 import { experienceWiring } from './modules/experience.js';
 import { identityWiring } from './modules/identity.js';
 import { privacyWiring } from './modules/privacy.js';
+import { socialWiring } from './modules/social.js';
 import { ScopeGateway } from './realtime/scope.gateway.js';
 import { apiControllers } from './routes.js';
 import {
@@ -105,6 +106,7 @@ export class AppModule {
         ...contentWiring,
         ...mediaWiring,
         ...experienceWiring,
+        ...socialWiring,
         ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
         ...evidenceWiring,
         ...sceneWiring,

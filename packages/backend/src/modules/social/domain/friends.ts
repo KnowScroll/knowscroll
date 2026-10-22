@@ -100,7 +100,7 @@ export function apply(
       if (
         !live ||
         !window ||
-        window.id !== input.requestId ||
+        window.id.toLowerCase() !== input.requestId?.toLowerCase() ||
         window.recipient !== input.actor ||
         window.disposition !== 'pending' ||
         own.state !== 'incoming'
@@ -115,7 +115,7 @@ export function apply(
       if (
         !live ||
         !window ||
-        window.id !== input.requestId ||
+        window.id.toLowerCase() !== input.requestId?.toLowerCase() ||
         window.recipient !== input.actor ||
         window.disposition !== 'pending' ||
         own.state !== 'incoming'
@@ -128,7 +128,7 @@ export function apply(
       if (
         !live ||
         !window ||
-        window.id !== input.requestId ||
+        window.id.toLowerCase() !== input.requestId?.toLowerCase() ||
         window.sender !== input.actor ||
         own.state !== 'outgoing'
       )

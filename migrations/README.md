@@ -13,3 +13,7 @@ Reviewed raw-SQL migrations and their static registry (blueprint §5).
 Each migration's header comment states: owner module, authoritative/derived role, main query
 shapes, indexes/constraints, expected growth, retention, correction/erasure, and rollout
 behaviour for older processes (blueprint §23 pattern 5).
+
+0040 adds Social's account-lifetime current public roster index/heads and latest hash-only invite.
+It backfills only existing explicit public sides and binds projection updates to the same pair transaction.
+All earlier SQL remains immutable; schema40 requires compatible writers and no backward activation.

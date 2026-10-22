@@ -273,7 +273,7 @@ describe('Social foundation (CI real PostgreSQL, no HTTP or runtime contacts)', 
     const base = { version: v, commandId: randomUUID(), expectedPeerPersonId: pb.personId, expectedPairRevision: 0 };
     expect(
       await c.command(a.authority, 'request', { ...base, target: { kind: 'invite', token: `ksfi_${'a'.repeat(43)}` } }),
-    ).toEqual({ kind: 'refused', code: 'unsupported' });
+    ).toEqual({ kind: 'refused', code: 'unavailable' });
     expect(
       await c.command(a.authority, 'request', {
         ...base,
