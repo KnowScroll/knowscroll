@@ -38,3 +38,61 @@ Apply a reviewed migration in one pool transaction; do not provision roles or en
 Automated suites run only in Actions. Fixtures and packaged source prove neither actual money movement nor live grants, provider billing, transport, exactly-once purchasing, publication or operational readiness. Later executor phases must retain liabilities across unknown outcomes and bind this protocol to the closed Reasoning capability before any paid use.
 
 PostgreSQL16 documents the [inner exception rollback boundary](https://www.postgresql.org/docs/16/plpgsql-control-structures.html#PLPGSQL-ERROR-TRAPPING) and [SET ROLE membership behavior](https://www.postgresql.org/docs/16/sql-set-role.html). Those mechanics inform this protocol; only the actual Actions fixtures establish its implementation behavior.
+
+## Forward evidence-only hold (0004, #354)
+
+`0004_v2_evidence_hold.sql` is an additive source protocol only. It adds
+`pool_v2_record_evidence(grant, identity, outcome, bigint_actual, final_run, evidence_sha256, evidence_ref)`
+without changing 0001–0003, any order/binding, grant gate, allowance, or claim/settle/release function.
+It creates no principal, client EXECUTE grant or operational authority. Its SECURITY DEFINER
+body uses the existing exact session OID/name/world check and global→grant→order→binding→evidence
+lock order with a fixed `pg_catalog, pg_temp` search path and qualified private objects.
+
+A new exact pending report returns `evidence_recorded` and its deterministic evidence ID. An
+identical still-pending replay returns `evidence_replayed` with the same ID and unchanged original
+report row. Both statuses mean only that this exact report is pending **after the transaction
+commits**; neither means successful import, settlement, billing reconciliation or permission to
+send. An already satisfied report raises `pool_v2_evidence_satisfied`, returns no pending-success
+ID and is never reopened. Identity/authority and malformed reports use the unchanged 0003 checks;
+a mismatched stored canonical row raises `pool_v2_evidence_identity_mismatch`. These failures are
+not active-hold acknowledgements. A failed/lost commit acknowledgement remains unknown: retain the
+same local report and reconcile using identical retry plus `pool_v2_read_order`, never release or
+invent a zero cost/terminal outcome.
+
+The report domain and canonical v1 evidence-ID formula exactly match0003 settlement. Supported
+actuals remain nonnegative JavaScript-safe integers represented as PostgreSQL bigint, including
+values beyond the legacy integer setter. Incomplete/unknown actuals or nonterminal outcomes do
+not fit this protocol and must remain uncertain locally. A complete nonvideo or failed-import
+chain may report its actual terminal billing tuple here while retaining the full claimed ceiling.
+Conflicting/larger/lower reports append distinct pending IDs without replacing or clamping truth.
+Existing conservative bigint totals and the global pending-evidence gate then block all legacy
+and v2 claims across both worlds. Final accounting for an existing exact own binding remains
+available after disable/retire and after settled/released states; it creates no new dispatch right.
+
+The report must have one stable identity per actual attempt chain, independent of fresh collector
+timestamps or publication UUIDs. Retain original/child run IDs, their distinct own costs and exact
+request/dispatch/receipt/result digests in the owning world's durable report; this function stores
+only the bounded evidence digest/reference. After independently verified durable import, the
+unchanged `pool_v2_settle` with the **identical whole tuple** can satisfy only this same ID. Another
+pending report remains a global hold. Merely collecting a complete result, seeing a ready/nonvideo
+response or returning from this function never authorizes settlement or release.
+
+The consumer must require the separately reviewed function-definition digest and actual EXECUTE
+privilege for the mapped login before activation. An absent/unreviewed function or ACL is a refusal,
+with no fallback to settlement. Source/CI acceptance does not apply 0004 or provision that privilege.
+`tests/integration/pool-v2-evidence-hold.test.ts` exercises the exact prefix plus0004 on separate
+Actions-only disposable databases and genuine fixture login sessions; it is accounting-protocol
+fixture evidence, not actual pool, provider, import, billing or paid-activation evidence.
+Installation also refuses `pool_v2_evidence_acl_refused` if inherited owner default privileges
+would leave any non-owner EXECUTE right after PUBLIC revocation. It never rewrites those defaults
+or another role's privileges to obtain activation.
+
+The inherited order/status reads cap their pending-ID arrays at32; status also reports the full
+pending count. An ID absent from that capped array is not proof of absence or satisfaction. A
+consumer unable to confirm its exact hold must retain blocked/unknown state, not regenerate a
+report, settle, release or authorize another send. Evidence-only reporting still retains every
+truthful report and existing conservative totals consider them all.
+
+Function-definition provenance uses `pg_get_functiondef` with the query search path explicitly
+set to `pg_catalog, public, pg_temp`, so visible type-name deparsing is reproducible. This query
+context does not change the function's own fixed `pg_catalog, pg_temp` security path.
