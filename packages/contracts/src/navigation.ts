@@ -2,6 +2,7 @@ import { oc } from '@orpc/contract';
 import { z } from 'zod';
 import { ClientCapabilities } from './content.js';
 import { AssetIdSchema, CommandIdSchema, UuidSchema } from './ids.js';
+import { RecordingGenerationSchema } from './recording.js';
 
 const Revision = z.number().int().min(1);
 const IntentRevision = z.number().int().min(0);
@@ -87,12 +88,18 @@ export const ExpectedContinuationSchema = z.strictObject({
 });
 
 /** Initial discovery omits `session`; resuming discovery names a session and its expected intent. */
-export const OpenDiscoveryRequestSchema = z.strictObject({
-  commandId: CommandIdSchema,
-  target: z.strictObject({ kind: z.literal('discover') }),
-  session: ExperienceSessionRefSchema.optional(),
-  capabilities: ClientCapabilities,
-});
+export const OpenDiscoveryRequestSchema = z
+  .strictObject({
+    commandId: CommandIdSchema,
+    target: z.strictObject({ kind: z.literal('discover') }),
+    session: ExperienceSessionRefSchema.optional(),
+    capabilities: ClientCapabilities,
+    recordingGeneration: RecordingGenerationSchema.optional(),
+  })
+  .refine((r) => !Object.hasOwn(r, 'recordingGeneration') || r.recordingGeneration !== undefined, {
+    path: ['recordingGeneration'],
+    message: 'A supplied recording generation must be defined.',
+  });
 
 /**
  * A deliberate fresh revisit, such as opening Saved before Explore has an active encounter. It
@@ -101,12 +108,18 @@ export const OpenDiscoveryRequestSchema = z.strictObject({
  * bypasses withdrawal. It returns a Composer outcome, not the interim direct exposure response.
  * Opening alone is not consumption or a return bonus. Local anchors/playheads are not uploaded.
  */
-export const OpenRevisitRequestSchema = z.strictObject({
-  commandId: CommandIdSchema,
-  target: z.strictObject({ kind: z.literal('return'), assetId: AssetIdSchema, assetRevision: Revision }),
-  session: ExperienceSessionRefSchema.optional(),
-  capabilities: ClientCapabilities,
-});
+export const OpenRevisitRequestSchema = z
+  .strictObject({
+    commandId: CommandIdSchema,
+    target: z.strictObject({ kind: z.literal('return'), assetId: AssetIdSchema, assetRevision: Revision }),
+    session: ExperienceSessionRefSchema.optional(),
+    capabilities: ClientCapabilities,
+    recordingGeneration: RecordingGenerationSchema.optional(),
+  })
+  .refine((r) => !Object.hasOwn(r, 'recordingGeneration') || r.recordingGeneration !== undefined, {
+    path: ['recordingGeneration'],
+    message: 'A supplied recording generation must be defined.',
+  });
 
 /**
  * Semantic moves, not gesture directions. A previous series step is a new forward navigation in
@@ -138,13 +151,19 @@ export const NavigationIntentSchema = z.discriminatedUnion('mode', [
  * deliberate move from that member commits a new intent; Back itself sends no command.
  * The server derives owner/epoch from the authenticated AccountScope, never from body fields.
  */
-export const NavigateExperienceRequestSchema = z.strictObject({
-  commandId: CommandIdSchema,
-  sessionId: UuidSchema,
-  expectedIntentRevision: IntentRevision,
-  from: z.strictObject({ offerId: UuidSchema, exposureId: UuidSchema }),
-  intent: NavigationIntentSchema,
-});
+export const NavigateExperienceRequestSchema = z
+  .strictObject({
+    commandId: CommandIdSchema,
+    sessionId: UuidSchema,
+    expectedIntentRevision: IntentRevision,
+    from: z.strictObject({ offerId: UuidSchema, exposureId: UuidSchema }),
+    intent: NavigationIntentSchema,
+    recordingGeneration: RecordingGenerationSchema.optional(),
+  })
+  .refine((r) => !Object.hasOwn(r, 'recordingGeneration') || r.recordingGeneration !== undefined, {
+    path: ['recordingGeneration'],
+    message: 'A supplied recording generation must be defined.',
+  });
 
 const NavigationOutcomeFields = {
   commandId: CommandIdSchema,
@@ -209,15 +228,21 @@ export const NavigationOutcomeSchema = z.discriminatedUnion('status', [
  * asset/position assertion can substitute for that authority check. The result is the existing
  * activation response plus the immutable asset/exposure lineage and session/offer identity.
  */
-export const ActivateOfferRequestSchema = z.strictObject({
-  commandId: CommandIdSchema,
-  target: z.strictObject({
-    kind: z.literal('offer'),
-    sessionId: UuidSchema,
-    offerId: UuidSchema,
-    expectedIntentRevision: IntentRevision,
-  }),
-});
+export const ActivateOfferRequestSchema = z
+  .strictObject({
+    commandId: CommandIdSchema,
+    target: z.strictObject({
+      kind: z.literal('offer'),
+      sessionId: UuidSchema,
+      offerId: UuidSchema,
+      expectedIntentRevision: IntentRevision,
+    }),
+    recordingGeneration: RecordingGenerationSchema.optional(),
+  })
+  .refine((r) => !Object.hasOwn(r, 'recordingGeneration') || r.recordingGeneration !== undefined, {
+    path: ['recordingGeneration'],
+    message: 'A supplied recording generation must be defined.',
+  });
 
 export const ActivateOfferResponseSchema = z.strictObject({
   commandId: CommandIdSchema,

@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, copyFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sql } from 'kysely';
+import { migrationRegistry } from '@knowscroll/migrations';
 import { applyQueueDeclarations, createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithCutroomReceiveScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
@@ -34,6 +35,10 @@ import {
 import { commissionFixture, fixturePublishedCommission, type CommissionFixture } from './commission-fixture.js';
 import { createTestDatabase, type TestDatabase } from './database.js';
 export const receiveHash = (s: string) => createHash('sha256').update(s).digest('hex');
+const latestMigration = migrationRegistry.at(-1)?.name;
+if (!latestMigration || !/^\d{4}_/.test(latestMigration)) throw new Error('FIXTURE_SOURCE_SCHEMA_UNAVAILABLE');
+/** This fixture's source database is cloned/migrated from this exact candidate's registry. */
+export const receivingFixtureSchemaVersion = Number(latestMigration.slice(0, 4));
 export interface ReceivingFixture {
   origin: CommissionFixture;
   published: Awaited<ReturnType<typeof fixturePublishedCommission>>;
@@ -87,7 +92,11 @@ export async function receiveFixture(
         authority: { worldId: 'dev', generation: 1 },
         withScope: makeWithCutroomPreparationScope(origin.world.db, { enabled: true }),
         financial: reader,
-        source: { commit: 'a'.repeat(40), artifactSha256: receiveHash('fixture-archive'), schemaVersion: 39 },
+        source: {
+          commit: 'a'.repeat(40),
+          artifactSha256: receiveHash('fixture-archive'),
+          schemaVersion: receivingFixtureSchemaVersion,
+        },
         fixture: true,
       }),
     );
