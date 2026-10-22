@@ -111,7 +111,10 @@ describe('verified connected public admission and exact settlement', () => {
     if (collected.kind !== 'collected') throw new Error('FIXTURE_LATE_COLLECTION');
     const stored = await x.snapshots.recordCollectedChain(x.c.target, collected.snapshot);
     if (stored.kind === 'refused') throw new Error('FIXTURE_LATE_STORE');
-    const snapshot = await x.snapshots.readSnapshot(x.c.target, stored);
+    const snapshot = await x.snapshots.readSnapshot(x.c.target, {
+      snapshotId: stored.snapshotId,
+      snapshotSha256: stored.snapshotSha256,
+    });
     if (snapshot.kind !== 'snapshot') throw new Error('FIXTURE_LATE_READ');
     const id = await x.financial.recordHold(x.c.target, snapshot.snapshotId, financialReportOfSnapshot(snapshot));
     expect(id).toBeTruthy();

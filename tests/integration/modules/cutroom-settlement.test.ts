@@ -42,7 +42,10 @@ describe('stable exact evidence-only Cutroom accounting (actual isolated PG)', (
     });
     const stored = await snapshots.recordCollectedChain(c.target, fixtureClosedCommissionChain(c, { cost, childCost }));
     if (stored.kind === 'refused') throw new Error('FIXTURE_SNAPSHOT');
-    const s = await snapshots.readSnapshot(c.target, stored);
+    const s = await snapshots.readSnapshot(c.target, {
+      snapshotId: stored.snapshotId,
+      snapshotSha256: stored.snapshotSha256,
+    });
     if (s.kind !== 'snapshot') throw new Error('FIXTURE_READ');
     const pool = makeCutroomSettlementPool(() => f!.pool.connect(), { evidenceFunctionSha256: pin });
     const store = postgresCutroomSettlement(makeEnqueueCutroom(f.boss), makeEnqueueCutroomMaintenance(f.boss));

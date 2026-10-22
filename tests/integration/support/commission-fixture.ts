@@ -566,7 +566,10 @@ export async function fixturePublishedCommission(f: CommissionFixture, label: st
     if (collected.kind !== 'collected') throw new Error('FIXTURE_VIDEO_COLLECTION');
     const stored = await snapshots.recordCollectedChain(c.target, collected.snapshot);
     if (stored.kind === 'refused') throw new Error('FIXTURE_VIDEO_SNAPSHOT');
-    const snapshot = await snapshots.readSnapshot(c.target, stored);
+    const snapshot = await snapshots.readSnapshot(c.target, {
+      snapshotId: stored.snapshotId,
+      snapshotSha256: stored.snapshotSha256,
+    });
     if (snapshot.kind !== 'snapshot') throw new Error('FIXTURE_VIDEO_READ');
     const pool = makeCutroomSettlementPool(() => f.pool.connect(), { evidenceFunctionSha256: pin });
     const financial = makeCutroomSettlement({
