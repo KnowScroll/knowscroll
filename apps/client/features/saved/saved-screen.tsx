@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -15,43 +15,17 @@ import { EmptyKeepScreen } from './empty-keep-screen';
 import { SavedCard } from './saved-card';
 import { KeepDetail } from './keep-detail';
 import type { AvailableKeep } from './keep-place-bridge';
-import { createSavedRemoval, savedQueryOptions } from './saved-query';
+import { savedRemovalFor, savedQueryOptions } from './saved-query';
 
-const removals = new WeakMap<AccountScope, ReturnType<typeof createSavedRemoval>>();
-function removalFor(scope: AccountScope) {
-  let removal = removals.get(scope);
-  if (!removal) {
-    removal = createSavedRemoval(scope, newCommandId);
-    removals.set(scope, removal);
-  }
-  return removal;
-}
 export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
   const query = useQuery(savedQueryOptions(scope));
   const router = useRouter();
   const [filter, setFilter] = useState<'all' | 'reel' | 'scroll'>('all');
-  const [failed, setFailed] = useState<ReadonlyMap<string, ListSavedResponse['items'][number]>>(new Map());
-  const [removing, setRemoving] = useState<ReadonlySet<string>>(new Set());
+  const removal = savedRemovalFor(scope, newCommandId);
+  const removalState = useSyncExternalStore(removal.subscribe, removal.getState, removal.getState);
   const [openFailed, setOpenFailed] = useState(false);
   const [selected, setSelected] = useState<ListSavedResponse['items'][number]>();
-  const remove = async (item: ListSavedResponse['items'][number]) => {
-    if (removing.has(item.assetId)) return;
-    setRemoving((values) => new Set(values).add(item.assetId));
-    const ok = await removalFor(scope)(item);
-    if (ok && scope.active) void encounterSessionFor(scope).refreshContext();
-    if (!scope.active) return;
-    setRemoving((values) => {
-      const next = new Set(values);
-      next.delete(item.assetId);
-      return next;
-    });
-    setFailed((values) => {
-      const next = new Map(values);
-      if (ok) next.delete(item.assetId);
-      else next.set(item.assetId, item);
-      return next;
-    });
-  };
+  const removing = ['preparing', 'grace', 'sending', 'unknown'].includes(removalState.status);
   const open = (
     item: ListSavedResponse['items'][number],
     assetRevision: number,
@@ -144,6 +118,38 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
         {items.length > 0 && visible.length === 0 ? (
           <StateBlock title="No saved encounters in this filter" body="Try All to see the rest of this list." />
         ) : null}
+        {removalState.status === 'grace' ? (
+          <View style={styles.body}>
+            <Text variant="bodyS">Removal starts in five seconds. Undo keeps this encounter in Keep.</Text>
+            <Button
+              label="Undo removal"
+              onPress={() => {
+                removal.undo();
+              }}
+            />
+          </View>
+        ) : null}
+        {removalState.status === 'preparing' ? <Text variant="meta">Checking this saved encounter…</Text> : null}
+        {removalState.status === 'sending' ? <Text variant="meta">Removing this saved encounter…</Text> : null}
+        {removalState.status === 'unknown' ? (
+          <View style={styles.body}>
+            <Text variant="bodyS">
+              Removal wasn't confirmed. Retry checks the same removal. Undo is no longer available.
+            </Text>
+            <Button
+              label="Retry removal"
+              onPress={() => {
+                removal.retry();
+              }}
+            />
+          </View>
+        ) : null}
+        {removalState.status === 'confirmed' ? (
+          <Text variant="meta">Removal confirmed. The latest Keep list is shown when refreshed.</Text>
+        ) : null}
+        {removalState.status === 'unavailable' ? (
+          <Text variant="bodyS">This removal couldn't be completed. Refresh Keep before choosing again.</Text>
+        ) : null}
         {selected ? (
           <KeepDetail
             key={`${selected.assetId}:${String(selected.assetRevision)}`}
@@ -159,10 +165,10 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
                 key={item.assetId}
                 item={item}
                 resume={readResume(scope, item.assetId, item.assetRevision)}
-                failed={failed.has(item.assetId)}
-                removing={removing.has(item.assetId)}
+                failed={removalState.status === 'unavailable' && removalState.item.assetId === item.assetId}
+                removing={removing && 'item' in removalState && removalState.item.assetId === item.assetId}
                 onRemove={() => {
-                  void remove(item);
+                  void removal.prepare(item);
                 }}
                 onOpen={(revision) => {
                   if (revision === item.assetRevision) setSelected(item);

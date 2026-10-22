@@ -44,20 +44,21 @@ function fixture(handler?: (body: Record<string, unknown>, path: string) => unkn
   return { scope, calls };
 }
 describe('mounted Keep bridge using the real bounded client session', () => {
-  it('owns at most two handles and balances repeated effect starts/stops without creating effects', async () => {
+  it('owns at most twenty-two handles and balances repeated effect starts/stops without creating effects', async () => {
     const f = fixture();
     const view = createKeepView(f.scope, target);
     view.start();
     view.start();
     await waitFor(() => expect(view.getState().status).toBe('ready'));
-    const second = keepBridgeFor(f.scope).retain(target)!;
+    const others = Array.from({ length: 21 }, () => keepBridgeFor(f.scope).retain(target)!);
+    expect(others.every(Boolean)).toBe(true);
     expect(keepBridgeFor(f.scope).retain(target)).toBeUndefined();
     view.stop();
     view.stop();
     view.start();
     await waitFor(() => expect(view.getState().status).toBe('ready'));
     expect(f.calls.every((c) => c.path.endsWith('/keep/read'))).toBe(true);
-    second.release();
+    others.forEach((handle) => handle.release());
     view.stop();
     const next = keepBridgeFor(f.scope).retain(target);
     expect(next).toBeDefined();

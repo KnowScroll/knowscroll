@@ -77,7 +77,11 @@ export function readResume(scope: Pick<AccountScope, 'active' | 'storage'>, asse
   return undefined;
 }
 
-export function createEncounterHistory(scope: Pick<AccountScope, 'active' | 'storage'>, limit = 20) {
+export function createEncounterHistory(
+  scope: Pick<AccountScope, 'active' | 'storage'>,
+  limit = 20,
+  onCapture?: (entry: EncounterEntry, position: PrivatePosition) => void,
+) {
   const entries: EncounterEntry[] = [];
   let cursor = -1;
   let ended = false;
@@ -88,6 +92,7 @@ export function createEncounterHistory(scope: Pick<AccountScope, 'active' | 'sto
     const position = entry.surface?.capture();
     if (scope.active && position) {
       entry.position = position;
+      onCapture?.(entry, position);
       if (!entry.keepOrigin) writeResume(scope, entry.offer.assetId, entry.offer.assetRevision, position);
     }
   };

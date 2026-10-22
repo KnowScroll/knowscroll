@@ -18,7 +18,7 @@ const unavailable: KeepPlaceState = Object.freeze({
 });
 const bridges = new WeakMap<AccountScope, ReturnType<typeof makeBridge>>();
 
-/** App budget: selected detail + current open/checkpoint only. Core separately caps unknown commands. */
+/** App budget: twenty retiring writes, one selected detail and one current/open checkpoint. */
 function makeBridge(scope: AccountScope) {
   const session = createKeepPlaceSession({ scope, newCommandId });
   const leases = new Set<KeepPlaceHandle>();
@@ -30,7 +30,7 @@ function makeBridge(scope: AccountScope) {
   });
   return {
     retain(target: KeepAssetRef): KeepPlaceHandle | undefined {
-      if (!live || !scope.active || leases.size >= 2) return undefined;
+      if (!live || !scope.active || leases.size >= 22) return undefined;
       const handle = session.retain(target);
       if (!handle) return undefined;
       const lease: KeepPlaceHandle = {

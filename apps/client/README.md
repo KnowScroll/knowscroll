@@ -234,31 +234,41 @@ not established or closed by this source change. CI scenes are labelled authored
 not personal activity. Connected dev/native/physical acceptance remains coordinator work; the
 separately frozen fb2/schema28 writer experiment is not automatically replaced by this source.
 
-## Partial mounted Keep positions (#234/#246)
+## Mounted Keep lifecycle (#234/#246/#344)
 
-The selected inline Keep detail uses the real scope-object `KeepPlaceSession`, not the old
-asset/revision-only local resume cache. At most two app-owned handles serve detail/current work;
-no eager100 position reads, polling, second socket or persistent command journal. A current exact
-membership/ref/place read is checked before normal return/activation and again before mounting
-restored content. Changed/unavailable state blocks restore with explicit top/return choices;
-Start from top affects only this visit. Corrected old Saved revisions can be `saved_unavailable`
-because the current Content target admits only its exact current head. Updated versions inherit
-no membership or position. Legacy card positions are explicitly labelled “On this device”.
+The selected inline detail reads the real scope-object KeepPlaceSession. Resume checks current
+membership/ref/place before canonical return admission and again before mounting. Changed or
+unavailable state blocks restoration with explicit top/return choices. Updated revisions inherit
+no membership or position. Detail and restoration alone create no consumption observations.
 
-**Keep this place** is a deliberate actual foreground measured-surface capture. Save still keeps
-the item; automatic checkpoint-on-Save/park/background, all-card server positions and complete
-S01/S02 behavior remain required later. No restored incoming/local position is automatically
-uploaded. Unknown writes retry only the original command/body; CAS conflict resolution is explicit;
-an immutable ACK is followed by a new read, never advertised as current position itself.
+An actual saved Explore surface warms its exact membership on mount. Save captures its actual
+local position synchronously; after acknowledgement and a fresh membership read, a still-current
+surface supplies its actual position to the strict server CAS. Every history park, overlay, tab
+background, Back and trail restore captures actual measured Reel playhead or canonical Scroll
+block/fractional offset before pause. Incoming resume values alone are never uploaded. Interactive
+block state remains in the existing account/epoch/revision/block store, never in the place request.
+Reel restoration remains paused. Scope end purges and fences late replies.
 
-Detail/restore state creates no reading/watching observation. Normal visibility/playback after
-actual renderer admission retains the existing recorder. Restored Reels start paused; Scrolls
-keep exact top-level fractional logical offsets and clamp through the actual measured renderer.
-Keep-origin Back positions stay in memory and do not enter the legacy asset-keyed resume store.
-Scope end synchronously purges handles/tokens/private views and fences abort-ignoring replies.
+A parked write may finish after its surface leaves. At most twenty retiring writes plus current
+checkpoint/open and selected detail hold app leases; the core separately caps one hundred entries
+and four reads. Unknown writes retain the identical command/body; CAS conflicts need explicit
+resolution. Returning to that target adopts its retained pending state, without resending it.
+An immutable ACK requires a new read. There is no new persistence, socket, polling or observation.
+If the first exact membership read hasn't completed before departure, no old capture is guessed
+onto a newly discovered membership. A Save whose surface leaves before its acknowledgement keeps
+its actual local resume capture; automatic server capture requires a live actual surface. These
+races remain unconfirmed rather than claiming that a place was saved.
 
-Legacy Unsave/removal is still asset-keyed: a delayed retry can remove a replacement membership
-(ABA). This slice does not add membership-safe Remove, Undo or a privacy-clear promise. Shared
-contracts/backend/core/renderers/SQL remain unchanged. Component/production-export HTTP fixtures
-in Actions prove source behavior only, not real endpoint, decoded Reel, physical device or final
-privacy/UX acceptance. Root separately owns real journeys and latency acceptance before rollout.
+All client Unsave paths now use the exact membership Remove endpoint. One removal per scope is
+prepared by a real Keep read, offers a five-second grace period, then rechecks the same UUID/ref
+before dispatch. Undo only cancels that unsent grace period. It closes synchronously before the
+request and never restores a removed membership. An unknown response exposes explicit same-body
+Retry, blocks replacement commands and offers no Undo. Late receipts never delete list cache
+items: current list/context reads decide present status, so replacement memberships survive ABA.
+A scope switch cancels the grace timer and synchronously erases the pending private selection.
+
+Direct Reel also uses this exact removal controller; its independent Save flow remains supported.
+Full direct-route automatic server positions, all-card server positions and full S01/S02 visual/
+interaction parity remain follow-up work. Source/component/protocol fixtures in Actions establish
+client behavior only. Root owns real disposable-account endpoint/decoded media/device journeys
+and deployment acceptance; this source makes no runtime or final privacy acceptance claim.

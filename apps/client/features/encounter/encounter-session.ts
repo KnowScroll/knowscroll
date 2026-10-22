@@ -16,6 +16,7 @@ import type {
 } from '@knowscroll/contracts';
 import { parseDocument } from '@knowscroll/scroll-model';
 import { createRequestSession, type RequestMode } from '../requests/request-session';
+import { savedRemovalFor, type SavedRemovalState } from '../saved/saved-query';
 import type { EncounterGestureMove } from './gestures/arbitration';
 import { ENCOUNTER_CAPABILITIES } from './capabilities';
 import { createEncounterHistory, readResume, type EncounterEntry } from './encounter-history';
@@ -53,6 +54,7 @@ export interface EncounterState {
   readonly surfaceRevision: number;
   readonly contextReady?: boolean;
   readonly keepPlace?: KeepPlaceState;
+  readonly removal?: SavedRemovalState;
 }
 type Intent = NavigateExperienceRequest['intent'];
 type OfferActivation = Extract<
@@ -70,7 +72,20 @@ interface Work {
 
 /** One in-memory controller per AccountScope. Component unmounts park; only scope end disposes. */
 export function createEncounterSession(scope: AccountScope, newId: () => string) {
-  const history = createEncounterHistory(scope);
+  const history = createEncounterHistory(scope, 20, (entry, captured) => {
+    const handle = checkpointFor(entry);
+    if (!valid() || !entry.context.actions.saved || !handle) return;
+    const position = checkpointPosition(entry, captured);
+    const current = handle.getState();
+    if (!position || current.status !== 'ready' || current.snapshot?.status !== 'available') return;
+    if (
+      current.snapshot.place.status === 'set' &&
+      JSON.stringify(current.snapshot.place.position) === JSON.stringify(position)
+    )
+      return;
+    handle.setPosition(position);
+  });
+  const removal = savedRemovalFor(scope, newId);
   const listeners = new Set<() => void>();
   let state: EncounterState = { phase: 'idle', trail: [], overlay: false, surfaceRevision: 0 };
   let live = true;
@@ -85,11 +100,27 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let checkpointOwner: { entry: EncounterEntry; assetId: string; assetRevision: number } | undefined;
   let checkpointOff: (() => void) | undefined;
   let checkpointSerial = 0;
+  const retiring = new Map<KeepPlaceHandle, () => void>();
+  function retire(handle: KeepPlaceHandle) {
+    const complete = () => {
+      const current = handle.getState();
+      if (current.write !== 'idle' && current.status !== 'ended') return;
+      retiring.get(handle)?.();
+      retiring.delete(handle);
+      handle.release();
+    };
+    retiring.set(handle, handle.subscribe(complete));
+    complete();
+  }
   function releaseCheckpoint() {
     checkpointSerial++;
     checkpointOff?.();
     checkpointOff = undefined;
-    checkpoint?.release();
+    if (checkpoint) {
+      const current = checkpoint.getState();
+      if (live && scope.active && current.write !== 'idle' && retiring.size < 20) retire(checkpoint);
+      else checkpoint.release();
+    }
     checkpoint = undefined;
     checkpointOwner = undefined;
     if (live && scope.active) publish({ keepPlace: undefined });
@@ -109,6 +140,49 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     state = { ...state, ...patch, entry: history.current(), trail: history.list() };
     listeners.forEach((listener) => listener());
   };
+  const removalOff = removal.subscribe(() => {
+    if (!valid()) return;
+    publish({ removal: removal.getState() });
+    if (removal.getState().status === 'confirmed') void refreshContext();
+  });
+  function ensureCheckpoint(entry: EncounterEntry) {
+    if (checkpointFor(entry)) return checkpointFor(entry);
+    releaseCheckpoint();
+    checkpoint = keepBridgeFor(scope).retain({
+      assetId: entry.offer.assetId,
+      assetRevision: entry.offer.assetRevision,
+    });
+    if (!checkpoint) return undefined;
+    checkpointOwner = { entry, assetId: entry.offer.assetId, assetRevision: entry.offer.assetRevision };
+    const handle = checkpoint;
+    // The newly retained handle now owns any earlier pending command for this exact target.
+    for (const [previous, off] of retiring) {
+      const target = previous.getState().snapshot?.target;
+      if (target?.assetId !== entry.offer.assetId || target.assetRevision !== entry.offer.assetRevision) continue;
+      off();
+      retiring.delete(previous);
+      previous.release();
+    }
+    checkpointOff = handle.subscribe(() => {
+      if (valid() && checkpointFor() === handle) publish({ keepPlace: handle.getState() });
+    });
+    return handle;
+  }
+  async function saveActualPlace(entry: EncounterEntry) {
+    const handle = ensureCheckpoint(entry);
+    if (!handle) return;
+    try {
+      await refreshKeep(scope, handle);
+      if (!valid() || history.current() !== entry || checkpointFor(entry) !== handle || !foreground || state.overlay)
+        return;
+      const actual = entry.surface?.capture();
+      const position = actual && checkpointPosition(entry, actual);
+      if (position) handle.setPosition(position);
+    } catch {
+      if (valid() && checkpointFor(entry) === handle)
+        publish({ keepPlace: { ...handle.getState(), status: 'unavailable', reason: 'entry_unavailable' } });
+    }
+  }
   const latest = (session: { sessionId: string; intentRevision: number } | undefined) => {
     if (
       session &&
@@ -420,7 +494,6 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     actionRunning = true;
     const before = entry.context.actions;
     const optimistic = { ...before };
-    if (input.kind === 'save' || input.kind === 'unsave') optimistic.saved = input.kind === 'save';
     if (input.kind === 'like' || input.kind === 'unlike') optimistic.liked = input.kind === 'like';
     if (input.kind === 'hide') optimistic.hidden = true;
     entry.context = { ...entry.context, actions: optimistic };
@@ -443,6 +516,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
             : { ...before, liked: result.liked, hidden: result.hidden },
       };
       publish({ actionFailed: false });
+      if (input.kind === 'save' && 'saved' in result && result.saved && history.current() === entry)
+        void saveActualPlace(entry);
       // A failed reconciliation cannot roll back a confirmed command or mint a replacement intent.
       await scope.queryClient.invalidateQueries({ queryKey: scope.queryKey('saved') }).catch(() => undefined);
       await context(entry).catch(() => undefined);
@@ -458,7 +533,13 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   const end = () => {
     if (!live) return;
     live = false;
+    removalOff();
     releaseCheckpoint();
+    for (const [handle, off] of retiring) {
+      off();
+      handle.release();
+    }
+    retiring.clear();
     work?.keep?.handle?.release();
     work?.entry?.recorder.end();
     work = undefined;
@@ -517,24 +598,12 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       const capture = entry.surface?.capture();
       const position = capture && checkpointPosition(entry, capture);
       if (!position) return;
-      if (!checkpointFor(entry)) {
-        releaseCheckpoint();
-        checkpoint = keepBridgeFor(scope).retain({
-          assetId: entry.offer.assetId,
-          assetRevision: entry.offer.assetRevision,
-        });
-        if (checkpoint)
-          checkpointOwner = { entry, assetId: entry.offer.assetId, assetRevision: entry.offer.assetRevision };
-      }
+      ensureCheckpoint(entry);
       const handle = checkpointFor(entry);
       if (!handle) {
         publish({ keepPlace: { status: 'unavailable', write: 'idle', reason: 'entry_unavailable' } });
         return;
       }
-      if (!checkpointOff)
-        checkpointOff = handle.subscribe(() => {
-          if (valid() && checkpointFor() === handle) publish({ keepPlace: handle.getState() });
-        });
       const serial = ++checkpointSerial;
       publish({ keepPlace: handle.getState() });
       try {
@@ -652,7 +721,10 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (value && work && !busy) void run();
     },
     bindSurface(entry: EncounterEntry, surface: NonNullable<EncounterEntry['surface']>) {
-      if (valid() && !entry.disposed && foreground && history.current() === entry) entry.surface = surface;
+      if (valid() && !entry.disposed && foreground && history.current() === entry) {
+        entry.surface = surface;
+        if (entry.context.actions.saved) ensureCheckpoint(entry);
+      }
     },
     mediaGrant(entry: EncounterEntry) {
       return {
@@ -712,6 +784,14 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     act(kind: ApplyActionRequest['kind']) {
       const entry = history.current();
       if (!entry || actionRunning || work || !valid()) return;
+      if (kind === 'unsave') {
+        void removal.prepare({
+          assetId: entry.offer.assetId,
+          assetRevision: entry.offer.assetRevision,
+          metadata: entry.offer.metadata,
+        });
+        return;
+      }
       if (kind === 'save') history.capture();
       if (!action)
         action = {
@@ -725,6 +805,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         };
       void runAction();
     },
+    undoRemoval: removal.undo,
+    retryRemoval: removal.retry,
     retryAction() {
       void runAction();
     },
