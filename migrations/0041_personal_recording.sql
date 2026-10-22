@@ -9,10 +9,11 @@
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
 alter table identity.universes add column recording_on boolean not null default true;
-alter table identity.universes add column recording_generation integer not null default 1
-  check(recording_generation between 1 and 2147483647);
--- Existing roots acquire literal1/true defaults, so parity already holds by construction.
+alter table identity.universes add column recording_generation integer not null default 1;
+-- Existing roots acquire literal1/true defaults, so range and parity hold by construction.
 -- NOT VALID avoids a historical root scan and still checks every inserted/updated row.
+alter table identity.universes add constraint recording_generation_range
+  check(recording_generation between 1 and 2147483647) not valid;
 alter table identity.universes add constraint recording_parity
   check(recording_on=(recording_generation%2=1)) not valid;
 create function identity.guard_recording_policy() returns trigger language plpgsql set search_path=pg_catalog as $$

@@ -58,5 +58,5 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
     name: '0040_friend_rosters_and_invites',
     sha256: '68e96762bb6f3ca2dc6653fd618f747748465f676766a687d70b55c27b30be77',
   },
-  { name: '0041_personal_recording', sha256: '26db9c49870b8f6f899174768fd39630b6333e8c07432bdfd95cf01e050771de' },
+  { name: '0041_personal_recording', sha256: 'a0b041e07c3dea8f989bcbc1c20e2045b6f0a697be7e1f18833f5459d0809d31' },
 ];

@@ -30,6 +30,20 @@ describe('opt-in original recording-generation capability', () => {
   afterEach(async () => {
     await database.drop();
   });
+  it('installs both root policy checks without validating historical rows during migration', async () => {
+    const constraints = await sql<{ name: string; validated: boolean }>`
+      select conname as name, convalidated as validated
+      from pg_constraint
+      where conrelid = 'identity.universes'::regclass
+        and conname in ('recording_generation_range', 'recording_parity')
+        and contype = 'c'
+      order by conname
+    `.execute(database.db);
+    expect(constraints.rows).toEqual([
+      { name: 'recording_generation_range', validated: false },
+      { name: 'recording_parity', validated: false },
+    ]);
+  });
   it('admits initial legacy and exact current, refuses stale after resume, expires/copy-fences capabilities', async () => {
     const p = await seedPerson(database.db),
       withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
