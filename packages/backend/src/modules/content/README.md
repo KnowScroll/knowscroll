@@ -280,3 +280,31 @@ kind is an invariant failure; no placeholder kind is fabricated. Legacy
 `ReadSavedMetadata` retains its original shape. Experience calls only this public
 port, never Content tables directly. No renderer, document admission, peer state,
 encounter, activity or provider work results from these list reads.
+
+#240 connected Cutroom source adds an explicitly selected commissioning port, not a consumer
+HTTP route. `makeCommissioning` binds the compiled command to one complete corpus review and
+individual human approval in the same B transaction as reservation, business binding and required
+maintenance/job. The worker's trusted root file supplies the actual external approval/profile/funds
+records; a parsed script, Git identity or PR never creates that authority. All gates default off.
+
+Verified publication is separate from the old0014 three-script importer, which is unchanged.
+Fresh fixed GETs must match every retained terminal tip projection. The adapter opens only the
+canonical regular engine render file, stages content-addressed bytes, checks the real H264/AAC
+20–60 second9:16/24fps/faststart profile and fsyncs before a final current-root/review check.
+Publication, immutable asset/revision/provenance and exact Reasoning settlement command/job commit
+together. The owning0016 trigger projects discovery once. This creates no encounter or personal
+learning evidence. Public script/asset provenance is bounded and contains no raw provider paths,
+URLs, free-form reasons or credentials.
+
+`contentCutroomStores` and its non-row manifest declare the actual shared-public ownership and
+retention. Schema inventory checks all Cutroom tables, direct/transitive personal dependencies,
+and populated full/selective erasure preservation; no account/universe dependency is exempted by
+naming. New rows reference immutable world/business/attempt/snapshot/asset records and preserve
+all personal erasure semantics. Failed shared staging is discarded; an already committed but
+unreferenced media object remains retained shared data for explicit reviewed operator cleanup; this
+source ships no automatic orphan GC and personal erasure never removes it.
+
+Cross-world CF62 zero-cost receive is **unimplemented**. Ordering-world C1 and the publication
+receipt cannot authorize a second world to import another world's output or settle its original
+claim. A separately reviewed provenance handoff/receiver remains required; no0c receive receipt
+or runtime completeness is claimed by this source.

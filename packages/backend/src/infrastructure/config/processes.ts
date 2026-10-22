@@ -109,7 +109,17 @@ export interface ContentOperatorConfig {
   readonly database: DatabaseSettings;
 }
 
+export interface CutroomCommissioningSettings {
+  readonly enabled: boolean;
+  readonly packetPath?: string;
+  readonly origin?: string;
+  readonly artifactRoot?: string;
+  readonly mediaRoot?: string;
+  readonly evidenceFunctionSha256?: string;
+  readonly poolDatabase?: DatabaseSettings;
+}
 export interface WorkerConfig extends ReleaseIdentity {
+  readonly cutroom: CutroomCommissioningSettings;
   /** Planner execution gate; default off until a separately approved role allowance. */
   readonly plannerEnabled: boolean;
   readonly cartographerEnabled: boolean;
@@ -532,6 +542,34 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         ...databaseVariables,
         KS_PLANNER_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CARTOGRAPHER_ENABLED: z.enum(['0', '1']).default('0'),
+        KS_CUTROOM_COMMISSIONING_ENABLED: z.enum(['0', '1']).default('0'),
+        KS_CUTROOM_APPROVAL_PACKET: z
+          .string()
+          .regex(/^\/etc\/knowscroll\/[a-zA-Z0-9_./-]+$/)
+          .optional(),
+        KS_CUTROOM_ORIGIN: z
+          .string()
+          .url()
+          .refine((v) => {
+            const u = new URL(v);
+            return (
+              u.protocol === 'http:' &&
+              ['127.0.0.1', '[::1]'].includes(u.hostname) &&
+              u.username === '' &&
+              u.password === '' &&
+              u.pathname === '/' &&
+              !u.search &&
+              !u.hash
+            );
+          })
+          .optional(),
+        KS_CUTROOM_ARTIFACT_ROOT: z.string().startsWith('/').optional(),
+        KS_CUTROOM_MEDIA_ROOT: z.string().startsWith('/').optional(),
+        KS_CUTROOM_EVIDENCE_FUNCTION_SHA256: z
+          .string()
+          .regex(/^[0-9a-f]{64}$/)
+          .optional(),
+        KS_CUTROOM_POOL_DATABASE_URL: PostgresUrlSchema.optional(),
         KS_DB_POOL_MAX: positiveInteger(5, 100),
         KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
         KS_SCOPE_LOCK_TIMEOUT_MS: positiveInteger(5_000, 60_000),
@@ -539,6 +577,13 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
       pick(env, [
         'KS_PLANNER_ENABLED',
         'KS_CARTOGRAPHER_ENABLED',
+        'KS_CUTROOM_COMMISSIONING_ENABLED',
+        'KS_CUTROOM_APPROVAL_PACKET',
+        'KS_CUTROOM_ORIGIN',
+        'KS_CUTROOM_ARTIFACT_ROOT',
+        'KS_CUTROOM_MEDIA_ROOT',
+        'KS_CUTROOM_EVIDENCE_FUNCTION_SHA256',
+        'KS_CUTROOM_POOL_DATABASE_URL',
         'DATABASE_URL',
         'KS_DB_STATEMENT_TIMEOUT_MS',
         'KS_DB_POOL_MAX',
@@ -554,8 +599,43 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
       'KS_SCOPE_LOCK_TIMEOUT_MS: must_be_below_statement_timeout',
     ],
   ]);
+  if (parsed.KS_CUTROOM_COMMISSIONING_ENABLED === '1') {
+    const missing = [
+      'KS_CUTROOM_APPROVAL_PACKET',
+      'KS_CUTROOM_ORIGIN',
+      'KS_CUTROOM_ARTIFACT_ROOT',
+      'KS_CUTROOM_MEDIA_ROOT',
+      'KS_CUTROOM_EVIDENCE_FUNCTION_SHA256',
+      'KS_CUTROOM_POOL_DATABASE_URL',
+    ].filter((k) => parsed[k as keyof typeof parsed] === undefined);
+    if (missing.length || !['dev', 'stage'].includes(release.world))
+      throw new ConfigurationError([
+        ...missing.map((k) => `${k}: required_when_enabled`),
+        ...(!['dev', 'stage'].includes(release.world)
+          ? ['KS_CUTROOM_COMMISSIONING_ENABLED: refused_in_this_world']
+          : []),
+      ]);
+  }
   return {
     ...release,
+    cutroom: {
+      enabled: parsed.KS_CUTROOM_COMMISSIONING_ENABLED === '1',
+      packetPath: parsed.KS_CUTROOM_APPROVAL_PACKET,
+      origin: parsed.KS_CUTROOM_ORIGIN,
+      artifactRoot: parsed.KS_CUTROOM_ARTIFACT_ROOT,
+      mediaRoot: parsed.KS_CUTROOM_MEDIA_ROOT,
+      evidenceFunctionSha256: parsed.KS_CUTROOM_EVIDENCE_FUNCTION_SHA256,
+      ...(parsed.KS_CUTROOM_POOL_DATABASE_URL
+        ? {
+            poolDatabase: {
+              url: parsed.KS_CUTROOM_POOL_DATABASE_URL,
+              applicationName: `knowscroll-cutroom-pool-${release.world}`,
+              poolMax: 1,
+              statementTimeoutMs: 10000,
+            },
+          }
+        : {}),
+    },
     plannerEnabled: parsed.KS_PLANNER_ENABLED === '1',
     cartographerEnabled: parsed.KS_CARTOGRAPHER_ENABLED === '1',
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),

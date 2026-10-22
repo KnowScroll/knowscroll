@@ -60,6 +60,24 @@ export function makeCutroomExecutionFoundation(p: CutroomExecutionPorts): Cutroo
     return p.store.observe(scope, observation.data);
   }
   return {
+    async readFollowTarget(input) {
+      if (!enabled) return;
+      const parsed = targetSchema.safeParse(input);
+      if (!parsed.success) return;
+      const result = await p.withAccountingScope(parsed.data, async (scope) => {
+        const execution = await p.store.readAccountingBinding(scope),
+          until = await p.store.followUntil?.(scope);
+        if (!execution || !until || Date.parse(until) <= p.now().getTime()) return;
+        return {
+          target: parsed.data,
+          generation: scope.attemptGeneration,
+          identity: scope.identity,
+          execution,
+          followUntil: until,
+        };
+      });
+      return result.kind === 'entered' ? result.value : undefined;
+    },
     recordObservationInScope,
     async readAccountingBinding(scope) {
       return enabled ? p.store.readAccountingBinding(scope) : undefined;

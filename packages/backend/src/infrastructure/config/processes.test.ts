@@ -445,3 +445,50 @@ describe('process configuration', () => {
     ).toContain('KS_WORLD: operator_command_refused_in_this_world');
   });
 });
+
+describe('connected Cutroom worker activation is explicit and default-deny', () => {
+  const inputs = {
+    DATABASE_URL: secretUrl,
+    KS_WORLD: 'dev',
+    KS_CUTROOM_COMMISSIONING_ENABLED: '1',
+    KS_CUTROOM_APPROVAL_PACKET: '/etc/knowscroll/cutroom/approved.json',
+    KS_CUTROOM_ORIGIN: 'http://127.0.0.1:7800',
+    KS_CUTROOM_ARTIFACT_ROOT: '/srv/cutroom/runs',
+    KS_CUTROOM_MEDIA_ROOT: '/srv/knowscroll/media',
+    KS_CUTROOM_EVIDENCE_FUNCTION_SHA256: 'a'.repeat(64),
+    KS_CUTROOM_POOL_DATABASE_URL: secretUrl,
+  };
+  it('has no implicit activation or pool credential when configuration is absent', () => {
+    const disabled = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).cutroom;
+    expect(disabled.enabled).toBe(false);
+    expect(disabled.poolDatabase).toBeUndefined();
+    expect(readWorkerConfig(inputs).cutroom).toMatchObject({
+      enabled: true,
+      packetPath: '/etc/knowscroll/cutroom/approved.json',
+      poolDatabase: { poolMax: 1 },
+    });
+  });
+  it('requires every explicit dependency, restricts worlds/origin and redacts errors', () => {
+    for (const key of [
+      'KS_CUTROOM_APPROVAL_PACKET',
+      'KS_CUTROOM_ORIGIN',
+      'KS_CUTROOM_ARTIFACT_ROOT',
+      'KS_CUTROOM_MEDIA_ROOT',
+      'KS_CUTROOM_EVIDENCE_FUNCTION_SHA256',
+      'KS_CUTROOM_POOL_DATABASE_URL',
+    ]) {
+      const env = { ...inputs, [key]: undefined };
+      const error = configurationError(() => readWorkerConfig(env));
+      expect(error.problems.join(' ')).not.toContain('hunter2');
+    }
+    expect(() => readWorkerConfig({ ...inputs, KS_WORLD: 'local' })).toThrow();
+    for (const origin of [
+      'http://remote.example',
+      'https://127.0.0.1',
+      'http://user:secret@127.0.0.1',
+      'http://127.0.0.1/?key=secret',
+    ])
+      expect(() => readWorkerConfig({ ...inputs, KS_CUTROOM_ORIGIN: origin })).toThrow();
+    expect(() => readWorkerConfig({ ...inputs, KS_CUTROOM_APPROVAL_PACKET: '/tmp/untrusted.json' })).toThrow();
+  });
+});

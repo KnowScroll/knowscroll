@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type pg from 'pg';
+import pg from 'pg';
 import type { PgBoss } from 'pg-boss';
 import { makeWithCutroomScope } from '../../infrastructure/postgres/cutroom-scope.js';
 import { makeEnqueueCutroom } from '../../infrastructure/jobs/enqueue-cutroom.js';
@@ -408,3 +408,32 @@ export {
 export { makeWithCutroomPreparationScope } from '../../infrastructure/postgres/cutroom-scope.js';
 
 export { clearReasoning } from './erasure.js';
+
+/** Connected Cutroom source composition only; actual approvals/profile/funds/function ACL are external. */
+export { makeCutroomSettlement } from '../application/cutroom-settlement.js';
+export {
+  postgresCutroomSettlement,
+  cutroomMaintenanceFor,
+  cutroomPoolWorkReader,
+} from './postgres-cutroom-settlement.js';
+export { makeCutroomSettlementPool } from './cutroom-pool.js';
+export { makeEnqueueCutroomMaintenance } from '../../infrastructure/jobs/enqueue-cutroom.js';
+
+/** Dedicated pool sessions only; never pass a world transaction as this connection. */
+export function cutroomPoolConnections(settings: {
+  readonly url: string;
+  readonly applicationName: string;
+  readonly statementTimeoutMs: number;
+}) {
+  const pool = new pg.Pool({
+    connectionString: settings.url,
+    application_name: settings.applicationName,
+    max: 1,
+    statement_timeout: settings.statementTimeoutMs,
+    connectionTimeoutMillis: 5000,
+    idleTimeoutMillis: 10000,
+  });
+  pool.on('error', () => undefined);
+  return { connect: () => pool.connect(), close: () => pool.end() };
+}
+export { reasoningCutroomStores, reasoningCutroomNonRowStores } from './cutroom-store-inventory.js';

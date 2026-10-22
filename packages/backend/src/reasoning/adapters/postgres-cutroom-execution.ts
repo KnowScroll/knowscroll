@@ -11,6 +11,18 @@ export function postgresCutroomExecution(
   now: () => Date = () => new Date(),
 ): CutroomExecutionStore {
   return {
+    async followUntil(scope) {
+      const r = (
+        await sql<{
+          until: string;
+        }>`select to_char(follow_until at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') until
+        from reasoning.cutroom_execution where attempt_id=${scope.attemptId}::uuid and world_id=${scope.worldId}
+          and business_run_id=${scope.businessRunId}::uuid and follow_until>now()`.execute(
+          cutroomAccountingTransactionOf(scope),
+        )
+      ).rows[0];
+      return r?.until;
+    },
     async matchesAccountingObservation(scope, observationId, snapshotSha256, runId) {
       const trx = cutroomAccountingTransactionOf(scope);
       const observation = {

@@ -91,6 +91,8 @@ export interface CutroomExecutionBinding {
   readonly poolReceipt: CutroomPoolReceipt;
 }
 export interface CutroomExecutionStore {
+  /** Connected follow adds an expiry read; old evidence-only compositions remain unchanged. */
+  followUntil?(scope: CutroomAccountingScopeTx): Promise<string | undefined>;
   readAccountingBinding(scope: CutroomAccountingScopeTx): Promise<CutroomExecutionBinding | undefined>;
   matchesAccountingObservation(
     scope: CutroomAccountingScopeTx,
@@ -143,6 +145,7 @@ export interface CutroomExecutionPorts {
   readonly now: () => Date;
 }
 export interface CutroomExecutionFoundation {
+  readFollowTarget(target: CutroomAccountingTarget): Promise<CutroomFollowBinding | undefined>;
   readAccountingBinding(scope: CutroomAccountingScopeTx): Promise<CutroomExecutionBinding | undefined>;
   matchesAccountingObservation(
     scope: CutroomAccountingScopeTx,
@@ -166,6 +169,14 @@ export interface CutroomExecutionFoundation {
     | { readonly kind: 'pending'; readonly observationId: string }
     | { readonly kind: 'refused'; readonly code: 'disabled' | 'identity' | 'invalid' }
   >;
+}
+
+export interface CutroomFollowBinding {
+  readonly target: CutroomAccountingTarget;
+  readonly generation: number;
+  readonly identity: CutroomPoolIdentity;
+  readonly execution: CutroomExecutionBinding;
+  readonly followUntil: string;
 }
 
 declare const preparationScope: unique symbol;

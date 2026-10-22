@@ -19,4 +19,7 @@ export interface CommissionPorts {
   readonly reasoning: Pick<CutroomB, 'withScope' | 'admitted' | 'reserve' | 'readScoped'>;
   readonly store: CommissionStore;
   readonly sha256: (input: string) => string;
+  /** Connected composition only: review and required maintenance commit with B reservation.
+   * A false result rolls the whole new business/attempt/pool job transaction back. */
+  readonly admitReview?: (scope: CutroomScopeTx, candidate: CutroomCandidate, attemptId: string) => Promise<boolean>;
 }

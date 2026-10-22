@@ -73,6 +73,8 @@ export function makeCommission(p: CommissionPorts) {
         const reserved = await p.reasoning.reserve(scope, candidate);
         if (reserved.kind !== 'pending') throw new Stop(reserved);
         await p.store.bind(scope, command.businessRunId, reserved.attemptId);
+        if (p.admitReview && !(await p.admitReview(scope, candidate, reserved.attemptId)))
+          throw new Stop({ kind: 'refused', code: 'authority' });
         return reserved;
       });
       return result.kind === 'entered' ? result.value : { kind: 'refused', code: result.code };
