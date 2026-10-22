@@ -172,6 +172,7 @@ export const jobWiring: Provider[] = [
         await formation.recover(job);
       }),
       ...cutroomConsumers(config.cutroom, config.world, (setup) => assembleCutroom(db, boss, config, setup)),
+      ...receiveConsumers(config.receiving, config.world, (setup) => assembleReceiving(db, boss, config, setup)),
       ...clearExplorationConsumers(
         clearExplorationFor(db, boss, {
           reasoning: clearReasoning,
@@ -262,6 +263,55 @@ import {
 } from '@knowscroll/backend/modules/content/nest-providers';
 import type { CommissioningSetup } from '@knowscroll/backend/modules/content';
 import { cutroomConsumers, type ConnectedCutroom } from './cutroom-jobs.js';
+import { receiveConsumers, readReceiveSetup } from './cutroom-receive-jobs.js';
+import { makeWithCutroomReceiveScope } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  makeCommissionReceive,
+  postgresCommissionReceive,
+  makeReceiveMedia,
+} from '@knowscroll/backend/modules/content/nest-providers';
+import type { CommissionReceiveSetup, ReceiveScopeTx, CommissionReceive } from '@knowscroll/backend/modules/content';
+/** Zero-cost receiving composition has no Cutroom HTTP or pool connection dependency. */
+export function assembleReceiving(
+  db: Kysely<Database>,
+  boss: ReturnType<typeof createBoss>,
+  config: WorkerConfig,
+  setup: CommissionReceiveSetup,
+): CommissionReceive {
+  const settings = config.receiving;
+  if (
+    !settings?.enabled ||
+    setup.worldId !== config.world ||
+    !settings.stagingRoot ||
+    !settings.mediaRoot ||
+    !settings.ffprobePath
+  )
+    throw new Error('CUTROOM_RECEIVING_SETUP_UNAVAILABLE');
+  const authority = { worldId: setup.worldId, generation: setup.generation };
+  return makeCommissionReceive({
+    enabled: true,
+    fixture: config.nodeEnv === 'test',
+    authority,
+    now: Date.now,
+    withScope: makeWithCutroomReceiveScope<ReceiveScopeTx>(db, { enabled: true, lockTimeoutMs: 5000 }),
+    store: postgresCommissionReceive(db, boss, {
+      enabled: true,
+      worldId: setup.worldId,
+      generation: setup.generation,
+      fixture: config.nodeEnv === 'test',
+    }),
+    media: makeReceiveMedia({
+      stagingRoot: settings.stagingRoot,
+      mediaRoot: settings.mediaRoot,
+      ffprobePath: settings.ffprobePath,
+    }),
+    readBinding: async (id, digest) => {
+      const fresh = await readReceiveSetup(settings, config.world);
+      if (fresh.generation !== authority.generation) return;
+      return fresh.bindings.find((b) => b.handoffId === id && b.payloadSha256 === digest);
+    },
+  });
+}
 /** Explicit composition root. Creating the default-disabled worker never opens pool sessions. */
 export function assembleCutroom(
   db: Kysely<Database>,

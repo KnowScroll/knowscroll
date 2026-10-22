@@ -679,3 +679,14 @@ cannot change the immutable old report/settlement, erase a public asset, claim, 
 A verified hold clears its due marker; completed reports have no endless wakeups. New commands,
 reports, receipts and maintenance tables are in `reasoningCutroomStores`; IDs-only queues are in
 its non-row inventory. Real personal dependencies still require the ordinary erasure registry.
+
+## Confirmed normal-settlement export for CF62 (#373)
+
+`CutroomConfirmedSettlementReader.readConfirmed` is a narrow readonly preparation-scope port.
+It joins the actual normal settlement, immutable receipt, report, retained attempt and dispatch;
+checks exact receipt UUID/six-fractional timestamp/request/report identity, complete OWN costs and
+current confirmed state; and refuses contradictory report evidence. Evidence-only pending/recorded
+holds do not qualify. The consumer receives only immutable sanitized report/receipt metadata and
+digests, not a pool principal, connection or settlement capability. Its server-enforced readonly
+repeatable-read transaction cannot write jobs or financial rows. Existing claim/hold/settle/release
+behaviour is unchanged. Receiving itself never imports this financial adapter or opens a pool.

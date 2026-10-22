@@ -30,6 +30,8 @@ import {
  * erasure inventory checks that every queue carrying `universeId` has an eraser.
  */
 export const releaseQueues = queueRegistry([
+  receiveCutroomQueue,
+  recoverReceiveCutroomQueue,
   clearExplorationQueue,
   recoverClearOperationsQueue,
   cutroomPoolQueue,
@@ -51,3 +53,4 @@ export const releaseQueues = queueRegistry([
   purgeExpiredRequestsQueue,
   sweepDispatchedAttemptsQueue,
 ]);
+import { receiveCutroomQueue, recoverReceiveCutroomQueue } from './modules/content/public.js';

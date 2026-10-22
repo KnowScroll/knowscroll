@@ -53,4 +53,5 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
     name: '0038_scene_formation_presentations',
     sha256: '2ab9ba3a5c0765c96086486dc253658de24a0c26078de06b9d6b91b15ca82142',
   },
+  { name: '0039_cutroom_receiving', sha256: 'ab74497cda94ad7995109592d49967cda30dc9a3467ef595a1a4272e579595ab' },
 ];

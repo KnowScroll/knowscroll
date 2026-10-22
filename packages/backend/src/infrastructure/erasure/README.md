@@ -24,10 +24,18 @@ Account-keyed lifetime tables may be declared by modules outside Identity. The i
 Cutroom's closed shared-public store manifests live with the Content and Reasoning adapters.
 They are separate from personal eraser declarations because their actual ownership closure is
 world/business/attempt/snapshot/shared asset, with no direct or transitive account/universe FK.
-The real-schema fixture compares all17 actual Cutroom tables to both manifests, rejects personal
+The real-schema fixture compares all19 actual Cutroom tables to both manifests, rejects personal
 dependencies, and the populated full/selective fixture asserts unchanged new publication,
 financial report, settlement, receipt and maintenance rows plus the existing world records and
 pool history. Selective Saved preservation and unchanged full eraser semantics remain asserted.
 These manifests are not a naming exemption: any future actual personal dependency requires a
 matching ordinary registry/owner eraser entry. The public media and fixed IDs-only queue retention
 is explicit in the non-row inventories. No new personal queue payload or provider data is retained.
+
+CF62 adds the actual Content receiving root and immutable handoff/admission receipt to that
+closed shared-public inventory (now19 Cutroom tables), plus target public media/staging and fixed
+IDs-only queue retention. Both tables have genuine world/publication ownership and no direct or
+transitive personal FK. The populated receiving fixture asserts byte-identical shared rows/media
+through full erasure and selective Clear while preserving exact Saved UUID/ref/fractional places.
+The schema inventory still discovers actual tables, so omitting a declaration fails rather than
+creating an exemption by name. No new personal payload, provider output or erasure waiver is added.
