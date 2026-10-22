@@ -9,7 +9,14 @@ import {
   type ReadContinuations,
   type ResolveContinuityLink,
   type ReadEncounterAttribution,
+  READ_REGION_ENCOUNTER_CANDIDATES,
+  LOCK_REGION_ENCOUNTER_CANDIDATES,
+  type ReadRegionEncounterCandidates,
+  type LockRegionEncounterCandidates,
 } from '../../content/public.js';
+import { READ_OWN_REGION_CONSTRAINT, type ReadOwnRegionConstraint } from '../../geography/public.js';
+import { REGION_ENCOUNTERS } from '../public.js';
+import { makeRegionEncounters } from '../application/region-encounter.js';
 import {
   COMPOSE_ENCOUNTER,
   PERSIST_COMPOSER_DECISION,
@@ -49,7 +56,10 @@ export const NAVIGATION_PORTS = Symbol('experience.navigationPorts');
 export const NAVIGATE_ENCOUNTER = Symbol('experience.navigateEncounter');
 export const ACTIVATE_OFFER = Symbol('experience.activateOffer');
 export const READ_EXPOSURE_CONTEXT = Symbol('experience.readExposureContext');
-export function navigationProviders(t: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol }) {
+export function navigationProviders(
+  t: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol },
+  options: { readonly region?: boolean } = {},
+) {
   return [
     {
       provide: NAVIGATION_PORTS,
@@ -64,6 +74,9 @@ export function navigationProviders(t: { readonly withPersonalScope: symbol; rea
         READ_CONTINUATIONS,
         RESOLVE_CONTINUITY_LINK,
         READ_ENCOUNTER_ATTRIBUTION,
+        ...(options.region
+          ? [READ_OWN_REGION_CONSTRAINT, READ_REGION_ENCOUNTER_CANDIDATES, LOCK_REGION_ENCOUNTER_CANDIDATES]
+          : []),
       ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
@@ -76,8 +89,16 @@ export function navigationProviders(t: { readonly withPersonalScope: symbol; rea
         readContinuations: ReadContinuations,
         resolveContinuityLink: ResolveContinuityLink,
         readAttribution: ReadEncounterAttribution,
+        readRegionConstraint?: ReadOwnRegionConstraint,
+        readRegionCandidates?: ReadRegionEncounterCandidates,
+        lockRegionCandidates?: LockRegionEncounterCandidates,
       ): NavigationPorts => ({
         withPersonalScope,
+        // Explicitly unmounted legacy composition cannot inherit/activate a regional offer.
+        // The API opts in to all three actual owning ports together; there is no broad fallback.
+        readRegionConstraint: readRegionConstraint ?? (() => Promise.resolve({ kind: 'refused' })),
+        readRegionCandidates: readRegionCandidates ?? (() => Promise.resolve({ kind: 'unsupported' })),
+        lockRegionCandidates: lockRegionCandidates ?? (() => Promise.resolve(false)),
         readSession,
         writeSession,
         readOffer,
@@ -114,6 +135,12 @@ export function navigationProviders(t: { readonly withPersonalScope: symbol; rea
         newId: () => uuidv7(),
         now: () => new Date(),
       }),
+    },
+    {
+      provide: REGION_ENCOUNTERS,
+      inject: [NAVIGATION_PORTS, NAVIGATE_ENCOUNTER],
+      useFactory: (p: NavigationPorts, navigate: ReturnType<typeof makeNavigateEncounter>) =>
+        makeRegionEncounters(p, navigate),
     },
     {
       provide: NAVIGATE_ENCOUNTER,

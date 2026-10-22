@@ -224,6 +224,14 @@ export interface ContentReelImports {
   script_name: string;
 }
 
+export interface ContentRegionBindings {
+  asset_id: string;
+  asset_revision: number;
+  facet_id: string;
+  head_revision: number;
+  topic_id: string;
+}
+
 export interface ContentScrollProductionRuns {
   asset_id: string | null;
   asset_revision: number | null;
@@ -432,6 +440,17 @@ export interface ExperienceNavigationTransitions {
 
 export interface ExperienceOfferActivations {
   exposure_id: string;
+  offer_id: string;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
+export interface ExperienceOfferRegionConstraints {
+  asset_id: string;
+  asset_revision: number;
+  constraint_payload: Json;
+  coverage_head_revision: number;
+  mapping_sha256: string;
   offer_id: string;
   privacy_epoch: number;
   universe_id: string;
@@ -1080,6 +1099,26 @@ export interface ScenesChunks {
   universe_id: string;
 }
 
+export interface ScenesFormationPresentations {
+  activity_revision: number;
+  attempt_nonce: string | null;
+  claim_expires_at: Timestamp | null;
+  claim_id: string | null;
+  claimed_at: Timestamp | null;
+  disposition: string | null;
+  fact: Json | null;
+  geography_revision: number;
+  limited: boolean;
+  presentation_key: Generated<Int8>;
+  privacy_epoch: number;
+  recorded_at: Timestamp;
+  structure_revision: number;
+  target_count: number;
+  terminal_at: Timestamp | null;
+  transition_id: string;
+  universe_id: string;
+}
+
 export interface ScenesManifests {
   payload: Json;
   privacy_epoch: number;
@@ -1195,6 +1234,7 @@ export interface DB {
   "content.media_objects": ContentMediaObjects;
   "content.reel_commissions": ContentReelCommissions;
   "content.reel_imports": ContentReelImports;
+  "content.region_bindings": ContentRegionBindings;
   "content.scroll_production_runs": ContentScrollProductionRuns;
   "content.series_units": ContentSeriesUnits;
   "evidence.action_events": EvidenceActionEvents;
@@ -1212,6 +1252,7 @@ export interface DB {
   "experience.exposures": ExperienceExposures;
   "experience.navigation_transitions": ExperienceNavigationTransitions;
   "experience.offer_activations": ExperienceOfferActivations;
+  "experience.offer_region_constraints": ExperienceOfferRegionConstraints;
   "experience.offers": ExperienceOffers;
   "experience.saved_items": ExperienceSavedItems;
   "experience.saved_places": ExperienceSavedPlaces;
@@ -1261,6 +1302,7 @@ export interface DB {
   "receipts.personal_commands": ReceiptsPersonalCommands;
   "receipts.shared_commands": ReceiptsSharedCommands;
   "scenes.chunks": ScenesChunks;
+  "scenes.formation_presentations": ScenesFormationPresentations;
   "scenes.manifests": ScenesManifests;
   "scenes.objects": ScenesObjects;
   "scenes.state": ScenesState;

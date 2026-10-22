@@ -233,6 +233,13 @@ describe('Content coverage sidecars (real PostgreSQL, CI fixtures only)', () => 
       }),
     );
     expect(b.authority.headRevision).toBe(2);
+    expect(
+      await database.db
+        .selectFrom('content.region_bindings')
+        .select(['topic_id', 'facet_id', 'head_revision'])
+        .where('asset_id', '=', f.command.assetId)
+        .execute(),
+    ).toEqual([{ topic_id: 'earth.seasons', facet_id: 'earth.seasons.axial-tilt', head_revision: 2 }]);
     const again = await admission()(review({ ...f.command, expectedHeadRevision: 2 }));
     expect(again.authority.mappingSha256).toBe(a.authority.mappingSha256);
     expect(again.authority.headRevision).toBe(3);
@@ -245,6 +252,13 @@ describe('Content coverage sidecars (real PostgreSQL, CI fixtures only)', () => 
       value: true,
     });
     await admission()(review({ ...f.command, expectedHeadRevision: 3, change: { kind: 'retract' } }));
+    expect(
+      await database.db
+        .selectFrom('content.region_bindings')
+        .selectAll()
+        .where('asset_id', '=', f.command.assetId)
+        .execute(),
+    ).toEqual([]);
     expect(await read(f.command)).toMatchObject({
       kind: 'entered',
       value: { kind: 'retracted', authority: { headRevision: 4 } },
@@ -274,6 +288,13 @@ describe('Content coverage sidecars (real PostgreSQL, CI fixtures only)', () => 
     });
     await expect(failed(review(f.command))).rejects.toThrow('fixture_rollback');
     expect(await read(f.command)).toMatchObject({ kind: 'entered', value: { kind: 'unmapped' } });
+    expect(
+      await database.db
+        .selectFrom('content.region_bindings')
+        .selectAll()
+        .where('asset_id', '=', f.command.assetId)
+        .execute(),
+    ).toEqual([]);
     const head = await admission()(f.command);
     const person = await seedPerson(database.db);
     let entered!: () => void;

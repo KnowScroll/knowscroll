@@ -1,5 +1,17 @@
-import { sceneAppliedProviders, sceneProviders } from '@knowscroll/backend/modules/scenes/nest-providers';
-import { PROJECT_SCENE, projectSceneQueue, type ProjectScene } from '@knowscroll/backend/modules/scenes';
+import {
+  sceneAppliedProviders,
+  sceneProviders,
+  formationProviders,
+} from '@knowscroll/backend/modules/scenes/nest-providers';
+import {
+  PROJECT_SCENE,
+  projectSceneQueue,
+  FORMATION_PRESENTATIONS,
+  expireFormationQueue,
+  recoverFormationQueue,
+  type FormationUseCases,
+  type ProjectScene,
+} from '@knowscroll/backend/modules/scenes';
 import { geographyProviders, cartographerWorkerProviders } from '@knowscroll/backend/modules/geography/nest-providers';
 import {
   GEOGRAPHY_MATERIAL_CHANGE,
@@ -86,6 +98,7 @@ const PERSONAL_MATERIAL_CHANGE = Symbol('personal.materialChange');
 export const jobWiring: Provider[] = [
   ...sceneAppliedProviders({ enqueueJob: ENQUEUE_JOB }),
   ...sceneProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
+  ...formationProviders({ database: DATABASE, boss: PG_BOSS, withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...geographyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...cartographerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   {
@@ -120,6 +133,7 @@ export const jobWiring: Provider[] = [
     provide: JOB_CONSUMERS,
     inject: [
       PROJECT_SCENE,
+      FORMATION_PRESENTATIONS,
       RUN_CARTOGRAPHER,
       PUBLISH_GEOGRAPHY_DELTA,
       RESOLVE_CONTENT_REQUEST,
@@ -137,6 +151,7 @@ export const jobWiring: Provider[] = [
     ],
     useFactory: (
       projectScene: ProjectScene,
+      formation: FormationUseCases,
       runCartographer: RunCartographer,
       publishDelta: PublishGeographyDelta,
       resolveRequest: ResolveRequest,
@@ -152,6 +167,10 @@ export const jobWiring: Provider[] = [
       boss: ReturnType<typeof createBoss>,
       config: WorkerConfig,
     ): readonly JobConsumer<unknown>[] => [
+      jobConsumer(expireFormationQueue, async (job) => formation.expire(job)),
+      jobConsumer(recoverFormationQueue, async (job) => {
+        await formation.recover(job);
+      }),
       ...cutroomConsumers(config.cutroom, config.world, (setup) => assembleCutroom(db, boss, config, setup)),
       ...clearExplorationConsumers(
         clearExplorationFor(db, boss, {

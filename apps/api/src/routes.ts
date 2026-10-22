@@ -1,4 +1,6 @@
+import { FormationController } from './http/formation.controller.js';
 import { KeepRemoveController } from './http/keep-remove.controller.js';
+import { RegionEncounterController } from './http/region-encounter.controller.js';
 import { KeepController } from './http/keep.controller.js';
 import { PrivacyController } from './http/privacy.controller.js';
 import { ScenesController } from './http/scenes.controller.js';
@@ -26,4 +28,6 @@ export const apiControllers = [
   KeepController,
   KeepRemoveController,
   PrivacyController,
+  RegionEncounterController,
+  FormationController,
 ];

@@ -213,3 +213,8 @@ export { keepPlaceUseCases, keepPlaceProviders, keepStore, type KeepPorts, type 
 export { keepRemovalUseCase, keepRemovalProviders, type KeepRemovalPorts } from './keep-remove-providers.js';
 
 export { savedPageUseCase } from './saved-page-providers.js';
+
+// Owning factory seams for Actions fixtures; activation permits cannot be minted here.
+export { makeRegionEncounters } from '../application/region-encounter.js';
+export { makeNavigateEncounter, makeActivateOffer } from '../application/navigation.js';
+export type { NavigationPorts, StoredOffer } from '../application/navigation-ports.js';

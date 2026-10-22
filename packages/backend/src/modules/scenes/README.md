@@ -1,15 +1,15 @@
 # Scenes (#238)
 
 Deterministic persisted appearance for already established Geography. This prerequisite owns
-backend projection and readonly own-scope manifest/chunk ports. It installs no renderer,
+backend projection, own-scope manifest/chunk reads and U05 durable delivery/claim ports. It installs no renderer,
 HTTP controller, model call, historical bootstrap, placeholder world, formation rule or paid
 permission. Authored CI inputs do not prove actual formation, dev rendering or device performance.
-U05 durable shown/skipped acknowledgement remains a separate future contract; origin transition
-IDs identify provenance and never claim that an object was shown.
+U05 shown/skipped acknowledgement records the actual client statement through the closed contract;
+origin transition IDs identify provenance and never claim that an object was shown.
 
 ## Transaction and composition
 
-Geography's required `GeographyApplied` binding enqueues one IDs/stamps-only `scenes.project`
+Geography's required `GeographyApplied` binding records actual U05 creation delivery facts and enqueues one IDs/stamps-only `scenes.project`
 job inside the actual apply transaction. Replay returns before the hook; enqueue failure rolls
 back Geography, delta, root and both required jobs. `sceneAppliedProviders` depends only on
 EnqueueJob. `sceneProviders` depends on Geography's public `ReadGeographySceneInput`, Identity
@@ -53,7 +53,7 @@ and100 routes/chunk,128 chunks/manifest and262144 bytes/document. Geography glob
 Only changed payload chunks create immutable versions. New manifests may retain older unchanged
 chunk references with their original input stamps, as the shared wire explicitly permits.
 
-## Four personal stores and reads
+## Projection stores and reads
 
 | Store | Purpose and access |
 |---|---|
@@ -83,7 +83,7 @@ require current own personal authority.
 
 ## Erasure and verification
 
-Scenes erases before Geography. All four tables across every epoch/version, seeds and every
+Scenes erases before Geography. All projection tables across every epoch/version, seeds and every
 Scene pg-boss state/dead letter are removed using the existing registry/job eraser. No separate
 cache exists. Root/epoch/owner fencing prevents late jobs from resurrecting reset/erased state.
 Queue policy:180s expiry, three10s backoff retries, local concurrency1,7d queued/2d settled
@@ -94,6 +94,81 @@ Automated suites run only in GitHub Actions. Pure authored fixtures exercise det
 allocation/families,1000-object bounds, hierarchy, parser caps and stability; PostgreSQL fixtures
 exercise input minimization/root semantics, atomicity/replay, actual pending work, strict refs,
 immutable versions, erasure and late/suspended authority. Source/fixture acceptance leaves
-actual dev projection, renderer/navigation, U05 acknowledgement and populated-device performance
+actual dev projection, renderer/navigation, actual U05 presentation and populated-device performance
 unverified. Existing nonempty worlds require a separately authorized bounded maintenance enqueue;
 reads and migrations never bootstrap them.
+
+## U05 committed delivery, once-only claim and recovery (#363)
+
+`GeographyApplied` now records a minimized delivery fact from the actual new delta's creation
+operations, then enqueues the original strict three-field projection identity, in that SAME root
+transaction. It never spreads the creation facts into `ProjectSceneJobSchema`. The callback does
+not infer formation from a label, activity, route, model proposal or historical world. A planet
+sequence requires an actual `form_planet`; its new-system beats additionally require the matching
+system AND star created in that same commit. More than eight targets retains an honest `limit`
+marker instead of truncating or inventing a smaller story. No migration bootstraps old worlds.
+
+The fifth personal store, `scenes.formation_presentations`, holds one immutable fact/limit marker
+per actual creation transition. Its universe/epoch/delta foreign keys restrict deletion; Scenes
+must erase it before Geography. The record contains no private supports, model context, seeds or
+geometry. It grows with actual creation-bearing commits and retains immutable provenance until
+full erasure or selective Clear. Both erasers remove every epoch and all exact expiry job states,
+including dead letters. Saved entries/places, Social and public Content remain with their owners.
+
+Migration0038 also installs a deferred creation-delta/fact consistency guard: an older writer
+which inserts a creation-bearing delta without the required delivery record fails its WHOLE
+transaction at commit. Claim identity and terminal disposition become immutable once set. The
+protocol requires a coordinated exact-schema release; rolling back to a writer without this
+callback is unsupported and must stop incompatible processes before activation. All0001–0037
+SQL/registry entries remain immutable. Schema-only codegen is not deployed-schema acceptance.
+
+The mounted read is pure: at most one exact/latest candidate, closed capabilities and current
+root/account/epoch/Clear checks, no receipt, expiry cleanup or job. All fact targets must be in
+actual chunks referenced by the current manifest, with exact canonical identity, origin, truth,
+label and object revision. Missing/stale/currently unprojected targets return unavailable; an
+ancestor, alias or previous manifest cannot supply readiness. Unrelated root changes do not
+change Geography stamps. Freshness is the original commit plus300 seconds, never the read time.
+
+A deliberate claim serializes under the personal root across devices. Claim, immutable command
+receipt, root advancement and REQUIRED pg-boss expiry delivery commit together; send failure
+rolls all back. The original request body is the only retry after unknown acknowledgement.
+Historical receipt replay is separate from current eligibility: it cannot renew the30-second
+claim, reissue an expired claim or start another local attempt. Ownership/epoch/Clear is checked
+BEFORE receipt lookup. The disposable transactional root hint can arrive BEFORE the HTTP claim
+response. Clients must validate exact current targets before starting, tolerate an own-hint
+refresh retaining an already admitted snapshot, and still stop on actual changed readiness,
+authority loss, expiry or background. A hint never grants animation authority.
+
+Only a client reporting actual completed full2400ms sequence or mounted reduced-motion final
+still/caption may acknowledge `shown`; interruption uses `skipped`. The server cannot prove the
+client rendered it. An expired claim terminalizes as skipped; a delayed shown never overwrites
+that actual terminal disposition. ACK retries retain the original terminal receipt. Neither ACK
+is consumption, learning, evidence qualification or Geography formation authority.
+
+Normal worker consumers mount `scenes.expire-formation` and `scenes.recover-formation`. Expiry
+is120s/three10s-backoff retries; recovery is180s/three15s-backoff retries, both local concurrency1
+and7d queued/2d settled retention plus declared dead letters. The normal five-minute UTC recovery
+schedule selects due nonterminal claims, so exhausted delivery, process crash and root-lock failure
+remain recoverable. No HTTP read-triggered repair, second outbox or volatile timer is involved.
+
+Recovery uses a generated immutable bigint ordinal. A scheduled `{v:1}` captures a finite ceiling;
+strict internal `{v:1,afterKey,throughKey}` reads101/processes100 and commits at most ONE advancing
+fixed-queue continuation BEFORE any personal root work. Identical live child cursors dedupe under
+a bounded advisory lock using pg-boss's real expiry/heartbeat semantics. Last pages create no
+child; overlapping cron passes may revisit a row and do not guarantee one unique global pass.
+Each delivery has250ms root locks,2s statements and a30s per-operation-work budget. Busy or
+unprocessed rows remain due for the next cron; durable children prevent100 busy heads from
+starving an unrelated tail. Every effect re-enters the exact current owner/epoch/root and claim.
+
+The recovery queue is explicitly inventoried as global maintenance metadata: only bounded decimal
+ordinal watermarks and version, no universe/transition/claim UUID, label, nonce or fact. It is
+preserved by selective Clear. Erasing the personal row removes every link from its ordinal to
+personal IDs; a retained cursor can neither recreate it nor erase fresh post-Clear data. The exact
+private expiry queue is erased. Full erasure likewise leaves only non-identifying global cursors.
+
+Actions-only authored fixtures cover actual transaction rollback/strict projection payload,
+old-writer commit refusal, all-target readiness, concurrent devices, unknown retries, late ACK,
+real final pg-boss failure/dead letter/root lock, restart,100 blocked heads and durable child
+rollback/dedupe/ceiling/final-page bounds, full/Clear inventories and normal installed API/worker
+journey with private canaries. These are source/CI fixtures; actual deployed schema38, formation,
+client/native presentation and operational readiness require independent acceptance.
