@@ -46,3 +46,11 @@ human approvals and current installed profile/sole-writer/funds attestations; so
 create or renew them. SESSION principal/world, current admission generation and exact bound
 receipt are checked again by the operation. The flag/configuration alone is never a provider
 permit. No API or client activation input is added.
+
+CF62 receiving is independently off (`KS_CUTROOM_RECEIVING_ENABLED=0`). Enabling only for
+`dev`/`stage` requires `KS_CUTROOM_RECEIVING_PACKET` (same bounded canonical Root-owned file
+intake), `KS_CUTROOM_RECEIVING_STAGING_ROOT` and `KS_CUTROOM_RECEIVING_MEDIA_ROOT`.
+`KS_CUTROOM_RECEIVING_FFPROBE_PATH` defaults `/usr/bin/ffprobe`. There is no origin URL, artifact
+opener, provider key, pool database or evidence-function dependency. The Root registry and
+independent current DB receiving root/generation remain mandatory; this flag does not approve
+a script, infer provenance, renew a clock or enable paid commissioning.

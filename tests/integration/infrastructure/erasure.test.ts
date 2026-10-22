@@ -735,7 +735,9 @@ describe('closed Cutroom shared-public store inventory (real schema)', () => {
       )
     ).rows.map((x) => x.name);
     expect(actual).toEqual(declarations);
-    expect(new Set(declarations).size).toBe(17);
+    expect(new Set(declarations).size).toBe(19);
+    expect(declarations).toContain('content.cutroom_receiving_state');
+    expect(declarations).toContain('content.cutroom_receive_receipts');
     for (const table of declarations) {
       const dependencies = (
         await sql<{ name: string }>`with recursive owned(oid) as (

@@ -118,8 +118,16 @@ export interface CutroomCommissioningSettings {
   readonly evidenceFunctionSha256?: string;
   readonly poolDatabase?: DatabaseSettings;
 }
+export interface CutroomReceivingSettings {
+  readonly enabled: boolean;
+  readonly packetPath?: string;
+  readonly stagingRoot?: string;
+  readonly mediaRoot?: string;
+  readonly ffprobePath?: string;
+}
 export interface WorkerConfig extends ReleaseIdentity {
   readonly cutroom: CutroomCommissioningSettings;
+  readonly receiving?: CutroomReceivingSettings;
   /** Planner execution gate; default off until a separately approved role allowance. */
   readonly plannerEnabled: boolean;
   readonly cartographerEnabled: boolean;
@@ -543,6 +551,14 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_PLANNER_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CARTOGRAPHER_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CUTROOM_COMMISSIONING_ENABLED: z.enum(['0', '1']).default('0'),
+        KS_CUTROOM_RECEIVING_ENABLED: z.enum(['0', '1']).default('0'),
+        KS_CUTROOM_RECEIVING_PACKET: z
+          .string()
+          .regex(/^\/etc\/knowscroll\/[a-zA-Z0-9_./-]+$/)
+          .optional(),
+        KS_CUTROOM_RECEIVING_STAGING_ROOT: z.string().startsWith('/').optional(),
+        KS_CUTROOM_RECEIVING_MEDIA_ROOT: z.string().startsWith('/').optional(),
+        KS_CUTROOM_RECEIVING_FFPROBE_PATH: z.string().startsWith('/').default('/usr/bin/ffprobe'),
         KS_CUTROOM_APPROVAL_PACKET: z
           .string()
           .regex(/^\/etc\/knowscroll\/[a-zA-Z0-9_./-]+$/)
@@ -578,6 +594,11 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_PLANNER_ENABLED',
         'KS_CARTOGRAPHER_ENABLED',
         'KS_CUTROOM_COMMISSIONING_ENABLED',
+        'KS_CUTROOM_RECEIVING_ENABLED',
+        'KS_CUTROOM_RECEIVING_PACKET',
+        'KS_CUTROOM_RECEIVING_STAGING_ROOT',
+        'KS_CUTROOM_RECEIVING_MEDIA_ROOT',
+        'KS_CUTROOM_RECEIVING_FFPROBE_PATH',
         'KS_CUTROOM_APPROVAL_PACKET',
         'KS_CUTROOM_ORIGIN',
         'KS_CUTROOM_ARTIFACT_ROOT',
@@ -616,8 +637,27 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
           : []),
       ]);
   }
+  if (parsed.KS_CUTROOM_RECEIVING_ENABLED === '1') {
+    const missing = [
+      'KS_CUTROOM_RECEIVING_PACKET',
+      'KS_CUTROOM_RECEIVING_STAGING_ROOT',
+      'KS_CUTROOM_RECEIVING_MEDIA_ROOT',
+    ].filter((k) => parsed[k as keyof typeof parsed] === undefined);
+    if (missing.length || !['dev', 'stage'].includes(release.world))
+      throw new ConfigurationError([
+        ...missing.map((k) => `${k}: required_when_enabled`),
+        ...(!['dev', 'stage'].includes(release.world) ? ['KS_CUTROOM_RECEIVING_ENABLED: refused_in_this_world'] : []),
+      ]);
+  }
   return {
     ...release,
+    receiving: {
+      enabled: parsed.KS_CUTROOM_RECEIVING_ENABLED === '1',
+      packetPath: parsed.KS_CUTROOM_RECEIVING_PACKET,
+      stagingRoot: parsed.KS_CUTROOM_RECEIVING_STAGING_ROOT,
+      mediaRoot: parsed.KS_CUTROOM_RECEIVING_MEDIA_ROOT,
+      ffprobePath: parsed.KS_CUTROOM_RECEIVING_FFPROBE_PATH,
+    },
     cutroom: {
       enabled: parsed.KS_CUTROOM_COMMISSIONING_ENABLED === '1',
       packetPath: parsed.KS_CUTROOM_APPROVAL_PACKET,

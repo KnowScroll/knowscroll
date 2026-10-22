@@ -155,6 +155,37 @@ export interface ContentCutroomPublications {
   world_id: string;
 }
 
+export interface ContentCutroomReceiveReceipts {
+  admitted_at: Timestamp | null;
+  asset_id: string | null;
+  asset_revision: number | null;
+  deliveries: Generated<number>;
+  generation: number;
+  handoff_id: string;
+  hard_deadline: Timestamp;
+  lease_id: string | null;
+  lease_until: Timestamp | null;
+  media_id: string | null;
+  next_at: Generated<Timestamp>;
+  origin_publication_id: string;
+  origin_world: string;
+  original_claimed_at: Timestamp;
+  payload_sha256: string;
+  payload_utf8: string;
+  receipt_id: string | null;
+  receipt_sha256: string | null;
+  receipt_utf8: string | null;
+  recoveries: Generated<number>;
+  state: Generated<string>;
+  world_id: string;
+}
+
+export interface ContentCutroomReceivingState {
+  enabled: Generated<boolean>;
+  generation: number;
+  world_id: string;
+}
+
 export interface ContentCutroomReviews {
   bridge_sha256: string;
   business_run_id: string;
@@ -1228,6 +1259,8 @@ export interface DB {
   "content.cutroom_chain_snapshots": ContentCutroomChainSnapshots;
   "content.cutroom_corpus": ContentCutroomCorpus;
   "content.cutroom_publications": ContentCutroomPublications;
+  "content.cutroom_receive_receipts": ContentCutroomReceiveReceipts;
+  "content.cutroom_receiving_state": ContentCutroomReceivingState;
   "content.cutroom_reviews": ContentCutroomReviews;
   "content.discovery_revisions": ContentDiscoveryRevisions;
   "content.encounter_topics": ContentEncounterTopics;
