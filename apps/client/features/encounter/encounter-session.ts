@@ -315,7 +315,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     const current = work;
     try {
       if (current.keep && (current.keep.mode === 'resume' || current.keep.selected) && !current.outcome) {
-        const fresh = current.keep.handle && (await refreshKeep(scope, current.keep.handle));
+        const fresh =
+          current.keep.handle &&
+          (await (current.keep.mode === 'resume'
+            ? refreshKeep(scope, current.keep.handle)
+            : refreshKeep(scope, current.keep.handle, true)));
         if (!valid() || work !== current) return;
         if (
           !fresh ||
@@ -323,7 +327,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
             (fresh.entry.assetId !== current.keep.selected.assetId ||
               fresh.entry.assetRevision !== current.keep.selected.assetRevision ||
               fresh.entry.savedEntryId !== current.keep.selected.savedEntryId)) ||
-          (current.keep.mode === 'resume' && (!current.keep.expected || !sameKeep(fresh, current.keep.expected)))
+          (current.keep.mode === 'resume' &&
+            (fresh.status !== 'available' || !current.keep.expected || !sameKeep(fresh, current.keep.expected)))
         ) {
           publish({ phase: 'keep_blocked' });
           return;
@@ -378,7 +383,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         await context(current.entry);
         if (!valid() || work !== current || !foreground) return;
         if (current.keep.mode === 'resume' || current.keep.selected) {
-          const fresh = current.keep.handle && (await refreshKeep(scope, current.keep.handle));
+          const fresh =
+            current.keep.handle &&
+            (await (current.keep.mode === 'resume'
+              ? refreshKeep(scope, current.keep.handle)
+              : refreshKeep(scope, current.keep.handle, true)));
           if (!valid() || work !== current) return;
           if (
             !fresh ||
@@ -386,12 +395,16 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
               (fresh.entry.assetId !== current.keep.selected.assetId ||
                 fresh.entry.assetRevision !== current.keep.selected.assetRevision ||
                 fresh.entry.savedEntryId !== current.keep.selected.savedEntryId)) ||
-            (current.keep.mode === 'resume' && (!current.keep.expected || !sameKeep(fresh, current.keep.expected)))
+            (current.keep.mode === 'resume' &&
+              (fresh.status !== 'available' || !current.keep.expected || !sameKeep(fresh, current.keep.expected)))
           ) {
             publish({ phase: 'keep_blocked' });
             return;
           }
-          current.entry.position = keepPositionFor(current.entry, current.keep.mode === 'resume' ? fresh : undefined);
+          current.entry.position = keepPositionFor(
+            current.entry,
+            current.keep.mode === 'resume' && fresh.status === 'available' ? fresh : undefined,
+          );
         } else current.entry.position = keepPositionFor(current.entry);
         if (!current.entry.position) {
           publish({ phase: 'keep_blocked' });
@@ -593,7 +606,13 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       const ref = { assetId: target.assetId, assetRevision: target.assetRevision };
       const membership = selected ?? expected?.entry;
       if (membership && membership.assetId !== target.assetId) return false;
-      const handle = mode === 'resume' || membership ? keepBridgeFor(scope).retain(membership ?? ref) : undefined;
+      const handle =
+        mode === 'resume' || membership
+          ? keepBridgeFor(scope).retain({
+              assetId: membership?.assetId ?? ref.assetId,
+              assetRevision: membership?.assetRevision ?? ref.assetRevision,
+            })
+          : undefined;
       if ((mode === 'resume' || membership) && !handle) return false;
       const accepted = open({ kind: 'return', ...ref }, { mode, expected, selected: membership, handle });
       if (!accepted) handle?.release();

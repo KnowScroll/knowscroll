@@ -42,11 +42,22 @@ async function keptUI(page: Page, kind: 'reel' | 'scroll') {
     if (path === '/v1/saved')
       return route.fulfill({
         json: {
+          pagination: 'saved-page.v1',
+          consistency: 'live',
+          scope,
+          filter: new URL(req.url()).searchParams.get('filter'),
+          limit: 20,
+          ...(new URL(req.url()).searchParams.has('cursor')
+            ? { requestCursor: new URL(req.url()).searchParams.get('cursor') }
+            : {}),
+          continuation: { status: 'end' },
           revision: 1,
           items: [
             {
               assetId,
               assetRevision: revision,
+              savedEntryId: membership,
+              kind,
               savedAt: '2026-10-22T00:00:00.000Z',
               metadata,
               availability: 'available',

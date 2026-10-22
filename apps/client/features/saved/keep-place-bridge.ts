@@ -9,6 +9,7 @@ import type { EncounterEntry, PrivatePosition } from '../encounter/encounter-his
 import { newCommandId } from '../../platform/command-id';
 
 export type AvailableKeep = Extract<KeepEntrySnapshot, { status: 'available' }>;
+type SavedMembership = Exclude<KeepEntrySnapshot, { status: 'not_saved' }>;
 const loading: KeepPlaceState = Object.freeze({ status: 'loading', write: 'idle' });
 const ended: KeepPlaceState = Object.freeze({ status: 'ended', write: 'idle' });
 const unavailable: KeepPlaceState = Object.freeze({
@@ -128,13 +129,23 @@ export function createKeepView(scope: AccountScope, target: KeepAssetRef, savedE
 }
 
 /** A later authoritative read, never ACK state. Scope end/release/deadline cancels the wait. */
-export function refreshKeep(scope: AccountScope, handle: KeepPlaceHandle): Promise<AvailableKeep> {
+export function refreshKeep(scope: AccountScope, handle: KeepPlaceHandle): Promise<AvailableKeep>;
+export function refreshKeep(
+  scope: AccountScope,
+  handle: KeepPlaceHandle,
+  membershipOnly: true,
+): Promise<SavedMembership>;
+export function refreshKeep(
+  scope: AccountScope,
+  handle: KeepPlaceHandle,
+  membershipOnly = false,
+): Promise<SavedMembership> {
   const prior = handle.getState().snapshot;
   return new Promise((resolve, reject) => {
     let finished = false;
     const cleanups: (() => void)[] = [];
     const timer = setTimeout(() => finish(), 8000);
-    const finish = (snapshot?: AvailableKeep) => {
+    const finish = (snapshot?: SavedMembership) => {
       if (finished) return;
       finished = true;
       clearTimeout(timer);
@@ -149,7 +160,12 @@ export function refreshKeep(scope: AccountScope, handle: KeepPlaceHandle): Promi
         return;
       }
       if (state.status === 'ready' && state.snapshot !== prior) {
-        if (state.snapshot?.status === 'available') finish(state.snapshot);
+        // Corrected/withdrawn old memberships may still fence an explicit TOP choice; they grant no position.
+        if (
+          state.snapshot?.status === 'available' ||
+          (membershipOnly && state.snapshot?.status === 'saved_unavailable')
+        )
+          finish(state.snapshot);
         else finish();
       }
     };

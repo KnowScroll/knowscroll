@@ -213,6 +213,7 @@ const sameEntry = (a: KeepEntryRef, b: KeepEntryRef) =>
 export function createSavedRemoval(scope: AccountScope, newId: () => string) {
   let state: SavedRemovalState = { status: 'idle' };
   let command: RemoveKeepEntry | undefined;
+  let ambiguous = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let serial = 0;
   let live = scope.active;
@@ -276,11 +277,16 @@ export function createSavedRemoval(scope: AccountScope, newId: () => string) {
     } catch (error) {
       if (!valid(token)) return;
       const problem = apiProblem(error);
-      if (problem && problem.status < 500) {
+      if (problem && problem.status < 500 && !ambiguous) {
         command = undefined;
         publish({ status: 'unavailable', item: selected.item });
         await invalidate();
-      } else publish({ status: 'unknown', item: selected.item });
+      } else {
+        // A refused retry cannot establish what an earlier lost response committed.
+        // Keep the original A body until its own receipt reconciles it, even if B now exists.
+        ambiguous = true;
+        publish({ status: 'unknown', item: selected.item });
+      }
     }
   };
   scope.onEnd?.(() => {
@@ -310,6 +316,7 @@ export function createSavedRemoval(scope: AccountScope, newId: () => string) {
           publish({ status: 'unavailable', item });
           return false;
         }
+        ambiguous = false;
         command = { version: 'keep-remove.v1', commandId: newId(), entry };
         publish({ status: 'grace', item });
         timer = setTimeout(() => {
