@@ -397,7 +397,11 @@ describe('recording policy and v2 intake through the installed graph', () => {
       headers(p),
     );
     expect(clear.status).toBe(202);
-    expect(ClearExplorationAcceptanceSchema.parse(await clear.json())).toMatchObject({ fromEpoch: 1, toEpoch: 2 });
+    expect(ClearExplorationAcceptanceSchema.parse(await clear.json())).toMatchObject({
+      commandId,
+      fromEpoch: 1,
+      toEpoch: 2,
+    });
     const after = { ...p, privacyEpoch: 2 };
     await expect
       .poll(
@@ -413,13 +417,22 @@ describe('recording policy and v2 intake through the installed graph', () => {
         { timeout: 20000 },
       )
       .toBe('completed_live');
+    const operation = await handle.db
+      .selectFrom('identity.clear_operations')
+      .select(['id', 'from_epoch', 'to_epoch'])
+      .where('account_id', '=', p.accountId)
+      .where('scope_id', '=', p.universeId)
+      .where('command_id', '=', commandId)
+      .executeTakeFirstOrThrow();
+    expect(operation).toMatchObject({ from_epoch: 1, to_epoch: 2 });
+    expect(operation.id).not.toBe(commandId);
     expect(
       await handle.db
         .selectFrom('identity.recording_lifecycle_witnesses')
         .select(['origin_kind', 'privacy_epoch', 'clear_operation_id'])
         .where('universe_id', '=', p.universeId)
         .execute(),
-    ).toEqual([{ origin_kind: 'clear_core', privacy_epoch: 2, clear_operation_id: commandId }]);
+    ).toEqual([{ origin_kind: 'clear_core', privacy_epoch: 2, clear_operation_id: operation.id }]);
     expect((await read(after)).policy).toEqual({ on: true, generation: 3 });
     expect(await set(after, pause)).toEqual({ ...old, replayed: true });
     expect((await read(after, pause.commandId)).policy).toEqual({ on: true, generation: 3 });
