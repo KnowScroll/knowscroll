@@ -244,6 +244,8 @@ describe('recording policy and v2 intake through the installed graph', () => {
       PORT: new URL(origin).port,
       KS_PUBLIC_ORIGIN: origin,
       KS_AUTH_ADAPTER: 'session',
+      KS_ALLOW_OPERATOR_SIGN_IN: '1',
+      KS_OPERATOR_SIGN_IN_PATTERN: '*@recording.test',
       KS_MAIL_SENDER: 'fixture',
       AGENTMAIL_API_KEY: 'fixture-not-a-key',
       AGENTMAIL_INBOX_ID: 'fixture@agentmail.invalid',
