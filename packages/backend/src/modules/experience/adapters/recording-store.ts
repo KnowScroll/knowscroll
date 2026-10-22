@@ -1,3 +1,8 @@
+import {
+  initializeChannelCertificate,
+  certifyFirstDecision,
+  recordingChannelSelection,
+} from './channel-certification.js';
 import { z } from 'zod';
 import { sql } from 'kysely';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
@@ -5,6 +10,7 @@ import { fencePersonalRecording, recordingTransactionOf } from '../../../infrast
 import { requestHash, type CanonicalJson } from '../../../infrastructure/receipts/index.js';
 import type {
   FenceOwnAccount,
+  ReadRecordingLifecycle,
   PersonalAuthority,
   PersonalScopeTx,
   RecordingScopeTx,
@@ -61,20 +67,31 @@ export async function readRecordingOrigin(
 }
 export async function legacyRecording(
   scope: PersonalScopeTx,
-  original?: number,
+  original: number | undefined,
+  lifecycle: ReadRecordingLifecycle,
 ): Promise<RecordingScopeTx | undefined> {
   const result = await fencePersonalRecording(scope, original);
   if (result.kind === 'unavailable') throw new Error('EXPERIENCE_RECORDING_AUTHORITY_UNAVAILABLE');
-  return result.kind === 'recording' && result.scope.generation === 1 ? result.scope : undefined;
+  if (result.kind !== 'recording' || result.scope.generation !== 1) return undefined;
+  const state = await lifecycle(result.scope);
+  if (state.kind === 'unavailable') throw new Error('RECORDING_LIFECYCLE_UNAVAILABLE');
+  if (state.kind === 'fresh') throw new Error('EXPERIENCE_RECORDING_EFFECTS_REQUIRED');
+  return state.kind === 'legacy_unknown' ? result.scope : undefined;
 }
 
 export function recordingCommandHooks(
   metadata: ReadEncounterAttribution,
+  lifecycle: ReadRecordingLifecycle,
   effects?: ExperienceRecordingEffects,
 ): RecordingCommandHooks {
+  if (typeof lifecycle !== 'function') throw new Error('RECORDING_LIFECYCLE_REQUIRED');
   return {
     async fence(scope, original) {
       const gate = await fencePersonalRecording(scope, original);
+      const state = gate.kind === 'recording' ? await lifecycle(gate.scope) : undefined;
+      if (state?.kind === 'unavailable') throw new Error('RECORDING_LIFECYCLE_UNAVAILABLE');
+      if (!effects && state?.kind === 'fresh') throw new Error('EXPERIENCE_RECORDING_EFFECTS_REQUIRED');
+      if (state?.kind === 'not_ready') return { kind: 'generation_required' };
       return !effects && gate.kind === 'recording' && gate.scope.generation !== 1
         ? { kind: 'generation_required' }
         : gate;
@@ -154,20 +171,20 @@ export function recordingCommandHooks(
   };
 }
 
-/** No historical initialization: NULL stays uncertified until an independently owned protocol.
- * Necessary writes preserve these columns. Only a genuine eligible decision may move credit. */
+/** No historical initialization. The actual fresh lifecycle may certify EMPTY under a real
+ * eligible action; only a genuine decision moves credit. Necessary flags never prove lineage. */
 export async function applyRecordingChannel(
   scope: RecordingScopeTx,
   a: ChannelAction,
   necessaryChanged: boolean,
   effects: ExperienceRecordingEffects,
+  lifecycle: ReadRecordingLifecycle,
 ): Promise<RecordingChannelsResult> {
   recordingTransactionOf(scope);
   const channel =
     a.kind === 'save' || a.kind === 'unsave' ? 'saved' : a.kind === 'like' || a.kind === 'unlike' ? 'liked' : undefined;
   if (!channel) return { changed: false };
   const positive = a.kind === 'save' || a.kind === 'like';
-  if (positive && !necessaryChanged) return { changed: false };
   const db = recordingTransactionOf(scope),
     u = scope.personal.authority.universeId,
     epoch = scope.personal.authority.privacyEpoch;
@@ -180,8 +197,23 @@ export async function applyRecordingChannel(
     db,
   );
   const old = r.rows[0];
-  if (!old || old.state === null) return { changed: false };
-  if (!positive && !old.state) return { changed: false };
+  if (!old) throw new Error('RECORDING_CHANNEL_STATE_MISSING');
+  if (
+    !(await initializeChannelCertificate(
+      scope,
+      { assetId: a.assetId, channel, actionId: a.actionId, at: a.at },
+      lifecycle,
+    ))
+  )
+    return { changed: false };
+  const certificate = await recordingChannelSelection(lifecycle)(scope, { assetId: a.assetId, channel });
+  if (certificate.kind !== 'tracked' && certificate.kind !== 'certified_empty')
+    throw new Error('RECORDING_CHANNEL_CERTIFICATE_UNAVAILABLE');
+  if (certificate.kind === 'certified_empty' && old.state !== null) throw new Error('RECORDING_CHANNEL_EMPTY_MISMATCH');
+  if (certificate.kind === 'tracked' && old.state === null) throw new Error('RECORDING_CHANNEL_TRACKED_MISMATCH');
+  // A real eligible positive no-op may certify EMPTY metadata, never a false/positive decision.
+  if (positive && !necessaryChanged) return { changed: false };
+  if (!positive && old.state === false) return { changed: false };
   if (old.revision >= 2_147_483_647) throw new Error('RECORDING_CHANNEL_REVISION_EXHAUSTED');
   const changes: { exposureId: string; value: boolean; originActionId: string; originGeneration: number }[] = [];
   if (old.origin_exposure || old.origin_action) {
@@ -252,6 +284,12 @@ export async function applyRecordingChannel(
   }
   // Same exposure transfer is one final true override, not two independent aggregate effects.
   const final = [...new Map(changes.map((c) => [c.exposureId, c])).values()];
+  const pointer =
+    await sql`update experience.action_state set ${sql.ref(`recording_${channel}_state`)}=${positive},${sql.ref(`recording_${channel}_origin_exposure_id`)}=${positive ? (a.exposureId ?? null) : null}::uuid,${sql.ref(`recording_${channel}_origin_action_id`)}=${positive && a.exposureId ? a.actionId : null}::uuid,${sql.ref(`recording_${channel}_decision_action_id`)}=${a.actionId}::uuid,recording_channel_revision=recording_channel_revision+1 where universe_id=${u}::uuid and privacy_epoch=${epoch} and asset_id=${a.assetId}::uuid and recording_channel_revision=${old.revision}`.execute(
+      db,
+    );
+  if (pointer.numAffectedRows !== 1n) throw new Error('RECORDING_CHANNEL_CAS');
+  await certifyFirstDecision(scope, { assetId: a.assetId, channel, actionId: a.actionId });
   const changed =
     final.length > 0
       ? await effects.applyChannels(scope, {
@@ -278,9 +316,6 @@ export async function applyRecordingChannel(
       : root.revision !== scope.personal.revisionAtEntry
   )
     throw new Error('RECORDING_EFFECT_REVISION_INVALID');
-  await sql`update experience.action_state set ${sql.ref(`recording_${channel}_state`)}=${positive},${sql.ref(`recording_${channel}_origin_exposure_id`)}=${positive ? (a.exposureId ?? null) : null}::uuid,${sql.ref(`recording_${channel}_origin_action_id`)}=${positive && a.exposureId ? a.actionId : null}::uuid,${sql.ref(`recording_${channel}_decision_action_id`)}=${a.actionId}::uuid,recording_channel_revision=recording_channel_revision+1 where universe_id=${u}::uuid and privacy_epoch=${epoch} and asset_id=${a.assetId}::uuid and recording_channel_revision=${old.revision}`.execute(
-    db,
-  );
   return changed;
 }
 

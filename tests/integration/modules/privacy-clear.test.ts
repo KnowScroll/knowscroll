@@ -1,4 +1,4 @@
-import { personalStores } from '@knowscroll/backend/erasure-registry';
+import { personalStores, eraseCurrentExploration } from '@knowscroll/backend/erasure-registry';
 import { CONTEXT_POLICY, RecordingContributionEnvelopeSchema } from '@knowscroll/backend/modules/personal-context';
 import { socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
 import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
@@ -116,7 +116,7 @@ describe('durable selective Clear', () => {
   });
   const job = (p: FixturePerson, commandId: string) => ({ v: 1, accountId: p.accountId, commandId });
   const core = async (scope: Parameters<typeof eraseExploration>[0]) => {
-    await eraseExploration(scope, explorationStores);
+    await eraseCurrentExploration(scope);
   };
   const cases = () => clearExplorationFor(db(), boss, { reasoning: clearReasoning, eraseCore: core });
   const custom = (overrides: Partial<ClearPorts>) =>
@@ -1149,7 +1149,15 @@ describe('durable selective Clear', () => {
         erased: await personalRowCounts(erased.universeId),
         kept: await personalRowCounts(kept.universeId),
       };
-      expect(Object.values(before.erased).every((count) => count > 0)).toBe(true);
+      const legacyCounts = Object.fromEntries(
+        Object.entries(before.erased).filter(
+          ([name]) =>
+            name !== 'identity.recording_lifecycle_witnesses' && name !== 'experience.recording_channel_certificates',
+        ),
+      );
+      expect(Object.values(legacyCounts).every((count) => count > 0)).toBe(true);
+      expect(before.erased['identity.recording_lifecycle_witnesses']).toBe(0);
+      expect(before.erased['experience.recording_channel_certificates']).toBe(0);
       const command = body();
       await cases().start(authority(erased), command);
       await cases().process(job(erased, command.commandId));
@@ -1164,7 +1172,9 @@ describe('durable selective Clear', () => {
           'reasoning.external_attempts',
           'reasoning.business_runs',
         ].includes(name);
-        expect(count, name).toBe(retained ? before.erased[name] : 0);
+        expect(count, name).toBe(
+          name === 'identity.recording_lifecycle_witnesses' ? 1 : retained ? before.erased[name] : 0,
+        );
       }
       expect(after.kept).toEqual(before.kept);
     } finally {

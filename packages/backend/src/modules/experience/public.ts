@@ -239,3 +239,20 @@ export type ReadRecordingSegment = (
   exposureId: string,
 ) => Promise<RecordingSegment | undefined>;
 export const READ_RECORDING_SEGMENT = Symbol('experience.readRecordingSegment');
+
+/** Bounded current channel selection. No necessary Saved/Like flag can certify old credit. */
+export type RecordingChannelSelection =
+  | { readonly kind: 'unavailable' | 'legacy_unknown' | 'not_ready' | 'certified_empty' }
+  | {
+      readonly kind: 'tracked';
+      readonly state: boolean;
+      readonly decisionActionId: string;
+      readonly originExposureId: string | null;
+      readonly originActionId: string | null;
+      readonly revision: number;
+    };
+export type ReadRecordingChannelSelection = (
+  scope: RecordingScopeTx,
+  input: { readonly assetId: string; readonly channel: 'saved' | 'liked' },
+) => Promise<RecordingChannelSelection>;
+export const READ_RECORDING_CHANNEL_SELECTION = Symbol('experience.readRecordingChannelSelection');

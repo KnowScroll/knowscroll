@@ -1,3 +1,5 @@
+import { recordingChannelSelection } from './channel-certification.js';
+import { READ_RECORDING_CHANNEL_SELECTION } from '../public.js';
 import { checkRequestSource } from './request-source.js';
 import { CHECK_REQUEST_SOURCE } from '../public.js';
 import type { Kysely } from 'kysely';
@@ -16,6 +18,8 @@ import {
 import { projectEncounterActivityQueue } from '../../evidence/public.js';
 import {
   FENCE_OWN_ACCOUNT,
+  READ_RECORDING_LIFECYCLE,
+  type ReadRecordingLifecycle,
   type FenceOwnAccount,
   type PersonalScopeTx,
   type WithPersonalScope,
@@ -106,6 +110,7 @@ export function experienceProviders(
       inject: [
         tokens.withPersonalScope,
         FENCE_OWN_ACCOUNT,
+        READ_RECORDING_LIFECYCLE,
         tokens.enqueueJob,
         FIND_ASSET_FOR_ACTION,
         ...(options.recordingEffects ? [options.recordingEffects] : []),
@@ -113,17 +118,19 @@ export function experienceProviders(
       useFactory: (
         withScope: WithPersonalScope,
         fenceOwn: FenceOwnAccount,
+        lifecycle: ReadRecordingLifecycle,
         enqueue: EnqueueJob,
         findAsset: FindAssetForAction,
         effects?: ExperienceRecordingEffects,
       ) =>
         makeApplyEncounterAction({
-          ...commandPorts(withExperienceScope(withScope, fenceOwn)),
+          ...commandPorts(withExperienceScope(withScope, fenceOwn), lifecycle),
           findAsset,
           readExposure: readExposureForEvidence,
           readChannels,
           commitAction: makeCommitAction(
             enqueue,
+            lifecycle,
             options.recordingEffects ? requireRecordingEffects(effects) : undefined,
           ),
           advance: advanceScopeRevision,
@@ -135,6 +142,7 @@ export function experienceProviders(
       inject: [
         tokens.withPersonalScope,
         FENCE_OWN_ACCOUNT,
+        READ_RECORDING_LIFECYCLE,
         tokens.enqueueJob,
         FIND_ASSET_FOR_ACTION,
         ...(options.recordingEffects ? [options.recordingEffects] : []),
@@ -142,6 +150,7 @@ export function experienceProviders(
       useFactory: (
         withPersonalScope: WithPersonalScope,
         fenceOwn: FenceOwnAccount,
+        lifecycle: ReadRecordingLifecycle,
         enqueueJob: EnqueueJob,
         findAsset: FindAssetForAction,
         effects?: ExperienceRecordingEffects,
@@ -161,9 +170,10 @@ export function experienceProviders(
           writeSavedState,
           recordAction: makeRecordLegacyAction(
             enqueueJob,
+            lifecycle,
             options.recordingEffects ? requireRecordingEffects(effects) : undefined,
           ),
-          enqueueActionEvidence: makeEnqueueActionEvidence(enqueueJob, effects),
+          enqueueActionEvidence: makeEnqueueActionEvidence(enqueueJob, lifecycle, effects),
           advanceRevision: advanceScopeRevision,
           notifyScopeChanged,
           newId: () => uuidv7(),
@@ -177,14 +187,15 @@ export function experienceProviders(
     },
     {
       provide: OPEN_EXPOSURE,
-      inject: [tokens.withPersonalScope, FENCE_OWN_ACCOUNT, FIND_OPENABLE_ASSET],
+      inject: [tokens.withPersonalScope, FENCE_OWN_ACCOUNT, READ_RECORDING_LIFECYCLE, FIND_OPENABLE_ASSET],
       useFactory: (
         withPersonalScope: WithPersonalScope,
         fenceOwn: FenceOwnAccount,
+        lifecycle: ReadRecordingLifecycle,
         findOpenableAsset: FindOpenableAsset,
       ) =>
         makeOpenExposure({
-          ...commandPorts(withExperienceScope(withPersonalScope, fenceOwn)),
+          ...commandPorts(withExperienceScope(withPersonalScope, fenceOwn), lifecycle),
           findOpenableAsset,
           insertExposure,
         }),
@@ -194,6 +205,7 @@ export function experienceProviders(
       inject: [
         tokens.withPersonalScope,
         FENCE_OWN_ACCOUNT,
+        READ_RECORDING_LIFECYCLE,
         tokens.enqueueJob,
         READ_ENCOUNTER_ATTRIBUTION,
         ...(options.recordingEffects ? [options.recordingEffects] : []),
@@ -201,14 +213,16 @@ export function experienceProviders(
       useFactory: (
         withPersonalScope: WithPersonalScope,
         fenceOwn: FenceOwnAccount,
+        lifecycle: ReadRecordingLifecycle,
         enqueue: EnqueueJob,
         metadata: ReadEncounterAttribution,
         effects?: ExperienceRecordingEffects,
       ) =>
         makeActivateExposure({
-          ...commandPorts(withExperienceScope(withPersonalScope, fenceOwn)),
+          ...commandPorts(withExperienceScope(withPersonalScope, fenceOwn), lifecycle),
           recording: recordingCommandHooks(
             metadata,
+            lifecycle,
             options.recordingEffects ? requireRecordingEffects(effects) : undefined,
           ),
           readExposure,
@@ -217,8 +231,8 @@ export function experienceProviders(
             const exposure = await readExposure(scope, id);
             if (exposure) {
               const m = await metadata(scope, { assetId: exposure.assetId, assetRevision: exposure.assetRevision });
-              if (m && !effects) await recordActivation(scope, id, m, undefined, originalGeneration);
-              if (!effects && (await legacyRecording(scope, originalGeneration)))
+              if (m && !effects) await recordActivation(scope, id, m, lifecycle, undefined, originalGeneration);
+              if (!effects && (await legacyRecording(scope, originalGeneration, lifecycle)))
                 await enqueue(scope, projectEncounterActivityQueue, {
                   v: 1,
                   universeId: scope.authority.universeId,
@@ -239,10 +253,10 @@ export function experienceProviders(
 }
 
 /** The receipt and scope ports every experience command shares. */
-function commandPorts(withPersonalScope: WithPersonalScope) {
+function commandPorts(withPersonalScope: WithPersonalScope, lifecycle: ReadRecordingLifecycle) {
   return {
     withPersonalScope,
-    recording: recordingCommandHooks(() => Promise.resolve(undefined)),
+    recording: recordingCommandHooks(() => Promise.resolve(undefined), lifecycle),
     hashRequest: (operation: string, request: JsonValue) => requestHash(operation, request),
     findReceipt: findPersonalReceipt,
     insertReceipt: insertPersonalReceipt,
@@ -259,10 +273,15 @@ function commandPorts(withPersonalScope: WithPersonalScope) {
  */
 export function experienceEvidenceReadProviders() {
   return [
+    {
+      provide: READ_RECORDING_CHANNEL_SELECTION,
+      inject: [READ_RECORDING_LIFECYCLE],
+      useFactory: recordingChannelSelection,
+    },
     { provide: READ_RECORDING_SEGMENT, useValue: readRecordingSegment },
     { provide: CHECK_REQUEST_SOURCE, useValue: checkRequestSource },
     { provide: READ_ACTIVITY_LINEAGE, useValue: readActivityLineage },
-    { provide: ENSURE_ACTIVITY_LINEAGE, useValue: ensureActivityLineage },
+    { provide: ENSURE_ACTIVITY_LINEAGE, inject: [READ_RECORDING_LIFECYCLE], useFactory: ensureActivityLineage },
     { provide: READ_ROUTING_HISTORY, useValue: readRoutingHistory },
     { provide: READ_ACTIVITY_RECONCILE_PAGE, useValue: readActivityReconcilePage },
     { provide: READ_ACTION_FOR_EVIDENCE, useValue: readActionForEvidence },

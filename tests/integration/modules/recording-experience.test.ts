@@ -8,8 +8,17 @@ import {
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
-import { FENCE_OWN_ACCOUNT, type RecordingScopeTx } from '@knowscroll/backend/modules/identity';
-import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
+import {
+  READ_RECORDING_LIFECYCLE,
+  FENCE_OWN_ACCOUNT,
+  type RecordingScopeTx,
+} from '@knowscroll/backend/modules/identity';
+import {
+  accountAccessUseCases,
+  operatorSignInUseCase,
+  recordingPolicyFor,
+  readRecordingLifecycle,
+} from '@knowscroll/backend/modules/identity/nest-providers';
 import {
   type ActivateExposure,
   type ApplyActionCommand,
@@ -17,12 +26,11 @@ import {
   type ApplyEncounterAction,
 } from '@knowscroll/backend/modules/experience';
 import {
+  keepRemovalUseCase,
   ACTIVATE_EXPOSURE,
   APPLY_ENCOUNTER_ACTION,
   experienceProviders,
 } from '@knowscroll/backend/modules/experience/nest-providers';
-import { READ_ENCOUNTER_ATTRIBUTION, type ReadEncounterAttribution } from '@knowscroll/backend/modules/content';
-import { requestHash, type CanonicalJson } from '@knowscroll/backend/infrastructure/receipts';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedAsset, seedPerson } from '../support/fixtures.js';
@@ -237,6 +245,7 @@ describe('Experience recording provenance and authority (Actions only)', () => {
       const values = new Map<symbol, unknown>([
         [DB, database.db],
         [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
+        [READ_RECORDING_LIFECYCLE, readRecordingLifecycle],
         [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
         [ENQUEUE, makeEnqueueJob(c.boss)],
         [EFFECTS, effects],
@@ -283,8 +292,24 @@ describe('Experience recording provenance and authority (Actions only)', () => {
     }
   });
   it('hands exact reversible old/new origins to one required consumer and rolls both back on its failure', async () => {
-    const c = await scrollUseCases(database),
-      p = await seedPerson(database.db);
+    const c = await scrollUseCases(database, { recording: true });
+    const born = await operatorSignInUseCase({
+      db: database.db,
+      publicOrigin: 'https://ci.invalid',
+      lockTimeoutMs: 5000,
+      pattern: '*@fresh.test',
+      world: 'ci',
+      operatorSource: 'fixture:fresh-lifecycle',
+    })({ email: `${randomUUID()}@fresh.test` });
+    if (born.kind !== 'issued') throw new Error('CI real birth');
+    const p = {
+      ...born.outcome,
+      authority: {
+        universeId: born.outcome.universeId,
+        privacyEpoch: 1,
+        actor: { kind: 'account' as const, accountId: born.outcome.accountId },
+      },
+    };
     const own = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount;
     try {
       const asset = await admitStarter(c.importScroll),
@@ -323,30 +348,15 @@ describe('Experience recording provenance and authority (Actions only)', () => {
         .selectAll()
         .where('universe_id', '=', p.universeId)
         .execute();
-      const readAttribution = contentProviders().find((x) => x.provide === READ_ENCOUNTER_ATTRIBUTION)
-        ?.useValue as ReadEncounterAttribution;
-      // Synthetic certified fixture, NOT a production certification executor: all original
-      // actions/receipts/exposures above are real, exact and finite. Unknown remains defaultNULL.
-      await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, async (scope) => {
-        if ((await own(scope)).kind !== 'active') throw new Error('CI own gate');
-        const m = await readAttribution(scope, target);
-        if (!m) throw new Error('CI attribution');
-        const db = transactionOf(scope),
-          payload = JSON.stringify(m),
-          hash = requestHash('experience.recording-attribution', JSON.parse(payload) as CanonicalJson);
-        for (const e of exposures) {
-          await sql`insert into experience.recording_segments(universe_id,privacy_epoch,exposure_id,recording_generation,asset_id,asset_revision,kind,explanation_unit_id,attribution_sha256,attribution_payload,initialized_at,first_eligible_activation_at,first_eligible_activation_command_id)
-            select universe_id,privacy_epoch,id,1,asset_id,asset_revision,kind,${m.explanationUnitId},${hash},${payload}::jsonb,activated_at,activated_at,${e.activationCommandId}::uuid from experience.exposures where universe_id=${p.universeId}::uuid and id=${e.id}::uuid`.execute(
-            db,
-          );
-          await sql`insert into experience.recording_segment_inputs(universe_id,privacy_epoch,exposure_id,recording_generation) values(${p.universeId}::uuid,1,${e.id}::uuid,1)`.execute(
-            db,
-          );
-        }
-        await sql`update experience.action_state set recording_saved_state=true,recording_saved_origin_exposure_id=${old.id}::uuid,recording_saved_origin_action_id=${sourceActionId}::uuid,recording_saved_decision_action_id=${sourceActionId}::uuid,recording_channel_revision=1 where universe_id=${p.universeId}::uuid and asset_id=${asset.assetId}::uuid`.execute(
-          db,
-        );
-      });
+      // The actual createAccount birth + real required recording consumer initialized the
+      // channel certificate/pointer above. No synthetic certification, false decision or seed.
+      expect(
+        await database.db
+          .selectFrom('experience.recording_channel_certificates')
+          .select('first_decision_action_id')
+          .where('universe_id', '=', p.universeId)
+          .execute(),
+      ).toEqual([{ first_decision_action_id: sourceActionId }]);
       await sql`update identity.universes set recording_on=false,recording_generation=2 where id=${p.universeId}::uuid`.execute(
         database.db,
       );
@@ -377,6 +387,21 @@ describe('Experience recording provenance and authority (Actions only)', () => {
           calls++;
           expect(cap.generation).toBe(3);
           expect(change.changes).toHaveLength(expectedCount);
+          const pointer = await sql<{
+            state: boolean;
+            origin: string | null;
+            revision: number;
+          }>`select recording_saved_state as state,recording_saved_origin_exposure_id as origin,recording_channel_revision as revision from experience.action_state where universe_id=${p.universeId}::uuid and asset_id=${asset.assetId}::uuid`.execute(
+            recordingTransactionOf(cap),
+          );
+          expect(pointer.rows).toEqual([
+            {
+              state: expectedCount === 2,
+              origin: expectedCount === 2 ? next.id : null,
+              revision: change.pointerRevision,
+            },
+          ]);
+
           expect(change.changes[0]).toEqual({
             exposureId: old.id,
             value: false,
@@ -406,6 +431,7 @@ describe('Experience recording provenance and authority (Actions only)', () => {
       const values = new Map<symbol, unknown>([
         [DB, database.db],
         [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
+        [READ_RECORDING_LIFECYCLE, readRecordingLifecycle],
         [FENCE_OWN_ACCOUNT, own],
         [ENQUEUE, makeEnqueueJob(c.boss)],
         [EFFECTS, effects],
@@ -475,6 +501,167 @@ describe('Experience recording provenance and authority (Actions only)', () => {
         database.db,
       );
       expect(overlays.rows[0]?.n).toBe(0);
+    } finally {
+      await c.close();
+    }
+  });
+  it('forwards only the original Keep removal generation through real effects, retaining private ACK and necessary removal', async () => {
+    const c = await scrollUseCases(database, { recording: true });
+    try {
+      if (!c.recordingEffects) throw new Error('CI actual recording graph required');
+      const asset = await admitStarter(c.importScroll),
+        target = { assetId: asset.assetId, assetRevision: asset.revision };
+      for (const mode of ['absent', 'undefined', 'stale', 'paused', 'current'] as const) {
+        const born = await operatorSignInUseCase({
+          db: database.db,
+          publicOrigin: 'https://ci.invalid',
+          lockTimeoutMs: 5000,
+          pattern: '*@keep-fresh.test',
+          world: 'ci',
+          operatorSource: 'fixture:keep-recording',
+        })({ email: `${randomUUID()}@keep-fresh.test` });
+        if (born.kind !== 'issued') throw new Error('CI actual account birth');
+        const p = {
+          ...born.outcome,
+          authority: {
+            universeId: born.outcome.universeId,
+            privacyEpoch: 1,
+            actor: { kind: 'account' as const, accountId: born.outcome.accountId },
+          },
+        };
+        const opened = await c.openExposure(p.authority, {
+          commandId: randomUUID(),
+          target: { kind: 'scroll', assetId: asset.assetId },
+          origin: { kind: 'direct' },
+          capabilities: textCapabilities,
+        });
+        if (opened.kind !== 'opened') throw new Error('CI actual open');
+        await c.activateExposure(p.authority, {
+          commandId: randomUUID(),
+          exposureId: opened.outcome.exposureId,
+          recordingGeneration: 1,
+        });
+        expect(
+          await c.applyEncounterAction(p.authority, {
+            commandId: randomUUID(),
+            kind: 'save',
+            target,
+            exposureId: opened.outcome.exposureId,
+            recordingGeneration: 1,
+          }),
+        ).toMatchObject({ kind: 'applied', outcome: { changed: true } });
+        const saved = await database.db
+          .selectFrom('experience.saved_items')
+          .select('saved_entry_id')
+          .where('universe_id', '=', p.universeId)
+          .where('asset_id', '=', asset.assetId)
+          .executeTakeFirstOrThrow();
+        const set = (g: number, on: boolean) =>
+          recordingPolicyFor(database.db, { lockTimeoutMs: 5000 }).set(p.authority, {
+            version: 'recording-policy.v1',
+            commandId: randomUUID(),
+            expectedPrivacyEpoch: 1,
+            expectedRecordingGeneration: g,
+            on,
+          });
+        if (mode !== 'undefined') {
+          await set(1, false);
+          if (mode !== 'paused') await set(2, true);
+        }
+        const own = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 });
+        const remove = keepRemovalUseCase({
+          withScope: makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 }),
+          fenceOwn: own.fenceOwnAccount,
+          lifecycle: own.readRecordingLifecycle,
+          enqueue: makeEnqueueJob(c.boss),
+          recordingEffects: c.recordingEffects,
+        });
+        const command = {
+          version: 'keep-remove.v1',
+          commandId: randomUUID(),
+          entry: { ...target, savedEntryId: saved.saved_entry_id },
+          ...(mode === 'absent'
+            ? {}
+            : {
+                recordingGeneration:
+                  mode === 'undefined' ? undefined : mode === 'stale' ? 1 : mode === 'paused' ? 2 : 3,
+              }),
+        };
+        const before = await database.db
+          .selectFrom('identity.universes')
+          .select('revision')
+          .where('id', '=', p.universeId)
+          .executeTakeFirstOrThrow();
+        const result = await remove(p.authority, command);
+        if (mode === 'undefined') {
+          expect(result).toEqual({ kind: 'refused', code: 'INVALID_REQUEST' });
+          expect(
+            await database.db
+              .selectFrom('experience.saved_items')
+              .select('saved_entry_id')
+              .where('universe_id', '=', p.universeId)
+              .execute(),
+          ).toEqual([{ saved_entry_id: saved.saved_entry_id }]);
+          expect(
+            await database.db
+              .selectFrom('experience.recording_command_origins')
+              .selectAll()
+              .where('universe_id', '=', p.universeId)
+              .where('command_id', '=', command.commandId)
+              .execute(),
+          ).toEqual([]);
+          continue;
+        }
+        expect(result).toMatchObject({
+          kind: 'ok',
+          value: { commandId: command.commandId, entry: command.entry, outcome: 'accepted' },
+        });
+        if (result.kind !== 'ok') throw new Error('CI actual Keep removal');
+        expect(Object.keys(result.value).sort()).toEqual([
+          'commandId',
+          'entry',
+          'operation',
+          'outcome',
+          'recordedAt',
+          'replayed',
+          'scope',
+          'version',
+        ]);
+        expect(await remove(p.authority, command)).toEqual({ kind: 'ok', value: { ...result.value, replayed: true } });
+        expect(
+          await database.db
+            .selectFrom('experience.saved_items')
+            .selectAll()
+            .where('universe_id', '=', p.universeId)
+            .execute(),
+        ).toEqual([]);
+        expect(
+          await database.db
+            .selectFrom('experience.recording_command_origins')
+            .select(['original_generation', 'eligible_generation'])
+            .where('universe_id', '=', p.universeId)
+            .where('command_id', '=', command.commandId)
+            .execute(),
+        ).toEqual([
+          {
+            original_generation: mode === 'absent' ? null : mode === 'stale' ? 1 : mode === 'paused' ? 2 : 3,
+            eligible_generation: mode === 'current' ? 3 : null,
+          },
+        ]);
+        const credit = await database.db
+          .selectFrom('evidence.recording_exposure_credit')
+          .select('last_effective')
+          .where('universe_id', '=', p.universeId)
+          .executeTakeFirstOrThrow();
+        expect(credit.last_effective).toMatchObject({ channels: { B: mode !== 'current' } });
+        expect(
+          await database.db
+            .selectFrom('identity.universes')
+            .select('revision')
+            .where('id', '=', p.universeId)
+            .executeTakeFirstOrThrow(),
+        ).toEqual({ revision: before.revision + 1 });
+      }
     } finally {
       await c.close();
     }

@@ -1,10 +1,14 @@
+import { sql } from 'kysely';
+import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
 
 /**
  * Identity's erasure declaration (blueprint §5). Identity's personal records are keyed by
  * account, not universe: the address, the sign-in links (which hold an address even before any
  * account exists) and the sessions. Clearing or resetting a universe must leave sign-in working,
- * so `erase` removes nothing; account deletion (the privacy work's own lifecycle) removes these
+ * so those account-lifetime records survive. `erase` removes only the exploration lifecycle
+ * witness; account deletion (the privacy work's own lifecycle) removes the account-keyed
  * tables' rows for the account and its address, after locking the address and then the root
  * (identity's lock order). The personal roots (`identity.accounts`, `identity.universes`) are
  * the account-deletion lifecycle itself.
@@ -15,8 +19,9 @@ import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js'
  */
 export const identityErasure: ModuleErasure = {
   module: 'identity',
-  tables: [],
+  tables: [{ schema: 'identity', table: 'recording_lifecycle_witnesses', ownerColumn: 'universe_id' }],
   accountTables: [
+    { schema: 'identity', table: 'recording_lifecycle_witnesses', ownerColumn: 'account_id' },
     { schema: 'identity', table: 'recording_commands', ownerColumn: 'account_id' },
     { schema: 'identity', table: 'email_addresses', ownerColumn: 'account_id' },
     { schema: 'identity', table: 'sign_in_links', ownerColumn: 'address' },
@@ -44,20 +49,33 @@ export const identityErasure: ModuleErasure = {
         "Copies of sign-in mail (address and an expired link) in AgentMail's sent items; provider retention, not erased by us",
     },
   ],
-  erase(): Promise<{ readonly module: string; readonly status: 'completed'; readonly removed: number }> {
-    return Promise.resolve({ module: 'identity', status: 'completed', removed: 0 });
+  async erase(scope) {
+    const r =
+      await sql`delete from identity.recording_lifecycle_witnesses where universe_id=${scope.authority.universeId}::uuid`.execute(
+        transactionOf(scope),
+      );
+    return { module: 'identity', status: 'completed', removed: Number(r.numAffectedRows ?? 0) };
   },
 };
 
 identityErasure.clearExploration = {
   dispositions: Object.fromEntries([
-    ...identityErasure.tables.map((t) => [`${t.schema}.${t.table}`, 'preserve']),
-    ...(identityErasure.accountTables ?? []).map((t) => [`${t.schema}.${t.table}`, 'preserve']),
+    ...identityErasure.tables.map((t) => [`${t.schema}.${t.table}`, 'erase']),
+    ...(identityErasure.accountTables ?? []).map((t) => [
+      `${t.schema}.${t.table}`,
+      t.table === 'recording_lifecycle_witnesses' ? 'erase' : 'preserve',
+    ]),
     ...(identityErasure.accountColumns ?? []).map((t) => [`${t.schema}.${t.table}`, 'preserve']),
     ...identityErasure.nonRowStores.map((s) => [
       `store:${s.name}`,
       s.name.startsWith('pgboss/') ? 'preserve' : 'external_retention',
     ]),
-  ]) as Record<string, 'preserve' | 'external_retention'>,
-  erase: () => Promise.resolve({ module: 'identity', status: 'completed', removed: 0 }),
+  ]) as Record<string, 'erase' | 'preserve' | 'external_retention'>,
+  async erase(scope) {
+    const r =
+      await sql`delete from identity.recording_lifecycle_witnesses where universe_id=${scope.binding.universeId}::uuid`.execute(
+        clearCoreTransactionOf(scope),
+      );
+    return { module: 'identity', status: 'completed', removed: Number(r.numAffectedRows ?? 0) };
+  },
 };
