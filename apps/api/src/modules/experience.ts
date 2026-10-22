@@ -15,13 +15,17 @@ import {
   keepPlaceProviders,
   keepRemovalProviders,
   navigationProviders,
+  savedPageUseCase,
   NAVIGATE_ENCOUNTER,
   ACTIVATE_OFFER,
   READ_EXPOSURE_CONTEXT,
   APPLY_ENCOUNTER_ACTION,
 } from '@knowscroll/backend/modules/experience/nest-providers';
-import { KEEP_PLACE_USE_CASES, KEEP_REMOVAL_USE_CASE } from '@knowscroll/backend/modules/experience';
+import { KEEP_PLACE_USE_CASES, KEEP_REMOVAL_USE_CASE, READ_SAVED_PAGE } from '@knowscroll/backend/modules/experience';
 import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
+import { READ_SAVED_PAGE_METADATA, type ReadSavedPageMetadata } from '@knowscroll/backend/modules/content';
+import type { WithPersonalScope } from '@knowscroll/backend/modules/identity';
+import { savedCursors } from '../http/saved-cursors.js';
 import { API_CONFIG, DATABASE, ENQUEUE_JOB, WITH_PERSONAL_SCOPE } from '../tokens.js';
 
 /**
@@ -43,6 +47,22 @@ export const experienceWiring: Provider[] = [
     useFactory: (db: Kysely<Database>, config: ApiConfig): FenceOwnAccount =>
       accountAccessUseCases({ db, lockTimeoutMs: config.scopeLockTimeoutMs }).fenceOwnAccount,
   },
+  {
+    provide: READ_SAVED_PAGE,
+    inject: [WITH_PERSONAL_SCOPE, FENCE_OWN_ACCOUNT, READ_SAVED_PAGE_METADATA, API_CONFIG],
+    useFactory: (
+      withScope: WithPersonalScope,
+      fenceOwn: FenceOwnAccount,
+      metadata: ReadSavedPageMetadata,
+      config: ApiConfig,
+    ) =>
+      savedPageUseCase({
+        withScope,
+        fenceOwn,
+        metadata,
+        codec: savedCursors(`${config.world}:${config.identity.publicOrigin}`),
+      }),
+  },
   ...keepPlaceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...keepRemovalProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...composerProviders({ isOperator: () => false }),
@@ -50,6 +70,7 @@ export const experienceWiring: Provider[] = [
 ];
 
 export {
+  READ_SAVED_PAGE,
   KEEP_PLACE_USE_CASES,
   KEEP_REMOVAL_USE_CASE,
   ACTIVATE_EXPOSURE,

@@ -271,3 +271,12 @@ or selective privacy clearing. Existing Content readers/mutators are unchanged.
 `keep-position-target.test.ts` uses synthetic real-PostgreSQL fixtures in Actions
 for both SHARE/mutation orderings, post-wait refusal, minimized canonical facts,
 bindings, unsupported data and rollback; no live Keep journey is claimed.
+
+`ReadSavedPageMetadata` is the bounded private-library consumer port for at most100
+already-authorized Saved refs. It shares the existing metadata query and returns
+actual asset kind even when withdrawn metadata is absent. It neither infers kind
+from a title nor opens/authorizes withdrawn content. A missing/invalid actual
+kind is an invariant failure; no placeholder kind is fabricated. Legacy
+`ReadSavedMetadata` retains its original shape. Experience calls only this public
+port, never Content tables directly. No renderer, document admission, peer state,
+encounter, activity or provider work results from these list reads.

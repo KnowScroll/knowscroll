@@ -164,3 +164,30 @@ refusals/ABA/receipt/account/epoch/root races; these are source/fixture evidence
 not rollout, native/client or real two-device acceptance. The app's legacy
 asset-keyed Unsave still requires its separate consumer migration. No Remove/Undo
 UX, selective privacy completion or owner-history operation is claimed here.
+
+## Complete Saved paging (#344)
+
+GET `/v1/saved?pagination=saved-page.v1&filter=all&limit=20` reads a bounded live
+keyset page, including exact Saved UUID/ref and actual kind for withdrawn rows.
+Legacy empty/limit-only reads retain their original response. The paged branch
+checks current root/account/epoch and the Clear barrier before decoding a cursor;
+its response validates scope/filter/limit and the exact initiating cursor echo.
+All Saved GET answers select private/no-store and a closed14-code static-error
+projection before authentication/query parsing. Logs carry the route template,
+never the raw URL, cursor, decoder exception, private anchor or rejected key.
+
+The API composes a separate random AES-256-GCM key per process, with purpose/world
+AAD and account/universe/epoch/filter/limit/full-microsecond-key claims. The
+versioned cursor lifetime is five minutes. Noncanonical encoding, tampering,
+wrong binding, expiry, another instance or restart uniformly return fixed409
+SAVED_CURSOR_UNAVAILABLE. Refresh starts a new traversal; no new secret/env/table,
+shared key, persistent cursor store or multi-instance portability is installed.
+The framework-free use case sees an opaque codec port only. Ordinary personal
+revision/content changes do not turn a live traversal into a frozen snapshot.
+
+Actions-only tests exercise the installed release's native/web guards,125-row
+traversal, current correction/withdrawal, deleted anchors, private errors,
+foreign/changed-filter tokens, real second-instance/restart rejection, and the
+actual selective Clear barrier. Synthetic codec fixtures additionally prove
+expiry boundaries and authenticated IV/ciphertext/tag binding. Source/CI tests
+are distinct from deployed disposable-account and native/media acceptance.

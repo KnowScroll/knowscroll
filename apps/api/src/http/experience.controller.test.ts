@@ -32,6 +32,7 @@ function wiredController() {
       effects,
       effects,
       effects,
+      effects,
       navigation,
       navigation,
       context,
@@ -136,5 +137,60 @@ describe('Explore wire dispatch and legacy compatibility', () => {
       code: 'BAD_REQUEST',
     });
     expect(effects).not.toHaveBeenCalled();
+  });
+});
+
+describe('versioned Saved page dispatch', () => {
+  const input = { pagination: 'saved-page.v1' as const, filter: 'all' as const, limit: '20' };
+  const page = {
+    pagination: 'saved-page.v1' as const,
+    consistency: 'live' as const,
+    scope: { accountId: id, privacyEpoch: 1 },
+    filter: 'all' as const,
+    limit: 20,
+    revision: 1,
+    items: [],
+    continuation: { status: 'end' as const },
+  };
+  function controller(reply: unknown) {
+    const effects = vi.fn(() => Promise.reject(new Error('Unexpected legacy use')));
+    const read = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: reply as typeof page }));
+    return {
+      read,
+      effects,
+      controller: new ExperienceController(
+        effects,
+        effects,
+        read,
+        effects,
+        effects,
+        effects,
+        effects,
+        effects,
+        effects,
+        effects,
+      ),
+    };
+  }
+  it('routes explicit paging to its read and leaves the legacy bounded use case untouched', async () => {
+    const f = controller(page),
+      request = await admittedRequest();
+    expect(await call(f.controller.listSavedRoute(request), input)).toEqual(page);
+    expect(f.read).toHaveBeenCalledOnce();
+    expect(f.effects).not.toHaveBeenCalled();
+  });
+  it('refuses wrong scope, selection, limit, initiating cursor and legacy-shaped page replies', async () => {
+    for (const reply of [
+      { ...page, scope: { accountId: id, privacyEpoch: 2 } },
+      { ...page, filter: 'reel' },
+      { ...page, limit: 10 },
+      { ...page, requestCursor: `ksp1_${'a'.repeat(70)}` },
+      { revision: 1, items: [] },
+    ]) {
+      const f = controller(reply);
+      await expect(call(f.controller.listSavedRoute(await admittedRequest()), input)).rejects.toMatchObject({
+        code: 'INTERNAL',
+      });
+    }
   });
 });

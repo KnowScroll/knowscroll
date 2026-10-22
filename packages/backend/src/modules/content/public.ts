@@ -167,6 +167,13 @@ export type ReadSavedMetadata = (
     readonly currentAssetRevision?: number;
   }[]
 >;
+/** Saved membership owner supplies at most100 exact refs. Actual kind survives withdrawal;
+ * this read conveys no content access, position or encounter authority. */
+export type ReadSavedPageMetadata = (
+  scope: PersonalScopeTx,
+  refs: readonly EncounterRef[],
+) => Promise<readonly (Awaited<ReturnType<ReadSavedMetadata>>[number] & { readonly kind: 'reel' | 'scroll' })[]>;
+export const READ_SAVED_PAGE_METADATA = Symbol('content.readSavedPageMetadata');
 /** Admission composition only. Caller supplies real authorized facts; no title inference. */
 export type AdmitContinuity = (tx: AdmissionTx, admission: ContinuityAdmission) => Promise<void>;
 export const READ_DISCOVERY_CANDIDATES = Symbol('content.readDiscoveryCandidates');

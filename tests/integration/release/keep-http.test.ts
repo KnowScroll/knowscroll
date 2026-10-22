@@ -258,7 +258,7 @@ describe('Keep place HTTP in installed release (actual adapters, no network prov
       await problem(await post(path, {}, {}), 'UNAUTHENTICATED');
     const global = await fetch(origin + '/v1/saved', { headers: headers(f) });
     expect(global.status).toBe(200);
-    expect(global.headers.get('cache-control')).toBeNull();
+    expect(global.headers.get('cache-control')).toBe('private, no-store');
     expect(await snapshot(f)).toEqual(before);
   });
   it('withdrawn/corrected Saved state reveals no place; membership ABA and old receipt cannot restore a removed entry', async () => {

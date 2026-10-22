@@ -14,6 +14,7 @@ import {
   RESOLVE_CONTINUITY_LINK,
   READ_ENCOUNTER_TOPICS,
   READ_SAVED_METADATA,
+  READ_SAVED_PAGE_METADATA,
   READ_ENCOUNTER_ATTRIBUTION,
   FIND_ASSET_FOR_ACTION,
   FIND_OPENABLE_ASSET,
@@ -30,6 +31,7 @@ import {
   resolveContinuityLink,
   readEncounterTopics,
   readSavedMetadata,
+  readSavedPageMetadata,
   readEncounterAttribution,
 } from './discovery-store.js';
 import { makeRenderScroll } from './render-scroll.js';
@@ -51,6 +53,7 @@ export function contentProviders() {
     { provide: RESOLVE_CONTINUITY_LINK, useValue: resolveContinuityLink },
     { provide: READ_ENCOUNTER_TOPICS, useValue: readEncounterTopics },
     { provide: READ_SAVED_METADATA, useValue: readSavedMetadata },
+    { provide: READ_SAVED_PAGE_METADATA, useValue: readSavedPageMetadata },
     { provide: READ_ENCOUNTER_ATTRIBUTION, useValue: readEncounterAttribution },
     { provide: FIND_ASSET_FOR_ACTION, useValue: findAssetForAction },
     { provide: FIND_OPENABLE_ASSET, useValue: findOpenableAsset },
@@ -132,3 +135,5 @@ export { makeCutroomChainCollector } from './cutroom/chain-reader.js';
 export { makeCutroomChainSnapshotCollector } from './cutroom/chain-reader.js';
 export { makeCommissionChainSnapshots } from '../production/commission-chain-store.js';
 export { postgresCommissionChainStore } from './postgres-commission-chain.js';
+
+export { readSavedPageMetadata } from './discovery-store.js';
