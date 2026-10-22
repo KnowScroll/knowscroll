@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-22 17:00 UTC · **Phase:** Social contracts integrated / corrected Universe Actions / receiver and privacy · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-22 17:14 UTC · **Phase:** PAUSED by user / all active source pushed / continuation ready · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,21 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current programme phase — 2026-10-22 17:00 UTC
+## User-requested pause — 2026-10-22 17:14 UTC
+
+The user explicitly requested: stop implementation, push all changes, close running processes and provide a next-session prompt. **Implementation is stopped. All five programme requirements remain OPEN.** The complete resumption brief/evidence index are on the SSD at `knowscroll-dev/v2/agents/coordinator/NEXT-SESSION.md` and `NEXT-SESSION-EVIDENCE.md`; historical versions are preserved in the timestamped handoff directory. No later action is authorized merely by this checkpoint.
+
+Latest integrated PRODUCT remains97cc7a65/schema36 (Social contracts372; writer369 included), with source/actualPR acceptanceeb8eb2ca and actual squashf811d9e3. Later commits are coordinator documentation. Active source is committed and pushed: draft PR375 complete Universe2fe63913/tree3e3963a6; receiver37356832e59/41paths/NEW0039; SocialHTTP374ccbb9a51/12paths; Pause-contract37600819df9/9paths; corrected constituent36372fbc0fa. All active worktrees were clean and remote-matched. Older merged constituent remote branches may be automatically deleted; their code is integrated, not unpublished.
+
+375's exact73-feature/new-base composition8673d79d and full/narrow independent395c/7917 are accepted SOURCE ONLY. Initiale4 source/PR failed backend6+installed1; full92-entry archives are retained. Corrected2fe final static checks and exact SOURCE/actualPR Actions are still required. PR375 is DRAFT;366/371 remain open until its actual integration. 373 has completed substantial static/schema39/build checks but REQUIRED independent source review/Actions/runtime are not done. 374 has static checks and Root complete12-path review56de595a; different-author review is not started. 376 is WIP: initial TS7056/type-only lint/build-order failures are retained; fixes were committed, formatting passed, final types/lint/build not rechecked. No runtime Pause or new export/delete authority is implemented.
+
+All three agents stopped their own helpers and isolated PG clusters; no local suite ran. Root closed the session's dev browser tab (actual /explore URL) around17:03UTC. Normal dev/stage/Cutroom services remain running and untouched. Session checks/native workflows were cancelled at the user's explicit request; cancellation is UNACCEPTED, not a pass, and does not erase prior real failures. Closure receipts and a final remote-branch/process/Actions audit are retained under coordinator/session-20261022. No session operator or paid job remains running.
+
+Actual corpus read6cd0252b succeeded without mutations: five generated rows/14briefs in each legacy world (3eligible publication-v2,2imported), v2dev corpus/reviews/commissions0, v2stage literal absence of all application relations. Opening/closing complete projections match; JS fingerprint/three-projection mapping/import and sole-writer proof remain open. Necessary descriptors stay protected on SSD, not public Git. Original refused read and both corrected source-guard findings are preserved. Funds reade729619a reports falbilling403/MiniMaxquota unavailable; funds and full plan coverage remain UNVERIFIED. The dashboard-access question was superseded by this pause, not answered with credentials or approval.
+
+Last accepted actual dev476/schema35/archive8579; stage legacy898. FIRST TERMINAL FAILURE STOP after the one v12 job/3settledrequests/noasset remains. Ledgerdf1dd4d5 stays36used/0held/0unknown of43, zero accepted Scrolls;22 unexplained own-consumer changes remain unresolved. Token-cap race itself was resolved by PR346/deterministic gates with mutation sensitivity; retain historical96ec evidence. No new deployment/provider generation/pool mutation/owner-history reset occurred. All old operational windows are expired. Resume complete coherent phases only on user instruction; never main/production or bypass individual HUMAN Reel-script approval.
+
+## Prior integrated phase — 2026-10-22 17:00 UTC
 
 **Latest integrated product is `97cc7a65bd50063290cbe4d0667fc8455c7a54e8`, tree `ddaeb95d4cd972161bd673d0f555dca5d1c0f252`, schema36.** Social contracts PR372 was squash-merged exactly once after Root acceptanceeb8eb2ca and actual-squashf811d9e3. Source0e0551fb and actualPR118b8a64 againstb15 passed all six (39814167082/39814180185), full official113/114 logs, all19,485 manifest hashes/36SQL/20 compiled contract copies/146contracts/787PG/111installedHTTP/54browser/smoke29. The optional release/system.txt explains the source archive count; no missing job step or skipped required check is inferred. Root critical-source review plus independent7baf/Keep30e7 composition are bound. The latest-message/tombstone snapshot invariant is included. These are strict declarations, not actual conversations/sharing/backend/client activity. Parent241 remains open. Writer369 remains integrated; CI367 was closed as superseded through369, and bounded source children365/368 are closed. Parent343 stays open.
 
