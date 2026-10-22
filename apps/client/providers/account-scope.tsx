@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import {
   connectScopeSocket,
   createAccountScopeManager,
@@ -12,6 +12,7 @@ import { appApiOrigin } from '../platform/api';
 import { scopeStorage } from '../platform/scope-storage';
 import { sessionTokens } from '../platform/session-tokens';
 import { signInBinding } from '../platform/sign-in-binding';
+import { newCommandId } from '../platform/command-id';
 
 const AccountScopeContext = createContext<AccountScopeManager | null>(null);
 
@@ -72,6 +73,46 @@ export function AccountScopeProvider({
     return () => manager.dispose();
   }, [manager]);
   const state = useSyncExternalStore(manager.subscribe, manager.getState, manager.getState);
+  const scope = state.status === 'signed_in' ? state.scope : undefined;
+  useEffect(() => {
+    const policy = scope?.recording;
+    if (!scope || !policy) return;
+    policy.useIdSource(newCommandId);
+    const foreground = () =>
+      AppState.currentState === 'active' && (typeof document === 'undefined' || document.visibilityState !== 'hidden');
+    const refresh = () => {
+      if (scope.active && foreground()) void policy.refresh();
+      else policy.invalidate();
+    };
+    const appState = AppState.addEventListener('change', (value) => {
+      if (value === 'active') refresh();
+      else policy.invalidate();
+    });
+    const background = () => policy.invalidate();
+    const storage = (event: StorageEvent) => {
+      if (event.key === `ks.scope.${scope.id}.recording.policy.signal`) {
+        policy.invalidate();
+        refresh();
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', refresh);
+      window.addEventListener('blur', background);
+      window.addEventListener('storage', storage);
+      document.addEventListener('visibilitychange', refresh);
+    }
+    refresh();
+    return () => {
+      policy.invalidate();
+      appState.remove();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', refresh);
+        window.removeEventListener('blur', background);
+        window.removeEventListener('storage', storage);
+        document.removeEventListener('visibilitychange', refresh);
+      }
+    };
+  }, [scope]);
   if (state.status === 'starting') return null;
   const key = state.status === 'signed_in' ? keyOf(state.scope) : 'signed-out';
   return (

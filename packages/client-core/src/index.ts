@@ -106,3 +106,11 @@ export {
   type FormationPresentationState,
   type FormationPresentationSession,
 } from './formation-presentation';
+
+export {
+  createRecordingPolicySession,
+  recordingCommandFields,
+  freezeRecordingCommand,
+  type RecordingPolicyState,
+  type RecordingPolicySession,
+} from './recording-policy';

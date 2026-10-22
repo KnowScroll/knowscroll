@@ -1,0 +1,89 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { createAccountScope, memoryStore } from '@knowscroll/client-core';
+import type { SetRecordingPolicy } from '@knowscroll/contracts';
+import { DisplayProvider } from '@knowscroll/ui';
+import { RecordingControl } from './recording-control';
+
+const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
+/** Actual typed transport/session and RN control over labelled HTTP fixtures. */
+it('keeps new collection paused through unknown send, retries exactly, and shows current rather than historical policy', async () => {
+  let generation = 1;
+  let loseReply = true;
+  let next = 100;
+  const commands: SetRecordingPolicy[] = [];
+  const store = memoryStore();
+  store.setItem(
+    `ks.scope.${id(1)}:1.recorder.outbox.v1`,
+    JSON.stringify({ v: 1, dropped: 0, batches: [{ events: [] }] }),
+  );
+  const scope = createAccountScope({
+    account: { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'fixture@recording.test' },
+    baseUrl: 'https://fixture.recording.test',
+    authorization: () => undefined,
+    store,
+    fetch: async (request) => {
+      const input = (await request.json()) as SetRecordingPolicy & { readId: string; target: unknown };
+      if (request.url.endsWith('/set')) {
+        commands.push(input);
+        generation = 2;
+        if (loseReply) throw new Error('fixture unknown outcome');
+        // Another tab has since resumed. The old Pause receipt is still immutable.
+        generation = 3;
+        return new Response(
+          JSON.stringify({
+            version: 'recording-policy.v1',
+            operation: 'privacy.recording-set',
+            outcome: 'accepted',
+            replayed: true,
+            receipt: {
+              commandId: input.commandId,
+              requestedPrivacyEpoch: 1,
+              fromGeneration: 1,
+              toGeneration: 2,
+              on: false,
+              changed: true,
+              recordedAt: '2026-10-23T00:00:00.000Z',
+            },
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          version: 'recording-policy.v1',
+          readId: input.readId,
+          target: input.target,
+          scope: { accountId: id(1), privacyEpoch: 1 },
+          revision: generation,
+          policy: { on: generation % 2 === 1, generation },
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    },
+  });
+  scope.recording!.useIdSource(() => id(next++));
+  const app = await render(
+    <DisplayProvider value={{ width: 390, textScale: 2, reducedMotion: true }}>
+      <RecordingControl scope={scope} />
+    </DisplayProvider>,
+  );
+  try {
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Pause recording' })).toBeTruthy());
+    expect(screen.getByText(/1 group of unuploaded activity was discarded/)).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Pause recording' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Retry the same recording choice' })).toBeTruthy());
+    expect(scope.recording!.getState().collecting).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Resume recording' })).toBeNull();
+    loseReply = false;
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry the same recording choice' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Pause recording' })).toBeTruthy());
+    expect(commands[1]).toEqual(commands[0]);
+    expect(scope.recording!.getState()).toMatchObject({ policy: { generation: 3 }, receipt: { toGeneration: 2 } });
+    expect(screen.getByText(/Actions you request, including Save and Remove/)).toBeTruthy();
+    await act(() => scope.end());
+    expect(scope.recording!.getState().collecting).toBe(false);
+  } finally {
+    await app.unmount();
+    scope.end();
+  }
+});

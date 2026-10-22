@@ -8,6 +8,7 @@ import {
 } from '@knowscroll/contracts';
 import { createApiClient, type ApiClient } from './api-client';
 import { createQueryClient } from './query-client';
+import { createRecordingPolicySession, type RecordingPolicySession } from './recording-policy';
 
 type Fetch = (input: Request, init?: RequestInit) => Promise<Response>;
 
@@ -63,6 +64,8 @@ export interface AccountScope {
   /** Requests through it are cancelled when the scope ends; a late response is dropped. */
   readonly api: ApiClient;
   readonly storage: ScopedStorage;
+  /** Current policy is independent of privacy epoch and immutable command receipts. */
+  readonly recording?: RecordingPolicySession;
   /** False once the scope has ended. */
   readonly active: boolean;
   /** Ephemeral playback URL/headers for this scope only; never persisted or logged. */
@@ -226,7 +229,9 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
     },
     queryKey: (...parts) => ['scope', id, ...parts],
     reconnect() {
-      if (ended.signal.aborted || options.connect === undefined) return;
+      if (ended.signal.aborted) return;
+      void scope.recording?.refresh();
+      if (options.connect === undefined) return;
       connection?.close();
       connection = options.connect(scope);
     },
@@ -248,6 +253,19 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
       purgeStorage(options.store, prefix);
     },
   };
+  const recording = createRecordingPolicySession(scope);
+  Object.defineProperty(scope, 'recording', { value: recording, enumerable: true });
+  let signalledReceipt: string | undefined;
+  recording.subscribe(() => {
+    const receipt = recording.getState().receipt;
+    if (!receipt || receipt.commandId === signalledReceipt) return;
+    signalledReceipt = receipt.commandId;
+    try {
+      scope.storage.set('recording.policy.signal', receipt.commandId);
+    } catch {
+      /* Hints are disposable. */
+    }
+  });
   if (options.connect !== undefined) connection = options.connect(scope);
   return scope;
 }

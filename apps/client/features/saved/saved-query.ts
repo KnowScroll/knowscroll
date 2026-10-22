@@ -1,3 +1,4 @@
+import { freezeRecordingCommand, recordingCommandFields } from '@knowscroll/client-core';
 import { QueryObserver } from '@tanstack/react-query';
 import { apiProblem, type AccountScope } from '@knowscroll/client-core';
 import {
@@ -327,7 +328,9 @@ export function createSavedRemoval(scope: AccountScope, newId: () => string) {
           return false;
         }
         ambiguous = false;
-        command = { version: 'keep-remove.v1', commandId: newId(), entry };
+        const fields = await recordingCommandFields(scope);
+        if (!valid(token)) return false;
+        command = freezeRecordingCommand({ ...fields, version: 'keep-remove.v1', commandId: newId(), entry });
         publish({ status: 'grace', item });
         timer = setTimeout(() => {
           timer = undefined;

@@ -30,6 +30,24 @@ function fixture(kind: 'reel' | 'scroll' = 'reel') {
     store: memoryStore(),
     fetch: async (request) => {
       const path = new URL(request.url).pathname;
+      // Explicit current-policy HTTP fixture; independent of the encounter/Keep command log.
+      if (path === '/v1/privacy/recording/read')
+        return request
+          .clone()
+          .json()
+          .then((input: { readId: string; target: unknown }) => {
+            const claim = request.headers.get('x-ks-scope')!.split(':');
+            return new Response(
+              JSON.stringify({
+                version: 'recording-policy.v1',
+                ...input,
+                scope: { accountId: claim[0], privacyEpoch: Number(claim[1]) },
+                revision: 0,
+                policy: { on: true, generation: 1 },
+              }),
+              { headers: { 'content-type': 'application/json' } },
+            );
+          });
       const body = (await request.json()) as Record<string, unknown>;
       calls.push({ path, body });
       if (path.endsWith('/keep/read')) {
@@ -82,6 +100,7 @@ function fixture(kind: 'reel' | 'scroll' = 'reel') {
     },
   });
   const capture = jest.fn(() => actual);
+  scope.recording?.useIdSource(() => '0199a000-0000-7000-8000-000000000099');
   return {
     scope,
     target,
@@ -217,4 +236,22 @@ describe('direct route actual Keep surface lifecycle', () => {
       f.scope.end();
     }
   });
+});
+
+it('a paused necessary Save retries the exact original generation after Resume (CI fixture)', async () => {
+  const f = fixture();
+  try {
+    f.unsaved();
+    f.failSave(true);
+    jest.spyOn(f.scope.recording!, 'generation').mockResolvedValue(2);
+    expect(await f.surface.save()).toBe(false);
+    jest.mocked(f.scope.recording!.generation).mockResolvedValue(3);
+    f.failSave(false);
+    expect(await f.surface.save()).toBe(true);
+    const saves = f.calls.filter((call) => call.path === '/v1/actions');
+    expect(saves[0]?.body.recordingGeneration).toBe(2);
+    expect(saves[1]?.body).toEqual(saves[0]?.body);
+  } finally {
+    f.scope.end();
+  }
 });

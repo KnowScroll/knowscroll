@@ -70,7 +70,13 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
   useDocumentTitle(scroll.document.title);
   const [recorder] = useState(() =>
     createScrollRecorder({
-      exposure: { exposureId: scroll.exposureId, assetId: scroll.assetId, assetRevision: scroll.assetRevision },
+      exposure: {
+        exposureId: scroll.exposureId,
+        assetId: scroll.assetId,
+        assetRevision: scroll.assetRevision,
+        ...(scroll.recordingGeneration === undefined ? {} : { recordingGeneration: scroll.recordingGeneration }),
+        ...(scroll.recordingSessionId === undefined ? {} : { recordingSessionId: scroll.recordingSessionId }),
+      },
       scope,
       newId: newCommandId,
     }),

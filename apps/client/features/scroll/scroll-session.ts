@@ -1,4 +1,11 @@
-import { apiProblem, ScopeEndedError, type AccountScope } from '@knowscroll/client-core';
+import {
+  freezeRecordingCommand,
+  recordingCommandFields,
+  apiProblem,
+  ScopeEndedError,
+  type AccountScope,
+} from '@knowscroll/client-core';
+import { DirectActivateExposureResponseSchema } from '@knowscroll/contracts';
 import { parseDocument, type ScrollDocument } from '@knowscroll/scroll-model';
 import { SCROLL_CAPABILITIES } from './capabilities';
 
@@ -7,6 +14,8 @@ export interface OpenedScroll {
   readonly exposureId: string;
   readonly assetId: string;
   readonly assetRevision: number;
+  readonly recordingGeneration?: number;
+  readonly recordingSessionId?: string;
   readonly document: ScrollDocument;
   /** Essential blocks the client shows only as fallback text ("this part needs an app update"). */
   readonly degradedEssential: readonly { readonly blockId: string; readonly originalType: string }[];
@@ -28,7 +37,7 @@ export type ScrollSessionState =
   | { readonly status: 'error' };
 
 export interface ScrollSessionOptions {
-  readonly scope: Pick<AccountScope, 'api' | 'active'>;
+  readonly scope: Pick<AccountScope, 'api' | 'active' | 'recording'>;
   readonly assetId: string;
   /** Mints a UUID per user intent (a command ID); one per step, kept for every retry of that step. */
   readonly newId: () => string;
@@ -66,7 +75,7 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
   let disposed = false;
   let running = false;
   let openCommandId: string | undefined;
-  let activateCommandId: string | undefined;
+  let activationBody: { commandId: string; exposureId: string; recordingGeneration?: number } | undefined;
   let opened: { exposureId: string; assetRevision: number } | undefined;
   let loaded: { document: ScrollDocument; degradedEssential: OpenedScroll['degradedEssential'] } | undefined;
 
@@ -121,15 +130,25 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
         loaded = { document: parsed.document, degradedEssential: response.degradedEssential };
       }
       set({ status: 'activating' });
-      activateCommandId ??= options.newId();
-      await options.scope.api.experience.activateExposure({
-        commandId: activateCommandId,
+      activationBody ??= freezeRecordingCommand({
+        ...(await recordingCommandFields(options.scope)),
+        commandId: options.newId(),
         exposureId: opened.exposureId,
       });
+      if (disposed || !options.scope.active) return;
+      const activated = DirectActivateExposureResponseSchema.parse(
+        await options.scope.api.experience.activateExposure(activationBody),
+      );
+      if (activated.commandId !== activationBody.commandId || activated.exposureId !== activationBody.exposureId)
+        throw new Error('activation_lineage');
       set({
         status: 'ready',
         scroll: {
           exposureId: opened.exposureId,
+          ...(activationBody.recordingGeneration === undefined
+            ? {}
+            : { recordingGeneration: activationBody.recordingGeneration }),
+          recordingSessionId: activationBody.commandId,
           assetId: options.assetId,
           assetRevision: opened.assetRevision,
           document: loaded.document,

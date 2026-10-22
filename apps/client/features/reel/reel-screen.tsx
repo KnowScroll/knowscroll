@@ -2,8 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { AppState, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createReelRecorder, type AccountScope } from '@knowscroll/client-core';
-import type { ReelDocument } from '@knowscroll/contracts';
+import {
+  freezeRecordingCommand,
+  recordingCommandFields,
+  createReelRecorder,
+  type AccountScope,
+} from '@knowscroll/client-core';
+import { DirectActivateExposureResponseSchema, type ReelDocument } from '@knowscroll/contracts';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import {
   ActionRail,
@@ -30,9 +35,17 @@ import { ActivatedReelView } from './activated-reel-view';
 
 function OpenReel({ scope, assetId }: { scope: AccountScope; assetId: string }) {
   const insets = useSafeAreaInsets();
-  const [opened, setOpened] = useState<{ exposureId: string; document: ReelDocument }>();
+  const [opened, setOpened] = useState<{
+    exposureId: string;
+    document: ReelDocument;
+    recordingGeneration?: number;
+    recordingSessionId: string;
+  }>();
   const [failed, setFailed] = useState(false);
   const [commands] = useState(() => ({ open: newCommandId(), activate: newCommandId() }));
+  const activation = useRef<{ commandId: string; exposureId: string; recordingGeneration?: number } | undefined>(
+    undefined,
+  );
   useEffect(() => {
     let stopped = false;
     async function open() {
@@ -48,8 +61,26 @@ function OpenReel({ scope, assetId }: { scope: AccountScope; assetId: string }) 
         if (exposure.status !== undefined || exposure.kind !== 'reel') throw new Error('unexpected_reel_open_result');
         const grant = await scope.api.media.grant({ exposureId: exposure.exposureId });
         if (stopped || !scope.active) return;
-        await scope.api.experience.activateExposure({ commandId: commands.activate, exposureId: exposure.exposureId });
-        if (!stopped && scope.active) setOpened({ exposureId: exposure.exposureId, document: grant.document });
+        activation.current ??= freezeRecordingCommand({
+          ...(await recordingCommandFields(scope)),
+          commandId: commands.activate,
+          exposureId: exposure.exposureId,
+        });
+        if (stopped || !scope.active) return;
+        const activated = DirectActivateExposureResponseSchema.parse(
+          await scope.api.experience.activateExposure(activation.current),
+        );
+        if (activated.commandId !== activation.current.commandId || activated.exposureId !== exposure.exposureId)
+          throw new Error('activation_lineage');
+        if (!stopped && scope.active)
+          setOpened({
+            exposureId: exposure.exposureId,
+            document: grant.document,
+            ...(activation.current.recordingGeneration === undefined
+              ? {}
+              : { recordingGeneration: activation.current.recordingGeneration }),
+            recordingSessionId: activation.current.commandId,
+          });
       } catch {
         if (!stopped && scope.active) setFailed(true);
       }
@@ -69,7 +100,13 @@ function OpenReel({ scope, assetId }: { scope: AccountScope; assetId: string }) 
       leftInset={insets.left}
       rightInset={insets.right}
     >
-      <ReadyReel scope={scope} exposureId={opened.exposureId} document={opened.document} />
+      <ReadyReel
+        scope={scope}
+        exposureId={opened.exposureId}
+        document={opened.document}
+        recordingGeneration={opened.recordingGeneration}
+        recordingSessionId={opened.recordingSessionId}
+      />
     </ReelPage>
   );
 }
@@ -78,10 +115,14 @@ function ReadyReel({
   scope,
   exposureId,
   document,
+  recordingGeneration,
+  recordingSessionId,
 }: {
   scope: AccountScope;
   exposureId: string;
   document: ReelDocument;
+  recordingGeneration: number | undefined;
+  recordingSessionId: string;
 }) {
   const router = useRouter();
   const [active, setActive] = useState(AppState.currentState === 'active');
@@ -117,12 +158,18 @@ function ReadyReel({
   const recorder = useMemo(
     () =>
       createReelRecorder({
-        exposure: { exposureId, assetId: document.assetId, assetRevision: document.revision },
+        exposure: {
+          exposureId,
+          assetId: document.assetId,
+          assetRevision: document.revision,
+          ...(recordingGeneration === undefined ? {} : { recordingGeneration }),
+          recordingSessionId,
+        },
         durationMs: document.durationMs,
         scope,
         newId: newCommandId,
       }),
-    [scope, exposureId, document],
+    [scope, exposureId, document, recordingGeneration, recordingSessionId],
   );
   useEffect(() => {
     if (removalState.status === 'confirmed' && removalState.item.assetId === document.assetId) kept.surface.refresh();

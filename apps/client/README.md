@@ -313,3 +313,30 @@ can re-enable the existing active fence. Monotonic callbacks, route/background a
 cleanup prevent late geometry from reviving an old encounter. Returning to view does not restore
 play intent. Web retains its existing IntersectionObserver, anchored to the video stage. Native geometry tests use labelled
 callbacks; real native visibility and status pixels remain a separate hosted runtime gate.
+
+
+## Pause and Resume personal recording (#381)
+
+Privacy & history now mounts recording controls independently of Clear. The AccountScope's policy
+session fails collection closed while checking, offline, backgrounded or awaiting an ambiguous
+choice. Global AppState and browser focus/storage signals reread current authority; toggles retain
+the same scope and privacy epoch. Browser storage signals are disposable hints, never authority.
+The native platform UUID source is installed before policy requests; native scoped storage remains
+memory-only and this change makes no crash-durability claim there.
+
+Discovery/revisit/navigation, region Open, offer/direct activation, explicit actions and Keep Remove
+capture their original known recording generation once. Transport retries preserve the entire body,
+including generation. Direct open and saved-place writes keep their existing protocols. Necessary
+actions remain usable under a known paused policy. Unknown policy cannot invent a generation.
+
+A recorder uses the actual accepted activation command UUID as its server session ID and requires
+matching current on policy plus original eligible producer/activation generation. Pause and unknown
+status discard buffered intervals and reset visibility/playback baselines. Resume cannot revive old
+offers, ACKs or retained recorders; open a fresh encounter to obtain a supported eligible activation.
+The versioned outbox preserves immutable original-generation batches, validates correlated terminal
+ACKs, and counts/discloses old v1 batch loss rather than guessing provenance. Intake is not growth.
+
+Authored protocol/component/browser fixtures cover these fences, unknown retries, paused Save and
+fresh activation. Execute suites only in Actions. Actual API/database evidence qualification,
+connected web/native/device journeys and final source composition/deployment remain Root-owned
+acceptance requirements. This source does not close full privacy, export or account deletion.

@@ -1,4 +1,9 @@
-import { INTERACTION_SCHEMA_VERSION, type InteractionEvent, type ObservationBatchRequest } from '@knowscroll/contracts';
+import {
+  INTERACTION_SCHEMA_VERSION,
+  RecordingObservationBatchResponseSchema,
+  type InteractionEvent,
+  type RecordingObservationBatchRequest,
+} from '@knowscroll/contracts';
 import type { ApiClient } from '../api-client';
 import { apiProblem } from '../api-client';
 import { ScopeEndedError, type AccountScope } from '../account-scope';
@@ -14,6 +19,9 @@ export interface RecordedExposure {
   readonly exposureId: string;
   readonly assetId: string;
   readonly assetRevision: number;
+  /** Exact original eligible activation generation, never inferred from an old receipt. */
+  readonly recordingGeneration?: number;
+  readonly recordingSessionId?: string;
 }
 
 export interface RecorderClock {
@@ -31,7 +39,8 @@ export interface RecorderTimers {
 export interface ScrollRecorderOptions {
   readonly exposure: RecordedExposure;
   /** The owning account scope: its storage holds the outbox, its API delivers, its end stops everything. */
-  readonly scope: Pick<AccountScope, 'api' | 'storage' | 'active'>;
+  readonly scope: Pick<AccountScope, 'api' | 'storage' | 'active'> &
+    Partial<Pick<AccountScope, 'account' | 'recording' | 'onEnd'>>;
   /** UUIDs for the recorder session and each event (the app's command-ID generator). */
   readonly newId: () => string;
   readonly clock?: RecorderClock;
@@ -85,6 +94,8 @@ const SCOPE_ENDED_PROBLEMS: ReadonlySet<string> = new Set([
   'PRIVACY_EPOCH_CHANGED',
   'UNAUTHENTICATED',
   'UNIVERSE_UNAVAILABLE',
+  'FORBIDDEN',
+  'ORIGIN_NOT_ALLOWED',
 ]);
 
 /** Problems a retry cannot fix: the batch was malformed or too large, or nothing here can take it. */
@@ -103,32 +114,55 @@ const DROPPED_PROBLEMS: ReadonlySet<string> = new Set([
  * (retrying cannot fix it); everything that means the scope is no longer this client's
  * (`ScopeEndedError`, a refused session, a changed epoch, `SCOPE_MISMATCH`) is `scope_ended`.
  */
-export function deliverBatch(api: ApiClient): (batch: ObservationBatchRequest) => Promise<SendOutcome> {
+export function deliverBatch(
+  api: ApiClient,
+  scope?: Partial<Pick<AccountScope, 'account' | 'recording'>>,
+): (batch: RecordingObservationBatchRequest) => Promise<SendOutcome> {
   return async (batch) => {
     try {
-      await api.observations.submit(batch);
+      const response = RecordingObservationBatchResponseSchema.parse(await api.observations.submitRecording(batch));
+      if (
+        !scope?.account ||
+        response.scope.accountId.toLowerCase() !== scope.account.accountId.toLowerCase() ||
+        response.scope.privacyEpoch !== scope.account.privacyEpoch ||
+        response.recordingGeneration !== batch.recordingGeneration ||
+        (response.result === 'processed' &&
+          (response.results.length !== batch.events.length ||
+            response.results.some(
+              (result, i) => result.eventId.toLowerCase() !== batch.events[i]!.eventId.toLowerCase(),
+            )))
+      ) {
+        scope?.recording?.invalidate();
+        return { kind: 'retry' };
+      }
+      if (response.result === 'not_recorded') void scope.recording?.refresh();
       return { kind: 'delivered' };
     } catch (error) {
+      scope?.recording?.invalidate();
       if (error instanceof ScopeEndedError) return { kind: 'scope_ended' };
       const problem = apiProblem(error);
       if (problem === undefined) return { kind: 'retry' };
       if (SCOPE_ENDED_PROBLEMS.has(problem.code)) return { kind: 'scope_ended' };
       if (DROPPED_PROBLEMS.has(problem.code)) return { kind: 'drop' };
-      return problem.status >= 500 || problem.status === 429 ? { kind: 'retry' } : { kind: 'drop' };
+      return { kind: 'retry' }; // Unknown refusals never masquerade as a correlated terminal ACK.
     }
   };
 }
 
 /** The scope's outbox, created on first use over the scope's storage and API. */
-export function scopeOutbox(scope: Pick<AccountScope, 'api' | 'storage' | 'active'>): ObservationOutbox {
+export function scopeOutbox(
+  scope: Pick<AccountScope, 'api' | 'storage' | 'active'> &
+    Partial<Pick<AccountScope, 'account' | 'recording' | 'onEnd'>>,
+): ObservationOutbox {
   let outbox = scopeOutboxes.get(scope);
   if (outbox === undefined) {
     outbox = createObservationOutbox({
       storage: scope.storage,
       isActive: () => scope.active,
-      send: deliverBatch(scope.api),
+      send: deliverBatch(scope.api, scope),
     });
     scopeOutboxes.set(scope, outbox);
+    scope.onEnd?.(() => outbox?.dispose());
   }
   return outbox;
 }
@@ -155,8 +189,11 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
   const clock = options.clock ?? defaultClock;
   const timers = options.timers ?? defaultTimers;
   const outbox = options.outbox ?? scopeOutbox(options.scope);
-  const sessionId = options.newId();
-  const tracker = new ReadingTracker({ startedAt: clock.monotonicMs() });
+  const startedAt = clock.monotonicMs();
+  let tracker = new ReadingTracker({ startedAt });
+  const sessionId = options.exposure.recordingSessionId ?? options.newId();
+  let eligible = false;
+  let revoked = false;
   let sequence = 0;
   let sentFirst = false;
   let ended = false;
@@ -166,6 +203,14 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
   let acceptAfter = Number.NEGATIVE_INFINITY;
   let handle: unknown;
 
+  let policyOff: (() => void) | undefined;
+  const watchPolicy = () => {
+    policyOff ??= options.scope.recording?.subscribe(() => {
+      scopeActive();
+    });
+  };
+  watchPolicy();
+
   const stopTimer = (): void => {
     if (handle !== undefined) timers.clearInterval(handle);
     handle = undefined;
@@ -173,7 +218,21 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
   const scopeActive = (): boolean => {
     if (!options.scope.active) scopeEnded = true;
     if (scopeEnded) stopTimer();
-    return !scopeEnded;
+    const policy = options.scope.recording?.getState();
+    if (policy?.policy && policy.policy.generation !== options.exposure.recordingGeneration) revoked = true;
+    const allowed =
+      !scopeEnded &&
+      !revoked &&
+      options.exposure.recordingGeneration !== undefined &&
+      options.exposure.recordingSessionId !== undefined &&
+      policy?.collecting === true &&
+      policy.policy?.generation === options.exposure.recordingGeneration;
+    if (allowed !== eligible) {
+      eligible = allowed;
+      tracker = new ReadingTracker({ startedAt });
+      acceptAfter = clock.monotonicMs();
+    }
+    return !scopeEnded && eligible;
   };
   const accepts = (at?: number): boolean =>
     scopeActive() && !ended && !suspended && (at === undefined || at >= acceptAfter);
@@ -235,7 +294,7 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
     } while (tracker.hasMore() && guard < 50);
     if (events.length > 0) {
       sentFirst = true;
-      outbox.enqueue(events, RECORDER_INSTRUMENTATION_VERSION);
+      outbox.enqueue(events, RECORDER_INSTRUMENTATION_VERSION, options.exposure.recordingGeneration);
     }
   };
 
@@ -267,8 +326,11 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
 
   return {
     observer,
-    sessionId,
+    get sessionId() {
+      return sessionId;
+    },
     start() {
+      watchPolicy();
       if (!scopeActive()) return;
       if (ended) acceptAfter = clock.monotonicMs();
       ended = false;
@@ -290,6 +352,8 @@ export function createScrollRecorder(options: ScrollRecorderOptions): ScrollReco
     },
     flush,
     end() {
+      policyOff?.();
+      policyOff = undefined;
       if (!scopeActive() || ended) return;
       tracker.suspend(clock.monotonicMs());
       ended = true;

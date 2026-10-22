@@ -26,6 +26,7 @@ export default defineConfig({
         'auth-smoke.spec.ts',
         'security-smoke.spec.ts',
         'encounter-smoke.spec.ts',
+        'recording-smoke.spec.ts',
         'keep-smoke.spec.ts',
         'universe-smoke.spec.ts',
       ],

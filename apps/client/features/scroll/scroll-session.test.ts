@@ -1,4 +1,4 @@
-import { createApiClient, ScopeEndedError } from '@knowscroll/client-core';
+import { createRecordingPolicySession, createApiClient, ScopeEndedError } from '@knowscroll/client-core';
 import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import { SCROLL_CAPABILITIES } from './capabilities';
 import { createScrollSession, type ScrollSessionState } from './scroll-session';
@@ -44,6 +44,24 @@ function fixture(handlers: { open?: Handler; document?: Handler; activate?: Hand
   const calls: { path: string; body: unknown }[] = [];
   const fetch = jest.fn(async (request: Request): Promise<Response> => {
     const path = new URL(request.url).pathname;
+    // Explicit current-policy HTTP fixture; independent of the encounter/Keep command log.
+    if (path === '/v1/privacy/recording/read')
+      return request
+        .clone()
+        .json()
+        .then((input: { readId: string; target: unknown }) => {
+          const claim = (request.headers.get('x-ks-scope') ?? `${ASSET}:1`).split(':');
+          return new Response(
+            JSON.stringify({
+              version: 'recording-policy.v1',
+              ...input,
+              scope: { accountId: claim[0], privacyEpoch: Number(claim[1]) },
+              revision: 0,
+              policy: { on: true, generation: 1 },
+            }),
+            { headers: { 'content-type': 'application/json' } },
+          );
+        });
     const body: unknown = request.method === 'POST' ? await request.clone().json() : undefined;
     calls.push({ path, body });
     if (path === '/v1/experience/open')
@@ -84,7 +102,15 @@ function sessionOver(server: ReturnType<typeof fixture>) {
   const api = createApiClient({ baseUrl: 'https://app.session.test', fetch: server.fetch });
   let counter = 0;
   const newId = () => `0199a000-0000-7000-8000-${String(++counter).padStart(12, '0')}`;
-  const session = createScrollSession({ scope: { api, active: true }, assetId: ASSET, newId });
+  const recording = createRecordingPolicySession(
+    {
+      api,
+      active: true,
+      account: { accountId: ASSET, universeId: EXPOSURE, privacyEpoch: 1, email: 'scroll@fixture.test' },
+    },
+    newId,
+  );
+  const session = createScrollSession({ scope: { api, active: true, recording }, assetId: ASSET, newId });
   const states: ScrollSessionState['status'][] = [];
   session.subscribe(() => states.push(session.getState().status));
   return { session, states };

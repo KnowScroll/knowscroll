@@ -198,6 +198,24 @@ async function mount(
     newQueryClient: () => new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } }),
     fetch: (request) => {
       const path = new URL(request.url).pathname;
+      // Explicit current-policy HTTP fixture; independent of the encounter/Keep command log.
+      if (path === '/v1/privacy/recording/read')
+        return request
+          .clone()
+          .json()
+          .then((input: { readId: string; target: unknown }) => {
+            const claim = request.headers.get('x-ks-scope')!.split(':');
+            return new Response(
+              JSON.stringify({
+                version: 'recording-policy.v1',
+                ...input,
+                scope: { accountId: claim[0], privacyEpoch: Number(claim[1]) },
+                revision: 0,
+                policy: { on: true, generation: 1 },
+              }),
+              { headers: { 'content-type': 'application/json' } },
+            );
+          });
       paths.push(path);
       requests.push(request);
       if (path === '/auth/session')

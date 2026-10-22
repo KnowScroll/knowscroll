@@ -16,13 +16,17 @@ function retainedReel() {
     dispose: () => undefined,
   };
   const recorder = createReelRecorder({
-    exposure: { exposureId: 'e', assetId: 'a', assetRevision: 1 },
+    exposure: { exposureId: 'e', assetId: 'a', assetRevision: 1, recordingGeneration: 1, recordingSessionId: '1' },
     durationMs: 30_000,
     scope: {
+      recording: {
+        getState: () => ({ collecting: true, policy: { on: true, generation: 1 } }),
+        subscribe: () => () => undefined,
+      },
       get active() {
         return active;
       },
-    } as AccountScope,
+    } as unknown as AccountScope,
     outbox,
     newId: () => String(++id),
     clock: { monotonicMs: () => now, wallIso: () => '2026-10-20T00:00:00.000Z' },
@@ -67,7 +71,7 @@ describe('continuous visible Reel recording', () => {
     recorder.end();
     expect(events.map((event) => event.deviceSequence)).toEqual([1, 2]);
     expect(events[0]).toEqual(first[0]);
-    expect(events.map((event) => event.eventId)).toEqual(['2', '3']);
+    expect(events.map((event) => event.eventId)).toEqual(['1', '2']);
     expect(new Set(events.map((event) => event.sessionId))).toEqual(new Set([recorder.sessionId]));
     expect(events.flatMap((event) => (event.kind === 'reel.playback' ? event.payload.samples : []))).toEqual([
       { activeMs: [0, 500], mediaMs: [0, 500] },
@@ -150,7 +154,7 @@ describe('continuous visible Reel recording', () => {
       dispose: () => undefined,
     };
     const recorder = createReelRecorder({
-      exposure: { exposureId: 'e', assetId: 'a', assetRevision: 1 },
+      exposure: { exposureId: 'e', assetId: 'a', assetRevision: 1, recordingGeneration: 1, recordingSessionId: '1' },
       durationMs: 30000,
       scope: { active: true } as AccountScope,
       outbox,
@@ -184,7 +188,7 @@ describe('continuous visible Reel recording', () => {
       dispose: () => undefined,
     };
     const recorder = createReelRecorder({
-      exposure: { exposureId: 'e', assetId: 'a', assetRevision: 1 },
+      exposure: { exposureId: 'e', assetId: 'a', assetRevision: 1, recordingGeneration: 1, recordingSessionId: '1' },
       durationMs: 30000,
       scope,
       outbox,
@@ -218,4 +222,93 @@ describe('continuous visible Reel recording', () => {
     recorder.flush();
     expect(events).toHaveLength(count);
   });
+});
+
+it('unknown and paused intervals never bridge, and Resume cannot revive the old eligible activation (CI fixture)', () => {
+  let now = 0;
+  let policy = { collecting: true, policy: { on: true, generation: 3 } };
+  const listeners = new Set<() => void>();
+  const events: InteractionEvent[] = [];
+  let id = 0;
+  const options = {
+    exposure: {
+      exposureId: 'e',
+      assetId: 'a',
+      assetRevision: 1,
+      recordingGeneration: 3,
+      recordingSessionId: 'activation3',
+    },
+    durationMs: 20000,
+    newId: () => String(++id),
+    clock: { monotonicMs: () => now, wallIso: () => '2026-10-23T00:00:00.000Z' },
+    scope: {
+      active: true,
+      recording: {
+        getState: () => policy,
+        subscribe: (listener: () => void) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+      },
+    } as unknown as AccountScope,
+    outbox: {
+      enqueue: (batch: readonly InteractionEvent[]) => {
+        events.push(...batch);
+      },
+      drain: () => Promise.resolve(),
+      status: () => ({ pendingBatches: 0, pendingEvents: 0, dropped: 0, stopped: false }),
+      dispose: () => undefined,
+    },
+  };
+  const old = createReelRecorder(options);
+  const tick = (recorder: ReturnType<typeof createReelRecorder>, positionMs: number) =>
+    recorder.sample({ positionMs, monotonicMs: now, playing: true, visible: true, buffering: false });
+  tick(old, 0);
+  now = 500;
+  tick(old, 500);
+  policy = { ...policy, collecting: false };
+  listeners.forEach((listener) => listener());
+  now = 5000;
+  tick(old, 5000);
+  policy = { ...policy, collecting: true };
+  listeners.forEach((listener) => listener());
+  tick(old, 5000);
+  now = 5500;
+  tick(old, 5500);
+  old.flush();
+  expect(events).toHaveLength(1);
+  expect(events[0]?.sessionId).toBe('activation3');
+  expect(events[0]?.payload).toEqual({ samples: [{ activeMs: [5000, 5500], mediaMs: [5000, 5500] }] });
+  policy = { collecting: false, policy: { on: false, generation: 4 } };
+  listeners.forEach((listener) => listener());
+  policy = { collecting: true, policy: { on: true, generation: 5 } };
+  listeners.forEach((listener) => listener());
+  now = 6000;
+  tick(old, 6000);
+  now = 6500;
+  tick(old, 6500);
+  old.end();
+  expect(events).toHaveLength(1);
+  // A fresh recorder with an old offer/activation generation is also ineligible.
+  const relabel = createReelRecorder({
+    ...options,
+    exposure: { ...options.exposure, recordingSessionId: 'old-activation' },
+  });
+  tick(relabel, 0);
+  now += 500;
+  tick(relabel, 500);
+  relabel.end();
+  expect(events).toHaveLength(1);
+  const fresh = createReelRecorder({
+    ...options,
+    exposure: { ...options.exposure, recordingGeneration: 5, recordingSessionId: 'new-eligible-activation5' },
+  });
+  tick(fresh, 0);
+  now += 500;
+  tick(fresh, 500);
+  fresh.end();
+  expect(events.at(-1)?.sessionId).toBe('new-eligible-activation5');
+  expect(events).toHaveLength(2);
 });

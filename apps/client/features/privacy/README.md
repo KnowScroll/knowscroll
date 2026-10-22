@@ -13,11 +13,21 @@ cannot promise a delayed send is absent. Current account/epoch/selector/receipt 
 in client-core. Session recovery uses the actual session read, never an ACK-derived epoch.
 
 Context already sent to an AI provider cannot be recalled. Live completion is separate from backup,
-provider-copy and offline-device expiry, and no unverified expiry date is shown. Recording pause,
-export and account deletion are labelled unavailable here. There is no generic erasure selector,
+provider-copy and offline-device expiry, and no unverified expiry date is shown. Export and account deletion remain labelled unavailable here. There is no generic erasure selector,
 time range, artificial percentage or claim of full privacy completion.
 
 Component fixtures exercise real routing, manager/provider remount, explicit confirmation, unknown
 same-body retry and live-versus-external completion copy. They run only in hosted Actions and are
 not real account/database/device acceptance. Root owns API/worker composition, the disposable-account
-connected journey and deployment acceptance. No Keep/encounter/direct renderer is changed here.
+connected journey and deployment acceptance. The separately scoped recording implementation gates the existing recorder paths without changing Clear preservation semantics.
+
+
+`recording-control.tsx` mounts the scope-owned current recording session independently of Clear.
+Pause stops new collection locally before sending; unknown choices expose only same-body retry and
+status checks. Current policy is displayed from a new correlated read, never inferred from the
+historical ACK. Saved items/places/history remain; necessary Save/Remove/action records still work
+while recording is known paused. Resume explains that opening a fresh encounter is required for
+recording to begin again. Legacy unuploaded batches with unknowable original generation are counted
+and disclosed as discarded; missing activity never becomes reading. Native persistence remains
+memory-only. RN and production-export HTTP fixtures are source/CI evidence, not live privacy,
+qualification, emulator or physical-device acceptance.

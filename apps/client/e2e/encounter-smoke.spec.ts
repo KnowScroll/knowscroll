@@ -38,6 +38,18 @@ async function encounterFixture(page: Page, kind: 'scroll' | 'reel') {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+    if (path === '/v1/privacy/recording/read') {
+      await route.fulfill({
+        json: {
+          version: 'recording-policy.v1',
+          ...body,
+          scope: { accountId: id(1), privacyEpoch: 1 },
+          revision: 0,
+          policy: { on: true, generation: 1 },
+        },
+      });
+      return;
+    }
     if (path === '/v1/experience/open' || path === '/v1/experience/navigate') {
       commands.push({ path, body });
       if (path.endsWith('/navigate')) {
@@ -206,10 +218,15 @@ async function encounterFixture(page: Page, kind: 'scroll' | 'reel') {
       });
       return;
     }
-    if (path === '/v1/observations/batch') {
+    if (path === '/v1/observations/recording-batch') {
       const events = body.events as { eventId: string }[];
       await route.fulfill({
         json: {
+          version: 'observation-batch.v2',
+          result: 'processed',
+          recordingGeneration: body.recordingGeneration,
+          currentGeneration: body.recordingGeneration,
+          scope: { accountId: id(1), privacyEpoch: 1 },
           accepted: events.length,
           duplicates: 0,
           rejected: 0,

@@ -16,7 +16,7 @@ API client, the hint socket and local stores) with the sign-in client, and the i
 | `src/sign-in-binding.ts` | `base64UrlOfBytes`, `base64UrlOfBase64`: the encodings of the native verifier and its S256 challenge (RFC 7636; the app's `platform/sign-in-binding.ts` keeps the verifier in the secure store) |
 | `src/account-scope-socket.ts` | `connectScopeSocket()`: Socket.IO on the API origin (native: the scope's bearer in `auth.token`; web: the same-origin cookie; both name the scope in `auth.scope`, and a `SCOPE_MISMATCH` refusal makes the manager reread the session), subscribed to the scope's universe; `scope_changed` above the highest revision seen, or `scope_resync`, invalidates the scope's queries; "io server disconnect" makes the manager recheck the session |
 | `src/auth-client.ts` | `createAuthClient()`: the `/auth/*` routes as typed outcomes (`requested · invalid_address · rate_limited(retryAfter) · unavailable`, `signed_in · link_invalid · refused · unavailable`), never throwing; anything that is not the contract's answer counts as `unavailable` |
-| `src/recorder/` | The reading recorder (blueprint §18 "Shared interaction recorder", S1.6). `observer.ts`: `ReadingObserver`, structurally compatible with `ScrollReadingObserver` in `packages/ui/src/scroll/observer.ts` (client-core never imports `ui`; the app hands the observer to the article). `reading-tracker.ts`: the pure state machine from observer calls to bounded time summaries: per-block visible intervals (at the threshold fraction, **only while the article is active**) and active dwell (active and something visible); an inactive, hidden or overlaid article adds nothing; interactions once per block and kind from scroll-model `INTERACTION_KINDS`, never a value; weights nothing (the server computes coverage and q). `outbox.ts`: the scope's durable outbox (storage quota failures degrade to in-memory delivery): bounded batches (≤ 50 events, ≤ 48 KiB) formed once and persisted in `AccountScope.storage` (`recorder.outbox.v1`), delivered in order, the **same batch with the same event IDs** retried with 1 s → 60 s backoff after network, 5xx, 429 or lock-timeout failures, a malformed or oversized batch dropped, nothing sent or written once the scope has ended; limits (40 batches, 256 KiB) drop the oldest first and count them (a device-sequence gap the server reads as lost events). `scroll-recorder.ts`: `createScrollRecorder` builds `interaction.v1` events (`scroll.block_coverage`, `scroll.active_dwell`, `scroll.block_interaction`) with stable event IDs and device sequence 1, 2, 3 …, flushing every 15 s while there is something to say, on becoming inactive and on `end()`; its first report is always sent so "instrumented, saw nothing" differs from "no instrumentation"; `deliverBatch` classifies the API's answer for the outbox. `scopeOutbox` gives each account scope one shared outbox |
+| `src/recorder/` | Shared Scroll/Reel reading infrastructure. Pure visibility/playback trackers emit bounded `interaction.v1` summaries only for current eligible activation lineage. The scope owns an immutable original-generation `observation-batch.v2` outbox; strict correlated ACKs decide terminal intake, never qualification. See the recording policy section below for legacy migration, loss and lifecycle boundaries. |
 
 Rules:
 - No provider credentials or secrets ever reach this package; the client calls only the API.
@@ -219,3 +219,40 @@ Protocol/component/browser cases are authored fixtures and run only in Actions. 
 installs no durable backend/API/worker, creates no supported Geography, approves no mappings and
 proves no real cross-device, populated-dev or physical-device journey. Those remain acceptance
 requirements under363/238/237/222; models and paid roles remain separately controlled.
+
+
+## Personal recording policy (#381)
+
+`recording-policy.ts` owns one session on each actual AccountScope. Current authority and ACKs are
+memory-only; only the minimal exact unresolved set command is kept in scoped storage for reload
+recovery, never automatically resent. Storage failure inhibits sending a new policy choice. A strict correlated
+current read alone grants collection; initial/refresh/background/network/unknown/scope-ended states
+fail closed. The app supplies its platform UUID source. Read ID, target, account, epoch and monotonic
+revision/generation are checked. Pause inhibits synchronously before transport. Unknown set outcomes
+retain the exact command body and block an opposite choice; a missing receipt cannot cancel an
+in-flight command. Immutable historical set/recovery receipts never grant collection, and recovery
+requires a separate current read. Clear ends the old scope and reacquires policy; it never resets
+the recording generation. Browser focus/storage hints and native AppState recheck authority without
+changing account identity or privacy epoch.
+
+New producer commands capture one known original generation, including even/off for necessary
+explicit actions, before sending. No missing generation is defaulted or repaired on retry. The
+recorders require BOTH a matching current on policy and actual eligible activation lineage. Their
+session ID is the exact activation command UUID accepted by Experience. An old offer/producer or
+historical ACK cannot create a resumed segment. An existing encounter remains playback-only after
+a generation change; a fresh supported encounter/activation is required. Unknown/paused intervals
+are discarded, with fresh observation baselines; they never bridge into a later visible interval.
+
+The shared outbox now stores immutable complete `observation-batch.v2` envelopes under
+`recorder.outbox.v2`, separated by original generation, with limits checked on the actual envelope.
+Delivery uses only `submitRecording`. Strict response schema, exact scope/epoch/generation,
+ordered event IDs and per-status counts decide terminal intake. Valid processed and not_recorded
+are terminal; unknown/mismatched responses retain the identical body. A not_recorded response
+requests a separate policy read, never requeues old events under a new generation. Existing v1
+batches have unknowable original generation: adopting v2 explicitly discards/counts them once,
+retains the disclosure, and removes the old key without destroying an existing v2 queue. Missing
+observations remain unknown, never inferred reading. Storage errors degrade to memory-only delivery.
+
+Web localStorage remains subject to quota/crash loss; native scope storage is still memory-only
+and is not crash-durable. Authored race/replay/ACK/segment/UI/browser fixtures are intended for
+hosted Actions only. They do not establish real service qualification, native parity or deployment.

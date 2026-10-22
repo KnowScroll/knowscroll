@@ -627,3 +627,51 @@ describe('the account scope manager', () => {
     await Promise.all([stale, fresh]);
   });
 });
+
+it('a Clear-style new epoch reacquires generation5 instead of resetting it, and old reads stay fenced (CI fixture)', async () => {
+  const store = memoryStore();
+  let wait: Promise<void> | undefined;
+  let next = 100;
+  const create = (privacyEpoch: number) =>
+    createAccountScope({
+      account: { ...accountA, privacyEpoch },
+      baseUrl: 'https://recording-scope.fixture.test',
+      authorization: () => undefined,
+      store,
+      fetch: async (request) => {
+        const input = (await request.json()) as { readId: string; target: unknown };
+        const expected = `${accountA.accountId}:${privacyEpoch}`;
+        expect(request.headers.get('x-ks-scope')).toBe(expected);
+        await wait;
+        return json(200, {
+          version: 'recording-policy.v1',
+          ...input,
+          scope: { accountId: accountA.accountId, privacyEpoch },
+          revision: 20,
+          policy: { on: true, generation: 5 },
+        });
+      },
+    });
+  const old = create(1);
+  old.recording!.useIdSource(() => `0199a000-0000-7000-8000-${String(next++).padStart(12, '0')}`);
+  await old.recording!.refresh();
+  expect(old.recording!.getState().policy?.generation).toBe(5);
+  old.storage.set('recorder.outbox.v2', 'labelled old-scope storage fixture');
+  let release!: () => void;
+  wait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const late = old.recording!.refresh();
+  old.end();
+  expect(store.keys()).toEqual([]);
+  wait = undefined;
+  const fresh = create(2);
+  fresh.recording!.useIdSource(() => `0199a000-0000-7000-8000-${String(next++).padStart(12, '0')}`);
+  await fresh.recording!.refresh();
+  release();
+  await late;
+  expect(old.recording!.getState()).toMatchObject({ status: 'ended', collecting: false });
+  expect(fresh.recording!.getState()).toMatchObject({ status: 'current', collecting: true, policy: { generation: 5 } });
+  expect(fresh.id).toBe(`${accountA.accountId}:2`);
+  fresh.end();
+});
