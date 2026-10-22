@@ -32,3 +32,7 @@ export * from './keep-remove.js';
 export * from './saved-page.js';
 
 export * from './formation-presentation.js';
+
+export * from './conversations.js';
+export * from './content-shares.js';
+export * from './social-problems.js';
