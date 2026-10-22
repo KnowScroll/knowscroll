@@ -18,6 +18,7 @@ const canary = 'PRIVATE-CLEAR-BODY-CANARY';
 describe('durable Clear through installed HTTP and normal worker', () => {
   let database: Awaited<ReturnType<typeof createEmptyDatabase>>;
   let db: DatabaseHandle<Database>, api: ReleaseProcess, worker: ReleaseProcess | undefined, origin: string;
+  const workers: ReleaseProcess[] = [];
   const secrets = new Set<string>();
   type Fixture = KeepFixture & { tokens: Awaited<ReturnType<typeof seedKeepSessions>> };
   async function fixture(): Promise<Fixture> {
@@ -95,6 +96,17 @@ describe('durable Clear through installed HTTP and normal worker', () => {
         .execute(),
     };
   }
+  async function startWorker() {
+    worker = startReleaseProcess('worker', 'main', {
+      NODE_ENV: 'test',
+      KS_WORLD: 'ci',
+      DATABASE_URL: database.url,
+      KS_REASONING_PROVIDER: 'none',
+      KS_SHUTDOWN_GRACE_SECONDS: '10',
+    });
+    workers.push(worker);
+    await worker.waitForEvent('process.started');
+  }
   beforeAll(async () => {
     database = await createEmptyDatabase('privacy_http');
     expect(await startReleaseProcess('api', 'migrate', { DATABASE_URL: database.url, KS_WORLD: 'ci' }).exited()).toBe(
@@ -126,7 +138,7 @@ describe('durable Clear through installed HTTP and normal worker', () => {
     try {
       if (worker) expect(await worker.stop()).toBe(0);
       if (api) expect(await api.stop()).toBe(0);
-      for (const process of [api, worker])
+      for (const process of [api, ...workers])
         if (process) {
           for (const secret of secrets) expect(process.rawOutput()).not.toContain(secret);
           expect(process.rawOutput()).not.toContain(canary);
@@ -195,14 +207,7 @@ describe('durable Clear through installed HTTP and normal worker', () => {
       input = command(),
       before = await saved(f);
     const first = await accept(await post(path, input, headers(f)));
-    worker = startReleaseProcess('worker', 'main', {
-      NODE_ENV: 'test',
-      KS_WORLD: 'ci',
-      DATABASE_URL: database.url,
-      KS_REASONING_PROVIDER: 'none',
-      KS_SHUTDOWN_GRACE_SECONDS: '10',
-    });
-    await worker.waitForEvent('process.started');
+    await startWorker();
     await expect
       .poll(async () => (await status(f, 2, input.commandId)).status, { timeout: 20000 })
       .toBe('completed_live');
@@ -230,5 +235,55 @@ describe('durable Clear through installed HTTP and normal worker', () => {
       status: 'completed_live',
       scope: { accountId: f.person.accountId, privacyEpoch: 2 },
     });
+  });
+  it('a restarted normal worker recovers an orphaned durable operation through the declared recovery queue', async () => {
+    expect(await worker!.stop()).toBe(0);
+    worker = undefined;
+    const f = await fixture(),
+      input = command(),
+      before = await saved(f);
+    const first = await accept(await post(path, input, headers(f)));
+    // Authored terminal-delivery fixture. The core PG tests exercise actual final lock failures
+    // and pg-boss expiry; this installed-release case proves normal registry/schedule wiring.
+    await sql`update pgboss.job set state='failed', retry_count=retry_limit, completed_on=now()
+      where name='identity.clear-exploration' and data->>'commandId'=${input.commandId}`.execute(db.db);
+    await db.db
+      .updateTable('identity.clear_operations')
+      .set({ recovery_after: sql`now() - interval '1 second'` })
+      .where('account_id', '=', f.person.accountId)
+      .where('command_id', '=', input.commandId)
+      .execute();
+    expect(await status(f, 2, input.commandId)).toMatchObject({ status: 'pending', phase: 'removing_live_data' });
+    const schedule = await sql<{ cron: string; timezone: string; data: unknown }>`
+      select cron,timezone,data from pgboss.schedule where name='identity.recover-clear-operations'`.execute(db.db);
+    expect(schedule.rows).toEqual([{ cron: '*/5 * * * *', timezone: 'UTC', data: { v: 1 } }]);
+    // Send the normal scheduled payload once rather than waiting for a wall-clock cron boundary.
+    await sql`insert into pgboss.job(name,data) values('identity.recover-clear-operations','{"v":1}'::jsonb)`.execute(
+      db.db,
+    );
+    await startWorker();
+    await expect
+      .poll(async () => (await status(f, 2, input.commandId)).status, { timeout: 20000 })
+      .toBe('completed_live');
+    const op = await db.db
+      .selectFrom('identity.clear_operations')
+      .select(['recovery_attempts', 'failure_code', 'completed_at'])
+      .where('account_id', '=', f.person.accountId)
+      .where('command_id', '=', input.commandId)
+      .executeTakeFirstOrThrow();
+    expect(op.recovery_attempts).toBe(1);
+    expect(op.failure_code).toBeNull();
+    expect(op.completed_at).not.toBeNull();
+    const root = await db.db
+      .selectFrom('identity.universes')
+      .select(['privacy_epoch', 'clear_operation_id'])
+      .where('id', '=', f.person.universeId)
+      .executeTakeFirstOrThrow();
+    expect(root).toEqual({ privacy_epoch: 2, clear_operation_id: null });
+    expect(await saved(f)).toEqual(before);
+    expect(await accept(await post(path, input, headers(f, 2)))).toEqual({ ...first, replayed: true });
+    const jobs = await sql<{ n: number }>`select count(*)::int n from pgboss.job
+      where name='identity.clear-exploration' and data->>'commandId'=${input.commandId}`.execute(db.db);
+    expect(jobs.rows).toEqual([{ n: 2 }]);
   });
 });

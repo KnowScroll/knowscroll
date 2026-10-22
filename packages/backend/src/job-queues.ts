@@ -8,7 +8,11 @@ import {
   projectScrollReadingQueue,
   projectEncounterActivityQueue,
 } from './modules/evidence/public.js';
-import { sweepSignInRecordsQueue, clearExplorationQueue } from './modules/identity/public.js';
+import {
+  sweepSignInRecordsQueue,
+  clearExplorationQueue,
+  recoverClearOperationsQueue,
+} from './modules/identity/public.js';
 import {
   cutroomAccountingQueue,
   cutroomFollowQueue,
@@ -24,6 +28,7 @@ import {
  */
 export const releaseQueues = queueRegistry([
   clearExplorationQueue,
+  recoverClearOperationsQueue,
   cutroomPoolQueue,
   cutroomAccountingQueue,
   cutroomFollowQueue,

@@ -61,7 +61,15 @@ function fixture() {
   );
   const process = vi.fn<ClearExplorationUseCases['process']>(() => Promise.resolve());
   const fail = vi.fn<ClearExplorationUseCases['fail']>(() => Promise.resolve());
-  return { start, read, process, fail, controller: new PrivacyController({ start, status: read, process, fail }) };
+  const recover = vi.fn<ClearExplorationUseCases['recover']>(() => Promise.resolve({ scheduled: 0, skipped: 0 }));
+  return {
+    start,
+    read,
+    process,
+    fail,
+    recover,
+    controller: new PrivacyController({ start, status: read, process, fail, recover }),
+  };
 }
 describe('Clear thin adapter (authored transport fixtures)', () => {
   it('accepts only through the durable start port with admitted current authority', async () => {
@@ -70,6 +78,7 @@ describe('Clear thin adapter (authored transport fixtures)', () => {
     expect(f.start).toHaveBeenCalledExactlyOnceWith({ accountId, universeId, privacyEpoch: 2 }, input);
     expect(f.process).not.toHaveBeenCalled();
     expect(f.fail).not.toHaveBeenCalled();
+    expect(f.recover).not.toHaveBeenCalled();
     expect(f.read).not.toHaveBeenCalled();
   });
   it('returns historical replay epochs without replacing current scope', async () => {

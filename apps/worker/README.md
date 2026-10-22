@@ -6,8 +6,13 @@ The explicit consumer registry includes `identity.clear-exploration`. Its IDs-on
 locates an existing account-lifetime operation; durable core_done determines whether the
 worker may obtain core-removal authority or only exact-set accounting authority. Selective
 removal uses the complete verified owner registry and preserves every Saved/place/Social
-row. Accounting retries cannot run a broad eraser or dispatch paid work. After the queue's
-finite retry policy is exhausted, the consumer records a coarse completion_unverified failure.
+row. Accounting retries cannot run a broad eraser or dispatch paid work. On a final handler
+failure the consumer tries to record a coarse completion_unverified failure. The separate
+`identity.recover-clear-operations` scheduled consumer reconciles durable due operations if that
+write also fails, or if a final delivery expires or is lost before the handler can run its catch.
+Identity bounds each recovery wave, rechecks exact operation authority and live delivery state,
+and commits the recovery marker with its fixed-queue wake. Completed operations can recover
+only their due exact-set accounting cleanup; they never reacquire core-removal authority.
 
 This composition requires the durable core from PR348 and its installed schema/queue policy.
 Actions installed-release fixtures exercise the normal API and worker with disposable data

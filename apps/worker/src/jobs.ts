@@ -74,7 +74,7 @@ import {
   WORKER_CONFIG,
   PG_BOSS,
 } from './tokens.js';
-import { clearExplorationConsumer } from './privacy.js';
+import { clearExplorationConsumers } from './privacy.js';
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-context';
 
@@ -152,7 +152,7 @@ export const jobWiring: Provider[] = [
       boss: ReturnType<typeof createBoss>,
       config: WorkerConfig,
     ): readonly JobConsumer<unknown>[] => [
-      clearExplorationConsumer(
+      ...clearExplorationConsumers(
         clearExplorationFor(db, boss, {
           reasoning: clearReasoning,
           eraseCore: async (scope) => {
