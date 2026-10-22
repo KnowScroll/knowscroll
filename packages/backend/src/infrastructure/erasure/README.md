@@ -20,3 +20,14 @@ history, reset, delete account) and their epoch handling arrive with the privacy
 folder provides the registry and its checks.
 
 Account-keyed lifetime tables may be declared by modules outside Identity. The inventory checks their actual base-table existence separately while retaining compulsory coverage of every Identity account table, personal universe FK and account-linked column. These declarations do not execute account deletion.
+
+Cutroom's closed shared-public store manifests live with the Content and Reasoning adapters.
+They are separate from personal eraser declarations because their actual ownership closure is
+world/business/attempt/snapshot/shared asset, with no direct or transitive account/universe FK.
+The real-schema fixture compares all17 actual Cutroom tables to both manifests, rejects personal
+dependencies, and the populated full/selective fixture asserts unchanged new publication,
+financial report, settlement, receipt and maintenance rows plus the existing world records and
+pool history. Selective Saved preservation and unchanged full eraser semantics remain asserted.
+These manifests are not a naming exemption: any future actual personal dependency requires a
+matching ordinary registry/owner eraser entry. The public media and fixed IDs-only queue retention
+is explicit in the non-row inventories. No new personal queue payload or provider data is retained.

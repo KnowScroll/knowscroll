@@ -1,3 +1,15 @@
+import {
+  makeCommissionPreparation,
+  postgresCommissionReview,
+} from '@knowscroll/backend/modules/content/nest-providers';
+import { makeWithCutroomPreparationScope } from '@knowscroll/backend/reasoning/nest-providers';
+import { makeReelCorpusImporter } from '@knowscroll/backend/modules/content/nest-providers';
+import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
+import { cutroomBFor } from '@knowscroll/backend/reasoning/nest-providers';
+import { lockCommissionBusiness } from '@knowscroll/backend/modules/content/nest-providers';
+import { makeWithCutroomScope } from '@knowscroll/backend/reasoning/nest-providers';
+import { readCutroomSetup } from './cutroom-jobs.js';
+import { assembleCutroom } from './jobs.js';
 import { makeCutroomReelImporter } from '@knowscroll/backend/modules/content/nest-providers';
 import { userInfo } from 'node:os';
 import { parseArgs } from 'node:util';
@@ -5,6 +17,7 @@ import {
   ConfigurationError,
   commitForDiagnostics,
   readWorkerOperatorConfig,
+  readWorkerConfig,
   readContentOperatorConfig,
   readScrollProductionOperatorConfig,
   readMediaImportConfig,
@@ -37,7 +50,7 @@ import { produceScrollUseCase } from '@knowscroll/backend/modules/content/nest-p
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js content produce-scroll --topic seasons|tides|greenhouse|greenhouse-radiation|greenhouse-balance|greenhouse-limits [--dry-run] [--resume] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired';
+  'usage: operator.js cutroom import-corpus | cutroom commission (trusted configured root packet required) | operator.js content produce-scroll --topic seasons|tides|greenhouse|greenhouse-radiation|greenhouse-balance|greenhouse-limits [--dry-run] [--resume] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -92,6 +105,83 @@ async function main(): Promise<number> {
     return 2;
   }
   const [area, command] = args.positionals;
+  if (
+    area === 'cutroom' &&
+    ['commission', 'import-corpus', 'prepare-review', 'purge', 'process-pool', 'follow', 'settle'].includes(
+      command ?? '',
+    ) &&
+    args.positionals.length === 2
+  ) {
+    let database: ReturnType<typeof createDatabase<Database>> | undefined;
+    let boss: ReturnType<typeof createBoss> | undefined;
+    let connected: ReturnType<typeof assembleCutroom> | undefined;
+    try {
+      const config = readWorkerConfig(process.env);
+      if (!config.cutroom.enabled) {
+        print({ result: 'disabled' });
+        return 2;
+      }
+      const setup = await readCutroomSetup(config.cutroom, config.world);
+      database = createDatabase<Database>(config.database, { onIdleClientError: () => undefined });
+      if (command === 'purge') {
+        boss = createBoss(config.database, 'producer', { onError: () => undefined, onWarning: () => undefined });
+        await boss.start();
+        const count = await cutroomBFor(database.db, boss, {
+          enabled: true,
+          withScope: makeWithCutroomScope(database.db, { enabled: true, lockTimeoutMs: 5000 }),
+          lockBusiness: lockCommissionBusiness,
+        }).purge({ worldId: setup.worldId, generation: setup.generation }, 50);
+        print({ command: 'cutroom purge', result: 'expired_bytes_purged', count });
+        return 0;
+      }
+      if (command === 'prepare-review') {
+        const prepared = await makeCommissionPreparation(
+          postgresCommissionReview,
+          makeWithCutroomPreparationScope(database.db, { enabled: true }),
+          { enabled: true, manifests: setup.manifests },
+        ).prepare({ worldId: setup.worldId, generation: setup.generation }, setup.reviewProposal);
+        print({ command: 'cutroom prepare-review', ...prepared });
+        return prepared.kind === 'prepared' ? 0 : 2;
+      }
+      if (command === 'import-corpus') {
+        if (!setup.corpusRecords || !setup.corpusDraft) {
+          print({ result: 'setup_unavailable' });
+          return 2;
+        }
+        const imported = await makeReelCorpusImporter(
+          makeWithCutroomScope(database.db, { enabled: true, lockTimeoutMs: 5000 }),
+          { enabled: true, records: setup.corpusRecords, manifest: setup.manifests[0], draft: setup.corpusDraft },
+        )({ worldId: setup.worldId, generation: setup.generation });
+        print({ command: 'cutroom import-corpus', ...imported });
+        return imported.kind === 'imported' ? 0 : 2;
+      }
+      boss = createBoss(config.database, 'producer', { onError: () => undefined, onWarning: () => undefined });
+      await boss.start();
+      connected = assembleCutroom(database.db, boss, config, setup);
+      if (command !== 'commission') {
+        const method = command === 'process-pool' ? 'pool' : command === 'follow' ? 'follow' : 'settle';
+        const work = method === 'pool' ? setup.poolWork : method === 'follow' ? setup.followWork : setup.settleWork;
+        if (!work) {
+          print({ result: 'setup_unavailable' });
+          return 2;
+        }
+        const result = await connected.useCase[method](work);
+        print({ command: `cutroom ${command}`, mode: 'root_immediate_existing_operation', result });
+        return result === 'held' || result === 'disabled' || result === 'post_unknown' ? 2 : 0;
+      }
+      const result = await connected.useCase.commission(setup.command, setup.reviewPacket);
+      print({ command: 'cutroom commission', ...result });
+      return result.kind === 'pending' ? 0 : 2;
+    } catch {
+      print({ result: 'cutroom_unavailable' });
+      return 2;
+    } finally {
+      await connected?.close();
+      await boss?.stop({ graceful: true, timeout: 5000 });
+      await database?.close();
+    }
+  }
+
   if (area === 'content' && command === 'produce-scroll' && args.positionals.length === 2) {
     const topic = parseScrollTopic(args.values.topic);
     if (topic === undefined) {

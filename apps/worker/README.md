@@ -59,3 +59,42 @@ reservation. The role needs a separately approved paid allowance before enableme
 review; unknown attempts remain ledger-bound and never resend. There is no direct paid Planner
 operator command or consumer UI in this slice. Protected `planner.*` rows expose revisions/status
 for operator inspection; ordinary logs contain no Planner context or proposal text.
+
+Connected Cutroom source (#240) registers explicit normal pool/follow/accounting/settle consumers
+and a bounded scheduled recovery consumer; all work stays disabled unless the complete separate
+Cutroom worker configuration and trusted root packet exist. Each delivery re-reads bounded
+externally refreshed attestations without renewing any timestamp. Network/file/probe waits happen
+outside world transactions. Normal queued work and Root-driven immediate work invoke the same
+exact-operation use case; a receipt or safe hold alone never authorizes POST.
+
+The installed operator accepts `cutroom import-corpus`, `cutroom commission`, `cutroom process-pool`,
+`cutroom follow` and `cutroom settle`. They read only the configured root packet, never accept an
+arbitrary queue or approval JSON argument. The first pool delivery can safely claim then hold while
+Root obtains the actual bound-receipt preflight. Root may refresh actual attestations and use the
+exact existing `poolWork`/`followWork`/`settleWork` from that packet for immediate processing. This
+is not Cutroom resume or POST retry: any retained C1 intent can only be followed/reconciled.
+Immediate output identifies `root_immediate_existing_operation` and distinguishes a held/unknown
+operation from progress. `accounting_pending` is a local durable report/job; `accounting_confirmed`
+can represent an active evidence hold and must not be read as settlement. Inspect the exact
+immutable settlement receipt to establish claim closure.
+
+Source ships no corpus, human approval, principal, allowance, actual preflight, credential, root
+seed or runtime activation. Pool0004 installation/provenance/ACL and actual funds/sole-writer
+preflight remain separately reviewed Root operations. Old0014 imports and retained scripts are
+unchanged. CF62 cross-world0c receive is unimplemented and cannot order or settle the original
+claim. Actions synthetic worker/media journeys establish fixture behavior only, never paid
+provider or real installed-profile acceptance.
+
+Bootstrap metadata is separate from human approval: trusted setup permits empty approval
+registries for `cutroom import-corpus` and the read-only `cutroom prepare-review` command. The
+latter returns the exact prepared public packet for subsequent individual HUMAN approval; it
+never adds that approval to a registry or reserves/claims work. A missing current profile may
+still permit exact old financial accounting, while fresh GET verification requires its own
+actual read profile. Pinned upstream source guards original-plus-child against the unchanged original ceiling. The
+actual installed revision/profile/rates, sole-writer/lease and complete send/receipt assumptions
+remain an activation gate; unexpected-overage accounting alone never proves that gate.
+
+`cutroom purge` invokes the existing bounded B expiry purge (maximum50) under the current world
+root. It does not reconstruct bytes, forget liabilities or automatically release/refund a claim.
+This source exposes explicit operator expiry cleanup; it does not claim an additional automatic
+protected-byte GC scheduler.

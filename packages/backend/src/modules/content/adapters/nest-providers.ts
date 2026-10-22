@@ -137,3 +137,15 @@ export { makeCommissionChainSnapshots } from '../production/commission-chain-sto
 export { postgresCommissionChainStore } from './postgres-commission-chain.js';
 
 export { readSavedPageMetadata } from './discovery-store.js';
+
+/** Connected commissioning: source gates stay off unless the operator supplies every real dependency. */
+export { makeCommissioning } from '../production/commissioning.js';
+export { makeCommissionedReelImporter } from './import-commissioned-reel.js';
+export { makeCutroomSubmitClient } from './cutroom/submit-client.js';
+export { makeReelCorpusImporter } from './reel-corpus-import.js';
+export { contentCutroomStores, contentCutroomNonRowStores } from './cutroom-store-inventory.js';
+
+export { financialReportOfSnapshot } from '../production/commission-publication.js';
+export { makeCommissionMedia } from './cutroom/commission-media.js';
+
+export { makeCommissionPreparation } from '../production/commission-review.js';
