@@ -187,6 +187,26 @@ describe('recording-policy.v1 declaration (synthetic contract fixtures only)', (
       expect(RecordingPolicyReadSchema.safeParse(bad).success).toBe(false);
   });
 
+  it('matches command UUID aliases without changing target, receipt or original command spelling', () => {
+    const upper = id.toUpperCase();
+    for (const [targetId, receiptId] of [
+      [id, upper],
+      [upper, id],
+    ]) {
+      const value = {
+        ...recorded,
+        target: { ...target, commandId: targetId },
+        receipt: { ...receipt, commandId: receiptId },
+      };
+      expect(RecordingPolicyReadSchema.parse(value)).toEqual(value);
+      expect(
+        RecordingPolicyReadSchema.safeParse({ ...value, target: { ...target, commandId: other.toUpperCase() } })
+          .success,
+      ).toBe(false);
+    }
+    expect(SetRecordingPolicySchema.parse({ ...command, commandId: upper }).commandId).toBe(upper);
+  });
+
   it('allows historical receipts across Clear without regressing newer policy or epoch', () => {
     const oldOn = { ...receipt, fromGeneration: 2, toGeneration: 3, on: true };
     const laterPaused = {
