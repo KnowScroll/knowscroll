@@ -1,3 +1,4 @@
+import type { ReadRecordingLifecycle } from '../../identity/public.js';
 import type { EnsureActivityLineage, ReadActivityReconcilePage } from '../public.js';
 import { sql } from 'kysely';
 import { EncounterOfferSchema } from '@knowscroll/contracts';
@@ -169,6 +170,7 @@ export async function recordActivation(
   scope: PersonalScopeTx,
   id: string,
   metadata: EncounterAttribution,
+  lifecycle: ReadRecordingLifecycle,
   offer?: StoredOffer,
   originalGeneration?: number,
 ): Promise<void> {
@@ -181,7 +183,7 @@ export async function recordActivation(
   }>`select activated_at from experience.encounter_lineage where universe_id=${u}::uuid and privacy_epoch=${e} and explanation_unit_id=${metadata.explanationUnitId} and exposure_id<>${id}::uuid and activated_at<=${at} order by activated_at desc,exposure_id limit 1`.execute(
     db,
   );
-  const growth = await legacyRecording(scope, originalGeneration);
+  const growth = await legacyRecording(scope, originalGeneration, lifecycle);
   const returned =
     growth !== undefined &&
     offer?.mode === 'return' &&
@@ -306,10 +308,12 @@ export const readContextBase: NavigationPorts['readContextBase'] = async (scope,
     : undefined;
 };
 
-export const ensureActivityLineage: EnsureActivityLineage = async (scope, id, metadata) => {
-  await recordActivation(scope, id, metadata);
-  await refreshAttribution(scope, id, metadata);
-};
+export const ensureActivityLineage =
+  (lifecycle: ReadRecordingLifecycle): EnsureActivityLineage =>
+  async (scope, id, metadata) => {
+    await recordActivation(scope, id, metadata, lifecycle);
+    await refreshAttribution(scope, id, metadata);
+  };
 export const readActivityReconcilePage: ReadActivityReconcilePage = async (scope, q) => {
   if (q.limit < 1 || q.limit > 100 || !Number.isSafeInteger(q.limit)) throw new Error('ACTIVITY_RECONCILE_LIMIT');
   const { u, e, db } = own(scope);

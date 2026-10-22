@@ -283,3 +283,23 @@ proof read additionally revalidates/locks Content authority until caller commit.
 counts alone never authorize geography after a correction/retraction/withdrawal.
 
 A current descriptor or accepted activation/session alone is not an activity source. Explicit projection returns `no_current_source`, and reconciliation examines without queuing or changing metadata-gap counts, until an exact current qualification pointer (including an actual unknown qualification), non-NULL channel decision, or actual same-generation H/R exists. This refusal precedes credit/cache reads and preserves committed heads and effective credit. An explicit false channel decision remains a correction source; NULL does not become zero credit.
+
+## Fresh lifecycle channel selection (0044 source prerequisite)
+
+The real Activity provider now requires Experience READ_RECORDING_CHANNEL_SELECTION. For each
+positive effective L/B it uses at most two exact current asset/channel probes, requiring the
+selected exposure and matching explicit origin action. A legacy_unknown result can only retain
+its already committed baseline channel, never add a positive override. Current necessary flags
+and refreshed Content metadata cannot create certification or repair historical attribution.
+The existing own committed baseline/current segment qualification and PC four-method effect
+protocol remain distinct. Grouped synchronous corrections use at most two exposure deltas, one
+revision/material effect and no independent notice. The deferred SQL positive-credit guard also
+checks final current pointer/certificate rows; sealed source heads are untouched. No queue,
+provider authority, history scan, backfill or recording control is added. Hosted real-graph
+fixtures, complete DI/process replacement and runtime acceptance remain separately required.
+
+The Activity provider also requires the actual Identity lifecycle read before any segment projection.
+A genuine current mode1 root missing its witness is not_ready: jobs/read preparation create no
+new projection, while producer necessary commands remain available with ineligible origins.
+Session/queue/grouped effect entry points fail if called as collection on not_ready authority.
+This is separate from missing providers, corrupt protocol or forged/closed scope refusal.

@@ -65,3 +65,24 @@ Role rows retain their existing all-epoch erasure. No controller, UI, role flag,
 paid allowance or deployment is activated. Compatible whole consumers and current-candidate
 Actions must precede election; all previous42SQL stay byte exact. Source schema application to
 an empty own SSD database/codegen is separate from behavioral CI and runtime acceptance.
+
+## Fresh lifecycle protocol (0044, source prerequisite)
+
+Adds two empty eight-column stores and one nullable root mode (17 columns), with no historical
+initialization or existing table index. The canonical literal `fresh-recording-lifecycle.v1`
+registry/writer protocol hashes to
+`c21cc86efaa179b73e7d217b7250cba320bdd402a362df1a19266e893649720a`; its immutable literal
+lives in `packages/backend/src/erasure-registry.ts`. It contains no circular code/SQL hashes.
+Birth is the actual mode1 root INSERT in createAccount. Existing NULL roots can elect mode1 only
+at verified current selective-Clear core completion, before releasing the barrier. Financial
+completion is independent. Mode1/owner and witnesses are immutable; full erasure removes the
+witness without restoring authority. Certificates distinguish empty from real false and require
+actual eligible actions and completed receipts. Deferred checks inspect final exact rows.
+
+All prior43 SQL stays byte-exact. The rollout must stop/replace incompatible processes and compose
+all real writers before making new roots reachable. These narrow guards do not sandbox an old
+binary issuing arbitrary aggregate SQL. Source/codegen and hosted fixtures are separate evidence;
+this migration does not activate Pause or certify retained legacy channels.
+
+The two `prefer-bigint-over-smallint` exceptions in0044 cover only literal CHECK=1 format tags,
+not counters. No capacity or growing sequence relies on smallint.

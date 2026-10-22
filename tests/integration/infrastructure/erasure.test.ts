@@ -676,7 +676,15 @@ describe('the erasure registry (real database)', () => {
         erased: await personalRowCounts(erased.universeId),
         kept: await personalRowCounts(kept.universeId),
       };
-      expect(Object.values(before.erased).every((count) => count > 0)).toBe(true);
+      const legacyCounts = Object.fromEntries(
+        Object.entries(before.erased).filter(
+          ([name]) =>
+            name !== 'identity.recording_lifecycle_witnesses' && name !== 'experience.recording_channel_certificates',
+        ),
+      );
+      expect(Object.values(legacyCounts).every((count) => count > 0)).toBe(true);
+      expect(before.erased['identity.recording_lifecycle_witnesses']).toBe(0);
+      expect(before.erased['experience.recording_channel_certificates']).toBe(0);
       const reports = await withPersonalScope(erased.authority, (scope) => eraseUniverse(scope, personalStores));
       expect(reports.kind === 'entered' && reports.value.every((report) => report.status === 'completed')).toBe(true);
       const after = {

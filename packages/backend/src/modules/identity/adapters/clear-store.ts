@@ -1,4 +1,5 @@
 import { sql, type Kysely } from 'kysely';
+import { recordClearLifecycle } from './recording-lifecycle.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
 import { hasLivePrivacyJob, enqueueClearRecoveryContinuation } from '../../../infrastructure/jobs/enqueue-privacy.js';
@@ -112,9 +113,10 @@ export const clearStore: ClearStore = {
       .where('core_done_at', 'is', null)
       .executeTakeFirst();
     if (updated.numUpdatedRows !== 1n) throw new Error('CLEAR_CORE_INVALID');
+    await recordClearLifecycle(scope);
     const root = await trx
       .updateTable('identity.universes')
-      .set({ clear_operation_id: null, revision: sql`revision+1` })
+      .set({ clear_operation_id: null, recording_lifecycle_protocol: 1, revision: sql`revision+1` })
       .where('id', '=', b.universeId)
       .where('clear_operation_id', '=', b.operationId)
       .where('privacy_epoch', '=', b.toEpoch)

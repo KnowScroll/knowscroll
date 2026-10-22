@@ -14,6 +14,7 @@ import { ScopeClosedError, withTransaction } from './personal-scope.js';
 const acceptedOperations = new WeakMap<PrivacyScopeTx, ClearBinding>();
 const privacy = new WeakMap<PrivacyScopeTx, Transaction<Database>>();
 const verifiedCoreRemoval = new WeakSet<ClearCoreTx>();
+const currentCoreRemoval = new WeakSet<ClearCoreTx>();
 const core = new WeakMap<ClearCoreTx, Transaction<Database>>();
 const accounting = new WeakMap<ClearAccountingTx, Transaction<Database>>();
 export function privacyTransactionOf(scope: PrivacyScopeTx): Transaction<Database> {
@@ -141,6 +142,7 @@ export function makeWithClearMaintenance(
         } finally {
           core.delete(scope);
           verifiedCoreRemoval.delete(scope);
+          currentCoreRemoval.delete(scope);
         }
       }
       const rows = await trx
@@ -222,4 +224,14 @@ export function markClearRemovalVerified(scope: ClearCoreTx): void {
 export function assertClearRemovalVerified(scope: ClearCoreTx): void {
   clearCoreTransactionOf(scope);
   if (!verifiedCoreRemoval.has(scope)) throw new Error('CLEAR_REMOVAL_UNVERIFIED');
+}
+
+/** Internal issuer used only by the closed actual registry runner, never generic verification. */
+export function markCurrentClearRemovalVerified(scope: ClearCoreTx): void {
+  assertClearRemovalVerified(scope);
+  currentCoreRemoval.add(scope);
+}
+export function assertCurrentClearRemovalVerified(scope: ClearCoreTx): void {
+  clearCoreTransactionOf(scope);
+  if (!currentCoreRemoval.has(scope)) throw new Error('CLEAR_CURRENT_REGISTRY_UNVERIFIED');
 }

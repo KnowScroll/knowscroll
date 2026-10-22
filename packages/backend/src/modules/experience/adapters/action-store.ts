@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import type { PersonalScopeTx } from '../../identity/public.js';
+import type { ReadRecordingLifecycle, PersonalScopeTx } from '../../identity/public.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import { applyActionEvidenceQueue, projectEncounterActivityQueue } from '../../evidence/public.js';
 import type { ChannelState, ChannelAction } from '../application/encounter-action.js';
@@ -90,14 +90,26 @@ async function channels(
   }
   return { changed };
 }
-export function makeCommitAction(enqueue: EnqueueJob, effects?: ExperienceRecordingEffects) {
+export function makeCommitAction(
+  enqueue: EnqueueJob,
+  lifecycle: ReadRecordingLifecycle,
+  effects?: ExperienceRecordingEffects,
+) {
   return async (scope: PersonalScopeTx, a: ChannelAction, b: ChannelState) => {
     const { actionId: id, exposureId: _exposureId, ...rest } = a;
     await recordAction(scope, { ...rest, id, kind: a.kind });
     const g = originalRecordingGeneration(a);
     const gate = await fencePersonalRecording(scope, g);
     if (gate.kind === 'unavailable') throw new Error('RECORDING_AUTHORITY_UNAVAILABLE');
-    const cap = gate.kind === 'recording' && (effects || gate.scope.generation === 1) ? gate.scope : undefined;
+    const state = gate.kind === 'recording' ? await lifecycle(gate.scope) : undefined;
+    if (state?.kind === 'unavailable') throw new Error('RECORDING_LIFECYCLE_UNAVAILABLE');
+    if (!effects && state?.kind === 'fresh') throw new Error('EXPERIENCE_RECORDING_EFFECTS_REQUIRED');
+    const cap =
+      gate.kind === 'recording' &&
+      state?.kind !== 'not_ready' &&
+      (effects || (gate.scope.generation === 1 && state?.kind === 'legacy_unknown'))
+        ? gate.scope
+        : undefined;
     await rememberRecordingOrigin(
       scope,
       { commandId: a.commandId, operation: a.operation ?? 'experience.encounter-action-v0' },
@@ -107,7 +119,9 @@ export function makeCommitAction(enqueue: EnqueueJob, effects?: ExperienceRecord
     );
     const result = await channels(scope, a, b, enqueue, false, !effects && cap?.generation === 1);
     const recording =
-      effects && cap ? await applyRecordingChannel(cap, a, result.changed, effects) : { changed: false as const };
+      effects && cap
+        ? await applyRecordingChannel(cap, a, result.changed, effects, lifecycle)
+        : { changed: false as const };
     if (effects && cap) await effects.enqueueActionEvidence(cap, a.actionId);
     else if (cap?.generation === 1)
       await enqueue(scope, applyActionEvidenceQueue, {
@@ -120,7 +134,11 @@ export function makeCommitAction(enqueue: EnqueueJob, effects?: ExperienceRecord
   };
 }
 /** Legacy application has already changed Saved; retain original linkage for a legacy Unsave. */
-export function makeRecordLegacyAction(enqueue: EnqueueJob, effects?: ExperienceRecordingEffects) {
+export function makeRecordLegacyAction(
+  enqueue: EnqueueJob,
+  lifecycle: ReadRecordingLifecycle,
+  effects?: ExperienceRecordingEffects,
+) {
   return async (scope: PersonalScopeTx, a: ActionRecord) => {
     if (a.kind !== 'save' && a.kind !== 'unsave') throw new Error('LEGACY_ACTION_INVALID');
     const current = await readChannels(scope, a.assetId);
@@ -131,7 +149,15 @@ export function makeRecordLegacyAction(enqueue: EnqueueJob, effects?: Experience
     const g = originalRecordingGeneration(a),
       gate = await fencePersonalRecording(scope, g);
     if (gate.kind === 'unavailable') throw new Error('RECORDING_AUTHORITY_UNAVAILABLE');
-    const cap = gate.kind === 'recording' && (effects || gate.scope.generation === 1) ? gate.scope : undefined;
+    const state = gate.kind === 'recording' ? await lifecycle(gate.scope) : undefined;
+    if (state?.kind === 'unavailable') throw new Error('RECORDING_LIFECYCLE_UNAVAILABLE');
+    if (!effects && state?.kind === 'fresh') throw new Error('EXPERIENCE_RECORDING_EFFECTS_REQUIRED');
+    const cap =
+      gate.kind === 'recording' &&
+      state?.kind !== 'not_ready' &&
+      (effects || (gate.scope.generation === 1 && state?.kind === 'legacy_unknown'))
+        ? gate.scope
+        : undefined;
     await rememberRecordingOrigin(
       scope,
       { commandId: a.commandId, operation: a.operation ?? 'experience.apply-action' },
@@ -144,14 +170,18 @@ export function makeRecordLegacyAction(enqueue: EnqueueJob, effects?: Experience
     return {
       recording:
         effects && cap
-          ? await applyRecordingChannel(cap, actual, a.necessaryChanged ?? result.changed, effects)
+          ? await applyRecordingChannel(cap, actual, a.necessaryChanged ?? result.changed, effects, lifecycle)
           : { changed: false as const },
     };
   };
 }
 
 /** Legacy caller queue seam reads the stored original disposition, never server-current. */
-export function makeEnqueueActionEvidence(enqueue: EnqueueJob, effects?: ExperienceRecordingEffects) {
+export function makeEnqueueActionEvidence(
+  enqueue: EnqueueJob,
+  lifecycle: ReadRecordingLifecycle,
+  effects?: ExperienceRecordingEffects,
+) {
   return async (
     scope: PersonalScopeTx,
     payload: { readonly v: 1; readonly universeId: string; readonly privacyEpoch: number; readonly actionId: string },
@@ -167,7 +197,12 @@ export function makeEnqueueActionEvidence(enqueue: EnqueueJob, effects?: Experie
     if (!origin?.eligible) return;
     const gate = await fencePersonalRecording(scope, origin.eligible);
     if (gate.kind !== 'recording') return;
+    const state = await lifecycle(gate.scope);
+    if (state.kind === 'unavailable') throw new Error('RECORDING_LIFECYCLE_UNAVAILABLE');
+    if (state.kind === 'not_ready') return;
+    if (!effects && state.kind === 'fresh') throw new Error('EXPERIENCE_RECORDING_EFFECTS_REQUIRED');
     if (effects) await effects.enqueueActionEvidence(gate.scope, payload.actionId);
-    else if (gate.scope.generation === 1) await enqueue(scope, applyActionEvidenceQueue, payload);
+    else if (gate.scope.generation === 1 && state.kind === 'legacy_unknown')
+      await enqueue(scope, applyActionEvidenceQueue, payload);
   };
 }

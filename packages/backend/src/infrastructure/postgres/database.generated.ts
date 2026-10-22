@@ -553,6 +553,17 @@ export interface ExperienceOffers {
   universe_id: string;
 }
 
+export interface ExperienceRecordingChannelCertificates {
+  asset_id: string;
+  channel: string;
+  first_decision_action_id: string | null;
+  initialized_at: Timestamp;
+  initialized_generation: number;
+  initializing_action_id: string;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
 export interface ExperienceRecordingCommandOrigins {
   command_id: string;
   disposition_version: Generated<number>;
@@ -767,6 +778,17 @@ export interface IdentityRecordingCommands {
   to_generation: number;
 }
 
+export interface IdentityRecordingLifecycleWitnesses {
+  account_id: string;
+  clear_operation_id: string | null;
+  origin_kind: string;
+  privacy_epoch: number;
+  protocol_version: number;
+  registry_sha256: string;
+  universe_id: string;
+  verified_at: Timestamp;
+}
+
 export interface IdentitySessions {
   account_id: string;
   client: string;
@@ -799,6 +821,7 @@ export interface IdentityUniverses {
   id: string;
   privacy_epoch: Generated<number>;
   recording_generation: Generated<number>;
+  recording_lifecycle_protocol: number | null;
   recording_on: Generated<boolean>;
   revision: Generated<number>;
   status: Generated<string>;
@@ -1522,6 +1545,7 @@ export interface DB {
   "experience.offer_activations": ExperienceOfferActivations;
   "experience.offer_region_constraints": ExperienceOfferRegionConstraints;
   "experience.offers": ExperienceOffers;
+  "experience.recording_channel_certificates": ExperienceRecordingChannelCertificates;
   "experience.recording_command_origins": ExperienceRecordingCommandOrigins;
   "experience.recording_offer_origins": ExperienceRecordingOfferOrigins;
   "experience.recording_segment_inputs": ExperienceRecordingSegmentInputs;
@@ -1539,6 +1563,7 @@ export interface DB {
   "identity.clear_operations": IdentityClearOperations;
   "identity.email_addresses": IdentityEmailAddresses;
   "identity.recording_commands": IdentityRecordingCommands;
+  "identity.recording_lifecycle_witnesses": IdentityRecordingLifecycleWitnesses;
   "identity.sessions": IdentitySessions;
   "identity.sign_in_links": IdentitySignInLinks;
   "identity.universes": IdentityUniverses;

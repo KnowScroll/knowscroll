@@ -32,7 +32,13 @@ import {
 } from '../../composer/public.js';
 import { projectEncounterActivityQueue } from '../../evidence/public.js';
 import { READ_COMPOSER_CONTEXT } from '../../personal-context/public.js';
-import { FENCE_OWN_ACCOUNT, type FenceOwnAccount, type WithPersonalScope } from '../../identity/public.js';
+import {
+  FENCE_OWN_ACCOUNT,
+  READ_RECORDING_LIFECYCLE,
+  type ReadRecordingLifecycle,
+  type FenceOwnAccount,
+  type WithPersonalScope,
+} from '../../identity/public.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { advanceScopeRevision } from '../../../infrastructure/postgres/personal-scope.js';
@@ -72,6 +78,7 @@ export function navigationProviders(
       inject: [
         t.withPersonalScope,
         FENCE_OWN_ACCOUNT,
+        READ_RECORDING_LIFECYCLE,
         t.enqueueJob,
         READ_COMPOSER_CONTEXT,
         COMPOSE_ENCOUNTER,
@@ -89,6 +96,7 @@ export function navigationProviders(
       useFactory: (
         withPersonalScope: WithPersonalScope,
         fenceOwn: FenceOwnAccount,
+        lifecycle: ReadRecordingLifecycle,
         enqueue: EnqueueJob,
         readPrepared: ReadPreparedEvidenceInput,
         compose: ComposeEncounter,
@@ -108,7 +116,7 @@ export function navigationProviders(
           : undefined;
         return {
           withPersonalScope: withExperienceScope(withPersonalScope, fenceOwn),
-          recording: recordingCommandHooks(readAttribution, effects),
+          recording: recordingCommandHooks(readAttribution, lifecycle, effects),
           // Explicitly unmounted legacy composition cannot inherit/activate a regional offer.
           // The API opts in to all three actual owning ports together; there is no broad fallback.
           readRegionConstraint: readRegionConstraint ?? (() => Promise.resolve({ kind: 'refused' })),
@@ -134,10 +142,10 @@ export function navigationProviders(
           insertExposure,
           markActivated: markExposureActivated,
           recordActivation: async (scope, id, metadata, offer, originalGeneration) => {
-            if (!effects) await recordActivation(scope, id, metadata, offer, originalGeneration);
+            if (!effects) await recordActivation(scope, id, metadata, lifecycle, offer, originalGeneration);
           },
           enqueueActivity: async (s, id, originalGeneration) => {
-            if (options.recordingEffects || !(await legacyRecording(s, originalGeneration))) return;
+            if (options.recordingEffects || !(await legacyRecording(s, originalGeneration, lifecycle))) return;
             await enqueue(s, projectEncounterActivityQueue, {
               v: 1,
               universeId: s.authority.universeId,

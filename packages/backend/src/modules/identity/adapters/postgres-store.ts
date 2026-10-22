@@ -184,7 +184,12 @@ export async function createAccount(
     .execute();
   await trx
     .insertInto('identity.universes')
-    .values({ id: account.universeId, account_id: account.accountId, privacy_epoch: 1 })
+    .values({
+      id: account.universeId,
+      account_id: account.accountId,
+      privacy_epoch: 1,
+      recording_lifecycle_protocol: 1,
+    })
     .execute();
 }
 
