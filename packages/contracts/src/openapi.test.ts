@@ -1562,8 +1562,10 @@ describe('additive242 current-own-send and public-only preview OpenAPI', () => {
     const ownSend = JSON.stringify(schemas?.['OwnSend']);
     for (const field of ['scope', 'selector', 'conversation', 'messageId', 'messageSequence', 'recordedAt', 'target'])
       expect(ownSend).toContain(`"${field}"`);
+    expect(ownSend).toContain('"const":"text"');
+    // A discriminator value may be text; the schema must not expose a text/body property.
     for (const field of ['text', 'body', 'note', 'token', 'replayed', 'operation', 'outcome'])
-      expect(ownSend).not.toContain(`"${field}"`);
+      expect(ownSend).not.toContain(`"${field}":`);
     const publicPreview = JSON.stringify(schemas?.['PublicPreview']);
     for (const value of ['public_metadata', 'unavailable', 'corrected', 'assetRevision', 'title'])
       expect(publicPreview).toContain(value);

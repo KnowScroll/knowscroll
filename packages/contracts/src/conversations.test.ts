@@ -366,8 +366,10 @@ describe('current own-send identity lookup (#242; contract fixtures only)', () =
     });
     const serialised = JSON.stringify(OwnConversationSendSchema.parse(accepted));
     expect(serialised).not.toContain('PRIVATE_MESSAGE_CANARY');
+    expect(serialised).toContain('"kind":"text"');
+    // The text discriminator is public identity metadata; private property names remain forbidden.
     for (const field of ['body', 'text', 'note', 'replayed', 'operation', 'outcome', 'token'])
-      expect(serialised).not.toContain(`"${field}"`);
+      expect(serialised).not.toContain(`"${field}":`);
     expect(JSON.stringify(pending)).toBe(original);
   });
   it('keeps unavailable ambiguous, without reauthorisation, resend flags or historical epoch receipts', () => {
