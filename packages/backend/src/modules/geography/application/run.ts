@@ -78,7 +78,12 @@ async function retireRevoked(
   p: CartographerPorts,
   authority: Parameters<CartographerPorts['withScope']>[0],
   runId: string,
-  delivered?: { readonly generation: number | null; readonly wakeId?: string; readonly legacyOrdinary?: boolean },
+  delivered?: {
+    readonly generation: number | null;
+    readonly wakeId?: string;
+    readonly legacyOrdinary?: boolean;
+    readonly expectedClaimId?: string;
+  },
 ) {
   await p.withScope(authority, async (scope) => {
     let h: GeographyAccountingHeader | undefined,
@@ -86,6 +91,18 @@ async function retireRevoked(
       legacyDelivery = false;
     const result = await p.harness.readPersonalRunAccounting(scope, runId, async (current, owner) => {
       h = await p.store.accountingHeader(current, runId);
+      if (!h || !delivered) return 'unavailable';
+      if (
+        delivered.wakeId
+          ? h.normalWakeId !== delivered.wakeId
+          : delivered.expectedClaimId
+            ? !!h.normalWakeId ||
+              h.status !== 'prepared' ||
+              h.claimId !== delivered.expectedClaimId ||
+              h.claimWakeClaimId !== delivered.expectedClaimId
+            : !!h.normalWakeId || !!h.claimId || !!h.claimWakeClaimId
+      )
+        return 'unavailable';
       legacyDelivery = !!(
         h &&
         delivered?.legacyOrdinary &&
@@ -135,6 +152,46 @@ async function retireRevoked(
     }
   });
 }
+/** A missing provider may refuse before Reasoning admission. Only actual zero-retained
+ * accounting can release this exact current claim; no semantic apply or ledger close. */
+async function finishUnadmitted(
+  p: CartographerPorts,
+  authority: Parameters<CartographerPorts['withScope']>[0],
+  purpose: PersonalRecordingPurpose,
+) {
+  await p.withScope(authority, async (scope) => {
+    let eligible = false;
+    const result = await p.harness.readPersonalRunAccounting(scope, purpose.businessRunId, async (current, owner) => {
+      const h = await p.store.accountingHeader(current, purpose.businessRunId);
+      if (
+        !h ||
+        h.status !== 'prepared' ||
+        !h.accountId ||
+        !same(h.accountId, owner.accountId) ||
+        !same(owner.accountId, purpose.accountId) ||
+        h.generation !== purpose.recordingGeneration ||
+        h.claimId !== purpose.claimId ||
+        h.claimWakeClaimId !== purpose.claimId ||
+        h.normalWakeId ||
+        !h.claimUntil ||
+        Date.parse(h.claimUntil) <= p.now().getTime() ||
+        (await p.store.state(current)).activeRunId !== h.id ||
+        (await p.fenceRecording(current, purpose.recordingGeneration)).kind !== 'recording'
+      )
+        return 'unavailable';
+      eligible = true;
+      return {
+        ownerModule: 'geography',
+        purpose: 'personal-cartographer',
+        accountId: owner.accountId,
+        privacyEpoch: owner.privacyEpoch,
+        recordingGeneration: h.generation,
+      };
+    });
+    if (eligible && result.kind === 'not_found')
+      await p.store.finishUnadmitted(scope, purpose.businessRunId, purpose.claimId);
+  });
+}
 /** Short prepare/apply transactions around the shared finite attempt ledger. */
 export function makeRunCartographer(p: CartographerPorts): RunCartographer {
   return async (input, signal) => {
@@ -169,7 +226,8 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       } else if (
         job.wakeId
           ? run.normalWakeId !== job.wakeId
-          : !job.expectedClaimId ||
+          : !!run.normalWakeId ||
+            !job.expectedClaimId ||
             run.claimId !== job.expectedClaimId ||
             run.claimWakeClaimId !== job.expectedClaimId ||
             run.status !== 'prepared'
@@ -246,6 +304,7 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       await retireRevoked(p, authority, job.runId, {
         generation: job.v === 2 ? (job.recordingGeneration ?? null) : null,
         wakeId: job.wakeId,
+        expectedClaimId: job.expectedClaimId,
         legacyOrdinary: job.v === 2 && job.recordingGeneration === 1 && !!job.wakeId,
       });
       return;
@@ -280,6 +339,10 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       },
       signal,
     );
+    if (outcome.kind === 'refused' && outcome.reason === 'provider_unavailable') {
+      await finishUnadmitted(p, authority, purpose);
+      return;
+    }
     const applied = await p.harness.withPersonalApply(authority, purpose, async (cap) => {
       const scope = cap.personal,
         state = await p.store.state(scope),
@@ -352,7 +415,11 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       if (updated.desiredRevision > run.desiredRevision && updated.desiredSource?.generation === cap.generation)
         await ensureCartography(p, cap, idle);
     });
-    if (applied.kind === 'refused') await retireRevoked(p, authority, run.id);
+    if (applied.kind === 'refused')
+      await retireRevoked(p, authority, run.id, {
+        generation: run.recording!.source.generation,
+        expectedClaimId: run.claimId,
+      });
   };
 }
 /** Already committed delta display stays available while recording is paused. */

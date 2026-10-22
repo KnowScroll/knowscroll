@@ -391,6 +391,79 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       });
     }
   }
+  it('actual missing-provider refusal releases only the exact zero-retained claim without semantic apply or ledger closure', async () => {
+    for (const retained of [false, true]) {
+      const a = await seedPerson(database.db);
+      await coherent(a);
+      const before = await state(a),
+        runId = before.activeRunId!;
+      if (retained)
+        await database.db
+          .insertInto('reasoning.business_runs')
+          .values({
+            universe_id: a.universeId,
+            id: runId,
+            privacy_epoch: 1,
+            owner_module: 'geography',
+            purpose: 'personal-cartographer',
+          })
+          .execute();
+      const fixture = fixtureHarness(database.db, { model: undefined });
+      const actual = personalRecordingReasoningHarnessFor({
+        db: database.db,
+        model: undefined,
+        withPersonalScope: fixture.ports.withPersonalScope,
+        fenceOwn: base.fenceOwn,
+        settings: fixtureSettings,
+        logEvent: silent,
+        overrides: fixture.ports,
+        checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now: base.now }),
+        checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now: base.now }),
+      });
+      const forbidden = () => {
+        throw new Error('CI unadmitted run cannot apply or close');
+      };
+      await makeRunCartographer({
+        ...base,
+        enabled: () => true,
+        permitted: () => Promise.resolve(true),
+        harness: { ...actual, withPersonalApply: forbidden, closePersonalRun: forbidden },
+      })(await job(a, runId), signal());
+      const h = await database.db
+        .selectFrom('geography.runs')
+        .selectAll()
+        .where('universe_id', '=', a.universeId)
+        .where('id', '=', runId)
+        .executeTakeFirstOrThrow();
+      expect(h.status).toBe(retained ? 'prepared' : 'blocked');
+      expect(h.outcome).toBe(retained ? null : 'provider_unavailable');
+      expect(h.normal_wake_id).toBeNull();
+      if (retained) {
+        expect(h.claim_id).not.toBeNull();
+        expect(h.claim_wake_claim_id).toBe(h.claim_id);
+      } else {
+        expect(h.claim_id).toBeNull();
+        expect(h.claim_until).toBeNull();
+        expect(h.claim_wake_claim_id).toBeNull();
+      }
+      expect(await state(a)).toEqual(before);
+      expect(await attemptsOf(database.db, a.universeId)).toEqual([]);
+      expect(
+        await database.db
+          .selectFrom('reasoning.business_runs')
+          .select('id')
+          .where('universe_id', '=', a.universeId)
+          .execute(),
+      ).toHaveLength(retained ? 1 : 0);
+      expect(
+        await database.db
+          .selectFrom('geography.deltas')
+          .select('transition_id')
+          .where('universe_id', '=', a.universeId)
+          .execute(),
+      ).toEqual([]);
+    }
+  });
   it('unviewed assets and readonly map visits create no work, coverage, model call or objects', async () => {
     const p = await seedPerson(database.db);
     await fixture();

@@ -3,13 +3,23 @@ import type { RecordingScopeTx } from '../../identity/public.js';
 import type { GeographyPorts, GeographyState, MaterialGeographyChange, RequestCartography } from './ports.js';
 /** Immutable birth identity from a current accepted source, never a resumed prepare. */
 export async function ensureCartography(
-  p: Pick<GeographyPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement'>,
+  p: Pick<GeographyPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement' | 'now'>,
   cap: RecordingScopeTx,
   state: GeographyState,
 ): Promise<GeographyState> {
   const root = await p.store.root(cap);
   if (state.activeRunId) {
-    if (state.desiredSource?.generation === cap.generation) await p.enqueueRetirement(cap, state.activeRunId);
+    if (state.desiredSource?.generation === cap.generation) {
+      const h = await p.store.accountingHeader(cap.personal, state.activeRunId);
+      if (h?.generation === cap.generation && h.accountId === root.accountId) {
+        if (
+          ['queued', 'prepared'].includes(h.status) &&
+          ((!h.claimId && !h.claimUntil) ||
+            (h.claimId && h.claimUntil && Date.parse(h.claimUntil) <= p.now().getTime()))
+        )
+          await p.enqueue(cap, h.id);
+      } else await p.enqueueRetirement(cap, state.activeRunId);
+    }
     return state;
   }
   if (!state.desiredSource || state.desiredSource.generation !== cap.generation)
@@ -77,6 +87,14 @@ export function makeRequestCartography(p: GeographyPorts): RequestCartography {
         root = await p.store.root(cap);
       let runId: string;
       if (c.resumeRunId) {
+        const minimal = await p.store.accountingHeader(scope, c.resumeRunId);
+        if (
+          !minimal ||
+          (minimal.generation === undefined
+            ? !minimal.legacyOrigin || cap.generation !== 1
+            : minimal.generation !== cap.generation || minimal.accountId !== root.accountId)
+        )
+          return refuse('run_not_resumable');
         const run = await p.store.header(scope, c.resumeRunId),
           expired = run?.status === 'prepared' && (!run.claimUntil || Date.parse(run.claimUntil) <= p.now().getTime());
         if (

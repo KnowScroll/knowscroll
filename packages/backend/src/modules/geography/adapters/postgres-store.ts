@@ -119,7 +119,10 @@ export const geographyStore: GeographyStore = {
         recording_generation: number | null;
         normal_wake_id: string | null;
         legacy_origin: boolean;
-      }>`select id,status,recording_account_id,recording_generation,normal_wake_id,(recording_account_id is null and recording_generation is null and recording_origin_kind is null and recording_origin_command_id is null and recording_origin_source_revision is null and recording_context_sha256 is null and recording_model_context_sha256 is null) as legacy_origin from geography.runs where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid`.execute(
+        claim_id: string | null;
+        claim_until: Date | null;
+        claim_wake_claim_id: string | null;
+      }>`select id,status,recording_account_id,recording_generation,normal_wake_id,claim_id,claim_until,claim_wake_claim_id,(recording_account_id is null and recording_generation is null and recording_origin_kind is null and recording_origin_command_id is null and recording_origin_source_revision is null and recording_context_sha256 is null and recording_model_context_sha256 is null) as legacy_origin from geography.runs where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid`.execute(
         tx,
       )
     ).rows[0];
@@ -128,6 +131,9 @@ export const geographyStore: GeographyStore = {
           id: r.id,
           status: r.status,
           legacyOrigin: r.legacy_origin,
+          ...(r.claim_id ? { claimId: r.claim_id } : {}),
+          ...(r.claim_until ? { claimUntil: r.claim_until.toISOString() } : {}),
+          ...(r.claim_wake_claim_id ? { claimWakeClaimId: r.claim_wake_claim_id } : {}),
           ...(r.normal_wake_id ? { normalWakeId: r.normal_wake_id } : {}),
           ...(r.recording_account_id ? { accountId: r.recording_account_id } : {}),
           ...(r.recording_generation === null ? {} : { generation: r.recording_generation }),
@@ -146,9 +152,27 @@ export const geographyStore: GeographyStore = {
   },
   async consumeNormalWake(scope, id, wakeId) {
     const { tx, u, e } = owner(scope);
-    await sql`update geography.runs set normal_wake_id=null,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and normal_wake_id=${wakeId}::uuid`.execute(
-      tx,
-    );
+    const result =
+      await sql`update geography.runs set normal_wake_id=null,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and normal_wake_id=${wakeId}::uuid returning id`.execute(
+        tx,
+      );
+    return result.rows.length === 1;
+  },
+  async setNormalWake(scope, id, wakeId) {
+    const { tx, u, e } = owner(scope);
+    const result =
+      await sql`update geography.runs set normal_wake_id=${wakeId}::uuid,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and normal_wake_id is null and status in('queued','prepared','blocked','unknown') returning id`.execute(
+        tx,
+      );
+    return result.rows.length === 1;
+  },
+  async finishUnadmitted(scope, id, claimId) {
+    const { tx, u, e } = owner(scope);
+    const result =
+      await sql`update geography.runs set status='blocked',outcome='provider_unavailable',claim_id=null,claim_until=null,claim_wake_claim_id=null,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and status='prepared' and claim_id=${claimId}::uuid and claim_wake_claim_id=${claimId}::uuid and normal_wake_id is null returning id`.execute(
+        tx,
+      );
+    if (result.rows.length !== 1) throw new Error('GEOGRAPHY_UNADMITTED_CLAIM_CHANGED');
   },
   async retire(scope, id) {
     const { tx, u, e } = owner(scope);

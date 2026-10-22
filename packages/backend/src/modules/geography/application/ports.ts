@@ -111,6 +111,9 @@ export interface GeographyRunHeader {
   readonly outcome?: string;
 }
 export interface GeographyAccountingHeader {
+  readonly claimId?: string;
+  readonly claimUntil?: string;
+  readonly claimWakeClaimId?: string;
   readonly normalWakeId?: string;
   readonly legacyOrigin: boolean;
   readonly id: string;
@@ -135,7 +138,9 @@ export interface GeographyStore {
   accountingHeader(scope: PersonalScopeTx, id: string): Promise<GeographyAccountingHeader | undefined>;
   context(scope: RecordingScopeTx, id: string): Promise<GeographyContext | undefined>;
   retire(scope: PersonalScopeTx, id: string): Promise<void>;
-  consumeNormalWake(scope: PersonalScopeTx, id: string, wakeId: string): Promise<void>;
+  finishUnadmitted(scope: PersonalScopeTx, id: string, claimId: string): Promise<void>;
+  consumeNormalWake(scope: PersonalScopeTx, id: string, wakeId: string): Promise<boolean>;
+  setNormalWake(scope: PersonalScopeTx, id: string, wakeId: string): Promise<boolean>;
   state(scope: PersonalScopeTx): Promise<GeographyState>;
   writeState(scope: PersonalScopeTx, state: GeographyState): Promise<void>;
   view(scope: PersonalScopeTx): Promise<GeographyView>;

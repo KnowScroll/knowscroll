@@ -408,6 +408,205 @@ describe('Geography original generation and exact wake ownership (Actions only)'
     ).toEqual({ kind: 'refused', reason: 'run_not_resumable' });
     expect(await header(a.universeId, first.runId)).toEqual(A);
   });
+  it('fresh same-generation source recovers only queued/prepared terminal or missing wakes with no live claim', async () => {
+    for (const status of ['queued', 'prepared', 'blocked', 'unknown'] as const) {
+      for (const disposition of ['created', 'completed', 'missing', 'mismatch', 'live', 'expired'] as const) {
+        const a = await seedPerson(database.db),
+          first = await request(a.authority, { commandId: randomUUID(), recordingGeneration: 1 });
+        if (first.kind !== 'accepted') throw new Error('CI request');
+        const original = await header(a.universeId, first.runId),
+          wakeId = original.normal_wake_id!;
+        await sql`update geography.runs set status=${status} where universe_id=${a.universeId}::uuid and id=${first.runId}::uuid`.execute(
+          database.db,
+        );
+        if (disposition === 'completed' || disposition === 'mismatch')
+          await boss.complete(cartographyQueue.name, wakeId, undefined, { includeQueued: true });
+        if (disposition === 'missing') await boss.deleteJob(cartographyQueue.name, wakeId);
+        if (disposition === 'expired') {
+          await boss.deleteJob(cartographyQueue.name, wakeId);
+          const claimId = randomUUID();
+          await sql`update geography.runs set claim_id=${claimId}::uuid,claim_until=now()-interval '1 second',claim_wake_claim_id=${claimId}::uuid where universe_id=${a.universeId}::uuid and id=${first.runId}::uuid`.execute(
+            database.db,
+          );
+        }
+
+        if (disposition === 'mismatch')
+          await sql`update pgboss.job set data=jsonb_set(data,'{wakeId}',to_jsonb(${randomUUID()}::text)) where name=${cartographyQueue.name} and id=${wakeId}::uuid`.execute(
+            database.db,
+          );
+        if (disposition === 'live')
+          await sql`update geography.runs set claim_id=${randomUUID()}::uuid,claim_until=now()+interval '1 minute' where universe_id=${a.universeId}::uuid and id=${first.runId}::uuid`.execute(
+            database.db,
+          );
+        const before = await header(a.universeId, first.runId),
+          jobs = await jobCount(a.universeId);
+        await request(a.authority, { commandId: randomUUID(), recordingGeneration: 1 });
+        const after = await header(a.universeId, first.runId),
+          recover =
+            (status === 'queued' || status === 'prepared') &&
+            (disposition === 'completed' || disposition === 'missing' || disposition === 'expired');
+        if (recover) {
+          expect(after.normal_wake_id).not.toBe(wakeId);
+          expect(after.normal_wake_id).not.toBeNull();
+          expect(await jobCount(a.universeId)).toBe(jobs + 1);
+          expect(after.recording_origin_command_id).toBe(original.recording_origin_command_id);
+        } else {
+          expect(after).toEqual(before);
+          expect(await jobCount(a.universeId)).toBe(jobs);
+        }
+      }
+    }
+  });
+  it('stale retirement/ordinary/claim deliveries cannot retire newer pending B under actual zero-retained accounting', async () => {
+    for (const retained of [false, true]) {
+      const a = await seedPerson(database.db),
+        first = await request(a.authority, { commandId: randomUUID(), recordingGeneration: 1 });
+      if (first.kind !== 'accepted') throw new Error('CI request');
+      const initial = await header(a.universeId, first.runId);
+      await worker()(
+        {
+          v: 2,
+          universeId: a.universeId,
+          privacyEpoch: 1,
+          runId: first.runId,
+          recordingGeneration: 1,
+          wakeId: initial.normal_wake_id!,
+        },
+        new AbortController().signal,
+      );
+      if (retained)
+        await p.withScope(a.authority, async (scope) => {
+          if ((await p.fenceOwn(scope)).kind !== 'active') throw new Error('CI own');
+          const gate = await p.fenceRecording(scope, 1);
+          if (gate.kind !== 'recording') throw new Error('CI cap');
+          // Real ledger adapter, fixed synthetic accounting descriptor; no proposal/output/Role acceptance.
+          const admitted = await fixtureHarness(database.db, { model: undefined }).ports.ledger.admitRun(scope, {
+            id: first.runId,
+            ownerModule: 'geography',
+            purpose: 'personal-cartographer',
+            roleId: 'ci.accounting',
+            roleVersion: 'v1',
+            policyVersion: 'geography-passive.v1',
+            provider: 'ci',
+            model: 'none',
+            contextBundleRef: 'ci-accounting',
+            contextRefs: [],
+            recording: {
+              accountId: a.accountId,
+              generation: 1,
+              contextSha256: 'a'.repeat(64),
+              modelContextSha256: 'b'.repeat(64),
+            },
+          });
+          expect(admitted.kind).toBe('admitted');
+        });
+
+      const policy = recordingPolicyFor(database.db, { lockTimeoutMs: 5000 });
+      for (const [expectedRecordingGeneration, on] of [
+        [1, false],
+        [2, true],
+      ] as const)
+        await policy.set(a.authority, {
+          version: 'recording-policy.v1',
+          commandId: randomUUID(),
+          expectedPrivacyEpoch: 1,
+          expectedRecordingGeneration,
+          on,
+        });
+      await request(a.authority, { commandId: randomUUID(), recordingGeneration: 3 });
+      const A = await header(a.universeId, first.runId);
+      await boss.cancel(cartographyQueue.name, A.normal_wake_id!);
+      await request(a.authority, { commandId: randomUUID(), recordingGeneration: 3 });
+      const B = await header(a.universeId, first.runId),
+        jobs = await jobCount(a.universeId);
+      expect(B.normal_wake_id).not.toBe(A.normal_wake_id);
+      const base = { universeId: a.universeId, privacyEpoch: 1, runId: first.runId };
+      for (const delivery of [
+        { v: 2 as const, kind: 'retire' as const, ...base, recordingGeneration: 1, wakeId: A.normal_wake_id! },
+        { v: 2 as const, ...base, recordingGeneration: 1, wakeId: A.normal_wake_id! },
+        { v: 2 as const, ...base, recordingGeneration: 1, expectedClaimId: randomUUID() },
+        { v: 1 as const, ...base },
+      ]) {
+        await worker(true)(delivery, new AbortController().signal);
+        expect(await header(a.universeId, first.runId)).toEqual(B);
+        expect(await jobCount(a.universeId)).toBe(jobs);
+      }
+      await worker(true)(
+        { v: 2, kind: 'retire', ...base, recordingGeneration: 1, wakeId: B.normal_wake_id! },
+        new AbortController().signal,
+      );
+      expect((await header(a.universeId, first.runId)).status).toBe('stale');
+      expect(
+        (
+          await database.db
+            .selectFrom('geography.state')
+            .select('active_run_id')
+            .where('universe_id', '=', a.universeId)
+            .executeTakeFirstOrThrow()
+        ).active_run_id,
+      ).not.toBe(first.runId);
+    }
+  });
+  it('revoked delayed A cannot retire current claim C even with no normal marker; only exact C owns cleanup', async () => {
+    const a = await seedPerson(database.db),
+      first = await request(a.authority, { commandId: randomUUID(), recordingGeneration: 1 });
+    if (first.kind !== 'accepted') throw new Error('CI request');
+    const claimA = randomUUID(),
+      claimC = randomUUID();
+    await p.withScope(a.authority, async (scope) => {
+      if ((await p.fenceOwn(scope)).kind !== 'active') throw new Error('CI own');
+      const gate = await p.fenceRecording(scope, 1);
+      if (gate.kind !== 'recording') throw new Error('CI cap');
+      const h = await geographyStore.header(scope, first.runId);
+      if (!h) throw new Error('CI header');
+      await geographyStore.writeRun(scope, {
+        ...h,
+        status: 'prepared',
+        normalWakeId: undefined,
+        claimId: claimA,
+        claimUntil: new Date(Date.now() - 2000).toISOString(),
+      });
+      await p.enqueue(gate.scope, first.runId, { expectedClaimId: claimA, startAfter: new Date(Date.now() - 1000) });
+      const prior = await geographyStore.header(scope, first.runId);
+      if (!prior) throw new Error('CI header');
+      await geographyStore.writeRun(scope, {
+        ...prior,
+        claimId: claimC,
+        claimUntil: new Date(Date.now() + 60000).toISOString(),
+      });
+      await p.enqueue(gate.scope, first.runId, { expectedClaimId: claimC, startAfter: new Date() });
+    });
+    const policy = recordingPolicyFor(database.db, { lockTimeoutMs: 5000 });
+    for (const [expectedRecordingGeneration, on] of [
+      [1, false],
+      [2, true],
+    ] as const)
+      await policy.set(a.authority, {
+        version: 'recording-policy.v1',
+        commandId: randomUUID(),
+        expectedPrivacyEpoch: 1,
+        expectedRecordingGeneration,
+        on,
+      });
+    await request(a.authority, { commandId: randomUUID(), recordingGeneration: 3 });
+    const B = await header(a.universeId, first.runId),
+      jobs = await jobCount(a.universeId);
+    expect(B.normal_wake_id).toBeNull();
+    expect(B.claim_id).toBe(claimC);
+    expect(B.claim_wake_claim_id).toBe(claimC);
+    const base = {
+      v: 2 as const,
+      universeId: a.universeId,
+      privacyEpoch: 1,
+      runId: first.runId,
+      recordingGeneration: 1,
+    };
+    await worker(true)({ ...base, expectedClaimId: claimA }, new AbortController().signal);
+    expect(await header(a.universeId, first.runId)).toEqual(B);
+    expect(await jobCount(a.universeId)).toBe(jobs);
+    await worker(true)({ ...base, expectedClaimId: claimC }, new AbortController().signal);
+    expect((await header(a.universeId, first.runId)).status).toBe('stale');
+  });
   it('expired-before-first-claim legacy resume preserves NULL birth and only actual initial1 permits literal1 replacement', async () => {
     const a = await seedPerson(database.db),
       runId = randomUUID();
@@ -542,6 +741,8 @@ describe('Geography original generation and exact wake ownership (Actions only)'
         recordingGeneration: null,
         wakeId: B.normal_wake_id,
       });
+      await worker(true)({ v: 1, universeId: a.universeId, privacyEpoch: 1, runId }, new AbortController().signal);
+      expect(await header(a.universeId, runId)).toEqual(B);
       await worker(true)(CartographyJobSchema.parse(data), new AbortController().signal);
       const after = await header(a.universeId, runId),
         state = await database.db
