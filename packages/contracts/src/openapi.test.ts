@@ -816,3 +816,107 @@ describe('membership-fenced Keep removal OpenAPI declaration', () => {
     expect(schemas?.['KeepRemovalProblem_KEEP_PLACE_COUNTER_EXHAUSTED']).toBeUndefined();
   });
 });
+
+describe('Saved live paging declaration OpenAPI metadata', () => {
+  it('retains one GET query and publishes bounded paging plus direct closed RFC9457 problems', async () => {
+    const {
+      ListSavedRequestSchema,
+      ListSavedResponseSchema,
+      SavedPageRequestSchema,
+      SavedPageResponseSchema,
+      SavedListProblemSchema,
+    } = await import('./index.js');
+    const errors = apiContract.experience.listSaved['~orpc'].errorMap;
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas: {
+        ListSavedRequest: { schema: ListSavedRequestSchema },
+        ListSavedResponse: { schema: ListSavedResponseSchema },
+        SavedPageRequest: { schema: SavedPageRequestSchema },
+        SavedPageResponse: { schema: SavedPageResponseSchema },
+        SavedListProblem: { schema: SavedListProblemSchema },
+        ...Object.fromEntries(
+          Object.entries(errors).map(([code, definition]) => [`SavedListProblem_${code}`, { schema: definition.data }]),
+        ),
+      },
+    });
+    const operation = document.paths?.['/v1/saved']?.get;
+    expect(document.paths?.['/v1/saved']?.post).toBeUndefined();
+    expect(
+      operation?.parameters?.map((parameter) => ('$ref' in parameter ? parameter.$ref : parameter.name)).sort(),
+    ).toEqual(['cursor', 'filter', 'limit', 'pagination']);
+    for (const parameter of operation?.parameters ?? [])
+      expect(parameter).toMatchObject({ in: 'query', required: false });
+    // Per-query-parameter OpenAPI cannot express the cross-field branch selection. The
+    // canonical parser and new caller's required response branch remain authoritative.
+    expect(operation?.responses?.['200']).toMatchObject({
+      content: { 'application/json': { schema: { $ref: '#/components/schemas/ListSavedResponse' } } },
+    });
+    const statuses = [...new Set(Object.values(errors).map((definition) => String(definition.status)))].sort();
+    expect(Object.keys(operation?.responses ?? {}).sort()).toEqual(['200', ...statuses].sort());
+    for (const status of statuses) {
+      const response = operation?.responses?.[status];
+      expect(response && !('$ref' in response) && response.content).toEqual({
+        'application/problem+json': {
+          schema: {
+            oneOf: Object.entries(errors)
+              .filter(([, definition]) => String(definition.status) === status)
+              .map(([code]) => ({ $ref: `#/components/schemas/SavedListProblem_${code}` })),
+          },
+        },
+      });
+    }
+    const schemas = document.components?.schemas;
+    expect(schemas?.['SavedPageRequest']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: ['pagination', 'filter', 'limit'],
+      properties: { pagination: { const: 'saved-page.v1' }, filter: { enum: ['all', 'reel', 'scroll'] } },
+    });
+    expect(schemas?.['SavedPageResponse']).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: expect.arrayContaining([
+        'pagination',
+        'consistency',
+        'scope',
+        'filter',
+        'limit',
+        'revision',
+        'items',
+        'continuation',
+      ]) as unknown,
+      properties: {
+        requestCursor: { pattern: '^ksp1_[A-Za-z0-9_-]{43,1024}$' },
+        consistency: { const: 'live' },
+        limit: { minimum: 1, maximum: 50 },
+        items: { maxItems: 50 },
+      },
+    });
+    for (const [code, definition] of Object.entries(errors)) {
+      const schema = schemas?.[`SavedListProblem_${code}`];
+      expect(schema).toMatchObject({
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          code: { const: code },
+          status: { const: definition.status },
+          title: { const: definition.message },
+        },
+      });
+      const encoded = JSON.stringify(schema);
+      for (const forbidden of [
+        'defined',
+        'message',
+        'detail',
+        'instance',
+        'savedAt',
+        'savedEntryId',
+        'position',
+        'total',
+      ])
+        expect(encoded).not.toContain(`"${forbidden}"`);
+    }
+  });
+});
