@@ -1,6 +1,8 @@
 import { ORPCError } from '@orpc/client';
 import {
   problemDetails,
+  RecordingObservationBatchRequestSchema,
+  RecordingObservationBatchResponseSchema,
   type InteractionEvent,
   type RecordingObservationBatchRequest,
   type ProblemCode,
@@ -52,9 +54,14 @@ function idSource() {
 
 /** An outbox double that records what the recorder hands it. */
 function collectingOutbox() {
-  const batches: { events: readonly InteractionEvent[]; instrumentationVersion: number }[] = [];
+  const batches: {
+    events: readonly InteractionEvent[];
+    instrumentationVersion: number;
+    recordingGeneration?: number;
+  }[] = [];
   const outbox: ObservationOutbox = {
-    enqueue: (events, instrumentationVersion) => void batches.push({ events, instrumentationVersion }),
+    enqueue: (events, instrumentationVersion, recordingGeneration) =>
+      void batches.push({ events, instrumentationVersion, recordingGeneration }),
     drain: () => Promise.resolve(),
     status: () => ({ pendingBatches: 0, pendingEvents: 0, dropped: 0, stopped: false }),
     dispose: () => undefined,
@@ -124,8 +131,19 @@ describe('the scroll recorder', () => {
     expect(events.map((event) => event.deviceSequence)).toEqual([1, 2, 3, 4]);
     expect(new Set(events.map((event) => event.eventId)).size).toBe(events.length);
     expect(new Set(events.map((event) => event.sessionId))).toEqual(new Set([recorder.sessionId]));
+    expect(recorder.sessionId).toBe(exposure.recordingSessionId);
+    expect(sink.batches.map((batch) => batch.recordingGeneration)).toEqual([1, 1]);
     for (const event of events) {
-      expect(event).toMatchObject({ schemaVersion: 'interaction.v1', ...exposure });
+      expect(event).toMatchObject({
+        schemaVersion: 'interaction.v1',
+        exposureId: exposure.exposureId,
+        assetId: exposure.assetId,
+        assetRevision: exposure.assetRevision,
+        sessionId: exposure.recordingSessionId,
+      });
+      // Generation belongs to the immutable v2 batch; activation session is event.sessionId.
+      expect(event).not.toHaveProperty('recordingGeneration');
+      expect(event).not.toHaveProperty('recordingSessionId');
       expect(typeof event.occurredAt).toBe('string');
     }
   });
@@ -436,34 +454,43 @@ describe('the recorder inside a real account scope', () => {
             { headers: { 'content-type': 'application/json' } },
           );
         }
+        const body = RecordingObservationBatchRequestSchema.parse(await request.clone().json());
         requests.push({
           url: request.url,
           scope: request.headers.get('x-ks-scope'),
-          body: await request.clone().json(),
+          body,
         });
-        return answer((await request.clone().json()) as RecordingObservationBatchRequest);
+        return answer(body);
       },
       authorization: () => undefined,
       store,
     });
-    await scope.recording?.refresh();
+    scope.recording!.useIdSource(idSource());
+    expect(await scope.recording!.refresh()).toBe(true);
+    expect(scope.recording!.getState()).toMatchObject({
+      status: 'current',
+      collecting: true,
+      policy: { on: true, generation: 1 },
+    });
     return { scope, store, requests };
   }
 
   const stored = (batch: RecordingObservationBatchRequest) =>
     new Response(
-      JSON.stringify({
-        version: 'observation-batch.v2',
-        result: 'processed',
-        recordingGeneration: batch.recordingGeneration,
-        currentGeneration: 1,
-        scope: { accountId: account.accountId, privacyEpoch: 1 },
-        accepted: batch.events.length,
-        duplicates: 0,
-        rejected: 0,
-        results: batch.events.map((event) => ({ eventId: event.eventId, status: 'accepted' })),
-        revision: 0,
-      }),
+      JSON.stringify(
+        RecordingObservationBatchResponseSchema.parse({
+          version: 'observation-batch.v2',
+          result: 'processed',
+          recordingGeneration: batch.recordingGeneration,
+          currentGeneration: 1,
+          scope: { accountId: account.accountId, privacyEpoch: 1 },
+          accepted: batch.events.length,
+          duplicates: 0,
+          rejected: 0,
+          results: batch.events.map((event) => ({ eventId: event.eventId, status: 'accepted' })),
+          revision: 0,
+        }),
+      ),
       {
         status: 200,
         headers: { 'content-type': 'application/json' },
@@ -487,11 +514,23 @@ describe('the recorder inside a real account scope', () => {
     clock.advance(3_000);
     recorder.flush();
     expect(store.keys().some((key) => key.endsWith(OUTBOX_STORAGE_KEY))).toBe(true);
-    await settle();
+    // Fetch/body parsing and ACK processing are asynchronous; 10 ms elapsed is no delivery proof.
+    await expect.poll(() => requests.length, { timeout: 1000 }).toBe(1);
     expect(requests).toHaveLength(1);
     expect(requests[0]?.url).toBe('https://app.recorder.test/v1/observations/recording-batch');
     expect(requests[0]?.scope).toBe(`${account.accountId}:1`);
-    expect((requests[0]?.body as RecordingObservationBatchRequest).events).toHaveLength(2);
+    const submitted = requests[0]?.body as RecordingObservationBatchRequest;
+    expect(submitted).toMatchObject({
+      version: 'observation-batch.v2',
+      recordingGeneration: exposure.recordingGeneration,
+      instrumentationVersion: RECORDER_INSTRUMENTATION_VERSION,
+    });
+    expect(submitted.events).toHaveLength(2);
+    expect(submitted.events.map((event) => event.sessionId)).toEqual([
+      exposure.recordingSessionId,
+      exposure.recordingSessionId,
+    ]);
+    await expect.poll(() => store.keys(), { timeout: 1000 }).toEqual([]);
     expect(store.keys()).toEqual([]);
   });
 
@@ -509,7 +548,7 @@ describe('the recorder inside a real account scope', () => {
     recorder.observer.onBlockVisibility({ blockId: 'a', visibleFraction: 1, at: clock.now() });
     clock.advance(3_000);
     recorder.flush();
-    await settle();
+    await expect.poll(() => requests.length, { timeout: 1000 }).toBe(1);
     expect(requests).toHaveLength(1);
     expect(store.keys().length).toBeGreaterThan(0);
     // Sign-out, an account switch or a privacy reset ends the scope: its storage is purged.
