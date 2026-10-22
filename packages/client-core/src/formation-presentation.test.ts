@@ -442,6 +442,75 @@ describe('durable formation consumer over labelled HTTP fixtures', () => {
     expect(commands(h, 'acknowledge').map((c) => c.body)).toEqual(Array(3).fill(commands(h, 'acknowledge')[0]!.body));
     expect(commands(h, 'acknowledge')[0]!.body.disposition).toBe('shown');
   });
+  it('recovers the original committed shown ACK after a lost reply and newer map root, without starting again', async () => {
+    const h = harness(true);
+    await ready(h);
+    expect(h.session.mounted()).toBe(true);
+    let committed: Body | undefined;
+    h.mutate((action, value) => {
+      if (action === 'acknowledge') {
+        if (!committed) {
+          committed = structuredClone(value);
+          throw new TypeError('Authored lost reply after durable ACK commit');
+        }
+        return { ...committed, replayed: true };
+      }
+      return { ...value, scope: { universeId: account.universeId, privacyEpoch: 1, personalWatermark: 47 } };
+    });
+    expect(h.session.complete()).toBe(true);
+    await vi.waitFor(() => expect(h.session.getState().status).toBe('ack_unknown'));
+    const original = commands(h, 'acknowledge')[0]!.body;
+    const p = projection({ ...capabilities, reducedMotion: true });
+    h.projection({
+      ...p,
+      geography: { ...p.geography!, personalWatermark: 45 },
+      snapshot: {
+        ...p.snapshot!,
+        read: {
+          ...p.snapshot!.read,
+          scope: { universeId: account.universeId, privacyEpoch: 1, personalWatermark: 46 },
+        },
+      },
+    });
+    expect(committed).toMatchObject({ scope: { personalWatermark: 42 }, requestedDisposition: 'shown' });
+    expect(h.session.getState().status).toBe('ack_unknown');
+    expect(commands(h, 'acknowledge')).toHaveLength(1);
+    h.session.retry();
+    await vi.waitFor(() => expect(h.session.getState().status).toBe('final'));
+    expect(commands(h, 'acknowledge').map((c) => c.body)).toEqual([original, original]);
+    expect(original.disposition).toBe('shown');
+    expect(h.session.mounted()).toBe(false);
+    await h.session.refresh();
+    expect(commands(h, 'read')).toHaveLength(2);
+    expect(commands(h, 'claim')).toHaveLength(1);
+    expect(h.session.getState().status).toBe('final');
+    expect(h.session.mounted()).toBe(false);
+  });
+  it.each(['universeId', 'privacyEpoch'] as const)(
+    'rejects a terminal ACK for another %s even when replayed',
+    async (wrong) => {
+      const h = harness(true);
+      await ready(h);
+      h.mutate((action, value) =>
+        action === 'acknowledge'
+          ? {
+              ...value,
+              replayed: true,
+              scope: { ...(value.scope as Body), [wrong]: wrong === 'universeId' ? id(999) : 2 },
+            }
+          : value,
+      );
+      h.session.mounted();
+      h.session.complete();
+      await vi.waitFor(() => expect(h.session.getState().status).toBe('ack_unknown'));
+      expect(h.session.mounted()).toBe(false);
+      const original = commands(h, 'acknowledge')[0]!.body;
+      h.mutate(undefined);
+      h.session.retry();
+      await vi.waitFor(() => expect(h.session.getState().status).toBe('final'));
+      expect(commands(h, 'acknowledge').map((c) => c.body)).toEqual([original, original]);
+    },
+  );
   it.each(['readId', 'scope', 'capabilities', 'scene', 'geography', 'target'] as const)(
     'refuses mismatched %s before a claim',
     async (wrong) => {

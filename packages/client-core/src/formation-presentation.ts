@@ -188,7 +188,12 @@ export function createFormationPresentationSession(options: {
       equal(options.capabilities(), a.capabilities)
     );
   };
+  const boundIdentity = (s: { universeId: string; privacyEpoch: number }) => {
+    if (s.universeId !== scope.account.universeId || s.privacyEpoch !== scope.account.privacyEpoch)
+      throw new Error('formation_scope');
+  };
   const boundScope = (s: { universeId: string; privacyEpoch: number; personalWatermark: number }) => {
+    boundIdentity(s);
     // A root hint can finish a newer scene read while a command is in flight. Its current
     // envelope must not regress behind either already-admitted scene read or this consumer.
     const p = options.projection(),
@@ -203,12 +208,7 @@ export function createFormationPresentationSession(options: {
         ? scene.personalWatermark
         : 0,
     );
-    if (
-      s.universeId !== scope.account.universeId ||
-      s.privacyEpoch !== scope.account.privacyEpoch ||
-      s.personalWatermark < known
-    )
-      throw new Error('formation_scope');
+    if (s.personalWatermark < known) throw new Error('formation_scope');
     watermark = s.personalWatermark;
   };
   const stopRead = () => {
@@ -236,7 +236,9 @@ export function createFormationPresentationSession(options: {
       const raw = await scope.api.formation.acknowledge(a.ack);
       if (!live() || attempt !== a) return;
       const r = FormationPresentationAcknowledgementSchema.parse(raw);
-      boundScope(r.scope);
+      // A terminal receipt is immutable: an explicit replay can predate a newer map read.
+      // Bind its current account/epoch and exact command, without granting animation authority.
+      boundIdentity(r.scope);
       if (
         r.commandId !== a.ack.commandId ||
         r.transitionId !== a.ack.transitionId ||
@@ -246,6 +248,7 @@ export function createFormationPresentationSession(options: {
         Date.parse(r.recordedAt) < Date.parse(a.claim!.claimedAt)
       )
         throw new Error('formation_ack');
+      watermark = Math.max(watermark, r.scope.personalWatermark);
       show('final');
     } catch (error) {
       if (live() && attempt === a) show('ack_unknown', reason(error));
