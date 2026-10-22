@@ -195,7 +195,11 @@ export const DirectConversationSnapshotSchema = z.discriminatedUnion('status', [
       (r) =>
         r.messages.length <= r.limit &&
         r.own.readThroughSequence <= r.latestMessageSequence &&
-        r.messages.every((m) => m.sequence <= r.latestMessageSequence),
+        // The initial window includes the latest bubble (including a neutral tombstone).
+        // Otherwise catch-up could start past a committed message absent from this snapshot.
+        (r.latestMessageSequence === 0
+          ? r.messages.length === 0
+          : r.messages.at(-1)?.sequence === r.latestMessageSequence),
     ),
 ]);
 export const ReadConversationHistorySchema = z.strictObject({

@@ -223,6 +223,40 @@ describe('direct conversation wire prerequisite (authored fixtures, no social ru
       false,
     );
   });
+  it('includes the latest committed bubble before handing off to catch-up, with bounded older history', () => {
+    const snapshot = {
+      ...read,
+      status: 'ready',
+      conversation,
+      peer: person,
+      own: { readThroughSequence: 0, muted: false },
+      latestMessageSequence: 0,
+      messages: [],
+      limit: 2,
+      history: { kind: 'end' },
+      catchUpCursor: cursor('kcc1'),
+    };
+    expect(DirectConversationSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    for (const changed of [
+      { ...snapshot, messages: [message(1)] },
+      { ...snapshot, latestMessageSequence: 1 },
+      { ...snapshot, latestMessageSequence: 2, messages: [message(1)] },
+      { ...snapshot, latestMessageSequence: 3, messages: [message(1), message(2)] },
+    ])
+      expect(DirectConversationSnapshotSchema.safeParse(changed).success).toBe(false);
+    const recent = {
+      ...snapshot,
+      latestMessageSequence: 50,
+      messages: [message(49), message(50)],
+      history: { kind: 'more', cursor: cursor('kch1') },
+    };
+    expect(DirectConversationSnapshotSchema.parse(recent)).toEqual(recent);
+    const redactedLatest = {
+      ...recent,
+      messages: [message(49), { status: 'unavailable', messageId: id(70), sequence: 50 }],
+    };
+    expect(DirectConversationSnapshotSchema.parse(redactedLatest)).toEqual(redactedLatest);
+  });
   it('does not invent inbox rows, last-message state or peer seen/presence information', () => {
     const row = {
       conversation,
