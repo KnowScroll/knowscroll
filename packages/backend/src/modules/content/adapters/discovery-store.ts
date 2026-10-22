@@ -14,6 +14,7 @@ import {
   type ResolveContinuityLink,
   type ReadEncounterTopics,
   type ReadSavedMetadata,
+  type ReadSavedPageMetadata,
   type ContinuityLink,
 } from '../public.js';
 type Row = {
@@ -173,7 +174,7 @@ export const resolveContinuityLink: ResolveContinuityLink = async (scope, expect
       l.target.assetRevision === expected.target.assetRevision &&
       (expected.revision === undefined || l.revision === expected.revision),
   );
-export const readSavedMetadata: ReadSavedMetadata = async (scope, refs) => {
+async function savedMetadata(scope: Parameters<ReadSavedMetadata>[0], refs: Parameters<ReadSavedMetadata>[1]) {
   if (refs.length > 100) throw new Error('SAVED_METADATA_LIMIT');
   if (!refs.length) return [];
   const result = await sql<{
@@ -202,7 +203,12 @@ export const readSavedMetadata: ReadSavedMetadata = async (scope, refs) => {
       row.kind !== null;
     return {
       ref,
-      availability: !available ? 'withdrawn' : row.current !== ref.assetRevision ? 'corrected' : 'available',
+      kind: row?.kind ?? null,
+      availability: !available
+        ? ('withdrawn' as const)
+        : row.current !== ref.assetRevision
+          ? ('corrected' as const)
+          : ('available' as const),
       ...(available
         ? { metadata: { kind: row.kind!, title: row.title!, summary: row.summary!, language: row.language! } }
         : {}),
@@ -211,7 +217,21 @@ export const readSavedMetadata: ReadSavedMetadata = async (scope, refs) => {
         : {}),
     };
   });
-};
+}
+
+/** Legacy hydration retains its original wire-independent shape. */
+export const readSavedMetadata: ReadSavedMetadata = async (scope, refs) =>
+  (await savedMetadata(scope, refs)).map((row) => ({
+    ref: row.ref,
+    availability: row.availability,
+    ...(row.metadata ? { metadata: row.metadata } : {}),
+    ...(row.currentAssetRevision !== undefined ? { currentAssetRevision: row.currentAssetRevision } : {}),
+  }));
+export const readSavedPageMetadata: ReadSavedPageMetadata = async (scope, refs) =>
+  (await savedMetadata(scope, refs)).map((row) => {
+    if (row.kind !== 'reel' && row.kind !== 'scroll') throw new Error('SAVED_PAGE_KIND_UNAVAILABLE');
+    return { ...row, kind: row.kind };
+  });
 
 /** Backend attribution read after owned encounter lineage is validated; admission is checked separately for opening. */
 export const readEncounterAttribution: ReadEncounterAttribution = async (scope, ref) => {

@@ -147,3 +147,14 @@ export { KEEP_REMOVAL_OPERATION, KEEP_REMOVAL_OUTCOME_VERSION } from './applicat
 export type { KeepRemovalResult } from './application/keep-remove.js';
 export type KeepRemovalUseCase = ReturnType<typeof makeRemoveKeepEntry>;
 export const KEEP_REMOVAL_USE_CASE = Symbol('experience.keepRemovalUseCase');
+
+export const READ_SAVED_PAGE = Symbol('experience.readSavedPage');
+export {
+  type ReadSavedPage,
+  type SavedPagePorts,
+  type SavedPageResult,
+  type SavedPageKey,
+  type SavedCandidate,
+  type SavedCursorBinding,
+  type SavedCursorCodec,
+} from './application/saved-page.js';

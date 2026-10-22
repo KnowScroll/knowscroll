@@ -211,3 +211,5 @@ export { checkRequestSource } from './request-source.js';
 export { keepPlaceUseCases, keepPlaceProviders, keepStore, type KeepPorts, type KeepStore } from './keep-providers.js';
 
 export { keepRemovalUseCase, keepRemovalProviders, type KeepRemovalPorts } from './keep-remove-providers.js';
+
+export { savedPageUseCase } from './saved-page-providers.js';

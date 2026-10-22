@@ -1,3 +1,5 @@
+import { SavedPageResponseSchema } from '@knowscroll/contracts';
+import type { ReadSavedPage } from '@knowscroll/backend/modules/experience';
 import { Controller, Inject, Req } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import type { Request } from 'express';
@@ -24,6 +26,7 @@ import {
   ACTIVATE_EXPOSURE,
   APPLY_ACTION,
   LIST_SAVED,
+  READ_SAVED_PAGE,
   OPEN_EXPOSURE,
   READ_EXPOSURE_DOCUMENT,
 } from '../modules/experience.js';
@@ -68,6 +71,7 @@ export class ExperienceController {
   constructor(
     @Inject(APPLY_ACTION) private readonly applyAction: ApplyAction,
     @Inject(LIST_SAVED) private readonly listSaved: ListSaved,
+    @Inject(READ_SAVED_PAGE) private readonly readSavedPage: ReadSavedPage,
     @Inject(OPEN_EXPOSURE) private readonly openExposure: OpenExposure,
     @Inject(ACTIVATE_EXPOSURE) private readonly activateExposure: ActivateExposure,
     @Inject(READ_EXPOSURE_DOCUMENT) private readonly readExposureDocument: ReadExposureDocument,
@@ -96,6 +100,21 @@ export class ExperienceController {
   listSavedRoute(@Req() request: Request) {
     return implement(apiContract.experience.listSaved).handler(async ({ input }) => {
       const caller = admittedCaller(request);
+      if (input.pagination === 'saved-page.v1') {
+        const result = await this.readSavedPage(authorityOf(caller), input);
+        if (result.kind === 'refused') throw problem(result.code);
+        const page = SavedPageResponseSchema.safeParse(result.value);
+        if (
+          !page.success ||
+          page.data.scope.accountId !== caller.accountId ||
+          page.data.scope.privacyEpoch !== caller.privacyEpoch ||
+          page.data.filter !== input.filter ||
+          page.data.limit !== Number(input.limit) ||
+          page.data.requestCursor !== input.cursor
+        )
+          throw problem('INTERNAL');
+        return page.data;
+      }
       const result = await this.listSaved(authorityOf(caller), Number(input.limit ?? '50'));
       if (result.kind === 'refused')
         throw problem(result.reason === 'epoch_changed' ? 'PRIVACY_EPOCH_CHANGED' : 'UNIVERSE_UNAVAILABLE');

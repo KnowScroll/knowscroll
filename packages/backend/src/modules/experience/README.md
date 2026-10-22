@@ -210,3 +210,34 @@ provider or owner-data operation is implied. The closed14-code removal HTTP fami
 contains only seven schema-owned issue tokens; no position/CAS/replacement metadata.
 This source endpoint does not migrate the app's legacy Unsave, supply Undo, complete
 selective privacy or establish real two-device/runtime acceptance.
+
+## Complete live Saved paging (#344)
+
+`ReadSavedPage` consumes accepted `saved-page.v1` on the existing GET `/v1/saved`.
+The new use case locks/rechecks the current personal root and own account (and
+honors the Clear barrier) before consulting its opaque cursor port. Each response
+is current membership and allowlisted Content availability, not a retained
+snapshot. Personal revision is catch-up only; no total, place, evidence, root
+increment, receipt, exposure or job is created. Legacy `listSaved` is unchanged.
+
+The existing `(universe_id,saved_at DESC,asset_id ASC)` index supports keyset reads.
+Keys retain exact UTC microseconds as strings end to end; the SQL ordering uses
+the timestamp column, never its formatted alias, JavaScript Date or OFFSET.
+Continuation seeks the same timestamp's later UUID range, then older timestamps,
+with bounded LIMITs. At most101 keys are read, only100 identities and Content
+metadata refs hydrated. The extra key is lookahead only. Filtering uses actual
+Content kind including withdrawn rows through its public read port, with at most
+100 candidates per request. An empty filtered window may have more; it does not
+assert an empty library. When the output limit is reached, the next cursor names
+only the last consumed candidate, preserving unreturned matches. Deleting that
+anchor does not invalidate its key; a resave's new UUID/time follows live order
+and is seen on Refresh if newer than the anchor. No migration/index is added.
+
+The API composes per-instance authenticated confidential five-minute cursors.
+Scope/filter/limit/purpose/epoch mismatches and expiry/rotation require a fresh
+traversal, never authority bypass. API-instance keys are separate from personal
+scopes and media grants. Domain code performs no crypto/network/config work.
+Actions-only real PostgreSQL fixtures cover160-row traversal,110 tied rows,
+submillisecond boundaries, late kind matches, withdrawal, deleted/resaved anchors,
+100-ref budgets, unchanged activity/root state and current authority after real
+root/account lock waits. Complete deployed/UI acceptance remains under #344.
