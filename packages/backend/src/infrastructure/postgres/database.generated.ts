@@ -667,13 +667,22 @@ export interface GeographyRuns {
   attempt_id: string | null;
   claim_id: string | null;
   claim_until: Timestamp | null;
+  claim_wake_claim_id: string | null;
   context: Json | null;
   created_at: Generated<Timestamp>;
   desired_revision: number;
   id: string;
+  normal_wake_id: string | null;
   outcome: string | null;
   privacy_epoch: number;
   proposal: Json | null;
+  recording_account_id: string | null;
+  recording_context_sha256: string | null;
+  recording_generation: number | null;
+  recording_model_context_sha256: string | null;
+  recording_origin_command_id: string | null;
+  recording_origin_kind: string | null;
+  recording_origin_source_revision: number | null;
   status: string;
   universe_id: string;
   updated_at: Generated<Timestamp>;
@@ -682,6 +691,10 @@ export interface GeographyRuns {
 export interface GeographyState {
   active_run_id: string | null;
   activity_revision: Generated<number>;
+  desired_origin_command_id: string | null;
+  desired_origin_kind: string | null;
+  desired_origin_source_revision: number | null;
+  desired_recording_generation: number | null;
   desired_revision: Generated<number>;
   material_revision: Generated<number>;
   privacy_epoch: number;
@@ -940,12 +953,21 @@ export interface PlannerRevisions {
 export interface PlannerRuns {
   claim_id: string | null;
   claim_until: Timestamp | null;
+  claim_wake_claim_id: string | null;
   context: Json | null;
   context_version: string | null;
   created_at: Generated<Timestamp>;
   id: string;
+  normal_wake_id: string | null;
   outcome: string | null;
   privacy_epoch: number;
+  recording_account_id: string | null;
+  recording_context_sha256: string | null;
+  recording_generation: number | null;
+  recording_model_context_sha256: string | null;
+  recording_origin_command_id: string | null;
+  recording_origin_kind: string | null;
+  recording_origin_source_revision: number | null;
   revision: number;
   status: string;
   universe_id: string;
@@ -955,6 +977,10 @@ export interface PlannerRuns {
 export interface PlannerState {
   accepted_revision: Generated<number>;
   active_run_id: string | null;
+  desired_origin_command_id: string | null;
+  desired_origin_kind: string | null;
+  desired_origin_source_revision: number | null;
+  desired_recording_generation: number | null;
   desired_revision: Generated<number>;
   intent: Json | null;
   material_revision: Generated<number>;
@@ -976,6 +1002,10 @@ export interface ReasoningBusinessRuns {
   privacy_erased_at: Timestamp | null;
   provider: string | null;
   purpose: string;
+  recording_account_id: string | null;
+  recording_context_sha256: string | null;
+  recording_generation: number | null;
+  recording_model_context_sha256: string | null;
   role_id: string | null;
   role_version: string | null;
   state: Generated<string>;
