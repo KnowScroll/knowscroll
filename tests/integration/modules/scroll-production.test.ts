@@ -954,9 +954,9 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         reason: 'OUTPUT_SCHEMA_MISMATCH',
         issues: expect.arrayContaining([
           {
-            code: 'invalid_type',
-            path: `sections[0].blocks[${diagramIndex}].data.nodes[0].cell`,
-            detail: 'expected object',
+            code: 'unrecognized_keys',
+            path: `sections[0].blocks[${diagramIndex}].data.nodes[0]`,
+            detail: 'unexpected keys',
           },
           {
             code: 'invalid_type',
