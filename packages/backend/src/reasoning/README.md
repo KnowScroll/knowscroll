@@ -647,3 +647,35 @@ global/role receipts. Terminal links remain through their UTC window, then only 
 and orphaned marked parent runs may be pruned. The normal ledger still owns settlement, write-off,
 late usage and brakes; Clear neither refunds nor increases caps. A later delivered answer remains
 redacted under the #337 marker checks. No production/Cutroom/pool row is read or changed here.
+
+Connected Cutroom commissioning (#240) reuses the B ledger, C1 immutable intent/one-use permit,
+0033 chain snapshots and pg-boss. No additional attempt engine, monetary balance or outbox is
+introduced. New claims require the reviewed installed `pool_v2_record_evidence` function body,
+actual SESSION name/OID/world and EXECUTE ACL. The canonical definition-hash query uses
+`search_path=pg_catalog,public,pg_temp`; missing/unreviewed function or privilege refuses paid
+progress. Existing public `read_order` validates world before its exact missing-identity refusal
+is accepted for a pre-claim read probe. Private pool helper privileges are never granted.
+
+The new stable financial report is immutable and snapshot-bound (maximum32 per attempt).
+Evidence-only recording and eventual publication settlement use the same exact outcome/actual/
+final-run/report digest/reference/receipt tuple. Only an exact still-pending evidence row may
+confirm an active hold; satisfied evidence cannot masquerade as a hold. Reporting retained old
+liability remains allowed after grant disable/retire. Reports above the ceiling are never clipped
+or settled merely to annotate evidence. The full claim remains open. A capped32-ID read cannot
+prove absence: an unobservable returned ID stays blocked, while honest evidence remains committed.
+Unknown pool/COMMIT acknowledgement replays the same exact operation.
+
+Maintenance is finite:2880 total ordinary delivery leases, the existing immutable follow deadline,
+three recovery waves per operation,15-minute cooldown,25 roots per delivery, read26 and one durable
+strictly advancing ID-cursor continuation committed before per-root work. Busy/live heads do not
+starve the tail after restart. Per-operation locks are250ms with2s maintenance statements; cursor
+passes have a captured immutable UUID ceiling and no tail self-wake. Overlapping cron passes may
+repeat bounded discovery; only identical live continuation pages are deduplicated. UUID bounds do
+not claim a historical membership snapshot. No HTTP status/read drives recovery.
+
+Completed GET maintenance never reopens. A contradictory late snapshot can create its own narrow
+pending evidence marker with up tothree cooled recovery waves, even after normal settlement. It
+cannot change the immutable old report/settlement, erase a public asset, claim, POST or release.
+A verified hold clears its due marker; completed reports have no endless wakeups. New commands,
+reports, receipts and maintenance tables are in `reasoningCutroomStores`; IDs-only queues are in
+its non-row inventory. Real personal dependencies still require the ordinary erasure registry.

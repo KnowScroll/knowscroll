@@ -139,6 +139,22 @@ export interface ContentCutroomCorpus {
   source_namespace: string;
 }
 
+export interface ContentCutroomPublications {
+  asset_id: string;
+  asset_revision: number;
+  attempt_id: string;
+  business_run_id: string;
+  created_at: Generated<Timestamp>;
+  final_run_id: string;
+  id: string;
+  media_id: string;
+  publication_sha256: string;
+  publication_utf8: string;
+  snapshot_id: string;
+  snapshot_sha256: string;
+  world_id: string;
+}
+
 export interface ContentCutroomReviews {
   bridge_sha256: string;
   business_run_id: string;
@@ -799,6 +815,37 @@ export interface ReasoningCutroomExecution {
   world_id: string;
 }
 
+export interface ReasoningCutroomFinancialReports {
+  actual_cents: Int8;
+  attempt_id: string;
+  business_run_id: string;
+  evidence_ref: string;
+  evidence_sha256: string;
+  final_run_id: string;
+  hold_evidence_id: string | null;
+  hold_next_at: Timestamp | null;
+  hold_recoveries: Generated<number>;
+  hold_state: Generated<string>;
+  id: string;
+  outcome: string;
+  report_utf8: string;
+  snapshot_id: string;
+  world_id: string;
+}
+
+export interface ReasoningCutroomMaintenance {
+  attempt_id: string;
+  business_run_id: string;
+  deliveries: Generated<number>;
+  lease_id: string | null;
+  lease_until: Timestamp | null;
+  next_at: Generated<Timestamp>;
+  recovered_at: Timestamp | null;
+  recoveries: Generated<number>;
+  stopped_at: Timestamp | null;
+  world_id: string;
+}
+
 export interface ReasoningCutroomObservations {
   attempt_id: string;
   evidence_sha256: string;
@@ -833,6 +880,33 @@ export interface ReasoningCutroomRequests {
 export interface ReasoningCutroomScopes {
   enabled: Generated<boolean>;
   generation: number;
+  world_id: string;
+}
+
+export interface ReasoningCutroomSettlementReceipts {
+  confirmed_at: Generated<Timestamp>;
+  pool_evidence_id: string;
+  receipt_sha256: string;
+  receipt_utf8: string;
+  settlement_id: string;
+}
+
+export interface ReasoningCutroomSettlements {
+  actual_cents: Int8;
+  attempt_id: string;
+  binding_id: string;
+  bound_at: Timestamp;
+  business_run_id: string;
+  claimed_at: Timestamp;
+  evidence_ref: string;
+  evidence_sha256: string;
+  final_run_id: string;
+  financial_report_id: string;
+  id: string;
+  publication_id: string;
+  snapshot_id: string;
+  snapshot_sha256: string;
+  state: Generated<string>;
   world_id: string;
 }
 
@@ -1114,6 +1188,7 @@ export interface DB {
   "content.cutroom_chain_documents": ContentCutroomChainDocuments;
   "content.cutroom_chain_snapshots": ContentCutroomChainSnapshots;
   "content.cutroom_corpus": ContentCutroomCorpus;
+  "content.cutroom_publications": ContentCutroomPublications;
   "content.cutroom_reviews": ContentCutroomReviews;
   "content.discovery_revisions": ContentDiscoveryRevisions;
   "content.encounter_topics": ContentEncounterTopics;
@@ -1168,10 +1243,14 @@ export interface DB {
   "reasoning.cutroom_accounting_intents": ReasoningCutroomAccountingIntents;
   "reasoning.cutroom_attempts": ReasoningCutroomAttempts;
   "reasoning.cutroom_execution": ReasoningCutroomExecution;
+  "reasoning.cutroom_financial_reports": ReasoningCutroomFinancialReports;
+  "reasoning.cutroom_maintenance": ReasoningCutroomMaintenance;
   "reasoning.cutroom_observations": ReasoningCutroomObservations;
   "reasoning.cutroom_pool_operations": ReasoningCutroomPoolOperations;
   "reasoning.cutroom_requests": ReasoningCutroomRequests;
   "reasoning.cutroom_scopes": ReasoningCutroomScopes;
+  "reasoning.cutroom_settlement_receipts": ReasoningCutroomSettlementReceipts;
+  "reasoning.cutroom_settlements": ReasoningCutroomSettlements;
   "reasoning.external_attempts": ReasoningExternalAttempts;
   "reasoning.production_attempts": ReasoningProductionAttempts;
   "reasoning.production_requests": ReasoningProductionRequests;

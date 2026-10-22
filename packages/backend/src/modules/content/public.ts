@@ -313,3 +313,15 @@ export type {
   CommissionChainStorePorts,
   CommissionChainSnapshots,
 } from './production/commission-chain-store-ports.js';
+
+export type { Commissioning, CommissioningPorts } from './production/commissioning-ports.js';
+export type { CommissionPublication, CommissionPublicationResult } from './production/commission-publication-ports.js';
+export {
+  parseCommissionReviewPacket,
+  parseCommissionReviewDraft,
+  CommissionHumanApprovalSchema,
+  ReelCorpusManifestSchema,
+} from './production/commission-review.js';
+
+export { parseCommissioningSetup } from './production/commissioning.js';
+export type { CommissioningSetup } from './production/commissioning.js';

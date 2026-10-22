@@ -76,6 +76,21 @@ export type {
   CutroomCentsReceipt,
 } from './domain/cutroom-attempt.js';
 export type { CutroomOwnerCapability, CutroomExecution } from './application/cutroom.js';
+/** Consumes only an existing private C1 permit; it cannot mint dispatch authority. */
+export { consumeCutroomDispatchPermit } from './application/cutroom-execution.js';
+export type {
+  CutroomSettlement,
+  CutroomSettlementDraft,
+  CutroomSettlementRecord,
+  CutroomSettlementPermit,
+  CutroomSettlementObservation,
+  CutroomSettlementPool,
+  CutroomSettlementStore,
+  CutroomSettlementPorts,
+  CutroomMaintenance,
+  CutroomFinancialReport,
+} from './application/cutroom-settlement-ports.js';
+export { parseCutroomFinancialReport } from './application/cutroom-settlement.js';
 
 /** B only: shared transaction/reservation metadata. No full dispatch implementation. */
 export type {
@@ -93,6 +108,12 @@ export type {
 } from './application/cutroom-ports.js';
 
 export { CutroomPoolWorkSchema, cutroomPoolQueue } from './events.js';
+export {
+  cutroomSettleQueue,
+  recoverCutroomQueue,
+  CutroomSettleWorkSchema,
+  CutroomRecoveryWorkSchema,
+} from './events.js';
 
 /** C1 public contracts only; factories remain explicit/default-disabled composition seams. */
 export type {
@@ -111,6 +132,7 @@ export type {
   CutroomReviewRecheck,
   CutroomExecutionPorts,
   CutroomExecutionFoundation,
+  CutroomFollowBinding,
 } from './application/cutroom-execution-ports.js';
 export {
   cutroomAccountingQueue,

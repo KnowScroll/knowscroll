@@ -34,3 +34,15 @@ work remains durable and resumes only through an explicit same-business-run requ
 worker additionally requires an independently reviewed economic-permit callback, default false;
 credentials, flag1 or a deployment never grant paid Cartographer calls. No actual host/env setting
 or role allowance is changed by this source declaration.
+
+Connected Cutroom worker source is off by default (`KS_CUTROOM_COMMISSIONING_ENABLED=0`). Enabling
+it is permitted only for `dev`/`stage` and requires every explicit dependency:
+`KS_CUTROOM_APPROVAL_PACKET` (canonical root-owned non-writable-by-others regular file below
+`/etc/knowscroll/`, at most1MiB), fixed HTTP loopback `KS_CUTROOM_ORIGIN`, absolute
+`KS_CUTROOM_ARTIFACT_ROOT` and `KS_CUTROOM_MEDIA_ROOT`, reviewed installed
+`KS_CUTROOM_EVIDENCE_FUNCTION_SHA256`, and separate `KS_CUTROOM_POOL_DATABASE_URL` (credential,
+never printed). The packet contains independently obtained actual complete corpus/individual
+human approvals and current installed profile/sole-writer/funds attestations; source does not
+create or renew them. SESSION principal/world, current admission generation and exact bound
+receipt are checked again by the operation. The flag/configuration alone is never a provider
+permit. No API or client activation input is added.

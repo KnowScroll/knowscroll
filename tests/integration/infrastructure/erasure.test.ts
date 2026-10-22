@@ -603,3 +603,40 @@ describe('the erasure registry (real database)', () => {
     });
   });
 });
+
+import { contentCutroomStores } from '@knowscroll/backend/modules/content/nest-providers';
+import { reasoningCutroomStores } from '@knowscroll/backend/reasoning/nest-providers';
+describe('closed Cutroom shared-public store inventory (real schema)', () => {
+  let world: TestDatabase<Database>;
+  beforeAll(async () => {
+    world = await createTestDatabase<Database>('cutroom_inventory');
+  });
+  afterAll(async () => {
+    await world.drop();
+  });
+  it('requires every actual Cutroom table and rejects any direct/transitive personal dependency', async () => {
+    const declarations = [...contentCutroomStores, ...reasoningCutroomStores].map((x) => x.table).sort();
+    const actual = (
+      await sql<{
+        name: string;
+      }>`select n.nspname||'.'||c.relname name from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace
+    where c.relkind='r' and n.nspname in ('content','reasoning') and (c.relname like 'cutroom_%' or c.relname='reel_commissions') order by 1`.execute(
+        world.db,
+      )
+    ).rows.map((x) => x.name);
+    expect(actual).toEqual(declarations);
+    expect(new Set(declarations).size).toBe(17);
+    for (const table of declarations) {
+      const dependencies = (
+        await sql<{ name: string }>`with recursive owned(oid) as (
+     select to_regclass(${table})::oid union select f.confrelid from pg_catalog.pg_constraint f join owned o on o.oid=f.conrelid where f.contype='f')
+     select distinct n.nspname||'.'||c.relname name from owned o join pg_catalog.pg_class c on c.oid=o.oid
+     join pg_catalog.pg_namespace n on n.oid=c.relnamespace left join pg_catalog.pg_attribute a on a.attrelid=c.oid and not a.attisdropped and a.attnum>0
+     where (n.nspname='identity' and c.relname in ('accounts','universes')) or a.attname='universe_id' or a.attname='account_id' or a.attname like '%\_account_id'`.execute(
+          world.db,
+        )
+      ).rows;
+      expect(dependencies, table).toEqual([]);
+    }
+  });
+});
