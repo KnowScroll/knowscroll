@@ -47,3 +47,23 @@ export const clearExplorationQueue = defineQueue({
   },
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 2 },
 });
+
+/** Opt-in fixed cron. It discovers bounded existing operations; payload carries no user selection. */
+export const ClearRecoveryJobSchema = z.strictObject({ v: z.literal(1) });
+export type ClearRecoveryJob = z.infer<typeof ClearRecoveryJobSchema>;
+export const recoverClearOperationsQueue = defineQueue({
+  name: 'identity.recover-clear-operations',
+  purpose: 'Recover bounded missing Clear deliveries and due exact-set accounting cleanup.',
+  payload: ClearRecoveryJobSchema,
+  policy: {
+    expireInSeconds: 120,
+    retryLimit: 1,
+    retryDelaySeconds: 60,
+    retryBackoff: false,
+    retentionSeconds: 3600,
+    deleteAfterSeconds: 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
+  schedule: { cron: '*/5 * * * *', payload: { v: 1 } },
+});

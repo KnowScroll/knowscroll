@@ -546,6 +546,9 @@ export interface IdentityClearLiabilities {
 
 export interface IdentityClearOperations {
   account_id: string;
+  cleanup_due_at: Timestamp | null;
+  cleanup_recovery_after: Timestamp | null;
+  cleanup_recovery_attempts: Generated<number>;
   command_id: string;
   completed_at: Timestamp | null;
   core_done_at: Timestamp | null;
@@ -555,6 +558,8 @@ export interface IdentityClearOperations {
   outcome_version: Generated<number>;
   phase: Generated<string>;
   recorded_at: Generated<Timestamp>;
+  recovery_after: Timestamp | null;
+  recovery_attempts: Generated<number>;
   request_hash: string;
   scope_id: string;
   to_epoch: number;

@@ -292,3 +292,27 @@ child to match its operation. Account/root deletion remains restricted until a f
 lifecycle handles these receipts explicitly. Omitting either declaration fails the existing schema
 inventory. Keeping them out of the ordinary universe eraser preserves that eraser's established
 semantics and assertions; tests separately prove lifetime receipts survive repeated selective Clear.
+
+### Bounded durable recovery (migration 0035)
+
+The opt-in `recoverClearOperationsQueue` is a strict version-only cron every five minutes.
+`clearExplorationFor(...).recover()` discovers at most 25 existing operation IDs, then re-enters
+root → account → exact operation maintenance with 250 ms lock and 2 s statement bounds. It rechecks
+current pg-boss delivery state under that lock. An expired claim, exhausted/dead-lettered delivery
+or lost worker does not become a second outbox or grant new user authority: the same transaction
+records a coarse failure/cooldown and enqueues only that operation's fixed Clear job. Three recovery
+waves with at least 15 minutes between waves bound automatic retries; exhaustion stays honestly
+failed and requires separately authorized internal maintenance. A database outage cannot persist
+an error while the database is unavailable; the normal durable schedule recovers once access returns.
+
+Completion with current-UTC retained accounting links also stores `cleanup_due_at` at next UTC
+midnight atomically with its required exact-set cleanup job. A separate cleanup recovery counter
+and cooldown cover loss/exhaustion of that post-completion delivery. This completed-operation path
+can verify/prune only captured identities and clear its due marker. It never rewrites completion,
+sets a failure on a completed receipt, reopens core removal, clears a later barrier, or creates
+endless completed wakeups. The marker cannot be retimed or reintroduced after it is cleared.
+Migration 0035 derives a due marker for preexisting completed receipts from Identity's own captured
+budget-window identities; it never reads or changes request/output bytes or financial states.
+
+Source remains opt-in. Normal queue/scheduled consumer registration and installed-release recovery
+are separately composed; neither status reads nor command replay perform recovery.

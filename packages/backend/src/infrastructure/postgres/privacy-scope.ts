@@ -36,21 +36,21 @@ export function isClearCore(scope: ClearCoreTx | ClearAccountingTx): scope is Cl
   clearAccountingTransactionOf(scope as ClearAccountingTx);
   return false;
 }
-async function timeouts(trx: Transaction<Database>, lockTimeoutMs: number) {
+async function timeouts(trx: Transaction<Database>, lockTimeoutMs: number, statementTimeoutMs = 60000) {
   // Fresh statements after waiting on the account gate are part of the authority protocol.
   await sql`set transaction isolation level read committed`.execute(trx);
   await sql`select set_config('lock_timeout', ${`${lockTimeoutMs}ms`}, true),
- set_config('statement_timeout', '60000ms', true)`.execute(trx);
+ set_config('statement_timeout', ${`${statementTimeoutMs}ms`}, true)`.execute(trx);
 }
 /** Root first, own account UPDATE gate, then a fresh account read. Historical receipts are later. */
 export function makeWithPrivacyScope(
   db: Kysely<Database>,
-  options: { readonly lockTimeoutMs: number },
+  options: { readonly lockTimeoutMs: number; readonly statementTimeoutMs?: number },
 ): WithPrivacyScope {
   return (claimed, work) => {
     const authority = Object.freeze({ ...claimed });
     return withTransaction(db, 'privacy-scope', async (trx) => {
-      await timeouts(trx, options.lockTimeoutMs);
+      await timeouts(trx, options.lockTimeoutMs, options.statementTimeoutMs);
       const root = await trx
         .selectFrom('identity.universes')
         .select(['account_id', 'privacy_epoch', 'revision', 'status', 'clear_operation_id'])
@@ -92,11 +92,11 @@ export function makeWithPrivacyScope(
 /** Existing-operation maintenance can finish for suspended owners; no caller/paid work authority. */
 export function makeWithClearMaintenance(
   db: Kysely<Database>,
-  options: { readonly lockTimeoutMs: number },
+  options: { readonly lockTimeoutMs: number; readonly statementTimeoutMs?: number },
 ): WithClearMaintenance {
   return async (accountId, commandId, work) =>
     withTransaction(db, 'clear-maintenance', async (trx) => {
-      await timeouts(trx, options.lockTimeoutMs);
+      await timeouts(trx, options.lockTimeoutMs, options.statementTimeoutMs);
       const locator = await trx
         .selectFrom('identity.clear_operations')
         .select(['id', 'scope_id'])
@@ -178,6 +178,7 @@ export function makeWithClearMaintenance(
         binding,
         liabilities,
         completed: op.completed_at !== null,
+        cleanupDueAt: op.cleanup_due_at?.toISOString() ?? null,
       }) as unknown as ClearAccountingTx;
       accounting.set(scope, trx);
       try {

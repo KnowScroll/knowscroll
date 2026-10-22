@@ -28,6 +28,10 @@ export const identityErasure: ModuleErasure = {
   accountColumns: [{ schema: 'ops', table: 'operator_sign_ins', column: 'account_id' }],
   nonRowStores: [
     {
+      name: 'pgboss/identity.recover-clear-operations',
+      description: 'Fixed global version-only recovery schedule; no per-account payload or second outbox.',
+    },
+    {
       name: 'pgboss/identity.clear-exploration',
       description:
         'Account-owned operation delivery IDs only; bounded queue/terminal/dead-letter retention, preserved by selective Clear.',
