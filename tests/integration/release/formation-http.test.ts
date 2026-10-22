@@ -154,7 +154,6 @@ describe('U05 normal installed API/worker journey (Actions fixtures)', () => {
     const object = {
       id: objectId,
       kind: 'system' as const,
-      conceptId: 'earth',
       parent: { kind: 'universe' as const, id: p.universeId },
       label: 'Earth',
       truthStatus: 'factual' as const,
