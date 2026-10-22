@@ -8,7 +8,7 @@ import type { FriendsInput, FriendsOperation } from './friends-types';
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const account = { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'friends@fixture.test' };
 const scopeValue = { accountId: account.accountId, privacyEpoch: 1 };
-const peer = { kind: 'person' as const, personId: id(3), handle: 'fixture-peer', displayName: 'Authored fixture' };
+const peer = { kind: 'person' as const, personId: id(3), handle: 'fixture.peer', displayName: 'Authored fixture' };
 const token = `ksfi_${'x'.repeat(43)}`;
 const envelope = { version: 'sharing.v1' as const, scope: scopeValue };
 const acceptance = {
@@ -58,7 +58,7 @@ const cases: { operation: FriendsOperation; path: string; input: unknown; output
       version: 'sharing.v1',
       commandId: id(8),
       expectedProfileRevision: 0,
-      handle: 'fixture-own',
+      handle: 'fixture.own',
       displayName: 'Fixture',
     },
     output: { ...acceptance, operation: 'profile.set', baseProfileRevision: 0, acceptedProfileRevision: 1 },
@@ -184,7 +184,7 @@ describe('Friends scoped HTTP transport (authored fixtures)', () => {
   it('binds lookup handles, pair public identity and revoke link references', async () => {
     const h = fixture((request) =>
       new URL(request.url).pathname.endsWith('lookup')
-        ? { ...envelope, status: 'available', person: { ...peer, handle: 'wrong-handle' }, pairRevision: 0 }
+        ? { ...envelope, status: 'available', person: { ...peer, handle: 'wrong.handle' }, pairRevision: 0 }
         : new URL(request.url).pathname.endsWith('read')
           ? { ...envelope, status: 'available', pair: { ...pair, peer: { ...peer, personId: id(99) } } }
           : {
