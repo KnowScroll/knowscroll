@@ -5,7 +5,7 @@ import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import type { RegionEncounterOpenRequest, RegionEncounterTarget } from '@knowscroll/contracts';
 import { makeWithPersonalScope, transactionOf, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
+import { createBoss, applyQueueDeclarations, makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { explorationStores, personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse, eraseExploration, checkErasureInventory } from '@knowscroll/backend/infrastructure/erasure';
 import { REGION_ENCOUNTERS, type RegionEncounterUseCases } from '@knowscroll/backend/modules/experience';
@@ -29,6 +29,7 @@ import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-cont
 import { READ_OWN_REGION_CONSTRAINT } from '@knowscroll/backend/modules/geography';
 import { geographyProviders } from '@knowscroll/backend/modules/geography/nest-providers';
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
+import { clearExplorationQueue, recoverClearOperationsQueue } from '@knowscroll/backend/modules/identity';
 import { clearExplorationFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -44,11 +45,15 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
     c: Awaited<ReturnType<typeof scrollUseCases>>,
     p: NavigationPorts,
     region: RegionEncounterUseCases;
+  let privacyBoss: ReturnType<typeof createBoss>;
   const approvals = new Map<string, string>();
   const scope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 2000 });
   beforeAll(async () => {
     database = await createTestDatabase<Database>('region_encounter');
     c = await scrollUseCases(database);
+    privacyBoss = createBoss(database.settings, 'install', { onError: () => undefined, onWarning: () => undefined });
+    await privacyBoss.start();
+    await applyQueueDeclarations(privacyBoss, [clearExplorationQueue, recoverClearOperationsQueue]);
     const SCOPE = Symbol('scope'),
       ENQUEUE = Symbol('enqueue');
     const values = new Map<symbol, unknown>([
@@ -76,6 +81,7 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
     expect(REGION_ENCOUNTERS.description).toBe('experience.regionEncounters');
   });
   afterAll(async () => {
+    await privacyBoss?.stop({ graceful: false });
     await c?.close();
     await database?.drop();
   });
@@ -257,10 +263,16 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
       kind: 'accepted',
       value: { status: 'unavailable', reason: 'stale_target' },
     });
-    expect(await preview(person, { ...target, expectedObjectRevision: 2 })).toMatchObject({
-      kind: 'accepted',
-      value: { status: 'unavailable', reason: 'stale_target' },
+    expect(await preview(person, { ...target, expectedObjectRevision: 2 })).toEqual({
+      kind: 'refused',
+      code: 'INVALID_REQUEST',
     });
+    expect(await preview(person, { ...target, expectedObjectRevision: 2, expectedGeographyRevision: 2 })).toMatchObject(
+      {
+        kind: 'accepted',
+        value: { status: 'unavailable', reason: 'stale_target' },
+      },
+    );
     expect(await effects(person)).toEqual(before);
   });
   it('displayed A remains exact, unknown replay is stable, and retraction refuses before old receipt replay', async () => {
@@ -528,7 +540,7 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
       .where('universe_id', '=', person.universeId)
       .execute();
     const bindings = await database.db.selectFrom('content.region_bindings').selectAll().execute();
-    const clear = clearExplorationFor(database.db, c.boss, {
+    const clear = clearExplorationFor(database.db, privacyBoss, {
         reasoning: clearReasoning,
         eraseCore: async (s) => {
           await eraseExploration(s, explorationStores);

@@ -705,6 +705,65 @@ describe('durable selective Clear', () => {
         },
       });
       if (activated.kind !== 'accepted') throw new Error('fixture offer activation refused');
+      // Authored erasure-only private constraint on this already-activated discovery offer.
+      // This exercises the new store without claiming actual Geography formation/navigation.
+      const coverageHead = await database.db
+        .selectFrom('content.coverage_revisions')
+        .select(['revision', 'mapping_sha256'])
+        .where('asset_id', '=', starter.assetId)
+        .where('asset_revision', '=', starter.revision)
+        .executeTakeFirstOrThrow();
+      const regionConstraint = {
+        version: 'offer-region-constraint.v1',
+        region: {
+          version: 'geography-region-constraint.v1',
+          target: { kind: 'region', regionId: randomUUID(), expectedObjectRevision: 1, expectedGeographyRevision: 1 },
+          planetId: randomUUID(),
+          planetObjectRevision: 1,
+          systemId: randomUUID(),
+          topicId: 'earth.seasons',
+          facetId: 'earth.seasons.axial-tilt',
+          truthStatus: 'factual',
+          catalogueVersion: 'content-concepts.v1',
+        },
+        coverage: {
+          assetId: starter.assetId,
+          assetRevision: starter.revision,
+          headRevision: coverageHead.revision,
+          mappingSha256: coverageHead.mapping_sha256,
+        },
+      };
+      // The existing return fixture is intentionally nonregional. Author a separate exact
+      // discovery descriptor in-place only in this owning CI fixture before adding its child.
+      // No production offer is relabelled: the new child uses a fresh parent inserted below.
+      const parent = await database.db
+        .selectFrom('experience.offers')
+        .selectAll()
+        .where('id', '=', o.offer.offerId)
+        .executeTakeFirstOrThrow();
+      const regionalId = randomUUID();
+      await database.db
+        .insertInto('experience.offers')
+        .values({
+          ...parent,
+          id: regionalId,
+          mode: 'vertical',
+          descriptor: { ...o.offer, offerId: regionalId, relation: { kind: 'discovery' } },
+        })
+        .execute();
+      await database.db
+        .insertInto('experience.offer_region_constraints')
+        .values({
+          universe_id: person.universeId,
+          privacy_epoch: 1,
+          offer_id: regionalId,
+          asset_id: starter.assetId,
+          asset_revision: starter.revision,
+          coverage_head_revision: coverageHead.revision,
+          mapping_sha256: coverageHead.mapping_sha256,
+          constraint_payload: regionConstraint,
+        })
+        .execute();
       await scroll.applyEncounterAction(person.authority, {
         commandId: randomUUID(),
         kind: 'like',

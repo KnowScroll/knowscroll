@@ -711,6 +711,12 @@ describe('Region shared projection inventory (real schema, Actions only)', () =>
   });
   it('declares the actual projection and proves no direct/transitive personal dependency', async () => {
     expect(contentRegionStores.map((x) => x.table)).toEqual(['content.region_bindings']);
+    const actual = await sql<{
+      name: string;
+    }>`select n.nspname||'.'||c.relname name from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where c.relkind='r' and n.nspname='content' and c.relname='region_bindings'`.execute(
+      world.db,
+    );
+    expect(actual.rows.map((x) => x.name)).toEqual(contentRegionStores.map((x) => x.table));
     const rows = await sql<{ name: string }>`with recursive owned(oid) as (
       select to_regclass('content.region_bindings')::oid union select f.confrelid from pg_catalog.pg_constraint f join owned o on o.oid=f.conrelid where f.contype='f')
       select distinct n.nspname||'.'||c.relname name from owned o join pg_catalog.pg_class c on c.oid=o.oid join pg_catalog.pg_namespace n on n.oid=c.relnamespace left join pg_catalog.pg_attribute a on a.attrelid=c.oid and not a.attisdropped and a.attnum>0
