@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-22 22:30 UTC · **Phase:** RESUMED / Friends exact checks and recording lifecycle/API/worker composition · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-22 22:38 UTC · **Phase:** RESUMED / Friends integrated, Identity current-base candidate and full recording composition · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,19 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current authoritative phase — 2026-10-22 22:30 UTC
+## Current authoritative phase — 2026-10-22 22:38 UTC
+
+**Actual integration is `3c167cd907482870101fb014a9d0d6d918f685a6`, tree `03d23921f84f80c14f598131465ff4af99212f3c`, schema40.** Complete Friends PR386 is squash-merged on exact30c39190 after full source/current-base independent reviews and all six checks on both exactsourcee3990987/run39864208408 and actualPRfbf2da59/run39864218060. Acceptancefef0128e verifies each full114 official logs/102 successful step logs, official artifact digests, all19,683 manifest entries/40 immutable SQL/smoke29. Actual-squash receipt993b9b07 binds exact parent/tree and clean integration fast-forward. Both f33 and60e failure rounds and complete archives remain retained. Child377/parent241 real two-account/native evidence stays open; no real Social activity or deployment is inferred.
+
+Identity41 source0e602a8c is being normally composed on actual3c, preserving all18 reviewed feature paths, current shared eight-command contracts, actual receiving-fixture registry pins, Friends UI and formation383. Separate independent current-base review, fresh source/actual-PR Actions and full artifacts are required. No control activation follows from that prerequisite.
+
+Full recording42–44 remains LOCAL SOURCE, separately reviewed across Experience/Evidence/PC/roles/Reasoning/queues/lifecycle. Workerbac327e9 whole3 source0fa793d8 and Root API/control/helper4c0e1505 whole15 source8760d9a6 are independently closed. Actual own/lifecycle, both recording owners, same-cap material effects, sealed current Clear and private recording errors are composed. Full dependency build/all-workspace types/scoped API/helper lint/format/boundaries/Knip pass, static1514868d. Installed API/normal worker/disposable-PG fixtureac855306 has independent6f592e35 after retained P2e6e8d887: witness binds actual operation ID, not submitted command ID. It authors genuine read/set/v2-intake/paused explicit Save/current-vs-historical ACK/current Clear recovery; it has NOT run. No intake fixture or1ms dwell proves qualification/model success. Root now composes exact actual Friends into this preview; that composition requires independent review and hosted acceptance. A disjoint HIGH client owner implements all original-generation producers, strict immutable v2outbox, truthful Pause/current-read/ACK/session boundaries and shared UI; its source is still in progress.
+
+Fresh public health909d8aaf at22:37UTC verifies both dev476baec5/schema35/archive8579c51b and legacy stage8982391f, unchanged main e5fdc319 and dev source106c4701 (not deployed). SSD UUID AFAE8457-8861-427F-A8D0-5F2CC802E2B9 matches. No integration40/preview41–44 deployment occurred. All prior operational windows remain expired/consumed. Ledgerdf1dd4d5 remains36used/0held/0unknown of43; v12 rejected/noasset,22 unexplained own-consumer deltas and ZERO accepted generated Scrolls remain. Exact Sun-angle PR379 script approval79c26473 is one future order≤75¢; no new order/job/reservation. Funds/principal/full endpoint+voice entitlement, fal exact unit/retry liability, corpus/pool/sole writer and fresh finite exact-runtime plans remain open. No owner-data/main/production/spending-history action.
+
+Continue coherent exact-head source/actual-PR Actions phases, remaining architecture/design/privacy/social/native/operator implementation and real-service journeys, genuine Cutroom and interactive Scroll evidence, D002 integration→dev PR/mergeback and identical-artifact stage promotion via scripts/promote.sh. **All five final requirements remain OPEN.**
+
+## Earlier authoritative phase — 2026-10-22 22:30 UTC
 
 This section supersedes the historical checkpoints below. Current actual integration remains **30c391902e8c3ef1d854b88b3b2b94b0b0d13cba**, schema39. No deployment or generation occurred.
 
