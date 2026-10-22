@@ -116,6 +116,31 @@ describe('recording-policy.v1 declaration (synthetic contract fixtures only)', (
     ).toBeDefined();
   });
 
+  it('keeps every generation consistent with initial on and only real boolean toggles', () => {
+    for (const generation of [1, 2, 3, 4, 2_147_483_646, 2_147_483_647]) {
+      const on = generation % 2 === 1;
+      expect(RecordingPolicySchema.parse({ generation, on })).toEqual({ generation, on });
+      expect(RecordingPolicySchema.safeParse({ generation, on: !on }).success).toBe(false);
+      const noop = { ...receipt, fromGeneration: generation, toGeneration: generation, on, changed: false };
+      expect(RecordingPolicyReceiptSchema.parse(noop)).toEqual(noop);
+      expect(RecordingPolicyReceiptSchema.safeParse({ ...noop, on: !on }).success).toBe(false);
+      if (generation < 2_147_483_647) {
+        const toggled = { ...noop, toGeneration: generation + 1, on: !on, changed: true };
+        expect(RecordingPolicyReceiptSchema.parse(toggled)).toEqual(toggled);
+        expect(RecordingPolicyReceiptSchema.safeParse({ ...toggled, on }).success).toBe(false);
+      }
+    }
+    expect(RecordingPolicyReadSchema.safeParse({ ...current, policy: { on: true, generation: 2 } }).success).toBe(
+      false,
+    );
+    expect(
+      RecordingPolicyAcceptanceSchema.safeParse({
+        ...acceptance,
+        receipt: { ...receipt, fromGeneration: 2, toGeneration: 3, on: false },
+      }).success,
+    ).toBe(false);
+  });
+
   it('does not turn a historical acceptance into a current snapshot or authority', () => {
     for (const extra of [{ policy: snapshot.policy }, { scope: snapshot.scope }, { revision: 8 }, { current: true }])
       expect(RecordingPolicyAcceptanceSchema.safeParse({ ...acceptance, ...extra }).success).toBe(false);

@@ -1018,6 +1018,8 @@ their own necessary records. Existing history, Keep and current universe remain 
 Recording generation is distinct from privacy epoch, starts at1/on, is bounded by2147483647
 and never wraps or resets across Clear. An actual on/off transition increments it once;
 an accepted no-op retains it. Clear preserves the preference and generation.
+Because only real boolean toggles increment from1/on, odd generations are on and even
+generations are off. Current policy and receipt final-state schemas enforce that invariant.
 
 Set requires one stable commandId, expected privacy epoch/generation and desired boolean on.
 The receipt's two-component operation is `privacy.recording-set`; outcome-version storage

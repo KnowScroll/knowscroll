@@ -11,7 +11,8 @@ export const RecordingGenerationSchema = z.number().int().min(1).max(2_147_483_6
 export const RecordingScopeSchema = z.strictObject({ accountId: UuidSchema, privacyEpoch: Epoch });
 export const RecordingPolicySchema = z
   .strictObject({ on: z.boolean(), generation: RecordingGenerationSchema })
-  .refine((p) => p.generation !== 1 || p.on);
+  // Initial 1/on plus exactly one increment per boolean toggle fixes every later state.
+  .refine((p) => p.on === (p.generation % 2 === 1));
 
 /** Exact body across an unknown outcome. Necessary explicit-command records remain while off. */
 export const SetRecordingPolicySchema = z.strictObject({
@@ -38,7 +39,7 @@ export const RecordingPolicyReceiptSchema = z
       ? r.fromGeneration < 2_147_483_647 && r.toGeneration === r.fromGeneration + 1
       : r.toGeneration === r.fromGeneration,
   )
-  .refine((r) => r.fromGeneration !== 1 || r.on === !r.changed);
+  .refine((r) => r.on === (r.toGeneration % 2 === 1));
 
 /** Current owner/root/epoch authority precedes replay. Replaying this never retoggles a later policy. */
 export const RecordingPolicyAcceptanceSchema = z.strictObject({
