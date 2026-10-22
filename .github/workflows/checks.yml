@@ -122,7 +122,12 @@ jobs:
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
       - name: Media fixture tooling (no provider calls)
-        run: sudo apt-get update && sudo apt-get install --yes ffmpeg
+        # Fail visibly on a stalled package mirror or lock before any test is claimed to run.
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update && sudo apt-get install --yes ffmpeg
+          ffmpeg -version
+          ffprobe -version
       - name: PostgreSQL server version
         run: psql "$KS_TEST_DATABASE_URL" --no-psqlrc --tuples-only --command 'select version()'
       # Scroll's unchanged timing assertions must not compete with other test workers on this
@@ -167,7 +172,12 @@ jobs:
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
       - name: Media fixture tooling (no provider calls)
-        run: sudo apt-get update && sudo apt-get install --yes ffmpeg
+        # Fail visibly on a stalled package mirror or lock before any test is claimed to run.
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update && sudo apt-get install --yes ffmpeg
+          ffmpeg -version
+          ffprobe -version
       - name: Build packages, API and worker (nest build)
         run: pnpm --filter '!@knowscroll/client' --filter '!@knowscroll/integration-tests' build
       - name: Deploy release trees (pnpm deploy --prod, from the lockfile)
