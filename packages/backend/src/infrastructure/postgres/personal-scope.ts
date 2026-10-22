@@ -127,7 +127,7 @@ export function makeWithResolvedPersonalScope(
             }
             if (resolution.kind === 'stop') throw new RollbackWith({ kind: 'stopped', result: resolution.result });
             const authority = freezeAuthority(resolution.authority);
-            const entry = await lockAndRecheck(trx, authority);
+            const entry = await lockAndRecheck(trx, authority, true);
             if (entry.kind === 'refused') throw new RollbackWith(entry);
             const { context } = resolution;
             const done = await runInScope(trx, authority, entry.revision, (scope) => work(scope, context));
@@ -164,6 +164,7 @@ async function setLockTimeout(trx: Transaction<Database>, lockTimeoutMs: number)
 async function lockAndRecheck(
   trx: Transaction<Database>,
   authority: PersonalAuthority,
+  identityAuthResolution = false,
 ): Promise<
   { readonly kind: 'locked'; readonly revision: number } | { readonly kind: 'refused'; readonly refusal: ScopeRefusal }
 > {
@@ -171,7 +172,7 @@ async function lockAndRecheck(
   try {
     universe = await trx
       .selectFrom('identity.universes')
-      .select(['account_id', 'privacy_epoch', 'status', 'revision'])
+      .select(['account_id', 'privacy_epoch', 'status', 'revision', 'clear_operation_id'])
       .where('id', '=', authority.universeId)
       .forNoKeyUpdate()
       .executeTakeFirst();
@@ -180,6 +181,8 @@ async function lockAndRecheck(
       throw new ScopeBusyError('Personal scope lock not granted in time', { cause: error });
     throw error;
   }
+  if (universe?.clear_operation_id && !identityAuthResolution)
+    return { kind: 'refused', refusal: { kind: 'universe_suspended' } };
   const universeRefusal = refusalForUniverse(authority, universe);
   if (universeRefusal !== undefined) return { kind: 'refused', refusal: universeRefusal };
   if (universe === undefined) return { kind: 'refused', refusal: { kind: 'universe_missing' } };
@@ -248,11 +251,17 @@ export function makeAuthorityHolds(db: Kysely<Database>): AuthorityHolds {
     const row = await db
       .selectFrom('identity.universes as universe')
       .innerJoin('identity.accounts as account', 'account.id', 'universe.account_id')
-      .select(['universe.account_id', 'universe.privacy_epoch', 'universe.status', 'account.status as account_status'])
+      .select([
+        'universe.account_id',
+        'universe.privacy_epoch',
+        'universe.status',
+        'universe.clear_operation_id',
+        'account.status as account_status',
+      ])
       .where('universe.id', '=', authority.universeId)
       .executeTakeFirst();
     if (refusalForUniverse(authority, row) !== undefined || row === undefined) return false;
-    return authority.actor.kind !== 'account' || row.account_status === 'active';
+    return row.clear_operation_id === null && (authority.actor.kind !== 'account' || row.account_status === 'active');
   };
 }
 

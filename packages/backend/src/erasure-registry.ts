@@ -3,7 +3,7 @@ import { scenesErasure } from './modules/scenes/adapters/erasure.js';
 import { geographyErasure } from './modules/geography/adapters/erasure.js';
 import { supplyErasure } from './modules/supply/adapters/erasure.js';
 import { plannerErasure } from './modules/planner/adapters/erasure.js';
-import { erasureRegistry } from './infrastructure/erasure/registry.js';
+import { clearExplorationRegistry, erasureRegistry } from './infrastructure/erasure/registry.js';
 import { composerErasure } from './modules/composer/adapters/erasure.js';
 import { evidenceErasure } from './modules/evidence/adapters/erasure.js';
 import { personalContextErasure } from './modules/personal-context/adapters/erasure.js';
@@ -24,6 +24,34 @@ import { receiptsErasure } from './infrastructure/receipts/erasure.js';
  */
 export const personalStores = erasureRegistry([
   socialErasure,
+  scenesErasure,
+  geographyErasure,
+  supplyErasure,
+  plannerErasure,
+  personalContextErasure,
+  evidenceErasure,
+  experienceErasure,
+  composerErasure,
+  reasoningErasure,
+  receiptsErasure,
+  identityErasure,
+]);
+
+/** Explicit order, with Social and Identity preserved. No full-eraser callback is used. */
+const preservedSocial = {
+  ...socialErasure,
+  clearExploration: {
+    dispositions: Object.fromEntries([
+      ...socialErasure.tables.map((t) => [`${t.schema}.${t.table}`, 'preserve']),
+      ...(socialErasure.accountTables ?? []).map((t) => [`${t.schema}.${t.table}`, 'preserve']),
+      ...(socialErasure.accountColumns ?? []).map((t) => [`${t.schema}.${t.table}`, 'preserve']),
+      ...socialErasure.nonRowStores.map((s) => [`store:${s.name}`, 'preserve']),
+    ]) as Record<string, 'preserve'>,
+    erase: () => Promise.resolve({ module: 'social', status: 'completed' as const, removed: 0 }),
+  },
+};
+export const explorationStores = clearExplorationRegistry([
+  preservedSocial,
   scenesErasure,
   geographyErasure,
   supplyErasure,

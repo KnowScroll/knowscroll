@@ -243,3 +243,52 @@ follow-on work needs a fresh scope. This operation does not erase data, complete
 create a privacy completion receipt or expose a public endpoint. Session logout keeps its existing
 meaning. Global socket disconnect remains a disposable notice with the existing relay/cache
 limits, not guaranteed instantaneous removal during relay outage.
+
+## Selective Clear durable core (#345)
+
+`clearExplorationFor` is an opt-in outer factory. It does not register a normal queue, HTTP route,
+worker or client. Composition must provide the closed Reasoning accounting port and the complete
+`explorationStores` runner, install `clearExplorationQueue`, and implement current-session privacy
+error handling and client purge/refresh before exposing it. No owner clear, provider call or host
+rollout follows from this source prerequisite.
+
+Start/status enter a live `PrivacyScopeTx`: root lock → own-account UPDATE fence → fresh active
+account/current-epoch checks → account-lifetime command lookup. Exact replay returns the immutable
+original acceptance without advancing the epoch or enqueueing; its historical `toEpoch` never
+supplies current authorization. Fresh acceptance records operation, bounded exact financial identities,
+one epoch/revision advance, exact root barrier, socket revocation and required pg-boss work in one
+marked transaction. A lost acknowledgment is recovered by exact retry under a fresh current session.
+
+Ordinary personal scope, lock-free authority and socket access refuse an active barrier. Only the
+existing Identity sign-in resolved-scope entry can issue/refresh sessions during the barrier. It is
+not an exploration bypass; only Identity composition calls this entry, frozen by an Actions fixture.
+Old personal receipts are removed through the accepted `fromEpoch`, preserving new auth receipts.
+
+Worker delivery uses stored operation identity, never payload epochs or a selected cleanup phase.
+Before `core_done_at`, a separate live `ClearCoreTx` runs owner callbacks in FK order. Every store
+needs an explicit disposition. All Saved UUID/ref/revision/time/place/CAS tuples and all Social rows
+are preserved. Owner callbacks delete history of every epoch/version and retained/dead queue data;
+shared Content/Supply/Cutroom/pool are untouched. Completion and clearing only this barrier commit
+together. The core capability is revoked immediately at completion. Later delivery obtains only
+`ClearAccountingTx` bound to the captured set; it cannot erase fresh exploration or open a newer
+operation's barrier. Core/completion timestamps, receipt fields and captured identities are guarded
+against reversal or rewriting by migration 0034.
+
+The financial exception retains marked/redacted current UTC budget-window links so Clear cannot
+reset per-scope allowance. Unproved/dispatched/unknown liabilities remain pending; no privacy flag,
+timeout or retry refunds or resends them. Exact terminal identities can be pruned after the window
+closes without changing global/role receipts, late usage or brakes. The capture cap is 1000 tuples,
+with SQL byte/identity guards before materialization (under 1 MiB); overflow/missing proof refuses
+acceptance. `completed_live` permits this declared minimal resolved retention, and excludes backups,
+provider copies and offline devices. Read-only status/replay never create reconciliation work.
+
+All database/queue/race tests run in Actions only. Source opt-in composition is distinct from API,
+client, worker drain, disposable runtime journey and dev/stage privacy acceptance.
+
+Clear operations and their liability children are account-lifetime stores, not exploration rows.
+They therefore use `account_id` plus a restricted `scope_id` universe FK and are both registered in
+Identity's `accountTables` inventory. Insert guards require the account to own that scope and each
+child to match its operation. Account/root deletion remains restricted until a future account
+lifecycle handles these receipts explicitly. Omitting either declaration fails the existing schema
+inventory. Keeping them out of the ordinary universe eraser preserves that eraser's established
+semantics and assertions; tests separately prove lifetime receipts survive repeated selective Clear.

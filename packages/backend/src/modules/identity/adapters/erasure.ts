@@ -20,11 +20,18 @@ export const identityErasure: ModuleErasure = {
     { schema: 'identity', table: 'email_addresses', ownerColumn: 'account_id' },
     { schema: 'identity', table: 'sign_in_links', ownerColumn: 'address' },
     { schema: 'identity', table: 'sessions', ownerColumn: 'account_id' },
+    { schema: 'identity', table: 'clear_operations', ownerColumn: 'account_id' },
+    { schema: 'identity', table: 'clear_liabilities', ownerColumn: 'account_id' },
   ],
   // The operator audit (ops.operator_sign_ins, review m9) outlives clearing a universe; account
   // deletion keeps each row as a tombstone (account_id set to null).
   accountColumns: [{ schema: 'ops', table: 'operator_sign_ins', column: 'account_id' }],
   nonRowStores: [
+    {
+      name: 'pgboss/identity.clear-exploration',
+      description:
+        'Account-owned operation delivery IDs only; bounded queue/terminal/dead-letter retention, preserved by selective Clear.',
+    },
     {
       name: 'agentmail/sent-sign-in-mail',
       description:
@@ -34,4 +41,17 @@ export const identityErasure: ModuleErasure = {
   erase(): Promise<{ readonly module: string; readonly status: 'completed'; readonly removed: number }> {
     return Promise.resolve({ module: 'identity', status: 'completed', removed: 0 });
   },
+};
+
+identityErasure.clearExploration = {
+  dispositions: Object.fromEntries([
+    ...identityErasure.tables.map((t) => [`${t.schema}.${t.table}`, 'preserve']),
+    ...(identityErasure.accountTables ?? []).map((t) => [`${t.schema}.${t.table}`, 'preserve']),
+    ...(identityErasure.accountColumns ?? []).map((t) => [`${t.schema}.${t.table}`, 'preserve']),
+    ...identityErasure.nonRowStores.map((s) => [
+      `store:${s.name}`,
+      s.name.startsWith('pgboss/') ? 'preserve' : 'external_retention',
+    ]),
+  ]) as Record<string, 'preserve' | 'external_retention'>,
+  erase: () => Promise.resolve({ module: 'identity', status: 'completed', removed: 0 }),
 };

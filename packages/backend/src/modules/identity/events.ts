@@ -28,3 +28,22 @@ export const sweepSignInRecordsQueue = defineQueue({
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
   schedule: { cron: '*/15 * * * *', payload: { v: 1 } },
 });
+
+/** Opt-in only: the normal release registry does not install or consume this queue. */
+export const ClearExplorationJobSchema = z.strictObject({ v: z.literal(1), accountId: z.uuid(), commandId: z.uuid() });
+export type ClearExplorationJob = z.infer<typeof ClearExplorationJobSchema>;
+export const clearExplorationQueue = defineQueue({
+  name: 'identity.clear-exploration',
+  purpose: 'Complete an existing account-owned Clear operation; no paid work.',
+  payload: ClearExplorationJobSchema,
+  policy: {
+    expireInSeconds: 120,
+    retryLimit: 3,
+    retryDelaySeconds: 30,
+    retryBackoff: true,
+    retentionSeconds: 604800,
+    deleteAfterSeconds: 172800,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 2 },
+});

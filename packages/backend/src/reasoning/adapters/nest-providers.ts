@@ -406,3 +406,5 @@ export {
 
 /** Unmounted/default-disabled metadata preparation; separate from B/accounting factories. */
 export { makeWithCutroomPreparationScope } from '../../infrastructure/postgres/cutroom-scope.js';
+
+export { clearReasoning } from './erasure.js';

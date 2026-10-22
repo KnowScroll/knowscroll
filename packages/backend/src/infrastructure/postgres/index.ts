@@ -33,3 +33,13 @@ export {
 } from './transaction-marker.js';
 
 export { makeWithProductionScope, makeProductionAuthorityHolds, productionTransactionOf } from './production-scope.js';
+
+export {
+  makeWithPrivacyScope,
+  makeWithClearMaintenance,
+  privacyTransactionOf,
+  clearCoreTransactionOf,
+  clearAccountingTransactionOf,
+  isClearCore,
+  closeClearCore,
+} from './privacy-scope.js';
