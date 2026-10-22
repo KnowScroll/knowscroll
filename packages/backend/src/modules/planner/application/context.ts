@@ -46,6 +46,7 @@ export async function prepareContext(
     candidateAssetIds: inventory.map((a) => a.assetId),
     provisionalLimit: 0,
   });
+  if (snapshot.proofAvailability !== 'available') throw new Error('PLANNER_PROOF_UNAVAILABLE');
   const evidence = snapshot.supportingEvidence
     .filter((x) => x.qualified)
     .slice(0, PLANNER_LIMITS.evidence)

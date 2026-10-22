@@ -4,11 +4,19 @@ import { FULL_V1_CAPABILITIES } from '@knowscroll/scroll-model';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
-import { makeWithPersonalScope, insideTransaction, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  makeWithPersonalScope,
+  fencePersonalRecording,
+  insideTransaction,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
+import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
+import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import { requestHash } from '@knowscroll/backend/infrastructure/receipts';
 import { readDiscoveryCandidates, readExactEncounter } from '@knowscroll/backend/modules/content/nest-providers';
 import {
   plannerQueue,
+  PlannerJobSchema,
   REQUEST_PLANNER,
   PLANNER_MATERIAL_CHANGE,
   type PlannerMaterialChange,
@@ -20,12 +28,19 @@ import {
   plannerRequestProviders,
   plannerStore,
   makeRunPlanner,
+  makeCheckPlannerRecordingRun,
   makeReadPlannerOpportunities,
   type PlannerPorts,
   type FrozenContext,
 } from '@knowscroll/backend/modules/planner/nest-providers';
+import { geographyStore, makeCheckGeographyRecordingRun } from '@knowscroll/backend/modules/geography/nest-providers';
+import {
+  guardedModelPort,
+  personalRecordingReasoningHarnessFor,
+  type ModelPort,
+} from '@knowscroll/backend/reasoning/nest-providers';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { fixtureHarness, fixtureModel, attemptsOf, signal } from '../support/fixture-model.js';
+import { fixtureHarness, fixtureModel, fixtureSettings, silent, attemptsOf, signal } from '../support/fixture-model.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { buildFromProviders } from '../support/providers.js';
@@ -40,12 +55,14 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
   const topic = `ci.planner.${randomUUID()}`;
   beforeAll(async () => {
     database = await createTestDatabase<Database>('planner');
-    c = await scrollUseCases(database, { activityMaterialChange: (s, x) => material(s, x) });
+    c = await scrollUseCases(database, { recording: true, activityMaterialChange: (s, x) => material(s, x) });
     const SCOPE = Symbol('scope'),
       ENQUEUE = Symbol('enqueue');
     const values = new Map<symbol, unknown>([
       [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
       [ENQUEUE, makeEnqueueJob(c.boss)],
+      [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
+      [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
     ]);
     const providers = plannerRequestProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE });
     for (const provider of providers)
@@ -76,12 +93,18 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     await database.drop();
   });
   const scope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
-  const job = (p: FixturePerson, runId: string) => ({
-    v: 1 as const,
-    universeId: p.universeId,
-    privacyEpoch: 1,
-    runId,
-  });
+  const ordinaryWakes = new Map<string, string>();
+  const job = async (p: FixturePerson, runId: string) => {
+    const row = await database.db
+      .selectFrom('planner.runs')
+      .select('normal_wake_id')
+      .where('universe_id', '=', p.universeId)
+      .where('id', '=', runId)
+      .executeTakeFirstOrThrow();
+    if (row.normal_wake_id) ordinaryWakes.set(runId, row.normal_wake_id);
+    const wakeId = ordinaryWakes.get(runId) ?? randomUUID();
+    return { v: 2 as const, universeId: p.universeId, privacyEpoch: 1, runId, recordingGeneration: 1, wakeId };
+  };
   async function state(p: FixturePerson) {
     return database.db
       .selectFrom('planner.state')
@@ -124,6 +147,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
   function runner(
     p: FixturePerson,
     script?: (context: FrozenContext, sequence: number) => FixtureScenario | Promise<FixtureScenario>,
+    options: { readonly providerUnavailable?: boolean; readonly observeQuota?: ModelPort['observeQuota'] } = {},
   ) {
     const model = fixtureModel(
       async (sequence) => {
@@ -133,9 +157,25 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       },
       { label: 'planner-authored-ci-fixture' },
     );
-    const { harness } = fixtureHarness(database.db, { model });
+    const provider = options.providerUnavailable
+      ? undefined
+      : options.observeQuota
+        ? guardedModelPort({ ...model, observeQuota: options.observeQuota })
+        : model;
+    const fixture = fixtureHarness(database.db, { model: provider });
     let enabled = true;
     let clock: Date | undefined;
+    const harness = personalRecordingReasoningHarnessFor({
+      db: database.db,
+      model: fixture.ports.model,
+      withPersonalScope: fixture.ports.withPersonalScope,
+      fenceOwn: accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount,
+      settings: fixtureSettings,
+      logEvent: silent,
+      overrides: fixture.ports,
+      checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now: () => clock ?? new Date() }),
+      checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now: () => clock ?? new Date() }),
+    });
     const ports: PlannerPorts = {
       ...base,
       store: plannerStore,
@@ -201,7 +241,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     ]);
     expect(jobs.rows).toHaveLength(1);
     r.setEnabled(false);
-    expect(await r.run(job(p, s.active_run_id!), signal())).toMatchObject({
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
       kind: 'entered',
       value: { kind: 'blocked_disabled' },
     });
@@ -211,7 +251,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       runId: s.active_run_id,
     });
     r.setEnabled(true);
-    expect(await r.run(job(p, s.active_run_id!), signal())).toMatchObject({
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
       kind: 'entered',
       value: { kind: 'insufficient' },
     });
@@ -226,6 +266,87 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       ).context,
     ).toMatchObject({ intent: { availability: 'unavailable' }, selection: { completeness: 'not_asserted' } });
   });
+  it('finishes actual available-but-empty and pre-admission provider-unavailable decisions without semantic apply or invented ledger', async () => {
+    for (const decision of ['empty', 'provider_unavailable'] as const) {
+      const p = await seedPerson(database.db);
+      if (decision === 'provider_unavailable') await qualify(p);
+      else expect(await request(p.authority, { commandId: randomUUID() })).toMatchObject({ kind: 'accepted' });
+      const r = runner(p, undefined, { providerUnavailable: decision === 'provider_unavailable' }),
+        s = await state(p),
+        payload = await job(p, s.active_run_id!),
+        forbidden = () => Promise.reject(new Error('CI_NO_ADMISSION_SEMANTIC_APPLY')),
+        run = makeRunPlanner({
+          ...r.ports,
+          harness: { ...r.ports.harness, withPersonalApply: forbidden, closePersonalRun: forbidden },
+        });
+      const before = await database.db
+        .selectFrom('identity.universes')
+        .select('revision')
+        .where('id', '=', p.universeId)
+        .executeTakeFirstOrThrow();
+      expect(await run(payload, signal())).toMatchObject({
+        kind: 'entered',
+        value: { kind: decision === 'empty' ? 'insufficient' : 'blocked' },
+      });
+      const head = await database.db
+        .selectFrom('planner.runs')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .where('id', '=', s.active_run_id!)
+        .executeTakeFirstOrThrow();
+      expect(head).toMatchObject({
+        status: decision === 'empty' ? 'insufficient' : 'blocked',
+        outcome: decision === 'empty' ? 'insufficient_evidence' : 'provider_unavailable',
+        claim_id: null,
+        claim_until: null,
+        normal_wake_id: null,
+        claim_wake_claim_id: null,
+      });
+      expect((await state(p)).active_run_id).toBe(decision === 'empty' ? null : s.active_run_id);
+      expect(await attemptsOf(database.db, p.universeId)).toEqual([]);
+      expect(
+        await database.db
+          .selectFrom('reasoning.business_runs')
+          .select('id')
+          .where('universe_id', '=', p.universeId)
+          .execute(),
+      ).toEqual([]);
+      expect(
+        await database.db
+          .selectFrom('planner.revisions')
+          .select('revision')
+          .where('universe_id', '=', p.universeId)
+          .execute(),
+      ).toEqual([]);
+      expect(
+        await database.db
+          .selectFrom('identity.universes')
+          .select('revision')
+          .where('id', '=', p.universeId)
+          .executeTakeFirstOrThrow(),
+      ).toEqual(before);
+      expect(r.model.calls).toHaveLength(0);
+      const recovery = (
+        await database.pool.query<{ data: unknown }>(
+          "select data from pgboss.job where name='planner.run' and data->>'runId'=$1 and data?'expectedClaimId'",
+          [s.active_run_id],
+        )
+      ).rows;
+      expect(recovery).toHaveLength(1);
+      expect(await run(PlannerJobSchema.parse(recovery[0]!.data), signal())).toMatchObject({
+        kind: 'entered',
+        value: { kind: decision === 'empty' ? 'not_active' : 'obsolete_claim_wake' },
+      });
+      expect(
+        await database.db
+          .selectFrom('planner.runs')
+          .selectAll()
+          .where('universe_id', '=', p.universeId)
+          .where('id', '=', head.id)
+          .executeTakeFirstOrThrow(),
+      ).toEqual(head);
+    }
+  });
   it('runs after actual material PC/Evidence change, ignores replay, preserves the source audit, and accepts unadmitted opportunities only', async () => {
     const p = await seedPerson(database.db),
       payload = await qualify(p),
@@ -238,7 +359,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
         .execute();
     expect(await c.projectActivity(payload)).toMatchObject({ kind: 'skipped', reason: 'already_applied' });
     expect(await state(p)).toEqual(before);
-    expect(await r.run(job(p, before.active_run_id!), signal())).toMatchObject({
+    expect(await r.run(await job(p, before.active_run_id!), signal())).toMatchObject({
       kind: 'entered',
       value: { kind: 'accepted' },
     });
@@ -254,7 +375,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
         .where('universe_id', '=', p.universeId)
         .execute(),
     ).toEqual(evidence);
-    expect(await r.run(job(p, before.active_run_id!), signal())).toMatchObject({
+    expect(await r.run(await job(p, before.active_run_id!), signal())).toMatchObject({
       kind: 'entered',
       value: { kind: 'not_active' },
     });
@@ -309,12 +430,26 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
   it('rolls actual Evidence, PC, scope revision and required Planner job back together when the trigger fails', async () => {
     const p = await seedPerson(database.db),
       exposure = await openActive(c, p, asset);
+    await activatedAgo(database.db, exposure.exposureId, 3);
+    await c.ingestObservations(p.authority, {
+      instrumentationVersion: 1,
+      events: [event(exposure, coverage(blocks, 4000)), event(exposure, dwell([0, 68000]))],
+    });
+    expect(
+      await c.projectScrollReading({
+        v: 1,
+        universeId: p.universeId,
+        privacyEpoch: 1,
+        exposureId: exposure.exposureId,
+      }),
+    ).toMatchObject({ kind: 'applied', qualification: 'qualified' });
     const before = await database.db
       .selectFrom('identity.universes')
       .select('revision')
       .where('id', '=', p.universeId)
       .executeTakeFirstOrThrow();
     const failing = await scrollUseCases(database, {
+      recording: true,
       activityMaterialChange: async (scoped, input) => {
         await material(scoped, input);
         throw new Error('CI_MATERIAL_FAILURE');
@@ -367,11 +502,11 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       return { kind: 'hold', until: held };
     });
     const s = await state(p),
-      running = r.run(job(p, s.active_run_id!), signal());
+      running = r.run(await job(p, s.active_run_id!), signal());
     await entered;
-    expect(await r.run(job(p, s.active_run_id!), signal())).toMatchObject({
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
       kind: 'entered',
-      value: { kind: 'already_running' },
+      value: { kind: 'obsolete_wake' },
     });
     const context = await frozen(p);
     await request(p.authority, { commandId: randomUUID() });
@@ -407,7 +542,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       return { kind: 'hold', until: held };
     });
     const s = await state(p),
-      running = r.run(job(p, s.active_run_id!), signal());
+      running = r.run(await job(p, s.active_run_id!), signal());
     await entered;
     const context = await frozen(p),
       target = context.facts.inventory.find((a) => a.assetId === asset.assetId)!;
@@ -457,7 +592,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
         },
       },
     });
-    await expect(failing(job(p, s.active_run_id!), signal())).rejects.toThrow('CI_APPLY_FAILURE');
+    await expect(failing(await job(p, s.active_run_id!), signal())).rejects.toThrow('CI_APPLY_FAILURE');
     expect(
       await database.db.selectFrom('planner.revisions').selectAll().where('universe_id', '=', p.universeId).execute(),
     ).toHaveLength(0);
@@ -474,7 +609,27 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       .set({ claim_until: new Date(Date.now() - 1000) })
       .where('id', '=', s.active_run_id!)
       .execute();
-    expect(await r.run(job(p, s.active_run_id!), signal())).toMatchObject({
+    const claim = await database.db
+      .selectFrom('planner.runs')
+      .select('claim_id')
+      .where('universe_id', '=', p.universeId)
+      .where('id', '=', s.active_run_id!)
+      .executeTakeFirstOrThrow();
+    // Rollback leaves the original prepared claim live; only its durable recovery may reclaim it.
+    expect(claim.claim_id).toBeTruthy();
+    expect(
+      await r.run(
+        {
+          v: 2,
+          universeId: p.universeId,
+          privacyEpoch: 1,
+          runId: s.active_run_id!,
+          recordingGeneration: 1,
+          expectedClaimId: claim.claim_id!,
+        },
+        signal(),
+      ),
+    ).toMatchObject({
       kind: 'entered',
       value: { kind: 'accepted' },
     });
@@ -487,7 +642,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     for (let i = 0; i < 4; i++) {
       if (i > 0) await request(p.authority, { commandId: randomUUID() });
       const s = await state(p);
-      expect(await r.run(job(p, s.active_run_id!), signal())).toMatchObject({
+      expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
         kind: 'entered',
         value: { kind: 'accepted' },
       });
@@ -511,13 +666,13 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     await qualify(p);
     const r = runner(p, () => ({ kind: 'timeout_after_dispatch' })),
       s = await state(p);
-    expect(await r.run(job(p, s.active_run_id!), signal())).toMatchObject({
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
       kind: 'entered',
       value: { kind: 'unknown' },
     });
     await request(p.authority, { commandId: randomUUID() });
     await request(p.authority, { commandId: randomUUID(), resumeRunId: s.active_run_id! });
-    expect(await r.run(job(p, s.active_run_id!), signal())).toMatchObject({
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
       kind: 'entered',
       value: { kind: 'unknown' },
     });
@@ -529,13 +684,13 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       ...r.ports,
       harness: {
         ...r.ports.harness,
-        propose: (input, abort) =>
-          r.ports.harness.propose({ ...input, role: { ...input.role, version: 'planner2' } }, abort),
+        proposePersonal: (input, abort) =>
+          r.ports.harness.proposePersonal({ ...input, role: { ...input.role, version: 'planner2' } }, abort),
       },
     });
     for (let resume = 0; resume < 2; resume++) {
       await request(p.authority, { commandId: randomUUID(), resumeRunId: s.active_run_id! });
-      expect(await changedRole(job(p, s.active_run_id!), signal())).toMatchObject({
+      expect(await changedRole(await job(p, s.active_run_id!), signal())).toMatchObject({
         kind: 'entered',
         value: { kind: 'blocked' },
       });
@@ -584,7 +739,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     // pg-boss's documented test/admin time override advances queue eligibility without a19-minute wait.
     const [second] = await c.boss.fetch<Parameters<RunPlanner>[0]>('planner.run', { ignoreStartAfter: true });
     expect(second!.retryCount).toBe(1);
-    expect(await r.run(second!.data, signal())).toMatchObject({ kind: 'entered', value: { kind: 'already_running' } });
+    expect(await r.run(second!.data, signal())).toMatchObject({ kind: 'entered', value: { kind: 'obsolete_wake' } });
     expect(await c.boss.complete('planner.run', second!)).toMatchObject({ affected: 1 });
     const rows = (
       await database.pool.query<{ data: Parameters<RunPlanner>[0]; start_after: Date }>(
@@ -601,7 +756,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     expect(rows[0]!.data).toMatchObject({ runId: s.active_run_id, expectedClaimId: run.claim_id });
     expect(rows[0]!.start_after.getTime()).toBe(run.claim_until!.getTime() + 1000);
     expect(await c.boss.fetch('planner.run')).toHaveLength(0);
-    // Another early delivery deduplicates the same expected-claim wake-up.
+    // The ordinary retry is stale; recovery was already atomically queued at first capture.
     await r.run(second!.data, signal());
     expect(
       (await database.pool.query("select id from pgboss.job where name='planner.run' and state='created'")).rows,
@@ -632,28 +787,37 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       const enteredPromise = new Promise<void>((resolve) => {
         entered = resolve;
       });
-      const r = runner(p, async (context) => {
-        entered();
-        await hold;
-        return decision === 'unknown'
-          ? { kind: 'timeout_after_dispatch' }
-          : { kind: 'success', text: JSON.stringify(answer(context)) };
-      });
-      const s = await state(p);
-      // Authored harness admission outcome for quota: no model invocation or invented provider output.
-      const pausedQuota: PlannerPorts['harness'] = {
-        ...r.ports.harness,
-        propose: async () => {
+      const r = runner(
+        p,
+        async (context) => {
           entered();
           await hold;
-          return { kind: 'quota_unavailable', attemptId: randomUUID() };
+          return decision === 'unknown'
+            ? { kind: 'timeout_after_dispatch' }
+            : { kind: 'success', text: JSON.stringify(answer(context)) };
         },
-      };
-      const owner = decision === 'quota' ? makeRunPlanner({ ...r.ports, harness: pausedQuota }) : r.run;
+        decision === 'quota'
+          ? {
+              observeQuota: async () => {
+                entered();
+                await hold;
+                return {
+                  verdict: 'unavailable',
+                  intervalRemainingPercent: null,
+                  weeklyRemainingPercent: null,
+                  reasonCode: 'CI_QUOTA_UNAVAILABLE',
+                };
+              },
+            }
+          : {},
+      );
+      const s = await state(p);
+      // The real guarded model quota observation occurs AFTER actual admission/reservation.
+      const owner = r.run;
       const [first] = await c.boss.fetch<Parameters<RunPlanner>[0]>('planner.run');
       const running = owner(first!.data, signal());
       await enteredPromise;
-      expect(await r.run(first!.data, signal())).toMatchObject({ kind: 'entered', value: { kind: 'already_running' } });
+      expect(await r.run(first!.data, signal())).toMatchObject({ kind: 'entered', value: { kind: 'obsolete_wake' } });
       if (decision === 'disabled') r.setEnabled(false);
       release();
       expect(await running).toMatchObject({
@@ -678,11 +842,23 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       });
       await c.boss.complete('planner.run', late!);
       r.setEnabled(true);
-      expect(await r.run(job(p, s.active_run_id!), signal())).toMatchObject({
+      expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
         kind: 'entered',
-        value: { kind: decision === 'accepted' ? 'not_active' : 'awaiting_explicit_resume' },
+        value: { kind: decision === 'accepted' ? 'not_active' : 'obsolete_wake' },
       });
       expect(r.model.calls).toHaveLength(decision === 'quota' ? 0 : 1);
+      if (decision === 'quota') {
+        expect(await attemptsOf(database.db, p.universeId)).toMatchObject([
+          { state: 'not_sent', quota_observation: { verdict: 'unavailable' } },
+        ]);
+        expect(
+          await database.db
+            .selectFrom('reasoning.business_runs')
+            .select(['id', 'state'])
+            .where('universe_id', '=', p.universeId)
+            .execute(),
+        ).toEqual([{ id: s.active_run_id, state: 'admitted' }]);
+      }
     }
   });
   it('rolls back delayed jobs with their scope transaction and fences a scheduled wake across privacy reset', async () => {
@@ -690,13 +866,20 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     await qualify(p);
     const r = runner(p),
       s = await state(p);
-    const delayed = { expectedClaimId: randomUUID(), startAfter: new Date(Date.now() + 10000) };
-    await expect(
-      scope()(p.authority, async (scoped) => {
-        await base.enqueue(scoped, s.active_run_id!, delayed);
-        throw new Error('CI_DELAY_ROLLBACK');
-      }),
-    ).rejects.toThrow('CI_DELAY_ROLLBACK');
+    let scheduledClaim: string | undefined;
+    const failing = makeRunPlanner({
+      ...r.ports,
+      enqueue: async (cap, id, recovery) => {
+        await base.enqueue(cap, id, recovery);
+        if (recovery) {
+          scheduledClaim = recovery.expectedClaimId;
+          throw new Error('CI_DELAY_ROLLBACK');
+        }
+      },
+    });
+    await expect(failing(await job(p, s.active_run_id!), signal())).rejects.toThrow('CI_DELAY_ROLLBACK');
+    expect(scheduledClaim).toBeDefined();
+    const delayed = { expectedClaimId: scheduledClaim! };
     expect(
       (
         await database.pool.query(
@@ -706,21 +889,21 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       ).rows,
     ).toHaveLength(0);
     await expect(
-      scope()(p.authority, (scoped) =>
+      scope()(p.authority, async (scoped) =>
         makeEnqueueJob(c.boss)(
           scoped,
           plannerQueue,
-          { ...job(p, s.active_run_id!) },
+          { ...(await job(p, s.active_run_id!)) },
           { startAfter: new Date(Number.NaN) },
         ),
       ),
     ).rejects.toThrow('JOB_START_AFTER_INVALID');
     await expect(
-      scope()(p.authority, (scoped) =>
+      scope()(p.authority, async (scoped) =>
         makeEnqueueJob(c.boss)(
           scoped,
           plannerQueue,
-          { ...job(p, s.active_run_id!) },
+          { ...(await job(p, s.active_run_id!)) },
           { startAfter: new Date(Date.now() + 2 * 86400000) },
         ),
       ),
@@ -731,7 +914,17 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       .where('id', '=', p.universeId)
       .execute();
     expect(
-      await r.run({ ...job(p, s.active_run_id!), expectedClaimId: delayed.expectedClaimId }, signal()),
+      await r.run(
+        {
+          v: 2,
+          universeId: p.universeId,
+          privacyEpoch: 1,
+          runId: s.active_run_id!,
+          recordingGeneration: 1,
+          expectedClaimId: delayed.expectedClaimId,
+        },
+        signal(),
+      ),
     ).toMatchObject({ kind: 'refused' });
     expect(r.model.calls).toHaveLength(0);
   });
@@ -744,7 +937,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
         return { kind: 'success', text: JSON.stringify(proposal) };
       }),
       s = await state(p);
-    expect(await r.run(job(p, s.active_run_id!), signal())).toMatchObject({
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
       kind: 'entered',
       value: { kind: 'accepted' },
     });
@@ -760,7 +953,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       .set({ privacy_epoch: 2 })
       .where('id', '=', p.universeId)
       .execute();
-    expect(await r.run(job(p, s.active_run_id!), signal())).toMatchObject({ kind: 'refused' });
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({ kind: 'refused' });
     await scope()({ ...p.authority, privacyEpoch: 2 }, (scoped) => eraseUniverse(scoped, personalStores));
     for (const table of ['planner.state', 'planner.runs', 'planner.revisions', 'reasoning.protected_requests'] as const)
       expect(
