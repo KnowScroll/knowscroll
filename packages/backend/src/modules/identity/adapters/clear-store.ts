@@ -3,6 +3,7 @@ import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { revokeAccountSockets } from '../../../infrastructure/notices/index.js';
 import {
   privacyTransactionOf,
+  assertClearRemovalVerified,
   bindPrivacyOperation,
   clearCoreTransactionOf,
   clearAccountingTransactionOf,
@@ -91,6 +92,7 @@ export const clearStore: ClearStore = {
     return accepted;
   },
   async coreDone(scope) {
+    assertClearRemovalVerified(scope);
     const trx = clearCoreTransactionOf(scope),
       b = scope.binding;
     const updated = await trx

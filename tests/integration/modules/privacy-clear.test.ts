@@ -1058,4 +1058,22 @@ describe('durable selective Clear', () => {
         .execute(),
     ).rejects.toThrow('clear_operation_owner_binding');
   });
+  it('cannot complete when composition omits an owner or skips the verified runner', async () => {
+    const p = await seedPerson(db()),
+      input = body();
+    await cases().start(authority(p), input);
+    await expect(custom({ eraseCore: async () => undefined }).process(job(p, input.commandId))).rejects.toThrow(
+      'CLEAR_REMOVAL_UNVERIFIED',
+    );
+    const omitted = explorationStores.filter((d) => d.module !== 'experience');
+    await expect(
+      custom({
+        eraseCore: async (scope) => {
+          await eraseExploration(scope, omitted);
+        },
+      }).process(job(p, input.commandId)),
+    ).rejects.toThrow('CLEAR_INVENTORY_UNVERIFIED');
+    expect((await root(p)).clear_operation_id).not.toBeNull();
+    expect(await status(p)).toMatchObject({ value: { value: { status: 'pending', phase: 'removing_live_data' } } });
+  });
 });

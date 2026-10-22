@@ -13,6 +13,7 @@ import { ScopeClosedError, withTransaction } from './personal-scope.js';
 
 const acceptedOperations = new WeakMap<PrivacyScopeTx, ClearBinding>();
 const privacy = new WeakMap<PrivacyScopeTx, Transaction<Database>>();
+const verifiedCoreRemoval = new WeakSet<ClearCoreTx>();
 const core = new WeakMap<ClearCoreTx, Transaction<Database>>();
 const accounting = new WeakMap<ClearAccountingTx, Transaction<Database>>();
 export function privacyTransactionOf(scope: PrivacyScopeTx): Transaction<Database> {
@@ -36,6 +37,8 @@ export function isClearCore(scope: ClearCoreTx | ClearAccountingTx): scope is Cl
   return false;
 }
 async function timeouts(trx: Transaction<Database>, lockTimeoutMs: number) {
+  // Fresh statements after waiting on the account gate are part of the authority protocol.
+  await sql`set transaction isolation level read committed`.execute(trx);
   await sql`select set_config('lock_timeout', ${`${lockTimeoutMs}ms`}, true),
  set_config('statement_timeout', '60000ms', true)`.execute(trx);
 }
@@ -137,6 +140,7 @@ export function makeWithClearMaintenance(
           return await work(scope);
         } finally {
           core.delete(scope);
+          verifiedCoreRemoval.delete(scope);
         }
       }
       const rows = await trx
@@ -203,4 +207,14 @@ export function privacyOperationOf(scope: PrivacyScopeTx): ClearBinding {
   const binding = acceptedOperations.get(scope);
   if (!binding) throw new ScopeClosedError('Privacy operation binding unavailable');
   return binding;
+}
+
+/** Only the selective erasure runner records this after catalogue inventory and every owner report. */
+export function markClearRemovalVerified(scope: ClearCoreTx): void {
+  clearCoreTransactionOf(scope);
+  verifiedCoreRemoval.add(scope);
+}
+export function assertClearRemovalVerified(scope: ClearCoreTx): void {
+  clearCoreTransactionOf(scope);
+  if (!verifiedCoreRemoval.has(scope)) throw new Error('CLEAR_REMOVAL_UNVERIFIED');
 }

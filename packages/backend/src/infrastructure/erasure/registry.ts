@@ -1,4 +1,5 @@
-import { clearCoreTransactionOf } from '../postgres/privacy-scope.js';
+import { checkErasureInventory } from './inventory.js';
+import { clearCoreTransactionOf, markClearRemovalVerified } from '../postgres/privacy-scope.js';
 import type { ClearCoreTx, PersonalScopeTx } from '../../modules/identity/public.js';
 
 /** A personal SQL table and the column that names its universe. */
@@ -118,8 +119,9 @@ export async function eraseExploration(
   scope: ClearCoreTx,
   registry: readonly ModuleErasure[],
 ): Promise<readonly ErasureReport[]> {
-  clearCoreTransactionOf(scope);
+  const trx = clearCoreTransactionOf(scope);
   clearExplorationRegistry(registry);
+  if ((await checkErasureInventory(trx, registry)).length > 0) throw new Error('CLEAR_INVENTORY_UNVERIFIED');
   const reports: ErasureReport[] = [];
   for (const d of registry) {
     clearCoreTransactionOf(scope);
@@ -127,5 +129,6 @@ export async function eraseExploration(
     if (report.module !== d.module || report.status !== 'completed') throw new Error('CLEAR_OWNER_UNVERIFIED');
     reports.push(report);
   }
+  markClearRemovalVerified(scope);
   return reports;
 }
