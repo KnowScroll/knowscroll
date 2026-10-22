@@ -263,6 +263,10 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
   await page.clock.fastForward(4999);
   expect(commands.filter((call) => call.path.endsWith('/keep/remove'))).toHaveLength(0);
   await page.clock.fastForward(1);
+  await expect.poll(() => commands.filter((call) => call.path.endsWith('/keep/remove')).length).toBe(1);
+  // The boundary above is frozen/exact. Let post-ACK TanStack zero-delay notifications and
+  // the normal asynchronous browser render run before checking the authoritative list.
+  await page.clock.resume();
   await expect(page.getByText('Nothing kept yet', { exact: true })).toBeVisible();
   expect(commands.at(-1)?.path).toBe('/v1/experience/keep/remove');
   expect(commands.at(-1)?.body).toEqual({
