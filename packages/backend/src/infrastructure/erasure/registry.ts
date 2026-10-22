@@ -1,4 +1,3 @@
-import { checkErasureInventory } from './inventory.js';
 import { clearCoreTransactionOf, markClearRemovalVerified } from '../postgres/privacy-scope.js';
 import type { ClearCoreTx, PersonalScopeTx } from '../../modules/identity/public.js';
 
@@ -97,7 +96,12 @@ export async function eraseUniverse(
 }
 
 /** Every declared store needs an explicit disposition; omission refuses cleanup before any SQL. */
-export function clearExplorationRegistry(registry: readonly ModuleErasure[]): readonly ModuleErasure[] {
+const clearVerifiers = new WeakMap<readonly ModuleErasure[], (scope: ClearCoreTx) => Promise<boolean>>();
+export function clearExplorationRegistry(
+  registry: readonly ModuleErasure[],
+  inventory?: readonly ModuleErasure[],
+  verify?: (scope: ClearCoreTx) => Promise<boolean>,
+): readonly ModuleErasure[] {
   for (const d of registry) {
     const clear = d.clearExploration;
     if (!clear) throw new Error('CLEAR_OWNER_MISSING');
@@ -113,15 +117,24 @@ export function clearExplorationRegistry(registry: readonly ModuleErasure[]): re
     )
       throw new Error('CLEAR_DISPOSITION_MISSING');
   }
-  return registry;
+  if (
+    !inventory ||
+    !verify ||
+    registry.length !== inventory.length ||
+    inventory.some((owner) => !registry.some((d) => d.module === owner.module))
+  )
+    throw new Error('CLEAR_INVENTORY_UNVERIFIED');
+  const complete = Object.freeze([...registry]);
+  clearVerifiers.set(complete, verify);
+  return complete;
 }
 export async function eraseExploration(
   scope: ClearCoreTx,
   registry: readonly ModuleErasure[],
 ): Promise<readonly ErasureReport[]> {
-  const trx = clearCoreTransactionOf(scope);
-  clearExplorationRegistry(registry);
-  if ((await checkErasureInventory(trx, registry)).length > 0) throw new Error('CLEAR_INVENTORY_UNVERIFIED');
+  clearCoreTransactionOf(scope);
+  const verify = clearVerifiers.get(registry);
+  if (!verify || !(await verify(scope))) throw new Error('CLEAR_INVENTORY_UNVERIFIED');
   const reports: ErasureReport[] = [];
   for (const d of registry) {
     clearCoreTransactionOf(scope);

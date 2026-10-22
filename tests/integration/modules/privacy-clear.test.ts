@@ -35,13 +35,14 @@ import {
   clearAccountingTransactionOf,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
+import { clearExplorationQueue, type PrivacyAuthority } from '@knowscroll/backend/modules/identity';
 import {
-  clearExplorationQueue,
+  clearExplorationFor,
+  clearStore,
+  identityUseCases,
   makeClearExploration,
   type ClearPorts,
-  type PrivacyAuthority,
-} from '@knowscroll/backend/modules/identity';
-import { clearExplorationFor, clearStore, identityUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
+} from '@knowscroll/backend/modules/identity/nest-providers';
 import { clearReasoning, makeAttemptLedger } from '@knowscroll/backend/reasoning/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedAsset, seedPerson, type FixturePerson } from '../support/fixtures.js';

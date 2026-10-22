@@ -410,5 +410,3 @@ export type WithClearMaintenance = <T>(
   work: (scope: ClearCoreTx | ClearAccountingTx) => Promise<T>,
 ) => Promise<T | undefined>;
 export { ClearExplorationJobSchema, clearExplorationQueue, type ClearExplorationJob } from './events.js';
-export { makeClearExploration } from './application/clear-exploration.js';
-export type { ClearPorts, ClearOperation, ClearStore } from './application/clear-ports.js';

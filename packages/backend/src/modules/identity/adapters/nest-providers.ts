@@ -271,3 +271,6 @@ export function accountAccessProviders(tokens: { readonly useCases: symbol }) {
 }
 
 export { clearExplorationFor, clearStore } from './clear-providers.js';
+
+export { makeClearExploration } from '../application/clear-exploration.js';
+export type { ClearPorts, ClearOperation, ClearStore } from '../application/clear-ports.js';

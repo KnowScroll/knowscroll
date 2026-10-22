@@ -1,3 +1,5 @@
+import { checkErasureInventory } from './infrastructure/erasure/inventory.js';
+import { clearCoreTransactionOf } from './infrastructure/postgres/privacy-scope.js';
 import { socialErasure } from './modules/social/adapters/erasure.js';
 import { scenesErasure } from './modules/scenes/adapters/erasure.js';
 import { geographyErasure } from './modules/geography/adapters/erasure.js';
@@ -50,17 +52,21 @@ const preservedSocial = {
     erase: () => Promise.resolve({ module: 'social', status: 'completed' as const, removed: 0 }),
   },
 };
-export const explorationStores = clearExplorationRegistry([
-  preservedSocial,
-  scenesErasure,
-  geographyErasure,
-  supplyErasure,
-  plannerErasure,
-  personalContextErasure,
-  evidenceErasure,
-  experienceErasure,
-  composerErasure,
-  reasoningErasure,
-  receiptsErasure,
-  identityErasure,
-]);
+export const explorationStores = clearExplorationRegistry(
+  [
+    preservedSocial,
+    scenesErasure,
+    geographyErasure,
+    supplyErasure,
+    plannerErasure,
+    personalContextErasure,
+    evidenceErasure,
+    experienceErasure,
+    composerErasure,
+    reasoningErasure,
+    receiptsErasure,
+    identityErasure,
+  ],
+  personalStores,
+  async (scope) => (await checkErasureInventory(clearCoreTransactionOf(scope), personalStores)).length === 0,
+);
