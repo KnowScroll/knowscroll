@@ -81,6 +81,16 @@ const DIAGRAM = {
     },
   ],
 } as const;
+const SEQUENCE = {
+  type: 'sequence',
+  cites: ['e2', 'e3', 'e4'],
+  title: 'A night at the lighthouse',
+  steps: [
+    { title: 'Light the lamp', text: 'The keeper lights the lamp at dusk.' },
+    { title: 'Turn the lens', text: 'The prism ring turns, so the beam sweeps the water.' },
+    { title: 'Watch the weather', text: 'In thick fog a sound signal takes over from the beam.' },
+  ],
+} as const;
 const COMPARISON = {
   type: 'comparison',
   cites: ['e2', 'e3', 'e4'],
@@ -99,8 +109,9 @@ function formatBlock(format: WriterFormat) {
       return DIAGRAM;
     case 'comparison':
       return COMPARISON;
-    case 'chart':
     case 'sequence':
+      return SEQUENCE;
+    case 'chart':
     case 'simulation':
     case 'timeline':
       throw new Error(`CI_FIXTURE_FORMAT_UNSUPPORTED:${format}`);
