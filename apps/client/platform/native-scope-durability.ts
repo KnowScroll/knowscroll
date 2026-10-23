@@ -265,6 +265,35 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
   let tail = Promise.resolve();
   let incarnation = 0;
   let runtime: Runtime | undefined;
+  interface Preparation {
+    fenced: boolean;
+    readonly secrets: Map<'credential' | 'key' | 'raw' | 'plaintext', string>;
+    root?: Root;
+    row?: Row;
+    entries?: Map<string, string>;
+    opened?: Runtime;
+    rootId?: string;
+    emptyRoot?: boolean;
+    binding?: string;
+  }
+  const preparing = new Set<Preparation>();
+  const release = (owner: Preparation) => {
+    owner.fenced = true;
+    owner.secrets.clear();
+    delete owner.binding;
+    delete owner.emptyRoot;
+    if (owner.root) delete owner.root.key;
+    delete owner.root;
+    delete owner.row;
+    owner.entries?.clear();
+    delete owner.entries;
+    owner.opened?.port.fence();
+    delete owner.opened;
+  };
+  const releasePreparing = () => {
+    for (const owner of preparing) release(owner);
+    preparing.clear();
+  };
   const exclusive = <T>(work: () => Promise<T>): Promise<T> => {
     const result = tail.then(work);
     tail = result.then(
@@ -609,98 +638,193 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
     if (initialRevision === 0) dirty = true;
     return { root, store, port };
   }
+  async function prepareOwner(
+    owner: Preparation,
+    ticket: number,
+    identity: { origin: string; accountId: string; privacyEpoch: number },
+    current: () => boolean,
+  ): Promise<KeyValueStore> {
+    const live = () => !owner.fenced && ticket === incarnation && current() && !owner.fenced && ticket === incarnation;
+    // Result locals end with this helper. Only registered, clearable owners survive the next await.
+    const retain = async <T>(operation: () => Promise<T>, accept: (value: T) => void) => {
+      if (!live()) throw unavailable();
+      const value = await operation();
+      if (!live()) throw unavailable();
+      accept(value);
+    };
+    try {
+      await exclusive(async () => {
+        if (
+          !live() ||
+          !owner.secrets.get('credential') ||
+          !uuid.test(identity.accountId) ||
+          new URL(identity.origin).origin !== identity.origin
+        )
+          throw unavailable();
+        await retain(
+          () => {
+            const binding = ports.binding(owner.secrets.get('credential')!);
+            owner.secrets.delete('credential');
+            return binding;
+          },
+          (value) => {
+            owner.binding = value;
+          },
+        );
+        await retain(
+          () => ports.readRoot(),
+          (value) => {
+            owner.emptyRoot = value === null;
+            if (value !== null) owner.secrets.set('raw', value);
+          },
+        );
+        if (!live()) throw unavailable();
+        if (!owner.emptyRoot) owner.root = parseRoot(owner.secrets.get('raw')!);
+        owner.secrets.delete('raw');
+        const value = await database(live);
+        if (!live()) throw unavailable();
+        await retain(
+          () => value.getFirstAsync<Row>('SELECT root_id,revision,body FROM ks_scoped_snapshot WHERE singleton=1'),
+          (row) => {
+            if (row) owner.row = row;
+          },
+        );
+        if (!live()) throw unavailable();
+        const same =
+          owner.root?.origin === identity.origin &&
+          owner.root.accountId === identity.accountId &&
+          owner.root.privacyEpoch === identity.privacyEpoch &&
+          owner.root.sessionBinding === owner.binding;
+        if (owner.root?.status === 'open') {
+          // No prior-commit witness exists: missing means unknown, NEVER empty initialization.
+          if (!owner.row) throw unavailable();
+          if (!same) {
+            await close(owner.root.rootId);
+            if (!live()) throw unavailable();
+            delete owner.root.key;
+            delete owner.root;
+          } else {
+            if (
+              owner.row.root_id !== owner.root.rootId ||
+              !Number.isSafeInteger(owner.row.revision) ||
+              owner.row.revision < 1 ||
+              owner.row.body.length > 710000
+            )
+              throw unavailable();
+            await retain(
+              () => ports.decrypt(owner.row!.body, owner.root!.key!, aad(owner.root!, owner.row!.revision)),
+              (plain) => {
+                owner.secrets.set('plaintext', plain);
+              },
+            );
+            if (!live()) throw unavailable();
+            const entries = parseSnapshot(owner.secrets.get('plaintext')!, owner.root, owner.row.revision);
+            owner.secrets.delete('plaintext');
+            if (!live()) {
+              entries.clear();
+              throw unavailable();
+            }
+            owner.entries = entries;
+            owner.opened = makeRuntime(owner.root, owner.entries, owner.row.revision);
+            owner.rootId = owner.root.rootId;
+            delete owner.root;
+            delete owner.entries;
+            delete owner.row;
+            return;
+          }
+        } else {
+          if (
+            same ||
+            (owner.emptyRoot && owner.row) ||
+            (owner.root && owner.row && owner.row.root_id !== owner.root.rootId)
+          )
+            throw unavailable();
+          if (owner.root) {
+            await close(owner.root.rootId);
+            if (!live()) throw unavailable();
+            delete owner.root;
+          }
+        }
+        delete owner.row;
+        await retain(
+          () => ports.key(),
+          (key) => {
+            owner.secrets.set('key', key);
+          },
+        );
+        await retain(
+          () => ports.id(),
+          (id) => {
+            owner.rootId = id;
+          },
+        );
+        if (!live()) throw unavailable();
+        owner.root = {
+          v: 1,
+          status: 'open',
+          origin: identity.origin,
+          accountId: identity.accountId,
+          privacyEpoch: identity.privacyEpoch,
+          rootId: owner.rootId!,
+          sessionBinding: owner.binding!,
+          key: owner.secrets.get('key')!,
+        };
+        owner.secrets.delete('key');
+        parseRoot(JSON.stringify(owner.root));
+        // An entered native OPEN write cannot be cancelled. Cleanup remains queued behind it.
+        await retain(
+          () => ports.writeRoot(JSON.stringify(owner.root)),
+          () => undefined,
+        );
+        if (!live()) throw unavailable();
+        owner.entries = new Map();
+        owner.opened = makeRuntime(owner.root, owner.entries, 0);
+        delete owner.root;
+        delete owner.entries;
+      });
+      if (!live()) {
+        release(owner);
+        if (owner.rootId) await exclusive(() => close(owner.rootId));
+        throw unavailable();
+      }
+      const opened = owner.opened!;
+      // Keep opened registered until initial flush/publication finishes; fence sees either owner.
+      runtime = opened;
+      if (!(await opened.port.flush({})) || !live()) throw unavailable();
+      delete owner.opened; // Synchronous live ownership transfer, with no promise handoff gap.
+      return opened.store;
+    } finally {
+      release(owner);
+      preparing.delete(owner);
+    }
+  }
   return {
     fence() {
       incarnation++;
+      releasePreparing();
       runtime?.port.fence();
     },
     purge() {
       incarnation++;
+      releasePreparing();
       runtime?.port.fence();
       return exclusive(() => close());
     },
-    async prepare(input, current) {
+    prepare(input, current) {
       const ticket = ++incarnation;
-      const live = () => ticket === incarnation && current();
-      const opened = await exclusive(async () => {
-        if (
-          !live() ||
-          !input.credential ||
-          !uuid.test(input.account.accountId) ||
-          new URL(input.origin).origin !== input.origin
-        )
-          throw unavailable();
-        const binding = await ports.binding(input.credential);
-        if (!live()) throw unavailable();
-        const raw = await ports.readRoot();
-        if (!live()) throw unavailable();
-        const root = raw === null ? undefined : parseRoot(raw);
-        const value = await database(live);
-        if (!live()) throw unavailable();
-        const row = await value.getFirstAsync<Row>(
-          'SELECT root_id,revision,body FROM ks_scoped_snapshot WHERE singleton=1',
-        );
-        if (!live()) throw unavailable();
-        const same =
-          root?.origin === input.origin &&
-          root.accountId === input.account.accountId &&
-          root.privacyEpoch === input.account.privacyEpoch &&
-          root.sessionBinding === binding;
-        if (root?.status === 'open') {
-          // No prior-commit witness exists: missing means unknown, NEVER empty initialization.
-          if (!row) throw unavailable();
-          if (!same) {
-            await close(root.rootId);
-            if (!live()) throw unavailable();
-          } else {
-            if (
-              row.root_id !== root.rootId ||
-              !Number.isSafeInteger(row.revision) ||
-              row.revision < 1 ||
-              row.body.length > 710000
-            )
-              throw unavailable();
-            const plaintext = await ports.decrypt(row.body, root.key!, aad(root, row.revision));
-            if (!live()) throw unavailable();
-            return makeRuntime(root, parseSnapshot(plaintext, root, row.revision), row.revision);
-          }
-        } else {
-          if (same || (raw === null && row !== null) || (root && row && row.root_id !== root.rootId))
-            throw unavailable();
-          if (root) {
-            await close(root.rootId);
-            if (!live()) throw unavailable();
-          }
-        }
-        const key = await ports.key();
-        if (!live()) throw unavailable();
-        const next: Root = {
-          v: 1,
-          status: 'open',
+      releasePreparing();
+      const owner: Preparation = { fenced: false, secrets: new Map([['credential', input.credential]]) };
+      preparing.add(owner); // Before any async credential/key/root/plaintext acquisition.
+      return prepareOwner(
+        owner,
+        ticket,
+        {
           origin: input.origin,
           accountId: input.account.accountId,
           privacyEpoch: input.account.privacyEpoch,
-          rootId: await ports.id(),
-          sessionBinding: binding,
-          key,
-        };
-        if (!live()) throw unavailable();
-        parseRoot(JSON.stringify(next));
-        await ports.writeRoot(JSON.stringify(next));
-        if (!live()) throw unavailable();
-        return makeRuntime(next, new Map(), 0);
-      });
-      if (!live()) {
-        opened.port.fence();
-        await opened.port.purge();
-        throw unavailable();
-      }
-      runtime = opened;
-      if (!(await opened.port.flush({})) || !live()) {
-        opened.port.fence();
-        throw unavailable();
-      }
-      return opened.store;
+        },
+        current,
+      );
     },
   };
 }

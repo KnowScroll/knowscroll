@@ -1324,3 +1324,70 @@ it.each(['policy', 'socket'] as const)(
     if (phase === 'policy') expect(fetch).not.toHaveBeenCalled();
   },
 );
+
+it('cleanup registered during and after end runs synchronously and safely without reentering teardown (CI actual scope)', async () => {
+  const store = memoryStore(),
+    order: string[] = [],
+    active: boolean[] = [],
+    fetch = vi.fn(() => Promise.resolve(saved(0))),
+    close = vi.fn(() => {
+      order.push('socket');
+    });
+  const scope = createAccountScope({
+    account: accountA,
+    baseUrl: 'https://app.scope.test',
+    authorization: () => undefined,
+    store,
+    fetch,
+    connect: () => ({ close }),
+  });
+  scope.queryClient.setQueryData(scope.queryKey('private'), 'fixture-private-cache');
+  scope.storage.set('private', 'fixture-private-state');
+  let unsubscribeLate!: () => void;
+  scope.onEnd!(() => {
+    order.push('first');
+    active.push(scope.active);
+    unsubscribeLate = scope.onEnd!(() => {
+      order.push('during');
+      active.push(scope.active);
+      scope.end();
+      scope.onEnd!(() => {
+        order.push('nested');
+        throw new Error('nested cleanup failure');
+      });
+      throw new Error('late cleanup failure');
+    });
+    order.push('first continues');
+    throw new Error('first cleanup failure');
+  });
+  scope.onEnd!(() => {
+    order.push('last');
+    active.push(scope.active);
+  });
+  expect(() => scope.end()).not.toThrow();
+  expect(order).toEqual(['first', 'during', 'nested', 'first continues', 'last', 'socket']);
+  expect(active).toEqual([true, true, true]);
+  expect(scope.active).toBe(false);
+  expect(() => unsubscribeLate()).not.toThrow();
+  const unsubscribeEnded = scope.onEnd!(() => {
+    order.push('after');
+    active.push(scope.active);
+    scope.end();
+    scope.onEnd!(() => {
+      order.push('after nested');
+      throw new Error('ended nested failure');
+    });
+    throw new Error('ended cleanup failure');
+  });
+  expect(order).toEqual(['first', 'during', 'nested', 'first continues', 'last', 'socket', 'after', 'after nested']);
+  expect(active).toEqual([true, true, true, false]);
+  expect(() => unsubscribeEnded()).not.toThrow();
+  scope.end();
+  expect(close).toHaveBeenCalledTimes(1);
+  expect(order).toHaveLength(8);
+  expect(scope.queryClient.getQueryCache().getAll()).toEqual([]);
+  expect(store.keys()).toEqual([]);
+  await expect(scope.api.experience.listSaved({})).rejects.toThrow(ScopeEndedError);
+  expect(fetch).not.toHaveBeenCalled();
+  await scope.whenStorageClosed!();
+});

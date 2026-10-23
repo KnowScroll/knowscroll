@@ -806,3 +806,257 @@ it('a native fence while database open is pending prevents configuration and DDL
     held.open();
   }
 });
+
+/** Captures actual owned mutable receivers, not a diagnostic adapter API or native-memory proof. */
+function observePreparing(parseRoots: boolean, onSnapshot?: () => void) {
+  const maps = new Set<Map<unknown, unknown>>(),
+    roots = new Set<Record<string, unknown>>();
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- Preserve the actual receiver with .call in the spy.
+  const mapSet = Map.prototype.set;
+  const parse = JSON.parse,
+    stringify = JSON.stringify;
+  const mapSpy = jest.spyOn(Map.prototype, 'set').mockImplementation(function (
+    this: Map<unknown, unknown>,
+    key: unknown,
+    value: unknown,
+  ) {
+    if (
+      typeof key === 'string' &&
+      ['credential', 'key', 'raw', 'plaintext', 'recording.policy.pending.v1'].includes(key)
+    )
+      maps.add(this);
+    return mapSet.call(this, key, value);
+  });
+  const parseSpy = jest.spyOn(JSON, 'parse').mockImplementation((...args: Parameters<typeof JSON.parse>) => {
+    const value: unknown = parse(...args);
+    if (typeof value === 'object' && value !== null) {
+      if (parseRoots && 'rootId' in value && 'key' in value) roots.add(value);
+      if ('entries' in value && 'revision' in value) onSnapshot?.();
+    }
+    return value;
+  });
+  const stringifySpy = jest
+    .spyOn(JSON, 'stringify')
+    .mockImplementation((...args: Parameters<typeof JSON.stringify>) => {
+      const value: unknown = args[0];
+      if (!parseRoots && typeof value === 'object' && value !== null && 'rootId' in value && 'key' in value)
+        roots.add(value);
+      return stringify(...args);
+    });
+  return {
+    maps,
+    roots,
+    restore() {
+      stringifySpy.mockRestore();
+      parseSpy.mockRestore();
+      mapSpy.mockRestore();
+    },
+  };
+}
+
+it.each(['readRoot', 'row', 'decrypt', 'key', 'id', 'writeRoot'] as const)(
+  'preparing %s owners clear synchronously on fence and reject resolved or rejected late results (controlled ports)',
+  async (phase) => {
+    for (const rejected of [false, true]) {
+      const f = fixture(),
+        held = gate(),
+        seeded = ['readRoot', 'row', 'decrypt'].includes(phase);
+      if (seeded) {
+        const seed = await createNativeScopeDurability(f.ports).prepare(input, () => true);
+        seed.setItem(pendingKey, command);
+        expect(await seed.durability!.flush({ [pendingKey]: command })).toBe(true);
+      }
+      const observed = observePreparing(seeded),
+        events: string[] = [];
+      let entered = false,
+        published = false,
+        cleaned = false;
+      const intercept = async <T>(name: string, work: () => Promise<T>): Promise<T> => {
+        if (name === phase && !entered) {
+          entered = true;
+          await held.promise;
+          if (rejected) throw new Error('fixture pending I/O rejected');
+        }
+        return work();
+      };
+      const owner = createNativeScopeDurability({
+        ...f.ports,
+        open: async () => {
+          const database = await f.ports.open();
+          return {
+            ...database,
+            getFirstAsync: <T>(query: string, ...params: (string | number | null)[]) =>
+              query.startsWith('SELECT')
+                ? intercept('row', () => database.getFirstAsync<T>(query, ...params))
+                : database.getFirstAsync<T>(query, ...params),
+            runAsync: async (query, ...params) => {
+              if (query.startsWith('DELETE')) events.push('delete');
+              return database.runAsync(query, ...params);
+            },
+          };
+        },
+        readRoot: () => intercept('readRoot', () => f.ports.readRoot()),
+        decrypt: (value, key, aad) => intercept('decrypt', () => f.ports.decrypt(value, key, aad)),
+        key: () => intercept('key', () => f.ports.key()),
+        id: () => intercept('id', () => f.ports.id()),
+        writeRoot: async (raw) => {
+          const open = (JSON.parse(raw) as { status: string }).status === 'open';
+          if (open && phase === 'writeRoot') {
+            await f.ports.writeRoot(raw); // Models an entered native write/process-local view before acknowledgement.
+            events.push('open entered');
+            try {
+              await intercept('writeRoot', () => Promise.resolve());
+              events.push('open ack');
+            } catch (error) {
+              events.push('open rejected');
+              throw error;
+            }
+          } else {
+            await f.ports.writeRoot(raw);
+            if (!open) events.push('closed ack');
+          }
+        },
+      });
+      const preparing = owner
+        .prepare(input, () => true)
+        .then((store) => {
+          published = true;
+          return store;
+        });
+      const refusal = expect(preparing).rejects.toThrow();
+      try {
+        await waitFor(() => expect(entered).toBe(true));
+        if (phase === 'id') expect([...observed.maps].some((map) => map.has('key'))).toBe(true);
+        if (['row', 'decrypt', 'writeRoot'].includes(phase)) {
+          expect(observed.roots.size).toBeGreaterThan(0);
+          for (const root of observed.roots) expect(root).toHaveProperty('key');
+        }
+        owner.fence();
+        for (const map of observed.maps) expect(map.size).toBe(0);
+        for (const root of observed.roots) expect(root).not.toHaveProperty('key');
+        const cleanup = owner.purge().then(() => {
+          cleaned = true;
+        });
+        expect(cleaned).toBe(false);
+        expect(events).not.toContain('closed ack');
+        expect(events).not.toContain('delete');
+        held.open();
+        await refusal;
+        await cleanup;
+        expect(published).toBe(false);
+        expect(cleaned).toBe(true);
+        for (const map of observed.maps) expect(map.size).toBe(0);
+        for (const root of observed.roots) expect(root).not.toHaveProperty('key');
+        expect(f.row()).toBeNull();
+        if (seeded || phase === 'writeRoot') {
+          expect(JSON.parse(f.root()!)).toMatchObject({ status: 'closed' });
+          expect(JSON.parse(f.root()!)).not.toHaveProperty('key');
+          expect(events.indexOf('closed ack')).toBeLessThan(events.indexOf('delete'));
+          if (phase === 'writeRoot')
+            expect(events.indexOf(rejected ? 'open rejected' : 'open ack')).toBeLessThan(events.indexOf('closed ack'));
+          await expect(owner.prepare(input, () => true)).rejects.toThrow();
+        } else expect(f.root()).toBeNull();
+      } finally {
+        held.open();
+        observed.restore();
+      }
+    }
+  },
+);
+
+it('unpublished restored runtime stays tracked through the exclusive handoff (controlled owners)', async () => {
+  const f = fixture(),
+    seed = await createNativeScopeDurability(f.ports).prepare(input, () => true);
+  seed.setItem(pendingKey, command);
+  expect(await seed.durability!.flush({ [pendingKey]: command })).toBe(true);
+  let queued = false,
+    fenced = false,
+    populatedBeforeFence = false;
+  const owner = createNativeScopeDurability(f.ports);
+  const observed = observePreparing(true, () => {
+    if (!queued) {
+      queued = true;
+      queueMicrotask(() => {
+        populatedBeforeFence = [...observed.maps].some((map) => map.get('recording.policy.pending.v1') === command);
+        owner.fence();
+        fenced = true;
+      });
+    }
+  });
+  try {
+    await expect(owner.prepare(input, () => true)).rejects.toThrow();
+    expect(fenced).toBe(true);
+    expect(populatedBeforeFence).toBe(true);
+    expect(observed.roots.size).toBeGreaterThan(0);
+    expect([...observed.maps].some((map) => map.size === 0)).toBe(true);
+    for (const map of observed.maps) expect(map.size).toBe(0);
+    for (const root of observed.roots) expect(root).not.toHaveProperty('key');
+    await owner.purge();
+    expect(f.row()).toBeNull();
+    expect(JSON.parse(f.root()!)).toMatchObject({ status: 'closed' });
+  } finally {
+    observed.restore();
+  }
+});
+
+it('cancelled preparing OPEN write still requires acknowledged CLOSED retry after process-local false commit (controlled ports)', async () => {
+  const f = fixture(),
+    held = gate(),
+    events: string[] = [];
+  let entered = false,
+    failClosed = true;
+  const owner = createNativeScopeDurability({
+    ...f.ports,
+    writeRoot: async (raw) => {
+      await f.ports.writeRoot(raw);
+      if ((JSON.parse(raw) as { status: string }).status === 'open') {
+        entered = true;
+        events.push('open entered');
+        await held.promise;
+        events.push('open acknowledged');
+      } else {
+        events.push('closed attempt');
+        if (failClosed) throw new Error('fixture CLOSED false commit after local view');
+        events.push('closed acknowledged');
+      }
+    },
+    open: async () => {
+      const database = await f.ports.open();
+      return {
+        ...database,
+        runAsync: async (query, ...params) => {
+          if (query.startsWith('DELETE')) events.push('delete');
+          return database.runAsync(query, ...params);
+        },
+      };
+    },
+  });
+  const preparing = owner.prepare(input, () => true),
+    refusal = expect(preparing).rejects.toThrow();
+  try {
+    await waitFor(() => expect(entered).toBe(true));
+    const cleanup = owner.purge(),
+      failedCleanup = expect(cleanup).rejects.toThrow('fixture CLOSED false commit');
+    expect(events).toEqual(['open entered']);
+    held.open();
+    await refusal;
+    await failedCleanup;
+    expect(events).toEqual(['open entered', 'open acknowledged', 'closed attempt']);
+    expect(JSON.parse(f.root()!)).toMatchObject({ status: 'closed' });
+    expect(JSON.parse(f.root()!)).not.toHaveProperty('key');
+    failClosed = false;
+    await owner.purge();
+    expect(events).toEqual([
+      'open entered',
+      'open acknowledged',
+      'closed attempt',
+      'closed attempt',
+      'closed acknowledged',
+      'delete',
+    ]);
+    expect(f.row()).toBeNull();
+    await expect(owner.prepare(input, () => true)).rejects.toThrow();
+  } finally {
+    held.open();
+  }
+});

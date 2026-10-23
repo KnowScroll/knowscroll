@@ -274,6 +274,14 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
       };
     },
     onEnd(listener) {
+      if (lifecycle !== 'active' || ended.signal.aborted) {
+        try {
+          listener();
+        } catch {
+          /* Late resource cleanup cannot interrupt teardown or its caller. */
+        }
+        return () => undefined;
+      }
       endListeners.add(listener);
       return () => {
         endListeners.delete(listener);
