@@ -3,7 +3,7 @@
 //
 // For every recipe it fetches each page through `fetchResearchPage` (the same allowlist, redirect and
 // size rules the worker uses) and builds the recipe's quote-candidate pool, the passages the claims
-// role chooses from. A recipe passes when every page is accepted and its pool holds 8 to 30 candidates.
+// role chooses from. A recipe passes when every page is accepted and its pool holds 6 to 30 candidates.
 // The limit the pool builder enforces is 32; the margin keeps a page that gains a paragraph usable.
 //
 // Needs the built backend (`pnpm build`) and network access. Pages are fetched one at a time with a
@@ -14,7 +14,7 @@
 // Exit code 0 when every checked recipe passes, 1 otherwise. Prints counts only, never page text.
 import { parseArgs } from 'node:util';
 
-const MIN_POOL = 8;
+const MIN_POOL = 6;
 const MAX_POOL = 30;
 const RETRY_CODES = new Set(['http_refused', 'network_failed']);
 

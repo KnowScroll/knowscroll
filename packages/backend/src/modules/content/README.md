@@ -1,63 +1,90 @@
 # modules/content
 
-## Trusted Scroll coverage foundation (#237)
+## Library plan and concept catalogue
 
-`content-concepts.v1` declares a small source-reviewed canonical topic/facet vocabulary with explicit
-parents and meanings. It admits no content, personal support or planet. Prefixes, titles, discovery
-facet tags and personal/model labels never establish membership. The frozen catalogue and each
-topic/facet meaning have deterministic SHA-256 identities.
+The library plan is code-owned data in [`domain/library/`](domain/library/README.md): the topic
+**systems**, the **planets** (topics) in each, the **facets** (kinds of angle) each planet can be
+explained from, and the explanation **recipes** the generator runs. `content-concepts.v1` is
+derived from it, so a system, planet or facet exists exactly where the plan declares it, with a
+parent and a one-line meaning. Prefixes, titles, discovery tags and personal or model labels never
+establish membership. The catalogue and each facet meaning have deterministic SHA-256 identities.
+*Implemented.*
+
+A coverage mapping records the catalogue digest it was decided against, and every read checks it.
+Changing the plan therefore changes the digest, and coverage decided earlier has to be decided
+again. `admitRecipeCoverage` is safe to repeat: it appends a corrected head only when the decision
+differs, and keeps history. No operator command runs it over existing Scrolls yet. *Re-derivation
+is implemented as a function; the operator command is planned.*
+
+## Scroll coverage
 
 `0022_content_coverage` adds shared `coverage_revisions` (one immutable, <=32KiB mapping per
 correction/retraction) and `coverage_heads` (one monotonic head per exact asset revision). Both use
 the immutable asset-revision FK and exact indexed keys; neither contains a person, observation or
-consumption result. History is retained; personal erasure leaves this independently reviewed shared
-content metadata. No migration seed/backfill or live semantic approval is included.
+consumption result. History is retained; personal erasure leaves this shared content metadata.
+No migration seeds or backfills coverage.
 
-The composition-only `coverageAdmissionUseCase(db)` is a trusted write capability bound to
-**source-reviewed full command digests and semantic review references**. The shipped approval list
-is empty: a consumer-supplied string, matching title or explanation ID cannot authorize admission.
-The lower-level admission-port/factory seam is for trusted composition and explicitly labelled CI
-fixtures only; never supply its approval callback from a request, environment or model output.
-There is no HTTP/admin/operator command or provider dispatch for coverage in this foundation.
+**Generated Scrolls: code decides coverage (D-033).** The private production hook
+(`completeWriterPublication`) publishes the revision, attributes its planet and then calls
+`admitRecipeCoverage`, all in the one production transaction. No person or model approves the
+mapping, and no model call or network wait is involved. The rule `scroll-recipe-coverage.v1` binds
+the recipe's declared facets to blocks of the stored document:
 
-An approved command binds exact asset/revision, document/provenance SHA, explanation unit, factual framing
+- Eligible blocks are top-level paragraphs, quotes and callouts whose claims are documented.
+- The primary facet needs the first, middle and last eligible block, so skimming the opening never
+  counts.
+- A supporting facet, when the recipe declares one, needs the last two eligible blocks.
+- Fewer than three eligible blocks, or a revision that is not an admissible factual Scroll, binds
+  nothing. The Scroll still publishes and keeps its planet, stays unmapped, and the job's outcomes
+  record `coverage_too_few_body_blocks` or `coverage_target_unavailable`.
+
+The rule is structural, not semantic. It says which blocks a reader must have seen for a facet to
+count, and cannot judge whether the prose teaches the facet. The recipe brief and the writer checks
+govern that. The mapping's basis is stored as `scroll-recipe-coverage.v1:<explanation unit>`.
+A failed coverage write rolls back the publication, the closure and the topic together, and the same
+paid writer answer resumes without a resend. Correction appends a new head (A to B to A uses new
+revisions); retraction appends a retained head. *Implemented; real-PostgreSQL CI fixture tests
+cover it. Not yet exercised with a real provider.*
+
+The standalone `coverageAdmissionUseCase(db)` is a separate, default-deny seam for a command a
+person has reviewed, such as an authored Scroll. Its approval list is empty and only CI fixtures use
+it. Never supply its approval callback from a request, environment or model output. There is no
+HTTP, admin or operator command for either path.
+
+A command binds exact asset/revision, document/provenance SHA, explanation unit, factual framing
 digest, derived reading-facts v2 digest, catalogue and meaning digests. It can map <=16 topic/facet
-bindings, each an ALL-OF set of 1–8 existing top-level paragraph/quote/callout IDs. Nested children,
+bindings, each an ALL-OF set of 1-8 existing top-level paragraph/quote/callout IDs. Nested children,
 disclosure parents, headings, interactive states, Reel, hypothetical/perspective framing and fixture
 production provenance are refused. Admitted immutable Scroll/document/provenance identities are
 rechecked from storage; reading facts are derived through the existing Content compiler.
 Mapped claim bindings must have documented/synthesis truth states; interpretation, disputed,
 modelled, counterfactual, fictional or missing claims are unsupported in this initial policy.
-An unbound authored leaf still requires the explicit exact-map semantic review; it gains no
-automatic factual authority from this absence of claim bindings. Structural
-checks cannot attest semantic correctness: a source-reviewed exact mapping remains mandatory.
 Documents, provenance, discovery tags and access/withdrawal rules are not modified.
 
-Admission takes its own short Content transaction: per-asset/revision advisory lock -> asset SHARE
--> head UPDATE. Expected head revision fences concurrent corrections; identical current command
-replays without appending, A→B→A uses new revisions, and retraction appends a new retained head.
-Database triggers reject revision update/delete and nonmonotonic/removed heads. Failure rolls the
-whole transaction back. Admission never takes a personal root or performs network/model waits.
+Admission takes the per-asset/revision advisory lock, then the asset SHARE lock, then the head
+UPDATE lock. The standalone path opens its own short Content transaction. The generated path joins
+the production transaction after the revision is stored. Expected head revision fences concurrent
+corrections, and an identical decision replays without appending. Database triggers reject revision
+update/delete and nonmonotonic/removed heads. Failure rolls the whole transaction back. Admission
+never takes a personal root or performs network/model waits.
 
 `READ_ADMITTED_COVERAGE_MAPPING` reads one exact revision in an existing personal transaction and
 returns mapped/unmapped/retracted/unavailable. An older revision is still exact historical content;
 a withdrawn asset is unavailable. This read confers no opening permission and proves no reading.
-`LOCK_CURRENT_COVERAGE_AUTHORITIES` accepts 1–100 unique exact expected heads (<=128KiB), normalizes
+`LOCK_CURRENT_COVERAGE_AUTHORITIES` accepts 1-100 unique exact expected heads (<=128KiB), normalizes
 UUIDs and orders locks by canonical asset UUID/revision. Lock order is caller personal root -> all
 asset SHARE locks -> head SHARE locks. It revalidates active heads, hashes and current admission;
 false means the consumer must reject its proposal. SHARE locks remain until the caller transaction
 ends, blocking head correction and asset withdrawal. No personal revision/effect is written.
 
-Evidence/PC/Cartographer consumers are deliberately separate work. In particular, no qualified
-facet is emitted, no q/activity policy changes, no Reel time mapping, provider budget or formation
-is enabled here. Existing `coveredFacets: []` / unavailable coverage remain truthful. Future
-consumers must verify actual observed static block coverage, preserve truth context/epochs,
-reference-count variants and recheck these current authorities before applying a proposal.
+Consumers: Evidence credits a binding only when a qualified reading saw every required block
+(`observedBindings`), and Region candidates come from `content.region_bindings` (below). Neither
+changes qualification policy, and no Reel time mapping exists.
 
-Verification is labelled CI fixture: source/unit/property and real PostgreSQL append-only,
-concurrency/SHARE-lock, correction/retraction, stale/forged/wrong-revision and rollback cases.
-Automated suites run in GitHub Actions only; codegen on an owned empty schema is not runtime
-admission or generation evidence.
+Verification is labelled CI fixture: unit tests for the rule, in-memory admission and the library
+plan; real PostgreSQL tests for publication, the consumers' reads, rollback, append-only history,
+concurrency/SHARE-lock, correction/retraction and stale or forged inputs. Automated suites run in
+GitHub Actions; no real provider has produced a Scroll through this path yet.
 
 Shared, immutable content: assets, their admitted revisions, and the internal provenance each
 revision rests on. **Content is not personal data**: no table here has a `universe_id` or an account
@@ -71,7 +98,8 @@ leaves it), and nothing here records who read what.
 | `content.assets` | `0003_content_assets` | Asset identity, `kind` (`reel`/`scroll`), `status` (`admitted`/`withdrawn`) and the **current** revision | None: shared content |
 | `content.asset_revisions` | `0010_content_asset_revisions` | One immutable row per admitted revision: `provenance_kind` (`authored_editorial` · `generated` · `cutroom_import`, D-005), the consumer document (`document_version`, `document`, `document_sha256`), `explanation_unit_id`, `language`, `title`, and the derived `reading_facts` | None: shared content |
 | `content.asset_provenance` | `0010_content_asset_revisions` | The internal provenance of a revision (claims, sources, bindings, checks, production record). Written by admission, **read by no API route**: the consumer document and its provenance are separate tables, so no read of the document can return them | None: shared content |
-| `content.scroll_production_runs` | `0015_scroll_production` | Private nonpersonal topic/version jobs, frozen research/passages, accepted claims, code-only outcomes, draft and publication pointer; no consumer read port | None: shared public supply |
+| `content.scroll_production_runs` | `0015_scroll_production`, key shape `0045` | Private nonpersonal recipe-key/version jobs, frozen research/passages, accepted claims, code-only outcomes, draft and publication pointer; no consumer read port | None: shared public supply |
+| `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage` | One immutable facet-to-block mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet | None: shared content |
 
 A revision’s document, provenance and identity are never updated; a content change is a new revision, and anything that rests on one (an exposure,
 a saved item) keeps pointing at exactly the bytes it presented.
@@ -87,6 +115,7 @@ The storage adapter validates derived reading facts against the canonical Scroll
 | `ReadScrollReadingFacts` (token `READ_SCROLL_READING_FACTS`) | experience, evidence | The block weights and types, the owner of each nested block and the reading estimate of one stored Scroll revision, derived at admission from the document's code-set measures and validated on read. Old facts versions are derived from the immutable admitted document on read until re-import persists the current view; unsupported stored documents raise `READING_FACTS_REQUIRES_REFRESH` rather than masquerading as a lineage mismatch |
 | `RenderScroll` (token `RENDER_SCROLL`) | experience | Reads the stored consumer document (never provenance), parses it on the client path, and **negotiates** it for the capabilities the client declared (D-012): unsupported blocks become readable fallbacks, essential ones are reported. Parsed documents are cached (immutable, 32 entries) |
 | `FindAssetForAction` (token `FIND_ASSET_FOR_ACTION`) | experience actions | Does the asset exist, is it admitted, at which revision |
+| `admitRecipeCoverage(ports, tx, recipe, ref)` | The production publication hook only | Inside the production transaction: lock the revision's coverage, read the stored document and provenance, derive the bindings from the recipe (`scroll-recipe-coverage.v1`) and append the next head, or return `not_admitted` with a code. Idempotent for an identical decision. No model call, no network, no personal root |
 
 `adapters/cutroom/wire-v1/` is the byte-for-byte vendored Cutroom wire schema (CF-61): not built,
 linted or formatted; verified by the `integrity` CI job.
@@ -141,7 +170,9 @@ separate ephemeral access credentials, never content provenance or consumption e
 
 ## Generated Scroll production
 
-The worker's `content produce-scroll --topic seasons|tides|greenhouse [--dry-run] [--resume]`
+The worker's `content produce-scroll --topic <recipe key> [--dry-run] [--resume]` runs one recipe
+of the library plan (the keys are the record keys in `domain/library/`; an unknown key is refused
+before any database or provider work). It
 uses content-owned claims/writer roles through the explicit nonpersonal harness (0013), never a
 personal universe. Both roles put code checks inside the harness's single repair boundary: at most
 four model requests per topic, with uncertain attempts never resent. Publication closes the writer
@@ -174,7 +205,8 @@ The import-completion trigger runs after its import row exists in the same admis
 a failed import leaves no projection. Synthetic imports and arbitrary editorial explanation-ID
 lookalikes stay unknown. New generated Scroll attribution uses the private producer completion hook (`0015` + `0016`):
 it requires actual same-scope writer closure/accounting and the exact published job, admitted
-revision and matching model provenance. Fixture/foreign/incomplete authority stays unknown.
+revision and matching model provenance. Fixture/foreign/incomplete authority stays unknown. The
+same hook then admits the recipe's facet coverage (see Scroll coverage above).
 Historical reconciliation remains deferred until a separate completed-run attestation port exists. No title-derived
 concepts, Part 2/related edges, invented semantic variety or personal-activity-derived topics exist.
 
@@ -311,7 +343,7 @@ or runtime completeness is claimed by this source.
 
 ### Region candidate projection (U04)
 
-`content.region_bindings` is a shared derived lookup owned by Content, maintained atomically by the coverage-head trigger for admission, correction and retraction. The `(topic_id, facet_id, asset_id, asset_revision)` key supports an exact canonical Region query with 100 hydrated candidates and one key-only lookahead; an explicitly displayed asset is looked up directly. Each result independently revalidates current admitted Scroll revision, complete canonical mapping/document/provenance and render capabilities. There is no topic-label, global-pool or model fallback, and no semantic approval is added by this feature. Current production coverage review remains default-deny.
+`content.region_bindings` is a shared derived lookup owned by Content, maintained atomically by the coverage-head trigger for admission, correction and retraction. The `(topic_id, facet_id, asset_id, asset_revision)` key supports an exact canonical Region query with 100 hydrated candidates and one key-only lookahead; an explicitly displayed asset is looked up directly. Each result independently revalidates current admitted Scroll revision, complete canonical mapping/document/provenance and render capabilities. There is no topic-label, global-pool or model fallback. Generated Scrolls reach this lookup through the recipe coverage admitted at publication.
 
 `contentRegionStores` concretely inventories this shared projection: at most 16 bindings per mapping head, retained with immutable coverage history, no account/universe dependency, preserved by full and selective personal erasure. It is not personal state or admission authority. Up to three actual decision candidates are fenced under current Content asset/head SHARE locks through the personal commit.
 

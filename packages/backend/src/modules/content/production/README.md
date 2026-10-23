@@ -30,8 +30,9 @@ An unknown attempt stays unknown and is never resent. Ordinary reruns report exi
 terminal rejection stays rejected. A changed prompt, source list or policy requires a reviewed
 version bump, never editing the old job or published revision.
 
-Topic explanation identities are `legacy-cutroom-seasons-v5`, `legacy-cutroom-tides-v4`, and
-`legacy-cutroom-greenhouse`, exactly matching the approved Reel import. The frozen v1 scripts are
+The recipes the producer runs are the library plan in `../domain/library/` (one file per topic
+system); `topics.ts` is only its index. Three explanation identities are `legacy-cutroom-seasons-v5`,
+`legacy-cutroom-tides-v4`, and `legacy-cutroom-greenhouse`, exactly matching the approved Reel import. The frozen v1 scripts are
 continuity references only. No v1 Scroll or authored example is presented as generated content.
 Neither private research nor provenance is reachable through content's client-facing read ports.
 
@@ -224,9 +225,9 @@ The analogy audit deliberately excludes another complete radiation-path/balance 
 still overlaps background ideas in the unchanged broad greenhouse overview: new keys, titles,
 formats and IDs cannot establish conceptual variety. After actual generation, editorial review
 must check all three outputs against each other and the old overview for distinct explanatory
-work, faithful support, caveats, useful interaction and absence of redundant retelling. Exact
-coverage-map approval remains separate and requires actual admitted bytes. Recipes, fixtures,
-publication metadata and primary topic attribution never seed trusted coverage or form geography.
+work, faithful support, caveats, useful interaction and absence of redundant retelling.
+Coverage is decided by code at publication from the recipe (see "Publication: topic attribution and
+coverage"), never from a person's or a model's approval. Recipes and fixtures never form geography.
 
 The investigation used the actual `public-research.v1` extraction and unchanged candidate builder
 on unauthenticated public pages. The retained radiation-budget pool had 15 candidates, FAQ 7 and
@@ -258,33 +259,40 @@ topic, and unchanged historical snapshots. This establishes source/protocol beha
 content, semantic variety, provider acceptance, UI reading or formation. No call, allowance,
 role-cap/day reset, deployment or live registry seed is authorized by this source extension.
 
-## New-publication topic authority
+## Publication: topic attribution and coverage
 
 `completeWriterPublication` is private to production and has no consumer/composition attribution
 port. It requires the current live production scope, the locked writer-stage job and actual
 successful `closeProductionRun`. After its publication callback stores the immutable revision and
-marks the exact job published, an unexported helper matches the current policy, target asset and
+marks the exact job published, unexported helpers match the current policy, target asset and
 revision, explanation identity, admitted Scroll status, document/provenance hashes, model
 production run and writer prompt version, successful primary/repair accounting identities and
 the job's exact writer receipt. Provider/model must be the configured real MiniMax family; a
 normal fixture transport/model, arbitrary editorial/model-kind or explanation-ID lookalike,
 missing job, foreign lineage, incomplete job or contradictory metadata does not gain authority.
-The helper reads no reasoning SQL, request bytes, raw answers or research text. Actual closure
+The helpers read no reasoning SQL, request bytes, raw answers or research text. Actual closure
 and bounded accounting come through the existing harness within the same production transaction.
 
-The `0016` trigger already creates the exact revision's baseline discovery row. Only then does
-this hook project one code-owned primary topic with weight 1 and a single facet:
-`earth.seasons`, `earth.tides`, or `earth.greenhouse-effect`, under
-`published-scroll-brief-taxonomy.v1`. Existing aggregate weight guards remain active. No immutable
-document/provenance bytes, personal encounters, activity, growth, series or relationships change.
-Projection failure rolls back writer closure, publication and metadata together; same-run ledger
-replay can recover without resending a paid answer. Missing authority remains unknown.
+Two things are then written in that same transaction, both decided by code from the recipe in
+`TOPICS` (the library plan in `domain/library/`, D-033):
 
-Historical-published reconciliation is **unavailable**: completed old runs need a separately named
-reasoning attestation read before any such capability can exist. All four actual historical jobs
-are rejected, so no known generated publication is omitted. CI uses explicitly labelled transport
-identity stand-ins for positives and fault injection for authority negatives; none is real provider
-or discovery journey evidence. The publication projection itself needs no SQL change; v8 extends only the closed recipe-key constraint in forward migration 0026.
+1. **Planet.** The `0016` trigger already creates the exact revision's baseline discovery row.
+   The hook projects one primary topic with weight 1 (the recipe's planet, for example
+   `machine-learning.attention`) under `published-scroll-brief-taxonomy.v1`. Existing aggregate
+   weight guards remain active.
+2. **Coverage.** `admitRecipeCoverage` binds the recipe's facet (and optional supporting facet) to
+   blocks of the stored document under the structural rule `scroll-recipe-coverage.v1`, and appends
+   the first coverage head. A document with too few body blocks publishes without coverage and a
+   `coverage_*` outcome is added to the job. See the content README, "Scroll coverage".
+
+No immutable document/provenance bytes, personal encounters, activity, growth, series or
+relationships change. Failure in either step rolls back writer closure, publication and metadata
+together; same-run ledger replay recovers without resending a paid answer. Missing authority
+remains unknown. Historical-published reconciliation is **unavailable**: completed old runs need a
+separately named reasoning attestation read before any such capability can exist.
+
+CI uses explicitly labelled transport identity stand-ins for positives and fault injection for
+authority negatives; none is real provider or discovery journey evidence.
 
 ## Cutroom commission contract prerequisite (#240)
 
