@@ -73,7 +73,9 @@ function Option({
       {...radioSemantics(selected)}
       {...keyboard}
       accessibilityLabel={`${formatLabel[format]}${suffix}`}
-      accessibilityHint={availability === 'requestable' ? `Ask for a ${formatLabel[format]} of this explanation` : undefined}
+      accessibilityHint={
+        availability === 'requestable' ? `Ask for a ${formatLabel[format]} of this explanation` : undefined
+      }
       disabled={unavailable}
       aria-disabled={unavailable}
       onPress={selected || unavailable ? undefined : () => onSelect(format)}

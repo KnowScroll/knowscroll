@@ -261,13 +261,14 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
   await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
   expect(commands).toHaveLength(count);
   await page.getByRole('button', { name: 'More options' }).click();
-  await expect(page.getByRole('heading', { name: 'Your path', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'More', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('heading', { name: 'Your path', exact: true })).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'More', exact: true })).not.toBeVisible();
   expect(commands).toHaveLength(count);
   await page.getByRole('link', { name: 'Keep', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Saved encounter' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Open saved encounter' })).toHaveCount(0);
+  await expect(page.getByText('Saved encounter', { exact: true })).toBeVisible();
+  // A withdrawn reference is a card that cannot be opened.
+  await expect(page.getByRole('button', { name: /^Saved encounter\. Reel\./ })).toBeDisabled();
   // Freeze authored test time before the grace starts, so browser/network assertion latency
   // cannot consume any of the exact 4,999 ms + 1 ms boundary below.
   await page.clock.install({ time: new Date('2026-10-22T06:00:00.000Z') });
@@ -278,7 +279,7 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
   await page.getByRole('button', { name: 'Undo removal' }).click();
   await page.clock.fastForward(5000);
   expect(commands.filter((call) => call.path.endsWith('/keep/remove'))).toHaveLength(0);
-  await expect(page.getByRole('heading', { name: 'Saved encounter' })).toBeVisible();
+  await expect(page.getByText('Saved encounter', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Remove from Keep' }).click();
   await expect(page.getByRole('button', { name: 'Undo removal' })).toBeVisible();
   await page.clock.fastForward(4999);
@@ -301,7 +302,7 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
 });
 
 // The actual ReelPlayer stage and sibling controls are used. This fixture intentionally makes no decoded-playback claim.
-test('the full Reel stage commits vertical and related swipes; dragging a player button never navigates', async ({
+test('the full Reel stage commits vertical and related swipes; dragging an action button never navigates', async ({
   page,
 }) => {
   const { commands } = await encounterFixture(page, 'reel');
@@ -313,9 +314,8 @@ test('the full Reel stage commits vertical and related swipes; dragging a player
   await expect(stage).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
   const before = commands.length;
-  await page.getByRole('button', { name: 'Back 10s' }).scrollIntoViewIfNeeded();
-  const button = await page.getByRole('button', { name: 'Back 10s' }).boundingBox();
-  if (!button) throw new Error('Actual player control is visible');
+  const button = await page.getByRole('button', { name: 'Share', exact: true }).boundingBox();
+  if (!button) throw new Error('Actual action control is visible');
   await page.mouse.move(button.x + button.width / 2, button.y + button.height / 2);
   await page.mouse.down();
   await page.mouse.move(button.x + button.width / 2, button.y - 90, { steps: 6 });
@@ -411,26 +411,27 @@ test('Keep traverses beyond one hundred items, revisits a page, resets filters a
     });
   });
   await page.goto('/saved');
-  await expect(page.getByRole('heading', { name: 'Paged CI fixture 1', exact: true })).toBeVisible();
+  await expect(page.getByText('Paged CI fixture 1', { exact: true })).toBeVisible();
   for (let start = 20; start < 160; start += 20) {
     await page.getByRole('button', { name: 'Next 20 saved encounters', exact: true }).click();
-    await expect(page.getByRole('heading', { name: `Paged CI fixture ${start + 1}`, exact: true })).toBeVisible();
+    await expect(page.getByText(`Paged CI fixture ${start + 1}`, { exact: true })).toBeVisible();
     await expect(page.getByTestId('saved-encounter-card')).toHaveCount(20);
-    await expect(page.getByRole('heading', { name: 'Paged CI fixture 1', exact: true })).toHaveCount(0);
+    await expect(page.getByText('Paged CI fixture 1', { exact: true })).toHaveCount(0);
   }
   await expect(page.getByRole('button', { name: 'Next 20 saved encounters', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Previous 20 saved encounters', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Paged CI fixture 121', exact: true })).toBeVisible();
+  await expect(page.getByText('Paged CI fixture 121', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Reels', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
   await expect(page.getByText('Nothing kept yet', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Previous 20 saved encounters', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Previous 20 saved encounters', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Paged CI fixture 21', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Refresh Keep', exact: true }).click();
+  await expect(page.getByText('Paged CI fixture 21', { exact: true })).toBeVisible();
+  // Choosing the filter again starts a fresh traversal from the newest page.
+  await page.getByRole('button', { name: 'Reels', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'All', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Paged CI fixture 1', exact: true })).toBeVisible();
+  await expect(page.getByText('Paged CI fixture 1', { exact: true })).toBeVisible();
   expect(
     requests.every(
       (url) => url.searchParams.get('pagination') === 'saved-page.v1' && url.searchParams.get('limit') === '20',
@@ -440,7 +441,7 @@ test('Keep traverses beyond one hundred items, revisits a page, resets filters a
 });
 
 // Real exported geometry and hit targets over authored transport; no decoded/native playback claim.
-test('Reel controls reflow without overlap across actual phone, landscape and desktop bounds, retaining the same video', async ({
+test('the full-bleed Reel keeps every control reachable and the same video across phone, landscape and desktop bounds', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -465,6 +466,7 @@ test('Reel controls reflow without overlap across actual phone, landscape and de
   const video = await page.locator('video').elementHandle();
   if (!video) throw new Error('The actual expo-video web element must be mounted');
   const lineage = commands.filter((c) => /\/(open|activate|navigate)$/.test(c.path)).length;
+  const controls = ['More options', 'Like', 'Save', 'Share', 'Ask about this', 'Mute'];
   for (const viewport of [
     { width: 320, height: 568 },
     { width: 355, height: 767 },
@@ -477,31 +479,11 @@ test('Reel controls reflow without overlap across actual phone, landscape and de
     await expect
       .poll(() => page.getByTestId('reel-video-stage').evaluate((node) => node.getBoundingClientRect().width))
       .toBeGreaterThan(100);
-    const geometry = await page.evaluate(() => {
-      const rect = (id: string) => {
-        const n = globalThis.document.querySelector(`[data-testid="${id}"]`);
-        if (!n) throw new Error(`Missing actual layout ${id}`);
-        const r = n.getBoundingClientRect();
-        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
-      };
-      return {
-        page: rect('encounter-page'),
-        stage: rect('reel-video-stage'),
-        controls: rect('reel-player-controls'),
-        caption: rect('encounter-reel-caption'),
-        navigation: rect('encounter-subject-navigation'),
-        edges: rect('encounter-continuation-edges'),
-      };
-    });
-    expect(geometry.stage.height).toBeGreaterThan(50);
-    await expect
-      .poll(() =>
-        page.getByTestId('reel-video-stage').evaluate((node) => {
-          const page = globalThis.document.querySelector('[data-testid="encounter-page"]')!.getBoundingClientRect();
-          return node.getBoundingClientRect().height <= page.height / 2 + 1;
-        }),
-      )
-      .toBe(true);
+    // The stage fills the Reel column: the whole page on a phone, a column of at most 480 px on a wide screen.
+    const stage = await page.getByTestId('reel-video-stage').boundingBox();
+    if (!stage) throw new Error('The Reel stage is measurable');
+    expect(stage.width).toBeLessThanOrEqual(Math.min(viewport.width, 480) + 1);
+    expect(stage.height).toBeGreaterThan(viewport.height * 0.8);
     expect(
       await page.getByTestId('reel-video-stage').evaluate((node) => {
         const observed = window as typeof window & { __ksLayoutObserved?: Element[] };
@@ -511,47 +493,8 @@ test('Reel controls reflow without overlap across actual phone, landscape and de
         );
       }),
     ).toBe(true);
-    // Align the actual primary playback control, then prove reachability and visibility together.
-    const primary = page.getByTestId('reel-player-controls').getByRole('button', { name: /^(Play|Retry|Pause)$/ });
-    const primaryHandle = await primary.elementHandle();
-    if (!primaryHandle) throw new Error('The actual primary playback control must be mounted');
-    await page.getByTestId('encounter-page-scroll').evaluate((node, control) => {
-      node.scrollTop += control.getBoundingClientRect().bottom - (node.getBoundingClientRect().bottom - 8);
-    }, primaryHandle);
-    const usable = await primary.evaluate((node) => {
-      const control = node.getBoundingClientRect(),
-        stage = globalThis.document.querySelector('[data-testid="reel-video-stage"]')!.getBoundingClientRect(),
-        page = globalThis.document.querySelector('[data-testid="encounter-page"]')!.getBoundingClientRect();
-      const left = Math.max(0, page.left),
-        right = Math.min(innerWidth, page.right),
-        top = Math.max(0, page.top),
-        bottom = Math.min(innerHeight, page.bottom);
-      const area =
-        Math.max(0, Math.min(stage.right, right) - Math.max(stage.left, left)) *
-        Math.max(0, Math.min(stage.bottom, bottom) - Math.max(stage.top, top));
-      return {
-        stageVisibleFraction: area / (stage.width * stage.height),
-        insidePageAndViewport:
-          control.left >= left - 1 &&
-          control.right <= right + 1 &&
-          control.top >= top - 1 &&
-          control.bottom <= bottom + 1,
-        targetSize: control.width >= 44 && control.height >= 44,
-        hit: node.contains(
-          globalThis.document.elementFromPoint(control.left + control.width / 2, control.top + control.height / 2),
-        ),
-      };
-    });
-    expect(usable).toMatchObject({ insidePageAndViewport: true, targetSize: true, hit: true });
-    expect(usable.stageVisibleFraction).toBeGreaterThanOrEqual(0.5);
-    expect(geometry.stage.bottom).toBeLessThanOrEqual(geometry.controls.top + 1);
-    expect(geometry.controls.bottom).toBeLessThanOrEqual(geometry.caption.top + 1);
-    expect(geometry.caption.bottom).toBeLessThanOrEqual(geometry.navigation.top + 1);
-    expect(geometry.edges.top).toBeGreaterThanOrEqual(geometry.stage.top);
-    expect(geometry.edges.bottom).toBeLessThanOrEqual(geometry.stage.bottom);
-    for (const name of ['Back 10s', 'Forward 10s', 'Mute', 'Previous subject', 'Next subject', 'Keep this place']) {
+    for (const name of controls) {
       const control = page.getByRole('button', { name, exact: true });
-      await control.scrollIntoViewIfNeeded();
       const box = await control.boundingBox();
       if (!box) throw new Error(`Missing reachable ${name}`);
       expect(box.width).toBeGreaterThanOrEqual(44);
@@ -566,15 +509,14 @@ test('Reel controls reflow without overlap across actual phone, landscape and de
           const hit = globalThis.document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
           return hit !== null && node.contains(hit);
         }),
+        `${name} is the topmost element at its centre in ${String(viewport.width)}×${String(viewport.height)}`,
       ).toBe(true);
     }
-    const unavailable = page.getByRole('radio', { name: 'Scroll · unavailable' });
-    await unavailable.scrollIntoViewIfNeeded();
     const switchBox = await page.getByRole('radiogroup', { name: 'Format of this explanation' }).boundingBox();
     if (!switchBox) throw new Error('The full format switch remains available');
     expect(switchBox.x).toBeGreaterThanOrEqual(0);
     expect(switchBox.x + switchBox.width).toBeLessThanOrEqual(viewport.width + 1);
-    await expect(unavailable).toBeDisabled();
+    await expect(page.getByRole('radio', { name: 'Scroll' })).toBeEnabled();
     expect(await page.locator('video').evaluate((node, original) => node === original, video)).toBe(true);
     expect(commands.filter((c) => /\/(open|activate|navigate)$/.test(c.path))).toHaveLength(lineage);
   }
@@ -589,9 +531,8 @@ test('Reel controls reflow without overlap across actual phone, landscape and de
         node.style.lineHeight = `${parseFloat(s.lineHeight) * 2}px`;
       }
   });
-  for (const name of ['Mute', 'Next subject', 'Keep this place']) {
+  for (const name of ['Mute', 'More options', 'Share']) {
     const control = page.getByRole('button', { name, exact: true });
-    await control.scrollIntoViewIfNeeded();
     expect(
       await control.evaluate((node) => {
         const r = node.getBoundingClientRect();

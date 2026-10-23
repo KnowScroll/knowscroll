@@ -119,7 +119,11 @@ export function ActionRail(props: EncounterActionsProps) {
   const placement = encounterActionPlacement(display, props.dense);
   if (placement.arrangement === 'grid') return <ActionGrid props={props} placement={placement} />;
   return (
-    <View role="group" accessibilityLabel="Actions" style={[styles.rail, placementStyle(placement)]}>
+    <View
+      role="group"
+      accessibilityLabel="Actions"
+      style={[styles.rail, placement.compact ? styles.railCompact : null, placementStyle(placement)]}
+    >
       {visibleSet(props.available).map((spec) => {
         const pressed = pressedFor(spec, props);
         return (
@@ -173,6 +177,7 @@ export function ActionStrip(props: EncounterActionsProps) {
 
 const styles = StyleSheet.create({
   rail: { alignItems: 'center', gap: spacing['3.5'] },
+  railCompact: { gap: spacing[2] },
   railItem: { alignItems: 'center', gap: spacing[1] },
   strip: {
     flexDirection: 'row',

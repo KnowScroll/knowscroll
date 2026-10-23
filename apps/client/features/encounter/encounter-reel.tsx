@@ -17,6 +17,9 @@ import { ReelGestureStage } from './gestures/reel-gesture-stage';
 
 type ReelEntry = Extract<EncounterEntry, { kind: 'reel' }>;
 
+/** Room the edge tabs take beside the title and, on a short screen, beside the progress row. */
+const EDGE_TAB_WIDTH = 76;
+
 /** The yellow Part tab, the dashed Related tab and the previous step, on the Reel's edges (E05). */
 function ContinuationTabs({
   entry,
@@ -32,7 +35,8 @@ function ContinuationTabs({
   const { seriesNext, seriesPrevious, related } = entry.context.continuations;
   const next = seriesNext.status === 'ready' ? seriesNext : related.status === 'ready' ? related : undefined;
   const previous = seriesPrevious.status === 'ready' ? seriesPrevious : undefined;
-  const tabBottom = metrics.bottom + 52 + spacing[4];
+  // On a short screen the tabs sit beside the progress row, below the compact rail; otherwise beside the title.
+  const tabBottom = metrics.short ? metrics.bottom + spacing[2] : metrics.bottom + 52 + spacing[4];
   return (
     <View testID="encounter-continuation-edges" style={styles.fill} pointerEvents="box-none">
       {previous ? (
@@ -101,7 +105,7 @@ function ReelChrome({
       <ContinuationTabs entry={entry} session={session} disabled={idle} metrics={metrics} />
       <View
         testID="encounter-reel-caption"
-        style={[styles.title, { bottom: titleBottom, left: spacing[5], right: spacing[5] + 76 }]}
+        style={[styles.title, { bottom: titleBottom, left: spacing[5], right: spacing[5] + EDGE_TAB_WIDTH }]}
         pointerEvents="none"
       >
         {entry.context.series ? <Tag label={`Part ${String(entry.context.series.part)}`} variant="part" /> : null}
@@ -109,7 +113,13 @@ function ReelChrome({
           {entry.document.title}
         </Text>
       </View>
-      <View style={[styles.progress, { bottom: progressBottom, left: spacing[5], right: spacing[3] }]}>
+      <View
+        style={[
+          styles.progress,
+          { bottom: progressBottom, left: spacing[5], right: metrics.short ? spacing[3] + EDGE_TAB_WIDTH : spacing[3] },
+        ]}
+        pointerEvents="box-none"
+      >
         <ReelProgress
           positionMs={playback.positionMs}
           durationMs={playback.durationMs}

@@ -24,7 +24,7 @@ export interface ReelProgressProps {
 export function ReelProgress({ positionMs, durationMs, muted, onToggleMuted }: ReelProgressProps) {
   const fraction = durationMs > 0 ? Math.min(1, Math.max(0, positionMs / durationMs)) : 0;
   return (
-    <View style={styles.row}>
+    <View style={styles.row} pointerEvents="box-none">
       <View
         role="progressbar"
         accessibilityLabel="Reel progress"
@@ -33,10 +33,11 @@ export function ReelProgress({ positionMs, durationMs, muted, onToggleMuted }: R
         aria-valuenow={Math.round(positionMs / 1000)}
         aria-valuetext={`${formatClock(positionMs)} of ${formatClock(durationMs)}`}
         style={styles.track}
+        pointerEvents="none"
       >
         <View style={[styles.fill, { width: `${String(Math.round(fraction * 1000) / 10)}%` }]} />
       </View>
-      <Text variant="label" color={content.paper} style={styles.time}>
+      <Text variant="label" color={content.paper} style={[styles.time, { pointerEvents: 'none' }]}>
         {formatClock(positionMs)} / {formatClock(durationMs)}
       </Text>
       {onToggleMuted === undefined ? null : (

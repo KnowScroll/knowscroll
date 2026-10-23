@@ -39,7 +39,9 @@ describe('Saved immutable revision choices', () => {
     const open = jest.fn();
     await card(item, open);
     // The card is one button named by title, format and place; a corrected item says so first.
-    await fireEvent.press(screen.getByRole('button', { name: 'Corrected CI fixture. Reel. Revised since you kept it' }));
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Corrected CI fixture. Reel. Revised since you kept it' }),
+    );
     await fireEvent.press(screen.getByRole('button', { name: 'Open updated version' }));
     expect(open.mock.calls).toEqual([[2], [3]]);
     expect(item.assetRevision).toBe(2);
@@ -94,7 +96,9 @@ describe('Saved immutable revision choices', () => {
     expect(screen.getByRole('button', { name: 'Corrected CI fixture. Reel. Paused at 1:05' })).toBeOnTheScreen();
     await view.unmount();
     await card(available, jest.fn(), jest.fn(), { ...place, status: 'unavailable', reason: 'network' });
-    expect(screen.getByRole('button', { name: "Corrected CI fixture. Reel. Couldn't check your place" })).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: "Corrected CI fixture. Reel. Couldn't check your place" }),
+    ).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: /Paused at 1:05/ })).toBeNull();
   });
 });

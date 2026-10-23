@@ -287,3 +287,21 @@ The blueprint (§9) leaves these open; this is what the code does.
 ## D-036 · 2026-10-24 · Coordinator: deploys stay on the push path; one-use deploy admission reverted
 
 #390 made every dev or stage deploy wait for a root-prepared, one-use intent and a separate `ks-deploy@` service. It was never installed on the server, and it contradicts the owner's flow (AGENTS.md: `dev` deploys on push; `stage` moves by `scripts/promote.sh stage`). Installing it with the next Ansible run would have blocked every deploy. It is reverted. The repository's `ops/vps/tool` now matches what the server runs. The deploy lock, the pre-migrate dump, the exact schema check before activation and the rollback guards stay as they were.
+
+## D-040 · 2026-10-24 · Explore, the Reel and Scroll as designed (#234)
+
+What the v2.1 artboards (E01–E09, N01, A01, S01) leave open, and the few places where this build departs from them.
+
+- **Reel.** The video fills the screen (`contain`, ink behind it). Over it: format switch and ⋯ (top), the four-action rail, the title, the Part chip, the progress row, the continuation edge tabs. A tap pauses and plays (the whole stage is one real button named Play or Pause, and the Play disc shows while paused). Swipe up is the next subject, sideways continues. The chrome is a sibling of the stage's gesture wrapper, so a button never starts a swipe. No ±10 s buttons and no captions or transcript sheet: the media has captions burned in and no transcript exists.
+- **⋯ is in the top bar, for both formats** (D-006 b lists it in the action set; the artboards draw only four actions). The rail and strip carry Like, Save, Share, Ask. ⋯ holds Back, the ready Parts, Next and Previous subject, Keep this place (only while saved), Hide, Account and settings, and the person's own path.
+- **Account.** There is no avatar over a Reel or Scroll (E01 and E02 draw none). It is in ⋯.
+- **Sound.** A mute switch sits at the end of the progress row. Sound is the person's choice, never a side effect of a tap.
+- **No topic chip.** The offer carries no topic, so none is drawn. API gap: `EncounterMetadata` would need a `topic` field. Likewise a Part is labelled "Part 2", not "Part 2 of 3": the series total is not in the context.
+- **Continuation.** A ready next Part is the yellow edge tab; a ready related move is the dashed tab; the previous step is the ink tab on the start edge. A Scroll has no edge tab: its continuation is the end-of-article card and ⋯. Blocks own horizontal drags there, and vertical reading never navigates.
+- **Format switch.** A missing sibling shows its plain name and opens the request sheet (E06); a requested one shows "preparing". The ready notice offers Later and Open and never switches by itself.
+- **Ending (E08).** A stop from the thread or from an exhausted direction is the yellow card: Keep a way back, Something different, Done for now. Keep a way back asks for a save and then confirms, with See it in Keep and Undo (Undo is the existing five-second removal). "Something different" opens a fresh subject: there are no suggestion cards because the Composer offers one subject at a time. Done for now is a calm Explore, nothing playing.
+- **Share (H01 so far).** Copy link and the system share sheet, for the encounter's own address (`/reel/<id>`, `/scroll/<id>`: admitted shared content only). No friends, conversations or moments until those exist.
+- **Keep.** One card per item: tile, format tag, title, one line of place ("Paused at 0:31", "Your place is kept", "Not started"). A visible Remove stands in for the swipe. The Requested filter is not drawn: there is no durable request list. Paging keeps its own buttons.
+- **Dev evidence panel** only with `EXPO_PUBLIC_KS_DEV_EVIDENCE=1`; off by default and absent from every build that does not set it.
+- **Entry.** "Continue with email" is cobalt and "I have a sign-in link" the quiet outline (A01 as drawn); the placeholder row stays out.
+- **Overlays on the web** are drawn into the document body so they sit above the tab bar and rail.

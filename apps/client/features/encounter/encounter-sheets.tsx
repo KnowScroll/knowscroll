@@ -202,6 +202,17 @@ function MoreSheet({ state, session }: { readonly state: EncounterState; readonl
             }}
           />
         ) : null}
+        {entry.context.actions.saved ? (
+          <MenuRow
+            icon="keep"
+            label="Keep this place"
+            disabled={idle}
+            onPress={() => {
+              close();
+              void session.keepThisPlace();
+            }}
+          />
+        ) : null}
         <MenuRow
           icon="close"
           label="Hide this encounter"

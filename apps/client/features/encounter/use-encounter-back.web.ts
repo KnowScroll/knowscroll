@@ -17,7 +17,8 @@ export function useEncounterBack(session: EncounterSession, enabled: boolean) {
         const needsBack = state.overlay || session.canBack();
         if (needsBack && !hasMarker())
           window.history.pushState({ ...window.history.state, ksEncounter: marker.current }, '', window.location.href);
-        else if (!needsBack && hasMarker()) {
+        // One pop is enough: several publishes can land before the popstate that removes the marker.
+        else if (!needsBack && hasMarker() && !ignored.current) {
           ignored.current = true;
           window.history.back();
         }

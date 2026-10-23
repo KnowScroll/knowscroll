@@ -9,19 +9,19 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 | Route | File | Shows | Page title (web) |
 |---|---|---|---|
 | `/` | `app/index.tsx` | Redirects to `/explore` | — |
-| `/explore` | `app/(tabs)/explore.tsx` | Signed in: actual discover → offer activation → Scroll/Reel, current context, actions, real continuations and a private retained path. Signed out: first-arrival hint and the existing email sign-in route. | Explore |
+| `/explore` | `app/(tabs)/explore.tsx` | Signed in: the current encounter as E01 (a full-bleed Reel) or E02 (a Scroll), with its one action set, format switch, ⋯ menu, share sheet, request sheet, continuation (edge tabs on a Reel, the end-of-article card on a Scroll), E08 ending and the plain states between (opening, waiting, offline, a path that changed, a saved place that needs a choice). Signed out: the first-arrival hint and the existing email sign-in route. | Explore |
 | `/universe` | `app/(tabs)/universe.tsx` | U01 empty universe | Universe |
 | `/conversations` | `app/(tabs)/conversations.tsx` | C01 empty Talk ("Talk" is the label) | Talk |
 | `/friends` | `app/friends/index.tsx` | Real profile, exact handle lookup, bounded Friends/requests/blocked rosters, current pair actions and revocable invite links (#377); no fabricated presence or visibility | Friends |
 | `/friends/invite` | `app/friends/invite.tsx` | Fragment-only invitation entry; pure Check, then explicit Request; signed-out links are discarded before sign-in | Friend invitation |
-| `/saved` | `app/(tabs)/saved.tsx` | S01/S02 Keep: scoped bounded saved list, real metadata/status, filters, remove/retry and explicit immutable original/updated-version revisit choices. | Keep |
+| `/saved` | `app/(tabs)/saved.tsx` | S01/S02 Keep: filters, one card per kept item (tile, format, title, where you left off), corrected and withdrawn items, a plain empty state, and a detail with Resume and Start from the top. Scoped, bounded paging; a visible Remove with a five-second Undo. | Keep |
 | `/account` | `app/(tabs)/account/` | The account stack, reached from the avatar on every tab (D-006 c): signed in, the address with "Sign out" and "Sign out on every device"; signed out, "Sign in"; API unreachable, "Try again". Back names where it goes ("Back to Keep") | Account |
 | `/welcome` | `app/(auth)/welcome.tsx` | A01 sign in: "Continue with email", "I have a sign-in link" (S1.3 #226) | Welcome |
 | `/signin` | `app/(auth)/signin/index.tsx` | The email form (labelled field; invalid · sending · too many links · can't reach) | Sign in |
 | `/signin/link` | `app/(auth)/signin/link.tsx` | A01 link sent: the address from this session (never the URL), "Resend the link", "Use a different email" | Check your inbox |
 | `/redeem` | `app/(auth)/redeem.tsx` | Where a link lands (`/redeem#token=…`): the token is read from the fragment and removed from the address bar; one tap POSTs it (opening the link consumes nothing); without a link, a paste field | Finish signing in · Use your sign-in link |
 | `/recover` | `app/(auth)/recover.tsx` | A02: `?reason=link` "This link didn't work" (send a new link); otherwise "You were signed out" | This link didn't work · You were signed out |
-| `/scroll/<assetId>` | `app/scroll/[assetId].tsx` | A Scroll opened by its address (D-006 d; `?anchor=<blockId>` restores a block): opens the exposure, reads the negotiated document, activates, renders and records what is read (client-core's recorder), and restores the position by block on return. Signed out: the sign-in prompt; every other state (loading, "isn't available", "needs an app update", offline, error) has a screen. The article uses the full `packages/ui` `ScrollArticle` renderer and AccountScope block-state store. In a world with operator tools (dev, stage, ci, local) a collapsed "Dev · evidence" panel shows the committed evidence watermark (`features/diagnostics/evidence-panel.tsx`; never consumer UI) | The Scroll's title |
+| `/scroll/<assetId>` | `app/scroll/[assetId].tsx` | A Scroll opened by its address (D-006 d; `?anchor=<blockId>` restores a block): opens the exposure, reads the negotiated document, activates, renders and records what is read (client-core's recorder), and restores the position by block on return. Signed out: the sign-in prompt; every other state (loading, "isn't available", "needs an app update", offline, error) has a screen. The article uses the full `packages/ui` `ScrollArticle` renderer and AccountScope block-state store. The dev evidence panel (`features/diagnostics/evidence-panel.tsx`) appears only when the build sets `EXPO_PUBLIC_KS_DEV_EVIDENCE=1` and `GET /health` names a world with operator tools; it is never consumer UI (D-040). | The Scroll's title |
 | `/gallery` | `app/gallery.tsx` | Developer component gallery and API health, only when built with `EXPO_PUBLIC_KS_GALLERY=1` (stable marker `testID="ks-component-gallery"`); otherwise "This page isn't here" | Component gallery |
 | `/gallery-scroll` | `app/gallery-scroll.tsx` | Developer Scroll gallery (fixture documents through `prepareScrollDocument` and `ScrollArticle`: `doc` = `bridges` (poster), `lighthouse` (editorial), `experiments` (every interactive and visual block), `fallback`; query `block`, `motion=reduce`, `scale=2`, `text=1` for the text version of diagrams), only when built with `EXPO_PUBLIC_KS_GALLERY=1` (marker `testID="ks-scroll-gallery"`); otherwise "This page isn't here" | Scroll gallery |
 | `/s/<token>` | none (reserved) | Share links (D-006 d). On the web the edge sends `/s/*` to the API's public page (D-008); the client's `/s/[token]` screen arrives with sharing (H01–H02). No route, group or catch-all may claim `/s` before then (`features/shell/route-map.test.ts`) | — |
@@ -63,8 +63,7 @@ exclude Reels, even though this controller has a working Reel player.
   (`scroll-session.ts`, a pure controller with a hook), the resume anchor (`anchor-keeper.ts`: block ID by
   article revision, in the account scope's storage), the capabilities this build declares
   (`capabilities.ts`, exported directly by the renderer registry). The route uses `packages/ui` `ScrollArticle` with AccountScope block state and a recorder observer; the resume keeper freezes before unmount closes visibility intervals. `features/diagnostics/evidence-panel.tsx` is the dev-only
-  evidence view: it renders only when `GET /health` names a world with operator tools, and the API answers
-  its route with 404 elsewhere.
+  evidence view, off unless `EXPO_PUBLIC_KS_DEV_EVIDENCE=1`, and then only where `GET /health` names a world with operator tools.
 - `features/shell/`: the tab bar / rail adapter and the screen frame (safe areas, header with
   the account avatar, room for the floating tab bar).
 - `platform/api.ts`: the API origin for this build and the typed client (`@knowscroll/client-core`).
@@ -106,11 +105,7 @@ builds are not part of CI (CF-31). Automated suites run in GitHub Actions only (
 
 Native module host declarations: `expo-clipboard` is declared directly by this app for Friends' deliberate one-time invite copy and so Expo autolinking includes the module used by `packages/ui`'s code-copy control. TypeScript, the UI import, frozen lockfile and Android build remain checked.
 
-`/reel/<assetId>` opens/activates an admitted immutable Reel, renders the shared format switch/action
-rail, and records playback into the account-scoped durable outbox. Save uses the real command; actions
-without a command are hidden and an absent Scroll sibling is unavailable. Fixture imports carry a
-prominent fixture banner. Renewing a media grant reuses the existing exposure and never counts as a
-new encounter. Browser cookies authenticate video GETs; native source headers come from AccountScope.
+`/reel/<assetId>` opens/activates an admitted immutable Reel and draws it as E01: the same full-bleed stage, progress row and rail as Explore, with Save as its only action (the others have no command on this route). Save uses the real command; an absent Scroll sibling is unavailable. Fixture imports carry a "Fixture video" tag. Renewing a media grant reuses the existing exposure and never counts as a new encounter. Browser cookies authenticate video GETs; native source headers come from AccountScope.
 
 The interim direct Scroll session accepts only direct-open exposure lineage. A Composer
 ready/pending/exhausted response produces the existing controlled error state; the new Explore
@@ -124,6 +119,13 @@ offer activation and current authorized exposure context. Each intent keeps its 
 through unknown-outcome retries. Stale intent refreshes current context and requires a fresh
 choice; ready offers activate only while Explore is foreground. The session belongs to the
 AccountScope, survives tab/component detours and ends when the scope ends.
+
+Presentation is split by what the person sees: `encounter-reel.tsx` (E01: stage, chrome, edge tabs),
+`encounter-scroll.tsx` and `scroll-end.tsx` (E02 and the end-of-article card), `encounter-top-bar.tsx`
+(Back, format switch, ⋯), `encounter-actions.tsx` (the one action set), `encounter-sheets.tsx` (⋯,
+share and request sheets), `encounter-notices.tsx` (request status and Save/Keep outcomes),
+`encounter-ending.tsx` (E08) and `encounter-states.tsx` (opening, waiting, offline and the rest).
+They read the session; none of them owns navigation.
 
 `encounter-history.ts` retains at most 20 entries in memory, including the same recorder and
 monotonic timebase. Park synchronously captures the actual article block/offset or SDK playhead,
@@ -144,16 +146,18 @@ Only the playhead is serialized for a future visit; a new encounter starts pause
 and disposal clears retained audio intent. Sound controls never create playback or consumption.
 
 Only admitted ready variants/continuations become navigation controls. A Part is a declared
-series position; Related uses a dashed treatment. The local trail says Visited. Real pending
-work stays distinct from exhaustion; neither fabricates a future Part or changes format by
-itself. Share, Ask, snippets and missing-variant requests remain unavailable until their own
-issues; the complete J1 storyboard therefore remains incomplete.
+series position (the yellow tab); Related uses a dashed treatment. The local trail says Visited.
+Real pending work stays distinct from exhaustion; neither fabricates a future Part or changes
+format by itself. Share is Copy link and the system sheet only; snippets, conversations and
+friends in the share sheet wait for the social slice. D-040 records what the artboards leave open.
 
-Reel navigation wraps only the actual noninteractive video stage. Player seek/Play controls
-remain outside that responder; article/slider/chart/code pointers stay with the child. Scrolls
-also offer an explicit navigation surface below the article. Axis ownership locks until release; native starts inside the 24 px system-Back edge
-stay with the platform. Vertical Scroll gestures never navigate, including end momentum. Every
-move has a named button; normal keyboard activation works without claiming article reading keys.
+Reel navigation wraps only the actual video stage; on the web a swipe captures the pointer only
+once it is recognised, so a plain tap still reaches the play/pause surface. The chrome (switch,
+⋯, rail, edge tabs, progress) is a sibling of that responder; article/slider/chart/code pointers
+stay with the child. Axis ownership locks until release; native starts inside the 24 px
+system-Back edge stay with the platform. Vertical Scroll gestures never navigate, including end
+momentum, and a Scroll has no sideways swipe (blocks own horizontal drags). Every move has a named
+button; normal keyboard activation works without claiming article reading keys.
 A Reel down-swipe or ArrowUp requests a previous subject; it is distinct from local Back.
 Android Back, browser Back and the toolbar use the same local path, overlay first. Browser state
 holds one transient same-address sentinel rather than an encounter navigation tree.
@@ -286,35 +290,29 @@ A replacement membership for the same asset cannot supply its place or authorize
 Refresh lets the person choose it explicitly. Explore and direct Reel Remove pass the authoritative
 UUID currently displayed. Initial stale A→B preparation mints no removal command, while a previously
 unknown A command retains its exact original body for explicit retry. Starting at the top changes
-position choice and never bypasses the selected membership check. Full S01/S02 visual/interaction parity remains follow-up work. Source/component/protocol fixtures in Actions establish
+position choice and never bypasses the selected membership check. Keep now draws S01/S02 (D-040); the Requested filter and a real thumbnail await their data. Source/component/protocol fixtures in Actions establish
 client behavior only. Root owns real disposable-account endpoint/decoded media/device journeys
 and deployment acceptance; this source makes no runtime or final privacy acceptance claim.
 
-### Responsive media flow (#359)
+### Full-bleed Reel (#234, #359)
 
-Explore Reel and direct Reel pages scroll in normal flow: the shared player measures its actual
-frame width and at most half the actual measured page height for a bounded video stage, then lays out wrapping playback controls, captions, actions
-and subject navigation below. Stage resize preserves the mounted SDK player, exposure, grant and
-private sound/place. Ready continuation edges are anchored to the video stage and remain outside
-its gesture responder. The encounter header gives the complete format labels their own row;
-unavailable/preparing words wrap and targets remain at least44px. Scroll retains its own bounded
-article scroller and interactive gesture exclusions, without a Reel page scroller around it.
-Cream component/Scroll galleries set dark system icons on focus, matching ScreenFrame's existing
-per-route ownership. Spatial routes keep their own light tone.
-
-Hosted browser cases measure actual355×767/320×568/390×844/landscape/tablet/desktop rectangles,
-reachable hit targets, text enlargement and unchanged video/lineage across resize. These use labelled
-HTTP/media fixtures, with no decoded playback claim. UI fixtures pin actual200% text/reduced motion;
-router focus fixtures do not prove native status pixels. Connected real dev playback/Keep/resize and
-hosted native gallery→space→back visual verification remain separate acceptance gates.
+The Reel fills the screen (E01); on tablets and desktops it is a column of at most 480 px beside the
+rail. The player measures nothing for its height: the stage is the column. Chrome offsets come from
+`useEncounterMetrics` (below the status bar, above the tab bar or rail); short screens use the
+compact rail. The measured `ReelPage` stays around the stage on native so visibility fencing is
+unchanged.
 
 Native Reel page scrolling also fences visibility: the actual video stage is measured against
-its current page viewport after safe/tab exclusions. Scroll/layout invalidation synchronously
-pauses playback; only a current mounted-stage measurement with at least half the stage visible
-can re-enable the existing active fence. Monotonic callbacks, route/background and scope-end
-cleanup prevent late geometry from reviving an old encounter. Returning to view does not restore
-play intent. Web retains its existing IntersectionObserver, anchored to the video stage. Native geometry tests use labelled
-callbacks; real native visibility and status pixels remain a separate hosted runtime gate.
+its current page viewport. Scroll/layout invalidation synchronously pauses playback; only a
+current mounted-stage measurement with at least half the stage visible can re-enable the existing
+active fence. Monotonic callbacks, route/background and scope-end cleanup prevent late geometry
+from reviving an old encounter. Returning to view does not restore play intent. Web retains its
+IntersectionObserver, anchored to the video stage. Native geometry tests use labelled callbacks;
+real native visibility and status pixels remain a separate hosted runtime gate.
+
+Hosted browser cases measure actual 320×568 to 1440×900 rectangles, reachable hit targets, text
+enlargement and unchanged video/lineage across resize, over labelled HTTP/media fixtures (no
+decoded playback claim).
 
 ## Friends (#377)
 

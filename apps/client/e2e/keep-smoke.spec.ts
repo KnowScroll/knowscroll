@@ -225,19 +225,20 @@ for (const kind of ['scroll', 'reel'] as const) {
   }) => {
     const f = await keptUI(page, kind);
     await page.goto('/saved');
-    await page.getByRole('button', { name: 'Open saved encounter' }).click();
+    await page.getByRole('button', { name: /^Kept (reel|scroll) CI fixture\./ }).click();
     await expect(page.getByTestId('keep-detail')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Resume saved place' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Resume where you left off' })).toBeEnabled();
     expect(f.calls.filter((c) => c.path.includes('/activate') || c.path.includes('/observations/'))).toHaveLength(0);
     expect(f.calls.filter((c) => c.path.endsWith('/keep/place'))).toHaveLength(0);
-    await page.getByRole('button', { name: 'Resume saved place' }).click();
+    await page.getByRole('button', { name: 'Resume where you left off' }).click();
     await expect(page.getByTestId('encounter-explore')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Keep this place' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'More options' })).toBeVisible();
     expect(f.calls.filter((c) => c.path.endsWith('/keep/place'))).toHaveLength(0);
     expect(f.calls.filter((c) => c.path.endsWith('/experience/activate'))).toHaveLength(1);
     expect(f.calls.find((c) => c.path.endsWith('/experience/open'))?.body.target).toMatchObject({ kind: 'return' });
     if (kind === 'scroll') {
       await expect(page.getByTestId('scroll-article')).toBeVisible();
+      await page.getByRole('button', { name: 'More options' }).click();
       await page.getByRole('button', { name: 'Keep this place' }).click();
       await expect.poll(() => f.calls.filter((c) => c.path.endsWith('/keep/place')).length).toBe(1);
       const sent = f.calls.find((c) => c.path.endsWith('/keep/place'))!.body;
@@ -251,10 +252,10 @@ for (const kind of ['scroll', 'reel'] as const) {
 test('a replaced membership blocks the chosen restore without creating an encounter', async ({ page }) => {
   const f = await keptUI(page, 'reel');
   await page.goto('/saved');
-  await page.getByRole('button', { name: 'Open saved encounter' }).click();
-  await expect(page.getByRole('button', { name: 'Resume saved place' })).toBeEnabled();
+  await page.getByRole('button', { name: /^Kept (reel|scroll) CI fixture\./ }).click();
+  await expect(page.getByRole('button', { name: 'Resume where you left off' })).toBeEnabled();
   f.replace();
-  await page.getByRole('button', { name: 'Resume saved place' }).click();
+  await page.getByRole('button', { name: 'Resume where you left off' }).click();
   await expect(page.getByText('Your saved place needs attention')).toBeVisible();
   expect(f.calls.filter((c) => c.path.endsWith('/experience/activate'))).toHaveLength(0);
   expect(f.calls.filter((c) => c.path.includes('/observations/') || c.path.endsWith('/keep/place'))).toHaveLength(0);
