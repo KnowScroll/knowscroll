@@ -9,6 +9,7 @@ export { compileAuthored } from './authoring.js';
 export { type AuthoringEvidence } from './authoring-bind.js';
 export { authoringReference } from './authoring-reference.js';
 export { AuthoredScroll, SCROLL_AUTHORING_VERSION, type AuthoredBlockType } from './authoring-schema.js';
+export { copiedRuns } from '../text.js';
 export {
   COPY_RUN_WORDS,
   compileDraft,

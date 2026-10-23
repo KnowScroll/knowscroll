@@ -84,13 +84,22 @@ const sequence = z.object({
 /** Layouts a model can use without grid coordinates: code places the nodes. */
 export const AUTHORED_DIAGRAM_LAYOUTS = ['flow-lr', 'flow-tb', 'radial', 'cycle', 'layers'] as const;
 export const AUTHORED_NODE_KINDS = ['entity', 'process', 'store', 'actor', 'note'] as const;
+export const DEFAULT_DIAGRAM_LAYOUT = 'flow-lr';
+export const DEFAULT_NODE_KIND = 'entity';
+
+/**
+ * A choice that only changes how a diagram looks (layout, node kind). The schema takes any short
+ * word and the converter maps an unknown one to the default and records that it did, because a
+ * misspelt style is not worth the whole Scroll. Choices that change meaning stay strict enums.
+ */
+const cosmeticChoice = z.string().trim().max(40).optional();
 
 const diagram = z.object({
   type: z.literal('diagram'),
   cites,
   title: short(100),
   instruction: optionalShort(120),
-  layout: z.enum(AUTHORED_DIAGRAM_LAYOUTS).optional(),
+  layout: cosmeticChoice,
   /** `toggle`: one button per frame (default). `steps`: Previous and Next through the frames. */
   interaction: z.enum(['toggle', 'steps']).optional(),
   nodes: z
@@ -98,7 +107,7 @@ const diagram = z.object({
       z.object({
         id: text(1, 40).optional(),
         label: short(FIELD_LIMITS.diagramLabelChars),
-        kind: z.enum(AUTHORED_NODE_KINDS).optional(),
+        kind: cosmeticChoice,
       }),
     )
     .min(2)

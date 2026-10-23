@@ -9,6 +9,7 @@ import {
   extractResearch,
   type ResearchPage,
 } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
+import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
 import type { WriterFormat } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { fixtureModel, fixtureSettings, silent } from './fixture-model.js';
@@ -124,7 +125,7 @@ export function fixtureAuthored(
   overrides: { readonly drop?: string; readonly paragraph?: string } = {},
 ) {
   const prose = FIXTURE_PROSE.map((text, index) => (index === 1 && overrides.paragraph ? overrides.paragraph : text));
-  return {
+  return AuthoredScroll.parse({
     title: 'How a lighthouse guides ships',
     dek: 'A shaped beam, a rhythm and a dependable rotation turn one lamp into a coastal signal.',
     blocks: [
@@ -146,7 +147,7 @@ export function fixtureAuthored(
         text: 'This picture ignores radio and satellite navigation, which now do most of the work.',
       },
     ].filter((block) => block.type !== overrides.drop),
-  };
+  });
 }
 
 export const answerWith = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });
