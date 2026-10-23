@@ -3,6 +3,7 @@ import { problemDetails } from '@knowscroll/contracts';
 import { createAccountScope, memoryStore, type AccountScope } from './account-scope';
 import { createConversationsSession } from './conversations-session';
 import { createContentSharesSession } from './content-shares-session';
+import { SOCIAL_LIMITS, socialOwnerFor } from './conversations-types';
 // Authored strict HTTP fixtures. No real memberships, messages, delivery or presence claims.
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const account = { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'chat@fixture.test' },
@@ -26,7 +27,7 @@ function deferred<T>() {
   });
   return { promise, open };
 }
-function fixture(handler?: (path: string, input: Record<string, unknown>) => unknown) {
+function fixture(handler?: (path: string, input: Record<string, unknown>, request: Request) => unknown) {
   let next = 20000;
   const calls: { path: string; body: Record<string, unknown> }[] = [],
     store = memoryStore();
@@ -39,7 +40,7 @@ function fixture(handler?: (path: string, input: Record<string, unknown>) => unk
       const input = (await request.json()) as Record<string, unknown>,
         path = new URL(request.url).pathname;
       calls.push({ path, body: input });
-      const result = await (handler ? handler(path, input) : response(path, input));
+      const result = await (handler ? handler(path, input, request) : response(path, input));
       return result instanceof Response
         ? result
         : new Response(JSON.stringify(result), { headers: { 'content-type': 'application/json' } });
@@ -369,6 +370,110 @@ describe('scope-lifetime Conversations controller (authored HTTP fixtures)', () 
       expect(JSON.stringify(h.session.getState())).not.toContain('OBSOLETE_PAGE');
       expect(h.calls.filter((c) => c.path.endsWith('/conversations/read'))).toHaveLength(2);
       h.scope.end();
+    },
+  );
+  it.each(['success', 'failure'] as const)(
+    'retires the held original HTTP body before accepted recovery releases its slot; late %s cannot touch the next command',
+    async (obsoleteOutcome) => {
+      const first = deferred<unknown>(),
+        second = deferred<unknown>();
+      const signals: AbortSignal[] = [];
+      let sendCount = 0,
+        recovered = false;
+      let abortBusy: boolean | undefined, abortBudget: boolean | undefined, abortCommand: unknown;
+      const h = fixture((path, input, request) => {
+        if (path.endsWith('/send')) {
+          signals.push(request.signal);
+          if (++sendCount === 1) {
+            request.signal.addEventListener(
+              'abort',
+              () => {
+                abortBusy = owner.busy();
+                abortCommand = h.session.getState().command;
+                // Only a direct actual-owner admission probe, never a wire payload.
+                abortBudget = owner.retain(probe, { text: 'x'.repeat(remainingBytes) });
+                owner.drop(probe);
+                void h.session.retryCommand();
+                void h.session.start(peer.personId);
+              },
+              { once: true },
+            );
+            return first.promise;
+          }
+          return second.promise;
+        }
+        if (path.endsWith('/send/read')) recovered = true;
+        const b = response(path, input) as Record<string, unknown>;
+        return recovered && path.endsWith('/conversations/read')
+          ? { ...b, latestMessageSequence: 2, messages: [message(2)] }
+          : b;
+      });
+      const owner = socialOwnerFor(h.scope),
+        probe = {},
+        remainingBytes = SOCIAL_LIMITS.bodyBytes - new TextEncoder().encode('PRIVATE_MESSAGE_CANARY').length;
+      await opened(h);
+      h.session.setDraft(ref(), { kind: 'text', text: 'FIRST_PRIVATE_BODY' });
+      const firstSend = h.session.send(ref());
+      await expect.poll(() => sendCount).toBe(1);
+      const original = h.calls.find((c) => c.path.endsWith('/send'))!.body;
+      expect(h.session.getState().command).toMatchObject({ status: 'pending', commandId: original.commandId });
+      const releaseFacts: { aborted: boolean; admitted: boolean }[] = [];
+      const off = owner.subscribe(() => {
+        if (!owner.busy() && recovered) {
+          releaseFacts.push({
+            aborted: signals[0]!.aborted,
+            admitted: owner.retain(probe, { text: 'x'.repeat(remainingBytes) }),
+          });
+          owner.drop(probe);
+        }
+      });
+      await h.session.recoverOwnSend(ref());
+      off();
+      expect(abortBusy).toBe(true);
+      expect(abortBudget).toBe(false);
+      expect(abortCommand).toMatchObject({ status: 'accepted', commandId: original.commandId });
+      expect(signals[0]!.aborted).toBe(true);
+      expect(releaseFacts).toEqual([{ aborted: true, admitted: true }]);
+      expect(owner.busy()).toBe(false);
+      expect(h.session.getState()).toMatchObject({
+        command: { status: 'accepted', commandId: original.commandId },
+        recovery: { status: 'ready', data: { selector: { kind: 'command', commandId: original.commandId } } },
+      });
+      expect(windowOf(h)).toMatchObject({ status: 'refresh_required', messages: [] });
+      expect(h.calls.some((c) => c.path.endsWith('/pairs/read'))).toBe(false);
+      await h.session.refreshConversation(ref());
+      h.session.setDraft(ref(), { kind: 'text', text: 'SECOND_PRIVATE_BODY' });
+      const secondSend = h.session.send(ref());
+      await expect.poll(() => sendCount).toBe(2);
+      const next = h.calls.filter((c) => c.path.endsWith('/send'))[1]!.body;
+      expect(next.commandId).not.toBe(original.commandId);
+      first.open(
+        obsoleteOutcome === 'success'
+          ? response('/v1/social/conversations/send', original)
+          : new Response(JSON.stringify(problemDetails('FORBIDDEN')), {
+              status: 403,
+              headers: { 'content-type': 'application/problem+json' },
+            }),
+      );
+      await firstSend;
+      await new Promise<void>((done) => setImmediate(done));
+      expect(signals[1]!.aborted).toBe(false);
+      expect(owner.busy()).toBe(true);
+      expect(h.session.getState().command).toMatchObject({ status: 'pending', commandId: next.commandId });
+      expect(h.session.getState().drafts[0]!.body).toEqual({ kind: 'text', text: 'SECOND_PRIVATE_BODY' });
+      expect(sendCount).toBe(2);
+      h.scope.end();
+      expect(signals.every((signal) => signal.aborted)).toBe(true);
+      expect(owner.busy()).toBe(false);
+      second.open(response('/v1/social/conversations/send', next));
+      await secondSend;
+      expect(h.session.getState()).toMatchObject({
+        status: 'ended',
+        windows: [],
+        drafts: [],
+        command: { status: 'idle' },
+      });
+      assertNoPersistence(h.scope, h.store.keys());
     },
   );
   it('pins one unknown original command globally; later refusal cannot prove non-send; recovery is body-free and never a bubble', async () => {

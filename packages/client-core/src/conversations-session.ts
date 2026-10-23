@@ -365,10 +365,19 @@ export function createConversationsSession(options: {
             throw new SocialHttpError('invalid', false);
           const id = p.input.commandId;
           dropSentDraft(p.input.conversation, p.input.body);
+          // The original HTTP call owns a separate prepared correlation cell. Retire its
+          // exact controller before releasing the only admission/slot for that body.
+          const retiredSerial = ++commandSerial,
+            originalController = commandController;
+          commandController = undefined;
           pending = undefined;
-          owner.drop(pendingBudget);
           state = { ...state, command: { status: 'accepted', operation: 'send', commandId: id } };
           p.input = undefined;
+          originalController?.abort();
+          // Abort may synchronously end this owner. Obsolete send continuations are already
+          // fenced by both the command generation and Pending identity before callbacks run.
+          if (!live() || commandSerial !== retiredSerial) return;
+          owner.drop(pendingBudget);
           owner.release(token);
           if (!current()) return;
         }
