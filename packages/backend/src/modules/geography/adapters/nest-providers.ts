@@ -328,22 +328,14 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
     },
   ];
 }
-/** Separate flag and economic permit. Normal composition supplies no permit and cannot spend. */
-export function cartographerWorkerProviders(
-  t: { readonly workerConfig: symbol },
-  options: { readonly permitted?: (scope: PersonalScopeTx) => Promise<boolean> } = {},
-) {
+/** The Cartographer worker role. `KS_CARTOGRAPHER_ENABLED` is its only switch (D-038). */
+export function cartographerWorkerProviders(t: { readonly workerConfig: symbol }) {
   return [
     {
       provide: RUN_CARTOGRAPHER,
       inject: [GEOGRAPHY_PORTS, RECORDING_REASONING_HARNESS, t.workerConfig],
       useFactory: (base: GeographyPorts, harness: RecordingReasoningHarness, config: WorkerConfig) =>
-        makeRunCartographer({
-          ...base,
-          harness,
-          enabled: () => config.cartographerEnabled,
-          permitted: options.permitted ?? (() => Promise.resolve(false)),
-        }),
+        makeRunCartographer({ ...base, harness, enabled: () => config.cartographerEnabled }),
     },
   ];
 }

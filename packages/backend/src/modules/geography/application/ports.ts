@@ -191,9 +191,8 @@ export interface GeographyPorts {
 }
 export interface CartographerPorts extends GeographyPorts {
   readonly harness: RecordingReasoningHarness;
+  /** The `KS_CARTOGRAPHER_ENABLED` switch. Spend stays bounded by the shared reasoning budgets. */
   readonly enabled: () => boolean;
-  /** Separate reviewed economic permission, never inferred from feature flag or credentials. */
-  readonly permitted: (scope: PersonalScopeTx) => Promise<boolean>;
 }
 export type MaterialGeographyChange = (
   scope: RecordingScopeTx,

@@ -312,7 +312,6 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       ...base,
       harness,
       enabled: () => true,
-      permitted: () => Promise.resolve(true),
       ...overrides,
     };
     return { model, ports, run: makeRunCartographer(ports) };
@@ -431,7 +430,6 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       await makeRunCartographer({
         ...base,
         enabled: () => true,
-        permitted: () => Promise.resolve(true),
         harness: { ...actual, withPersonalApply: forbidden, closePersonalRun: forbidden },
       })(await job(a, runId), signal());
       const h = await database.db
@@ -486,7 +484,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     expect(r.model.calls).toHaveLength(0);
     expect(await snapshot(p)).toMatchObject({ status: 'empty', geography: { revision: 0 } });
   });
-  it('shipped feature-off and absent economic permit each block real queued work without attempts; receipts coalesce/replay', async () => {
+  it('a switched-off role blocks real queued work without attempts, receipts coalesce/replay, and resume runs it once when switched on', async () => {
     const p = await seedPerson(database.db);
     await coherent(p);
     const c0 = { commandId: randomUUID() },
@@ -505,22 +503,13 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
           .executeTakeFirstOrThrow()
       ).outcome,
     ).toBe('disabled');
-    await request(p.authority, { commandId: randomUUID(), resumeRunId: a.runId });
-    await makeRunCartographer({ ...r.ports, enabled: () => true, permitted: () => Promise.resolve(false) })(
-      await job(p, a.runId),
-      signal(),
-    );
-    expect(
-      (
-        await database.db
-          .selectFrom('geography.runs')
-          .select('outcome')
-          .where('id', '=', a.runId)
-          .executeTakeFirstOrThrow()
-      ).outcome,
-    ).toBe('budget_unavailable');
     expect(await attemptsOf(database.db, p.universeId)).toHaveLength(0);
     expect(await snapshot(p)).toMatchObject({ status: 'empty' });
+    // Switching the role on and asking again runs the same business run once.
+    await request(p.authority, { commandId: randomUUID(), resumeRunId: a.runId });
+    await makeRunCartographer({ ...r.ports, enabled: () => true })(await job(p, a.runId), signal());
+    expect(r.model.calls).toHaveLength(1);
+    expect(await snapshot(p)).toMatchObject({ status: 'ready', geography: { revision: 1 } });
   });
   it('repeated actual variants remain one unit; ALL-OF missing leaves cannot supply a second facet', async () => {
     const p = await seedPerson(database.db),
@@ -540,17 +529,25 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         .execute(),
     ).toHaveLength(0);
   });
-  it('three qualified units with only one actual supported facet cannot partially apply an invalid planet proposal', async () => {
+  it('three qualified units with one actual facet: the invalid planet proposal is refused and the rules form only the system and star', async () => {
     const p = await seedPerson(database.db);
     for (let i = 0; i < 3; i++) await observe(p, await fixture());
     const r = runner(p),
       s = await state(p);
     await r.run(await job(p, s.activeRunId!), signal());
     expect(r.model.calls).toHaveLength(2);
-    expect(await snapshot(p)).toMatchObject({ status: 'empty', geography: { revision: 0 } });
+    const result = await snapshot(p);
+    if (result.status !== 'ready') throw new Error('CI ready expected');
+    expect(result.page.objects.map((o) => o.kind).sort()).toEqual(['star', 'system']);
     expect(
-      await database.db.selectFrom('geography.objects').select('id').where('universe_id', '=', p.universeId).execute(),
-    ).toHaveLength(0);
+      (
+        await database.db
+          .selectFrom('geography.runs')
+          .select('outcome')
+          .where('id', '=', s.activeRunId!)
+          .executeTakeFirstOrThrow()
+      ).outcome,
+    ).toBe('applied_by_rules');
   });
   it('three coherent qualified units plus two actual facets form stable meaning; pages/deltas and required hint job are real', async () => {
     const p = await seedPerson(database.db);
