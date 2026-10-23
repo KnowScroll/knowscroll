@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-23 01:32 UTC · **Phase:** RESUMED / recording backend971 pass, fourth candidate rejected on one UUID fixture; native/Social review continues · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-23 02:00 UTC · **Phase:** RESUMED / recording fifth candidate rejected on one browser expectation; reviewed correction prepared, native source closed, Social correction continues · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,21 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current authoritative phase — 2026-10-23 01:32 UTC
+## Current authoritative phase — 2026-10-23 02:00 UTC
+
+Actual integration remains **f0a9a0e5a14fabeadc60ce5130e50f626b4a76cf / schema41**, with exact integration-push39883008177/full artifact accepted by receiptc7920189. PR388 sourceb73bbb10 and actualPRb7dcaa7f remain **REJECTED**: source39885650592 and PR39885654008 terminal failure; static/backend/build/integrity pass, release skipped. Both pass PostgreSQL971, core344, UI374 and native227. Each browser run has one failed exact Keep-remove request expectation and57 passes: the current fixture policy supplies generation1, but the expected body omitted it. Complete93-entry official archives/member maps and backend/client full logs are retained under the active resume root `recording381-corrected-uuid/terminal-failure`; sourcecapture6282af6d/sourceZIP31982e46 and PRcapture2d6edbe0/PRZIP40bbece3. Prior failures remain preserved; no unchanged rerun, cancellation, override or merge. Optional native39885654054 remains pending at this checkpoint and is not persistence evidence.
+
+Normal local child2510fd4f changes only one exact browser expectation field, recordingGeneration:1. Different-author HIGH closure1ecbdc35 verifies all79 original matchers/all5 cases, exact Undo/grace4999+1/UUID/membership/single dispatch/noactions/postACK semantics, all1,584 foreign mode/blobs/all44SQL and seven passing static result/log pins. Optional contract compatibility for old bodies stays unchanged; actual new producer obtains current authority and freezes its command. This checkpoint is the only further Root documentation derivative. Fresh exact source/actualPR Actions/full artifacts and actual-base acceptance remain required; publication must retain the preceding native run's terminal evidence first.
+
+Native249 candidate19ceb134/tree3f9ad315 has full23 different-author HIGH source closuree5da1a1d: preparing-owner reference release and late onEnd registration findings close, all563 parent matcher ASTs/103 whole bodies preserved, six static bindings verified. Only reviewed23 owned blobs may compose on actual accepted44; obsolete7417 foreign ancestry must not merge. SDK/native runtime proof remains absent. Root's disabled eight-path native harness proposal now has a newly identified single-owner bootstrap gap: the normal parent provider may purge the shared native store before a route-side fixture can authenticate; no allocation or execution is elected until that design is corrected and reviewed.
+
+Conversations UI957a5055/tree4e644505 freezes12 correction paths within25, with all prior assertions/player/geometry cases and foreign1,578/all44SQL/provisional core7+index preserved. Author types/build/export/owned lint+format/boundaries/Knip pass; full lint2/full format7 foreign provisional limitations are explicit. Different-author full25 closure and final-core/current-native composition remain required. Core7ffac362/treef095babd closes its original three P2s in complete independent nine-file review34dcd386, but a NEW P2 remains: accepted own-send recovery can release budget/slot while an original held HTTP correlation cell retains the private body. Original HIGH author owns the bounded correction and actual-scope HTTP/budget regression; no backend/SQL45/NEW registry digest or consumer election follows yet.
+
+Root disabled rollout44 planv2 and initial host metadata reader remain source proposals under independent HIGH review, with all operational pins unset; no SSH, host installation, new window, dev PR/merge/push, deployment, database/provider or owner-data action occurred. Fresh public health01:36 receipt9975c690 observed dev476baec5/schema35/archive8579c51b on both hosts and stagelegacy8982391f; source dev106c4701/stage898/main e5fd remain untouched. D002 requires IMMEDIATE plain actual-dev mergeback and push after any future dev PR, before CI waiting; finite guard must already be installed/fail-closed before automatic dev deployment can trigger.
+
+All five programme requirements remain OPEN. Existing ledgerdf1dd4d5 remains36used/0held/0unknown; zero accepted generated Scrolls, v12 terminal failure and all spending/owner-data uncertainty remain. Exact PR379 script eb26847e is individually approved for ONE future order≤75¢; this is not billing proof or a launched order. Source fixes authorize no paid attempt. Continue authorized implementation/review/Actions phases, then separately finite-guarded connected dev/generation/Cutroom/stage evidence. Never update main, deploy production, alter owner data or reset history.
+
+## Earlier authoritative phase — 2026-10-23 01:32 UTC
 
 Actual integration remains **f0a9a0e5a14fabeadc60ce5130e50f626b4a76cf / schema41**. Its actual integration push39883008177 passes all six; complete114 logs/102 step logs, official artifact digest, all19,732 manifest entries/all41SQL/smoke29 are independently verified by Root collector5575f79e, acceptancec7920189 under `deploy250-current-base/integration-f0` in active resume root. Exact actual tar SHA df38dc28278cb194564623326fa13a73cf3bbebec880c65c5f89c2fbac03d9b6. This adds integration-push artifact proof to390 source/PR acceptance17de9496/squash9c85f934, not host installation or runtime evidence.
 
