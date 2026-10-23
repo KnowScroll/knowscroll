@@ -23,8 +23,10 @@ export function ActivatedReelView({
   renderStage,
   stageMaxHeight,
   shareResumeRevision,
+  resumeVisibility = active ? 'visible' : 'hidden',
   consumeShareResume,
 }: {
+  readonly resumeVisibility?: 'pending' | 'visible' | 'hidden';
   readonly shareResumeRevision?: number;
   readonly consumeShareResume?: () => boolean;
   readonly scope: AccountScope;
@@ -55,10 +57,14 @@ export function ActivatedReelView({
   );
   useEffect(() => {
     const revision = shareResumeRevision ?? 0;
-    if (revision === seenResume.current) return;
+    if (revision === seenResume.current || resumeVisibility === 'pending') return;
+    // Pending is limited to the current native binding's one measurement generation. The
+    // observer cancels independently changed geometry/background/end, and definitive hidden
+    // or SDK-not-ready is terminal. There is no timer, readiness retry or cold restore intent.
     seenResume.current = revision;
-    if (active && scope.active && consumeShareResume?.()) localPosition.current?.resumeIntent?.();
-  }, [shareResumeRevision, active, scope, consumeShareResume]);
+    const permitted = consumeShareResume?.();
+    if (active && scope.active && resumeVisibility === 'visible' && permitted) localPosition.current?.resumeIntent?.();
+  }, [shareResumeRevision, resumeVisibility, active, scope, consumeShareResume]);
   const source = useCallback(async () => {
     if (!scope.active || (retainedGrant && !retainedGrant.active())) throw new Error('encounter_ended');
     const retained = retainedGrant?.get();

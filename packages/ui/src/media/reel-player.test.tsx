@@ -1094,4 +1094,49 @@ describe('one-use same-source share-close intent', () => {
     expect(f.sdk.play).toHaveBeenCalledTimes(before);
     await view.unmount();
   });
+  it('keeps repeated same-source parks idempotent but explicit geometry cancellation is terminal', async () => {
+    const f = fixture();
+    const view = await renderOn(<ReelPlayer {...f.props} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    await act(() => {
+      f.position.current?.pause();
+      f.position.current?.pause();
+      f.position.current?.pause();
+    });
+    await view.rerender(<ReelPlayer {...f.props} active={false} />);
+    await view.rerender(<ReelPlayer {...f.props} active />);
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(true);
+    });
+    await act(() => {
+      f.position.current?.pause();
+      f.position.current?.pause(true);
+    });
+    const before = f.sdk.play.mock.calls.length;
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    expect(f.sdk.play).toHaveBeenCalledTimes(before);
+    await view.unmount();
+  });
+  it('terminally refuses a released native SDK readiness getter without retaining autoplay intent', async () => {
+    const f = fixture();
+    const view = await renderOn(<ReelPlayer {...f.props} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    await act(() => f.position.current?.pause());
+    Object.defineProperty(f.sdk, 'status', {
+      configurable: true,
+      get: () => {
+        throw new Error('CI released native SDK');
+      },
+    });
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    Object.defineProperty(f.sdk, 'status', { configurable: true, writable: true, value: 'readyToPlay' });
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    await view.unmount();
+  });
 });

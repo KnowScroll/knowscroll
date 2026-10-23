@@ -137,28 +137,47 @@ export function observeReelPageStage(
   pause: () => void,
   measureStage: (callback: (x: number, y: number, width: number, height: number) => void) => void,
   changed: (visible: boolean) => void,
+  resume?: {
+    invalidated(): void;
+    status(status: 'pending' | 'visible' | 'hidden'): void;
+  },
 ) {
   let foreground = AppState.currentState === 'active';
   let alive = true,
     ticket = 0,
     seen = -1;
-  const invalidate = () => {
+  let pendingMeasurement: number | undefined;
+  const invalidate = (genuine = true, pending = true) => {
     ticket += 1;
+    pendingMeasurement = undefined;
     pause();
-    if (alive) changed(false);
+    if (genuine) resume?.invalidated();
+    if (alive) {
+      changed(false);
+      resume?.status(pending ? 'pending' : 'hidden');
+    }
   };
   const measure = () => {
     const current = store.read();
     if (seen !== current.revision) {
+      const firstBinding = seen === -1;
       seen = current.revision;
-      invalidate();
+      invalidate(!firstBinding);
     }
-    if (!alive || !enabled || !scope.active || !foreground || !current.bounds) return;
+    if (!alive || !enabled || !scope.active || !foreground || !current.bounds) {
+      if (alive && (!enabled || !scope.active || !foreground)) resume?.status('hidden');
+      return;
+    }
+    // A close can wait for this exact native callback only. Replacing an outstanding measure
+    // cancels that request rather than moving it into a newer geometry generation.
+    if (pendingMeasurement !== undefined) resume?.invalidated();
     const sequence = ++ticket;
+    pendingMeasurement = sequence;
     try {
       measureStage((x, y, w, h) => {
         if (!alive || sequence !== ticket || !scope.active || !foreground || store.read().revision !== current.revision)
           return;
+        pendingMeasurement = undefined;
         const stage = box(x, y, w, h),
           v = current.bounds!;
         const area = stage
@@ -166,11 +185,15 @@ export function observeReelPageStage(
             Math.max(0, Math.min(stage.bottom, v.bottom) - Math.max(stage.top, v.top))
           : 0;
         const visible = stage !== null && area / (w * h) >= 0.5;
-        if (!visible) pause();
+        if (!visible) {
+          pause();
+          resume?.invalidated();
+        }
         changed(visible);
+        resume?.status(visible ? 'visible' : 'hidden');
       });
     } catch {
-      invalidate();
+      invalidate(true, false);
     }
   };
   const unsubscribe = store.subscribe(measure);
@@ -184,7 +207,7 @@ export function observeReelPageStage(
     invalidate();
     measure();
   });
-  invalidate();
+  invalidate(false);
   measure();
   return {
     layout: () => {
@@ -204,12 +227,15 @@ export function observeReelPageStage(
 
 /** Native visibility is tied to this mounted stage and current account lifetime. Old layout callbacks
  * cannot restore playback permission after a scroll/resize, route park, background or scope end. */
-export function useReelPageStage(scope: AccountScope, enabled: boolean, pause: () => void) {
+export function useReelPageStage(scope: AccountScope, enabled: boolean, pause: () => void, cancelResume?: () => void) {
   const viewport = useContext(Viewport);
   const store = viewport?.store ?? null;
   const ref = useRef<ComponentRef<typeof View>>(null);
   const binding = useMemo(() => ({ scope, enabled, store }), [scope, enabled, store]);
-  const [observation, setObservation] = useState<{ binding: typeof binding; visible: boolean }>();
+  const [observation, setObservation] = useState<{
+    binding: typeof binding;
+    status: 'pending' | 'visible' | 'hidden';
+  }>();
   const request = useRef<() => void>(() => undefined);
   useLayoutEffect(() => {
     if (Platform.OS === 'web' || !store) return;
@@ -219,22 +245,34 @@ export function useReelPageStage(scope: AccountScope, enabled: boolean, pause: (
       enabled,
       pause,
       (callback) => ref.current?.measureInWindow(callback),
-      (visible) => setObservation({ binding, visible }),
+      () => undefined,
+      {
+        invalidated: () => cancelResume?.(),
+        status: (status) => setObservation({ binding, status }),
+      },
     );
     request.current = observer.layout;
     return () => {
       observer.stop();
       request.current = () => undefined;
     };
-  }, [binding, scope, enabled, pause, store]);
+  }, [binding, scope, enabled, pause, store, cancelResume]);
+  const status =
+    Platform.OS === 'web' || !store
+      ? enabled && scope.active
+        ? 'visible'
+        : 'hidden'
+      : !enabled || !scope.active
+        ? 'hidden'
+        : observation?.binding === binding
+          ? observation.status
+          : 'pending';
   return {
     ref,
     stageMaxHeight: viewport?.stageMaxHeight,
     onLayout: useCallback(() => request.current(), []),
-    visible:
-      Platform.OS === 'web' || !store
-        ? enabled && scope.active
-        : enabled && scope.active && observation?.binding === binding && observation.visible,
+    visible: status === 'visible',
+    status,
   };
 }
 const styles = StyleSheet.create({ fill: { flex: 1, minHeight: 0 }, content: { flexGrow: 1 } });

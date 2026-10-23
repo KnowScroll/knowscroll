@@ -48,7 +48,7 @@ export interface ReelPositionHandle {
   /** Synchronous SDK snapshot; null while unavailable, replacing, or released. */
   capture(): ReelLocalPosition | null;
   /** Park immediately without emitting a sample or granting future playback intent. */
-  pause(): void;
+  pause(cancelResume?: boolean): void;
   /** One deliberate same-source close may resume a previously playing parked SDK source.
    * Refuses unavailable/replaced/hidden/inactive sources; never queues future autoplay. */
   resumeIntent?(): boolean;
@@ -170,11 +170,20 @@ export function ReelPlayer({
           return null;
         }
       },
-      pause: () => {
+      pause: (cancelResume = false) => {
         if (ended.current) return;
         const interrupted = playbackIntent.current;
-        parkedSource.current =
-          interrupted && player.playing && installedSource.current?.restored ? installedSource.current : null;
+        try {
+          if (cancelResume) parkedSource.current = null;
+          else if (interrupted && player.playing && installedSource.current?.restored)
+            parkedSource.current = installedSource.current;
+          else if (parkedSource.current !== installedSource.current) parkedSource.current = null;
+        } catch {
+          // A native SharedObject can be released before its React cleanup runs.
+          parkedSource.current = null;
+        }
+        // Rebinding a native observer can park the already-paused same source again. That is
+        // idempotent; genuine geometry/background invalidation passes cancelResume explicitly.
         playbackIntent.current = false;
         pausePlayback(player);
         setPlaying(false);
@@ -194,11 +203,11 @@ export function ReelPlayer({
           needsRefresh.current ||
           !hasSource.current ||
           !activeRef.current ||
-          !visible.current ||
-          player.status !== 'readyToPlay'
+          !visible.current
         )
           return false;
         try {
+          if (player.status !== 'readyToPlay') return false;
           playbackIntent.current = true;
           player.play();
           return true;
@@ -421,7 +430,10 @@ export function ReelPlayer({
       if (ended.current) return;
       setStatus(playbackStatus(event.status, player.playing));
       restoreInstalledPosition(event.status);
-      if (event.status !== 'readyToPlay') onDiscontinuity();
+      if (event.status !== 'readyToPlay') {
+        parkedSource.current = null;
+        onDiscontinuity();
+      }
     });
     const changed = player.addListener('playingChange', (event) => {
       if (ended.current) return;

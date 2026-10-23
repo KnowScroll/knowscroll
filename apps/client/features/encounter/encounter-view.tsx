@@ -33,10 +33,14 @@ export function EncounterView({
   const onMove = useCallback((move: EncounterGestureMove) => session.gesture(move), [session]);
   const playable = foreground && !state.overlay && state.phase === 'active';
   const pause = useCallback(() => reelPosition.current?.pause(), []);
-  const visibility = useReelPageStage(scope, playable, pause);
+  const cancelShareResume = useCallback(() => {
+    session.cancelShareResume(entry);
+    reelPosition.current?.pause(true);
+  }, [session, entry]);
+  const visibility = useReelPageStage(scope, playable, pause, cancelShareResume);
   const renderStage = useCallback(
     (stage: React.ReactNode) => (
-      <View ref={visibility.ref} onLayout={visibility.onLayout} style={styles.mediaStage}>
+      <View ref={visibility.ref} testID="encounter-reel-stage" onLayout={visibility.onLayout} style={styles.mediaStage}>
         <ReelGestureStage onMove={onMove}>{stage}</ReelGestureStage>
         <EncounterEdges entry={entry} session={session} disabled={state.phase !== 'active'} />
       </View>
@@ -97,6 +101,7 @@ export function EncounterView({
         initialMuted={entry.muted ?? (entry.position?.kind === 'reel' ? entry.position.muted : false)}
         onMutedChange={onMutedChange}
         shareResumeRevision={state.shareResumeRevision}
+        resumeVisibility={visibility.status}
         consumeShareResume={() => session.consumeShareResume(entry)}
       />
       <View testID="encounter-reel-caption" style={styles.caption}>

@@ -1,11 +1,47 @@
-import { render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { createApiClient } from '@knowscroll/client-core';
+import { problemDetails, PROBLEM_MEDIA_TYPE } from '@knowscroll/contracts';
 import { QueryClientProvider } from '@tanstack/react-query';
 import * as SafeArea from 'react-native-safe-area-context';
 import { DisplayProvider } from '@knowscroll/ui';
 import { SignedInExplore } from '../explore/explore-screen';
 import { AppState, type AppStateStatus } from 'react-native';
 import { harness } from '../encounter/encounter-session.fixture';
-import { createReelViewport, observeReelPageStage } from './reel-page';
+import { useCallback, useSyncExternalStore } from 'react';
+import type * as React from 'react';
+import type * as Native from 'react-native';
+import { useVideoPlayer, type VideoPlayer } from 'expo-video';
+import { EncounterView } from '../encounter/encounter-view';
+import { ReelPage, createReelViewport, observeReelPageStage } from './reel-page';
+
+// Native host/SDK boundaries only. Real ReelPage observer, EncounterView, activated view,
+// encounter controller and shared ReelPlayer all execute in the composed fixtures below.
+let mockMeasureNative = false;
+const mockNativeMeasurements: { kind: 'page' | 'stage'; callback: Measurement }[] = [];
+jest.mock('react-native', () => {
+  const actual = jest.requireActual<typeof Native>('react-native');
+  const react = jest.requireActual<typeof React>('react');
+  const Host = actual.View;
+  const MeasuredView = react.forwardRef(
+    (props: Native.ViewProps, ref: React.ForwardedRef<{ measureInWindow(callback: Measurement): void }>) => {
+      react.useImperativeHandle(
+        ref,
+        () => ({
+          measureInWindow(callback: Measurement) {
+            if (mockMeasureNative)
+              mockNativeMeasurements.push({ kind: props.testID === 'native-resume-page' ? 'page' : 'stage', callback });
+          },
+        }),
+        [props.testID],
+      );
+      return react.createElement(Host, props);
+    },
+  );
+  const mocked = Object.create(actual) as typeof Native;
+  Object.defineProperty(mocked, 'View', { value: MeasuredView, enumerable: true });
+  return mocked;
+});
+jest.mock('expo-video', () => ({ VideoView: 'VideoView', useVideoPlayer: jest.fn() }));
 
 jest.mock('expo-router', () => ({
   useFocusEffect: jest.fn(),
@@ -243,4 +279,317 @@ describe('Explore page safe/tab composition', () => {
       }
     },
   );
+});
+
+/** Mirrors production's exposureId:surfaceRevision key, not an isolated player rerender. */
+function NativeEncounterComposition({
+  h,
+  foreground = true,
+}: {
+  readonly h: ReturnType<typeof harness>;
+  readonly foreground?: boolean;
+}) {
+  const subscribe = useCallback((listener: () => void) => h.session.subscribe(listener), [h]);
+  const snapshot = useCallback(() => h.session.getState(), [h]);
+  const state = useSyncExternalStore(subscribe, snapshot, snapshot);
+  if (!state.entry || state.phase === 'revoked') return null;
+  return (
+    <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+      <ReelPage testID="native-resume-page">
+        <EncounterView
+          key={`${state.entry.exposureId}:${state.surfaceRevision}`}
+          scope={h.scope}
+          entry={state.entry}
+          state={state}
+          session={h.session}
+          foreground={foreground}
+        />
+      </ReelPage>
+    </DisplayProvider>
+  );
+}
+function nativeSDK() {
+  const listeners = new Map<string, (event: unknown) => void>();
+  const sdk = {
+    currentTime: 0,
+    playing: false,
+    status: 'readyToPlay',
+    playbackRate: 1,
+    muted: false,
+    play: jest.fn(() => {
+      sdk.playing = true;
+      listeners.get('playingChange')?.({ isPlaying: true });
+    }),
+    pause: jest.fn(() => {
+      if (sdk.playing) {
+        sdk.playing = false;
+        listeners.get('playingChange')?.({ isPlaying: false });
+      }
+    }),
+    replaceAsync: jest.fn((_source: unknown) => Promise.resolve()),
+    addListener: (name: string, callback: (event: unknown) => void) => {
+      listeners.set(name, callback);
+      return {
+        remove: () => {
+          if (listeners.get(name) === callback) listeners.delete(name);
+        },
+      };
+    },
+  };
+  jest.mocked(useVideoPlayer).mockReturnValue(sdk as unknown as VideoPlayer);
+  return {
+    sdk,
+    status(value: string) {
+      sdk.status = value;
+      listeners.get('statusChange')?.({ status: value });
+    },
+  };
+}
+function measurement(kind: 'page' | 'stage') {
+  const pending = mockNativeMeasurements.filter((m) => m.kind === kind).at(-1);
+  if (!pending) throw new Error(`Expected actual native ${kind} measurement`);
+  return pending.callback;
+}
+async function commitNativePage() {
+  const callback = measurement('page');
+  await act(() => callback(0, 100, 355, 600));
+}
+async function commitNativeStage(visible = true) {
+  const callback = measurement('stage');
+  await act(() => callback(0, visible ? 120 : 900, 355, 200));
+}
+async function composedEncounter(playing = true, history = false) {
+  const h = harness();
+  const media = nativeSDK();
+  h.session.setForeground(true);
+  h.session.open({ kind: 'discover' });
+  await waitFor(() => expect(h.session.getState().phase).toBe('active'));
+  const entry = h.session.getState().entry!;
+  if (history) {
+    entry.restored = true;
+    entry.position = { kind: 'reel', positionMs: 9000, playing: false, muted: true };
+  }
+  const app = await render(<NativeEncounterComposition h={h} />);
+  await commitNativePage();
+  await commitNativeStage();
+  await waitFor(() => expect(entry.surface?.capture()?.kind).toBe('reel'));
+  media.sdk.currentTime = history ? 9 : 12.5;
+  if (playing) await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+  return { h, entry, app, ...media };
+}
+
+describe('composed native Share close: actual viewport + encounter + shared SDK controller (CI fixture only)', () => {
+  const activity: ((state: AppStateStatus) => void)[] = [];
+  const original = Object.getOwnPropertyDescriptor(AppState, 'currentState');
+  beforeEach(() => {
+    mockMeasureNative = true;
+    mockNativeMeasurements.length = 0;
+    activity.length = 0;
+    Object.defineProperty(AppState, 'currentState', { configurable: true, value: 'active' });
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
+      activity.push(listener);
+      return {
+        remove: () => {
+          const i = activity.indexOf(listener);
+          if (i >= 0) activity.splice(i, 1);
+        },
+      };
+    });
+  });
+  afterEach(() => {
+    mockMeasureNative = false;
+    mockNativeMeasurements.length = 0;
+    jest.restoreAllMocks();
+    if (original) Object.defineProperty(AppState, 'currentState', original);
+  });
+  it('survives actual observer cleanup/rebind pauses and resumes once only after the close generation is measured visible', async () => {
+    const f = await composedEncounter();
+    try {
+      await fireEvent.press(screen.getByRole('button', { name: 'Mute' }));
+      const before = f.sdk.play.mock.calls.length,
+        surface = f.h.session.getState().surfaceRevision;
+      const loads = f.sdk.replaceAsync.mock.calls.filter(([source]) => source !== null).length;
+      const commands = f.h.calls.filter(
+        (c) => c.path.endsWith('/open') || c.path.endsWith('/activate') || c.path.endsWith('/grants'),
+      ).length;
+      await fireEvent.press(screen.getByRole('button', { name: 'Share' }));
+      expect(f.sdk.playing).toBe(false);
+      // history.park + the actual enabled=false native observer cleanup/start each pause.
+      expect(f.sdk.pause.mock.calls.length).toBeGreaterThan(2);
+      await act(() => f.h.session.setOverlay(false));
+      expect(f.h.session.getState().surfaceRevision).toBe(surface);
+      expect(f.sdk.play).toHaveBeenCalledTimes(before);
+      const currentCloseMeasurement = measurement('stage');
+      await act(() => currentCloseMeasurement(0, 120, 355, 200));
+      expect(f.sdk.play).toHaveBeenCalledTimes(before + 1);
+      expect(f.sdk.playing).toBe(true);
+      expect(f.sdk.currentTime).toBe(12.5);
+      expect(f.sdk.muted).toBe(true);
+      await act(() => currentCloseMeasurement(0, 120, 355, 200));
+      expect(f.sdk.play).toHaveBeenCalledTimes(before + 1);
+      expect(f.sdk.replaceAsync.mock.calls.filter(([source]) => source !== null)).toHaveLength(loads);
+      expect(
+        f.h.calls.filter((c) => c.path.endsWith('/open') || c.path.endsWith('/activate') || c.path.endsWith('/grants')),
+      ).toHaveLength(commands);
+    } finally {
+      await f.app.unmount();
+      f.h.scope.end();
+    }
+  });
+  it.each(['cold', 'history', 'paused'] as const)(
+    'never resumes %s playback intent on geometry or share close',
+    async (mode) => {
+      const f = await composedEncounter(mode === 'paused', mode === 'history');
+      try {
+        if (mode === 'paused') await fireEvent.press(screen.getByRole('button', { name: 'Pause' }));
+        const before = f.sdk.play.mock.calls.length;
+        await fireEvent.press(screen.getByRole('button', { name: 'Share' }));
+        await act(() => f.h.session.setOverlay(false));
+        await commitNativeStage();
+        expect(f.sdk.play).toHaveBeenCalledTimes(before);
+        expect(f.sdk.playing).toBe(false);
+      } finally {
+        await f.app.unmount();
+        f.h.scope.end();
+      }
+    },
+  );
+  it.each([
+    'clipped',
+    'viewport-revision',
+    'background',
+    'scope-end',
+    'readiness',
+    'replacement',
+    'other-overlay',
+    'failed-target',
+    'new-target',
+    'unavailable-entry',
+    'corrected-entry',
+  ] as const)('terminally cancels close intent for %s and later callbacks/readiness cannot autoplay', async (mode) => {
+    const f = await composedEncounter();
+    try {
+      await fireEvent.press(screen.getByRole('button', { name: 'Share' }));
+      const before = f.sdk.play.mock.calls.length;
+      if (mode === 'other-overlay') {
+        const revision = f.h.session.getState().surfaceRevision;
+        await act(() => f.h.session.setOverlay(true, 'path'));
+        await act(() => f.h.session.setOverlay(false));
+        expect(f.h.session.getState().surfaceRevision).toBe(revision + 1);
+        await commitNativeStage();
+      } else if (mode === 'failed-target') {
+        f.h.setOpenFailure(true);
+        await act(() => {
+          f.h.session.openConversationContent(
+            { assetId: '0199a000-0000-7000-8000-000000000999', assetRevision: 1 },
+            jest.fn(),
+          );
+          f.h.session.setOverlay(false);
+        });
+        await waitFor(() => expect(f.h.session.getState().phase).toBe('offline'));
+      } else {
+        await act(() => f.h.session.setOverlay(false));
+        const old = measurement('stage');
+        if (mode === 'clipped') {
+          await commitNativeStage(false);
+          await fireEvent.scroll(screen.getByTestId('native-resume-page-scroll'), {
+            nativeEvent: { contentOffset: { x: 0, y: 0 } },
+          });
+          await commitNativePage();
+          await commitNativeStage();
+        } else if (mode === 'viewport-revision') {
+          await fireEvent.scroll(screen.getByTestId('native-resume-page-scroll'), {
+            nativeEvent: { contentOffset: { x: 0, y: 5 } },
+          });
+          await act(() => old(0, 120, 355, 200));
+          await commitNativePage();
+          await commitNativeStage();
+        } else if (mode === 'background') {
+          await act(() => {
+            f.h.session.setForeground(false);
+            for (const notify of [...activity]) notify('background');
+          });
+          await act(() => old(0, 120, 355, 200));
+          await act(() => {
+            f.h.session.setForeground(true);
+            for (const notify of [...activity]) notify('active');
+          });
+          await commitNativeStage();
+        } else if (mode === 'scope-end') {
+          await act(() => f.h.scope.end());
+          await act(() => old(0, 120, 355, 200));
+        } else if (mode === 'new-target') {
+          await act(() => f.h.session.navigate({ mode: 'vertical', direction: 'next' }));
+          await waitFor(() => {
+            expect(f.h.session.getState().phase).toBe('active');
+            expect(f.h.session.getState().entry).not.toBe(f.entry);
+          });
+          await act(() => old(0, 120, 355, 200));
+          await commitNativeStage();
+          await waitFor(() => expect(f.h.session.getState().entry?.surface?.capture()?.kind).toBe('reel'));
+        } else if (mode === 'unavailable-entry') {
+          f.h.setContextNotFound(true);
+          await act(() => f.h.session.refreshContext());
+          expect(f.h.session.getState().phase).toBe('revoked');
+          await act(() => old(0, 120, 355, 200));
+        } else if (mode === 'corrected-entry') {
+          const client = createApiClient({
+            baseUrl: 'https://ci-problem.invalid',
+            fetch: () =>
+              Promise.resolve(
+                new Response(JSON.stringify(problemDetails('ASSET_REVISION_STALE')), {
+                  status: 409,
+                  headers: { 'content-type': PROBLEM_MEDIA_TYPE },
+                }),
+              ),
+          });
+          let problem: unknown;
+          try {
+            await client.experience.exposureContext({ exposureId: f.entry.exposureId });
+          } catch (error) {
+            problem = error;
+          }
+          await act(() => f.h.session.contextFailure(f.entry.exposureId, problem));
+          expect(f.h.session.getState().phase).toBe('stale');
+          await act(() => old(0, 120, 355, 200));
+        } else {
+          await act(() => f.status(mode === 'replacement' ? 'error' : 'loading'));
+          await commitNativeStage();
+          if (mode === 'replacement') {
+            const loads = f.sdk.replaceAsync.mock.calls.filter(([source]) => source !== null).length;
+            await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+            await waitFor(() =>
+              expect(f.sdk.replaceAsync.mock.calls.filter(([source]) => source !== null).length).toBeGreaterThan(loads),
+            );
+          }
+          await act(() => f.status('readyToPlay'));
+          await act(() => old(0, 120, 355, 200));
+        }
+      }
+      expect(f.sdk.play).toHaveBeenCalledTimes(before);
+      expect(f.sdk.playing).toBe(false);
+    } finally {
+      await f.app.unmount();
+      f.h.scope.end();
+    }
+  });
+  it('cancels an outstanding close measurement instead of transferring it into a newer measurement generation', async () => {
+    const f = await composedEncounter();
+    try {
+      await fireEvent.press(screen.getByRole('button', { name: 'Share' }));
+      await act(() => f.h.session.setOverlay(false));
+      const before = f.sdk.play.mock.calls.length,
+        old = measurement('stage');
+      // A real native onLayout invalidates the binding's outstanding stage callback.
+      await fireEvent(screen.getByTestId('encounter-reel-stage'), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 120, width: 355, height: 200 } },
+      });
+      await act(() => old(0, 120, 355, 200));
+      await commitNativeStage();
+      expect(f.sdk.play).toHaveBeenCalledTimes(before);
+    } finally {
+      await f.app.unmount();
+      f.h.scope.end();
+    }
+  });
 });

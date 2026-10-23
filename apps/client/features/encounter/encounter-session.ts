@@ -484,6 +484,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   }
   const begin = (command: Work['command'], keep?: Work['keep'], region = false) => {
     if (!valid() || work || busy || actionRunning) return;
+    sharePlaying = undefined;
+    shareResume = undefined;
     work = { command, activateId: newId(), ...(keep ? { keep } : {}), ...(region ? { region: true } : {}) };
     void run();
   };
@@ -578,7 +580,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     publish({
       overlay,
       overlayOwner: overlay ? overlayOwner : undefined,
-      surfaceRevision: state.surfaceRevision + (overlay ? 0 : 1),
+      // Share-close resumes only the same mounted SDK source. Explore keys the surface by
+      // this revision; path/request closes keep their existing fresh-surface semantics.
+      surfaceRevision: state.surfaceRevision + (overlay || state.overlayOwner === 'share' ? 0 : 1),
       shareResumeRevision: resumeRevision,
     });
   };
@@ -686,6 +690,10 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (!open({ kind: 'return', ...target })) return false;
       conversationReturn = returnToConversation;
       return true;
+    },
+    cancelShareResume(entry: EncounterEntry) {
+      if (sharePlaying?.entry === entry) sharePlaying = undefined;
+      if (shareResume === entry) shareResume = undefined;
     },
     consumeShareResume(entry: EncounterEntry) {
       const permitted =
