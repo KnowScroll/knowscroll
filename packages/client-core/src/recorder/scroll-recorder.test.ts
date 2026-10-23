@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { ScopeEndedError, createAccountScope, memoryStore, type AccountScope } from '../account-scope';
 import type { ApiClient } from '../api-client';
 import { createObservationOutbox, OUTBOX_STORAGE_KEY, type ObservationOutbox } from './outbox';
-import { RECORDER_INSTRUMENTATION_VERSION, createScrollRecorder, deliverBatch } from './scroll-recorder';
+import { RECORDER_INSTRUMENTATION_VERSION, createScrollRecorder, deliverBatch, scopeOutbox } from './scroll-recorder';
 
 const exposure = {
   exposureId: '0199f0a0-0000-7000-8000-000000000e01',
@@ -510,10 +510,11 @@ describe('the recorder inside a real account scope', () => {
       timers: fakeTimers().timers,
     });
     recorder.start();
-    recorder.observer.onBlockVisibility({ blockId: 'a', visibleFraction: 1, at: clock.now() });
+    recorder.observer.onBlockVisibility({ blockId: 'intro', visibleFraction: 1, at: clock.now() });
     clock.advance(3_000);
     recorder.flush();
     expect(store.keys().some((key) => key.endsWith(OUTBOX_STORAGE_KEY))).toBe(true);
+    expect(scopeOutbox(scope).status()).toMatchObject({ pendingBatches: 1, pendingEvents: 2, dropped: 0 });
     // Fetch/body parsing and ACK processing are asynchronous; 10 ms elapsed is no delivery proof.
     await expect.poll(() => requests.length, { timeout: 1000 }).toBe(1);
     expect(requests).toHaveLength(1);
@@ -526,6 +527,10 @@ describe('the recorder inside a real account scope', () => {
       instrumentationVersion: RECORDER_INSTRUMENTATION_VERSION,
     });
     expect(submitted.events).toHaveLength(2);
+    expect(submitted.events[0]).toMatchObject({
+      kind: 'scroll.block_coverage',
+      payload: { blocks: [{ blockId: 'intro', intervalsMs: [[0, 3_000]], peakFraction: 1 }] },
+    });
     expect(submitted.events.map((event) => event.sessionId)).toEqual([
       exposure.recordingSessionId,
       exposure.recordingSessionId,
@@ -545,9 +550,10 @@ describe('the recorder inside a real account scope', () => {
       timers: fakeTimers().timers,
     });
     recorder.start();
-    recorder.observer.onBlockVisibility({ blockId: 'a', visibleFraction: 1, at: clock.now() });
+    recorder.observer.onBlockVisibility({ blockId: 'intro', visibleFraction: 1, at: clock.now() });
     clock.advance(3_000);
     recorder.flush();
+    expect(scopeOutbox(scope).status()).toMatchObject({ pendingBatches: 1, pendingEvents: 2, dropped: 0 });
     await expect.poll(() => requests.length, { timeout: 1000 }).toBe(1);
     expect(requests).toHaveLength(1);
     expect(store.keys().length).toBeGreaterThan(0);
