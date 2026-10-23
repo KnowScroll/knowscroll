@@ -16,6 +16,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
 import { coverage, dwell, event, openActive } from '../support/observations.js';
+import { recordingPerson } from '../support/recording-person.js';
 
 describe('incremental personal context (real PostgreSQL, authored CI fixtures only)', () => {
   let database: TestDatabase<Database>, c: Awaited<ReturnType<typeof scrollUseCases>>;
@@ -99,6 +100,68 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     });
     expect(await c.projectActivity(job(p, exposureId))).toMatchObject({ kind: 'applied' });
   }
+  it('projects the actual richer recording exposure into only the strict PC contribution identity and replays unchanged', async () => {
+    const p = await recordingPerson(database),
+      r = await read(p);
+    await qualify(p, r.exposure.exposureId);
+    const stored = await database.db
+      .selectFrom('personal_context.recording_exposure_contributions')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .where('exposure_id', '=', r.exposure.exposureId)
+      .executeTakeFirstOrThrow();
+    const payload = stored.payload as { contribution: Record<string, unknown> };
+    expect(Object.keys(payload.contribution).sort()).toEqual(
+      [
+        'version',
+        'exposureId',
+        'assetId',
+        'assetRevision',
+        'activatedAt',
+        'explanationUnitId',
+        'qualified',
+        'coveredFacets',
+        'topics',
+        'input',
+      ].sort(),
+    );
+    expect(payload.contribution).toMatchObject({
+      version: 'personal-contribution.v0',
+      exposureId: r.exposure.exposureId,
+      assetId: first.assetId,
+      assetRevision: first.revision,
+      activatedAt: encounterTime.toISOString(),
+      explanationUnitId: unit,
+      qualified: true,
+      coveredFacets: [],
+      topics: [{ topicId: topicA, role: 'primary' }],
+    });
+    const before = await database.db
+      .selectFrom('personal_context.state')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .executeTakeFirstOrThrow();
+    expect(await c.projectActivity(job(p, r.exposure.exposureId))).toEqual({
+      kind: 'skipped',
+      reason: 'already_applied',
+    });
+    expect(
+      await database.db
+        .selectFrom('personal_context.recording_exposure_contributions')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .where('exposure_id', '=', r.exposure.exposureId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual(stored);
+    expect(
+      await database.db
+        .selectFrom('personal_context.state')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual(before);
+    expect((await snapshot(p)).topics[0]?.qualifiedExplanationUnits).toBe(1);
+  });
   it('does not fill absent committed PC support from carried qualified Evidence in an action-only segment', async () => {
     // Explicit owner-port fixture: real activated exposure/audit/root capability; only the
     // carried aggregate is authored true to exercise the forbidden cross-owner shortcut.
@@ -165,6 +228,12 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
       await pc.erase(scope);
       const gate = await fencePersonalRecording(scope, 1);
       if (gate.kind !== 'recording') throw new Error('fixture_recording_capability_missing');
+      await expect(
+        c.activityContextEffect.applyRecording(gate.scope, {
+          ...input,
+          exposure: { ...input.exposure, assetRevision: 0 },
+        }),
+      ).rejects.toThrow();
       expect(await c.activityContextEffect.applyRecording(gate.scope, input)).toBe(true);
       expect(await c.activityContextEffect.applyRecording(gate.scope, input)).toBe(false);
       expect(await c.activityContextEffect.isRecordingCurrent(gate.scope, input)).toBe(true);

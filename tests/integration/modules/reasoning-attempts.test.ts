@@ -144,6 +144,23 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
       settled: row.settled_at !== null,
     }));
 
+  /** The common fixture view intentionally omits dispatch metadata. These cancellation proofs
+   * additionally read the actual exact attempt key; omission is never evidence of dispatch-null. */
+  async function attemptsWithDispatch(universeId: string) {
+    const rows = await attemptsOf(database.db, universeId);
+    return Promise.all(
+      rows.map(async (row) => ({
+        ...row,
+        ...(await database.db
+          .selectFrom('reasoning.external_attempts')
+          .select('dispatch_id')
+          .where('universe_id', '=', universeId)
+          .where('id', '=', row.id)
+          .executeTakeFirstOrThrow()),
+      })),
+    );
+  }
+
   it('reserves, commits dispatch intent, sends once outside any transaction and records success with usage', async () => {
     const person = await seedPerson(database.db);
     const model = fixtureModel();
@@ -493,12 +510,13 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     expect(f.model.calls).toHaveLength(0);
   });
   it('serializes cancellation with actual dispatch CAS: exactly one wins and no uncertain charge is refunded', async () => {
-    const f = await cancellationFixture();
+    const f = await cancellationFixture(),
+      dispatchId = randomUUID();
     const [cancelled, dispatched] = await Promise.all([
       f.ledger.releaseUndispatchedPersonal!(f.input),
       makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(f.person.authority, (scope) =>
         f.ledger.commitDispatch(scope, f.attempt.id, {
-          dispatchId: randomUUID(),
+          dispatchId,
           dispatchedBy: 'ci-cancel-race',
           quota: { verdict: 'not_applicable', intervalRemainingPercent: null, weeklyRemainingPercent: null },
         }),
@@ -506,7 +524,7 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     ]);
     expect(dispatched.kind).toBe('entered');
     if (dispatched.kind !== 'entered') throw new Error('CI_DISPATCH_RACE_SCOPE');
-    const [row] = await attemptsOf(database.db, f.person.universeId);
+    const [row] = await attemptsWithDispatch(f.person.universeId);
     if (cancelled === 'released') {
       expect(dispatched.value).toBe(false);
       expect(row).toMatchObject({ state: 'not_sent', outcome_code: 'AUTHORITY_REFUSED', dispatch_id: null });
@@ -514,6 +532,7 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     } else {
       expect(dispatched.value).toBe(true);
       expect(row).toMatchObject({ state: 'dispatched', settled_at: null });
+      expect(row?.dispatch_id).toBe(dispatchId);
       expect(await receiptsOf(database.db, [f.attempt.id])).toEqual([expect.objectContaining({ state: 'held' })]);
     }
     expect(f.model.calls).toHaveLength(0);
@@ -732,11 +751,11 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
         await expect(harness.proposePersonal(input, signal())).rejects.toThrow('CI_OWNER_RESERVED');
         await renew();
       }
-      const before = await attemptsOf(database.db, person.universeId);
+      const before = await attemptsWithDispatch(person.universeId);
       const result = await harness.proposePersonal(input, signal());
       expect(result).toEqual({ kind: 'refused', reason: 'scope_refused' });
       expect(cancellations).toBe(0);
-      const after = await attemptsOf(database.db, person.universeId);
+      const after = await attemptsWithDispatch(person.universeId);
       if (phase === 'lookup') expect(after).toEqual(before);
       expect(after).toEqual([
         expect.objectContaining({ state: 'reserved', outcome_code: null, settled_at: null, dispatch_id: null }),

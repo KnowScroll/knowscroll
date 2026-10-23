@@ -33,7 +33,10 @@ function currentContribution(scope: RecordingScopeTx, x: RecordingActivityDerive
     throw new Error('PERSONAL_CONTEXT_RECORDING_SOURCE');
   return ContributionSchema.parse({
     version: 'personal-contribution.v0',
-    ...x.exposure,
+    exposureId: x.exposure.exposureId,
+    assetId: x.exposure.assetId,
+    assetRevision: x.exposure.assetRevision,
+    activatedAt: x.exposure.activatedAt,
     explanationUnitId: x.metadata.explanationUnitId,
     qualified: s.qualified && s.qualification !== null,
     coveredFacets: [],
