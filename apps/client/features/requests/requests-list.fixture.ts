@@ -73,7 +73,7 @@ export function requestsListHarness(first: readonly Listed[] = [preparing(10)]) 
                 status: { ...item.status, requestRevision: item.status.requestRevision + 1, status: 'cancelled' },
               }
             : item,
-        ) as readonly Listed[];
+        );
         return json({
           version: 'content-request-cancel-receipt.v1',
           commandId: body.commandId,

@@ -309,6 +309,26 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     expect(await status(second, b)).toMatchObject({ status: 'ready', content: { assetId: TOPICS.tides.assetId } });
   });
 
+  it('validates the enqueue options it is given, and treats a duplicate as a no-op only when asked', async () => {
+    await build();
+    const person = await seedPerson(database.db);
+    const enqueue = makeEnqueueJob(content.boss);
+    const send = (options: Parameters<typeof enqueue>[3]) =>
+      withScope()(person.authority, (scope) =>
+        enqueue(scope, produceScrollQueue, produceScrollJob('seasons', 1), options),
+      );
+    await expect(send({ duplicate: 'ignore' })).rejects.toThrow('JOB_OPTIONS_INVALID');
+    await expect(send({ singletonKey: 'not a key' })).rejects.toThrow('JOB_OPTIONS_INVALID');
+    await expect(send({ priority: 101 })).rejects.toThrow('JOB_OPTIONS_INVALID');
+    expect(await produceJobs()).toHaveLength(0);
+    const once = { singletonKey: 'seasons:one', duplicate: 'ignore' as const, priority: 5 };
+    await send(once);
+    await send(once);
+    expect(await produceJobs()).toHaveLength(1);
+    // Without `duplicate`, a refused send is an error: the caller's transaction must not go on.
+    await expect(send({ singletonKey: 'seasons:one' })).rejects.toThrow('did not create a job');
+  });
+
   it('starts at most the daily cap of productions, lets a joiner in past it, and closes the rest honestly', async () => {
     await build({ cap: 1 });
     const [first, joiner, over] = await Promise.all([
