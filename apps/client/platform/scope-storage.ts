@@ -1,8 +1,6 @@
 import { memoryStore, type KeyValueStore } from '@knowscroll/client-core';
+import { createNativeScopeDurability } from './native-scope-durability';
 
-/**
- * Native: the account scope's local storage. Nothing scoped is persisted on native yet, so it
- * lives in memory and ends with the app; a persistent store replaces this when a feature needs
- * one, behind the same interface and the same purge.
- */
+/** Only used before an authenticated scope exists; native scopes use prepared encrypted stores. */
 export const scopeStorage: KeyValueStore = memoryStore();
+export const scopeDurability = createNativeScopeDurability();

@@ -1,3 +1,4 @@
+import type { StorageDurability } from '../account-scope';
 import {
   OBSERVATION_LIMITS,
   RecordingObservationBatchRequestSchema,
@@ -7,6 +8,7 @@ import {
 
 /** The storage the outbox persists to: the account scope's own (`AccountScope.storage`). */
 export interface OutboxStorage {
+  readonly durability?: StorageDurability;
   get(key: string): string | undefined;
   set(key: string, value: string): void;
   remove(key: string): void;
@@ -54,6 +56,7 @@ export interface OutboxStatus {
   /** Batches dropped for size, malformedness or storage limits since this outbox started. */
   readonly dropped: number;
   readonly stopped: boolean;
+  readonly purgeUnconfirmed?: true;
 }
 
 export interface ObservationOutbox {
@@ -135,6 +138,13 @@ export function createObservationOutbox(options: ObservationOutboxOptions): Obse
   let draining = false;
   let attempt = 0;
   let retryTimer: unknown;
+  let purgeUnconfirmed = false;
+  const durable = options.storage.durability;
+  const storedValue = () =>
+    queue.length === 0 && dropped === 0 && !legacyDiscarded
+      ? undefined
+      : JSON.stringify({ v: 2, dropped, batches: queue, legacyDiscarded });
+  const committed = () => (durable ? durable.flush({ [OUTBOX_STORAGE_KEY]: storedValue() }) : Promise.resolve(true));
 
   const persist = (): void => {
     if (stopped || !options.isActive()) return;
@@ -146,7 +156,7 @@ export function createObservationOutbox(options: ObservationOutboxOptions): Obse
       const stored: StoredOutbox = { v: 2, dropped, batches: queue, legacyDiscarded };
       options.storage.set(OUTBOX_STORAGE_KEY, JSON.stringify(stored));
     } catch {
-      // Storage quota/availability can remove crash durability, never prevent in-memory delivery.
+      // Web storage failure retains lossy memory delivery. Native still requires the commit barrier.
     }
   };
 
@@ -238,10 +248,34 @@ export function createObservationOutbox(options: ObservationOutboxOptions): Obse
           stop();
           return;
         }
+        if (durable && purgeUnconfirmed) {
+          if (!durable.healthy()) return;
+          purgeUnconfirmed = !(await committed());
+          if (purgeUnconfirmed) {
+            if (durable.healthy()) scheduleRetry();
+            return;
+          }
+          if (stopped || !options.isActive()) {
+            stop();
+            return;
+          }
+        }
         const batch = queue[0];
         if (batch === undefined) {
           attempt = 0;
           return;
+        }
+        if (durable) {
+          if (!durable.healthy()) return;
+          if (!(await committed())) {
+            if (durable.healthy()) scheduleRetry();
+            return;
+          }
+          if (stopped || !options.isActive()) {
+            stop();
+            return;
+          }
+          if (queue[0] !== batch) continue;
         }
         const outcome = await options.send(batch).catch((): SendOutcome => ({ kind: 'retry' }));
         if (stopped) return;
@@ -260,6 +294,13 @@ export function createObservationOutbox(options: ObservationOutboxOptions): Obse
         if (index >= 0) queue.splice(index, 1);
         attempt = 0;
         persist();
+        if (durable) {
+          purgeUnconfirmed = !(await committed());
+          if (purgeUnconfirmed) {
+            if (durable.healthy()) scheduleRetry();
+            return;
+          }
+        }
       }
     } finally {
       draining = false;
@@ -313,6 +354,7 @@ export function createObservationOutbox(options: ObservationOutboxOptions): Obse
       pendingEvents: queue.reduce((total, batch) => total + batch.events.length, 0),
       dropped,
       stopped,
+      ...(purgeUnconfirmed ? { purgeUnconfirmed: true as const } : {}),
     }),
     dispose() {
       stop();

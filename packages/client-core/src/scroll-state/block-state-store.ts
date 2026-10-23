@@ -70,24 +70,29 @@ function readState(storage: ScopedStorage, key: ScrollBlockKey): BlockState | nu
  * only when its sender explicitly includes it (`buildBlockStateSnapshot`).
  */
 export function createScopedBlockStateStore(storage: ScopedStorage): ScrollBlockStateStore {
+  const group = (work: () => void) => (storage.durability ? storage.durability.group(work) : work());
   return {
     get: (key) => readState(storage, key),
     set(key, state) {
-      const serialised = JSON.stringify(state);
-      // A state larger than a snapshot may ever be is not one the package produces: ignore it.
-      if (utf8ByteLength(serialised) > LIMITS.blockStateBytes) return;
-      storage.set(stateKey(key), serialised);
-      const revisions = [...new Set([...readRevisions(storage, key), key.revision])].sort((a, b) => a - b);
-      for (const dropped of revisions.slice(0, Math.max(0, revisions.length - KEPT_REVISIONS))) {
-        storage.remove(stateKey({ ...key, revision: dropped }));
-      }
-      storage.set(indexKey(key), JSON.stringify(revisions.slice(-KEPT_REVISIONS)));
+      group(() => {
+        const serialised = JSON.stringify(state);
+        // A state larger than a snapshot may ever be is not one the package produces: ignore it.
+        if (utf8ByteLength(serialised) > LIMITS.blockStateBytes) return;
+        storage.set(stateKey(key), serialised);
+        const revisions = [...new Set([...readRevisions(storage, key), key.revision])].sort((a, b) => a - b);
+        for (const dropped of revisions.slice(0, Math.max(0, revisions.length - KEPT_REVISIONS))) {
+          storage.remove(stateKey({ ...key, revision: dropped }));
+        }
+        storage.set(indexKey(key), JSON.stringify(revisions.slice(-KEPT_REVISIONS)));
+      });
     },
     clear(key) {
-      storage.remove(stateKey(key));
-      const remaining = readRevisions(storage, key).filter((revision) => revision !== key.revision);
-      if (remaining.length === 0) storage.remove(indexKey(key));
-      else storage.set(indexKey(key), JSON.stringify(remaining));
+      group(() => {
+        storage.remove(stateKey(key));
+        const remaining = readRevisions(storage, key).filter((revision) => revision !== key.revision);
+        if (remaining.length === 0) storage.remove(indexKey(key));
+        else storage.set(indexKey(key), JSON.stringify(remaining));
+      });
     },
     earlier(key) {
       const older = readRevisions(storage, key)

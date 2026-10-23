@@ -25,8 +25,29 @@ export class ScopeEndedError extends Error {
   }
 }
 
-/** Synchronous string storage under the scope (web: `localStorage`; native: memory for now). */
+/** Native commit receipts describe local storage, never collection permission. */
+export interface StorageDurability {
+  flush(expected: Readonly<Record<string, string | undefined>>): Promise<boolean>;
+  group(work: () => void): void;
+  healthy(): boolean;
+  subscribe(listener: () => void): () => void;
+  fence(): void;
+  purge(): Promise<void>;
+}
+
+/** Preparation is private to the manager after actual session authentication. */
+export interface ScopeStorageLifecycle {
+  prepare(
+    input: { readonly account: SessionAccount; readonly origin: string; readonly credential: string },
+    current: () => boolean,
+  ): Promise<KeyValueStore>;
+  fence(): void;
+  purge(): Promise<void>;
+}
+
+/** Synchronous mirror; native persistence has an explicit awaited commit boundary. */
 export interface KeyValueStore {
+  readonly durability?: StorageDurability;
   keys(): readonly string[];
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -38,6 +59,7 @@ export const SCOPED_STORAGE_PREFIX = 'ks.scope.';
 
 /** The scope's storage: keys are confined to `ks.scope.<account>:<epoch>.` and purged when it ends. */
 export interface ScopedStorage {
+  readonly durability?: StorageDurability;
   get(key: string): string | undefined;
   set(key: string, value: string): void;
   remove(key: string): void;
@@ -81,6 +103,8 @@ export interface AccountScope {
    * every in-flight request, clear its query cache, purge its storage. Idempotent.
    */
   end(): void;
+  /** Native asynchronous cleanup follows the synchronous lifecycle fence. */
+  whenStorageClosed?(): Promise<void>;
 }
 
 /** A scope's id, which is also its claim on the wire (`X-KS-Scope`, review M1). */
@@ -153,7 +177,21 @@ export function fencedFetch(options: {
 }
 
 function scopedStorage(store: KeyValueStore, prefix: string, ended: AbortSignal): ScopedStorage {
+  const durable = store.durability;
   return {
+    ...(durable
+      ? {
+          durability: {
+            ...durable,
+            flush: (expected: Readonly<Record<string, string | undefined>>) =>
+              ended.aborted
+                ? Promise.resolve(false)
+                : durable.flush(
+                    Object.fromEntries(Object.entries(expected).map(([key, value]) => [`${prefix}${key}`, value])),
+                  ),
+          },
+        }
+      : {}),
     get: (key) => (ended.aborted ? undefined : (store.getItem(`${prefix}${key}`) ?? undefined)),
     set: (key, value) => {
       if (!ended.aborted) store.setItem(`${prefix}${key}`, value);
@@ -193,6 +231,7 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
   const prefix = `${SCOPED_STORAGE_PREFIX}${id}.`;
   const queryClient = options.queryClient ?? createQueryClient();
   let connection: ScopeConnection | undefined;
+  let storageClosed = Promise.resolve();
   const endListeners = new Set<() => void>();
   const api = createApiClient({
     baseUrl: options.baseUrl,
@@ -237,6 +276,7 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
     },
     end() {
       if (ended.signal.aborted) return;
+      options.store.durability?.fence();
       for (const listener of endListeners) {
         try {
           listener();
@@ -251,8 +291,13 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
       void queryClient.cancelQueries();
       queryClient.clear();
       purgeStorage(options.store, prefix);
+      if (options.store.durability) {
+        storageClosed = options.store.durability.purge();
+        void storageClosed.catch(() => undefined); // The manager awaits the original rejection.
+      }
     },
   };
+  scope.whenStorageClosed = () => storageClosed;
   const recording = createRecordingPolicySession(scope);
   Object.defineProperty(scope, 'recording', { value: recording, enumerable: true });
   let signalledReceipt: string | undefined;
@@ -270,7 +315,7 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
   return scope;
 }
 
-/** A `KeyValueStore` in memory (native until a persistent store is needed; tests). */
+/** A synchronous memory store for fixtures, pre-auth placeholders and explicit web fallback. */
 export function memoryStore(): KeyValueStore {
   const values = new Map<string, string>();
   return {

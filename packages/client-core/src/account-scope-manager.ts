@@ -7,6 +7,7 @@ import {
   scopeIdOf,
   type AccountScope,
   type KeyValueStore,
+  type ScopeStorageLifecycle,
 } from './account-scope';
 import type { ScopeConnection } from './account-scope';
 import type { SocketContext } from './account-scope-socket';
@@ -88,7 +89,7 @@ export interface AccountScopeManager {
   /**
    * Ends the session on the server and the scope here. On the web, where only the server can
    * clear the HttpOnly cookie, a server that cannot be reached leaves the person signed in
-   * (`unavailable`); native drops its token whatever the server answered.
+   * (`unavailable`); native fences immediately and confirms local cleanup/token removal even if the server is unavailable.
    */
   readonly signOut: (options?: { readonly everywhere?: boolean }) => Promise<'signed_out' | 'unavailable'>;
   /** Ends the current scope and stops notifying (app teardown). */
@@ -105,6 +106,7 @@ export interface AccountScopeManagerOptions {
   readonly signInBinding?: SignInBinding;
   /** The scopes' local storage (web: `localStorage`). */
   readonly store: KeyValueStore;
+  readonly durableStorage?: ScopeStorageLifecycle;
   /** Opens a scope's hint socket (`connectScopeSocket`); none when omitted. */
   readonly connect?: (scope: AccountScope, context: SocketContext) => ScopeConnection;
   /** Test seam: the auth routes (defaults to `createAuthClient`). */
@@ -153,6 +155,20 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
    */
   let generation = 0;
   let credentialTransition: number | undefined;
+  let credentialWrites = Promise.resolve();
+  async function changeToken(work: () => Promise<void> | undefined, current: () => boolean): Promise<void> {
+    const changed = credentialWrites
+      .catch(() => undefined)
+      .then(async () => {
+        if (!current()) throw new Error('credential_transition_ended');
+        await work();
+        if (!current()) throw new Error('credential_transition_ended');
+      });
+    credentialWrites = changed;
+    return changed;
+  }
+  let cleanup = Promise.resolve();
+  let mountedCredential: string | undefined;
   let refreshing: { readonly generation: number; readonly done: Promise<void> } | undefined;
 
   function set(next: AccountScopeState): void {
@@ -162,14 +178,52 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
   }
 
   function endCurrentScope(): void {
-    if (state.status === 'signed_in') state.scope.end();
+    if (state.status === 'signed_in') {
+      const scope = state.scope;
+      scope.end();
+      const previous = cleanup;
+      cleanup = previous.then(() => scope.whenStorageClosed?.());
+      void cleanup.catch(() => undefined);
+    }
+    options.durableStorage?.fence();
+  }
+  async function cleanNative(): Promise<void> {
+    try {
+      await cleanup;
+    } catch {
+      /* Explicit cleanup retry below must prove success. */
+    }
+    await options.durableStorage?.purge();
+    cleanup = Promise.resolve();
   }
 
   /** Mounts the scope of `account` with `credential` (its session's bearer token, native only). */
-  function mount(account: SessionAccount, credential: string | undefined): void {
-    if (state.status === 'signed_in' && state.scope.active && state.scope.id === scopeIdOf(account)) return;
+  async function mount(account: SessionAccount, credential: string | undefined, expected = generation): Promise<void> {
+    const current = () =>
+      !disposed && generation === expected && (options.platform !== 'native' || token === credential);
+    if (!current()) return;
+    if (
+      state.status === 'signed_in' &&
+      state.scope.active &&
+      state.scope.id === scopeIdOf(account) &&
+      mountedCredential === credential
+    )
+      return;
     privacy.accountChanged(account.accountId);
     endCurrentScope();
+    await cleanup;
+    if (!current()) return;
+    const store = options.durableStorage
+      ? await options.durableStorage.prepare(
+          { account, origin: new URL(options.baseUrl).origin, credential: credential ?? '' },
+          current,
+        )
+      : options.store;
+    if (!current()) {
+      store.durability?.fence();
+      await store.durability?.purge();
+      return;
+    }
     signedOutClient.clear();
     const connect = options.connect;
     const authorization = credential === undefined ? undefined : `Bearer ${credential}`;
@@ -179,7 +233,7 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
       fetch: fetchImplementation,
       authorization: () => authorization,
       onMismatch: () => void refreshOnce(),
-      store: options.store,
+      store,
       queryClient: newQueryClient(),
       ...(connect === undefined
         ? {}
@@ -193,36 +247,56 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
               }),
           }),
     });
+    mountedCredential = credential;
     set({ status: 'signed_in', scope });
+    if (!current() || state.status !== 'signed_in' || state.scope !== scope) scope.end();
   }
 
   async function signedOut(reason: 'none' | 'signed_out' | 'session_ended'): Promise<void> {
     generation += 1;
+    const leaving = generation;
     privacy.reset();
     endCurrentScope();
     // Whatever any earlier scope left behind on this device goes too.
     purgeStorage(options.store, SCOPED_STORAGE_PREFIX);
     if (options.platform === 'native') {
       token = undefined;
-      await options.tokens?.clear().catch(() => undefined);
+      if (options.durableStorage) {
+        await cleanNative();
+        await changeToken(
+          () => options.tokens?.clear(),
+          () => !disposed && generation === leaving,
+        );
+      } else await options.tokens?.clear().catch(() => undefined);
     }
+    if (disposed || generation !== leaving) return;
     signedOutClient.clear();
     signedOutClient = newQueryClient();
     set({ status: 'signed_out', reason });
   }
 
   async function refresh(): Promise<void> {
+    // A reread must not publish a scope while a native credential write/clear is unresolved.
+    if (options.durableStorage && credentialTransition !== undefined) return;
     const sentWith = generation;
     // The credential this reread presents (the auth client reads `token` as it sends).
     const credential = options.platform === 'native' ? token : undefined;
     const outcome = await auth.session();
-    if (sentWith !== generation) return;
+    if (sentWith !== generation || disposed) return;
     switch (outcome.kind) {
       case 'signed_in':
-        mount(outcome.account, credential);
+        try {
+          await mount(outcome.account, credential, sentWith);
+        } catch {
+          if (!disposed && generation === sentWith) set({ status: 'unavailable' });
+        }
         return;
       case 'signed_out':
-        await signedOut(state.status === 'signed_in' ? 'session_ended' : 'none');
+        try {
+          await signedOut(state.status === 'signed_in' ? 'session_ended' : 'none');
+        } catch {
+          if (!disposed && generation === sentWith + 1) set({ status: 'unavailable' });
+        }
         return;
       case 'unavailable':
         // Nothing to show until the API answers: first start, or a scope already ended (fenced
@@ -307,14 +381,25 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
     queryClient: () => (state.status === 'signed_in' ? state.scope.queryClient : signedOutClient),
     async start() {
       if (options.platform === 'native') {
+        const startingGeneration = generation;
         try {
-          token = await options.tokens?.read();
+          const stored = await options.tokens?.read();
+          if (disposed || startingGeneration !== generation) return;
+          token = stored;
         } catch {
-          // An unreadable secure store (locked device, missing module) is the same as no token.
+          if (disposed || startingGeneration !== generation) return;
+          if (options.durableStorage) {
+            set({ status: 'unavailable' });
+            return;
+          }
           token = undefined;
         }
         if (token === undefined) {
-          await signedOut('none');
+          try {
+            await signedOut('none');
+          } catch {
+            set({ status: 'unavailable' });
+          }
           return;
         }
       }
@@ -360,6 +445,8 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
       privacy.reset();
       endCurrentScope();
       try {
+        if (options.durableStorage) await cleanNative();
+        if (disposed || credentialTransition !== transition) return { kind: 'unavailable' };
         let codeVerifier: string | undefined;
         if (options.platform === 'native')
           codeVerifier = await options.signInBinding?.verifier().catch(() => undefined);
@@ -368,22 +455,38 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
           client: options.platform,
           ...(codeVerifier === undefined ? {} : { codeVerifier }),
         });
+        if (disposed || credentialTransition !== transition) return { kind: 'unavailable' };
         if (outcome.kind !== 'signed_in') {
+          if (options.durableStorage && credentialTransition === transition) credentialTransition = undefined;
           if (switching) await refreshOnce();
           return outcome;
         }
         const { session, account } = outcome.response;
         generation += 1;
+        const mounting = generation;
         let credential: string | undefined;
         if (session.kind === 'bearer') {
           credential = session.token;
-          token = session.token;
-          await options.tokens?.write(session.token);
+          if (options.durableStorage) {
+            await changeToken(
+              () => options.tokens?.write(session.token),
+              () => !disposed && generation === mounting,
+            );
+            if (disposed || generation !== mounting || credentialTransition !== transition)
+              return { kind: 'unavailable' };
+            token = session.token;
+          } else {
+            token = session.token;
+            await options.tokens?.write(session.token);
+          }
           await options.signInBinding?.clear().catch(() => undefined);
         }
         pendingEmail = undefined;
-        mount(account, credential);
+        await mount(account, credential, mounting);
         return outcome;
+      } catch {
+        if (!disposed && credentialTransition === transition) set({ status: 'unavailable' });
+        return { kind: 'unavailable' };
       } finally {
         if (credentialTransition === transition) credentialTransition = undefined;
       }
@@ -393,11 +496,16 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
       const transition = generation;
       credentialTransition = transition;
       privacy.reset();
+      if (options.durableStorage) endCurrentScope();
       try {
         const answer = await auth.signOut({ everywhere: signOutOptions.everywhere === true });
+        if (disposed || credentialTransition !== transition) return 'unavailable';
         if (answer === 'unavailable' && options.platform === 'web') return 'unavailable';
         await signedOut('signed_out');
         return 'signed_out';
+      } catch {
+        if (!disposed && credentialTransition === transition) set({ status: 'unavailable' });
+        return 'unavailable';
       } finally {
         if (credentialTransition === transition) credentialTransition = undefined;
       }
@@ -406,6 +514,7 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
       generation += 1; // A deferred privacy recovery/session read must not create an orphan scope.
       privacy.reset(true);
       endCurrentScope();
+      if (options.durableStorage) void cleanNative().catch(() => undefined);
       listeners.clear();
       disposed = true;
     },

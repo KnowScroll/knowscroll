@@ -1,7 +1,13 @@
 import { QueryClient, useQuery } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react-native';
 import { AppState, Text, type AppStateStatus } from 'react-native';
-import { createAccountScopeManager, memoryStore, type AccountScope } from '@knowscroll/client-core';
+import {
+  createAccountScopeManager,
+  memoryStore,
+  type AccountScope,
+  type StorageDurability,
+  type ScopeStorageLifecycle,
+} from '@knowscroll/client-core';
 import { AccountScopeProvider, useAccountScope } from './account-scope';
 
 /**
@@ -250,4 +256,153 @@ it('native background inhibits recording and foreground rereads without remounti
     if (original) Object.defineProperty(AppState, 'currentState', original);
   }
   expect(remove).toHaveBeenCalled();
+});
+
+it('publishes hydrated native scope before replaying its original backlog, without restoring collection authority (CI lifecycle ports)', async () => {
+  const original = Object.getOwnPropertyDescriptor(AppState, 'currentState');
+  Object.defineProperty(AppState, 'currentState', { configurable: true, value: 'active' });
+  const store = memoryStore(),
+    disk = new Map<string, string>(),
+    listeners = new Set<() => void>();
+  const prefix = `ks.scope.${accounts.a.accountId}:1.`;
+  const command = {
+    version: 'recording-policy.v1',
+    commandId: '0199a000-0000-7000-8000-000000000091',
+    expectedPrivacyEpoch: 1,
+    expectedRecordingGeneration: 3,
+    on: false,
+  };
+  const event = {
+    schemaVersion: 'interaction.v1',
+    eventId: '0199a000-0000-7000-8000-000000000092',
+    sessionId: '0199a000-0000-7000-8000-000000000093',
+    deviceSequence: 8,
+    exposureId: '0199a000-0000-7000-8000-000000000094',
+    assetId: '0199a000-0000-7000-8000-000000000095',
+    assetRevision: 1,
+    kind: 'scroll.active_dwell',
+    occurredAt: '2026-10-23T00:00:00.000Z',
+    payload: { activeIntervalsMs: [[100, 200]] },
+  };
+  const batch = { version: 'observation-batch.v2', recordingGeneration: 3, instrumentationVersion: 1, events: [event] };
+  let healthy = true;
+  const durability: StorageDurability = {
+    flush(expected) {
+      if (!healthy) return Promise.resolve(false);
+      disk.clear();
+      for (const key of store.keys()) disk.set(key, store.getItem(key)!);
+      return Promise.resolve(Object.entries(expected).every(([key, value]) => (disk.get(key) ?? undefined) === value));
+    },
+    group: (work) => work(),
+    healthy: () => healthy,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    fence() {
+      healthy = false;
+      for (const listener of listeners) listener();
+    },
+    purge() {
+      for (const key of store.keys()) store.removeItem(key);
+      disk.clear();
+      return Promise.resolve();
+    },
+  };
+  let releaseHydration!: () => void;
+  const hydration = new Promise<void>((resolve) => {
+    releaseHydration = resolve;
+  });
+  const prepare = jest.fn(async () => {
+    await hydration;
+    store.setItem(prefix + 'recording.policy.pending.v1', JSON.stringify(command));
+    store.setItem(
+      prefix + 'recorder.outbox.v2',
+      JSON.stringify({ v: 2, dropped: 0, legacyDiscarded: false, batches: [batch] }),
+    );
+    return { ...store, durability };
+  });
+  const lifecycle: ScopeStorageLifecycle = { prepare, fence: () => undefined, purge: () => durability.purge() };
+  const sent: unknown[] = [],
+    policyReads: unknown[] = [];
+  const fetch = jest.fn(async (request: Request) => {
+    const path = new URL(request.url).pathname;
+    if (path === '/auth/session')
+      return json(200, { account: accounts.a, client: 'native', expiresAt: '2099-10-23T00:00:00.000Z' });
+    const body: unknown = await request.json();
+    if (path === '/v1/observations/recording-batch') {
+      sent.push(body);
+      expect(disk.has(prefix + 'recorder.outbox.v2')).toBe(true);
+      return json(200, {
+        version: 'observation-batch.v2',
+        scope: { accountId: accounts.a.accountId, privacyEpoch: 1 },
+        recordingGeneration: 3,
+        currentGeneration: 5,
+        revision: 7,
+        result: 'not_recorded',
+        reason: 'recording_generation_stale',
+      });
+    }
+    if (path === '/v1/saved') return json(200, { revision: 0, items: [] });
+    if (path === '/v1/privacy/recording/read') {
+      policyReads.push(body);
+      return json(200, {
+        version: 'recording-policy.v1',
+        ...(body as object),
+        scope: { accountId: accounts.a.accountId, privacyEpoch: 1 },
+        revision: 7,
+        policy: { on: true, generation: 5 },
+      });
+    }
+    throw new Error('fixture must not activate or automatically resend policy');
+  });
+  const manager = createAccountScopeManager({
+    baseUrl: 'https://native.fixture.test',
+    platform: 'native',
+    store: memoryStore(),
+    tokens: {
+      read: () => Promise.resolve('fixture-session'),
+      write: () => Promise.resolve(),
+      clear: () => Promise.resolve(),
+    },
+    durableStorage: lifecycle,
+    fetch,
+    newQueryClient,
+  });
+  const app = await render(
+    <AccountScopeProvider manager={manager}>
+      <SavedOfCurrentScope />
+    </AccountScopeProvider>,
+  );
+  try {
+    await waitFor(() => expect(prepare).toHaveBeenCalledTimes(1));
+    expect(manager.getState()).toEqual({ status: 'starting' });
+    expect(screen.queryByText('a@scope.test: loading')).toBeNull();
+    expect(sent).toEqual([]);
+    await act(() => {
+      releaseHydration();
+    });
+    await waitFor(() => expect(sent).toEqual([batch]));
+    await waitFor(() => expect(disk.has(prefix + 'recorder.outbox.v2')).toBe(false));
+    const state = manager.getState();
+    if (state.status !== 'signed_in') throw new Error('fixture hydrated scope');
+    await waitFor(() => expect(state.scope.recording!.getState().policy?.generation).toBe(5));
+    expect(state.scope.recording!.getState()).toMatchObject({
+      collecting: false,
+      retryOriginal: true,
+      status: 'unknown',
+    });
+    expect(policyReads.length).toBeGreaterThan(0);
+    expect(disk.get(prefix + 'recording.policy.pending.v1')).toBe(JSON.stringify(command));
+    expect(fetch.mock.calls.some(([request]) => new URL(request.url).pathname === '/v1/privacy/recording/set')).toBe(
+      false,
+    );
+    expect(sent).toHaveLength(1);
+    expect(state.scope.account.privacyEpoch).toBe(1);
+  } finally {
+    await app.unmount();
+    if (original) Object.defineProperty(AppState, 'currentState', original);
+  }
 });

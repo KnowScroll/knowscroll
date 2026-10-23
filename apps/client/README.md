@@ -76,7 +76,7 @@ exclude Reels, even though this controller has a working Reel player.
   and the manager. Its test (`providers/account-scope.test.tsx`) proves that an answer the old
   account asked for, arriving after a switch, never reaches the new scope.
 - `platform/session-tokens(.web).ts` (native: the bearer token in `expo-secure-store`; web: none,
-  the HttpOnly cookie), `platform/scope-storage(.web).ts` (web: `localStorage`; native: memory),
+  the HttpOnly cookie), `platform/scope-storage(.web).ts` (web: `localStorage`; native: prepared encrypted SQLite snapshots),
   `platform/command-id(.web).ts` (UUIDs for command IDs), `platform/sign-in-link(.web).ts` (the
   token of the link that opened the page or app).
   Production native builds refuse plain HTTP; development builds (`__DEV__`) may use it to
@@ -329,8 +329,8 @@ Privacy & history now mounts recording controls independently of Clear. The Acco
 session fails collection closed while checking, offline, backgrounded or awaiting an ambiguous
 choice. Global AppState and browser focus/storage signals reread current authority; toggles retain
 the same scope and privacy epoch. Browser storage signals are disposable hints, never authority.
-The native platform UUID source is installed before policy requests; native scoped storage remains
-memory-only and this change makes no crash-durability claim there.
+The native platform UUID source is installed before policy requests. Native scoped stores now use
+the explicit commit boundaries below; policy authority and recorder clocks remain memory-only.
 
 Discovery/revisit/navigation, region Open, offer/direct activation, explicit actions and Keep Remove
 capture their original known recording generation once. Transport retries preserve the entire body,
@@ -348,3 +348,57 @@ Authored protocol/component/browser fixtures cover these fences, unknown retries
 fresh activation. Execute suites only in Actions. Actual API/database evidence qualification,
 connected web/native/device journeys and final source composition/deployment remain Root-owned
 acceptance requirements. This source does not close full privacy, export or account deletion.
+
+
+## Native scoped durability (#249/#222)
+
+`platform/native-scope-durability.ts` owns one serialized writer and private `expo-sqlite`58.0.13
+connection for a singleton ciphertext snapshot. Prepared statements use explicit BEGIN IMMEDIATE,
+checked root/revision CAS and COMMIT. Initialization requires returned `journal_mode=wal` and
+`synchronous=2` (FULL), otherwise preparation fails. Crypto runs outside the database transaction.
+One in-flight write plus a coalesced mirror bounds staged work; exact retained membership, rather
+than a later revision watermark, gates policy and outbox transport. An unacknowledged convenience
+tail can be lost on a process crash. WAL/FULL is a documented commit basis, not observed device
+power-cut or storage-controller proof.
+
+A small `expo-secure-store`58.0.2 record holds the per-scope random AES256 key and its exact world
+origin/account/privacy epoch/root/session binding. Session binding is a domain-separated SHA256
+of the actual credential; no bearer/provider credential, grant, URL or navigation tree is stored
+in the ciphertext snapshot. Expo Crypto supplies the key, nonce and AES-GCM authentication; AAD
+uses six UTF8 fields with four-byte big-endian byte lengths: domain `ks.native.scope-snapshot.v1`,
+origin, account UUID, decimal epoch, random root UUID and decimal revision. The session hash uses
+the same codec with domain `ks.native.scoped-session.v1` and the bearer. SecureStore is configured
+WHEN_UNLOCKED_THIS_DEVICE_ONLY without biometric gating. The tracked pnpm patch makes Android's
+nonnull write reject an actual false SharedPreferences commit result; JS readback is not treated
+as commit proof.
+
+Only strict unresolved recording choices, immutable v2 observation queues, schema-valid block
+values/indexes and exact private anchors/resume positions are persisted. Overall plaintext is
+bounded to512KiB/256entries, with at most96 block states,96 indexes,24 anchors and24 resume values.
+Each block stays within1KiB and four revisions; each outbox retains its existing40-batch/262144-byte
+limit and counted eviction. Complete block groups and oldest convenience values are evicted before
+protected pending commands/outbox state. Invalid, duplicate, oversized or unauthenticated restored
+data fails the whole preparation rather than silently discarding unresolved state. Other keys are
+memory-only. No legacy native disk migration is invented for the previously memory-only adapter.
+
+Fresh actual auth.session precedes decryption/publication. An OPEN root with a missing snapshot
+always stays unavailable, including a crash after the first key write. No stored policy/ACK can
+grant collection; only the existing correlated fresh current read, healthy store and foreground
+can do so. Scope end fences writes before onEnd callbacks, commits a keyless CLOSED marker, then
+deletes the ciphertext row before replacement/token-clear completion. Same full binding cannot
+reopen; genuine changed epoch/session/account/origin authority can create a new root only after
+confirmed old cleanup. If persistent writes and server access both fail, reboot-proof logout is
+unconfirmed; the app exposes unavailable and retains the fence rather than claiming success.
+
+`app.json` explicitly enables SecureStore's Android backup configuration. Its installed plugin
+rules include only shared preferences and exclude SecureStore, omitting database/file domains;
+actual attachment and contents must be checked in the separately built artifact. iOS
+THIS_DEVICE_ONLY limits key migration but does not prove universal same-device anti-rollback or
+absence of restorable copies. Logical deletion and key replacement do not prove physical erasure
+of flash/WAL, OS snapshots or vendor backups. No cryptographic zeroization claim is made for JS
+memory. Restored caches still require genuine current session/epoch/policy and server deduplication.
+
+The new controlled-port fixtures and retained web assertions run only in Actions; they do not
+execute real native primitives. Root separately owns the real Android restart/false-commit/build
+artifact harness, iOS/device/backup acceptance and deployment. The privacy operation recovery vault
+is a separate unimplemented lifecycle; no such recovery secret is admitted to this ordinary store.

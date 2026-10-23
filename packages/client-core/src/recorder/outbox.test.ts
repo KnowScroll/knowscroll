@@ -3,7 +3,8 @@ import {
   type InteractionEvent,
   type RecordingObservationBatchRequest,
 } from '@knowscroll/contracts';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { StorageDurability } from '../account-scope';
 import {
   OUTBOX_STORAGE_KEY,
   createObservationOutbox,
@@ -363,4 +364,234 @@ describe('immutable generation-bearing v2 persistence (CI fixtures)', () => {
     expect(f.outbox.status().dropped).toBe(1);
     expect(f.sent).toEqual([]);
   });
+});
+
+/** Transaction acknowledgement model only: native disk/restart acceptance runs separately in Actions. */
+function nativeCommitFixture() {
+  const storage = memory();
+  const committed = new Map<string, string>();
+  let gate: Promise<void> | undefined;
+  let healthy = true;
+  let failRemoval = false;
+  const flushes: Readonly<Record<string, string | undefined>>[] = [];
+  const durability: StorageDurability = {
+    async flush(expected) {
+      flushes.push(expected);
+      const snapshot = new Map(storage.values);
+      await gate;
+      if (!healthy || (failRemoval && expected[OUTBOX_STORAGE_KEY] === undefined)) return false;
+      committed.clear();
+      for (const [key, value] of snapshot) committed.set(key, value);
+      return Object.entries(expected).every(
+        ([key, value]) => committed.get(key) === value && storage.get(key) === value,
+      );
+    },
+    group: (work) => work(),
+    healthy: () => healthy,
+    subscribe: () => () => undefined,
+    fence() {
+      healthy = false;
+    },
+    purge: () => Promise.resolve(),
+  };
+  return {
+    storage: { ...storage, durability },
+    committed,
+    flushes,
+    hold(value?: Promise<void>) {
+      gate = value;
+    },
+    fail() {
+      healthy = false;
+    },
+    removalFails(value: boolean) {
+      failRemoval = value;
+    },
+  };
+}
+
+it('native drain waits for committed exact membership, then terminal removal commits before it is forgotten (CI port fixture)', async () => {
+  const f = nativeCommitFixture();
+  let releaseCommit!: () => void;
+  f.hold(
+    new Promise<void>((resolve) => {
+      releaseCommit = resolve;
+    }),
+  );
+  const sent: RecordingObservationBatchRequest[] = [];
+  let releaseAck!: (outcome: SendOutcome) => void;
+  const outbox = createObservationOutbox({
+    storage: f.storage,
+    isActive: () => true,
+    send: (batch) => {
+      sent.push(batch);
+      return new Promise((resolve) => {
+        releaseAck = resolve;
+      });
+    },
+  });
+  const original = dwellEvent();
+  outbox.enqueue([original], 1, 3);
+  await vi.waitFor(() => expect(f.flushes).toHaveLength(1));
+  expect(sent).toEqual([]);
+  releaseCommit();
+  await vi.waitFor(() => expect(sent).toHaveLength(1));
+  expect(
+    (JSON.parse(f.committed.get(OUTBOX_STORAGE_KEY)!) as { batches: RecordingObservationBatchRequest[] }).batches,
+  ).toEqual(sent);
+  expect(sent[0]).toEqual({
+    version: 'observation-batch.v2',
+    recordingGeneration: 3,
+    instrumentationVersion: 1,
+    events: [original],
+  });
+  let releaseRemoval!: () => void;
+  f.hold(
+    new Promise<void>((resolve) => {
+      releaseRemoval = resolve;
+    }),
+  );
+  releaseAck({ kind: 'delivered' });
+  await vi.waitFor(() => expect(f.flushes).toHaveLength(2));
+  expect(f.committed.has(OUTBOX_STORAGE_KEY)).toBe(true);
+  releaseRemoval();
+  await vi.waitFor(() => expect(f.committed.has(OUTBOX_STORAGE_KEY)).toBe(false));
+  expect(outbox.status()).toMatchObject({ pendingBatches: 0, stopped: false });
+  outbox.dispose();
+});
+
+it('native capacity eviction during a commit cannot send an evicted batch using a newer revision as proof (CI port fixture)', async () => {
+  const f = nativeCommitFixture();
+  let release!: () => void;
+  f.hold(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  const sent: RecordingObservationBatchRequest[] = [];
+  const timers = manualTimers();
+  const outbox = createObservationOutbox({
+    storage: f.storage,
+    isActive: () => true,
+    maxBatches: 1,
+    timers: timers.timers,
+    send: (batch) => {
+      sent.push(batch);
+      return Promise.resolve({ kind: 'retry' });
+    },
+  });
+  const evicted = dwellEvent(),
+    retained = dwellEvent();
+  outbox.enqueue([evicted], 1, 1);
+  await vi.waitFor(() => expect(f.flushes).toHaveLength(1));
+  outbox.enqueue([retained], 1, 3);
+  release();
+  await vi.waitFor(() => expect(timers.scheduled).toHaveLength(1));
+  expect(sent).toEqual([]);
+  f.hold();
+  timers.fire();
+  await vi.waitFor(() => expect(sent).toHaveLength(1));
+  expect(sent[0]?.events).toEqual([retained]);
+  expect(sent[0]?.recordingGeneration).toBe(3);
+  expect(outbox.status()).toMatchObject({ dropped: 1, pendingBatches: 1 });
+  outbox.dispose();
+});
+
+it('native unconfirmed ACK purge suppresses an in-memory resend and retries removal even with an empty queue (CI port fixture)', async () => {
+  const f = nativeCommitFixture();
+  f.removalFails(true);
+  const sent: RecordingObservationBatchRequest[] = [];
+  const timer = manualTimers();
+  const outbox = createObservationOutbox({
+    storage: f.storage,
+    isActive: () => true,
+    timers: timer.timers,
+    send: (batch) => {
+      sent.push(batch);
+      return Promise.resolve({ kind: 'delivered' });
+    },
+  });
+  outbox.enqueue([dwellEvent()], 1, 1);
+  await vi.waitFor(() => expect(outbox.status().purgeUnconfirmed).toBe(true));
+  expect(sent).toHaveLength(1);
+  expect(outbox.status().pendingBatches).toBe(0);
+  expect(f.committed.has(OUTBOX_STORAGE_KEY)).toBe(true);
+  f.removalFails(false);
+  timer.fire();
+  await vi.waitFor(() => expect(f.committed.has(OUTBOX_STORAGE_KEY)).toBe(false));
+  expect(outbox.status().purgeUnconfirmed).toBeUndefined();
+  expect(sent).toHaveLength(1);
+  outbox.dispose();
+});
+
+it('native commit failure and a scope end during commit never send from the memory mirror (CI port fixture)', async () => {
+  for (const outcome of ['io_failure', 'scope_end'] as const) {
+    const f = nativeCommitFixture();
+    let release!: () => void;
+    f.hold(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    let active = true;
+    const sent: RecordingObservationBatchRequest[] = [];
+    const outbox = createObservationOutbox({
+      storage: f.storage,
+      isActive: () => active,
+      send: (batch) => {
+        sent.push(batch);
+        return Promise.resolve({ kind: 'delivered' });
+      },
+    });
+    outbox.enqueue([dwellEvent()], 1, 1);
+    await vi.waitFor(() => expect(f.flushes).toHaveLength(1));
+    if (outcome === 'io_failure') f.fail();
+    else active = false;
+    release();
+    await outbox.drain();
+    await settle();
+    expect(sent).toEqual([]);
+    outbox.dispose();
+  }
+});
+
+it('a late native ACK from an ended scope cannot purge a replacement outbox (CI port fixture)', async () => {
+  const f = nativeCommitFixture();
+  let active = true,
+    release!: (answer: SendOutcome) => void;
+  const first = createObservationOutbox({
+    storage: f.storage,
+    isActive: () => active,
+    send: () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  });
+  const old = dwellEvent();
+  first.enqueue([old], 1, 1);
+  await vi.waitFor(() => expect(release).toBeDefined());
+  active = false;
+  first.dispose();
+  f.storage.values.clear();
+  const timer = manualTimers();
+  const second = createObservationOutbox({
+    storage: f.storage,
+    isActive: () => true,
+    timers: timer.timers,
+    send: () => Promise.resolve({ kind: 'retry' }),
+  });
+  const current = dwellEvent();
+  second.enqueue([current], 1, 3);
+  await vi.waitFor(() => expect(timer.scheduled).toHaveLength(1));
+  const exact = f.committed.get(OUTBOX_STORAGE_KEY);
+  release({ kind: 'delivered' });
+  await settle();
+  expect(f.storage.get(OUTBOX_STORAGE_KEY)).toBe(exact);
+  expect(f.committed.get(OUTBOX_STORAGE_KEY)).toBe(exact);
+  expect(second.status().pendingEvents).toBe(1);
+  expect((JSON.parse(exact!) as { batches: RecordingObservationBatchRequest[] }).batches[0]?.events).toEqual([current]);
+  expect((JSON.parse(exact!) as { batches: RecordingObservationBatchRequest[] }).batches[0]?.recordingGeneration).toBe(
+    3,
+  );
+  second.dispose();
 });

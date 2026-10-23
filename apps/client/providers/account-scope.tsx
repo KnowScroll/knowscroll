@@ -3,13 +3,14 @@ import { createContext, useContext, useEffect, useState, useSyncExternalStore, t
 import { AppState, Platform } from 'react-native';
 import {
   connectScopeSocket,
+  scopeOutbox,
   createAccountScopeManager,
   type AccountScope,
   type AccountScopeManager,
   type AccountScopeState,
 } from '@knowscroll/client-core';
 import { appApiOrigin } from '../platform/api';
-import { scopeStorage } from '../platform/scope-storage';
+import { scopeStorage, scopeDurability } from '../platform/scope-storage';
 import { sessionTokens } from '../platform/session-tokens';
 import { signInBinding } from '../platform/sign-in-binding';
 import { newCommandId } from '../platform/command-id';
@@ -47,6 +48,7 @@ export function createAppAccountScopeManager(): AccountScopeManager {
     ...(sessionTokens === undefined ? {} : { tokens: sessionTokens }),
     ...(signInBinding === undefined ? {} : { signInBinding }),
     store: scopeStorage,
+    ...(scopeDurability ? { durableStorage: scopeDurability } : {}),
     connect: connectScopeSocket,
   });
 }
@@ -78,6 +80,7 @@ export function AccountScopeProvider({
     const policy = scope?.recording;
     if (!scope || !policy) return;
     policy.useIdSource(newCommandId);
+    if (scope.storage.durability && scope.active) void scopeOutbox(scope).drain();
     let appActive = AppState.currentState === 'active';
     let focused = typeof document === 'undefined' || document.hasFocus();
     const foreground = () =>
