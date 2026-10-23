@@ -1139,4 +1139,35 @@ describe('one-use same-source share-close intent', () => {
     });
     await view.unmount();
   });
+  it('consumes parked permission on an actual terminal SDK event and cannot revive it on ready or measurement', async () => {
+    const f = fixture();
+    const load = jest.fn(f.props.loadSource);
+    const props = { ...f.props, loadSource: load };
+    const view = await renderOn(<ReelPlayer {...props} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    await act(() => f.position.current?.pause());
+    await view.rerender(<ReelPlayer {...props} active={false} />);
+    const plays = f.sdk.play.mock.calls.length,
+      loads = load.mock.calls.length,
+      sources = f.sdk.replaceAsync.mock.calls.length,
+      position = f.sdk.currentTime;
+    const seek = jest.fn();
+    Object.defineProperty(f.sdk, 'currentTime', { configurable: true, get: () => position, set: seek });
+    await act(() => f.callbacks.get('playToEnd')?.({}));
+    await view.rerender(<ReelPlayer {...props} active />);
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    await act(() => f.callbacks.get('statusChange')?.({ status: 'readyToPlay' }));
+    await view.rerender(<ReelPlayer {...props} active />);
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    expect(f.sdk.play).toHaveBeenCalledTimes(plays);
+    expect(load).toHaveBeenCalledTimes(loads);
+    expect(f.sdk.replaceAsync).toHaveBeenCalledTimes(sources);
+    expect(seek).not.toHaveBeenCalled();
+    expect(f.sdk.playing).toBe(false);
+    await view.unmount();
+  });
 });

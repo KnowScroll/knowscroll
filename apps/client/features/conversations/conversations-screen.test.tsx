@@ -1,3 +1,4 @@
+import { ReadConversationInboxSchema } from '@knowscroll/contracts';
 import type * as React from 'react';
 import type * as ConversationOwner from './use-conversations-session';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
@@ -6,6 +7,18 @@ import { createAccountScope, memoryStore, type AccountScope, type ConversationsS
 import { SignedInConversations } from './conversations-screen';
 
 // UI fixtures only: source controllers/transport have their own real-adapter fixture lane.
+// Finite, unique SDK primitive stand-ins only; the native command-id producer remains real.
+jest.mock('expo-crypto', () => {
+  const ids = Array.from({ length: 256 }, (_, i) => `0199f000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`);
+  let next = 0;
+  return {
+    randomUUID: jest.fn(() => {
+      const value = ids[next++];
+      if (!value) throw new Error('SDK UUID fixture exhausted');
+      return value;
+    }),
+  };
+});
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   useFocusEffect: (effect: () => void | (() => void)) =>
@@ -135,7 +148,8 @@ it('renders a signed-in empty inbox only after a real scoped contract read retur
     fetch: async (request) => {
       if (new URL(request.url).pathname !== '/v1/social/conversations/inbox')
         throw new Error('Unexpected empty inbox fixture request');
-      const body = (await request.json()) as { readId: string; limit: number };
+      expect(request.headers.get('x-ks-scope')).toBe(account.id);
+      const body = ReadConversationInboxSchema.parse(await request.json());
       return new Response(
         JSON.stringify({
           version: 'direct-conversation.v1',

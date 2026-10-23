@@ -88,7 +88,7 @@ export function SignedInConversations({ scope }: { readonly scope: AccountScope 
     if (
       command.status === 'accepted' &&
       command.operation === 'start' &&
-      (!('commandId' in before) || before.commandId !== command.commandId)
+      (!('commandId' in before) || before.commandId.toLowerCase() !== command.commandId.toLowerCase())
     ) {
       setChooser(false);
       setNotice('Conversation started. Open it from Talk.');
@@ -262,8 +262,9 @@ export function SignedInConversations({ scope }: { readonly scope: AccountScope 
             {state.drafts.map((draft) => {
               const window = state.windows.find(
                 (w) =>
-                  w.conversation.conversationId === draft.conversation.conversationId &&
-                  w.conversation.membershipId === draft.conversation.membershipId,
+                  w.conversation.conversationId.toLowerCase() === draft.conversation.conversationId.toLowerCase() &&
+                  w.conversation.membershipId.toLowerCase() === draft.conversation.membershipId.toLowerCase() &&
+                  w.conversation.membershipRevision === draft.conversation.membershipRevision,
               );
               return (
                 <Button

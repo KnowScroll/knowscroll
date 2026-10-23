@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { Platform, ScrollView, Share, TextInput, View } from 'react-native';
-import type { AccountScope } from '@knowscroll/client-core';
+import type { AccountScope, ConversationsState } from '@knowscroll/client-core';
 import type { DirectConversationRef } from '@knowscroll/contracts';
 import { Button, Text } from '@knowscroll/ui';
 import { content, spacing } from '@knowscroll/design-tokens';
@@ -14,6 +14,20 @@ import { PrivateShareScreen } from './private-share-screen';
 import { useShareSession } from './use-share-session';
 
 type Target = { assetId: string; assetRevision: number };
+const sameId = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+const sameRef = (a: DirectConversationRef, b: DirectConversationRef) =>
+  sameId(a.conversationId, b.conversationId) &&
+  sameId(a.membershipId, b.membershipId) &&
+  a.membershipRevision === b.membershipRevision;
+function readable(state: ConversationsState, ref: DirectConversationRef) {
+  return (
+    state.status === 'active' &&
+    state.inbox.status === 'ready' &&
+    state.inbox.data.status === 'ready' &&
+    state.inbox.data.items.some((item) => sameRef(item.conversation, ref)) &&
+    state.windows.some((window) => window.status === 'ready' && sameRef(window.conversation, ref))
+  );
+}
 export function SharePanel({
   target,
   title,
@@ -55,6 +69,8 @@ export function SignedInSharePanel({
   const { session: conversations, state: talk } = useConversationsSession(scope);
   const { session: shares, state } = useShareSession(scope);
   const [selected, setSelected] = useState<DirectConversationRef>();
+  const [selectedSnapshot, setSelectedSnapshot] = useState<DirectConversationRef>();
+  const selection = useRef<DirectConversationRef | undefined>(undefined);
   const [note, setNote] = useState('');
   const [notice, setNotice] = useState('');
   const [privateCheck, setPrivateCheck] = useState(false);
@@ -74,7 +90,9 @@ export function SignedInSharePanel({
       stop();
       input.current?.clear();
       input.current = null;
+      selection.current = undefined;
       setSelected(undefined);
+      setSelectedSnapshot(undefined);
       setNote('');
       setNotice('');
       setPrivateCheck(false);
@@ -93,30 +111,59 @@ export function SignedInSharePanel({
   const own =
     state.own.status === 'ready' &&
     state.own.data.status === 'available' &&
-    state.own.data.target.assetId === target.assetId &&
+    sameId(state.own.data.target.assetId, target.assetId) &&
     state.own.data.target.assetRevision === target.assetRevision
       ? state.own.data
       : undefined;
+  const selectedReady =
+    !!selected && !!selectedSnapshot && sameRef(selected, selectedSnapshot) && readable(talk, selected);
+  const select = async (ref: DirectConversationRef) => {
+    if (!current() || blocked) return;
+    const mine = ++generation.current;
+    selection.current = ref;
+    setSelected(ref);
+    setSelectedSnapshot(undefined);
+    setNotice('Checking current conversation…');
+    await conversations.open(ref);
+    if (!current() || mine !== generation.current || !selection.current || !sameRef(selection.current, ref)) return;
+    if (!readable(conversations.getState(), ref)) {
+      setNotice('This conversation couldn’t be checked. Choose a current destination again.');
+      return;
+    }
+    setSelectedSnapshot(ref);
+    setNotice('');
+  };
+  const clearSelection = () => {
+    generation.current++;
+    selection.current = undefined;
+    setSelected(undefined);
+    setSelectedSnapshot(undefined);
+    setNotice('');
+  };
   const send = async () => {
-    if (!current() || blocked || !selected) return;
+    if (
+      !current() ||
+      blocked ||
+      !selected ||
+      !selectedReady ||
+      !selection.current ||
+      !sameRef(selection.current, selected) ||
+      !readable(conversations.getState(), selected) ||
+      conversations.getState().mutationBlocked ||
+      shares.getState().mutationBlocked
+    )
+      return;
     const mine = generation.current;
     setNotice('');
     const body = { kind: 'content' as const, target, ...(note.trim() ? { note: note.trim() } : {}) };
     const before = conversations.getState().command;
     conversations.setDraft(selected, body);
     if (!current() || mine !== generation.current) return;
-    const admitted = conversations
-      .getState()
-      .drafts.find(
-        (d) =>
-          d.conversation.conversationId === selected.conversationId &&
-          d.conversation.membershipId === selected.membershipId &&
-          d.conversation.membershipRevision === selected.membershipRevision,
-      )?.body;
+    const admitted = conversations.getState().drafts.find((d) => sameRef(d.conversation, selected))?.body;
     if (
       !admitted ||
       admitted.kind !== 'content' ||
-      admitted.target.assetId !== body.target.assetId ||
+      !sameId(admitted.target.assetId, body.target.assetId) ||
       admitted.target.assetRevision !== body.target.assetRevision ||
       admitted.note !== body.note
     ) {
@@ -129,7 +176,7 @@ export function SignedInSharePanel({
     if (
       command.status === 'accepted' &&
       command.operation === 'send' &&
-      (!('commandId' in before) || before.commandId !== command.commandId)
+      (!('commandId' in before) || !sameId(before.commandId, command.commandId))
     )
       setNotice('Message accepted. Open the conversation to read its current state.');
   };
@@ -164,7 +211,7 @@ export function SignedInSharePanel({
     if (
       fresh.status !== 'ready' ||
       fresh.data.status !== 'available' ||
-      fresh.data.shareId !== own.shareId ||
+      !sameId(fresh.data.shareId, own.shareId) ||
       fresh.data.state !== 'active'
     ) {
       setNotice('This link is no longer available.');
@@ -231,12 +278,10 @@ export function SignedInSharePanel({
           key={item.conversation.conversationId}
           label={item.peer.displayName}
           variant="ghost"
-          toggled={selected?.conversationId === item.conversation.conversationId}
+          toggled={!!selected && sameRef(selected, item.conversation)}
           disabled={blocked}
           onPress={() => {
-            if (!current() || blocked) return;
-            setSelected(item.conversation);
-            setNotice('');
+            void select(item.conversation);
           }}
         />
       ))}
@@ -252,7 +297,7 @@ export function SignedInSharePanel({
           label="Refresh destinations"
           variant="ghost"
           onPress={() => {
-            setSelected(undefined);
+            clearSelection();
             void conversations.refreshInbox();
           }}
         />
@@ -261,7 +306,7 @@ export function SignedInSharePanel({
             label="More destinations"
             variant="ghost"
             onPress={() => {
-              setSelected(undefined);
+              clearSelection();
               void conversations.nextInbox();
             }}
           />
@@ -282,7 +327,7 @@ export function SignedInSharePanel({
       />
       <Button
         label="Send to selected conversation"
-        disabled={blocked || !selected}
+        disabled={blocked || !selectedReady}
         onPress={() => {
           void send();
         }}
@@ -292,7 +337,9 @@ export function SignedInSharePanel({
           label="Open conversation"
           onPress={() => {
             const href = `/conversations/${selected.conversationId}`;
+            if (!current()) return;
             onClose();
+            if (!scope.active) return;
             router.push(href);
           }}
         />

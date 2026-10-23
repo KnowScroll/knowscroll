@@ -444,6 +444,7 @@ export function ReelPlayer({
     });
     const completed = player.addListener('playToEnd', () => {
       if (ended.current) return;
+      parkedSource.current = null;
       playbackIntent.current = false;
       pausePlayback(player);
       setPlaying(false);

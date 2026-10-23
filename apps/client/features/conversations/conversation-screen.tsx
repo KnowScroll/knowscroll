@@ -19,11 +19,14 @@ import { conversationOffset, retainConversationOffset, useConversationsSession }
 const sameId = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 function currentRef(state: ConversationsState, id: string | undefined): DirectConversationRef | undefined {
   if (!id || state.status !== 'active') return undefined;
-  const window = state.windows.find((w) => sameId(w.conversation.conversationId, id));
-  if (window) return window.conversation;
-  if (state.inbox.status === 'ready' && state.inbox.data.status === 'ready')
-    return state.inbox.data.items.find((i) => sameId(i.conversation.conversationId, id))?.conversation;
-  return undefined;
+  // A fresh inbox supplies current participation independently of retained old memberships.
+  const inbox =
+    state.inbox.status === 'ready' && state.inbox.data.status === 'ready'
+      ? state.inbox.data.items.find((i) => sameId(i.conversation.conversationId, id))?.conversation
+      : undefined;
+  if (inbox) return inbox;
+  const windows = state.windows.filter((w) => sameId(w.conversation.conversationId, id)).reverse();
+  return windows.find((w) => w.status !== 'unavailable')?.conversation ?? windows[0]?.conversation;
 }
 export function ConversationScreen({ conversationId }: { readonly conversationId: string | undefined }) {
   const { state } = useAccountScope();
@@ -57,21 +60,23 @@ export function SignedInConversation({
     ? state.windows.find(
         (w) =>
           sameId(w.conversation.conversationId, ref.conversationId) &&
-          w.conversation.membershipId === ref.membershipId &&
+          sameId(w.conversation.membershipId, ref.membershipId) &&
           w.conversation.membershipRevision === ref.membershipRevision,
       )
     : undefined;
   const draft = ref
     ? state.drafts.find(
         (d) =>
-          d.conversation.conversationId === ref.conversationId &&
-          d.conversation.membershipId === ref.membershipId &&
+          sameId(d.conversation.conversationId, ref.conversationId) &&
+          sameId(d.conversation.membershipId, ref.membershipId) &&
           d.conversation.membershipRevision === ref.membershipRevision,
       )?.body
     : undefined;
   const [ownPersonId, setOwnPersonId] = useState<string>();
   const [visible, setVisible] = useState({ key: '', through: 0 });
-  const visibleKey = ref ? `${ref.conversationId}:${ref.membershipId}:${ref.membershipRevision}` : '';
+  const visibleKey = ref
+    ? `${ref.conversationId.toLowerCase()}:${ref.membershipId.toLowerCase()}:${ref.membershipRevision}`
+    : '';
   const visibleThrough = visible.key === visibleKey ? visible.through : 0;
   const [leaveConfirm, setLeaveConfirm] = useState(false);
   const live = useRef(true);
@@ -106,17 +111,21 @@ export function SignedInConversation({
   }, [friends, scope]);
   const membershipId = ref?.membershipId;
   const membershipRevision = ref?.membershipRevision;
+  const inboxState = state.inbox;
   useFocusEffect(
     useCallback(() => {
-      const current = currentRef(session.getState(), conversationId);
+      const snapshot = session.getState();
+      if (snapshot.inbox !== inboxState) return;
+      const current = currentRef(snapshot, conversationId);
       if (
         scope.active &&
         current &&
-        current.membershipId === membershipId &&
+        membershipId !== undefined &&
+        sameId(current.membershipId, membershipId) &&
         current.membershipRevision === membershipRevision
       )
         void session.open(current);
-    }, [scope, session, conversationId, membershipId, membershipRevision]),
+    }, [scope, session, conversationId, membershipId, membershipRevision, inboxState]),
   );
   const onVisible = useCallback(
     ({ viewableItems }: { viewableItems: readonly { isViewable: boolean; item: Message }[] }) => {
@@ -126,7 +135,7 @@ export function SignedInConversation({
         through: Math.max(0, ...viewableItems.filter((i) => i.isViewable).map((i) => i.item.sequence)),
       });
     },
-    [scope, visibleKey],
+    [scope, visibleKey, setVisible],
   );
   const openContent = (target: { assetId: string; assetRevision: number }) => {
     if (!scope.active || !live.current || !ref || window?.status !== 'ready') return;
@@ -139,8 +148,10 @@ export function SignedInConversation({
           else router.replace(destination);
         }
       })
-    )
+    ) {
+      if (!scope.active || !live.current) return;
       router.push('/explore');
+    }
   };
   const ready = scope.active && state.status === 'active' && window?.status === 'ready';
   const locked = !ready || state.mutationBlocked;
@@ -272,12 +283,15 @@ export function SignedInConversation({
                   )}
                   contentOffset={{
                     x: 0,
-                    y: conversationOffset(scope, `${ref.conversationId}:${ref.membershipId}:${ref.membershipRevision}`),
+                    y: conversationOffset(
+                      scope,
+                      `${ref.conversationId.toLowerCase()}:${ref.membershipId.toLowerCase()}:${ref.membershipRevision}`,
+                    ),
                   }}
                   onScroll={(event) =>
                     retainConversationOffset(
                       scope,
-                      `${ref.conversationId}:${ref.membershipId}:${ref.membershipRevision}`,
+                      `${ref.conversationId.toLowerCase()}:${ref.membershipId.toLowerCase()}:${ref.membershipRevision}`,
                       event.nativeEvent.contentOffset.y,
                     )
                   }

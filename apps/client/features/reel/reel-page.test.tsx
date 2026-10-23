@@ -339,6 +339,9 @@ function nativeSDK() {
   jest.mocked(useVideoPlayer).mockReturnValue(sdk as unknown as VideoPlayer);
   return {
     sdk,
+    complete() {
+      listeners.get('playToEnd')?.({});
+    },
     status(value: string) {
       sdk.status = value;
       listeners.get('statusChange')?.({ status: value });
@@ -587,6 +590,39 @@ describe('composed native Share close: actual viewport + encounter + shared SDK 
       await act(() => old(0, 120, 355, 200));
       await commitNativeStage();
       expect(f.sdk.play).toHaveBeenCalledTimes(before);
+    } finally {
+      await f.app.unmount();
+      f.h.scope.end();
+    }
+  });
+  it('never resumes a source completed by the actual SDK event while Share is parked, including later ready/current measurements', async () => {
+    const f = await composedEncounter();
+    try {
+      await fireEvent.press(screen.getByRole('button', { name: 'Share' }));
+      const plays = f.sdk.play.mock.calls.length,
+        loads = f.sdk.replaceAsync.mock.calls.length,
+        position = f.sdk.currentTime,
+        commands = f.h.calls.filter(
+          (call) => call.path.endsWith('/open') || call.path.endsWith('/activate') || call.path.endsWith('/grants'),
+        ).length;
+      const seek = jest.fn();
+      Object.defineProperty(f.sdk, 'currentTime', { configurable: true, get: () => position, set: seek });
+      await act(() => f.complete());
+      await act(() => f.h.session.setOverlay(false));
+      const current = measurement('stage');
+      await act(() => current(0, 120, 355, 200));
+      await act(() => f.status('readyToPlay'));
+      await act(() => current(0, 120, 355, 200));
+      await commitNativeStage();
+      expect(f.sdk.play).toHaveBeenCalledTimes(plays);
+      expect(f.sdk.playing).toBe(false);
+      expect(f.sdk.replaceAsync).toHaveBeenCalledTimes(loads);
+      expect(seek).not.toHaveBeenCalled();
+      expect(
+        f.h.calls.filter(
+          (call) => call.path.endsWith('/open') || call.path.endsWith('/activate') || call.path.endsWith('/grants'),
+        ),
+      ).toHaveLength(commands);
     } finally {
       await f.app.unmount();
       f.h.scope.end();

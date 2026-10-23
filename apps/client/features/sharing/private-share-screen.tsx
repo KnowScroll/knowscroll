@@ -58,7 +58,9 @@ export function PrivateShareScreen({ scope, onClose }: { readonly scope: Account
         if (scope.active) router.replace(destination);
       })
     ) {
+      if (!scope.active || !live.current) return;
       onClose();
+      if (!scope.active) return;
       router.push('/explore');
     }
   };
@@ -135,6 +137,7 @@ export function PrivateShareScreen({ scope, onClose }: { readonly scope: Account
               .then(() => {
                 if (!scope.active || !live.current || mine !== serial.current) return;
                 onClose();
+                if (!scope.active) return;
                 router.push(`/conversations/${resolved.conversation.conversationId}`);
               });
           }}

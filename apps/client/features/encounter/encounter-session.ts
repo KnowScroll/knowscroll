@@ -687,7 +687,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     },
     open,
     openConversationContent(target: { assetId: string; assetRevision: number }, returnToConversation: () => void) {
-      if (!open({ kind: 'return', ...target })) return false;
+      // Project the canonical locator; Social metadata must never enter a strict revisit request.
+      if (!open({ kind: 'return', assetId: target.assetId, assetRevision: target.assetRevision })) return false;
+      const current = work;
+      // opening publishes synchronously: a subscriber may have ended/cancelled this work.
+      if (!valid() || !current || !busy || state.phase !== 'opening') return false;
       conversationReturn = returnToConversation;
       return true;
     },
@@ -990,12 +994,14 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       }
       if (conversationReturn) {
         const returnToConversation = conversationReturn;
+        const currentWork = work;
         conversationReturn = undefined;
         foreground = false;
         requests.visible(false);
         history.park();
         releaseCheckpoint();
         publish({ overlay: false, overlayOwner: undefined });
+        if (!valid() || work !== currentWork) return false;
         returnToConversation();
         return true;
       }
