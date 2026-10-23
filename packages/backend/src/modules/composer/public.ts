@@ -5,6 +5,9 @@ export type {
   ComposerSnapshot,
   ComposerDecision,
   PreparedEvidenceInput,
+  CurrentPlan,
+  PlannedOpportunity,
+  PlanInfluence,
   Features,
   CandidateEvaluation,
 } from './domain/types.js';

@@ -7,8 +7,12 @@ import {
   accountAccessUseCases,
   identityScopeOwnerProviders,
 } from '@knowscroll/backend/modules/identity/nest-providers';
-import { plannerRequestProviders } from '@knowscroll/backend/modules/planner/nest-providers';
-import { PLANNER_MATERIAL_CHANGE, type PlannerMaterialChange } from '@knowscroll/backend/modules/planner';
+import { plannerReadProviders, plannerRequestProviders } from '@knowscroll/backend/modules/planner/nest-providers';
+import {
+  PLANNER_MATERIAL_CHANGE,
+  READ_CURRENT_PLAN,
+  type PlannerMaterialChange,
+} from '@knowscroll/backend/modules/planner';
 import { geographyProviders } from '@knowscroll/backend/modules/geography/nest-providers';
 import { GEOGRAPHY_MATERIAL_CHANGE, type MaterialGeographyChange } from '@knowscroll/backend/modules/geography';
 import { sceneAppliedProviders } from '@knowscroll/backend/modules/scenes/nest-providers';
@@ -203,8 +207,9 @@ export async function scrollUseCases(
     ...experienceReadFactories,
     ...sceneAppliedProviders({ enqueueJob: ENQUEUE }),
     ...plannerRequestProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
+    ...plannerReadProviders(),
     ...geographyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
-    ...personalContextProviders(),
+    ...personalContextProviders({ readCurrentPlan: READ_CURRENT_PLAN }),
     ...activityProviders({
       withPersonalScope: SCOPE,
       enqueueJob: ENQUEUE,

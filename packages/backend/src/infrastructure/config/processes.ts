@@ -548,7 +548,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     checkEnvironment(
       z.object({
         ...databaseVariables,
-        KS_PLANNER_ENABLED: z.enum(['0', '1']).default('0'),
+        KS_PLANNER_ENABLED: z.enum(['0', '1']).optional(),
         KS_CARTOGRAPHER_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CUTROOM_COMMISSIONING_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CUTROOM_RECEIVING_ENABLED: z.enum(['0', '1']).default('0'),
@@ -676,7 +676,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
           }
         : {}),
     },
-    plannerEnabled: parsed.KS_PLANNER_ENABLED === '1',
+    plannerEnabled: (parsed.KS_PLANNER_ENABLED ?? (release.world === 'local' ? '1' : '0')) === '1',
     cartographerEnabled: parsed.KS_CARTOGRAPHER_ENABLED === '1',
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),
     shutdownGraceMs: parsed.KS_SHUTDOWN_GRACE_SECONDS * 1000,

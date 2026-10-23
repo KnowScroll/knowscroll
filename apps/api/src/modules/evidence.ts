@@ -2,8 +2,8 @@ import { sceneAppliedProviders } from '@knowscroll/backend/modules/scenes/nest-p
 import { geographyProviders } from '@knowscroll/backend/modules/geography/nest-providers';
 import { GEOGRAPHY_MATERIAL_CHANGE, type MaterialGeographyChange } from '@knowscroll/backend/modules/geography';
 import type { PlannerMaterialChange } from '@knowscroll/backend/modules/planner';
-import { plannerRequestProviders } from '@knowscroll/backend/modules/planner/nest-providers';
-import { PLANNER_MATERIAL_CHANGE } from '@knowscroll/backend/modules/planner';
+import { plannerReadProviders, plannerRequestProviders } from '@knowscroll/backend/modules/planner/nest-providers';
+import { PLANNER_MATERIAL_CHANGE, READ_CURRENT_PLAN } from '@knowscroll/backend/modules/planner';
 import type { Provider } from '@nestjs/common';
 import {
   INGEST_OBSERVATIONS,
@@ -32,7 +32,9 @@ export const evidenceWiring: Provider[] = [
   },
   ...plannerRequestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   // Installs the required PC-owned Composer adapter; legacy Evidence preparation stays disabled.
-  ...personalContextProviders(),
+  // Composer's prepared context carries the person's current Planner plan from the stored read.
+  ...plannerReadProviders(),
+  ...personalContextProviders({ readCurrentPlan: READ_CURRENT_PLAN }),
   ...activityProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
     enqueueJob: ENQUEUE_JOB,

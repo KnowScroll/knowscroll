@@ -1482,6 +1482,9 @@ export interface SupplyRequests {
   created_at: Timestamp;
   decision: string;
   id: string;
+  origin: Generated<string>;
+  planner_run_id: string | null;
+  planner_slot: number | null;
   privacy_epoch: number;
   reason: string | null;
   request_revision: number;

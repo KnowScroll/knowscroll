@@ -23,6 +23,7 @@ import type {
   RunPlanner,
 } from './ports.js';
 import { prepareContext } from './context.js';
+import { recordMissingSupplyDemand } from './demand.js';
 import { ensureRun } from './request.js';
 import { PlannerJobSchema } from '../events.js';
 import { plannerContextItems, plannerContextHashes, plannerRole } from './role.js';
@@ -454,8 +455,14 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
         recordingPurpose: purpose,
       });
       if (status === 'accepted' && closed !== 'closed') throw new Error('PLANNER_REASONING_CLOSE_FAILED');
-      if (status === 'accepted' && outcome.kind === 'proposed')
+      if (status === 'accepted' && outcome.kind === 'proposed') {
         await p.store.accept(scope, run, accepted, outcome.attemptId);
+        await recordMissingSupplyDemand(p, scope, {
+          runId: run.id,
+          language: context.intent.language,
+          opportunities: accepted,
+        });
+      }
       await p.store.writeRun(scope, { ...released, status, outcome: outcome.kind });
       const { activeRunId: _a, ...idle } = state,
         next = { ...idle, acceptedRevision: status === 'accepted' ? run.revision : state.acceptedRevision };

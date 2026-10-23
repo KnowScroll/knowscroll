@@ -44,7 +44,10 @@ export type UnavailableReason = Extract<ContentRequestStatus, { status: 'unavail
 export interface Demand {
   readonly id: string;
   readonly command: CreateContentRequest;
-  readonly status: 'requested' | 'ready' | 'unavailable' | 'cancelled';
+  /** `deferred` is planned demand with no admitted content, waiting on a shared group for a production path. */
+  readonly status: 'requested' | 'ready' | 'unavailable' | 'cancelled' | 'deferred';
+  /** Set when the Planner asked on the person's behalf; absent means the person asked. */
+  readonly planned?: { readonly runId: string; readonly slot: number };
   readonly requestRevision: number;
   readonly revision: number;
   readonly createdAt: string;
@@ -86,6 +89,31 @@ export type CancelRequest = (
   command: CancelContentRequest,
 ) => Promise<Result<CancelContentRequestReceipt>>;
 export type ResolveRequest = (job: ResolveSupplyJob) => Promise<void>;
+
+/** One missing-supply opportunity of an accepted Planner plan. */
+export interface PlannedDemandInput {
+  readonly plannerRunId: string;
+  /** Position of the opportunity in the accepted plan, so one opportunity is one demand. */
+  readonly slot: number;
+  /** The opportunity's topics, most relevant first. The first code-admitted catalogue topic names the brief. */
+  readonly topicIds: readonly string[];
+  readonly format: 'reel' | 'scroll' | 'either';
+  readonly language: string;
+  readonly capabilities: CreateContentRequest['capabilities'];
+}
+export type PlannedDemandOutcome =
+  /** Reuse: admitted content already fits. */
+  | { readonly kind: 'ready'; readonly requestId: string }
+  /** Join or Create-group: waits on the shared matching group. No resolver job and no production run. */
+  | { readonly kind: 'deferred'; readonly requestId: string; readonly joined: boolean }
+  /** Not a code-admitted catalogue brief (topic outside the catalogue, or a language it cannot produce). */
+  | { readonly kind: 'unsupported' };
+/**
+ * Records the Planner's missing-supply opportunity as private demand inside the caller's personal
+ * scope, so it commits atomically with the accepted plan. Applies Reuse then Join/Create-group;
+ * the production path that would resolve a deferred demand is a separate capability.
+ */
+export type RecordPlannedDemand = (scope: PersonalScopeTx, input: PlannedDemandInput) => Promise<PlannedDemandOutcome>;
 export interface SupplyPorts {
   readonly withScope: WithPersonalScope;
   readonly ownerActive: CheckPersonalOwnerActive;

@@ -30,6 +30,25 @@ const Encounter = Ref.extend({
   catalogWatermark: z.string().min(1).max(240),
   attributionVersion: Id,
 });
+const Plan = z.strictObject({
+  revision: Revision,
+  opportunities: z
+    .array(
+      z.strictObject({
+        move: z.enum(['example', 'mechanism', 'limitation', 'consequence', 'perspective', 'connection']),
+        topicIds: z.array(Id).min(1).max(8),
+        explanationUnitId: Id,
+        eligibility: z
+          .array(z.enum(['vertical', 'related']))
+          .min(1)
+          .max(2),
+        formats: z.array(Format).min(1).max(2),
+        expiresAt: z.iso.datetime(),
+        target: z.enum(['existing', 'missing_supply']),
+      }),
+    )
+    .max(3),
+});
 /** Strict backend snapshot: extra raw observations, prompts or provider output are not accepted. */
 export const ComposerSnapshotSchema: z.ZodType<ComposerSnapshot> = z.strictObject({
   universeId: Id,
@@ -75,6 +94,7 @@ export const ComposerSnapshotSchema: z.ZodType<ComposerSnapshot> = z.strictObjec
       evaluatedAt: z.iso.datetime(),
       watermark: z.string().min(1).max(240),
       policyVersion: Id,
+      plan: Plan.optional(),
       topics: z
         .array(
           z.strictObject({

@@ -1,5 +1,6 @@
 import { validateTopics } from '../../content/public.js';
 import { features, score, similarity } from '../domain/features.js';
+import { applyPlan } from '../domain/plan.js';
 import { COMPOSER_POLICY, randomSource, refKey, uniformIndex } from '../domain/policy.js';
 import { ComposerSnapshotSchema } from './snapshot-schema.js';
 import type { ComposerDecision, ComposerSnapshot } from '../domain/types.js';
@@ -158,7 +159,7 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
     if (s.intent.continuityLinkId && c.continuity?.linkId !== s.intent.continuityLinkId) exclusions.push('exact_link');
     if (s.mode === 'horizontal' && !c.continuity) exclusions.push('no_admitted_link');
     if (s.evidence?.hiddenAssetIds.includes(c.encounter.assetId)) exclusions.push('hidden');
-    const f = features(s, c);
+    const { features: f, influence } = applyPlan(s, c, features(s, c));
     return {
       assetId: c.encounter.assetId,
       assetRevision: c.encounter.assetRevision,
@@ -166,6 +167,7 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
       eligible: exclusions.length === 0,
       exclusions,
       features: f,
+      ...(influence ? { plan: influence } : {}),
       score: score(f, s.mode === 'horizontal'),
     };
   });

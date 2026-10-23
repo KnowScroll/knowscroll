@@ -3,6 +3,7 @@ import {
   READ_CONTENT_REQUEST,
   CANCEL_CONTENT_REQUEST,
   RESOLVE_CONTENT_REQUEST,
+  RECORD_PLANNED_DEMAND,
 } from '../public.js';
 import { CHECK_REQUEST_SOURCE, type CheckRequestSource } from '../../experience/public.js';
 import {
@@ -28,7 +29,13 @@ import {
   insertPersonalReceipt,
   completePersonalReceipt,
 } from '../../../infrastructure/receipts/index.js';
-import { makeCreateRequest, makeReadRequest, makeCancelRequest, makeResolveRequest } from '../application/requests.js';
+import {
+  makeCreateRequest,
+  makeReadRequest,
+  makeCancelRequest,
+  makeResolveRequest,
+  makeRecordPlannedDemand,
+} from '../application/requests.js';
 import { resolveSupplyQueue } from '../events.js';
 import type { SupplyPorts } from '../application/ports.js';
 import { supplyStore } from './postgres-store.js';
@@ -100,7 +107,18 @@ export function supplyProviders(t: { readonly withPersonalScope: symbol; readonl
     { provide: READ_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeReadRequest(p) },
     { provide: CANCEL_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeCancelRequest(p) },
     { provide: RESOLVE_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeResolveRequest(p) },
+    {
+      provide: RECORD_PLANNED_DEMAND,
+      inject: [SUPPLY_PORTS],
+      useFactory: (p: SupplyPorts) => makeRecordPlannedDemand(p),
+    },
   ];
 }
-export { makeCreateRequest, makeReadRequest, makeCancelRequest, makeResolveRequest } from '../application/requests.js';
+export {
+  makeCreateRequest,
+  makeReadRequest,
+  makeCancelRequest,
+  makeResolveRequest,
+  makeRecordPlannedDemand,
+} from '../application/requests.js';
 export type { SupplyPorts } from '../application/ports.js';
