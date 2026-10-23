@@ -115,7 +115,9 @@ describe('Geography guarded read-only HTTP adapter', () => {
   it('refuses caller authority, commands and oversized windows before dispatch', async () => {
     const { controller, read, changes, gathering } = wired();
     const request = await admittedRequest();
-    await expect(call(controller.emergingRoute(request), { accountId })).rejects.toMatchObject({
+    await expect(
+      call(controller.emergingRoute(request), { accountId } as unknown as Record<string, never>),
+    ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     });
     for (const value of [
