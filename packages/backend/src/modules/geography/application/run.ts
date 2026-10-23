@@ -161,8 +161,6 @@ async function retireRevoked(
 const PRE_ADMISSION_REFUSALS: ReadonlySet<string> = new Set<ProposeRefusal>([
   'provider_unavailable',
   'role_invalid',
-  'output_format_unsupported',
-  'output_schema_unsupported',
   'run_invalid',
   'run_mismatch',
   'context_invalid',

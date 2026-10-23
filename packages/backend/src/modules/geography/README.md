@@ -56,8 +56,7 @@ facet support today, so a Reel-only reader gets dust but no system until Reel co
    starts another one. Only an `unknown` attempt holds a run.
 
 The harness can also refuse before it admits a run (`provider_unavailable`, `role_invalid`,
-`output_format_unsupported`, `output_schema_unsupported`, `run_invalid`, `run_mismatch`,
-`context_invalid`, `context_insufficient`, `request_too_large`). No ledger run or attempt exists then,
+`run_invalid`, `run_mismatch`, `context_invalid`, `context_insufficient`, `request_too_large`). No ledger run or attempt exists then,
 so there is nothing to close. When accounting proves nothing is retained, the rules are applied under
 the claim's own authority (same checks, same transaction); with nothing due the run is released with
 the refusal as its outcome. A refusal that does come from a ledger run which is already closed is
