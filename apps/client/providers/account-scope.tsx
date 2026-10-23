@@ -84,8 +84,7 @@ export function AccountScopeProvider({
     const browserDocument = web && typeof document !== 'undefined' ? document : undefined;
     let appActive = AppState.currentState === 'active';
     let focused = !web || browserDocument?.hasFocus() === true;
-    const foreground = () =>
-      appActive && focused && (!web || browserDocument?.visibilityState === 'visible');
+    const foreground = () => appActive && focused && (!web || browserDocument?.visibilityState === 'visible');
     const refresh = () => {
       void policy.setForeground(scope.active && foreground());
     };
