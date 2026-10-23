@@ -318,6 +318,13 @@ export function makeBoundPersonalHarness(ports: HarnessPorts, purpose?: Personal
       let settled = false;
       let planned: { readonly step: 'primary' | 'repair'; readonly requestHash: string } | undefined;
       const access = ports.personalAccess;
+      let accountingRevoked = false;
+      async function enter<T>(authority: PersonalAuthority, work: (scope: PersonalScopeTx) => Promise<T>) {
+        accountingRevoked = false;
+        const result = await access.enter(authority, descriptor, purpose, work);
+        accountingRevoked = result.kind === 'refused' && result.refusal.accountingRevoked === true;
+        return result;
+      }
       const check = (scope: PersonalScopeTx) => access.check(scope, descriptor, purpose);
       const checkAttempt = async (scope: PersonalScopeTx, step: string) => {
         if (!planned || step !== planned.step) throw new PersonalReasoningRefused('request_mismatch');
@@ -336,7 +343,7 @@ export function makeBoundPersonalHarness(ports: HarnessPorts, purpose?: Personal
         async find(scopeId, runId, step) {
           if (scopeId !== input.run.authority.universeId || runId !== input.run.id)
             throw new PersonalReasoningRefused('run_mismatch');
-          const read = await access.enter(input.run.authority, descriptor, purpose, async (scope) => {
+          const read = await enter(input.run.authority, async (scope) => {
             await checkAttempt(scope, step);
             return ledger.findLocked(scope, runId, step);
           });
@@ -345,6 +352,7 @@ export function makeBoundPersonalHarness(ports: HarnessPorts, purpose?: Personal
               ['run_mismatch', 'run_closed', 'output_ineligible', 'request_mismatch'].includes(read.refusal.kind)
                 ? (read.refusal.kind as 'run_mismatch' | 'run_closed' | 'output_ineligible' | 'request_mismatch')
                 : 'scope_refused',
+              read.refusal.accountingRevoked === true,
             );
           return read.value;
         },
@@ -380,7 +388,7 @@ export function makeBoundPersonalHarness(ports: HarnessPorts, purpose?: Personal
         async readProtectedRequest(attempt) {
           const expected = planned;
           if (!expected) throw new PersonalReasoningRefused('request_mismatch');
-          const read = await access.enter(input.run.authority, descriptor, purpose, async (scope) => {
+          const read = await enter(input.run.authority, async (scope) => {
             await checkAttempt(scope, expected.step);
             return access.readProtected(scope, descriptor, attempt, expected.step, expected.requestHash);
           });
@@ -389,10 +397,33 @@ export function makeBoundPersonalHarness(ports: HarnessPorts, purpose?: Personal
               ['run_mismatch', 'run_closed', 'output_ineligible', 'request_mismatch'].includes(read.refusal.kind)
                 ? (read.refusal.kind as 'run_mismatch' | 'run_closed' | 'output_ineligible' | 'request_mismatch')
                 : 'scope_refused',
+              read.refusal.accountingRevoked === true,
             );
           return read.value;
         },
         async settle(...args) {
+          const [attempt, from, to, details] = args;
+          if (from === 'reserved' && to === 'not_sent' && details?.outcomeCode === 'AUTHORITY_REFUSED') {
+            // Applies to the existing admission/dispatch-refusal branches too. Stale owner/
+            // claim/header denial cannot cancel a newer eligible claim's shared reservation.
+            if (
+              !accountingRevoked ||
+              !planned ||
+              (planned.step !== 'primary' && planned.step !== 'repair') ||
+              attempt.scopeId !== input.run.authority.universeId
+            )
+              return false;
+            return (
+              (await ledger.releaseUndispatchedPersonal?.({
+                scopeId: attempt.scopeId,
+                privacyEpoch: input.run.authority.privacyEpoch,
+                run: descriptor,
+                step: planned.step,
+                requestHash: planned.requestHash,
+                attemptId: attempt.attemptId,
+              })) === 'released'
+            );
+          }
           const result = await ledger.settle(...args);
           // Accounting ALWAYS runs, including after revocation. Only the later private read refuses.
           if (result) settled = true;
@@ -405,11 +436,11 @@ export function makeBoundPersonalHarness(ports: HarnessPorts, purpose?: Personal
         beforeAttempt: (step, requestHash) => {
           planned = { step, requestHash };
         },
-        withScope: (authority, work) => access.enter(authority, descriptor, purpose, work),
+        withScope: enter,
         authorityHolds: async (authority) => {
           if (!(await ports.authorityHolds(authority))) return false;
           try {
-            return (await access.enter(authority, descriptor, purpose, () => Promise.resolve(true))).kind === 'entered';
+            return (await enter(authority, () => Promise.resolve(true))).kind === 'entered';
           } catch (error) {
             if (error instanceof PersonalReasoningRefused) return false;
             throw error;
@@ -422,6 +453,23 @@ export function makeBoundPersonalHarness(ports: HarnessPorts, purpose?: Personal
         return await engine.propose(input, signal);
       } catch (error) {
         if (!(error instanceof PersonalReasoningRefused)) throw error;
+        if (
+          !settled &&
+          error.reason === 'scope_refused' &&
+          error.accountingRevoked &&
+          planned &&
+          (planned.step === 'primary' || planned.step === 'repair')
+        ) {
+          // A revoked private read cannot reveal the row, but exact undispatched accounting may
+          // still release its proven held receipt. Missing/unproved capability leaves it held.
+          await ledger.releaseUndispatchedPersonal?.({
+            scopeId: input.run.authority.universeId,
+            privacyEpoch: input.run.authority.privacyEpoch,
+            run: descriptor,
+            step: planned.step,
+            requestHash: planned.requestHash,
+          });
+        }
         return { kind: 'refused', reason: settled ? 'output_ineligible' : error.reason };
       }
     },

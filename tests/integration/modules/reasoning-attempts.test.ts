@@ -25,6 +25,26 @@ import {
   systemAuthority,
 } from '../support/fixture-model.js';
 import { type FixtureModelPort, type FixtureScenario } from '../support/fixture-model-port.js';
+import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { accountAccessUseCases, recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-providers';
+import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
+import { fencePersonalRecording } from '@knowscroll/backend/infrastructure/postgres';
+import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
+import { REQUEST_PLANNER, type RequestPlanner } from '@knowscroll/backend/modules/planner';
+import {
+  plannerRequestProviders,
+  plannerStore,
+  plannerContextItems,
+  makeCheckPlannerRecordingRun,
+  type FrozenContext,
+  type PlannerPorts,
+} from '@knowscroll/backend/modules/planner/nest-providers';
+import { geographyStore, makeCheckGeographyRecordingRun } from '@knowscroll/backend/modules/geography/nest-providers';
+import { personalRecordingReasoningHarnessFor } from '@knowscroll/backend/reasoning/nest-providers';
+import type { PersonalRecordingPurpose } from '@knowscroll/backend/reasoning';
+import { buildFromProviders } from '../support/providers.js';
+import { scrollUseCases } from '../support/scroll.js';
+import { recordingPerson } from '../support/recording-person.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { fixtureModelQueue } from '../support/queues.js';
 
@@ -199,14 +219,18 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     expect(await running).toEqual({
       kind: 'refused',
       reason: 'output_ineligible',
-      attemptId: expect.any(String) as unknown,
     });
     expect(await states(person.universeId)).toEqual([
       { step: 'primary', state: 'succeeded', outcome: 'SUCCEEDED', remote: 'fixture-late', settled: true },
     ]);
+    const [attempt] = await attemptsOf(database.db, person.universeId);
+    expect(await receiptsOf(database.db, [attempt!.id])).toEqual([
+      expect.objectContaining({ state: 'settled', input_tokens: 40, output_tokens: 12 }),
+    ]);
+    expect(model.calls).toHaveLength(1);
   });
 
-  it('checks eligibility without the personal lock, so a busy universe cannot cost a paid answer', async () => {
+  it('settles the paid answer while busy, withholds its protected read, then replays once after releasing the root', async () => {
     const person = await seedPerson(database.db);
     const inFlight = gate();
     const release = gate<FixtureScenario>();
@@ -214,7 +238,9 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
       inFlight.open();
       return { kind: 'hold', until: release.promise };
     });
-    const running = propose(harness(model), person, randomUUID());
+    const h = harness(model),
+      runId = randomUUID();
+    const running = propose(h, person, runId);
     await inFlight.promise;
     // Another transaction holds the personal root from now until the step has returned.
     const holding = gate();
@@ -228,9 +254,20 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     );
     await locked.promise;
     release.open({ kind: 'success', text: '{"ok": true, "echo": "busy"}', remoteId: 'fixture-busy' });
-    expect(echo(await running)).toEqual({ ok: true, echo: 'busy' });
-    holding.open();
-    await holder;
+    try {
+      await expect(running).rejects.toMatchObject({ name: 'ScopeBusyError' });
+      const [attempt] = await attemptsOf(database.db, person.universeId);
+      expect(attempt).toMatchObject({ state: 'succeeded', outcome_code: 'SUCCEEDED', remote_id: 'fixture-busy' });
+      expect(attempt!.settled_at).not.toBeNull();
+      expect(await receiptsOf(database.db, [attempt!.id])).toEqual([
+        expect.objectContaining({ state: 'settled', input_tokens: 40, output_tokens: 12 }),
+      ]);
+    } finally {
+      holding.open();
+      await holder;
+    }
+    expect(echo(await propose(h, person, runId))).toEqual({ ok: true, echo: 'busy' });
+    expect(model.calls).toHaveLength(1);
   });
 
   it('keeps a paid answer when the eligibility check fails, and the redelivery applies it without a second call', async () => {
@@ -283,6 +320,445 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     expect(await states(person.universeId)).toEqual([
       { step: 'primary', state: 'not_sent', outcome: 'AUTHORITY_REFUSED', remote: null, settled: true },
     ]);
+    const [stopped] = await attemptsOf(database.db, person.universeId);
+    expect(await receiptsOf(database.db, [stopped!.id])).toEqual([expect.objectContaining({ state: 'released' })]);
+  });
+
+  async function cancellationFixture(missingCapability = false) {
+    const person = await seedPerson(database.db),
+      model = fixtureModel(),
+      runId = randomUUID();
+    const ledger = makeAttemptLedger(database.db),
+      selected = { ...ledger };
+    if (missingCapability) delete selected.releaseUndispatchedPersonal;
+    const h = fixtureHarness(database.db, {
+      model: { ...model, observeQuota: () => Promise.reject(new Error('CI_RESERVED_BEFORE_QUOTA')) },
+      overrides: { ledger: selected },
+    }).harness;
+    await expect(propose(h, person, runId)).rejects.toThrow('CI_RESERVED_BEFORE_QUOTA');
+    const [attempt] = await attemptsOf(database.db, person.universeId);
+    if (!attempt) throw new Error('CI_RESERVED_ATTEMPT_MISSING');
+    const input = {
+      scopeId: person.universeId,
+      privacyEpoch: 1,
+      step: 'primary' as const,
+      requestHash: attempt.request_hash,
+      run: {
+        id: runId,
+        ownerModule: 'fixture',
+        purpose: 'fixture-echo',
+        policyVersion: 'fixture.v1',
+        roleId: echoRole.id,
+        roleVersion: echoRole.version,
+        provider: model.provider,
+        model: model.model,
+        contextBundleRef: fixtureContext.bundleRef,
+        contextRefs: fixtureContext.items.map((item) => item.ref),
+      },
+    };
+    return { person, model, runId, ledger, h, attempt, input };
+  }
+  it('keeps the reservation held when the explicitly personal cancellation capability is unavailable', async () => {
+    const f = await cancellationFixture(true);
+    await advanceEpoch(database.db, f.person.universeId);
+    expect(await propose(f.h, f.person, f.runId)).toEqual({ kind: 'refused', reason: 'scope_refused' });
+    expect(await states(f.person.universeId)).toEqual([
+      { step: 'primary', state: 'reserved', outcome: null, remote: null, settled: false },
+    ]);
+    expect(await receiptsOf(database.db, [f.attempt.id])).toEqual([expect.objectContaining({ state: 'held' })]);
+    expect(f.model.calls).toHaveLength(0);
+  });
+  it.each([
+    'run',
+    'descriptor',
+    'epoch',
+    'request',
+    'receipt_missing',
+    'receipt_mismatch',
+    'proof',
+    'receipt_not_held',
+    'receipt_usage',
+    'erased_attempt',
+    'attempt_settled',
+    'dispatch_id',
+    'dispatched',
+    'unknown',
+    'overflow',
+  ] as const)('refuses necessary cancellation for %s without changing retained accounting', async (mode) => {
+    const f = await cancellationFixture();
+    let input = f.input;
+    if (mode === 'run') input = { ...input, run: { ...input.run, id: randomUUID() } };
+    if (mode === 'descriptor') input = { ...input, run: { ...input.run, purpose: 'other-purpose' } };
+    if (mode === 'epoch') input = { ...input, privacyEpoch: 2 };
+    if (mode === 'request') input = { ...input, requestHash: '0'.repeat(64) };
+    if (mode === 'receipt_missing')
+      await database.db.deleteFrom('reasoning.usage_receipts').where('attempt_id', '=', f.attempt.id).execute();
+    if (mode === 'receipt_mismatch')
+      await database.db
+        .updateTable('reasoning.usage_receipts')
+        .set({ model: 'different-model' })
+        .where('attempt_id', '=', f.attempt.id)
+        .execute();
+    if (mode === 'receipt_not_held')
+      await database.db
+        .updateTable('reasoning.usage_receipts')
+        .set({ state: 'unknown' })
+        .where('attempt_id', '=', f.attempt.id)
+        .execute();
+    if (mode === 'receipt_usage')
+      await database.db
+        .updateTable('reasoning.usage_receipts')
+        .set({ input_tokens: 1 })
+        .where('attempt_id', '=', f.attempt.id)
+        .execute();
+    if (mode === 'erased_attempt')
+      await database.db
+        .updateTable('reasoning.external_attempts')
+        .set({ privacy_erased_at: new Date() })
+        .where('id', '=', f.attempt.id)
+        .execute();
+    if (mode === 'attempt_settled')
+      await database.db
+        .updateTable('reasoning.external_attempts')
+        .set({ settled_at: new Date() })
+        .where('id', '=', f.attempt.id)
+        .execute();
+    if (mode === 'dispatch_id')
+      await database.db
+        .updateTable('reasoning.external_attempts')
+        .set({ dispatch_id: randomUUID() })
+        .where('id', '=', f.attempt.id)
+        .execute();
+    if (mode === 'dispatched' || mode === 'unknown') {
+      const entered = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(f.person.authority, (scope) =>
+        f.ledger.commitDispatch(scope, f.attempt.id, {
+          dispatchId: randomUUID(),
+          dispatchedBy: 'ci-cancel-negative',
+          quota: {
+            verdict: 'not_applicable',
+            intervalRemainingPercent: null,
+            weeklyRemainingPercent: null,
+          },
+        }),
+      );
+      expect(entered).toEqual({ kind: 'entered', value: true });
+      if (mode === 'unknown')
+        expect(
+          await f.ledger.settle({ scopeId: f.person.universeId, attemptId: f.attempt.id }, 'dispatched', 'unknown'),
+        ).toBe(true);
+    }
+    if (mode === 'overflow') {
+      const existing = await database.db
+        .selectFrom('reasoning.external_attempts')
+        .selectAll()
+        .where('id', '=', f.attempt.id)
+        .executeTakeFirstOrThrow();
+      // Explicit malformed retained-history fixture, never a new production admission.
+      for (let n = 2; n <= 9; n++)
+        await database.db
+          .insertInto('reasoning.external_attempts')
+          .values({ ...existing, id: randomUUID(), step: `primary.${n}` })
+          .execute();
+    }
+    const before = await attemptsOf(database.db, f.person.universeId),
+      receipts = await receiptsOf(
+        database.db,
+        before.map((a) => a.id),
+      );
+    expect(
+      await f.ledger.releaseUndispatchedPersonal!(
+        mode === 'proof'
+          ? {
+              ...input,
+              run: {
+                ...input.run,
+                recording: {
+                  accountId: f.person.accountId,
+                  generation: 1,
+                  contextSha256: '0'.repeat(64),
+                  modelContextSha256: '0'.repeat(64),
+                },
+              },
+            }
+          : input,
+      ),
+    ).toBe('unavailable');
+    expect(await attemptsOf(database.db, f.person.universeId)).toEqual(before);
+    expect(
+      await receiptsOf(
+        database.db,
+        before.map((a) => a.id),
+      ),
+    ).toEqual(receipts);
+    expect(f.model.calls).toHaveLength(0);
+  });
+  it('serializes cancellation with actual dispatch CAS: exactly one wins and no uncertain charge is refunded', async () => {
+    const f = await cancellationFixture();
+    const [cancelled, dispatched] = await Promise.all([
+      f.ledger.releaseUndispatchedPersonal!(f.input),
+      makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(f.person.authority, (scope) =>
+        f.ledger.commitDispatch(scope, f.attempt.id, {
+          dispatchId: randomUUID(),
+          dispatchedBy: 'ci-cancel-race',
+          quota: { verdict: 'not_applicable', intervalRemainingPercent: null, weeklyRemainingPercent: null },
+        }),
+      ),
+    ]);
+    expect(dispatched.kind).toBe('entered');
+    if (dispatched.kind !== 'entered') throw new Error('CI_DISPATCH_RACE_SCOPE');
+    const [row] = await attemptsOf(database.db, f.person.universeId);
+    if (cancelled === 'released') {
+      expect(dispatched.value).toBe(false);
+      expect(row).toMatchObject({ state: 'not_sent', outcome_code: 'AUTHORITY_REFUSED', dispatch_id: null });
+      expect(await receiptsOf(database.db, [f.attempt.id])).toEqual([expect.objectContaining({ state: 'released' })]);
+    } else {
+      expect(dispatched.value).toBe(true);
+      expect(row).toMatchObject({ state: 'dispatched', settled_at: null });
+      expect(await receiptsOf(database.db, [f.attempt.id])).toEqual([expect.objectContaining({ state: 'held' })]);
+    }
+    expect(f.model.calls).toHaveLength(0);
+  });
+
+  it.each(['paused', 'resumed'] as const)(
+    'releases only proved undispatched old initial1 work after actual %s generation revocation',
+    async (mode) => {
+      const f = await cancellationFixture();
+      const policy = recordingPolicyFor(database.db, { lockTimeoutMs: 5000 });
+      expect(
+        await policy.set(f.person.authority, {
+          version: 'recording-policy.v1',
+          commandId: randomUUID(),
+          expectedPrivacyEpoch: 1,
+          expectedRecordingGeneration: 1,
+          on: false,
+        }),
+      ).toMatchObject({ kind: 'ok' });
+      if (mode === 'resumed')
+        expect(
+          await policy.set(f.person.authority, {
+            version: 'recording-policy.v1',
+            commandId: randomUUID(),
+            expectedPrivacyEpoch: 1,
+            expectedRecordingGeneration: 2,
+            on: true,
+          }),
+        ).toMatchObject({ kind: 'ok' });
+      expect(await propose(f.h, f.person, f.runId)).toEqual({ kind: 'refused', reason: 'scope_refused' });
+      expect(await states(f.person.universeId)).toEqual([
+        { step: 'primary', state: 'not_sent', outcome: 'AUTHORITY_REFUSED', remote: null, settled: true },
+      ]);
+      expect(await receiptsOf(database.db, [f.attempt.id])).toEqual([expect.objectContaining({ state: 'released' })]);
+      expect(f.model.calls).toHaveLength(0);
+    },
+  );
+  it.each(['wrong_account', 'wrong_account_old_epoch', 'unproved_owner_old_epoch'] as const)(
+    'keeps reserved accounting held for %s without an actual own-account revocation proof',
+    async (mode) => {
+      const f = await cancellationFixture(),
+        other = await seedPerson(database.db);
+      if (mode !== 'wrong_account') await advanceEpoch(database.db, f.person.universeId);
+      const authority = {
+        ...f.person.authority,
+        actor: {
+          kind: 'account' as const,
+          accountId: mode === 'unproved_owner_old_epoch' ? f.person.accountId : other.accountId,
+        },
+      };
+      expect(
+        await f.h.propose({ run: fixtureRun(authority, f.runId), role: echoRole, context: fixtureContext }, signal()),
+      ).toEqual({ kind: 'refused', reason: 'scope_refused' });
+      expect(await states(f.person.universeId)).toEqual([
+        { step: 'primary', state: 'reserved', outcome: null, remote: null, settled: false },
+      ]);
+      expect(await receiptsOf(database.db, [f.attempt.id])).toEqual([expect.objectContaining({ state: 'held' })]);
+      expect(f.model.calls).toHaveLength(0);
+    },
+  );
+  it.each(['lookup', 'dispatch'] as const)('a stale owner claim cannot cancel current claim C at %s', async (phase) => {
+    const person = await recordingPerson(database),
+      c = await scrollUseCases(database, { recording: true });
+    const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
+    const identity = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 });
+    const SCOPE = Symbol('CI.recording.scope'),
+      ENQUEUE = Symbol('CI.recording.enqueue');
+    const providers = plannerRequestProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE });
+    const values = new Map<symbol, unknown>([
+      [SCOPE, withScope],
+      [ENQUEUE, makeEnqueueJob(c.boss)],
+      [FENCE_OWN_ACCOUNT, identity.fenceOwnAccount],
+      [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
+    ]);
+    for (const provider of providers)
+      values.set(provider.provide, buildFromProviders(providers, provider.provide, values));
+    const request = values.get(REQUEST_PLANNER) as RequestPlanner;
+    const queue = values.get(providers[0]!.provide) as Pick<PlannerPorts, 'enqueue'>;
+    try {
+      const commandId = randomUUID(),
+        accepted = await request(person.authority, { commandId, recordingGeneration: 1 });
+      if (accepted.kind !== 'accepted') throw new Error('CI_ACTUAL_OWNER_REQUEST');
+      const runId = accepted.runId,
+        claimA = randomUUID(),
+        claimC = randomUUID();
+      const prepared = await withScope(person.authority, async (scope) => {
+        expect((await identity.fenceOwnAccount(scope)).kind).toBe('active');
+        const cap = await fencePersonalRecording(scope, 1);
+        if (cap.kind !== 'recording') throw new Error('CI_ACTUAL_OWNER_RECORDING');
+        const header = await plannerStore.header(scope, runId);
+        if (!header?.normalWakeId) throw new Error('CI_ACTUAL_OWNER_HEADER');
+        const evaluatedAt = new Date().toISOString(),
+          snapshot = await c.readExploration(scope, {
+            evaluatedAt,
+            topicIds: [],
+            candidates: [],
+            provisionalLimit: 0,
+          });
+        expect(snapshot.proofAvailability).toBe('available');
+        // Financial protocol fixture: valid empty current PC snapshot, not a positive Planner proposal.
+        const context: FrozenContext = {
+          version: 'planner-context.v0',
+          evaluatedAt,
+          desiredRevision: 1,
+          contextRevision: snapshot.revision,
+          scopeRevision: scope.revisionAtEntry,
+          intent: { availability: 'unavailable', language: 'en', topicIds: [] },
+          selection: {
+            policy: 'plan_inventory_recent_union.v0',
+            recentHasMore: false,
+            topicsTruncated: false,
+            inventoryBound: 100,
+            completeness: 'not_asserted',
+          },
+          snapshot,
+          facts: {
+            evaluatedAt,
+            topics: [],
+            evidence: [],
+            inventory: [],
+            hiddenAssetIds: snapshot.routing.hiddenAssetIds,
+          },
+          currentPlan: [],
+          memory: [],
+        };
+        const modelContext = { bundleRef: `planner:${runId}`, items: plannerContextItems(context) };
+        const contextSha256 = canonicalSha256(context),
+          modelContextSha256 = canonicalSha256(modelContext),
+          until = new Date(Date.now() + 60000);
+        expect(await plannerStore.consumeNormalWake(scope, runId, header.normalWakeId)).toBe(true);
+        await plannerStore.writeRun(scope, {
+          ...header,
+          status: 'prepared',
+          context,
+          contextSha256,
+          modelContextSha256,
+          normalWakeId: undefined,
+          claimId: claimA,
+          claimUntil: until.toISOString(),
+        });
+        await queue.enqueue(cap.scope, runId, { startAfter: until, expectedClaimId: claimA });
+        return { modelContext, contextSha256, modelContextSha256 };
+      });
+      if (prepared.kind !== 'entered') throw new Error('CI_ACTUAL_OWNER_PREPARE');
+      async function renew() {
+        const changed = await withScope(person.authority, async (scope) => {
+          expect((await identity.fenceOwnAccount(scope)).kind).toBe('active');
+          const cap = await fencePersonalRecording(scope, 1),
+            header = await plannerStore.header(scope, runId);
+          if (cap.kind !== 'recording' || !header) throw new Error('CI_ACTUAL_OWNER_RENEW');
+          const until = new Date(Date.now() + 60000);
+          await plannerStore.writeRun(scope, {
+            ...header,
+            claimId: claimC,
+            claimWakeClaimId: undefined,
+            claimUntil: until.toISOString(),
+          });
+          await queue.enqueue(cap.scope, runId, { startAfter: until, expectedClaimId: claimC });
+        });
+        expect(changed.kind).toBe('entered');
+      }
+      const model = fixtureModel(),
+        ledger = makeAttemptLedger(database.db);
+      let cancellations = 0;
+      const guarded = {
+        ...ledger,
+        releaseUndispatchedPersonal: async (
+          ...args: Parameters<NonNullable<AttemptLedger['releaseUndispatchedPersonal']>>
+        ) => {
+          cancellations++;
+          return ledger.releaseUndispatchedPersonal!(...args);
+        },
+      };
+      const harness = personalRecordingReasoningHarnessFor({
+        db: database.db,
+        withPersonalScope: withScope,
+        fenceOwn: identity.fenceOwnAccount,
+        model: {
+          ...model,
+          observeQuota: async (abort) => {
+            if (phase === 'lookup') throw new Error('CI_OWNER_RESERVED');
+            await renew();
+            return model.observeQuota(abort);
+          },
+        },
+        settings: fixtureHarness(database.db, { model }).ports.settings,
+        logEvent: silent,
+        overrides: { ledger: guarded },
+        checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now: () => new Date() }),
+        checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now: () => new Date() }),
+      });
+      const purpose: PersonalRecordingPurpose = {
+        version: 'personal-role-purpose.v1',
+        accountId: person.accountId,
+        universeId: person.universeId,
+        privacyEpoch: 1,
+        ownerModule: 'planner',
+        purpose: 'personal-planner',
+        businessRunId: runId,
+        recordingGeneration: 1,
+        claimId: claimA,
+        contextSha256: prepared.value.contextSha256,
+        modelContextSha256: prepared.value.modelContextSha256,
+      };
+      const input = {
+        run: {
+          ...fixtureRun(systemAuthority(person.universeId), runId),
+          ownerModule: 'planner',
+          purpose: 'personal-planner',
+        },
+        role: echoRole,
+        context: prepared.value.modelContext,
+        recordingPurpose: purpose,
+      };
+      if (phase === 'lookup') {
+        await expect(harness.proposePersonal(input, signal())).rejects.toThrow('CI_OWNER_RESERVED');
+        await renew();
+      }
+      const before = await attemptsOf(database.db, person.universeId);
+      const result = await harness.proposePersonal(input, signal());
+      expect(result).toEqual({ kind: 'refused', reason: 'scope_refused' });
+      expect(cancellations).toBe(0);
+      const after = await attemptsOf(database.db, person.universeId);
+      if (phase === 'lookup') expect(after).toEqual(before);
+      expect(after).toEqual([
+        expect.objectContaining({ state: 'reserved', outcome_code: null, settled_at: null, dispatch_id: null }),
+      ]);
+      expect(
+        await receiptsOf(
+          database.db,
+          after.map((a) => a.id),
+        ),
+      ).toEqual([expect.objectContaining({ state: 'held' })]);
+      expect(
+        await database.db
+          .selectFrom('planner.runs')
+          .select(['claim_id', 'claim_wake_claim_id'])
+          .where('universe_id', '=', person.universeId)
+          .where('id', '=', runId)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ claim_id: claimC, claim_wake_claim_id: claimC });
+      expect(model.calls).toHaveLength(0);
+    } finally {
+      await c.close();
+    }
   });
 
   it('dispatches a reserved attempt left by an earlier delivery with its stored bytes, once', async () => {
