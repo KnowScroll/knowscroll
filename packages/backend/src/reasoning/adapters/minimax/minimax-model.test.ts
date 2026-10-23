@@ -48,6 +48,7 @@ function fakeFetch(respond: (call: Call) => Promise<Response> | Response) {
 const okBody = JSON.stringify({
   id: 'msg_fixture_02',
   type: 'message',
+  model: 'MiniMax-M3',
   content: [{ type: 'text', text: '{"ok": true}' }],
   stop_reason: 'end_turn',
   usage: { input_tokens: 20, output_tokens: 5, cache_read_input_tokens: 0 },
@@ -90,6 +91,68 @@ describe('the MiniMax transport (fake fetch)', () => {
     });
     expect(first.startsWith('{"max_tokens":256,"messages":')).toBe(true);
     expect(first).not.toContain('sk-cp-');
+  });
+
+  it('asks MiniMax-M3.1-Flash for adaptive thinking at the requested effort, M3 for none, and sends the rest no thinking parameter', () => {
+    const encoded = (model: MiniMaxSettings['model']) =>
+      JSON.parse(
+        new TextDecoder().decode(
+          makeMiniMaxModelPort({ ...settings, model }, fakeFetch(() => new Response(okBody)).impl).encode({
+            ...request,
+            effort: 'low',
+          }),
+        ),
+      ) as { model: string; thinking: { type: string }; output_config?: { effort: string } };
+    expect(encoded('MiniMax-M3.1-Flash')).toMatchObject({
+      model: 'MiniMax-M3.1-Flash',
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low' },
+    });
+    // `disabled` is verified for M3 only; an unverified model is not sent a parameter it may refuse.
+    expect(encoded('MiniMax-M3').thinking).toEqual({ type: 'disabled' });
+    for (const model of ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] as const)
+      expect(encoded(model)).not.toHaveProperty('thinking');
+    for (const model of ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] as const)
+      expect(encoded(model)).not.toHaveProperty('output_config');
+  });
+
+  it('gives a role that names no effort the low effort, so thinking cannot eat a small ceiling', () => {
+    const port = makeMiniMaxModelPort(
+      { ...settings, model: 'MiniMax-M3.1-Flash' },
+      fakeFetch(() => new Response(okBody)).impl,
+    );
+    expect(JSON.parse(new TextDecoder().decode(port.encode(request)))).toMatchObject({
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low' },
+    });
+  });
+
+  it('drops thinking blocks, reports thinking tokens and refuses an answer from another model', async () => {
+    const flash = { ...settings, model: 'MiniMax-M3.1-Flash' } as const;
+    const body = (model: string) =>
+      JSON.stringify({
+        id: 'msg_fixture_03',
+        model,
+        content: [
+          { type: 'thinking', thinking: 'private reasoning', signature: 'fixture' },
+          { type: 'text', text: '{"ok": true}' },
+        ],
+        stop_reason: 'end_turn',
+        usage: { input_tokens: 117, output_tokens: 91, output_tokens_details: { thinking_tokens: 56 } },
+      });
+    const served = makeMiniMaxModelPort(flash, fakeFetch(() => new Response(body('MiniMax-M3.1-Flash'))).impl);
+    const reply = await served.send(served.encode(request), signal());
+    expect(reply).toMatchObject({
+      usage: { outputTokens: 91, reasoningTokens: 56 },
+      answer: { kind: 'text', text: '{"ok": true}', stop: 'end' },
+    });
+    expect(JSON.stringify(reply)).not.toContain('private reasoning');
+
+    // An unknown model name is silently served by another model: the answer is refused, its usage is charged.
+    const substitute = makeMiniMaxModelPort(flash, fakeFetch(() => new Response(body('MiniMax-M3'))).impl);
+    const refusal = await thrown(substitute.send(substitute.encode(request), signal()));
+    expect(refusal).toBeInstanceOf(ModelRejectedError);
+    expect(refusal).toMatchObject({ code: 'MODEL_MISMATCH', usage: { outputTokens: 91 } });
   });
 
   it('sends exactly the given bytes once, with the key only in a header and redirects not followed', async () => {

@@ -662,6 +662,7 @@ describe('the reasoning harness (real database, fixture model)', () => {
             JSON.stringify({
               id: 'msg_canary',
               type: 'message',
+              model: 'MiniMax-M3',
               content: [
                 {
                   type: 'text',

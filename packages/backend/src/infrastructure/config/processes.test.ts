@@ -420,11 +420,29 @@ describe('process configuration', () => {
     });
     expect(config.reasoning.minimax).toEqual({
       apiKey: fixtureKey,
-      model: 'MiniMax-M3',
-      requestTimeoutMs: 60_000,
+      model: 'MiniMax-M3.1-Flash',
+      requestTimeoutMs: 240_000,
       quotaFloorPercent: 25,
     });
     expect(config.reasoning.caps.scope.requestsPerDay).toBe(5);
+  });
+
+  it('gives a reasoning request four minutes by default, accepts five and refuses more', () => {
+    // A Scroll writer request took up to 126 s on MiniMax-M3.1-Flash; an attempt cut off after the
+    // request left is `unknown` and never resent, so the default must not sit near the real latency.
+    const env = {
+      DATABASE_URL: secretUrl,
+      KS_WORLD: 'local',
+      KS_REASONING_PROVIDER: 'minimax',
+      MINIMAX_API_KEY: 'sk-cp-FIXTUREfixtureFIXTUREfixture0000',
+    };
+    expect(readWorkerConfig(env).reasoning.minimax?.requestTimeoutMs).toBe(240_000);
+    expect(
+      readWorkerConfig({ ...env, KS_MINIMAX_REQUEST_TIMEOUT_MS: '300000' }).reasoning.minimax?.requestTimeoutMs,
+    ).toBe(300_000);
+    expect(
+      configurationError(() => readWorkerConfig({ ...env, KS_MINIMAX_REQUEST_TIMEOUT_MS: '300001' })).problems,
+    ).toEqual(['KS_MINIMAX_REQUEST_TIMEOUT_MS: out_of_range']);
   });
 
   it('reads the worker operator command configuration (world and database only)', () => {
@@ -434,6 +452,22 @@ describe('process configuration', () => {
     const config = readWorkerOperatorConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev' });
     expect(config.world).toBe('dev');
     expect(config.database.applicationName).toBe('knowscroll-operator-dev');
+  });
+
+  it('defaults every role to MiniMax-M3.1-Flash unless the operator names another model', () => {
+    const env = {
+      KS_WORLD: 'local',
+      DATABASE_URL: secretUrl,
+      KS_REASONING_PROVIDER: 'minimax',
+      MINIMAX_API_KEY: 'sk-cp-FIXTUREfixtureFIXTUREfixture0000',
+    };
+    expect(readScrollProductionOperatorConfig(env).reasoning.minimax?.model).toBe('MiniMax-M3.1-Flash');
+    expect(
+      readScrollProductionOperatorConfig({ ...env, KS_MINIMAX_MODEL: 'MiniMax-M3' }).reasoning.minimax?.model,
+    ).toBe('MiniMax-M3');
+    expect(
+      configurationError(() => readScrollProductionOperatorConfig({ ...env, KS_MINIMAX_MODEL: 'MiniMax-M9' })).problems,
+    ).toContain('KS_MINIMAX_MODEL: not_allowed');
   });
 
   it('keeps Scroll production disabled and pins its expected grant generation explicitly', () => {

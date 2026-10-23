@@ -101,8 +101,8 @@ admitted or unchanged, 1 refused or failed, 2 usage. The release tree carries th
 | `KS_REASONING_PRODUCTION_ENABLED` | `0` | Worker-only nonpersonal Scroll supply grant (`0`/`1`). The database `scroll-supply` root must independently be enabled with the claimed generation. No provider activation. |
 | `KS_REASONING_PROVIDER` | `none` | the reasoning harness's model provider (S2.2). `none`: every `propose` is refused (`provider_unavailable`) before anything is reserved. `minimax`: the MiniMax token plan; any other value is refused at startup |
 | `MINIMAX_API_KEY` | required with `minimax`, otherwise unused | the token-plan key; must look like `sk-cp-…` (a pay-as-you-go key is refused: `invalid_format`). A credential: never logged, never in a problem message, never reaches the API (server: `/etc/knowscroll/secrets/shared/minimax.env`, an `EnvironmentFile=` of `ks2-worker@` only) |
-| `KS_MINIMAX_MODEL` | `MiniMax-M3` | one of `MiniMax-M3`, `MiniMax-M2.7`, `MiniMax-M2.7-highspeed` (`MiniMax-M3.1-Flash-Preview` is not on the token plan). Recorded on every attempt |
-| `KS_MINIMAX_REQUEST_TIMEOUT_MS` | 60000 (max 300000) | one request's whole exchange; a timeout after the request left is `unknown`, never resent |
+| `KS_MINIMAX_MODEL` | `MiniMax-M3.1-Flash` | one of `MiniMax-M3.1-Flash`, `MiniMax-M3`, `MiniMax-M2.7`, `MiniMax-M2.7-highspeed` (`MiniMax-M3.1-Flash-Preview` is not on the token plan). Recorded on every attempt |
+| `KS_MINIMAX_REQUEST_TIMEOUT_MS` | 240000 (max 300000) | one request's whole exchange; a timeout after the request left is `unknown`, never resent. `MiniMax-M3.1-Flash` thinks before it answers: a Scroll writer request took up to 126 s and a Planner request up to 225 s, so keep it at 240000 or more (the Planner needs 300000) |
 | `KS_MINIMAX_QUOTA_FLOOR_PERCENT` | 25 (1–100) | both quota windows must have at least this much remaining before an attempt is dispatched; ambiguous quota fails closed. 0 is refused: it would switch the check off |
 | `KS_REASONING_GLOBAL_REQUESTS_PER_DAY`, `KS_REASONING_GLOBAL_TOKENS_PER_DAY` | 300, 3,000,000 | daily caps (UTC day) for the whole process, counted from the minimal usage receipts |
 | `KS_REASONING_ROLE_REQUESTS_PER_DAY`, `KS_REASONING_ROLE_TOKENS_PER_DAY` | 200, 2,000,000 | default daily caps per role, across universes (a role may declare its own) |
@@ -123,7 +123,7 @@ caps; the provider's reported usage replaces the estimate at settlement. Details
 | `KS_DB_STATEMENT_TIMEOUT_MS` | 30000 | per-statement timeout |
 
 Subcommands: `reasoning write-off --attempt <uuid> --reason <text>`, `reasoning unknown [--limit n]`,
-`reasoning sweep-dispatched [--older-than-seconds n]`, `reasoning purge-expired`. It needs no provider key and no `KS_PUBLIC_ORIGIN`. One JSON result line on
+`reasoning sweep-dispatched [--older-than-seconds n]`, `reasoning purge-expired`, `reasoning rejected [--limit n | --attempt <uuid>]` (refused answers of Scroll production, kept 30 days). It needs no provider key and no `KS_PUBLIC_ORIGIN`. One JSON result line on
 stdout, diagnostic records on stderr. Exit 0 done, 2 refused or not applicable, 1 failure. The API
 tree's `dist/operator.js` is a different command (`issue-sign-in`). Running it on a world:
 `docs/v2/operations/environments.md`.

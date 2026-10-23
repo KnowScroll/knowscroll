@@ -22,10 +22,11 @@ import { seedPerson } from '../support/fixtures.js';
 import {
   answerWith,
   enableProductionScope,
-  fixtureClaimSelection,
+  FIXTURE_PROSE,
+  fixtureAuthored,
   fixtureProduction,
-  fixtureWriterDraft,
 } from '../support/generated-scroll.js';
+import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { baselineCapabilities } from '../support/scroll.js';
 
 /**
@@ -45,9 +46,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
   /** Recipes that name one page, because the fixture serves a single research page. */
   function publishing(recipeKey: ScrollTopic) {
     expect(TOPICS[recipeKey].pages).toHaveLength(1);
-    const run = fixtureProduction(database.db, (call) =>
-      answerWith(call === 1 ? fixtureClaimSelection : fixtureWriterDraft(TOPICS[recipeKey].interactive)),
-    );
+    const run = fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(TOPICS[recipeKey]))));
     return { ...run, publish: (resume = false) => run.produce(recipeKey, false, signal(), resume) };
   }
 
@@ -73,7 +72,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
       const run = publishing(recipeKey);
       const result = await run.publish();
       expect(result).toMatchObject({ outcome: 'published', assetId: recipe.assetId, revision: 1 });
-      expect(run.calls).toHaveLength(2);
+      expect(run.calls).toHaveLength(1);
 
       // Topic attribution: one primary topic carrying the whole weight.
       expect(
@@ -179,6 +178,40 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     },
   );
 
+  it('maps a real-shaped answer with exactly the three body blocks the rule needs, and publishes one with two without coverage', async () => {
+    const recipe = TOPICS.seasons;
+    const authored = fixtureAuthored(writerFormatOf(recipe));
+    const formatBlock = authored.blocks.find((block) => block.type === 'diagram');
+    if (formatBlock === undefined) throw new Error('CI_FORMAT_MISSING');
+    /** The fixture prose in `count` paragraphs, so the reading length stays the same. */
+    const withBodyBlocks = (count: number) => {
+      const size = FIXTURE_PROSE.length / count;
+      const paragraphs = Array.from({ length: count }, (_, index) => ({
+        type: 'paragraph' as const,
+        cites: [`e${index + 1}`, `e${index + 2}`],
+        text: FIXTURE_PROSE.slice(index * size, (index + 1) * size).join(' '),
+      }));
+      return { ...authored, blocks: [{ type: 'heading', text: 'The beam' }, ...paragraphs, formatBlock] };
+    };
+    const three = fixtureProduction(database.db, () => answerWith(withBodyBlocks(3)));
+    expect(await three.produce('seasons', false, signal())).toMatchObject({
+      outcome: 'published',
+      assetId: recipe.assetId,
+    });
+    expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([
+      { revision: 1 },
+    ]);
+
+    await database.drop();
+    database = await createTestDatabase<Database>('recipe_coverage');
+    await enableProductionScope(database.db);
+    const two = fixtureProduction(database.db, () => answerWith(withBodyBlocks(2)));
+    const result = await two.produce('seasons', false, signal());
+    expect(result.outcome).toBe('published');
+    expect(result.attempts).toContainEqual({ role: 'checks', kind: 'published', code: 'coverage_too_few_body_blocks' });
+    expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([]);
+  });
+
   it('lets two recipes of one planet each add their own facets', async () => {
     await publishing('seasons').publish();
     await publishing('seasons-limits').publish();
@@ -210,7 +243,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     );
     const run = publishing('seasons');
     await expect(run.publish()).rejects.toThrow('CI_COVERAGE_FAILURE');
-    expect(run.calls).toHaveLength(2);
+    expect(run.calls).toHaveLength(1);
     expect(await database.db.selectFrom('content.asset_revisions').select('asset_id').execute()).toEqual([]);
     expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([]);
     expect(
@@ -219,7 +252,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
 
     await sql`drop trigger ci_fail_coverage on content.coverage_revisions`.execute(database.db);
     expect((await run.publish(true)).outcome).toBe('published');
-    expect(run.calls).toHaveLength(2);
+    expect(run.calls).toHaveLength(1);
     expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([
       { revision: 1 },
     ]);

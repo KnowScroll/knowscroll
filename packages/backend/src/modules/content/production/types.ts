@@ -2,7 +2,7 @@ import type { ProductionAttemptAccounting } from '../../../reasoning/public.js';
 
 /** Code-only operator outcomes; no prompts, research, drafts or internal provenance. */
 export interface RoleReceipt {
-  readonly role: 'claims' | 'writer' | 'checks';
+  readonly role: 'writer' | 'checks';
   readonly kind: string;
   readonly attemptId?: string;
   readonly attempts?: readonly ProductionAttemptAccounting[];

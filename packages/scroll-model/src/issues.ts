@@ -112,6 +112,12 @@ export const REASON_CODES = [
   'media_not_offered',
   'copied_passage',
   'provenance_mismatch',
+  // Producer: authored documents (`scroll-authoring.v1`)
+  'authoring_reference_unknown',
+  'authoring_empty_section',
+  'authoring_cite_unknown',
+  'authoring_too_few_cites',
+  'authoring_number_not_in_evidence',
   // Producer: fit to the brief
   'reading_length_out_of_brief',
 ] as const;

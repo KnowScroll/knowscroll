@@ -221,6 +221,8 @@ export const diagnosticCatalogue = {
   'reasoning.dispatched_swept': { severity: 'warn', module: 'reasoning', fields: ['count'] },
   'reasoning.requests_purged': { severity: 'info', module: 'reasoning', fields: ['count'] },
   'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },
+  // A refused production answer could not be kept for diagnosis; the attempt's outcome is unchanged.
+  'reasoning.rejected_answer_not_recorded': { severity: 'warn', module: 'reasoning', fields: ['attemptId', 'error'] },
   'migrate.started': { severity: 'info', module: 'migrate', fields: ['count'] },
   'migrate.completed': { severity: 'info', module: 'migrate', fields: ['count', 'migration', 'durationMs'] },
   'migrate.failed': { severity: 'fatal', module: 'migrate', fields: ['migration', 'reasonCode', 'error'] },
