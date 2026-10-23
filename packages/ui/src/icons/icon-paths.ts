@@ -63,6 +63,8 @@ export const iconShapes = {
   // Media.
   play: [path('M7 4l13 8-13 8z', true)],
   pause: [path('M8 5v14M16 5v14')],
+  volume: [path('M4 9.5v5h4l5 4v-13l-5 4z'), path('M16.5 9a4 4 0 0 1 0 6'), path('M19 6.5a8 8 0 0 1 0 11')],
+  volumeOff: [path('M4 9.5v5h4l5 4v-13l-5 4z'), path('M17 9.5l4.5 5M21.5 9.5l-4.5 5')],
   reel: [path('M7 4l13 8-13 8z', true)],
   scroll: [path('M5 6h14M5 12h14M5 18h9')],
   // Status.

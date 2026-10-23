@@ -5,10 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createScrollRecorder, type AccountScope } from '@knowscroll/client-core';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import {
+  ActionStrip,
   Banner,
-  Button,
-  Text,
   ErrorState,
+  FormatSwitch,
   IconButton,
   OfflineState,
   Skeleton,
@@ -136,6 +136,11 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
   );
   return (
     <View style={styles.article}>
+      <View style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
+        <IconButton icon="back" label="Back" onPress={back} />
+        <View style={styles.spacer} />
+        <FormatSwitch selected="scroll" availability={{ reel: 'unavailable' }} showIcons onSelect={() => undefined} />
+      </View>
       <ActivatedScrollView
         scope={scope}
         scroll={scroll}
@@ -147,7 +152,7 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
           writeResume(scope, scroll.assetId, scroll.assetRevision, { kind: 'scroll', value })
         }
         {...(anchorBlockId === undefined ? {} : { anchorBlockId })}
-        topInset={insets.top + 72}
+        topInset={spacing[3]}
         bottomInset={spacing[24] + insets.bottom}
         readingBottomInset={insets.bottom}
         afterHeader={
@@ -155,45 +160,44 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
             {scroll.degradedEssential.length > 0 ? (
               <Banner kind="info" lead="Part of this Scroll needs an app update." message="It is shown here as text." />
             ) : null}
-            <Button
-              label={kept.state.save === 'unknown' ? 'Retry Save' : isKept ? 'Saved in Keep' : 'Save to Keep'}
-              disabled={isKept && kept.state.save !== 'unknown'}
-              busy={kept.state.save === 'sending'}
-              onPress={() => {
+            <ActionStrip
+              available={['save']}
+              saved={isKept}
+              saving={kept.state.save === 'sending'}
+              onAction={() => {
+                if (isKept) return;
                 capture();
                 void kept.surface.save();
               }}
             />
             {kept.state.save === 'unavailable' ? (
-              <Text variant="bodyS">Save couldn't start because earlier Saves still need confirmation.</Text>
+              <Banner kind="info" lead="Couldn't save yet." message="Earlier saves still need confirming." />
             ) : null}
             {kept.state.save === 'unknown' ? (
-              <Text variant="bodyS">Save wasn't confirmed. Retry checks the same Save.</Text>
+              <Banner
+                kind="error"
+                lead="Save wasn't confirmed."
+                message="Retrying checks the same save."
+                action={{
+                  label: 'Retry Save',
+                  onPress: () => {
+                    capture();
+                    void kept.surface.save();
+                  },
+                }}
+              />
             ) : null}
-            <Button
-              label="Keep this place"
-              variant="ghost"
-              disabled={
-                kept.state.place.snapshot?.status !== 'available' ||
-                kept.state.place.write === 'unknown' ||
-                kept.state.place.write === 'conflict'
-              }
-              onPress={() => {
-                void kept.surface.captureFresh();
-              }}
-            />
-            <KeepWriteStatus
-              state={kept.state.place}
-              refresh={kept.surface.refresh}
-              retry={kept.surface.retry}
-              resolve={kept.surface.resolveConflict}
-            />
+            {kept.state.place.write === 'unknown' || kept.state.place.write === 'conflict' ? (
+              <KeepWriteStatus
+                state={kept.state.place}
+                refresh={kept.surface.refresh}
+                retry={kept.surface.retry}
+                resolve={kept.surface.resolveConflict}
+              />
+            ) : null}
           </View>
         }
       />
-      <View style={[styles.floating, { top: insets.top + spacing[3] }]} pointerEvents="box-none">
-        <IconButton icon="back" label="Back" onPress={back} />
-      </View>
       <EvidencePanel scope={scope} exposureId={scroll.exposureId} />
     </View>
   );
@@ -324,5 +328,6 @@ const styles = StyleSheet.create({
   bar: { minHeight: 48, justifyContent: 'center', alignItems: 'flex-start' },
   state: { paddingTop: spacing[9], alignItems: 'center' },
   article: { flex: 1, backgroundColor: content.paper },
-  floating: { position: 'absolute', left: layout.gutter },
+  top: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], paddingHorizontal: layout.gutter, paddingBottom: spacing[2] },
+  spacer: { flex: 1 },
 });

@@ -1,7 +1,7 @@
 import { useCallback, type ReactNode, type Ref } from 'react';
 import type { AccountScope, ReelRecorder } from '@knowscroll/client-core';
 import type { ReelDocument } from '@knowscroll/contracts';
-import { Banner, ReelPlayer, type ReelPositionHandle } from '@knowscroll/ui';
+import { ReelPlayer, type ReelPlayerProps, type ReelPositionHandle } from '@knowscroll/ui';
 
 /** Grants remain in memory and renew against this same activated exposure. */
 export function ActivatedReelView({
@@ -16,14 +16,15 @@ export function ActivatedReelView({
   positionRef,
   retainedGrant,
   renderStage,
-  stageMaxHeight,
+  children,
 }: {
   readonly scope: AccountScope;
   readonly exposureId: string;
   readonly document: ReelDocument;
   readonly recorder: ReelRecorder;
   readonly active: boolean;
-  readonly stageMaxHeight?: number;
+  /** Chrome drawn over the full-bleed stage; see `ReelPlayer`. */
+  readonly children?: ReelPlayerProps['children'];
   readonly renderStage?: (stage: ReactNode) => ReactNode;
   readonly initialPositionMs?: number;
   readonly initialMuted?: boolean;
@@ -51,23 +52,21 @@ export function ActivatedReelView({
   const sample = useCallback((value: Parameters<ReelRecorder['sample']>[0]) => recorder.sample(value), [recorder]);
   const discontinuity = useCallback(() => recorder.discontinuity(), [recorder]);
   return (
-    <>
-      {document.fixture ? <Banner kind="info" lead="Fixture video" message="Local or CI demonstration media." /> : null}
-      <ReelPlayer
-        renderStage={renderStage}
-        stageMaxHeight={stageMaxHeight}
-        title={document.title}
-        durationMs={document.durationMs}
-        active={active && scope.active}
-        loadSource={source}
-        initialPositionMs={initialPositionMs}
-        initialMuted={initialMuted}
-        onMutedChange={onMutedChange}
-        positionRef={positionRef}
-        onSample={sample}
-        onDiscontinuity={discontinuity}
-        registerEnd={registerEnd}
-      />
-    </>
+    <ReelPlayer
+      renderStage={renderStage}
+      title={document.title}
+      durationMs={document.durationMs}
+      active={active && scope.active}
+      loadSource={source}
+      initialPositionMs={initialPositionMs}
+      initialMuted={initialMuted}
+      onMutedChange={onMutedChange}
+      positionRef={positionRef}
+      onSample={sample}
+      onDiscontinuity={discontinuity}
+      registerEnd={registerEnd}
+    >
+      {children}
+    </ReelPlayer>
   );
 }

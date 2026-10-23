@@ -9,8 +9,11 @@ import { Text } from '../text/text';
 
 export type EncounterFormat = 'reel' | 'scroll';
 
-/** Whether a format of this explanation can be opened now. */
-export type FormatAvailability = 'ready' | 'preparing' | 'unavailable';
+/**
+ * Whether a format of this explanation can be opened now. `requestable`: it does not exist yet
+ * but the person can ask for it; choosing it starts the caller's request flow (E06).
+ */
+export type FormatAvailability = 'ready' | 'preparing' | 'unavailable' | 'requestable';
 
 const formats: readonly EncounterFormat[] = ['reel', 'scroll'];
 const formatLabel: Record<EncounterFormat, string> = { reel: 'Reel', scroll: 'Scroll' };
@@ -70,6 +73,7 @@ function Option({
       {...radioSemantics(selected)}
       {...keyboard}
       accessibilityLabel={`${formatLabel[format]}${suffix}`}
+      accessibilityHint={availability === 'requestable' ? `Ask for a ${formatLabel[format]} of this explanation` : undefined}
       disabled={unavailable}
       aria-disabled={unavailable}
       onPress={selected || unavailable ? undefined : () => onSelect(format)}

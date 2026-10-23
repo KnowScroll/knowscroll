@@ -41,16 +41,22 @@ export function ReelGestureStage({
           return;
         }
         start.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
-        // The seam contains no controls. Keep this defensive exclusion for future interactive stage descendants.
-        const childOwns =
-          event.target instanceof Element &&
-          event.target.closest('button,a,input,select,textarea,[role="slider"],[contenteditable="true"]') !== null;
+        // A control inside the stage owns its pointer, except the play/pause surface that fills the
+        // whole stage: a drag across it is a swipe and a tap on it is a tap.
+        const control =
+          event.target instanceof Element
+            ? event.target.closest('button,a,input,select,textarea,[role="slider"],[contenteditable="true"]')
+            : null;
+        const childOwns = control !== null && control.getAttribute('data-testid') !== 'reel-playback-toggle';
         gesture.current = createGestureArbitrator({ startX: event.clientX, scroll: false, childOwns, native: false });
-        if (!childOwns) event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerMove={(event) => {
-        if (event.pointerId === start.current.pointerId)
-          gesture.current?.move(event.clientX - start.current.x, event.clientY - start.current.y);
+        if (event.pointerId !== start.current.pointerId) return;
+        const owner = gesture.current?.move(event.clientX - start.current.x, event.clientY - start.current.y);
+        // Capture only once a swipe is recognised: a plain tap must still reach the play/pause
+        // control under the pointer.
+        if ((owner === 'horizontal' || owner === 'vertical') && !event.currentTarget.hasPointerCapture(event.pointerId))
+          event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerUp={(event) => {
         if (event.pointerId !== start.current.pointerId) return;

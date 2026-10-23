@@ -62,7 +62,7 @@ export interface EncounterState {
   readonly actionPending?: boolean;
   readonly actionFailed?: boolean;
   readonly overlay: boolean;
-  readonly overlayOwner?: 'path' | 'request';
+  readonly overlayOwner?: 'path' | 'request' | 'share';
   readonly surfaceRevision: number;
   readonly contextReady?: boolean;
   readonly keepPlace?: KeepPlaceState;
@@ -540,7 +540,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     setOverlay(false);
     return true;
   });
-  const setOverlay = (overlay: boolean, overlayOwner: 'path' | 'request' = 'path') => {
+  const setOverlay = (overlay: boolean, overlayOwner: 'path' | 'request' | 'share' = 'path') => {
     if (overlay) history.park();
     else {
       const entry = history.current();
@@ -789,6 +789,18 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     openRequest(mode: RequestMode = 'topic') {
       if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return;
       if (requests.show(mode)) setOverlay(true, 'request');
+    },
+    /** The share sheet: an overlay like the menu, so playback pauses under it and Back closes it. */
+    openShare() {
+      if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return;
+      setOverlay(true, 'share');
+    },
+    /** Opens the finished requested content from the ready notice, without a second tap on the sheet. */
+    async openReadyRequest() {
+      if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return false;
+      if (!requests.show(requests.getState().mode)) return false;
+      setOverlay(true, 'request');
+      return requests.openReady();
     },
     gesture(move: EncounterGestureMove) {
       const entry = history.current();

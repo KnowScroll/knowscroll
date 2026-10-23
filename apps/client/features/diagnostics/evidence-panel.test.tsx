@@ -37,7 +37,10 @@ const evidence = {
   },
 };
 
-async function mount(world: string, diagnostics: () => Response) {
+async function mount(world: string, diagnostics: () => Response, developerSetting = true) {
+  // The panel is a developer setting: off unless the build asks for it.
+  if (developerSetting) process.env.EXPO_PUBLIC_KS_DEV_EVIDENCE = '1';
+  else delete process.env.EXPO_PUBLIC_KS_DEV_EVIDENCE;
   const paths: string[] = [];
   const scope: AccountScope = createAccountScope({
     account,
@@ -73,6 +76,18 @@ async function mount(world: string, diagnostics: () => Response) {
 }
 
 describe('the dev evidence panel', () => {
+  afterEach(() => {
+    delete process.env.EXPO_PUBLIC_KS_DEV_EVIDENCE;
+  });
+
+  it('is off by default: no panel and no request, even in a world with operator tools', async () => {
+    const { paths, scope } = await mount('local', () => json(200, evidence), false);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId('ks-dev-evidence')).toBeNull();
+    expect(paths).toEqual([]);
+    scope.end();
+  });
+
   it('shows the committed evidence of the exposure in a world with operator tools, and expands to its watermark', async () => {
     const { scope } = await mount('local', () => json(200, evidence));
     expect(await screen.findByText('rev 3 · qualified · q 0.73')).toBeOnTheScreen();

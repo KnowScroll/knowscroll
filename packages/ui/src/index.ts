@@ -12,6 +12,7 @@ export {
   type FormatAvailability,
   type FormatSwitchProps,
 } from './actions/format-switch';
+export { EdgeTab, type EdgeTabKind, type EdgeTabProps } from './actions/edge-tab';
 export { RequestStatusChip, type RequestStatus, type RequestStatusChipProps } from './actions/request-status-chip';
 export {
   ActionRail,
@@ -33,4 +34,12 @@ export { NavRail, type NavRailProps } from './navigation/nav-rail';
 export { TopBar, type TopBarProps } from './navigation/top-bar';
 export { AccountButton, type AccountButtonProps } from './navigation/account-button';
 export * from './scroll';
-export { ReelPlayer, type ReelPlayerProps, type ReelLocalPosition, type ReelPositionHandle } from './media/reel-player';
+export {
+  ReelPlayer,
+  type ReelLocalPosition,
+  type ReelPlaybackStatus,
+  type ReelPlaybackView,
+  type ReelPlayerProps,
+  type ReelPositionHandle,
+} from './media/reel-player';
+export { ReelProgress, formatClock, type ReelProgressProps } from './media/reel-progress';

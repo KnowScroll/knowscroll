@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { setStatusBarStyle } from 'expo-status-bar';
 import {
   freezeRecordingCommand,
   recordingCommandFields,
@@ -9,15 +9,16 @@ import {
   type AccountScope,
 } from '@knowscroll/client-core';
 import { DirectActivateExposureResponseSchema, type ReelDocument } from '@knowscroll/contracts';
-import { content, layout, spacing } from '@knowscroll/design-tokens';
+import { content, spacing } from '@knowscroll/design-tokens';
 import {
   ActionRail,
   Banner,
-  Button,
   FormatSwitch,
   IconButton,
+  ReelProgress,
   Skeleton,
   StateBlock,
+  Tag,
   Text,
   type ReelPositionHandle,
 } from '@knowscroll/ui';
@@ -30,11 +31,11 @@ import { KeepWriteStatus } from '../saved/keep-detail';
 import { readResume, writeResume } from '../encounter/encounter-history';
 import { savedRemovalFor } from '../saved/saved-query';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
+import { useEncounterMetrics } from '../encounter/encounter-metrics';
 import { ReelPage, useReelPageStage } from './reel-page';
 import { ActivatedReelView } from './activated-reel-view';
 
 function OpenReel({ scope, assetId }: { scope: AccountScope; assetId: string }) {
-  const insets = useSafeAreaInsets();
   const [opened, setOpened] = useState<{
     exposureId: string;
     document: ReelDocument;
@@ -93,21 +94,17 @@ function OpenReel({ scope, assetId }: { scope: AccountScope; assetId: string }) 
   if (failed) return <StateBlock title="This Reel isn't available" body="Check your connection, then open it again." />;
   if (!opened) return <Skeleton rows={3} label="Opening the Reel" />;
   return (
-    <ReelPage
-      testID="direct-reel-page"
-      topInset={insets.top}
-      bottomInset={insets.bottom}
-      leftInset={insets.left}
-      rightInset={insets.right}
-    >
-      <ReadyReel
-        scope={scope}
-        exposureId={opened.exposureId}
-        document={opened.document}
-        recordingGeneration={opened.recordingGeneration}
-        recordingSessionId={opened.recordingSessionId}
-      />
-    </ReelPage>
+    <View style={styles.ground}>
+      <ReelPage testID="direct-reel-page">
+        <ReadyReel
+          scope={scope}
+          exposureId={opened.exposureId}
+          document={opened.document}
+          recordingGeneration={opened.recordingGeneration}
+          recordingSessionId={opened.recordingSessionId}
+        />
+      </ReelPage>
+    </View>
   );
 }
 
@@ -125,6 +122,7 @@ function ReadyReel({
   recordingSessionId: string;
 }) {
   const router = useRouter();
+  const metrics = useEncounterMetrics();
   const [active, setActive] = useState(AppState.currentState === 'active');
   const [saving, setSaving] = useState(false);
   const removal = useMemo(() => savedRemovalFor(scope, newCommandId), [scope]);
@@ -177,6 +175,7 @@ function ReadyReel({
   useEffect(() => () => recorder.end(), [recorder]);
   useFocusEffect(
     useCallback(() => {
+      setStatusBarStyle('light');
       setActive(AppState.currentState === 'active');
       const listener = AppState.addEventListener('change', (value) => {
         setActive(value === 'active');
@@ -213,94 +212,86 @@ function ReadyReel({
       if (scope.active) setSaving(false);
     }
   };
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/explore'));
   return (
-    <View style={styles.page}>
-      <View style={[styles.top, { paddingTop: spacing[2] }]}>
-        <IconButton
-          icon="back"
-          label="Back"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/explore'))}
-        />
-        <FormatSwitch selected="reel" availability={{ scroll: 'unavailable' }} onSelect={() => undefined} />
-      </View>
-      <ActivatedReelView
-        scope={scope}
-        exposureId={exposureId}
-        document={document}
-        recorder={recorder}
-        active={active && visibility.visible}
-        renderStage={renderStage}
-        stageMaxHeight={visibility.stageMaxHeight}
-        positionRef={positionRef}
-        initialPositionMs={resume?.kind === 'reel' ? resume.positionMs : undefined}
-      />
-      <View style={styles.caption}>
-        <View style={styles.copy}>
-          <Text variant="title" color={content.paper}>
-            {document.title}
-          </Text>
-          <Text variant="bodyS" color={content.paper}>
-            {document.summary}
-          </Text>
-        </View>
-        <ActionRail
-          available={['save']}
-          saved={saved}
-          saving={saving}
-          onAction={() => {
-            void save();
-          }}
-        />
-      </View>
-      {removalState.status === 'grace' ? (
-        <View>
-          <Text variant="bodyS">Removal starts in five seconds.</Text>
-          <Button
-            label="Undo removal"
-            onPress={() => {
-              removal.undo();
-            }}
-          />
-        </View>
-      ) : null}
-      {removalState.status === 'preparing' || removalState.status === 'sending' ? (
-        <Text variant="meta">Checking your removal…</Text>
-      ) : null}
-      {removalState.status === 'unknown' ? (
-        <View>
-          <Text variant="bodyS">Removal wasn't confirmed. Undo is no longer available.</Text>
-          <Button
-            label="Retry removal"
-            onPress={() => {
-              removal.retry();
-            }}
-          />
-        </View>
-      ) : null}
-      {removalState.status === 'unavailable' ? (
-        <Text variant="bodyS">This removal couldn't be completed. Check Keep before choosing again.</Text>
-      ) : null}
-      <Button
-        label="Keep this place"
-        variant="ghost"
-        disabled={
-          kept.state.place.snapshot?.status !== 'available' ||
-          kept.state.place.write === 'unknown' ||
-          kept.state.place.write === 'conflict'
-        }
-        onPress={() => {
-          void kept.surface.captureFresh();
-        }}
-      />
-      <KeepWriteStatus
-        state={kept.state.place}
-        refresh={kept.surface.refresh}
-        retry={kept.surface.retry}
-        resolve={kept.surface.resolveConflict}
-      />
-      {saveFailed ? <Banner kind="info" lead="Couldn't save" message="Try the Save button again." /> : null}
-      <EvidencePanel scope={scope} exposureId={exposureId} />
-    </View>
+    <ActivatedReelView
+      scope={scope}
+      exposureId={exposureId}
+      document={document}
+      recorder={recorder}
+      active={active && visibility.visible}
+      renderStage={renderStage}
+      positionRef={positionRef}
+      initialPositionMs={resume?.kind === 'reel' ? resume.positionMs : undefined}
+    >
+      {(playback) => (
+        <>
+          <View style={[styles.top, { top: metrics.top, left: metrics.side, right: metrics.side }]} pointerEvents="box-none">
+            <View style={styles.topRow} pointerEvents="box-none">
+              <IconButton icon="back" label="Back" variant="onMedia" onPress={goBack} />
+              <View style={styles.spacer} pointerEvents="none" />
+              {document.fixture ? <Tag label="Fixture video" variant="onDark" /> : null}
+              <FormatSwitch selected="reel" availability={{ scroll: 'unavailable' }} showIcons onSelect={() => undefined} />
+            </View>
+            {removalState.status === 'grace' ? (
+              <Banner
+                kind="info"
+                lead="Removing from Keep."
+                message="It goes in five seconds."
+                action={{ label: 'Undo removal', onPress: () => removal.undo() }}
+              />
+            ) : null}
+            {removalState.status === 'preparing' || removalState.status === 'sending' ? (
+              <Banner kind="reconnecting" lead="Removing from Keep." message="One moment." />
+            ) : null}
+            {removalState.status === 'unknown' ? (
+              <Banner
+                kind="error"
+                lead="Removal wasn't confirmed."
+                message="It may still be in Keep."
+                action={{ label: 'Retry removal', onPress: () => removal.retry() }}
+              />
+            ) : null}
+            {removalState.status === 'unavailable' ? (
+              <Banner kind="error" lead="Couldn't remove it." message="Check Keep before trying again." />
+            ) : null}
+            {saveFailed ? <Banner kind="info" lead="Couldn't save." message="Try Save again." /> : null}
+            {kept.state.place.write === 'unknown' || kept.state.place.write === 'conflict' ? (
+              <KeepWriteStatus
+                state={kept.state.place}
+                refresh={kept.surface.refresh}
+                retry={kept.surface.retry}
+                resolve={kept.surface.resolveConflict}
+              />
+            ) : null}
+          </View>
+          <View style={[styles.rail, { bottom: metrics.bottom + 160, right: spacing[3] }]} pointerEvents="box-none">
+            <ActionRail
+              available={['save']}
+              saved={saved}
+              saving={saving}
+              onAction={() => {
+                void save();
+              }}
+            />
+          </View>
+          <View style={[styles.title, { bottom: metrics.bottom + 64, left: spacing[5], right: spacing[5] }]} pointerEvents="none">
+            <Text variant="heading" heading={1} color={content.paper}>
+              {document.title}
+            </Text>
+          </View>
+          <View style={[styles.progress, { bottom: metrics.bottom + spacing[2], left: spacing[5], right: spacing[3] }]}>
+            <ReelProgress
+              positionMs={playback.positionMs}
+              durationMs={playback.durationMs}
+              muted={playback.muted}
+              onToggleMuted={playback.toggleMuted}
+            />
+          </View>
+          <EvidencePanel scope={scope} exposureId={exposureId} />
+        </>
+      )}
+    </ActivatedReelView>
   );
 }
 
@@ -316,23 +307,12 @@ export function ReelScreen() {
   return <OpenReel key={`${state.scope.id}:${id}`} scope={state.scope} assetId={id.toLowerCase()} />;
 }
 const styles = StyleSheet.create({
-  page: { flexGrow: 1, backgroundColor: content.paper, paddingBottom: spacing[24] },
+  ground: { flex: 1, backgroundColor: content.ink },
   stage: { flex: 1, minHeight: 0 },
-  top: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing[2],
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: layout.gutter,
-    paddingBottom: spacing[2],
-  },
-  caption: {
-    backgroundColor: content.ink,
-    flexDirection: 'row',
-    padding: spacing[4],
-    gap: spacing[4],
-    alignItems: 'center',
-  },
-  copy: { flex: 1, gap: spacing[2] },
+  top: { position: 'absolute', gap: spacing[2] },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  spacer: { flex: 1 },
+  rail: { position: 'absolute' },
+  title: { position: 'absolute' },
+  progress: { position: 'absolute' },
 });

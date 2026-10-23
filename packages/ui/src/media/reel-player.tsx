@@ -8,11 +8,13 @@ import {
   type ReactNode,
   type Ref,
 } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { VideoView, useVideoPlayer, type VideoSource, type VideoPlayer } from 'expo-video';
-import { spacing, content } from '@knowscroll/design-tokens';
+import { content, overlay, spacing } from '@knowscroll/design-tokens';
 import { Text } from '../text/text';
-import { Button } from '../actions/button';
+import { useFocusRing } from '../display/focus-ring';
+import { Icon } from '../icons/icon';
+import { Spinner } from '../feedback/spinner';
 import { observeMediaVisibility } from './visibility';
 
 // expo-video exposes seeking as an imperative native SDK property.
@@ -50,15 +52,28 @@ export interface ReelPositionHandle {
   /** Park immediately without emitting a sample or granting future playback intent. */
   pause(): void;
 }
-type PlaybackStatus = 'loading' | 'ready' | 'buffering' | 'error';
+export type ReelPlaybackStatus = 'loading' | 'ready' | 'buffering' | 'error';
+type PlaybackStatus = ReelPlaybackStatus;
 function playbackStatus(status: VideoPlayer['status'], playing: boolean): PlaybackStatus {
   return status === 'error' ? 'error' : status === 'readyToPlay' ? 'ready' : playing ? 'buffering' : 'loading';
 }
 
+/** What the screen needs to draw the progress row and sound control over the video. */
+export interface ReelPlaybackView {
+  readonly positionMs: number;
+  readonly durationMs: number;
+  readonly playing: boolean;
+  readonly status: ReelPlaybackStatus;
+  readonly muted: boolean;
+  /** Explicit sound choice; never starts or resumes playback. */
+  readonly toggleMuted: () => void;
+}
+
 export interface ReelPlayerProps {
   readonly title: string;
-  /** Actual page viewport budget, supplied by scrolling consumers; layout only. */
-  readonly stageMaxHeight?: number;
+  /** Screen chrome drawn over the full-bleed stage (top bar, actions, title, progress). It sits
+   * outside the stage wrapper, so it never takes part in the stage's swipe arbitration. */
+  readonly children?: ReactNode | ((playback: ReelPlaybackView) => ReactNode);
   readonly durationMs: number;
   readonly active: boolean;
   /** Mount-only restore intent in milliseconds. Non-finite values become zero. */
@@ -83,11 +98,22 @@ export interface ReelPlayerProps {
   readonly onDiscontinuity: () => void;
   readonly registerEnd: (stop: () => void) => () => void;
 }
+/** Draws the screen's chrome from the current playback view. */
+function PlaybackSlot({
+  playback,
+  children,
+}: {
+  readonly playback: ReelPlaybackView;
+  readonly children: ReelPlayerProps['children'];
+}) {
+  return typeof children === 'function' ? children(playback) : (children ?? null);
+}
+
 /** The same expo-video player on native and web; web cookies and native headers are supplied by
  * AccountScope. A grant renews before expiry without opening/activating another exposure. */
 export function ReelPlayer({
   title,
-  stageMaxHeight,
+  children,
   durationMs,
   active,
   initialPositionMs,
@@ -100,11 +126,6 @@ export function ReelPlayer({
   onDiscontinuity,
   registerEnd,
 }: ReelPlayerProps) {
-  const [stageWidth, setStageWidth] = useState(0);
-  const stageLimit =
-    typeof stageMaxHeight === 'number' && Number.isFinite(stageMaxHeight) && stageMaxHeight > 0
-      ? Math.min(480, stageMaxHeight)
-      : 480;
   const [muted, setMuted] = useState(initialMuted === true);
   const muteIntent = useRef(initialMuted === true);
   const player = useVideoPlayer(null, (instance) => {
@@ -407,12 +428,38 @@ export function ReelPlayer({
       completed.remove();
     };
   }, [player, onSample, onDiscontinuity, active, restoreInstalledPosition]);
-  const seek = (delta: number) => {
+  const focus = useFocusRing('onDark');
+  const togglePlayback = () => {
     if (ended.current) return;
-    onDiscontinuity();
-    seekPlayback(player, Math.max(0, Math.min(durationMs / 1000, player.currentTime + delta)));
-    resumePosition.current = player.currentTime;
-    setPosition(player.currentTime);
+    if (status === 'error') {
+      setAttempt((value) => value + 1);
+    } else if (playing) {
+      playbackIntent.current = false;
+      pausePlayback(player);
+    } else if (active) {
+      if (player.currentTime >= durationMs / 1000 - 0.05) {
+        onDiscontinuity();
+        seekPlayback(player, 0);
+        resumePosition.current = 0;
+      }
+      playbackIntent.current = true;
+      if (needsRefresh.current) void refreshSource.current();
+      else player.play();
+    }
+  };
+  const toggleMuted = () => {
+    if (ended.current) return;
+    const next = !muteIntent.current;
+    try {
+      // Keep SDK autoplay inaudible while replacement is pending. Its finally block
+      // restores the latest explicit intent only after pausing the player.
+      if (!replacing.current) mutePlayback(player, next);
+    } catch {
+      return; // A released native SharedObject cannot accept a sound change.
+    }
+    muteIntent.current = next;
+    setMuted(next);
+    onMutedChange?.(next);
   };
   const stage = (
     <>
@@ -425,94 +472,86 @@ export function ReelPlayer({
         fullscreenOptions={{ enable: false }}
         accessibilityLabel={title}
       />
-      {status !== 'ready' ? (
-        <View style={styles.poster} pointerEvents="none">
-          <Text color={content.paper} variant="uiLabel">
-            {status === 'error' ? 'Playback interrupted' : status === 'buffering' ? 'Buffering…' : title}
+      <Pressable
+        {...focus.props}
+        testID="reel-playback-toggle"
+        accessibilityRole="button"
+        accessibilityLabel={status === 'error' ? 'Retry' : playing ? 'Pause' : 'Play'}
+        onPress={togglePlayback}
+        style={[styles.touchSurface, focus.style]}
+      >
+        {status === 'ready' && !playing ? (
+          <View style={styles.playDisc} pointerEvents="none">
+            <Icon name="play" size={30} color={content.ink} />
+          </View>
+        ) : null}
+      </Pressable>
+      {status === 'loading' || status === 'buffering' ? (
+        <View style={styles.centered} pointerEvents="none" accessibilityLiveRegion="polite">
+          <Spinner size={44} color={content.paper} />
+        </View>
+      ) : null}
+      {status === 'error' ? (
+        <View style={styles.centered} pointerEvents="none">
+          <Text variant="uiLabel" color={content.paper}>
+            Playback interrupted. Your place is kept.
           </Text>
         </View>
       ) : null}
     </>
   );
+  const playback: ReelPlaybackView = {
+    positionMs: position * 1000,
+    durationMs,
+    playing,
+    status,
+    muted,
+    toggleMuted,
+  };
   return (
-    <View
-      testID="reel-player"
-      style={styles.frame}
-      onLayout={(event) => {
-        const width = event.nativeEvent.layout.width;
-        if (Number.isFinite(width) && width > 0) setStageWidth(width);
-      }}
-    >
-      <View
-        ref={view}
-        testID="reel-video-stage"
-        style={[
-          styles.stage,
-          { height: Math.min(stageLimit, stageWidth * (16 / 9)), minHeight: Math.min(160, stageLimit) },
-        ]}
-      >
+    <View testID="reel-player" style={styles.frame}>
+      <View ref={view} testID="reel-video-stage" style={styles.stage}>
         {renderStage ? renderStage(stage) : stage}
       </View>
-      <View testID="reel-player-controls" style={styles.controls}>
-        <Text variant="uiS" color={content.paper}>
-          {Math.floor(position)} / {Math.round(durationMs / 1000)} s · Captions in video
-        </Text>
-        <View style={styles.buttons}>
-          <Button label="Back 10s" size="sm" variant="default" surface="dark" onPress={() => seek(-10)} />
-          <Button
-            size="sm"
-            surface="dark"
-            label={status === 'error' ? 'Retry' : playing ? 'Pause' : 'Play'}
-            onPress={() => {
-              if (ended.current) return;
-              if (status === 'error') setAttempt((value) => value + 1);
-              else if (playing) {
-                playbackIntent.current = false;
-                pausePlayback(player);
-              } else if (active) {
-                if (player.currentTime >= durationMs / 1000 - 0.05) {
-                  onDiscontinuity();
-                  seekPlayback(player, 0);
-                  resumePosition.current = 0;
-                }
-                playbackIntent.current = true;
-                if (needsRefresh.current) void refreshSource.current();
-                else player.play();
-              }
-            }}
-          />
-          <Button label="Forward 10s" size="sm" variant="default" surface="dark" onPress={() => seek(10)} />
-          <Button
-            label={muted ? 'Unmute' : 'Mute'}
-            toggled={muted}
-            size="sm"
-            variant="default"
-            surface="dark"
-            onPress={() => {
-              if (ended.current) return;
-              const next = !muteIntent.current;
-              try {
-                // Keep SDK autoplay inaudible while replacement is pending. Its finally block
-                // restores the latest explicit intent only after pausing the player.
-                if (!replacing.current) mutePlayback(player, next);
-              } catch {
-                return; // A released native SharedObject cannot accept a sound change.
-              }
-              muteIntent.current = next;
-              setMuted(next);
-              onMutedChange?.(next);
-            }}
-          />
-        </View>
+      <View style={styles.chrome} pointerEvents="box-none">
+        <PlaybackSlot playback={playback}>{children}</PlaybackSlot>
       </View>
     </View>
   );
 }
 const styles = StyleSheet.create({
-  frame: { width: '100%', maxWidth: 480, flexShrink: 0, alignSelf: 'center', backgroundColor: '#151515' },
-  stage: { width: '100%', position: 'relative', overflow: 'hidden' },
+  frame: { flex: 1, width: '100%', minHeight: 0, backgroundColor: content.ink },
+  stage: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' },
   video: { flex: 1, width: '100%', minHeight: 0, height: '100%' },
-  poster: { position: 'absolute', top: '40%', left: spacing[5], right: spacing[5], alignItems: 'center' },
-  controls: { padding: spacing[3], gap: spacing[2], backgroundColor: '#151515' },
-  buttons: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing[2] },
+  touchSurface: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer' as const,
+  },
+  playDisc: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: spacing[1],
+    backgroundColor: overlay.onMediaControl,
+  },
+  centered: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[3],
+    paddingHorizontal: spacing[8],
+  },
+  chrome: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
 });

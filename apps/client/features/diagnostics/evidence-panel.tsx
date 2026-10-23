@@ -40,7 +40,7 @@ function seconds(ms: number): string {
  * refresh covers a hint that was lost. The universe revision it shows is the watermark that a hint
  * is compared with: after the evidence commit it is one higher than before.
  */
-export function EvidencePanel({ scope, exposureId }: { readonly scope: AccountScope; readonly exposureId: string }) {
+function OperatorEvidencePanel({ scope, exposureId }: { readonly scope: AccountScope; readonly exposureId: string }) {
   const [open, setOpen] = useState(false);
   const health = useQuery({ ...healthQueryOptions(scope.api), retry: false });
   const operatorWorld = health.data !== undefined && OPERATOR_WORLDS.includes(health.data.world);
@@ -121,3 +121,11 @@ const styles = StyleSheet.create({
   body: { gap: spacing[1] },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing[3] },
 });
+
+/**
+ * Off unless the build sets `EXPO_PUBLIC_KS_DEV_EVIDENCE=1`: a developer setting, never a default.
+ * The consumer UI shows no evidence, scores or operational state (blueprint §26).
+ */
+export function EvidencePanel(props: { readonly scope: AccountScope; readonly exposureId: string }) {
+  return process.env.EXPO_PUBLIC_KS_DEV_EVIDENCE === '1' ? <OperatorEvidencePanel {...props} /> : null;
+}
