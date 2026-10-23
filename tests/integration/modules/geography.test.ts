@@ -258,8 +258,8 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     operations: ctx.facts.candidates
       .filter(
         (x) =>
-          x.kind === 'system' ||
-          x.kind === 'star' ||
+          // Only the system that holds the planet is formed; the catalogue now has several systems.
+          ((x.kind === 'system' || x.kind === 'star') && x.conceptId === t.split('.')[0]) ||
           (x.kind === 'planet' && x.conceptId === t) ||
           (x.kind === 'region' && ctx.facts.supports.some((s) => s.topicId === t && s.facetId === x.conceptId)),
       )
