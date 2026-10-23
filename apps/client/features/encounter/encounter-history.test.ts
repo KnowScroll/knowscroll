@@ -14,7 +14,19 @@ function fixture() {
     baseUrl: 'https://fixture.test',
     authorization: () => undefined,
     store,
-    fetch: () => Promise.reject(new Error('No HTTP')),
+    fetch: async (request) => {
+      if (!request.url.endsWith('/v1/privacy/recording/read')) throw new Error('No encounter HTTP');
+      const input = (await request.json()) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          ...input,
+          scope: { accountId: id(1), privacyEpoch: 1 },
+          revision: 1,
+          policy: { on: true, generation: 1 },
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    },
   });
   const parsed = parseDocument(document);
   if (parsed.kind !== 'valid') throw new Error('CI document must parse');
@@ -68,7 +80,11 @@ function fixture() {
       },
     }),
   });
-  return { scope, store, entry };
+  const authorizeRecording = async () => {
+    scope.recording?.useIdSource(() => id(++n));
+    return scope.recording?.refresh();
+  };
+  return { scope, store, entry, authorizeRecording };
 }
 describe('AccountScope retained encounter history', () => {
   it('captures exact top-level block/offset synchronously before suspend and persists only the private position', () => {
@@ -131,18 +147,26 @@ describe('AccountScope retained encounter history', () => {
     }
   });
 
-  it('a suspended recorder ignores old callbacks; resume requires fresh visibility and activity on the same timebase', () => {
+  it('a suspended recorder ignores old callbacks; resume requires fresh visibility and activity on the same timebase', async () => {
     let now = 1000;
     let sequence = 900;
     jest.spyOn(performance, 'now').mockImplementation(() => now);
     const f = fixture();
     try {
+      expect(await f.authorizeRecording()).toBe(true);
       const first = f.entry(0);
       const recorder = first.recorder as ScrollRecorder;
       const outbox = jest.fn<void, [readonly InteractionEvent[], number]>();
       // Separate real recorder with a deterministic clock and bounded test outbox.
       const actual = createScrollRecorder({
-        exposure: { exposureId: first.exposureId, assetId: first.offer.assetId, assetRevision: 1 },
+        exposure: {
+          exposureId: first.exposureId,
+          assetId: first.offer.assetId,
+          assetRevision: 1,
+          // Authored original activation lineage, never inferred from a current policy read.
+          recordingGeneration: 1,
+          recordingSessionId: first.sessionId,
+        },
         scope: f.scope,
         newId: () => id(++sequence),
         outbox: {
@@ -152,6 +176,7 @@ describe('AccountScope retained encounter history', () => {
           dispose: jest.fn(),
         },
       });
+      actual.start();
       actual.observer.onActivity({ active: true, at: now });
       actual.observer.onBlockVisibility({ blockId: 'pulls-p1', visibleFraction: 1, at: now });
       now = 2000;

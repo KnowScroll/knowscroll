@@ -50,24 +50,38 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
     async admitRun(scope, run) {
       const trx = transactionOf(scope);
       const universeId = scope.authority.universeId;
-      await trx
-        .insertInto('reasoning.business_runs')
-        .values({
-          universe_id: universeId,
-          id: run.id,
-          owner_module: run.ownerModule,
-          purpose: run.purpose,
-          privacy_epoch: scope.authority.privacyEpoch,
-          role_id: run.roleId,
-          role_version: run.roleVersion,
-          policy_version: run.policyVersion,
-          provider: run.provider,
-          model: run.model,
-          context_bundle_ref: run.contextBundleRef,
-          context_refs: JSON.stringify(run.contextRefs),
-        })
-        .onConflict((conflict) => conflict.columns(['universe_id', 'id']).doNothing())
-        .execute();
+      if (run.recording) {
+        // Schema43 is a separately frozen prerequisite. Bind all proof fields in the first INSERT;
+        // never admit an unproved row then relabel it to a resumed generation.
+        const proof = run.recording;
+        await sql`insert into reasoning.business_runs
+          (universe_id,id,owner_module,purpose,privacy_epoch,role_id,role_version,policy_version,
+           provider,model,context_bundle_ref,context_refs,recording_account_id,recording_generation,
+           recording_context_sha256,recording_model_context_sha256)
+          values(${universeId}::uuid,${run.id}::uuid,${run.ownerModule},${run.purpose},${scope.authority.privacyEpoch},
+            ${run.roleId},${run.roleVersion},${run.policyVersion},${run.provider},${run.model},${run.contextBundleRef},
+            ${JSON.stringify(run.contextRefs)}::jsonb,${proof.accountId}::uuid,${proof.generation},
+            ${proof.contextSha256},${proof.modelContextSha256}) on conflict(universe_id,id) do nothing`.execute(trx);
+      } else {
+        await trx
+          .insertInto('reasoning.business_runs')
+          .values({
+            universe_id: universeId,
+            id: run.id,
+            owner_module: run.ownerModule,
+            purpose: run.purpose,
+            privacy_epoch: scope.authority.privacyEpoch,
+            role_id: run.roleId,
+            role_version: run.roleVersion,
+            policy_version: run.policyVersion,
+            provider: run.provider,
+            model: run.model,
+            context_bundle_ref: run.contextBundleRef,
+            context_refs: JSON.stringify(run.contextRefs),
+          })
+          .onConflict((conflict) => conflict.columns(['universe_id', 'id']).doNothing())
+          .execute();
+      }
       const row = await trx
         .selectFrom('reasoning.business_runs')
         .select([
@@ -101,6 +115,27 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
         // A run admitted at epoch N is not the same run at epoch N+1 (a privacy reset in between).
         row.privacy_epoch === scope.authority.privacyEpoch;
       if (!same) return { kind: 'mismatch' };
+      if (run.recording) {
+        const proof = (
+          await sql<{
+            account: string | null;
+            generation: number | null;
+            context: string | null;
+            model_context: string | null;
+          }>`
+          select recording_account_id as account,recording_generation as generation,
+            recording_context_sha256 as context,recording_model_context_sha256 as model_context
+          from reasoning.business_runs where universe_id=${universeId}::uuid and id=${run.id}::uuid`.execute(trx)
+        ).rows[0];
+        if (
+          !proof ||
+          proof.account?.toLowerCase() !== run.recording.accountId.toLowerCase() ||
+          proof.generation !== run.recording.generation ||
+          proof.context !== run.recording.contextSha256 ||
+          proof.model_context !== run.recording.modelContextSha256
+        )
+          return { kind: 'mismatch' };
+      }
       if (row.state !== 'admitted') return { kind: 'closed' };
       return { kind: 'admitted', fence: row.fence };
     },
@@ -300,6 +335,156 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
           .where('attempt_id', '=', attempt.attemptId)
           .execute();
         return true;
+      });
+    },
+
+    async releaseUndispatchedPersonal(input) {
+      const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu;
+      if (
+        !uuid.test(input.scopeId) ||
+        !uuid.test(input.run.id) ||
+        (input.attemptId !== undefined && !uuid.test(input.attemptId)) ||
+        !Number.isInteger(input.privacyEpoch) ||
+        input.privacyEpoch < 1 ||
+        input.privacyEpoch > 2147483647 ||
+        !['primary', 'repair'].includes(input.step) ||
+        !/^[a-f0-9]{64}$/u.test(input.requestHash)
+      )
+        return 'unavailable';
+      return withTransaction(db, 'attempt-ledger', async (trx) => {
+        // Accounting only: exact original descriptor comparison is a Boolean, not a private read.
+        // No root/account/generation is adopted and no collection/dispatch authority is issued.
+        const proof = input.run.recording;
+        const header = await sql<{ matches: boolean }>`select (
+          privacy_epoch=${input.privacyEpoch} and privacy_erased_at is null and state='admitted'
+          and owner_module=${input.run.ownerModule} and purpose=${input.run.purpose}
+          and role_id=${input.run.roleId} and role_version=${input.run.roleVersion}
+          and policy_version=${input.run.policyVersion} and provider=${input.run.provider} and model=${input.run.model}
+          and context_bundle_ref=${input.run.contextBundleRef} and context_refs=${JSON.stringify(input.run.contextRefs)}::jsonb
+          and recording_account_id is not distinct from ${proof?.accountId ?? null}::uuid
+          and recording_generation is not distinct from ${proof?.generation ?? null}::integer
+          and recording_context_sha256 is not distinct from ${proof?.contextSha256 ?? null}
+          and recording_model_context_sha256 is not distinct from ${proof?.modelContextSha256 ?? null}
+        ) as matches from reasoning.business_runs
+        where universe_id=${input.scopeId}::uuid and id=${input.run.id}::uuid for update`.execute(trx);
+        if (header.rows[0]?.matches !== true) return 'unavailable';
+        // Raw sentinel precedes selection of the logical step; the unique run/step index bounds it.
+        const raw = await trx
+          .selectFrom('reasoning.external_attempts')
+          .select([
+            'id',
+            'step',
+            'state',
+            'role_id',
+            'role_version',
+            'provider',
+            'model',
+            'budget_window',
+            'reserved_tokens',
+            'dispatch_id',
+            'dispatched_at',
+            'privacy_erased_at',
+            'settled_at',
+          ])
+          .select(sql<boolean>`request_hash=${input.requestHash}`.as('request_matches'))
+          .where('universe_id', '=', input.scopeId)
+          .where('run_id', '=', input.run.id)
+          .orderBy('step')
+          .limit(9)
+          .forUpdate()
+          .execute();
+        if (
+          raw.length === 0 ||
+          raw.length > 8 ||
+          raw.some(
+            (r) =>
+              !/^(?:primary|repair)(?:\.[234])?$/u.test(r.step) || r.state === 'dispatched' || r.state === 'unknown',
+          )
+        )
+          return 'unavailable';
+        for (const prefix of ['primary', 'repair']) {
+          const sequence = raw.filter((r) => r.step === prefix || r.step.startsWith(prefix + '.'));
+          if (sequence.some((r, i) => r.step !== (i === 0 ? prefix : `${prefix}.${i + 1}`))) return 'unavailable';
+        }
+        if (raw.some((r) => r.step === 'repair') && !raw.some((r) => r.step === 'primary')) return 'unavailable';
+        const logical = raw.filter((r) => r.step === input.step || r.step.startsWith(input.step + '.'));
+        const row = logical.at(-1);
+        if (
+          !row ||
+          row.state !== 'reserved' ||
+          row.privacy_erased_at !== null ||
+          row.settled_at !== null ||
+          (input.attemptId !== undefined && row.id !== input.attemptId) ||
+          row.dispatch_id !== null ||
+          row.dispatched_at !== null ||
+          !row.request_matches ||
+          row.role_id !== input.run.roleId ||
+          row.role_version !== input.run.roleVersion ||
+          row.provider !== input.run.provider ||
+          row.model !== input.run.model ||
+          logical
+            .slice(0, -1)
+            .some((r) => r.state !== 'not_sent' || r.dispatch_id !== null || r.dispatched_at !== null) ||
+          raw.some((r) => r.id !== row.id && r.state === 'reserved')
+        )
+          return 'unavailable';
+        const receipt = await trx
+          .selectFrom('reasoning.usage_receipts')
+          .select([
+            'state',
+            'role_id',
+            'role_version',
+            'provider',
+            'model',
+            'budget_window',
+            'reserved_tokens',
+            'settled_at',
+            'input_tokens',
+            'output_tokens',
+            'reasoning_tokens',
+            'cached_tokens',
+            'late_usage',
+          ])
+          .where('attempt_id', '=', row.id)
+          .forUpdate()
+          .executeTakeFirst();
+        if (
+          !receipt ||
+          receipt.state !== 'held' ||
+          receipt.settled_at !== null ||
+          receipt.late_usage ||
+          receipt.input_tokens !== null ||
+          receipt.output_tokens !== null ||
+          receipt.reasoning_tokens !== null ||
+          receipt.cached_tokens !== null ||
+          receipt.role_id !== row.role_id ||
+          receipt.role_version !== row.role_version ||
+          receipt.provider !== row.provider ||
+          receipt.model !== row.model ||
+          String(receipt.budget_window) !== String(row.budget_window) ||
+          receipt.reserved_tokens !== row.reserved_tokens
+        )
+          return 'unavailable';
+        // commitDispatch locks/CASes this same attempt. If it won, the state/dispatch checks above
+        // refuse; if cancellation wins, that CAS cannot send. Receipt locks follow attempt locks.
+        const stopped = await trx
+          .updateTable('reasoning.external_attempts')
+          .set({ state: 'not_sent', outcome_code: 'AUTHORITY_REFUSED', settled_at: sql<Date>`now()` })
+          .where('universe_id', '=', input.scopeId)
+          .where('id', '=', row.id)
+          .where('state', '=', 'reserved')
+          .where('dispatch_id', 'is', null)
+          .where('dispatched_at', 'is', null)
+          .executeTakeFirst();
+        const released = await trx
+          .updateTable('reasoning.usage_receipts')
+          .set({ state: 'released', settled_at: sql<Date>`now()` })
+          .where('attempt_id', '=', row.id)
+          .where('state', '=', 'held')
+          .executeTakeFirst();
+        if (stopped.numUpdatedRows !== 1n || released.numUpdatedRows !== 1n)
+          throw new Error('REASONING_UNDISPATCHED_RELEASE_CARDINALITY');
+        return 'released';
       });
     },
 

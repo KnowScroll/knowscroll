@@ -114,7 +114,7 @@ authority, usage, byte-hash/replay and unknown-never-resend rules. Tests are fak
 they cannot establish real model selection, a successful generated Scroll or teaching quality.
 
 A module reaches this engine only through `public.ts`: the types above, the injected
-`REASONING_HARNESS` and the queue declarations. The harness factory, its ports, the attempt ledger
+`REASONING_HARNESS` / `RECORDING_REASONING_HARNESS` and the queue declarations. The harness factory, its ports, the attempt ledger
 and the model transport are deliberately not exported there (a boundary probe and the dependency
 rules enforce it), so a module cannot build its own harness with its own ledger or transport, and an
 ESLint rule keeps global `fetch`, Node's HTTP clients and provider SDKs out of everything but
@@ -322,7 +322,7 @@ receipt) and the answer is never applied.
 
 ## One `propose`, step by step (`application/execute-attempt.ts`)
 
-1. **Ledger inspection** (no lock): an attempt of a run admitted at another privacy epoch is refused
+1. **Ledger inspection** (shared engine; personal adapters first acquire their fresh gated root): an attempt of a run admitted at another privacy epoch is refused
    (`run_mismatch`) and one of a closed run answers `run_closed`; an attempt recorded with another
    request hash is refused (`request_mismatch`); a settled one is answered from the ledger (a kept
    answer is returned again without a second paid call); a `dispatched` one becomes `unknown`.
@@ -342,7 +342,7 @@ receipt) and the answer is never applied.
    authority): `succeeded` with usage and the validated, redacted output or the validator's issues;
    `failed` with the provider's code; `unknown` (timeout, reset or interrupted read after the
    request may have left).
-7. **Eligibility** (lock-free read): an answer for an authority that no longer holds (for example a
+7. **Eligibility** (personal private reads use a fresh gated root, with the existing authority check): an answer for an authority that no longer holds (for example a
    privacy reset while the call ran) is recorded but never handed over (`output_ineligible`).
 
 **Repair**: after a conclusively invalid answer, exactly one repair attempt: a new admitted attempt
@@ -690,3 +690,145 @@ holds do not qualify. The consumer receives only immutable sanitized report/rece
 digests, not a pool principal, connection or settlement capability. Its server-enforced readonly
 repeatable-read transaction cannot write jobs or financial rows. Existing claim/hold/settle/release
 behaviour is unchanged. Receiving itself never imports this financial adapter or opens a pool.
+
+
+## Personal recording foundation (#381, forward schema dependency)
+
+`RECORDING_REASONING_HARNESS` is a separate required personal facade. The existing generic
+`ReasoningHarness.propose` is only actual initial1/on compatibility; a first real toggle
+permanently makes omitted provenance ineligible. Generic close also requires actual1/on and an
+unproved legacy run, so an old in-flight applier cannot commit through closure after a toggle. Neither path can stamp a later current generation
+onto an old run. This foundation installs no Role/API/UI/worker control and changes no production
+root, transport profile, cap, accounting state machine, reservation policy or paid permission.
+
+A strict `PersonalRecordingPurpose` contains version `personal-role-purpose.v1`, actual account,
+universe, privacy epoch, original recording generation, business run, current claim, immutable full
+frozen-context SHA and exact model-context SHA. Its only owner/purpose pairs are
+planner/personal-planner and geography/personal-cartographer. All fields are required; bounded UUID,
+int32 positive odd generation and lowercase64hex parsing has no default/coercion/transform. Own
+undefined, extra/hidden/symbol fields, inherited objects and getters refuse. The facade snapshots
+purpose, authority and exact bounded context items; no mutable input or live capability crosses
+network waits. It hashes the actually supplied `{bundleRef,items}` independently before entry.
+
+Both `CHECK_PLANNER_RECORDING_RUN` and `CHECK_GEOGRAPHY_RECORDING_RUN` are mandatory real owner
+ports. A closed dispatcher selects the exact pair; missing functions fail construction/DI. Each
+owner must read its exact account/generation/status/claim/hash HEADER before any frozen body,
+refuse old/malformed provenance, and recompute the complete frozen-context and model-items hashes.
+Prepared status, active business run and unexpired exact current claim remain required. A string
+purpose or a caller-supplied hash cannot authorize a private read. Actual owner implementations
+and their positive combined fixture graph remain separately allocated dependencies.
+
+`proposePersonal({run,role,context,recordingPurpose},signal)` adapts the unchanged shared attempt
+engine with per-call personal access. BEFORE every `find`/`findLocked`, kept output/issues,
+protected request replay, admission, reservation and dispatch it obtains the real personal root,
+Identity own-account UPDATE gate once, original-generation/on capability and required owner proof.
+It then checks the exact reasoning-run metadata/proof header. An existing row must bind actual
+owner/purpose/epoch, role/version/policy/provider/model/bundle/refs, account/generation and both
+hashes. NULL proof remains legacy unknown and cannot pass the new facade; a generic initial1 call
+cannot read a populated recording proof. No private output or validator issues enter the first
+metadata selection. Before private attempt selection, a fixed9-row raw prefix proves the at-most8
+primary/repair sequence set and checks the exact planned request hash; changed same-ref text or
+instructions refuse before kept output selection. Protected bytes are read through that SAME
+transaction, exact run/attempt and hash, never a global unguarded replay query.
+
+Four nullable `reasoning.business_runs` proof columns are the only new storage dependency:
+`recording_account_id`, `recording_generation`, `recording_context_sha256` and
+`recording_model_context_sha256`. They are inserted together with a new proved run and compared
+on retry; no legacy adoption/default/backfill is performed. Root owns their separate forward DDL
+and codegen. This source preview normally includes the frozen schema43 prerequisite `2c49e1f0`; that composition
+remains source only and has no hosted fixture or runtime acceptance. Account linkage is declared; both full and selective erasers NULL all four proof
+fields in the same irreversible privacy-marker update. Usage receipts/brakes/late accounting
+remain unchanged and do not acquire account/context/proof data.
+
+Application uses `withPersonalApply(authority,purpose,work(cap))` as its SOLE outer transaction.
+It locks root→own UPDATE exactly once→original generation→owner proof/reasoning header before
+private role context or semantic validation. It issues a callback-only private WeakMap membership
+for the genuine `RecordingScopeTx`. `closePersonalRun` requires that same facade/callback/purpose
+capability, rechecks current generation/owner/header and closes while the owner still has prepared
+status and active claim. Only then may the callback write domain/owner terminal state; all effects
+roll back together. Copied, forged, closed, common-only and other-facade capabilities cannot close.
+No nested root, copied account SQL or second own-gate acquisition is used.
+
+`readPersonalRunAccounting(scope,runId,readExpectedBinding)` takes the own-account gate as the FIRST gate under a
+fresh already-held current personal root/epoch. It deliberately has no original-generation gate.
+After that gate, it invokes the fixed owning callback ONCE to read only the exact minimal Role
+header and return the closed owner/purpose/account/epoch/original-generation binding. The callback
+may retain that header locally for necessary retirement in this SAME transaction. No private
+body, context or hashes are read. Reasoning compares only its own minimal exact header and a
+proof-complete boolean; partial, mismatched or legacy NULL provenance stays unproved. Neither
+NULL nor an absent original generation is stamped with current server state.
+It selects only the exact run's at-most8 attempt IDs/steps/states with a9-row overflow sentinel;
+invalid sequence/proof/overflow yields unavailable, never zero liability. `not_found` means the
+exact parent is absent (the existing validated composite FK forbids orphan attempts). It proves
+ZERO RETAINED attempts, not never-admitted history, zero cost or a payment conclusion. This
+supersedes the earlier design assumption that Reasoning had no pruning path: full erasure deletes
+only non-reserved/non-dispatched/non-unknown attempts and their empty parent; selective Clear
+keeps all attempts, redacts proof, and deletes only empty parents; later Clear prune preserves
+held/unknown receipts and reserved/dispatched/unknown attempts. A reservation may become
+not_sent only through the existing exact dispatch-null/matching held receipt transition under
+the root. Planner/Geography Clear deletes their old headers, and fresh epoch/own-account fencing
+precedes callback invocation. Missing, erased or old-epoch Role header must return unavailable.
+No absent ledger is closed or settled; accounting history/receipts/budgets are never reset.
+Existing empty runs
+can be conclusively no-attempt while that root is held. Dispatched/unknown/reserved states remain
+unresolved. The reader changes no claim, run, output, receipt, reservation, job or accounting state.
+It cannot close unknown work or authorize resend. Necessary owner cleanup must occur in that same
+transaction before releasing the root and cannot acquire another own gate.
+
+Settlement, late usage, purge, sweep and write-off keep their independent existing transactions
+while paused or revoked. A sent result is accounted even when a later private read refuses; no
+answer is synthesized from in-memory settlement details. Pause between quota and dispatch sends
+nothing; pause after committed dispatch does not promise recall of that one invocation. An old
+unknown remains a financial/owner blocker until conclusive disposition, never a resumed attempt.
+
+New unit fixtures test strict purposes/getters/closed owner selection/exact input hashes and
+private-query refusal. PostgreSQL fixtures exercise real root/account wait races, initial1 replay
+revocation, exact pre-read request hashes, late usage/no-repair while off, payload-free accounting
+and copied/expired/common-cap close denial. Explicit deny-owner fixtures prove refusals only;
+they do not stand in for positive Planner/Geography proof adapters or complete recording pipeline
+wiring. Existing assertions remain; the dispatch/erasure fixture now targets actual dispatch CAS
+instead of an obsolete transaction-entry count. All suites run only in hosted Actions. Root must
+compose frozen DDL, actual role proofs, positive graph, PC availability/composite-witness consumers
+and all growth writers before any recording control or runtime acceptance.
+
+### Revoked undispatched reservation cancellation (#381 hosted correction)
+
+The personal wrapper may invoke `releaseUndispatchedPersonal` only after actual gates establish
+true revocation; a generic protected-read refusal is insufficient. This optional capability belongs to the actual personal PostgreSQL
+ledger; the production ledger and production execution engine are unchanged. Absence means
+necessary accounting is unavailable: the public result remains refused and the reservation held.
+It is never a successful no-op, fake settlement, or permission to resend.
+
+The short ledger-owned transaction locks the exact original run, at most nine raw attempt rows
+(eight plus overflow sentinel) in run/step index order, then the selected receipt. It compares
+original epoch, complete descriptor/proof and planned request fingerprints in SQL without
+selecting context, output, issues or request bytes. Only the latest valid logical-step reservation
+can stop; earlier sequences must be not_sent. Any dispatched/unknown row, dispatch identity or
+timestamp, missing/mismatched held receipt, malformed sequence, overflow or unproved binding
+leaves accounting unchanged. A reserved→not_sent AUTHORITY_REFUSED transition and exact held→released
+receipt commit together. Dispatch CAS locks the same attempt and requires reserved: cancellation
+winning prevents dispatch; dispatch winning prevents release. No root/account/generation is
+adopted and no personal capability, new attempt, model request or semantic effect is issued.
+Existing settlement, Clear, late usage, request expiry, caps and failure brakes retain authority.
+
+A settled answer can still encounter a busy/revoked protected read. The response reveals no
+private attempt/output identity after revocation. Under a busy root it fails closed; the exact
+SUCCEEDED attempt and settled usage receipt survive for the same-business replay after a fresh
+valid gate. Hosted fixtures verify one send, exact financial rows, finally-released fixture locks,
+missing capability and negative cancellation proofs. These are authored CI cases, not local suite
+execution, provider evidence or runtime acceptance.
+
+The private `accountingRevoked` fact never reaches ProposeOutcome. After the one actual active
+own-account gate, only known original-generation/on refusal qualifies; purpose/account mismatch,
+owner/claim/header/hash denial, busy, unavailable and malformed dependency do not. Before an own
+gate can run, only trusted server SYSTEM authority may classify actual root epoch/status/barrier
+revocation. An account actor's old-epoch root refusal remains unproved and held, because the root
+checks epoch before ownership; it cannot infer another account's authority. No extra root/own
+probe, Identity SQL copy or generation adoption is introduced.
+
+Both initial lookup cancellation and the existing authority-refused pre-dispatch/admission
+settlement branches use this same classified capability. Other settlements (quota, conclusive
+provider results, unknown, late usage) remain unchanged. A stale claim A cannot cancel current
+claim C's still-reserved identical request. Actual owner fixtures use the real Planner request,
+store, current PC snapshot, hashes, both owner checkers and durable recovery markers; the fixture
+role remains a financial protocol probe and never applies a personal proposal.

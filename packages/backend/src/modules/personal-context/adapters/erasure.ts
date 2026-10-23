@@ -3,6 +3,10 @@ import { sql } from 'kysely';
 import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 const tables = [
+  'recording_coverage_references',
+  'recording_coverage_contributions',
+  'recording_exposure_contributions',
+  'recording_segment_heads',
   'coverage_references',
   'coverage_supports',
   'coverage_contributions',

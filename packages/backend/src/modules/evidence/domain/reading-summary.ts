@@ -173,3 +173,46 @@ export function summariseReading(
     sequenceGaps: gaps,
   };
 }
+
+/** Session-relative clocks never intersect another session's visibility/dwell. Only factual
+ * seen sets combine within this generation; dwell has one server elapsed-time ceiling. */
+export function summariseRecordingReading(
+  observations: readonly ObservationRecord[],
+  facts: ReadingFacts,
+  policy: ScrollQualificationPolicy,
+  elapsedMs: number,
+): ReadingSummary {
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) throw new Error('RECORDING_ELAPSED_INVALID');
+  const groups = new Map<string, ObservationRecord[]>();
+  for (const observation of observations) {
+    const group = groups.get(observation.sessionId) ?? [];
+    group.push(observation);
+    groups.set(observation.sessionId, group);
+  }
+  const parts = [...groups.values()].map((group) => summariseReading(group, facts, policy));
+  const seen = new Set(parts.flatMap((part) => part.seenBlocks));
+  const seenBlocks = facts.blocks.filter((block) => seen.has(block.id)).map((block) => block.id);
+  const seenWeight = facts.blocks.filter((block) => seen.has(block.id)).reduce((sum, block) => sum + block.weight, 0);
+  const interactions = new Map(
+    parts.flatMap((part) => part.interactions).map((x) => [`${x.blockId}\0${x.interaction}`, x]),
+  );
+  return {
+    inputWatermark: Math.max(0, ...parts.map((p) => p.inputWatermark)),
+    seenBlocks,
+    seenWeight,
+    totalWeight: facts.totalWeight,
+    coverage: facts.totalWeight === 0 ? 0 : Math.min(1, seenWeight / facts.totalWeight),
+    activeDwellMs: Math.floor(
+      Math.min(
+        elapsedMs,
+        parts.reduce((sum, p) => sum + p.activeDwellMs, 0),
+      ),
+    ),
+    estimatedReadingMs: facts.estimatedReadingMs,
+    interactions: [...interactions.values()],
+    coverageEvents: parts.reduce((sum, p) => sum + p.coverageEvents, 0),
+    dwellEvents: parts.reduce((sum, p) => sum + p.dwellEvents, 0),
+    instrumentationVersion: parts.length ? Math.min(...parts.map((p) => p.instrumentationVersion)) : 0,
+    sequenceGaps: parts.reduce((sum, p) => sum + p.sequenceGaps, 0),
+  };
+}

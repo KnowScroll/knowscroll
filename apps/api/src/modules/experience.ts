@@ -21,7 +21,12 @@ import {
   READ_EXPOSURE_CONTEXT,
   APPLY_ENCOUNTER_ACTION,
 } from '@knowscroll/backend/modules/experience/nest-providers';
-import { KEEP_PLACE_USE_CASES, KEEP_REMOVAL_USE_CASE, READ_SAVED_PAGE } from '@knowscroll/backend/modules/experience';
+import {
+  KEEP_PLACE_USE_CASES,
+  KEEP_REMOVAL_USE_CASE,
+  READ_SAVED_PAGE,
+  EXPERIENCE_RECORDING_EFFECTS,
+} from '@knowscroll/backend/modules/experience';
 import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
 import { READ_SAVED_PAGE_METADATA, type ReadSavedPageMetadata } from '@knowscroll/backend/modules/content';
 import type { WithPersonalScope } from '@knowscroll/backend/modules/identity';
@@ -33,11 +38,10 @@ import { API_CONFIG, DATABASE, ENQUEUE_JOB, WITH_PERSONAL_SCOPE } from '../token
  * the read ports the evidence intake uses (an exposure's lineage).
  */
 export const experienceWiring: Provider[] = [
-  ...experienceProviders({
-    database: DATABASE,
-    withPersonalScope: WITH_PERSONAL_SCOPE,
-    enqueueJob: ENQUEUE_JOB,
-  }),
+  ...experienceProviders(
+    { database: DATABASE, withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB },
+    { recordingEffects: EXPERIENCE_RECORDING_EFFECTS },
+  ),
   ...experienceEvidenceReadProviders(),
   // Keep needs Identity's actual root-held own-account UPDATE barrier, not plain context.
   // Bind only this port; no lifecycle invalidation or pair-access consumer is mounted.
@@ -64,9 +68,15 @@ export const experienceWiring: Provider[] = [
       }),
   },
   ...keepPlaceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
-  ...keepRemovalProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
+  ...keepRemovalProviders(
+    { withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB },
+    { recordingEffects: EXPERIENCE_RECORDING_EFFECTS },
+  ),
   ...composerProviders({ isOperator: () => false }),
-  ...navigationProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }, { region: true }),
+  ...navigationProviders(
+    { withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB },
+    { region: true, recordingEffects: EXPERIENCE_RECORDING_EFFECTS },
+  ),
 ];
 
 export {

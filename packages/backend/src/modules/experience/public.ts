@@ -1,3 +1,5 @@
+import type { RecordingChannelsResult } from './application/ports.js';
+export type { RecordingChannelsResult } from './application/ports.js';
 import type { makeRemoveKeepEntry } from './application/keep-remove.js';
 import type { makeReadKeepEntry, makeSetKeepPlace } from './application/keep-place.js';
 import type { ActivityLineage, RoutingHistory } from './application/navigation-ports.js';
@@ -9,7 +11,7 @@ export const REGION_ENCOUNTERS = Symbol('experience.regionEncounters');
  * and the read port the evidence job uses. Commands and queries are built by
  * `adapters/nest-providers.ts` (composition roots only).
  */
-import type { PersonalScopeTx } from '../identity/public.js';
+import type { PersonalScopeTx, RecordingScopeTx } from '../identity/public.js';
 import type { ActionKind } from './domain/actions.js';
 import type { ExposureKind } from './domain/exposures.js';
 
@@ -45,10 +47,16 @@ export { EXPOSURE_ORIGINS, type ExposureOrigin } from './domain/exposures.js';
 /** An action as the evidence module reads it. */
 export interface ActionForEvidence {
   readonly id: string;
+  /** Original owning command identity; optional only for older port implementations. */
+  readonly commandId?: string;
   readonly kind: ActionKind | 'like' | 'unlike' | 'hide';
   readonly assetId: string;
   readonly assetRevision: number;
   readonly privacyEpoch: number;
+  /** Original immutable disposition; absent legacy is literal1 only, never current. */
+  readonly recordingOrigin?:
+    | { readonly kind: 'legacy' }
+    | { readonly kind: 'recorded'; readonly originalGeneration?: number; readonly eligibleGeneration?: number };
 }
 
 /**
@@ -160,3 +168,91 @@ export {
   type SavedCursorBinding,
   type SavedCursorCodec,
 } from './application/saved-page.js';
+
+/** Required owning effects for the recording-aware composition. All effects reuse the SAME
+ * genuine recording transaction; no root, network, queue bypass or empty fallback is permitted.
+ * The legacy composition is limited to genuine initial1/on and cannot collect after a toggle. */
+export interface ExperienceRecordingEffects {
+  applyChannels(
+    scope: RecordingScopeTx,
+    change: {
+      readonly commandId: string;
+      readonly actionId: string;
+      readonly assetId: string;
+      readonly channel: 'saved' | 'liked';
+      readonly pointerRevision: number;
+      readonly changes: readonly {
+        readonly exposureId: string;
+        readonly value: boolean;
+        readonly originActionId: string;
+        readonly originGeneration: number;
+      }[];
+    },
+  ): Promise<RecordingChannelsResult>;
+  startSession(
+    scope: RecordingScopeTx,
+    session: {
+      readonly exposureId: string;
+      readonly sessionId: string;
+      /** Sampled inside accepted activation transaction; client starts its clock after ACK. */
+      readonly serverStartedAt: Date;
+    },
+  ): Promise<void>;
+  enqueueActivity(scope: RecordingScopeTx, exposureId: string): Promise<void>;
+  enqueueActionEvidence(scope: RecordingScopeTx, actionId: string): Promise<void>;
+}
+export const EXPERIENCE_RECORDING_EFFECTS = Symbol('experience.recordingEffects');
+
+/** Current generation source only. Physical exposure activation is immutable decay time;
+ * firstEligibleActivationAt is separate actual activation, absent on correction-only segments. */
+export interface RecordingSegment {
+  readonly recordingGeneration: number;
+  readonly exposure: {
+    readonly exposureId: string;
+    readonly assetId: string;
+    readonly assetRevision: number;
+    readonly kind: 'reel' | 'scroll';
+    readonly activatedAt: string;
+    readonly explanationUnitId: string;
+  };
+  readonly metadata: EncounterAttribution;
+  readonly attributionSha256: string;
+  readonly initializedAt: string;
+  readonly firstEligibleActivationAt?: string;
+  readonly likedOverride: boolean | null;
+  readonly savedOverride: boolean | null;
+  readonly likedDecision: RecordingChannelDecision | null;
+  readonly savedDecision: RecordingChannelDecision | null;
+  readonly channelRevision: number;
+  readonly horizontal: boolean;
+  readonly returned: boolean;
+  readonly navigationRevision: number;
+}
+export interface RecordingChannelDecision {
+  readonly value: boolean;
+  readonly decisionActionId: string;
+  readonly originActionId: string;
+  readonly originGeneration: number;
+}
+export type ReadRecordingSegment = (
+  scope: RecordingScopeTx,
+  exposureId: string,
+) => Promise<RecordingSegment | undefined>;
+export const READ_RECORDING_SEGMENT = Symbol('experience.readRecordingSegment');
+
+/** Bounded current channel selection. No necessary Saved/Like flag can certify old credit. */
+export type RecordingChannelSelection =
+  | { readonly kind: 'unavailable' | 'legacy_unknown' | 'not_ready' | 'certified_empty' }
+  | {
+      readonly kind: 'tracked';
+      readonly state: boolean;
+      readonly decisionActionId: string;
+      readonly originExposureId: string | null;
+      readonly originActionId: string | null;
+      readonly revision: number;
+    };
+export type ReadRecordingChannelSelection = (
+  scope: RecordingScopeTx,
+  input: { readonly assetId: string; readonly channel: 'saved' | 'liked' },
+) => Promise<RecordingChannelSelection>;
+export const READ_RECORDING_CHANNEL_SELECTION = Symbol('experience.readRecordingChannelSelection');

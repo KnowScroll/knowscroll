@@ -1,22 +1,72 @@
-import type { ReadingFacts } from '../../content/public.js';
+import type { EncounterAttribution, ReadingFacts } from '../../content/public.js';
 import type { ExposureLineage } from '../domain/exposure-lineage.js';
-import type { PersonalAuthority, PersonalScopeTx, WithPersonalScope } from '../../identity/public.js';
+import type {
+  PersonalAuthority,
+  PersonalScopeTx,
+  WithPersonalScope,
+  FenceOwnAccount,
+  FencePersonalRecording,
+  RecordingScopeTx,
+} from '../../identity/public.js';
 import type { ProjectScrollReadingPayload } from '../events.js';
 
+/** Structural owning read seam; the outer adapter binds Experience's genuine public port.
+ * Keeping this minimal contract local avoids public Evidence→Experience→Geography cycles. */
+export interface RecordingSegmentInput {
+  readonly recordingGeneration: number;
+  readonly exposure: {
+    readonly exposureId: string;
+    readonly assetId: string;
+    readonly assetRevision: number;
+    readonly kind: 'reel' | 'scroll';
+    readonly activatedAt: string;
+    readonly explanationUnitId: string;
+  };
+  readonly metadata: EncounterAttribution;
+  readonly attributionSha256: string;
+  readonly initializedAt: string;
+  readonly firstEligibleActivationAt?: string;
+  readonly savedOverride: boolean | null;
+  readonly likedOverride: boolean | null;
+  readonly savedDecision: RecordingChannelDecisionInput | null;
+  readonly likedDecision: RecordingChannelDecisionInput | null;
+  readonly channelRevision: number;
+  readonly horizontal: boolean;
+  readonly returned: boolean;
+  readonly navigationRevision: number;
+}
+interface RecordingChannelDecisionInput {
+  readonly value: boolean;
+  readonly decisionActionId: string;
+  readonly originActionId: string;
+  readonly originGeneration: number;
+}
+export type ReadEvidenceRecordingSegment = (
+  cap: RecordingScopeTx,
+  id: string,
+) => Promise<RecordingSegmentInput | undefined>;
 /** An action as the evidence job needs it (read from experience through its public surface). */
 export interface ActionToRecord {
   readonly id: string;
   readonly kind: 'save' | 'unsave' | 'like' | 'unlike' | 'hide';
   readonly assetId: string;
   readonly assetRevision: number;
+  readonly recordingOrigin?:
+    | { readonly kind: 'legacy' }
+    | { readonly kind: 'recorded'; readonly originalGeneration?: number; readonly eligibleGeneration?: number };
 }
 
-export interface ApplyActionEvidencePorts {
+export interface RecordingAuthorityPorts {
+  readonly fenceOwn: FenceOwnAccount;
+  readonly fenceRecording: FencePersonalRecording;
+}
+
+export interface ApplyActionEvidencePorts extends RecordingAuthorityPorts {
   readonly withPersonalScope: WithPersonalScope;
   readonly loadAction: (scope: PersonalScopeTx, actionId: string) => Promise<ActionToRecord | undefined>;
   /** Inserts the evidence row; `false` when this action was already recorded (redelivery). */
   readonly insertActionEvent: (
-    scope: PersonalScopeTx,
+    scope: RecordingScopeTx,
     event: ActionToRecord & { readonly eventId: string },
   ) => Promise<boolean>;
   readonly newId: () => string;
@@ -43,6 +93,7 @@ export interface NewObservation {
   readonly bounded: boolean;
   /** The bounded payload, JSON-native. */
   readonly payload: { readonly [key: string]: unknown };
+  readonly recordingGeneration: number;
 }
 
 /** What the intake knows about an exposure's stored observations. */
@@ -52,7 +103,8 @@ export interface IntakeState {
 }
 
 /** Capabilities of `ingestObservations`. Adapters implement them; Nest wires them. */
-export interface IngestObservationsPorts {
+export interface IngestObservationsPorts extends RecordingAuthorityPorts {
+  readonly readSegment: ReadEvidenceRecordingSegment;
   readonly withPersonalScope: WithPersonalScope;
   /** The exposure's lineage, read inside the locked scope (experience's public port). */
   readonly readExposure: (scope: PersonalScopeTx, exposureId: string) => Promise<ExposureLineage | undefined>;
@@ -64,9 +116,20 @@ export interface IngestObservationsPorts {
   ) => Promise<ReadingFacts | undefined>;
   readonly readIntakeState: (scope: PersonalScopeTx, exposureId: string) => Promise<IntakeState>;
   /** Inserts one observation; `false` when its event ID already exists in this universe (a retry). */
-  readonly insertObservation: (scope: PersonalScopeTx, observation: NewObservation) => Promise<boolean>;
+  readonly insertObservation: (scope: RecordingScopeTx, observation: NewObservation) => Promise<boolean>;
   /** Enqueues the projection job in the scope's own transaction (pg-boss is the only outbox). */
-  readonly enqueueProjection: (scope: PersonalScopeTx, payload: ProjectScrollReadingPayload) => Promise<void>;
+  readonly enqueueProjection: (scope: RecordingScopeTx, payload: ProjectScrollReadingPayload) => Promise<void>;
+  readonly hasRecordingSession: (scope: RecordingScopeTx, sessionId: string) => Promise<boolean>;
+  readonly readRecordingSession: (
+    scope: RecordingScopeTx,
+    exposureId: string,
+    sessionId: string,
+  ) => Promise<Date | undefined>;
+  readonly findEvent: (
+    scope: RecordingScopeTx,
+    eventId: string,
+  ) => Promise<{ readonly generation: number; readonly wireSha256?: string } | undefined>;
+  readonly hashEvent: (value: unknown) => string;
   readonly newId: () => string;
   readonly now: () => Date;
 }
@@ -79,6 +142,13 @@ export interface StoredObservation {
   readonly instrumentationVersion: number;
   readonly kind: string;
   readonly payload: unknown;
+  readonly recordingGeneration: number;
+  readonly clockDomain: 'legacy' | 'session';
+  readonly receivedAt: Date;
+  readonly originalWireProved: boolean;
+  readonly descriptorEligible: boolean;
+  readonly descriptorSha256?: string;
+  readonly serverStartedAt?: Date;
 }
 
 /** The latest committed evidence revision of an exposure, as the projection compares against it. */
@@ -86,11 +156,15 @@ export interface LatestEvidence {
   readonly revision: number;
   readonly inputWatermark: number;
   readonly policyVersion: string;
+  readonly id: string;
 }
 
 /** One evidence revision to store. */
 export interface NewEvidenceRevision {
   readonly id: string;
+  readonly recordingGeneration: number;
+  readonly clockDomain: 'legacy' | 'session';
+  readonly descriptorQualified: boolean;
   readonly exposureId: string;
   readonly revision: number;
   readonly inputWatermark: number;
@@ -107,7 +181,8 @@ export interface NewEvidenceRevision {
 }
 
 /** Capabilities of `projectScrollReading` (the worker's job). */
-export interface ProjectScrollReadingPorts {
+export interface ProjectScrollReadingPorts extends RecordingAuthorityPorts {
+  readonly readSegment: ReadEvidenceRecordingSegment;
   readonly withPersonalScope: WithPersonalScope;
   readonly readExposure: (scope: PersonalScopeTx, exposureId: string) => Promise<ExposureLineage | undefined>;
   readonly readReadingFacts: (
@@ -116,10 +191,21 @@ export interface ProjectScrollReadingPorts {
     revision: number,
   ) => Promise<ReadingFacts | undefined>;
   /** The exposure's observations in intake order (bounded by the intake limit). */
-  readonly readObservations: (scope: PersonalScopeTx, exposureId: string) => Promise<readonly StoredObservation[]>;
-  readonly readLatestEvidence: (scope: PersonalScopeTx, exposureId: string) => Promise<LatestEvidence | undefined>;
+  readonly readObservations: (
+    scope: RecordingScopeTx,
+    exposureId: string,
+    domain: 'legacy' | 'session',
+  ) => Promise<
+    { readonly kind: 'read'; readonly observations: readonly StoredObservation[] } | { readonly kind: 'limit' }
+  >;
+  readonly readLatestEvidence: (
+    scope: RecordingScopeTx,
+    exposureId: string,
+    domain: 'legacy' | 'session',
+  ) => Promise<LatestEvidence | undefined>;
   /** Inserts the revision; `false` when one already exists for this watermark and policy (redelivery). */
-  readonly insertEvidence: (scope: PersonalScopeTx, evidence: NewEvidenceRevision) => Promise<boolean>;
+  readonly insertEvidence: (scope: RecordingScopeTx, evidence: NewEvidenceRevision) => Promise<boolean>;
+  readonly nextEvidenceRevision: (scope: RecordingScopeTx, exposureId: string) => Promise<number>;
   /** Advances the universe revision in this transaction: the evidence commit's catch-up watermark. */
   readonly advanceRevision: (scope: PersonalScopeTx) => Promise<number>;
   /** `pg_notify` the scope change; delivered only if this transaction commits. Disposable. */

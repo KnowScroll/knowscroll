@@ -1,6 +1,11 @@
 import type { EncounterSnapshot } from '../../content/public.js';
-import type { ApplyActionEvidencePayload } from '../../evidence/public.js';
-import type { PersonalAuthority, PersonalScopeTx, WithPersonalScope } from '../../identity/public.js';
+import type {
+  FencePersonalRecording,
+  PersonalAuthority,
+  PersonalScopeTx,
+  RecordingScopeTx,
+  WithPersonalScope,
+} from '../../identity/public.js';
 import type { FindAssetForAction, FindOpenableAsset, RenderScroll } from '../../content/public.js';
 import type { ActionKind, SavedState } from '../domain/actions.js';
 import type { Exposure, ExposureOrigin } from '../domain/exposures.js';
@@ -38,6 +43,10 @@ export interface ActionRecord {
   readonly assetId: string;
   readonly assetRevision: number;
   readonly at: Date;
+  /** Actual necessary transition, computed BEFORE the Saved write. Never infer from origins. */
+  readonly necessaryChanged?: boolean;
+  readonly recordingGeneration?: number;
+  readonly operation?: string;
 }
 
 export interface SavedItem {
@@ -70,8 +79,19 @@ export interface ApplyActionPorts {
     scope: PersonalScopeTx,
     change: { readonly assetId: string; readonly assetRevision: number; readonly saved: boolean; readonly at: Date },
   ) => Promise<void>;
-  readonly recordAction: (scope: PersonalScopeTx, action: ActionRecord) => Promise<void>;
-  readonly enqueueActionEvidence: (scope: PersonalScopeTx, payload: ApplyActionEvidencePayload) => Promise<void>;
+  readonly recordAction: (
+    scope: PersonalScopeTx,
+    action: ActionRecord,
+  ) => Promise<void | { readonly recording: RecordingChannelsResult }>;
+  readonly enqueueActionEvidence: (
+    scope: PersonalScopeTx,
+    payload: {
+      readonly v: 1;
+      readonly universeId: string;
+      readonly privacyEpoch: number;
+      readonly actionId: string;
+    },
+  ) => Promise<void>;
   /**
    * Advances the universe revision in this transaction: the command's own catch-up watermark.
    * Called only when the command changed something a subscriber reads.
@@ -98,7 +118,51 @@ export interface ListSavedPorts {
 }
 
 /** The receipt and scope capabilities every experience command shares. */
+export interface RecordingCommandHooks {
+  readonly fence: FencePersonalRecording;
+  readonly remember: (
+    scope: PersonalScopeTx,
+    key: CommandKey,
+    originalGeneration: number | undefined,
+    eligibleGeneration: number | undefined,
+    at: Date,
+  ) => Promise<void>;
+  readonly activation: (
+    scope: RecordingScopeTx,
+    exposureId: string,
+    commandId: string,
+    at: Date,
+    offer?: {
+      readonly fresh: boolean;
+      readonly eligibleGeneration?: number;
+      readonly mode: string;
+      readonly source?: string;
+    },
+  ) => Promise<void>;
+  readonly offerOrigin: (scope: PersonalScopeTx, offerId: string) => Promise<number | undefined>;
+  readonly bindOfferOrigins: (
+    scope: PersonalScopeTx,
+    offerIds: readonly string[],
+    commandId: string,
+    eligibleGeneration: number | undefined,
+  ) => Promise<void>;
+}
+/** A supplied undefined/malformed reserved field must never become legacy omission. */
+export function originalRecordingGeneration(command: { readonly recordingGeneration?: number }): number | undefined {
+  if (!Object.hasOwn(command, 'recordingGeneration')) return undefined;
+  const g = command.recordingGeneration;
+  if (!Number.isInteger(g) || g === undefined || g < 1 || g > 2_147_483_647)
+    throw new Error('EXPERIENCE_RECORDING_GENERATION_INVALID');
+  return g;
+}
+export function recordingRequest(command: { readonly recordingGeneration?: number }): {
+  readonly recordingGeneration?: number;
+} {
+  const g = originalRecordingGeneration(command);
+  return g === undefined ? {} : { recordingGeneration: g };
+}
 export interface CommandPorts {
+  readonly recording?: RecordingCommandHooks;
   readonly withPersonalScope: WithPersonalScope;
   readonly hashRequest: (operation: string, request: JsonValue) => string;
   readonly findReceipt: (scope: PersonalScopeTx, key: CommandKey) => Promise<CommandLookup>;
@@ -133,7 +197,12 @@ export interface OpenExposurePorts extends CommandPorts {
 export interface ActivateExposurePorts extends CommandPorts {
   /** One exposure of the scope's universe, read inside the locked scope. */
   readonly readExposure: (scope: PersonalScopeTx, exposureId: string) => Promise<Exposure | undefined>;
-  readonly markActivated: (scope: PersonalScopeTx, exposureId: string, at: Date) => Promise<void>;
+  readonly markActivated: (
+    scope: PersonalScopeTx,
+    exposureId: string,
+    at: Date,
+    originalGeneration?: number,
+  ) => Promise<void>;
 }
 
 /** What rendering an exposure's document needs to know about it. */
@@ -156,3 +225,6 @@ export interface ReadExposureDocumentPorts {
   >;
   readonly renderScroll: RenderScroll;
 }
+
+export type RecordingChannelsResult =
+  { readonly changed: false } | { readonly changed: true; readonly revision: number };

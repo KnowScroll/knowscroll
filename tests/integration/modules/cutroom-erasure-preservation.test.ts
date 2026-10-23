@@ -5,8 +5,8 @@ import { contentCutroomStores } from '@knowscroll/backend/modules/content/nest-p
 import { reasoningCutroomStores, clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { clearExplorationFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { clearExplorationQueue, recoverClearOperationsQueue } from '@knowscroll/backend/modules/identity';
-import { eraseUniverse, eraseExploration } from '@knowscroll/backend/infrastructure/erasure';
-import { personalStores, explorationStores } from '@knowscroll/backend/erasure-registry';
+import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
+import { personalStores, eraseCurrentExploration } from '@knowscroll/backend/erasure-registry';
 import { makeWithPersonalScope } from '@knowscroll/backend/infrastructure/postgres';
 import { applyQueueDeclarations } from '@knowscroll/backend/infrastructure/jobs';
 import { seedPerson } from '../support/fixtures.js';
@@ -83,7 +83,7 @@ describe('full and selective erasure preserve concrete world-owned commissioning
     const clear = clearExplorationFor(f.world.db, f.boss, {
         reasoning: clearReasoning,
         eraseCore: async (tx) => {
-          await eraseExploration(tx, explorationStores);
+          await eraseCurrentExploration(tx);
         },
       }),
       commandId = randomUUID();
@@ -185,7 +185,7 @@ describe('received public output survives full/selective owner erasure (populate
     const clear = clearExplorationFor(db, f.boss, {
         reasoning: clearReasoning,
         eraseCore: async (s) => {
-          await eraseExploration(s, explorationStores);
+          await eraseCurrentExploration(s);
         },
       }),
       commandId = randomUUID();

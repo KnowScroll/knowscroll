@@ -1,6 +1,11 @@
 import { READ_COVERAGE_INPUTS } from '../public.js';
 import { readCoverageInputs } from './coverage-inputs.js';
-import { CHECK_COVERAGE_EVIDENCE, type CheckCoverageEvidence } from '../../evidence/public.js';
+import {
+  CHECK_COVERAGE_EVIDENCE,
+  CHECK_RECORDING_COVERAGE_EVIDENCE,
+  type CheckCoverageEvidence,
+  type CheckRecordingCoverageEvidence,
+} from '../../evidence/public.js';
 import {
   READ_ADMITTED_COVERAGE_MAPPING,
   LOCK_CURRENT_COVERAGE_AUTHORITIES,
@@ -46,21 +51,33 @@ export function personalContextProviders() {
     },
     {
       provide: ACTIVITY_CONTEXT_EFFECT,
-      inject: [CHECK_COVERAGE_EVIDENCE, READ_ADMITTED_COVERAGE_MAPPING, LOCK_CURRENT_COVERAGE_AUTHORITIES],
+      inject: [
+        CHECK_COVERAGE_EVIDENCE,
+        CHECK_RECORDING_COVERAGE_EVIDENCE,
+        READ_ADMITTED_COVERAGE_MAPPING,
+        LOCK_CURRENT_COVERAGE_AUTHORITIES,
+      ],
       useFactory: (
         checkEvidence: CheckCoverageEvidence,
+        checkRecordingEvidence: CheckRecordingCoverageEvidence,
         readMapping: ReadAdmittedCoverageMapping,
         lockAuthorities: LockCurrentCoverageAuthorities,
-      ) => makeCoverageActivityContextEffect({ checkEvidence, readMapping, lockAuthorities }),
+      ) => makeCoverageActivityContextEffect({ checkEvidence, checkRecordingEvidence, readMapping, lockAuthorities }),
     },
     {
       provide: READ_TRUSTED_COVERAGE,
-      inject: [CHECK_COVERAGE_EVIDENCE, READ_ADMITTED_COVERAGE_MAPPING, LOCK_CURRENT_COVERAGE_AUTHORITIES],
+      inject: [
+        CHECK_COVERAGE_EVIDENCE,
+        CHECK_RECORDING_COVERAGE_EVIDENCE,
+        READ_ADMITTED_COVERAGE_MAPPING,
+        LOCK_CURRENT_COVERAGE_AUTHORITIES,
+      ],
       useFactory: (
         checkEvidence: CheckCoverageEvidence,
+        checkRecordingEvidence: CheckRecordingCoverageEvidence,
         readMapping: ReadAdmittedCoverageMapping,
         lockAuthorities: LockCurrentCoverageAuthorities,
-      ) => makeReadTrustedCoverage({ checkEvidence, readMapping, lockAuthorities }),
+      ) => makeReadTrustedCoverage({ checkEvidence, checkRecordingEvidence, readMapping, lockAuthorities }),
     },
     { provide: APPLY_PROJECTED_ENCOUNTER, inject: [], useFactory: () => applyProjectedEncounter },
     {

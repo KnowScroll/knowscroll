@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sql } from 'kysely';
-import { explorationStores } from '@knowscroll/backend/erasure-registry';
+import { explorationStores, eraseCurrentExploration } from '@knowscroll/backend/erasure-registry';
 import { eraseExploration } from '@knowscroll/backend/infrastructure/erasure';
 import { createBoss, applyQueueDeclarations, makeEnqueuePrivacyJob } from '@knowscroll/backend/infrastructure/jobs';
 import {
@@ -49,7 +49,7 @@ describe('privacy capabilities and barriers', () => {
     clearExplorationFor(db(), boss, {
       reasoning: clearReasoning,
       eraseCore: async (scope) => {
-        await eraseExploration(scope, explorationStores);
+        await eraseCurrentExploration(scope);
       },
     });
   const input = () => ({
@@ -141,7 +141,7 @@ describe('privacy capabilities and barriers', () => {
     await maintenance()(p.accountId, a.commandId, async (scope) => {
       if (!isClearCore(scope)) throw new Error('fixture expected core');
       expired = scope;
-      await eraseExploration(scope, explorationStores);
+      await eraseCurrentExploration(scope);
       await clearStore.coreDone(scope);
       expect(() => clearCoreTransactionOf(scope)).toThrow();
     });

@@ -44,6 +44,8 @@ describe('Personal Planner role evaluation (synthetic context, CI model, real le
         revision: 1,
         watermarks: { scope: 1, projected: 1 },
         completeness: 'not_asserted',
+        proofAvailability: 'available',
+        proofReason: 'bounded',
         coverageAvailability: 'unavailable',
         topics: [],
         qualified: [],

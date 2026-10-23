@@ -1,5 +1,11 @@
 import type { LogEvent } from '../../infrastructure/observability/index.js';
-import type { AuthorityHolds, PersonalScopeTx, WithPersonalScope } from '../../modules/identity/public.js';
+import type {
+  AuthorityHolds,
+  PersonalAuthority,
+  PersonalScopeTx,
+  RecordingScopeTx,
+  WithPersonalScope,
+} from '../../modules/identity/public.js';
 import type { AttemptState } from '../domain/attempts.js';
 import type { BudgetCap, BudgetUsage, ReportedUsage } from '../domain/budgets.js';
 import type { OutputIssue } from '../domain/output.js';
@@ -154,6 +160,123 @@ export interface AttemptRow {
 }
 
 /** What a business run records about itself at admission (blueprint §15 "business run"). */
+export interface RecordingRunProof {
+  readonly accountId: string;
+  readonly generation: number;
+  readonly contextSha256: string;
+  readonly modelContextSha256: string;
+}
+
+/** Immutable private proof; claim is checked by the owner, never stored as run identity. */
+export interface PersonalRecordingPurpose {
+  readonly version: 'personal-role-purpose.v1';
+  readonly accountId: string;
+  readonly universeId: string;
+  readonly privacyEpoch: number;
+  readonly ownerModule: 'planner' | 'geography';
+  readonly purpose: 'personal-planner' | 'personal-cartographer';
+  readonly businessRunId: string;
+  readonly recordingGeneration: number;
+  readonly contextSha256: string;
+  readonly modelContextSha256: string;
+  readonly claimId: string;
+}
+export type CheckPersonalRecordingRun = (
+  scope: RecordingScopeTx,
+  purpose: PersonalRecordingPurpose,
+) => Promise<'current' | 'unavailable'>;
+
+export interface PersonalRunAccountingBinding {
+  readonly ownerModule: 'planner' | 'geography';
+  readonly purpose: 'personal-planner' | 'personal-cartographer';
+  readonly accountId: string;
+  readonly privacyEpoch: number;
+  readonly recordingGeneration: number | null;
+}
+/** Invoked once after the actual own-account gate; owner reads minimal header only. */
+export type ReadPersonalRunAccountingBinding = (
+  scope: PersonalScopeTx,
+  /** Actual current owner read after the gate. Payload-free data, not historical provenance or a capability. */
+  own: Readonly<{ accountId: string; universeId: string; privacyEpoch: number }>,
+) => Promise<PersonalRunAccountingBinding | 'unavailable'>;
+
+export interface PersonalAttemptAccounting {
+  readonly attemptId: string;
+  readonly step: string;
+  readonly state: AttemptState;
+}
+export type PersonalRunAccounting =
+  | {
+      readonly kind: 'accounted';
+      readonly disposition: 'conclusive' | 'unresolved';
+      readonly attempts: readonly PersonalAttemptAccounting[];
+    }
+  | { readonly kind: 'not_found' }
+  | { readonly kind: 'unavailable'; readonly reason: 'authority' | 'limit' | 'unproved' };
+
+/** Real adapter gates every private read; no open capability leaves its callback. */
+export interface PersonalHarnessAccess {
+  enter<T>(
+    authority: PersonalAuthority,
+    descriptor: RunDescriptor,
+    purpose: PersonalRecordingPurpose | undefined,
+    work: (scope: PersonalScopeTx) => Promise<T>,
+  ): Promise<
+    | { readonly kind: 'entered'; readonly value: T }
+    | { readonly kind: 'refused'; readonly refusal: { readonly kind: string; readonly accountingRevoked?: true } }
+  >;
+  check(
+    scope: PersonalScopeTx,
+    descriptor: RunDescriptor,
+    purpose: PersonalRecordingPurpose | undefined,
+  ): Promise<void>;
+  checkAttempt(
+    scope: PersonalScopeTx,
+    descriptor: RunDescriptor,
+    step: 'primary' | 'repair',
+    requestHash: string,
+  ): Promise<void>;
+  readProtected(
+    scope: PersonalScopeTx,
+    descriptor: RunDescriptor,
+    attempt: AttemptRef,
+    step: 'primary' | 'repair',
+    requestHash: string,
+  ): Promise<Uint8Array | undefined>;
+  apply<T>(
+    authority: PersonalAuthority,
+    purpose: PersonalRecordingPurpose,
+    work: (scope: RecordingScopeTx) => Promise<T>,
+  ): Promise<
+    | { readonly kind: 'entered'; readonly value: T }
+    | { readonly kind: 'refused'; readonly refusal: { readonly kind: string } }
+  >;
+  close(
+    scope: RecordingScopeTx,
+    purpose: PersonalRecordingPurpose,
+    run: { readonly runId: string; readonly state: 'completed' | 'failed' | 'cancelled' },
+  ): Promise<'closed' | 'not_open'>;
+  closeLegacy(
+    scope: PersonalScopeTx,
+    run: { readonly runId: string; readonly state: 'completed' | 'failed' | 'cancelled' },
+  ): Promise<'closed' | 'not_open'>;
+  readAccounting(
+    scope: PersonalScopeTx,
+    runId: string,
+    readExpectedBinding: ReadPersonalRunAccountingBinding,
+  ): Promise<PersonalRunAccounting>;
+}
+
+/** Fixed refusal, with no private values or exception-derived diagnostic text. */
+export class PersonalReasoningRefused extends Error {
+  constructor(
+    readonly reason: 'scope_refused' | 'run_mismatch' | 'run_closed' | 'output_ineligible' | 'request_mismatch',
+    readonly accountingRevoked = false,
+  ) {
+    super('PERSONAL_REASONING_AUTHORITY_REFUSED');
+  }
+}
+
 export interface RunDescriptor {
   readonly id: string;
   readonly ownerModule: string;
@@ -165,6 +288,7 @@ export interface RunDescriptor {
   readonly model: string;
   readonly contextBundleRef: string;
   readonly contextRefs: readonly string[];
+  readonly recording?: RecordingRunProof;
 }
 
 export type RunAdmission =
@@ -274,6 +398,18 @@ export interface AttemptLedger<S = PersonalScopeTx> {
     to: AttemptState,
     details?: SettlementDetails,
   ) => Promise<boolean>;
+  /** Personal-only necessary cancellation after protected access refuses. No private rows escape.
+   * Optional on the shared production ledger: absent capability leaves the liability held.
+   * Locks exact run → bounded raw attempts → matching held receipt; refuses any dispatch proof.
+   */
+  readonly releaseUndispatchedPersonal?: (input: {
+    readonly scopeId: string;
+    readonly privacyEpoch: number;
+    readonly run: RunDescriptor;
+    readonly step: 'primary' | 'repair';
+    readonly requestHash: string;
+    readonly attemptId?: string;
+  }) => Promise<'released' | 'unavailable'>;
   /** Usage that arrived for an attempt already written off: recorded on its receipt only. */
   readonly recordLateUsage: (attemptId: string, usage: ReportedUsage) => Promise<void>;
   /** The protected request bytes of an attempt, if still kept (not expired or erased). Harness-only. */
@@ -327,6 +463,7 @@ export interface HarnessSettings {
 
 /** Capabilities of the harness (blueprint §22: framework-free, everything through ports). */
 export interface HarnessPorts {
+  readonly personalAccess: PersonalHarnessAccess;
   readonly withPersonalScope: WithPersonalScope;
   /** Lock-free authority read for the output-eligibility check (nothing is written there). */
   readonly authorityHolds: AuthorityHolds;
@@ -348,7 +485,12 @@ export interface HarnessPorts {
 }
 
 /** Internal shared execution machinery: the two concrete boundaries supply their own authority protocol. */
-export interface ExecutionPorts<A, S> extends Omit<HarnessPorts, 'withPersonalScope' | 'authorityHolds' | 'ledger'> {
+export interface ExecutionPorts<A, S> extends Omit<
+  HarnessPorts,
+  'withPersonalScope' | 'authorityHolds' | 'ledger' | 'personalAccess'
+> {
+  /** Pure plan binding for the personal private-read adapter; absent in nonpersonal production. */
+  readonly beforeAttempt?: (step: 'primary' | 'repair', requestHash: string) => void;
   readonly withScope: <T>(
     authority: A,
     work: (scope: S) => Promise<T>,

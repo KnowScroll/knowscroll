@@ -1,5 +1,7 @@
+import type { ReadRecordingLifecycle } from '../../identity/public.js';
 import type { EnsureActivityLineage, ReadActivityReconcilePage } from '../public.js';
 import { sql } from 'kysely';
+import { z } from 'zod';
 import { EncounterOfferSchema } from '@knowscroll/contracts';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
@@ -9,6 +11,7 @@ import { OfferRegionConstraintSchema } from '../application/navigation-ports.js'
 import { consumeRegionActivationPermit } from '../application/navigation.js';
 import type { ReadActivityLineage, ReadRoutingHistory } from '../public.js';
 import { readExposure } from './postgres-store.js';
+import { legacyRecording } from './recording-store.js';
 const own = (scope: PersonalScopeTx) => ({
   u: scope.authority.universeId,
   e: scope.authority.privacyEpoch,
@@ -168,7 +171,9 @@ export async function recordActivation(
   scope: PersonalScopeTx,
   id: string,
   metadata: EncounterAttribution,
+  lifecycle: ReadRecordingLifecycle,
   offer?: StoredOffer,
+  originalGeneration?: number,
 ): Promise<void> {
   const { u, e, db } = own(scope);
   const exposure = await readExposure(scope, id);
@@ -179,7 +184,9 @@ export async function recordActivation(
   }>`select activated_at from experience.encounter_lineage where universe_id=${u}::uuid and privacy_epoch=${e} and explanation_unit_id=${metadata.explanationUnitId} and exposure_id<>${id}::uuid and activated_at<=${at} order by activated_at desc,exposure_id limit 1`.execute(
     db,
   );
+  const growth = await legacyRecording(scope, originalGeneration, lifecycle);
   const returned =
+    growth !== undefined &&
     offer?.mode === 'return' &&
     prior.rows[0] !== undefined &&
     at.getTime() - new Date(prior.rows[0].activated_at).getTime() >= 30 * 60000;
@@ -190,7 +197,8 @@ export async function recordActivation(
     db,
   );
   if (offer) {
-    const horizontal = (offer.mode === 'series' || offer.mode === 'related') && offer.source !== undefined;
+    const horizontal =
+      growth !== undefined && (offer.mode === 'series' || offer.mode === 'related') && offer.source !== undefined;
     await sql`insert into experience.navigation_transitions(universe_id,privacy_epoch,target_exposure_id,source_exposure_id,offer_id,session_id,mode,horizontal,returned,policy_version) values(${u}::uuid,${e},${id}::uuid,${offer.source?.exposureId ?? null}::uuid,${offer.id}::uuid,${offer.sessionId}::uuid,${offer.mode},${horizontal},${returned},'activity.v0') on conflict(universe_id,target_exposure_id) do nothing`.execute(
       db,
     );
@@ -248,28 +256,85 @@ export async function refreshAttribution(
     db,
   );
 }
-export const readRoutingHistory: ReadRoutingHistory = async (scope, q) => {
+const RoutingReadQuery = z.strictObject({
+  evaluatedAt: z.iso.datetime({ offset: true }),
+  candidates: z
+    .array(
+      z.strictObject({
+        explanationUnitId: z.string().min(1).max(160),
+        facets: z.array(z.string().min(1).max(160)).max(16),
+      }),
+    )
+    .max(100),
+  candidateAssetIds: z.array(z.uuid()).max(100),
+});
+type RecentRoutingRow = {
+  exposureId: string;
+  activatedAt: Date;
+  sortAt: string;
+  explanationUnitId: string;
+  facets: unknown;
+  generation: number;
+};
+const RoutingFacets = z.array(z.string().min(1).max(160)).max(16);
+export const readRoutingHistory: ReadRoutingHistory = async (scope, query) => {
+  // Select the owned query fields: prepared-input callers also carry unrelated topic fields.
+  const q = RoutingReadQuery.parse({
+    evaluatedAt: query.evaluatedAt,
+    candidates: query.candidates,
+    candidateAssetIds: query.candidateAssetIds,
+  });
   const { u, e, db } = own(scope);
-  const recent = await sql<{
-    exposureId: string;
-    activatedAt: Date;
-    explanationUnitId: string;
-    facets: string[];
-  }>`select exposure_id as "exposureId",activated_at as "activatedAt",explanation_unit_id as "explanationUnitId",facets from experience.encounter_lineage where universe_id=${u}::uuid and privacy_epoch=${e} and activated_at<=${q.evaluatedAt}::timestamptz and activated_at>=${q.evaluatedAt}::timestamptz-interval '24 hours' order by activated_at desc,exposure_id limit 20`.execute(
-    db,
-  );
+  // Each index-backed lane has its own fixed RAW budget, before deduplication. No refill.
+  const legacy = await sql<RecentRoutingRow>`select exposure_id as "exposureId",activated_at as "activatedAt",
+    to_char(activated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as "sortAt",
+    explanation_unit_id as "explanationUnitId",facets,0 as generation
+    from experience.encounter_lineage where universe_id=${u}::uuid and privacy_epoch=${e}
+    and activated_at<=${q.evaluatedAt}::timestamptz and activated_at>=${q.evaluatedAt}::timestamptz-interval '24 hours'
+    order by activated_at desc,exposure_id limit 20`.execute(db);
+  const recording =
+    await sql<RecentRoutingRow>`select exposure_id as "exposureId",first_eligible_activation_at as "activatedAt",
+    to_char(first_eligible_activation_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as "sortAt",
+    explanation_unit_id as "explanationUnitId",attribution_payload->'facets' as facets,recording_generation as generation
+    from experience.recording_segments where universe_id=${u}::uuid and privacy_epoch=${e}
+    and first_eligible_activation_at is not null and first_eligible_activation_at<=${q.evaluatedAt}::timestamptz
+    and first_eligible_activation_at>=${q.evaluatedAt}::timestamptz-interval '24 hours'
+    order by first_eligible_activation_at desc,exposure_id,recording_generation limit 20`.execute(db);
+  const seen = new Set<string>();
+  const recent = [...legacy.rows, ...recording.rows]
+    .sort((a, b) =>
+      a.sortAt === b.sortAt
+        ? a.exposureId.localeCompare(b.exposureId) || b.generation - a.generation
+        : a.sortAt > b.sortAt
+          ? -1
+          : 1,
+    )
+    .filter((r) => {
+      if (seen.has(r.exposureId)) return false;
+      seen.add(r.exposureId);
+      return true;
+    })
+    .slice(0, 20)
+    .map((r) => ({
+      exposureId: r.exposureId,
+      activatedAt: new Date(r.activatedAt).toISOString(),
+      explanationUnitId: r.explanationUnitId,
+      facets: RoutingFacets.parse(r.facets),
+    }));
   const established = await sql<{
     explanationUnitId: string;
     encountered: boolean;
     facets: readonly { facetId: string; encountered: boolean }[];
-  }>`select c."explanationUnitId",exists(select 1 from experience.encounter_lineage l where l.universe_id=${u}::uuid and l.privacy_epoch=${e} and l.explanation_unit_id=c."explanationUnitId" and l.activated_at<=${q.evaluatedAt}::timestamptz) as encountered,
-  coalesce((select jsonb_agg(jsonb_build_object('facetId',f.value,'encountered',exists(select 1 from experience.encounter_lineage l where l.universe_id=${u}::uuid and l.privacy_epoch=${e} and l.facets@>array[f.value] and l.activated_at<=${q.evaluatedAt}::timestamptz)) order by f.value) from jsonb_array_elements_text(c.facets) f),'[]') as facets
-  from jsonb_to_recordset(${JSON.stringify(q.candidates)}::jsonb) c("explanationUnitId" text,facets jsonb)`.execute(db);
-  return {
-    recent: recent.rows.map((r) => ({ ...r, activatedAt: new Date(r.activatedAt).toISOString() })),
-    established: established.rows,
-    hiddenAssetIds: await readHidden(scope, q.candidateAssetIds),
-  };
+  }>`select c."explanationUnitId",(
+    exists(select 1 from experience.encounter_lineage l where l.universe_id=${u}::uuid and l.privacy_epoch=${e} and l.explanation_unit_id=c."explanationUnitId" and l.activated_at<=${q.evaluatedAt}::timestamptz)
+    or exists(select 1 from experience.recording_segments s where s.universe_id=${u}::uuid and s.privacy_epoch=${e} and s.explanation_unit_id=c."explanationUnitId" and s.first_eligible_activation_at is not null and s.first_eligible_activation_at<=${q.evaluatedAt}::timestamptz)) as encountered,
+    coalesce((select jsonb_agg(jsonb_build_object('facetId',f.value,'encountered',
+      exists(select 1 from experience.encounter_lineage l where l.universe_id=${u}::uuid and l.privacy_epoch=${e} and l.facets@>array[f.value] and l.activated_at<=${q.evaluatedAt}::timestamptz)
+      or exists(select 1 from experience.recording_segments s where s.universe_id=${u}::uuid and s.privacy_epoch=${e} and s.first_eligible_activation_at is not null and s.first_eligible_activation_at<=${q.evaluatedAt}::timestamptz and (s.attribution_payload->'facets')@>jsonb_build_array(f.value))) order by f.value) from jsonb_array_elements_text(c.facets) f),'[]') as facets
+    from jsonb_to_recordset(${JSON.stringify(q.candidates)}::jsonb) c("explanationUnitId" text,facets jsonb)`.execute(
+    db,
+  );
+  return { recent, established: established.rows, hiddenAssetIds: await readHidden(scope, q.candidateAssetIds) };
 };
 export const readContextBase: NavigationPorts['readContextBase'] = async (scope, id) => {
   const { u, e, db } = own(scope);
@@ -301,10 +366,12 @@ export const readContextBase: NavigationPorts['readContextBase'] = async (scope,
     : undefined;
 };
 
-export const ensureActivityLineage: EnsureActivityLineage = async (scope, id, metadata) => {
-  await recordActivation(scope, id, metadata);
-  await refreshAttribution(scope, id, metadata);
-};
+export const ensureActivityLineage =
+  (lifecycle: ReadRecordingLifecycle): EnsureActivityLineage =>
+  async (scope, id, metadata) => {
+    await recordActivation(scope, id, metadata, lifecycle);
+    await refreshAttribution(scope, id, metadata);
+  };
 export const readActivityReconcilePage: ReadActivityReconcilePage = async (scope, q) => {
   if (q.limit < 1 || q.limit > 100 || !Number.isSafeInteger(q.limit)) throw new Error('ACTIVITY_RECONCILE_LIMIT');
   const { u, e, db } = own(scope);

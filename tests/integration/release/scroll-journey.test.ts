@@ -15,6 +15,7 @@ import { createDatabase, type Database, type DatabaseHandle } from '@knowscroll/
 import { apiClient } from '../support/api-client.js';
 import { createEmptyDatabase } from '../support/empty-database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
+import { recordingPerson } from '../support/recording-person.js';
 import {
   freePort,
   releaseDirectory,
@@ -88,7 +89,8 @@ describe('the thin journey through the built API, worker and operator command', 
       { url: database.url, applicationName: 'knowscroll-it-fixtures', poolMax: 2, statementTimeoutMs: 10_000 },
       { onIdleClientError: () => undefined },
     );
-    person = await seedPerson(handle.db);
+    // Actual Identity birth provides current lifecycle provenance; test-bearer remains a labelled CI adapter.
+    person = await recordingPerson({ db: handle.db });
     stranger = await seedPerson(handle.db);
 
     const port = await freePort();
@@ -314,13 +316,20 @@ describe('the thin journey through the built API, worker and operator command', 
     // the scope revision/hint. Await its actual current vector, not a timing guess or job skip.
     await expect
       .poll(async () => (await readCurrentActivity())?.input_vector, { timeout: 30_000, interval: 250 })
-      .toMatchObject({ qualificationRevision: 1, actionRevision: 0, navigationRevision: 0, policy: 'activity.v0' });
+      .toMatchObject({
+        qualificationRevision: 1,
+        actionRevision: 0,
+        navigationRevision: 0,
+        recordingGeneration: 1,
+        policy: 'recording-credit.v1',
+      });
     const activityBefore = await readCurrentActivity();
     expect(activityBefore?.input_vector).toMatchObject({
       qualificationRevision: 1,
       actionRevision: 0,
       navigationRevision: 0,
-      policy: 'activity.v0',
+      recordingGeneration: 1,
+      policy: 'recording-credit.v1',
     });
     const diagnostics = await client.diagnostics.evidence({ exposureId: opened.exposureId });
     await expect

@@ -493,6 +493,24 @@ function keptFixture(kind: 'reel' | 'scroll' = 'reel') {
     store: memoryStore(),
     fetch: async (request) => {
       const path = new URL(request.url).pathname;
+      // Explicit current-policy HTTP fixture; independent of the encounter/Keep command log.
+      if (path === '/v1/privacy/recording/read')
+        return request
+          .clone()
+          .json()
+          .then((input: { readId: string; target: unknown }) => {
+            const claim = request.headers.get('x-ks-scope')!.split(':');
+            return new Response(
+              JSON.stringify({
+                version: 'recording-policy.v1',
+                ...input,
+                scope: { accountId: claim[0], privacyEpoch: Number(claim[1]) },
+                revision: 0,
+                policy: { on: true, generation: 1 },
+              }),
+              { headers: { 'content-type': 'application/json' } },
+            );
+          });
       const body = request.method === 'POST' ? ((await request.json()) as Record<string, unknown>) : {};
       calls.push({ path, body });
       const context = {
@@ -878,6 +896,24 @@ function historyKeepFixture() {
     store: memoryStore(),
     fetch: async (request) => {
       const path = new URL(request.url).pathname;
+      // Explicit current-policy HTTP fixture; independent of the encounter/Keep command log.
+      if (path === '/v1/privacy/recording/read')
+        return request
+          .clone()
+          .json()
+          .then((input: { readId: string; target: unknown }) => {
+            const claim = request.headers.get('x-ks-scope')!.split(':');
+            return new Response(
+              JSON.stringify({
+                version: 'recording-policy.v1',
+                ...input,
+                scope: { accountId: claim[0], privacyEpoch: Number(claim[1]) },
+                revision: 0,
+                policy: { on: true, generation: 1 },
+              }),
+              { headers: { 'content-type': 'application/json' } },
+            );
+          });
       const body = request.method === 'POST' ? ((await request.json()) as Record<string, unknown>) : {};
       calls.push({ path, body });
       if (path.endsWith('/keep/read')) {
@@ -1198,6 +1234,7 @@ it('region Open enters the existing activation/recorder engine; map Back capture
     'capabilities',
     'commandId',
     'expectedEncounter',
+    'recordingGeneration',
     'target',
     'version',
   ]);
@@ -1295,4 +1332,62 @@ it('still returns to the map after the original region entry is evicted from bou
   expect(h.session.canBack()).toBe(false);
   expect(h.calls).toHaveLength(before);
   h.scope.end();
+});
+
+it('retains original producer/activation/action bodies and leaves an old offer playback-only after Resume (CI fixture)', async () => {
+  const h = harness();
+  try {
+    h.session.open({ kind: 'discover' });
+    await waitFor(() => expect(h.session.getState().phase).toBe('ready_offer'));
+    expect(commands(h, '/open')[0]?.body.recordingGeneration).toBe(1);
+    h.setRecordingGeneration(3);
+    await h.scope.recording!.refresh();
+    h.session.setForeground(true);
+    await waitFor(() => expect(h.session.getState().phase).toBe('active'));
+    const old = h.session.getState().entry!;
+    expect(commands(h, '/activate')[0]?.body.recordingGeneration).toBe(3);
+    if (old.kind !== 'reel') throw new Error('fixture Reel expected');
+    old.recorder.sample({
+      positionMs: 0,
+      monotonicMs: performance.now(),
+      playing: true,
+      visible: true,
+      buffering: false,
+    });
+    old.recorder.sample({
+      positionMs: 500,
+      monotonicMs: performance.now() + 500,
+      playing: true,
+      visible: true,
+      buffering: false,
+    });
+    old.recorder.flush();
+    expect(h.batches).toEqual([]);
+    h.session.navigate({ mode: 'vertical', direction: 'next' });
+    await waitFor(() => expect(commands(h, '/activate')).toHaveLength(2));
+    await waitFor(() => expect(h.session.getState().phase).toBe('active'));
+    const fresh = h.session.getState().entry!;
+    expect(commands(h, '/navigate')[0]?.body.recordingGeneration).toBe(3);
+    expect(fresh.recorder.sessionId).toBe(commands(h, '/activate')[1]?.body.commandId);
+    h.setRecordingGeneration(4);
+    await h.scope.recording!.refresh();
+    h.setActionFailure(true);
+    h.session.act('save');
+    await waitFor(() => expect(h.session.getState().actionFailed).toBe(true));
+    h.setRecordingGeneration(5);
+    await h.scope.recording!.refresh();
+    h.setActionFailure(false);
+    h.session.retryAction();
+    await waitFor(() => expect(h.session.getState().actionFailed).toBe(false));
+    const saves = commands(h, '/actions');
+    expect(saves[0]?.body.recordingGeneration).toBe(4);
+    expect(saves[1]?.body).toEqual(saves[0]?.body);
+    expect(
+      h.session.open({ kind: 'return', assetId: fresh.offer.assetId, assetRevision: fresh.offer.assetRevision }),
+    ).toBe(true);
+    await waitFor(() => expect(commands(h, '/open')).toHaveLength(2));
+    expect(commands(h, '/open')[1]?.body.recordingGeneration).toBe(5);
+  } finally {
+    h.scope.end();
+  }
 });

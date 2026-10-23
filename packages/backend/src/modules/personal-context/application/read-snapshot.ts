@@ -23,6 +23,8 @@ export function makeReadExplorationSnapshot(p: ContextPorts): ReadExplorationSna
       watermarks: { scope: scope.revisionAtEntry, projected: state.projected },
       completeness: 'not_asserted',
       coverageAvailability: 'unavailable',
+      proofAvailability: structure.proofAvailability,
+      proofReason: structure.proofReason,
       topics: q.topicIds.map((topicId) => ({
         topicId,
         statisticsAvailability: 'not_observed' as const,

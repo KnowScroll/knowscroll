@@ -39,3 +39,22 @@ transitive personal FK. The populated receiving fixture asserts byte-identical s
 through full erasure and selective Clear while preserving exact Saved UUID/ref/fractional places.
 The schema inventory still discovers actual tables, so omitting a declaration fails rather than
 creating an exemption by name. No new personal payload, provider output or erasure waiver is added.
+
+## Current recording lifecycle closure
+
+The fixed backend eraseCurrentExploration runner closes over the actual imported frozen owner
+callbacks and current canonical literal registry/writer protocol v1 (SHA256 ebbec3bda043ab47c5566ebb29e80322e841f4dc15ef7940fc2ee4c053176dc1).
+Generic clearExplorationRegistry/eraseExploration retains basic verification but cannot issue the
+separate live current-registry proof required for lifecycle READY. No caller supplies a digest,
+version flag, replacement registry or successful callback to that runner. The lifetime proof is
+removed with its ClearCoreTx. Actual core completion installs READY before barrier release,
+independently of subsequent financial settlement.
+
+Experience deletes channel certificates before actions/segments; Identity, last, removes the
+prior lifecycle witness before installing the current one. Full erasure removes it permanently
+until a separately authorized actual lifecycle transition. The witness is declared for both
+universe and account ownership. Registry deduplication permits that same-owner cross-kind
+declaration while still rejecting same-kind duplicates, duplicate owners and cross-owner stores.
+This is not an account-deletion executor or a mixed-version aggregate-write sandbox.
+
+Planner and Geography each declare runs.recording_account_id as an actual account-linked column. Their selective disposition erases the owning run row, including that link; no financial identity is nulled or reset. The pending0044 fixed protocol digest changes because the previous unaccepted c21 literal omitted these schema links. Old failed source/evidence is retained, with no generic hash compatibility or future Conversations extension elected.

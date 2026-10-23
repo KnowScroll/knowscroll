@@ -15,7 +15,13 @@ import {
   type LockRegionEncounterCandidates,
 } from '../../content/public.js';
 import { READ_OWN_REGION_CONSTRAINT, type ReadOwnRegionConstraint } from '../../geography/public.js';
-import { REGION_ENCOUNTERS } from '../public.js';
+import { REGION_ENCOUNTERS, type ExperienceRecordingEffects } from '../public.js';
+import {
+  withExperienceScope,
+  recordingCommandHooks,
+  legacyRecording,
+  requireRecordingEffects,
+} from './recording-store.js';
 import { makeRegionEncounters } from '../application/region-encounter.js';
 import {
   COMPOSE_ENCOUNTER,
@@ -26,7 +32,13 @@ import {
 } from '../../composer/public.js';
 import { projectEncounterActivityQueue } from '../../evidence/public.js';
 import { READ_COMPOSER_CONTEXT } from '../../personal-context/public.js';
-import type { WithPersonalScope } from '../../identity/public.js';
+import {
+  FENCE_OWN_ACCOUNT,
+  READ_RECORDING_LIFECYCLE,
+  type ReadRecordingLifecycle,
+  type FenceOwnAccount,
+  type WithPersonalScope,
+} from '../../identity/public.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { advanceScopeRevision } from '../../../infrastructure/postgres/personal-scope.js';
@@ -58,13 +70,15 @@ export const ACTIVATE_OFFER = Symbol('experience.activateOffer');
 export const READ_EXPOSURE_CONTEXT = Symbol('experience.readExposureContext');
 export function navigationProviders(
   t: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol },
-  options: { readonly region?: boolean } = {},
+  options: { readonly region?: boolean; readonly recordingEffects?: symbol } = {},
 ) {
   return [
     {
       provide: NAVIGATION_PORTS,
       inject: [
         t.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        READ_RECORDING_LIFECYCLE,
         t.enqueueJob,
         READ_COMPOSER_CONTEXT,
         COMPOSE_ENCOUNTER,
@@ -77,9 +91,12 @@ export function navigationProviders(
         ...(options.region
           ? [READ_OWN_REGION_CONSTRAINT, READ_REGION_ENCOUNTER_CANDIDATES, LOCK_REGION_ENCOUNTER_CANDIDATES]
           : []),
+        ...(options.recordingEffects ? [options.recordingEffects] : []),
       ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        lifecycle: ReadRecordingLifecycle,
         enqueue: EnqueueJob,
         readPrepared: ReadPreparedEvidenceInput,
         compose: ComposeEncounter,
@@ -89,52 +106,63 @@ export function navigationProviders(
         readContinuations: ReadContinuations,
         resolveContinuityLink: ResolveContinuityLink,
         readAttribution: ReadEncounterAttribution,
-        readRegionConstraint?: ReadOwnRegionConstraint,
-        readRegionCandidates?: ReadRegionEncounterCandidates,
-        lockRegionCandidates?: LockRegionEncounterCandidates,
-      ): NavigationPorts => ({
-        withPersonalScope,
-        // Explicitly unmounted legacy composition cannot inherit/activate a regional offer.
-        // The API opts in to all three actual owning ports together; there is no broad fallback.
-        readRegionConstraint: readRegionConstraint ?? (() => Promise.resolve({ kind: 'refused' })),
-        readRegionCandidates: readRegionCandidates ?? (() => Promise.resolve({ kind: 'unsupported' })),
-        lockRegionCandidates: lockRegionCandidates ?? (() => Promise.resolve(false)),
-        readSession,
-        writeSession,
-        readOffer,
-        readOwnedOffers,
-        readMember,
-        insertOffers,
-        bindOffer,
-        readHidden,
-        readContextBase,
-        readPrepared,
-        compose,
-        persistDecision,
-        readDiscoveryCandidates,
-        readExactEncounter,
-        readContinuations,
-        resolveContinuityLink,
-        readAttribution,
-        insertExposure,
-        markActivated: markExposureActivated,
-        recordActivation,
-        enqueueActivity: (s, id) =>
-          enqueue(s, projectEncounterActivityQueue, {
-            v: 1,
-            universeId: s.authority.universeId,
-            privacyEpoch: s.authority.privacyEpoch,
-            exposureId: id,
-          }),
-        advanceRevision: advanceScopeRevision,
-        notify: notifyScopeChanged,
-        findReceipt: findPersonalReceipt,
-        insertReceipt: insertPersonalReceipt,
-        completeReceipt: completePersonalReceipt,
-        hashRequest: requestHash,
-        newId: () => uuidv7(),
-        now: () => new Date(),
-      }),
+        ...optional: readonly unknown[]
+      ): NavigationPorts => {
+        const readRegionConstraint = options.region ? (optional[0] as ReadOwnRegionConstraint) : undefined;
+        const readRegionCandidates = options.region ? (optional[1] as ReadRegionEncounterCandidates) : undefined;
+        const lockRegionCandidates = options.region ? (optional[2] as LockRegionEncounterCandidates) : undefined;
+        const effects = options.recordingEffects
+          ? requireRecordingEffects(optional[options.region ? 3 : 0] as ExperienceRecordingEffects | undefined)
+          : undefined;
+        return {
+          withPersonalScope: withExperienceScope(withPersonalScope, fenceOwn),
+          recording: recordingCommandHooks(readAttribution, lifecycle, effects),
+          // Explicitly unmounted legacy composition cannot inherit/activate a regional offer.
+          // The API opts in to all three actual owning ports together; there is no broad fallback.
+          readRegionConstraint: readRegionConstraint ?? (() => Promise.resolve({ kind: 'refused' })),
+          readRegionCandidates: readRegionCandidates ?? (() => Promise.resolve({ kind: 'unsupported' })),
+          lockRegionCandidates: lockRegionCandidates ?? (() => Promise.resolve(false)),
+          readSession,
+          writeSession,
+          readOffer,
+          readOwnedOffers,
+          readMember,
+          insertOffers,
+          bindOffer,
+          readHidden,
+          readContextBase,
+          readPrepared,
+          compose,
+          persistDecision,
+          readDiscoveryCandidates,
+          readExactEncounter,
+          readContinuations,
+          resolveContinuityLink,
+          readAttribution,
+          insertExposure,
+          markActivated: markExposureActivated,
+          recordActivation: async (scope, id, metadata, offer, originalGeneration) => {
+            if (!effects) await recordActivation(scope, id, metadata, lifecycle, offer, originalGeneration);
+          },
+          enqueueActivity: async (s, id, originalGeneration) => {
+            if (options.recordingEffects || !(await legacyRecording(s, originalGeneration, lifecycle))) return;
+            await enqueue(s, projectEncounterActivityQueue, {
+              v: 1,
+              universeId: s.authority.universeId,
+              privacyEpoch: s.authority.privacyEpoch,
+              exposureId: id,
+            });
+          },
+          advanceRevision: advanceScopeRevision,
+          notify: notifyScopeChanged,
+          findReceipt: findPersonalReceipt,
+          insertReceipt: insertPersonalReceipt,
+          completeReceipt: completePersonalReceipt,
+          hashRequest: requestHash,
+          newId: () => uuidv7(),
+          now: () => new Date(),
+        };
+      },
     },
     {
       provide: REGION_ENCOUNTERS,

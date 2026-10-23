@@ -13,7 +13,8 @@ export interface PlaybackSample {
 export interface ReelRecorderOptions {
   readonly exposure: RecordedExposure;
   readonly durationMs: number;
-  readonly scope: Pick<AccountScope, 'api' | 'storage' | 'active'>;
+  readonly scope: Pick<AccountScope, 'api' | 'storage' | 'active'> &
+    Partial<Pick<AccountScope, 'account' | 'recording' | 'onEnd'>>;
   readonly newId: () => string;
   readonly clock?: RecorderClock;
   readonly outbox?: ObservationOutbox;
@@ -37,7 +38,9 @@ export function createReelRecorder(options: ReelRecorderOptions): ReelRecorder {
   const outbox = options.outbox ?? scopeOutbox(options.scope);
   const clock = options.clock ?? { monotonicMs: () => performance.now(), wallIso: () => new Date().toISOString() };
   const started = clock.monotonicMs();
-  const sessionId = options.newId();
+  const sessionId = options.exposure.recordingSessionId ?? options.newId();
+  let eligible = false;
+  let revoked = false;
   let previous: PlaybackSample | undefined;
   let sequence = 0;
   let ended = false;
@@ -51,8 +54,26 @@ export function createReelRecorder(options: ReelRecorderOptions): ReelRecorder {
       previous = undefined;
       samples = [];
     }
-    return !scopeEnded;
+    const policy = options.scope.recording?.getState();
+    if (policy?.policy && policy.policy.generation !== options.exposure.recordingGeneration) revoked = true;
+    const allowed =
+      !scopeEnded &&
+      !revoked &&
+      options.exposure.recordingGeneration !== undefined &&
+      options.exposure.recordingSessionId !== undefined &&
+      policy?.collecting === true &&
+      policy.policy?.generation === options.exposure.recordingGeneration;
+    if (allowed !== eligible) {
+      eligible = allowed;
+      previous = undefined;
+      samples = [];
+      acceptAfter = clock.monotonicMs();
+    }
+    return !scopeEnded && eligible;
   };
+  const policyOff = options.scope.recording?.subscribe(() => {
+    scopeActive();
+  });
   const report = () => {
     if (!scopeActive() || samples.length === 0) return;
     sequence += 1;
@@ -61,20 +82,24 @@ export function createReelRecorder(options: ReelRecorderOptions): ReelRecorder {
       eventId: options.newId(),
       sessionId,
       deviceSequence: sequence,
-      ...options.exposure,
+      exposureId: options.exposure.exposureId,
+      assetId: options.exposure.assetId,
+      assetRevision: options.exposure.assetRevision,
       occurredAt: clock.wallIso(),
       kind: 'reel.playback',
       payload: { samples },
     };
     samples = [];
-    outbox.enqueue([event], 1);
+    outbox.enqueue([event], 1, options.exposure.recordingGeneration);
   };
   const accepts = (): boolean => scopeActive() && !ended && !suspended;
   const flush = () => {
     if (accepts()) report();
   };
   return {
-    sessionId,
+    get sessionId() {
+      return sessionId;
+    },
     sample(next: PlaybackSample) {
       if (!accepts() || next.monotonicMs < acceptAfter) return;
       const prior = previous;
@@ -100,21 +125,27 @@ export function createReelRecorder(options: ReelRecorderOptions): ReelRecorder {
     },
     flush,
     suspend() {
-      if (!accepts()) return;
+      const authorized = scopeActive();
+      if (ended || suspended) return;
       previous = undefined;
       suspended = true;
-      report();
+      if (authorized) report();
+      else samples = [];
     },
     resume() {
-      if (!scopeActive() || ended || !suspended) return;
+      scopeActive();
+      if (ended || !suspended || scopeEnded) return;
       acceptAfter = clock.monotonicMs();
       suspended = false;
     },
     end() {
-      if (!scopeActive() || ended) return;
-      previous = undefined;
+      const authorized = scopeActive();
+      policyOff?.();
+      if (ended) return;
       ended = true;
-      report();
+      previous = undefined;
+      if (authorized) report();
+      samples = [];
     },
   };
 }

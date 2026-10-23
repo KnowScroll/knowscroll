@@ -1,139 +1,209 @@
 # modules/planner
 
-Personal Planner source for #236 (blueprint §§10,15,19). It proposes future exploration; it writes
-no Evidence, qualification, interest, geography, completion, production admission or content.
-Schema acceptance and authored CI fixtures do not establish that suggestions are useful. This
-slice has no deployed/real-provider acceptance until separately recorded by the coordinator.
+Personal Planner source for #236/#381 (blueprint §§10,15,19). It proposes bounded future
+opportunities. Suggestions never create Evidence, qualification, personal geography, completion,
+production admission or content. The recording changes are source prerequisites: schema43,
+Reasoning, real owner composition and hosted behavior checks must be accepted together. No paid
+role grant, API/client privacy control, worker election or deployment follows from this source.
+`KS_PLANNER_ENABLED=0` remains the worker default; enabling it never grants paid allowance.
 
-## Public capabilities and execution gate
+## Accepted source and immutable business identity
 
-`PlannerMaterialChange(scope,{sourceRevision})` is an Evidence-owned callback supplied by composition.
-After an actual Evidence activity or PC correction/catchup changes, Evidence advances the personal
-scope revision and invokes it once inside the **same** transaction. Unchanged replay invokes nothing.
-Both shipped API and worker install this request-only facility. API composition has no Planner
-harness/provider. Failure rolls source projection, PC, revision and the required job back together.
+`RequestPlanner(authority,{commandId,intent?,resumeRunId?,recordingGeneration?})` checks the
+personal root and actual own-account UPDATE fence before receipt replay. An exact receipt can
+acknowledge its original result while paused; it creates no new effects. A fresh accepted command
+must pass its original generation. Supplied undefined is rejected and omission preserves the old
+request hash. Omission is literal initial1 only, never server-current after a toggle. Refused fresh
+commands retain only their fixed receipt, with no intent, desired source, context or job.
 
-`RequestPlanner(authority,{commandId,intent?})` is a backend-only deliberate request, with optional
-`{language,topicIds}` bounded explicit intent. It locks/rechecks authority before receipt lookup;
-receipt, desired revision, state, active business run and pg-boss send commit together. Identical
-replays return the original accepted revision/run ID; another payload under the same command ID
-refuses. Its receipt stays accepted; evolving run status is stored separately. No HTTP/client
-contract is introduced. Automatic contexts say `intent.availability: unavailable` and use the
-explicit English inventory-selection policy; they never infer intent by scanning other sessions.
+`PlannerMaterialChange(RecordingScopeTx,{sourceRevision,recordingGeneration})` requires a genuine
+live capability, exact original generation, and actual root revision equal to both sourceRevision
+and scope entry revision+1. The producer invokes this once inside its actual derived transaction.
+Failure rolls source effects, state and the required pg-boss job back together. Descriptor or
+activation alone is not a material source. API/worker composition must supply this real callback;
+an empty successful adapter is not a replacement.
 
-`KS_PLANNER_ENABLED=0` is the worker default. A delivery records `blocked_disabled` without any
-model reservation or invocation. Enabling it is a deployment/configuration action, **not paid
-allowance**. D-024's #232 Scroll grant does not authorise this role. The coordinator must obtain a
-concrete role grant before enabling paid Planner execution; existing harness caps, quota checks,
-unknown accounting and failure brake still apply. No live request was made by implementing this
-source. The role is `planner.personal-planner`, version `planner1`, policy `personal-planner.v0`;
-4096 output tokens, one primary + at most one separately admitted repair (maximum2 requests/run).
+Desired state records its accepted generation and command/source revision. A run records its birth
+account, generation and source exactly once. Queued preparation may coalesce a newer desired
+revision only within that same generation. Resume never replaces the birth identity or frozen
+context. Unknown accounting remains the same business ID and blocks a successor until its actual
+payload-free financial disposition is conclusive. Toggling alone creates no desired source or job.
+NULL old provenance is unknown. Literal1 adoption requires actual initial1/on authority and exact
+owned rows; it never upgrades an old run after off/on.
 
-After reviewing configuration/allowance, resume the **same** blocked business ID through the typed
-request facility:
+## Queue, claims and necessary accounting
 
-```ts
-await requestPlanner(authority, { commandId: newCommandId, resumeRunId: blockedRunId });
-```
+The existing `planner.run` queue/policy is unchanged: concurrency1,1200s expiry, three retries with
+30s exponential delay, seven-day queued retention, two-day result retention and common dead-letter
+retention. New v2 jobs bind original generation plus either exact ordinary wakeId or delayed
+expectedClaimId. v1 is a literal1 compatibility path and cannot consume a newer v2 wake marker.
+No context, hashes, text or provider output is present in jobs.
 
-Resume preserves frozen intent/context and existing attempt identity; an unknown attempt remains
-unknown and never resends. A disabled run that never prepared context freezes the latest desired
-revision on its first enabled delivery. There is no automatic timer/requeue that evades a disabled,
-budget, quota, harness mismatch or failure-brake refusal, and no direct paid operator bypass in this slice. Operator
-inspection uses the protected `planner.state`, `planner.runs` and `planner.revisions` rows; no private
-context or model output is emitted to ordinary logs. Existing reasoning operator capabilities own
-attempt reconciliation/write-off; a write-off is not remote completion or retry permission.
+Ordinary wake metadata is an exact UUID on the run PK. Enqueue and marker change share one
+transaction; there is no pg-boss JSON/history scan. Only the matching wake may capture a claim.
+Every new1150s claim consumes its ordinary/previous delayed marker and atomically queues one
+recovery wake for the NEW claim at expiry+1s. A delayed handler that crashes after renewing a claim
+already has the new recovery job. An obsolete wake changes no current claim, marker or context.
+An early matching delayed delivery raises a fixed retryable failure under the existing bounded
+queue policy; it neither steals the live claim nor creates another wake. Explicit resume refuses
+live claims/pending ordinary work and gives an eligible released run a fresh ordinary UUID.
 
-`ReadPlannerOpportunities(scope,{evaluatedAt,limit:1..3})` is a typed backend-only future Composer
-port. It uses the caller's current live personal transaction, reports absent/stale/available with
-plan/PC revisions, filters expiry and rechecks current evidence/asset authority and Hide. It does
-not open content. Navigation must still enforce its own capability/access/revision/intent checks.
-No Composer scoring or UI consumer is invented here. `RunPlanner(payload,signal)` is worker-only.
+Accounting reads run separately under a fresh root and the Reasoning owner's actual own-account
+fence. They expose bounded exact disposition only, never output, issues, requests or private context.
+Reserved/dispatched/unknown/unproved/overflow accounting stays blocked and is never resent or
+reset. Necessary retirement of a revoked conclusively accounted old run may clear only that exact
+active ID and its own scheduling metadata. Only an independently retained fresh current-generation
+source can then create a successor. Financial settlement/late usage/write-off remains independent
+of collection policy. No recording gate rewrites those outcomes or permits another paid attempt.
 
-## Coalescing and transaction boundaries
+## Prepare, private replay and apply
 
-A caller/epoch has one desired revision, one active business ID and at most one pending pg-boss
-wake-up per run. Material source revisions deduplicate. Requests while queued coalesce; preparation
-captures the latest desired revision. Changes during execution update desired state without opening
-another role run. A conclusive stale result is refused, closes its harness run and atomically creates
-one successor for the latest revision. Unknown outcomes retain the active run and prevent successors
-until the same ledger work is conclusively resolved. Terminal failures do not silently start a new
-run for the same desired revision.
+Preparation orders root → actual own-account fence → original generation → exact run header/account/
+active ID/wake/claim checks before any frozen body, intent, PC, catalogue or memory capture. The
+header excludes frozen context. Full context and exact `{bundleRef,items}` receive separate
+canonical SHA256s in the same write that first freezes context. Owner account/source and both
+hashes remain immutable. JSONB key order cannot change model item bytes.
 
-The `planner.run` queue contains only version/universe/epoch/run IDs. It uses local concurrency1,
-1200s expiry, three retries with30s exponential backoff, seven-day queued retention, two-day result
-retention and the common14-day dead-letter retention. A1150s claim token fences concurrent deliveries;
-a live claim returns `already_running`. An early retry that finds a live prepared claim commits one delayed pg-boss wake-up for that
-exact claim ID at claim expiry+1s before the retry completes. The delayed job requires the same
-claim ID and prepared status; an owner that finished accepted/blocked/unknown/disabled makes it a
-no-op. This preserves recovery after a failed handler without automatic policy retries. Normal
-wake-ups also refuse settled blocked/unknown runs. Typed explicit resume atomically changes that
-status back to prepared (queued if no context) and enqueues ordinary work; it may also recover an
-expired prepared claim. Pending ordinary and claim-fenced jobs deduplicate independently, so an
-obsolete delayed wake cannot swallow an explicit resume. A crashed delivery resumes frozen work
-after claim expiry. Prepared JSON sorts object keys so JSONB storage cannot change request bytes on replay. The expiry exceeds two attempts at maximum300s transport +10s quota + two maximum60s
-scope locks per attempt, two application-scope waits and margin. Claim tokens cannot override the harness's external-attempt
-ledger. A duplicate unknown delivery never sends/repairs another attempt.
+`CHECK_PLANNER_RECORDING_RUN` accepts only a genuine RecordingScopeTx and the strict Reasoning
+personal purpose. It checks actual prepared status, active run, current unexpired claim, account,
+universe/epoch/generation and both header hashes before loading the bounded body. It recomputes
+both hashes from that body and the real deterministic item builder. Caller strings or copied,
+expired capabilities cannot substitute for the owning adapter.
 
-Lock order is personal root → Planner state/run/domain rows → harness admission/attempt bookkeeping
-as defined by the shared engine. Preparation and apply are short distinct `withPersonalScope`
-transactions. The harness runs **between** them, never inside a transaction or HTTP navigation.
-Application rechecks active run/claim, epoch, desired revision, PC revision, exact current catalog
-watermarks, qualified supporting source hashes, eligibility/Hide and expiry before applying.
-Accepted revision and harness closure commit together; rollback leaves the kept answer available
-for the same run without another invocation. No second transport outbox exists.
+The required `RecordingReasoningHarness.proposePersonal` fences reservation, protected replay,
+request reads and dispatch through the closed Planner/Geography owner dispatcher. No generic
+personal harness fallback is used by the recording worker. Network I/O stays outside transactions.
+The purpose binds owner/purpose, account/universe/epoch, business ID, original generation, claim and
+both hashes. Claim is delivery ownership; accounting/business identity remains stable.
 
-## Prepared context, authority and memory
+Apply enters only through `withPersonalApply`, which owns the sole root/account UPDATE/originalg
+and actual owner/ledger proof transaction. The role does not nest another root or acquire the same
+Identity account gate twice. It rechecks semantic authority and current PC/catalogue under that
+capability, then calls `closePersonalRun` with the SAME facade-issued capability while its owner
+header is still prepared/active/claimed. Accepted domain revision and owner status/active changes
+follow in the same transaction. Any failure rolls ledger close and all domain effects back.
+A paused/stale answer can be accounted but cannot become accepted memory or invoke material growth.
 
-Context policy `plan_inventory_recent_union.v0` unions explicit intent, actual current plan,
-actual admitted inventory and recency-selected projected topic seeds under100 topics total. It
-prepares at most100 inventory assets/units, exact unit support probes, recent routing at most20,
-and at most20 qualified supporting source references. Recent discovery reports `hasMore`; topic
-truncation is explicit. These are bounded lanes, never global highest activity or lifetime scans.
-The full PC snapshot retains `completeness: not_asserted`, `coverageAvailability: unavailable` and
-actual statistics availability. PC/Evidence own all arithmetic and distinct qualified-unit counts.
-No provisional tail is sent to the model; it cannot contribute arithmetic, structural support or
-formation. Asset facet tags do not become covered facets.
+## Bounded prepared context and proof availability
 
-The frozen bundle stores the exact PC source vector and SHA-derived evidence refs, current eligible
-inventory references with bounded titles/summaries, current plan and at most the last three accepted
-revision sets as fallible memory. Corrected, expired or unsupported memory is omitted from model
-input. The harness receives small prepared JSON items (≤64 items, ≤32768 chars each), frames all
-text as untrusted data, and stores protected request bytes under its existing expiry/erasure policy.
-Unaccepted answers never become memory; hidden chain-of-thought is neither requested nor stored.
-Aggregate prepared context also has explicit UTF-8 limits:500000 bytes frozen and180000 bytes
-of escaped model-item data with framing margin. An oversized bundle finishes as insufficient
-`context_bounds` without reservation; it is never truncated into asserted completeness. No raw
-observations, personal message bodies or another person's data are prepared.
+The existing selection unions explicit intent, current plan, admitted inventory and recent topic
+seeds under100 topics/assets/units; recency is not global top activity. Memory is at most three
+accepted revisions, never a transcript. Up to20 qualified exact supporting contribution hashes
+identify factual support. Plans, inventory tags, provisional observations and previous suggestions
+never manufacture qualification or facet coverage. Source generations and exact audit identities
+remain in the PC contribution hash; inherited committed PC support is distinct from pending raw
+observations.
 
-Output proposes up to six priority candidates: example/mechanism/limitation/consequence/perspective/
-connection, exact topic/unit/evidence refs, vertical/related eligibility, format preferences, expiry
-within seven days, and either an exact eligible asset revision/watermark or missing-supply brief.
-Every proposed topic needs a qualified nonincidental supporting source. Missing-supply unit refs
-must already occur in prepared evidence/inventory; new canonical identities are not model-created.
-Semantic authority issues use a fixed safe repair-hint catalogue. Code retains at most three, with
-distinct explanation identities and at most two of a move or topic. Missing supply stays an
-**unadmitted unresolved opportunity**; #239 Quartermaster must add its own admission capability.
-No Cutroom or Scroll commissioning occurs, and suggestions never generate consumption evidence.
+PC `proofAvailability` must be explicitly available at preparation and current semantic recheck.
+Missing/unavailable/overflow proof blocks without reservation or accepted support; it is not zero
+support. An unavailable prepared read cannot be repaired by treating empty arrays as complete.
+Current Content authority and exact PC identities are rechecked before apply; root ownership keeps
+personal evidence stable through Content waits. `completeness: not_asserted` remains explicit.
 
-## Storage and erasure (`0021`)
+Prepared data retains the existing500000-byte frozen and180000-byte escaped item bounds,
+64 items/32768 characters each. Oversize ends as insufficient without reservation. Role policy
+`personal-planner.v0`/`planner1` keeps4096 output tokens, one primary and at most one separately
+admitted repair. Deterministic authority/diversity/expiry checks retain at most three opportunities.
+Missing supply remains an unadmitted proposal; no commissioning, provider output, usefulness or
+learning claim is made. No provisional tail or raw private messages enter the model context.
 
-| Table | Role and bounds | Lifecycle |
-|---|---|---|
-| `planner.state` | One caller/epoch desired/material/accepted revision + active ID; explicit intent≤4KiB | Root lock; epoch scoped; all epochs erased |
-| `planner.runs` | Stable business identity, status/claim, versioned frozen prepared JSON≤512KiB | Idempotent deliveries; accepted/rejected/stale/insufficient audit; all contexts erased |
-| `planner.revisions` | Accepted revision/context/run/attempt refs, ≤3 opportunities and≤32KiB | Revision audit retained until personal erasure; memory reads latest3 only |
+`ReadPlannerOpportunities` can display already committed plans under current personal/Content
+read authority, filtering expiry/Hide/stale facts. It does not wake a role or authorize content
+opening. Stale or unavailable proof produces no currently supported opportunities.
 
-Bounded memory is the latest-three projection over accepted audit rows, not another transcript or
-unbounded prompt history. Frozen source context and accepted audit remain personal and erasable.
-`plannerErasure` removes revisions → state → runs across **all epochs**, plus queued/active/retained/
-dead-letter Planner payloads. Shared reasoning erasure removes protected requests and personal
-attempt/run data while retaining minimal unlinked accounting per its own rules. Registry/queue
-inventory covers all declared stores. No separate files, caches, embeddings or external memory exist.
-Migrations0001–0020 remain immutable;0021 is additive and older workers ignore the Planner tables.
+## Storage, erasure and verification
 
-Verification is GitHub Actions only: pure validator/diversity fixtures; real-PostgreSQL receipt,
-coalescing, source/apply rollback, concurrent claim/stale successor, unknown no-resend, correction,
-bounds, memory, expiry, privacy/erasure fixtures; separate role-evaluation cases for malicious context,
-insufficient/corrected support and one safe repair. All model replies are explicitly authored CI
-fixtures. Local schema generation/typecheck/lint/build are source checks, not test/runtime evidence.
+Existing `planner.state`, `planner.runs` and `planner.revisions` remain the only stores. Schema43
+adds provenance, paired immutable context hashes and exact wake metadata without historical
+backfill, tables or indexes. All prior42 SQL bytes remain immutable. Erasure still removes
+revisions → state → runs across every epoch and queued/retained/dead-letter IDs-only payloads.
+Reasoning retains honest minimal accounting under its existing independent privacy erasure rules.
+No file cache, embedding, alternate outbox or historical certification is added.
+
+All automated suites run in hosted Actions. Authored fixture model replies are CI data, never
+provider evidence. Local type/lint/format/build checks establish source consistency only. Full
+positive recording Evidence→PC→Planner/Geography composition, populated Clear, finite legacy
+certification, role grants and real journeys remain separate acceptance gates.
+
+
+A fresh non-resume command or material trigger may find a revoked active head whose ordinary wake
+was already consumed while disabled or blocked. It records the independent current-generation desired
+source and atomically queues one `v:2,kind:'retire'` delivery on the same queue, with the old exact
+nullable original generation and a fresh UUID in `normal_wake_id`. This is a metadata-only accounting
+wake. It cannot collect, read frozen intent/context, claim, propose or apply the old business. A current-
+generation explicit resume of an OLD run ID still refuses `run_not_resumable`; it cannot create a new
+desired source or adopt that run. Toggle alone creates no source or job.
+
+The retirement consumer enters only the accounting facade's current root/own gate and exact minimal
+owner callback. Unknown, unresolved or unproved accounting keeps the old business active and consumes
+only the exactly delivered ordinary/retirement UUID by SQL CAS. Stale A cannot clear pending B; there
+is no automatic poll/retry-created wake. Conclusive or distinctly proved zero-RETAINED-attempt absence
+may retire the exact old head, then independently fence the retained fresh desired generation to create
+one new business/ordinary UUID. Receipt/history/caps remain unchanged. Legacy NULL cleanup uses only the actual current own snapshot supplied by the Reasoning facade
+AFTER its own gate, to prove present-row ownership on a distinctly absent ledger. It keeps original
+generation NULL; a present NULL/partial ledger remains unavailable. No historical account/generation
+is inferred from that snapshot, and Planner copies no Identity SQL.
+
+
+Every newly written ordinary/retirement `normal_wake_id` is the actual pg-boss job UUID: enqueue
+supplies `jobId:wakeId`. Under an independently eligible fresh source or same-business explicit
+resume, `prepareNormalWake` checks only the exact `(name='planner.run',id=marker)` primary key.
+It returns state plus exact JSONB equality to a closed IDs-only expected ordinary/retirement payload;
+no raw job payload or unguarded numeric/UUID cast is selected. Created/retry/active is busy. Only
+completed/cancelled/failed or exact absence permits CAS clearing that old marker, with no live Role
+claim. Unknown state, mismatched payload, stale UUID or foreign account refuses. Replacement keeps
+the same business/original generation/ledger; it cannot bypass unknown or reopen a terminal business.
+Blocked/unknown still requires an explicit same-generation resume; queued/prepared without a claim
+may recover a lost normal delivery from a fresh source. Expired claims retain their separate exact
+claim-recovery/release protocol. No scan, background poll, paid retry or old non-ID-marker adoption
+is installed. Schema43 and this complete source preview remain unreleased prerequisites.
+
+
+The sole legacy queue alias is an ALL-NULL seven-field origin/hash header and an exact matching
+stored normal UUID. An actual initial1/on explicit resume emits ordinary v2 literal generation1
+with that actual job ID, preserving the NULL header until first real claim; the probe adopts nothing.
+After a toggle, that same literal1 delivery may enter necessary accounting cleanup with expected
+ORIGINAL NULL and the actual current-own snapshot. A terminal/missing probe can replace the old
+metadata with an explicit NULL-generation retirement wake; a live old delivery stays busy. Present
+NULL/partial ledger proof remains unavailable; distinct absence proves zero RETAINED attempts only.
+Only a separately retained fresh source can authorize a successor. Stale UUIDs, partial headers,
+ordinary post-toggle collection or generation1 stamping remain refused.
+
+
+Necessary pre-admission completion is separate from semantic apply. For available-but-empty
+context, or the real engine's `provider_unavailable` refusal before admission, a fresh root enters
+the accounting port's actual own-account gate once. Its fixed callback fences original generation
+before reading only the exact prepared owner header, active ID, unexpired current claim/recovery
+marker and frozen hash identity. Only the accounting port's actual absent-parent result permits
+terminal metadata: empty becomes insufficient and clears that exact active ID; provider unavailable
+becomes blocked on the same business. It creates no successor, semantic effect, ledger row, attempt,
+close or monetary-zero receipt. Present, partial or unresolved ledger proof cannot use this path.
+Actual admitted quota/unknown decisions still require the genuine semantic apply facade.
+
+Retirement delivery ownership is strict even for conclusive accounting. Old v1 refuses every stored
+normal UUID. Ordinary/retirement delivery must own its exact current UUID; a delayed delivery must
+match BOTH current claim ID and recovery marker with no competing normal marker. Stale A cannot
+retire, clear or create a successor for B/C. Minimal accounting headers carry these IDs only;
+private context and hash bytes are not added to revoked cleanup. The hosted regressions preserve
+zero-retained absence separately from historical cost and preserve every unknown-liability fence.
+
+
+### Header-only persistence and hosted hash-shape diagnosis
+
+Existing run writes first update the exact `(universe_id, privacy_epoch, id)` row under the
+already-held personal root. Omitted context/version and paired hashes preserve their frozen SQL
+values without loading private bodies into metadata-only paths. Only actual absence proceeds to
+a fresh queued origin-only insert; an absent metadata header refuses with a fixed error and a
+cross-epoch PK conflict refuses rather than updating another epoch. A supplied changed
+origin/body/hash still reaches the existing immutable trigger and complete row CHECKs.
+
+The first full recording hosted Actions exposed a production persistence defect: a header-only
+claim-recovery write supplied retained hashes but no body to `INSERT ... ON CONFLICT`. PostgreSQL
+checks that proposed insert before conflict resolution, so it rejected null context with nonnull
+hashes before the intended update could preserve the frozen body. The same adapter served terminal
+metadata and resume. Direct existing-row update fixes that ordering; the schema/hash guards, original
+claim/wake protocol, admission/financial caps and all crash/rollback assertions remain unchanged.
+New hosted fixture source retains the genuine crash point, checks body/hash preservation for a real
+frozen header and necessary empty/provider-unavailable completion, and verifies changed frozen
+body/hash and hashes-without-context still refuse atomically. No local behavioral execution or
+hosted-green/runtime acceptance is inferred from static checks.

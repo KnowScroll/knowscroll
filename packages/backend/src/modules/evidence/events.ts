@@ -1,16 +1,20 @@
 import { z } from 'zod';
+import { RecordingGenerationSchema } from '@knowscroll/contracts';
 import { defineQueue } from '../../infrastructure/jobs/queues.js';
 
 /**
  * Payload of `evidence.apply-action`: schema version and IDs only (blueprint §19). The job reads
  * the action itself, so an erased action is never resurrected from a queue payload.
  */
-export const ApplyActionEvidencePayloadSchema = z.object({
-  v: z.literal(1),
-  universeId: z.uuid(),
-  privacyEpoch: z.number().int().min(1),
-  actionId: z.uuid(),
-});
+export const ApplyActionEvidencePayloadSchema = z
+  .object({
+    v: z.union([z.literal(1), z.literal(2)]),
+    recordingGeneration: RecordingGenerationSchema.optional(),
+    universeId: z.uuid(),
+    privacyEpoch: z.number().int().min(1),
+    actionId: z.uuid(),
+  })
+  .refine(originalJobGeneration);
 
 export type ApplyActionEvidencePayload = z.infer<typeof ApplyActionEvidencePayloadSchema>;
 
@@ -39,12 +43,15 @@ export const applyActionEvidenceQueue = defineQueue({
  * reads the exposure's observations itself, so erased observations are never resurrected from a
  * queue payload.
  */
-export const ProjectScrollReadingPayloadSchema = z.object({
-  v: z.literal(1),
-  universeId: z.uuid(),
-  privacyEpoch: z.number().int().min(1),
-  exposureId: z.uuid(),
-});
+export const ProjectScrollReadingPayloadSchema = z
+  .object({
+    v: z.union([z.literal(1), z.literal(2)]),
+    recordingGeneration: RecordingGenerationSchema.optional(),
+    universeId: z.uuid(),
+    privacyEpoch: z.number().int().min(1),
+    exposureId: z.uuid(),
+  })
+  .refine(originalJobGeneration);
 
 export type ProjectScrollReadingPayload = z.infer<typeof ProjectScrollReadingPayloadSchema>;
 
@@ -87,3 +94,8 @@ export const projectEncounterActivityQueue = defineQueue({
   },
   consumer: { localConcurrency: 2, pollingIntervalSeconds: 1 },
 });
+
+/** Preserve the object shape required by erasure inventory. No legacy generation stripping. */
+function originalJobGeneration(value: { readonly v: 1 | 2; readonly recordingGeneration?: number }): boolean {
+  return value.v === 1 ? !Object.hasOwn(value, 'recordingGeneration') : value.recordingGeneration !== undefined;
+}

@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import {
   connectScopeSocket,
   createAccountScopeManager,
@@ -12,6 +12,7 @@ import { appApiOrigin } from '../platform/api';
 import { scopeStorage } from '../platform/scope-storage';
 import { sessionTokens } from '../platform/session-tokens';
 import { signInBinding } from '../platform/sign-in-binding';
+import { newCommandId } from '../platform/command-id';
 
 const AccountScopeContext = createContext<AccountScopeManager | null>(null);
 
@@ -72,6 +73,58 @@ export function AccountScopeProvider({
     return () => manager.dispose();
   }, [manager]);
   const state = useSyncExternalStore(manager.subscribe, manager.getState, manager.getState);
+  const scope = state.status === 'signed_in' ? state.scope : undefined;
+  useEffect(() => {
+    const policy = scope?.recording;
+    if (!scope || !policy) return;
+    policy.useIdSource(newCommandId);
+    // React Native also defines window, without browser event APIs. Capture DOM ports only on web.
+    const web = Platform.OS === 'web';
+    const browserWindow = web && typeof window !== 'undefined' ? window : undefined;
+    const browserDocument = web && typeof document !== 'undefined' ? document : undefined;
+    let appActive = AppState.currentState === 'active';
+    let focused = !web || browserDocument?.hasFocus() === true;
+    const foreground = () => appActive && focused && (!web || browserDocument?.visibilityState === 'visible');
+    const refresh = () => {
+      void policy.setForeground(scope.active && foreground());
+    };
+    const focus = () => {
+      focused = true;
+      refresh();
+    };
+    const background = () => {
+      focused = false;
+      void policy.setForeground(false);
+    };
+    const appState = AppState.addEventListener('change', (value) => {
+      appActive = value === 'active';
+      refresh();
+    });
+    const storage = (event: StorageEvent) => {
+      if (event.key === `ks.scope.${scope.id}.recording.policy.signal`) {
+        policy.invalidate();
+        if (scope.active && foreground()) void policy.refresh();
+        else void policy.setForeground(false);
+      }
+    };
+    if (browserWindow && browserDocument) {
+      browserWindow.addEventListener('focus', focus);
+      browserWindow.addEventListener('blur', background);
+      browserWindow.addEventListener('storage', storage);
+      browserDocument.addEventListener('visibilitychange', refresh);
+    }
+    refresh();
+    return () => {
+      void policy.setForeground(false);
+      appState.remove();
+      if (browserWindow && browserDocument) {
+        browserWindow.removeEventListener('focus', focus);
+        browserWindow.removeEventListener('blur', background);
+        browserWindow.removeEventListener('storage', storage);
+        browserDocument.removeEventListener('visibilitychange', refresh);
+      }
+    };
+  }, [scope]);
   if (state.status === 'starting') return null;
   const key = state.status === 'signed_in' ? keyOf(state.scope) : 'signed-out';
   return (

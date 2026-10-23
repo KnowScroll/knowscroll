@@ -29,6 +29,7 @@ import { evidenceWiring } from './modules/evidence.js';
 import { experienceWiring } from './modules/experience.js';
 import { identityWiring } from './modules/identity.js';
 import { privacyWiring } from './modules/privacy.js';
+import { recordingWiring } from './modules/recording.js';
 import { socialWiring } from './modules/social.js';
 import { ScopeGateway } from './realtime/scope.gateway.js';
 import { apiControllers } from './routes.js';
@@ -103,6 +104,7 @@ export class AppModule {
         }),
         ...identityScopeOwnerProviders(),
         ...privacyWiring(resources.config.scopeLockTimeoutMs),
+        ...recordingWiring,
         ...contentWiring,
         ...mediaWiring,
         ...experienceWiring,

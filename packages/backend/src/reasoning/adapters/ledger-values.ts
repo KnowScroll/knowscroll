@@ -220,3 +220,31 @@ export async function canStartRoleRun(trx: Transaction<Database>, roleId: string
       and (conclusive_failure or state in ('held', 'unknown', 'written_off'))`.execute(trx);
   return Number(result.rows[0]?.runs ?? 0) < ROLE_FAILURE_BRAKE_RUNS_PER_DAY;
 }
+
+/** Private immutable recording proof. NULL means legacy unknown, never resumed current. */
+export function recordingProofMatches(
+  row: {
+    readonly recording_account_id: string | null;
+    readonly recording_generation: number | null;
+    readonly recording_context_sha256: string | null;
+    readonly recording_model_context_sha256: string | null;
+  },
+  proof:
+    | {
+        readonly accountId: string;
+        readonly generation: number;
+        readonly contextSha256: string;
+        readonly modelContextSha256: string;
+      }
+    | undefined,
+): boolean {
+  return proof
+    ? row.recording_account_id?.toLowerCase() === proof.accountId.toLowerCase() &&
+        row.recording_generation === proof.generation &&
+        row.recording_context_sha256 === proof.contextSha256 &&
+        row.recording_model_context_sha256 === proof.modelContextSha256
+    : row.recording_account_id === null &&
+        row.recording_generation === null &&
+        row.recording_context_sha256 === null &&
+        row.recording_model_context_sha256 === null;
+}

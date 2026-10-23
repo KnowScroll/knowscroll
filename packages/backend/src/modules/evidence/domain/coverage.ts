@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SCROLL_QUALIFICATION_POLICY_V0 } from './policy.js';
+import { SCROLL_QUALIFICATION_POLICY_V0, SCROLL_RECORDING_QUALIFICATION_POLICY } from './policy.js';
 
 export const OBSERVED_COVERAGE_POLICY = 'observed-static-coverage.v1' as const;
 const Hash = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -134,7 +134,10 @@ export function observedBindings(
   hash: (value: unknown) => string,
 ) {
   const summary = ReadingCoverageSummarySchema.safeParse(evidence.summary);
-  const policy = SCROLL_QUALIFICATION_POLICY_V0;
+  const policy =
+    evidence.policyVersion === SCROLL_RECORDING_QUALIFICATION_POLICY.version
+      ? SCROLL_RECORDING_QUALIFICATION_POLICY
+      : SCROLL_QUALIFICATION_POLICY_V0;
   if (
     !summary.success ||
     evidence.policyVersion !== policy.version ||

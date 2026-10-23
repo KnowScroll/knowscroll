@@ -1,5 +1,5 @@
 import { CONCEPTS, CONCEPT_CATALOGUE_VERSION } from '../../content/public.js';
-import type { PersonalScopeTx } from '../../identity/public.js';
+import type { RecordingScopeTx } from '../../identity/public.js';
 import type { GeographyContext, GeographyPorts, GeographyView } from './ports.js';
 import { semanticKey, type Candidate, type FormationFacts, type Support } from '../domain/policy.js';
 const label = (id: string) => {
@@ -38,10 +38,12 @@ function candidates(p: GeographyPorts, view: GeographyView, previous?: readonly 
 /** Revalidates indexed candidate probes through current PC/Evidence/Content authority in this root. */
 export async function prepareGeography(
   p: GeographyPorts,
-  scope: PersonalScopeTx,
+  cap: RecordingScopeTx,
   view: GeographyView,
   previous?: GeographyContext,
 ): Promise<GeographyContext | undefined> {
+  await p.store.root(cap);
+  const scope = cap.personal;
   if (view.objects.length > 1000 || view.routes.length + view.aliases.length > 1000) return undefined;
   const input = await p.readInputs(scope);
   if (input.availability !== 'available' || !input.probes.length) return undefined;
@@ -65,7 +67,28 @@ export async function prepareGeography(
         p.hash({ topicId: topic.id, topicMeaning: topic.meaning, facetId: facet.id, facetMeaning: facet.meaning })
     )
       throw new Error('GEOGRAPHY_MEANING_CHANGED');
-    const certificates = coverage.certificates.filter((c) => s.witnessExposureIds.includes(c.certificate.exposureId));
+    const witnesses = coverage.witnesses.filter(
+      (w) =>
+        w.topicId === s.topicId &&
+        w.facetId === s.facetId &&
+        w.meaningSha256 === s.meaningSha256 &&
+        w.explanationUnitId === s.explanationUnitId &&
+        w.truthSha256 === s.truthSha256,
+    );
+    const certificates = witnesses.map((w) => {
+      const c = coverage.certificates.find(
+        (c) =>
+          c.witnessKey === w.witnessKey &&
+          c.sourceKind === w.sourceKind &&
+          c.recordingGeneration === w.recordingGeneration &&
+          c.activityId === w.activityId &&
+          c.qualificationId === w.qualificationId &&
+          c.certificateSha256 === w.certificateSha256 &&
+          c.certificate.exposureId === w.exposureId,
+      );
+      if (!c) throw new Error('GEOGRAPHY_WITNESS_AUTHORITY');
+      return c;
+    });
     if (
       !certificates.length ||
       certificates.some(

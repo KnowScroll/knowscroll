@@ -1,6 +1,11 @@
 import type { PersonalScopeTx } from '../identity/public.js';
 /** Backend-only prepared context. No consumer scores, source metadata or peer positions. */
-export { CONTEXT_POLICY, ContributionSchema, ContextQuerySchema } from './domain/context.js';
+export {
+  CONTEXT_POLICY,
+  ContributionSchema,
+  ContextQuerySchema,
+  RecordingContributionEnvelopeSchema,
+} from './domain/context.js';
 export type { Contribution, ContextQuery } from './domain/context.js';
 export type {
   ApplyProjectedEncounter,
@@ -29,6 +34,7 @@ export type ReadCoverageInputs = (scope: PersonalScopeTx) => Promise<{
   readonly revision: number;
   readonly completeness: 'not_asserted';
   readonly availability: 'available' | 'unavailable';
+  readonly reason: 'bounded' | 'limit';
   readonly probes: TrustedCoverageQuery['probes'];
 }>;
 export const READ_COVERAGE_INPUTS = Symbol('personal-context.readCoverageInputs');

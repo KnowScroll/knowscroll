@@ -5,6 +5,7 @@ import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { UniverseDeltaSchema, type SceneClientCapabilities } from '@knowscroll/contracts';
 import {
   makeWithPersonalScope,
+  fencePersonalRecording,
   transactionOf,
   advanceScopeRevision,
   type Database,
@@ -17,10 +18,19 @@ import {
   startConsumers,
   deadLetterQueueName,
 } from '@knowscroll/backend/infrastructure/jobs';
-import { personalStores, explorationStores } from '@knowscroll/backend/erasure-registry';
-import { eraseUniverse, eraseExploration, checkErasureInventory } from '@knowscroll/backend/infrastructure/erasure';
-import { identityScopeOwnerProviders, clearExplorationFor } from '@knowscroll/backend/modules/identity/nest-providers';
-import { CHECK_PERSONAL_OWNER_ACTIVE, type CheckPersonalOwnerActive } from '@knowscroll/backend/modules/identity';
+import { personalStores, eraseCurrentExploration } from '@knowscroll/backend/erasure-registry';
+import { eraseUniverse, checkErasureInventory } from '@knowscroll/backend/infrastructure/erasure';
+import {
+  identityScopeOwnerProviders,
+  clearExplorationFor,
+  accountAccessUseCases,
+} from '@knowscroll/backend/modules/identity/nest-providers';
+import {
+  FENCE_OWN_ACCOUNT,
+  FENCE_PERSONAL_RECORDING,
+  CHECK_PERSONAL_OWNER_ACTIVE,
+  type CheckPersonalOwnerActive,
+} from '@knowscroll/backend/modules/identity';
 import {
   READ_GEOGRAPHY_SCENE_INPUT,
   GEOGRAPHY_APPLIED,
@@ -134,6 +144,8 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
     ];
     const values = new Map<symbol, unknown>([
       [SCOPE, scope()],
+      [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
+      [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [ENQUEUE, makeEnqueueJob(c.boss)],
       [READ_TRUSTED_COVERAGE, c.readTrustedCoverage],
       [READ_COVERAGE_INPUTS, buildFromProviders(personalContextProviders(), READ_COVERAGE_INPUTS, new Map())],
@@ -231,6 +243,10 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
       personalRevision: 1,
     };
     await scope()(p.authority, async (s) => {
+      if ((await accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount(s)).kind !== 'active')
+        throw new Error('CI own');
+      const gate = await fencePersonalRecording(s, 1);
+      if (gate.kind !== 'recording') throw new Error('CI original recording');
       const tx = transactionOf(s),
         run = randomUUID();
       await tx
@@ -260,7 +276,8 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
       await advanceScopeRevision(s);
       if (options.oldWriter) await makeEnqueueJob(c.boss)(s, projectSceneQueue, job);
       else
-        await applied(s, {
+        await applied(gate.scope, {
+          recordingGeneration: 1,
           transitionId: t,
           geography: d.geography,
           personalRevision: 1,
@@ -792,7 +809,7 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
     const clear = clearExplorationFor(database.db, c.boss, {
       reasoning: clearReasoning,
       eraseCore: async (s) => {
-        await eraseExploration(s, explorationStores);
+        await eraseCurrentExploration(s);
       },
     });
     const q = {

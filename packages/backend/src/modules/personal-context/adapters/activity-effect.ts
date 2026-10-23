@@ -1,5 +1,9 @@
 import { sql } from 'kysely';
-import type { ActivityDerivedEffect, ActivityDerivedInput } from '../../evidence/public.js';
+import type {
+  ActivityDerivedEffect,
+  LegacyActivityDerivedEffect,
+  LegacyActivityDerivedInput,
+} from '../../evidence/public.js';
 import { requestHash } from '../../../infrastructure/receipts/index.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { CONTEXT_POLICY, ContributionSchema, type Contribution } from '../domain/context.js';
@@ -7,7 +11,8 @@ import { applyCoverage, coverageDigest, readStoredCoverage } from './coverage-st
 import type { CoverageDependencies } from '../application/coverage-ports.js';
 import { advanceContextState } from './postgres-store.js';
 import { applyProjectedEncounter } from './postgres-store.js';
-function contribution(x: ActivityDerivedInput): Contribution {
+import { applyRecordingContext, isRecordingContextCurrent } from './recording-store.js';
+function contribution(x: LegacyActivityDerivedInput): Contribution {
   return ContributionSchema.parse({
     version: 'personal-contribution.v0',
     exposureId: x.exposure.exposureId,
@@ -29,7 +34,7 @@ function contribution(x: ActivityDerivedInput): Contribution {
   });
 }
 /** Evidence owns this port's shape; composition supplies the context owner, without a module cycle. */
-export const activityContextEffect: ActivityDerivedEffect = {
+export const activityContextEffect: LegacyActivityDerivedEffect = {
   apply: (scope, x) => applyProjectedEncounter(scope, contribution(x)),
   async isCurrent(scope, x) {
     const next = contribution(x);
@@ -44,7 +49,7 @@ export const activityContextEffect: ActivityDerivedEffect = {
 
 /** Shipped required effect. Existing isolated compatibility fixtures may use the legacy effect. */
 export function makeCoverageActivityContextEffect(p: CoverageDependencies): ActivityDerivedEffect {
-  function checked(x: ActivityDerivedInput) {
+  function checked(x: LegacyActivityDerivedInput) {
     const c = x.coverage;
     if (
       !c ||
@@ -59,6 +64,8 @@ export function makeCoverageActivityContextEffect(p: CoverageDependencies): Acti
     return { certificate: c, activityId: x.id };
   }
   return {
+    applyRecording: (scope, x) => applyRecordingContext(scope, x, p),
+    isRecordingCurrent: isRecordingContextCurrent,
     async apply(scope, x) {
       const { certificate, activityId } = checked(x);
       const legacy = await activityContextEffect.apply(scope, x);

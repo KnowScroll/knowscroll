@@ -1,6 +1,8 @@
 import { socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
 import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { CONTEXT_POLICY, RecordingContributionEnvelopeSchema } from '@knowscroll/backend/modules/personal-context';
+import { requestHash } from '@knowscroll/backend/infrastructure/receipts';
 import { COVERAGE_POLICY, CONCEPT_CATALOGUE_VERSION, type CoverageCommand } from '@knowscroll/backend/modules/content';
 import {
   makeAdmitCoverage,
@@ -29,6 +31,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { evidenceUseCase } from '../support/evidence.js';
 import { experienceUseCases } from '../support/experience.js';
 import { seedAsset, seedPerson, type FixturePerson } from '../support/fixtures.js';
+import { recordingPerson } from '../support/recording-person.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 import { admitStarter, scrollUseCases } from '../support/scroll.js';
 
@@ -101,6 +104,28 @@ describe('the erasure registry (real database)', () => {
   it('declares every personal table, account-linked column and queue payload store, with RESTRICT references to the root', async () => {
     expect(await checkErasureInventory(database.db, personalStores)).toEqual([]);
     expect(checkQueuePayloadStores(releaseQueues, personalStores)).toEqual([]);
+  });
+
+  it('requires both actual personal-role account links in the migrated schema inventory', async () => {
+    for (const module of ['planner', 'geography']) {
+      expect(personalStores.find((owner) => owner.module === module)?.accountColumns).toContainEqual({
+        schema: module,
+        table: 'runs',
+        column: 'recording_account_id',
+      });
+    }
+    const omitted = personalStores.map((owner) =>
+      owner.module === 'planner' || owner.module === 'geography'
+        ? {
+            ...owner,
+            accountColumns: owner.accountColumns?.filter((column) => column.column !== 'recording_account_id'),
+          }
+        : owner,
+    );
+    expect(await checkErasureInventory(database.db, omitted)).toEqual([
+      'geography.runs.recording_account_id links to an account but no module declares it',
+      'planner.runs.recording_account_id links to an account but no module declares it',
+    ]);
   });
 
   it('fails the inventory for an unregistered personal table, a cascading reference and an undeclared account link', async () => {
@@ -227,11 +252,11 @@ describe('the erasure registry (real database)', () => {
   });
 
   it('erases one universe from every registered store and leaves another universe untouched', async () => {
-    const erased = await seedPerson(database.db);
-    const kept = await seedPerson(database.db);
+    const erased = await recordingPerson(database);
+    const kept = await recordingPerson(database);
     const asset = await seedAsset(database.db);
-    const useCases = await experienceUseCases(database);
-    const scroll = await scrollUseCases(database);
+    const useCases = await experienceUseCases(database, { recording: true });
+    const scroll = await scrollUseCases(database, { recording: true });
     const starter = await admitStarter(scroll.importScroll);
     // Explicit CI attribution fixture for exercising personal topic-row erasure; no runtime taxonomy inference.
     await database.db
@@ -331,6 +356,54 @@ describe('the erasure registry (real database)', () => {
           exposureId: exposure.exposureId,
         }),
       ).toMatchObject({ kind: 'applied' });
+      // Erasure-only coexistence fixture: retain exact valid legacy-shaped copies of the
+      // freshly committed PC source. Production performs no history initialization/copy.
+      // Both generations of stores must be populated; the every-store>0 assertion stays exact.
+      const effective = await database.db
+        .selectFrom('personal_context.recording_exposure_contributions')
+        .selectAll()
+        .where('universe_id', '=', person.universeId)
+        .where('exposure_id', '=', exposure.exposureId)
+        .executeTakeFirstOrThrow();
+      const contribution = RecordingContributionEnvelopeSchema.parse(effective.payload).contribution;
+      if (!contribution?.qualified) throw new Error('fixture_pc_recording_support_missing');
+      await database.db
+        .insertInto('personal_context.contributions')
+        .values({
+          universe_id: person.universeId,
+          privacy_epoch: 1,
+          exposure_id: exposure.exposureId,
+          explanation_unit_id: contribution.explanationUnitId,
+          qualified: true,
+          input_sha256: requestHash(CONTEXT_POLICY, contribution),
+          payload_version: contribution.version,
+          payload: contribution,
+        })
+        .execute();
+      const source = await database.db
+        .selectFrom('personal_context.recording_segment_heads')
+        .selectAll()
+        .where('universe_id', '=', person.universeId)
+        .where('exposure_id', '=', exposure.exposureId)
+        .where('recording_generation', '=', 1)
+        .executeTakeFirstOrThrow();
+      if (!source.coverage || !source.coverage_sha256) throw new Error('fixture_pc_recording_certificate_missing');
+      await database.db
+        .insertInto('personal_context.coverage_contributions')
+        .values({
+          universe_id: person.universeId,
+          privacy_epoch: 1,
+          exposure_id: exposure.exposureId,
+          activity_id: source.activity_id,
+          input_sha256: canonicalSha256({ activityId: source.activity_id, certificate: source.coverage }),
+          payload: source.coverage,
+        })
+        .execute();
+      await sql`insert into personal_context.coverage_references(universe_id,privacy_epoch,exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256)
+        select universe_id,privacy_epoch,exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256
+        from personal_context.recording_coverage_references where universe_id=${person.universeId}::uuid and exposure_id=${exposure.exposureId}::uuid`.execute(
+        database.db,
+      );
     };
     const seed = async (person: FixturePerson) => {
       await withPersonalScope(person.authority, (scope) =>
@@ -434,7 +507,23 @@ describe('the erasure registry (real database)', () => {
           privacyEpoch: 1,
           exposureId: activated.outcome.exposureId,
         }),
-      ).toMatchObject({ kind: 'applied' });
+      ).toMatchObject({ kind: 'skipped', reason: 'already_applied' });
+
+      // Erasure-only historical coexistence rows copied from actual accepted descriptors.
+      // Modern writers never read these as channel certificates or inherit their raw history.
+      await sql`insert into experience.encounter_lineage(universe_id,privacy_epoch,exposure_id,asset_id,asset_revision,kind,explanation_unit_id,facets,activated_at)
+        select universe_id,privacy_epoch,exposure_id,asset_id,asset_revision,kind,explanation_unit_id,
+          array(select jsonb_array_elements_text(attribution_payload->'facets')),first_eligible_activation_at
+        from experience.recording_segments where universe_id=${person.universeId}::uuid and recording_generation=1
+        on conflict do nothing`.execute(database.db);
+      await sql`insert into experience.encounter_activity_inputs(universe_id,privacy_epoch,exposure_id,liked,saved,horizontal,returned,action_revision,navigation_revision)
+        select universe_id,privacy_epoch,exposure_id,coalesce(liked_override,false),coalesce(saved_override,false),horizontal,returned,action_revision,navigation_revision
+        from experience.recording_segment_inputs where universe_id=${person.universeId}::uuid and recording_generation=1
+        on conflict do nothing`.execute(database.db);
+      await sql`insert into experience.navigation_transitions(universe_id,privacy_epoch,target_exposure_id,offer_id,session_id,mode,horizontal,returned,policy_version)
+        values(${person.universeId}::uuid,1,${activated.outcome.exposureId}::uuid,${o.offer.offerId}::uuid,${o.sessionId}::uuid,'return',false,false,'activity.v0')`.execute(
+        database.db,
+      );
 
       const saved = await useCases.applyAction(person.authority, {
         commandId: randomUUID(),
@@ -549,6 +638,8 @@ describe('the erasure registry (real database)', () => {
             structure_revision: 1,
             desired_revision: 1,
           })
+          // Real qualified effects already create this state; retain it unchanged.
+          .onConflict((conflict) => conflict.columns(['universe_id', 'privacy_epoch']).doNothing())
           .execute();
         await tx
           .insertInto('geography.objects')
@@ -652,6 +743,8 @@ describe('the erasure registry (real database)', () => {
         await tx
           .insertInto('planner.state')
           .values({ universe_id: person.universeId, privacy_epoch: 1, desired_revision: 1, accepted_revision: 1 })
+          // Do not replace the genuine pending state with the authored erasure-only row.
+          .onConflict((conflict) => conflict.columns(['universe_id', 'privacy_epoch']).doNothing())
           .execute();
         await tx
           .insertInto('planner.revisions')
@@ -676,7 +769,11 @@ describe('the erasure registry (real database)', () => {
         erased: await personalRowCounts(erased.universeId),
         kept: await personalRowCounts(kept.universeId),
       };
+      // Current birth and channel certificates are real. Every registered personal store,
+      // including labelled historical coexistence rows, must contain data before full erasure.
       expect(Object.values(before.erased).every((count) => count > 0)).toBe(true);
+      expect(before.erased['identity.recording_lifecycle_witnesses']).toBe(1);
+      expect(before.erased['experience.recording_channel_certificates']).toBeGreaterThan(0);
       const reports = await withPersonalScope(erased.authority, (scope) => eraseUniverse(scope, personalStores));
       expect(reports.kind === 'entered' && reports.value.every((report) => report.status === 'completed')).toBe(true);
       const after = {

@@ -1,4 +1,10 @@
-import type { AccountScope, KeepPlaceHandle, KeepPlaceState } from '@knowscroll/client-core';
+import {
+  freezeRecordingCommand,
+  recordingCommandFields,
+  type AccountScope,
+  type KeepPlaceHandle,
+  type KeepPlaceState,
+} from '@knowscroll/client-core';
 import type { ApplyActionRequest, KeepAssetRef, KeepPosition } from '@knowscroll/contracts';
 import { keepBridgeFor, refreshKeep, retireKeep } from './keep-place-bridge';
 
@@ -125,7 +131,26 @@ export function createKeepSurface(options: {
         publish({ save: 'unavailable' });
         return false;
       }
-      pendingSave ??= { commandId: options.newId(), kind: 'save', target, exposureId: options.exposureId };
+      if (!pendingSave) {
+        publish({ save: 'sending' });
+        try {
+          const fields = await recordingCommandFields(scope);
+          if (!live || !scope.active) return false;
+          // Another actual surface may have prepared this same Save while the policy read waited.
+          pendingSave =
+            saves.get(saveKey) ??
+            freezeRecordingCommand({
+              ...fields,
+              commandId: options.newId(),
+              kind: 'save',
+              target,
+              exposureId: options.exposureId,
+            });
+        } catch {
+          publish({ save: 'unavailable' });
+          return false;
+        }
+      }
       const command = pendingSave;
       saves.set(saveKey, command);
       publish({ save: 'sending' });

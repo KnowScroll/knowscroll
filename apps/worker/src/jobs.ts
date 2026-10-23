@@ -39,8 +39,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { WorkerConfig } from '@knowscroll/backend/infrastructure/config';
 import type { createBoss } from '@knowscroll/backend/infrastructure/jobs';
-import { eraseExploration } from '@knowscroll/backend/infrastructure/erasure';
-import { explorationStores } from '@knowscroll/backend/erasure-registry';
+import { eraseCurrentExploration } from '@knowscroll/backend/erasure-registry';
 import { clearExplorationFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { jobConsumer, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
@@ -106,9 +105,10 @@ export const jobWiring: Provider[] = [
     inject: [PLANNER_MATERIAL_CHANGE, GEOGRAPHY_MATERIAL_CHANGE],
     useFactory:
       (planner: PlannerMaterialChange, geography: MaterialGeographyChange): MaterialGeographyChange =>
-      async (scope, input) => {
-        await planner(scope, input);
-        await geography(scope, input);
+      async (cap, input) => {
+        // Both real owners share the Evidence-issued original-generation capability and revision.
+        await planner(cap, input);
+        await geography(cap, input);
       },
   },
   ...identityScopeOwnerProviders(),
@@ -176,9 +176,8 @@ export const jobWiring: Provider[] = [
       ...clearExplorationConsumers(
         clearExplorationFor(db, boss, {
           reasoning: clearReasoning,
-          eraseCore: async (scope) => {
-            await eraseExploration(scope, explorationStores);
-          },
+          // The imported current runner alone verifies and brands the exact owner lifecycle.
+          eraseCore: eraseCurrentExploration,
           lockTimeoutMs: config.scopeLockTimeoutMs,
         }),
       ),

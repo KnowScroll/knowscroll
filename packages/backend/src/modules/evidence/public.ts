@@ -37,6 +37,9 @@ export const RECONCILE_ENCOUNTER_ACTIVITY = Symbol('evidence.reconcileEncounterA
 export const READ_PREPARED_ACTIVITY = Symbol('evidence.readPreparedActivity');
 export type {
   ActivityDerivedInput,
+  RecordingActivityDerivedInput,
+  LegacyActivityDerivedInput,
+  LegacyActivityDerivedEffect,
   ActivityDerivedEffect,
   ActivityStatistics,
   ReadActivityStatistics,
@@ -52,3 +55,7 @@ export { OBSERVED_COVERAGE_POLICY, ObservedCoverageSchema } from './domain/cover
 export type { ObservedCoverage } from './domain/coverage.js';
 export type { CheckCoverageEvidence } from './application/coverage-ports.js';
 export const CHECK_COVERAGE_EVIDENCE = Symbol('evidence.checkCoverageEvidence');
+
+export type { RecordingCoverageWitness, CheckRecordingCoverageEvidence } from './application/coverage-ports.js';
+export { recordingCoverageKey } from './application/coverage-ports.js';
+export const CHECK_RECORDING_COVERAGE_EVIDENCE = Symbol('evidence.checkRecordingCoverageEvidence');

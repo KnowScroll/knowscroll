@@ -23,6 +23,8 @@ import { deriveNativeInputSchema, NATIVE_SCHEMA_MODE, JSON_STRING_SCHEMA_MODE } 
 import { makeExecuteAttempt, type AttemptResult, type Judgement } from './execute-attempt.js';
 import {
   MAX_STORED_OUTPUT_BYTES,
+  PersonalReasoningRefused,
+  type PersonalRecordingPurpose,
   type HarnessPorts,
   type ExecutionPorts,
   type ModelPort,
@@ -200,7 +202,9 @@ export interface ReasoningHarness<A = PersonalAuthority, S = PersonalScopeTx> {
    * Inputs: the open personal scope of the run's universe (the capability proves the lock is held
    * and the authority was rechecked) and `{ runId, state: 'completed' | 'failed' | 'cancelled' }`.
    * Output: `closed`, or `not_open` when the run was already closed or does not exist in this
-   * universe. Authority: the caller's `withPersonalScope`; nothing is checked here.
+   * universe. Personal compatibility additionally takes its first own-account gate and requires actual
+   * initial1/on plus an unproved legacy run; recording-aware roles use the separate sole-entry apply facade.
+   * Production scope authorization remains its owning composition's responsibility.
    * Side effects: one update of the run row (state, `closed_at`, fence + 1) inside the caller's
    * transaction, so a rollback leaves the run open. Failure/retry: idempotent (a second call
    * answers `not_open`); database errors propagate and roll the caller's transaction back.
@@ -273,12 +277,204 @@ const utf8 = new TextEncoder();
  * redaction, IDs, clock, diagnostics and settings.
  */
 export function makeReasoningHarness(ports: HarnessPorts): ReasoningHarness {
-  return makeScopedReasoningHarness({
-    ...ports,
-    withScope: ports.withPersonalScope,
-    scopeId: (authority) => authority.universeId,
-    generation: (authority) => authority.privacyEpoch,
-  });
+  return makeBoundPersonalHarness(ports);
+}
+
+const personalPurgeTimes = new WeakMap<HarnessPorts, number>();
+/** Personal-only per-call wrappers. Production continues using the unchanged engine directly. */
+export function makeBoundPersonalHarness(ports: HarnessPorts, purpose?: PersonalRecordingPurpose): ReasoningHarness {
+  if (
+    !ports.personalAccess ||
+    typeof ports.personalAccess.enter !== 'function' ||
+    typeof ports.personalAccess.check !== 'function' ||
+    typeof ports.personalAccess.checkAttempt !== 'function' ||
+    typeof ports.personalAccess.readProtected !== 'function'
+  )
+    throw new Error('PERSONAL_REASONING_ACCESS_REQUIRED');
+  return {
+    async propose(input, signal) {
+      const descriptor: RunDescriptor = {
+        id: input.run.id,
+        ownerModule: input.run.ownerModule,
+        purpose: input.run.purpose,
+        roleId: input.role.id,
+        roleVersion: input.role.version,
+        policyVersion: input.run.policyVersion,
+        provider: ports.model?.provider ?? '',
+        model: ports.model?.model ?? '',
+        contextBundleRef: input.context.bundleRef,
+        contextRefs: input.context.items.map((item) => item.ref),
+        ...(purpose
+          ? {
+              recording: {
+                accountId: purpose.accountId,
+                generation: purpose.recordingGeneration,
+                contextSha256: purpose.contextSha256,
+                modelContextSha256: purpose.modelContextSha256,
+              },
+            }
+          : {}),
+      };
+      let settled = false;
+      let planned: { readonly step: 'primary' | 'repair'; readonly requestHash: string } | undefined;
+      const access = ports.personalAccess;
+      let accountingRevoked = false;
+      async function enter<T>(authority: PersonalAuthority, work: (scope: PersonalScopeTx) => Promise<T>) {
+        accountingRevoked = false;
+        const result = await access.enter(authority, descriptor, purpose, work);
+        accountingRevoked = result.kind === 'refused' && result.refusal.accountingRevoked === true;
+        return result;
+      }
+      const check = (scope: PersonalScopeTx) => access.check(scope, descriptor, purpose);
+      const checkAttempt = async (scope: PersonalScopeTx, step: string) => {
+        if (!planned || step !== planned.step) throw new PersonalReasoningRefused('request_mismatch');
+        await access.checkAttempt(scope, descriptor, planned.step, planned.requestHash);
+      };
+      const ledger = ports.ledger;
+      const wrapped: HarnessPorts['ledger'] = {
+        ...ledger,
+        async purgeExpiredRequests(limit) {
+          const now = ports.now();
+          if (now - (personalPurgeTimes.get(ports) ?? Number.NEGATIVE_INFINITY) < ports.settings.purgeIntervalMs)
+            return 0;
+          personalPurgeTimes.set(ports, now);
+          return ledger.purgeExpiredRequests(limit);
+        },
+        async find(scopeId, runId, step) {
+          if (scopeId !== input.run.authority.universeId || runId !== input.run.id)
+            throw new PersonalReasoningRefused('run_mismatch');
+          const read = await enter(input.run.authority, async (scope) => {
+            await checkAttempt(scope, step);
+            return ledger.findLocked(scope, runId, step);
+          });
+          if (read.kind !== 'entered')
+            throw new PersonalReasoningRefused(
+              ['run_mismatch', 'run_closed', 'output_ineligible', 'request_mismatch'].includes(read.refusal.kind)
+                ? (read.refusal.kind as 'run_mismatch' | 'run_closed' | 'output_ineligible' | 'request_mismatch')
+                : 'scope_refused',
+              read.refusal.accountingRevoked === true,
+            );
+          return read.value;
+        },
+        async findLocked(scope, runId, step) {
+          await check(scope);
+          if (runId !== descriptor.id) throw new PersonalReasoningRefused('run_mismatch');
+          await checkAttempt(scope, step);
+          return ledger.findLocked(scope, runId, step);
+        },
+        async admitRun(scope, run) {
+          await check(scope);
+          return ledger.admitRun(scope, {
+            ...run,
+            ...(descriptor.recording ? { recording: descriptor.recording } : {}),
+          });
+        },
+        async budgetUsage(scope, roleId) {
+          await check(scope);
+          return ledger.budgetUsage(scope, roleId);
+        },
+        async canStartRun(scope, roleId) {
+          await check(scope);
+          return ledger.canStartRun(scope, roleId);
+        },
+        async reserve(scope, reservation) {
+          await check(scope);
+          return ledger.reserve(scope, reservation);
+        },
+        async commitDispatch(scope, attemptId, dispatch) {
+          await check(scope);
+          return ledger.commitDispatch(scope, attemptId, dispatch);
+        },
+        async readProtectedRequest(attempt) {
+          const expected = planned;
+          if (!expected) throw new PersonalReasoningRefused('request_mismatch');
+          const read = await enter(input.run.authority, async (scope) => {
+            await checkAttempt(scope, expected.step);
+            return access.readProtected(scope, descriptor, attempt, expected.step, expected.requestHash);
+          });
+          if (read.kind !== 'entered')
+            throw new PersonalReasoningRefused(
+              ['run_mismatch', 'run_closed', 'output_ineligible', 'request_mismatch'].includes(read.refusal.kind)
+                ? (read.refusal.kind as 'run_mismatch' | 'run_closed' | 'output_ineligible' | 'request_mismatch')
+                : 'scope_refused',
+              read.refusal.accountingRevoked === true,
+            );
+          return read.value;
+        },
+        async settle(...args) {
+          const [attempt, from, to, details] = args;
+          if (from === 'reserved' && to === 'not_sent' && details?.outcomeCode === 'AUTHORITY_REFUSED') {
+            // Applies to the existing admission/dispatch-refusal branches too. Stale owner/
+            // claim/header denial cannot cancel a newer eligible claim's shared reservation.
+            if (
+              !accountingRevoked ||
+              !planned ||
+              (planned.step !== 'primary' && planned.step !== 'repair') ||
+              attempt.scopeId !== input.run.authority.universeId
+            )
+              return false;
+            return (
+              (await ledger.releaseUndispatchedPersonal?.({
+                scopeId: attempt.scopeId,
+                privacyEpoch: input.run.authority.privacyEpoch,
+                run: descriptor,
+                step: planned.step,
+                requestHash: planned.requestHash,
+                attemptId: attempt.attemptId,
+              })) === 'released'
+            );
+          }
+          const result = await ledger.settle(...args);
+          // Accounting ALWAYS runs, including after revocation. Only the later private read refuses.
+          if (result) settled = true;
+          return result;
+        },
+      };
+      const engine = makeScopedReasoningHarness<PersonalAuthority, PersonalScopeTx>({
+        ...ports,
+        ledger: wrapped,
+        beforeAttempt: (step, requestHash) => {
+          planned = { step, requestHash };
+        },
+        withScope: enter,
+        authorityHolds: async (authority) => {
+          if (!(await ports.authorityHolds(authority))) return false;
+          try {
+            return (await enter(authority, () => Promise.resolve(true))).kind === 'entered';
+          } catch (error) {
+            if (error instanceof PersonalReasoningRefused) return false;
+            throw error;
+          }
+        },
+        scopeId: (authority) => authority.universeId,
+        generation: (authority) => authority.privacyEpoch,
+      });
+      try {
+        return await engine.propose(input, signal);
+      } catch (error) {
+        if (!(error instanceof PersonalReasoningRefused)) throw error;
+        if (
+          !settled &&
+          error.reason === 'scope_refused' &&
+          error.accountingRevoked &&
+          planned &&
+          (planned.step === 'primary' || planned.step === 'repair')
+        ) {
+          // A revoked private read cannot reveal the row, but exact undispatched accounting may
+          // still release its proven held receipt. Missing/unproved capability leaves it held.
+          await ledger.releaseUndispatchedPersonal?.({
+            scopeId: input.run.authority.universeId,
+            privacyEpoch: input.run.authority.privacyEpoch,
+            run: descriptor,
+            step: planned.step,
+            requestHash: planned.requestHash,
+          });
+        }
+        return { kind: 'refused', reason: settled ? 'output_ineligible' : error.reason };
+      }
+    },
+    closeRun: (scope, run) => ports.personalAccess.closeLegacy(scope, run),
+  };
 }
 
 /** The same proposal and attempt engine, selected only by the two concrete composition adapters. */
@@ -452,20 +648,24 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
         });
         return body.length > ports.settings.maxRequestBytes ? undefined : body;
       };
-      const plan = (body: Uint8Array, step: 'primary' | 'repair', causationAttemptId?: string) => ({
-        authority: run.authority,
-        run: descriptor,
-        step,
-        roleId: role.id,
-        roleVersion: role.version,
-        promptVersion,
-        body,
-        requestHash: ports.hashBytes(body),
-        maxOutputTokens: role.maxOutputTokens,
-        reservedTokens: reservedTokensFor(body.length, role.maxOutputTokens),
-        caps,
-        ...(causationAttemptId === undefined ? {} : { causationAttemptId }),
-      });
+      const plan = (body: Uint8Array, step: 'primary' | 'repair', causationAttemptId?: string) => {
+        const requestHash = ports.hashBytes(body);
+        ports.beforeAttempt?.(step, requestHash);
+        return {
+          authority: run.authority,
+          run: descriptor,
+          step,
+          roleId: role.id,
+          roleVersion: role.version,
+          promptVersion,
+          body,
+          requestHash,
+          maxOutputTokens: role.maxOutputTokens,
+          reservedTokens: reservedTokensFor(body.length, role.maxOutputTokens),
+          caps,
+          ...(causationAttemptId === undefined ? {} : { causationAttemptId }),
+        };
+      };
       const judge = judgeWith(role.outputSchema, role.safeCustomIssues);
 
       const primaryBody = encode();

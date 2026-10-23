@@ -11,7 +11,14 @@ export interface RequestContext {
   readonly requestId: string;
   problemCode?: string;
   readonly problemFamily?:
-    'keep-place' | 'keep-remove' | 'privacy-clear' | 'saved-list' | 'region-encounter' | 'formation' | 'social';
+    | 'keep-place'
+    | 'keep-remove'
+    | 'privacy-clear'
+    | 'recording'
+    | 'saved-list'
+    | 'region-encounter'
+    | 'formation'
+    | 'social';
 }
 
 /** Finite serializer/cache selection only, never caller or operation authority. */
@@ -27,6 +34,14 @@ function isKeepRemovalRequest(request: Pick<Request, 'method' | 'path'>): boolea
 /** Only the two mounted privacy POSTs; this selects serialization, never authority. */
 function isPrivacyClearRequest(request: Pick<Request, 'method' | 'path'>): boolean {
   return request.method === 'POST' && /^\/v1\/privacy\/clear-exploration(?:\/status)?\/?$/i.test(request.path);
+}
+
+/** Exact mounted recording POSTs only; selection grants no scope or collection authority. */
+function isRecordingRequest(request: Pick<Request, 'method' | 'path'>): boolean {
+  return (
+    request.method === 'POST' &&
+    /^\/v1\/(?:privacy\/recording\/(?:read|set)|observations\/recording-batch)\/?$/i.test(request.path)
+  );
 }
 
 /** Select only the mounted profile/pair/invite and versioned page methods/paths, never the wider declared Social surface. */
@@ -58,6 +73,7 @@ export function requestContextMiddleware(logEvent: LogEvent) {
     const keep = isKeepPlaceRequest(request);
     const removal = isKeepRemovalRequest(request);
     const privacy = isPrivacyClearRequest(request);
+    const recording = isRecordingRequest(request);
     const saved = request.method === 'GET' && /^\/v1\/saved\/?$/i.test(request.path);
     const region = request.method === 'POST' && /^\/v1\/experience\/region\/(?:preview|open)\/?$/i.test(request.path);
     const formation =
@@ -69,6 +85,7 @@ export function requestContextMiddleware(logEvent: LogEvent) {
       ...(keep ? { problemFamily: 'keep-place' as const } : {}),
       ...(removal ? { problemFamily: 'keep-remove' as const } : {}),
       ...(privacy ? { problemFamily: 'privacy-clear' as const } : {}),
+      ...(recording ? { problemFamily: 'recording' as const } : {}),
       ...(saved ? { problemFamily: 'saved-list' as const } : {}),
       ...(region ? { problemFamily: 'region-encounter' as const } : {}),
     };
@@ -76,6 +93,7 @@ export function requestContextMiddleware(logEvent: LogEvent) {
     if (keep) response.setHeader('cache-control', 'private, no-store');
     if (removal) response.setHeader('cache-control', 'private, no-store');
     if (privacy) response.setHeader('cache-control', 'private, no-store');
+    if (recording) response.setHeader('cache-control', 'private, no-store');
     if (saved) response.setHeader('cache-control', 'private, no-store');
     if (formation) response.setHeader('cache-control', 'private, no-store');
     if (region) response.setHeader('cache-control', 'private, no-store');

@@ -7,12 +7,20 @@ import {
   type ReadTrustedCoverage,
 } from '../../personal-context/public.js';
 import {
+  FENCE_OWN_ACCOUNT,
+  FENCE_PERSONAL_RECORDING,
+  type FenceOwnAccount,
+  type FencePersonalRecording,
   CHECK_PERSONAL_OWNER_ACTIVE,
   type WithPersonalScope,
   type CheckPersonalOwnerActive,
   type PersonalScopeTx,
 } from '../../identity/public.js';
-import { REASONING_HARNESS, type ReasoningHarness } from '../../../reasoning/public.js';
+import {
+  RECORDING_REASONING_HARNESS,
+  CHECK_GEOGRAPHY_RECORDING_RUN,
+  type RecordingReasoningHarness,
+} from '../../../reasoning/public.js';
 import type { WorkerConfig } from '../../../infrastructure/config/index.js';
 import { transactionOf, advanceScopeRevision } from '../../../infrastructure/postgres/personal-scope.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
@@ -39,8 +47,17 @@ import {
 } from '../public.js';
 import { makeRequestCartography, makeGeographyMaterialChange } from '../application/request.js';
 import { makeReadGeography, makeReadDeltas } from '../application/read.js';
-import { makeRunCartographer, makePublishDelta } from '../application/run.js';
-import type { GeographyPorts, RequestCartographyResult } from '../application/ports.js';
+import {
+  makeRunCartographer,
+  makePublishDelta,
+  makeCheckGeographyRecordingRun as makeOwnerCheck,
+} from '../application/run.js';
+import type {
+  GeographyPorts,
+  GeographyContext,
+  GeographyAccountingHeader,
+  RequestCartographyResult,
+} from '../application/ports.js';
 import { makeReadGeographySceneInput } from '../application/scene-input.js';
 import type { GeographyApplied } from '../public.js';
 import { geographyStore, readRegionPlace } from './postgres-store.js';
@@ -52,6 +69,49 @@ const key = (commandId: string, input: unknown) => ({
   outcomeVersion: 1,
   requestHash: requestHash('geography.request', input as CanonicalJson),
 });
+/** One exact existing (name,id) queue key; no historical jobs or protected payload are read. */
+async function normalWakeReplaceable(
+  scope: PersonalScopeTx,
+  h: GeographyAccountingHeader,
+  mode: 'normal' | 'retire',
+): Promise<boolean> {
+  if (Boolean(h.claimId) !== Boolean(h.claimUntil) || (h.claimUntil && Date.parse(h.claimUntil) > Date.now()))
+    return false;
+  if (!h.normalWakeId) return true;
+  const original = h.generation ?? null,
+    marker = h.normalWakeId,
+    base = {
+      v: 2,
+      universeId: scope.authority.universeId,
+      privacyEpoch: scope.authority.privacyEpoch,
+      runId: h.id,
+      wakeId: marker,
+    },
+    ordinary = JSON.stringify({
+      ...base,
+      recordingGeneration: original === null && h.legacyOrigin && mode === 'normal' ? 1 : original,
+    }),
+    retirement = JSON.stringify({ ...base, recordingGeneration: original, kind: 'retire' }),
+    legacy = original === null && h.legacyOrigin ? JSON.stringify({ ...base, recordingGeneration: 1 }) : undefined;
+  const match =
+    original === null
+      ? mode === 'normal'
+        ? sql`data=${ordinary}::jsonb`
+        : legacy
+          ? sql`(data=${legacy}::jsonb or data=${retirement}::jsonb)`
+          : sql`data=${retirement}::jsonb`
+      : sql`(data=${ordinary}::jsonb or data=${retirement}::jsonb)`;
+  const row = (
+    await sql<{
+      state: string;
+      bound: boolean;
+    }>`select state,${match} as bound from pgboss.job where name=${cartographyQueue.name} and id=${marker}::uuid`.execute(
+      transactionOf(scope),
+    )
+  ).rows[0];
+  if (!row) return true;
+  return row.bound === true && ['completed', 'cancelled', 'failed'].includes(row.state);
+}
 /** Provider-free API request/read/apply ports. Required jobs use the caller's pg-boss transaction. */
 export function geographyProviders(t: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol }) {
   return [
@@ -69,6 +129,8 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
       provide: GEOGRAPHY_PORTS,
       inject: [
         t.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        FENCE_PERSONAL_RECORDING,
         t.enqueueJob,
         READ_COVERAGE_INPUTS,
         READ_TRUSTED_COVERAGE,
@@ -77,6 +139,8 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
       ],
       useFactory: (
         withScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        fenceRecording: FencePersonalRecording,
         enqueue: EnqueueJob,
         readInputs: ReadCoverageInputs,
         readTrusted: ReadTrustedCoverage,
@@ -84,6 +148,8 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         applied: GeographyApplied,
       ): GeographyPorts => ({
         withScope,
+        fenceOwn,
+        fenceRecording,
         applied,
         rootRevision: async (scope) => {
           const row = await transactionOf(scope)
@@ -102,23 +168,113 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         now: () => new Date(),
         advance: advanceScopeRevision,
         notify: (scope, revision, eventId) => notifyScopeChanged(scope, { revision, eventId }),
-        enqueue: async (scope, runId, delayed) => {
-          const exists =
-            await sql`select 1 from pgboss.job where name=${cartographyQueue.name} and state in('created','retry') and data->>'universeId'=${scope.authority.universeId} and data->>'runId'=${runId} and coalesce(data->>'expectedClaimId','')=${delayed?.expectedClaimId ?? ''} limit 1`.execute(
-              transactionOf(scope),
+        enqueue: async (cap, runId, delayed) => {
+          const root = await geographyStore.root(cap);
+          const scope = cap.personal,
+            minimal = await geographyStore.accountingHeader(scope, runId);
+          if (
+            !minimal ||
+            (minimal.generation === undefined
+              ? !minimal.legacyOrigin || cap.generation !== 1
+              : minimal.generation !== cap.generation ||
+                minimal.accountId?.toLowerCase() !== root.accountId.toLowerCase())
+          )
+            return false;
+          const h = await geographyStore.header(scope, runId);
+          if (
+            !h ||
+            !['queued', 'prepared', 'blocked', 'unknown'].includes(h.status) ||
+            (h.recording
+              ? h.recording.source.generation !== cap.generation ||
+                h.recording.accountId.toLowerCase() !== root.accountId.toLowerCase()
+              : cap.generation !== 1)
+          )
+            return false;
+          if (delayed) {
+            if (h.claimId !== delayed.expectedClaimId || h.claimWakeClaimId === delayed.expectedClaimId) return false;
+            await geographyStore.writeRun(scope, { ...h, claimWakeClaimId: delayed.expectedClaimId });
+            await enqueue(
+              scope,
+              cartographyQueue,
+              {
+                v: 2,
+                universeId: scope.authority.universeId,
+                privacyEpoch: scope.authority.privacyEpoch,
+                runId,
+                recordingGeneration: cap.generation,
+                expectedClaimId: delayed.expectedClaimId,
+              },
+              { startAfter: delayed.startAfter },
             );
-          if (exists.rows.length) return;
+            return true;
+          } else {
+            if (!(await normalWakeReplaceable(scope, minimal, 'normal'))) return false;
+            if (h.normalWakeId && !(await geographyStore.consumeNormalWake(scope, h.id, h.normalWakeId)))
+              throw new Error('GEOGRAPHY_NORMAL_WAKE_RACE');
+            const wakeId = uuidv7();
+            await geographyStore.writeRun(scope, {
+              ...h,
+              status: h.hasContext ? 'prepared' : 'queued',
+              claimId: undefined,
+              claimUntil: undefined,
+              claimWakeClaimId: undefined,
+              normalWakeId: wakeId,
+            });
+            await enqueue(
+              scope,
+              cartographyQueue,
+              {
+                v: 2,
+                universeId: scope.authority.universeId,
+                privacyEpoch: scope.authority.privacyEpoch,
+                runId,
+                recordingGeneration: cap.generation,
+                wakeId,
+              },
+              { jobId: wakeId },
+            );
+            return true;
+          }
+        },
+        enqueueRetirement: async (cap, runId) => {
+          const root = await geographyStore.root(cap),
+            scope = cap.personal,
+            state = await geographyStore.state(scope),
+            h = await geographyStore.accountingHeader(scope, runId);
+          if (
+            !h ||
+            state.activeRunId !== runId ||
+            state.desiredSource?.generation !== cap.generation ||
+            !['queued', 'prepared', 'blocked', 'unknown'].includes(h.status)
+          )
+            return;
+          if (
+            h.generation === cap.generation ||
+            (h.generation === undefined && cap.generation === 1) ||
+            (h.accountId && h.accountId.toLowerCase() !== root.accountId.toLowerCase()) ||
+            (h.generation === undefined && !h.legacyOrigin) ||
+            (h.generation !== undefined && !h.accountId)
+          )
+            return;
+          if (!(await normalWakeReplaceable(scope, h, 'retire'))) return;
+          if (h.normalWakeId && !(await geographyStore.consumeNormalWake(scope, h.id, h.normalWakeId)))
+            throw new Error('GEOGRAPHY_RETIREMENT_WAKE_RACE');
+          const wakeId = uuidv7();
+          if (!(await geographyStore.setNormalWake(scope, h.id, wakeId)))
+            throw new Error('GEOGRAPHY_RETIREMENT_WAKE_RACE');
           await enqueue(
             scope,
             cartographyQueue,
             {
-              v: 1,
+              v: 2,
+              kind: 'retire',
               universeId: scope.authority.universeId,
               privacyEpoch: scope.authority.privacyEpoch,
               runId,
-              ...(delayed ? { expectedClaimId: delayed.expectedClaimId } : {}),
+              recordingGeneration: h.generation ?? null,
+              wakeId,
             },
-            delayed ? { startAfter: delayed.startAfter } : undefined,
+            { jobId: wakeId },
           );
         },
         enqueueDelta: (scope, delta) =>
@@ -142,6 +298,11 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
           complete: (s, id, result) => completePersonalReceipt(s, id, result),
         },
       }),
+    },
+    {
+      provide: CHECK_GEOGRAPHY_RECORDING_RUN,
+      inject: [GEOGRAPHY_PORTS],
+      useFactory: (p: GeographyPorts) => makeCheckGeographyRecordingRun(p),
     },
     {
       provide: READ_GEOGRAPHY_SCENE_INPUT,
@@ -175,8 +336,8 @@ export function cartographerWorkerProviders(
   return [
     {
       provide: RUN_CARTOGRAPHER,
-      inject: [GEOGRAPHY_PORTS, REASONING_HARNESS, t.workerConfig],
-      useFactory: (base: GeographyPorts, harness: ReasoningHarness, config: WorkerConfig) =>
+      inject: [GEOGRAPHY_PORTS, RECORDING_REASONING_HARNESS, t.workerConfig],
+      useFactory: (base: GeographyPorts, harness: RecordingReasoningHarness, config: WorkerConfig) =>
         makeRunCartographer({
           ...base,
           harness,
@@ -187,8 +348,15 @@ export function cartographerWorkerProviders(
   ];
 }
 export { makeRunCartographer } from '../application/run.js';
+export function makeCheckGeographyRecordingRun(p: Pick<GeographyPorts, 'store' | 'now'>) {
+  return makeOwnerCheck({ ...p, hash: canonicalSha256 });
+}
 export { makeRequestCartography, makeGeographyMaterialChange } from '../application/request.js';
 export { applyProposal } from '../application/apply.js';
+import { geographyContextHashes as contextHashes } from '../application/role.js';
+export function geographyContextHashes(c: GeographyContext, runId: string) {
+  return contextHashes(c, runId, canonicalSha256);
+}
 export { prepareGeography } from '../application/context.js';
 export { geographyStore } from './postgres-store.js';
 export type { GeographyPorts, CartographerPorts, GeographyContext } from '../application/ports.js';

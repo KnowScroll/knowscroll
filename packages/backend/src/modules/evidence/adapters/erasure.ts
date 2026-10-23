@@ -6,6 +6,9 @@ import { applyActionEvidenceQueue, projectScrollReadingQueue, projectEncounterAc
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 const queues = [applyActionEvidenceQueue, projectScrollReadingQueue, projectEncounterActivityQueue];
 const tables = [
+  'recording_exposure_credit',
+  'recording_segment_heads',
+  'recording_sessions',
   'topic_contributions',
   'activity_current',
   'activity_revisions',

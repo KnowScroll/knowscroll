@@ -14,6 +14,9 @@ import type {
   PersonalScopeTx,
   PersonalAuthority,
   CheckPersonalOwnerActive,
+  FenceOwnAccount,
+  FencePersonalRecording,
+  RecordingScopeTx,
 } from '../../identity/public.js';
 import type {
   ReadCoverageInputs,
@@ -21,7 +24,7 @@ import type {
   TrustedCoverageQuery,
   TrustedCoverageRead,
 } from '../../personal-context/public.js';
-import type { ReasoningHarness } from '../../../reasoning/public.js';
+import type { RecordingReasoningHarness } from '../../../reasoning/public.js';
 import type { GeographyProposal, FormationFacts, Place, Route } from '../domain/policy.js';
 import type { CartographyJob, PublishDeltaJob } from '../events.js';
 import type { RegionEncounterTarget } from '@knowscroll/contracts';
@@ -58,7 +61,15 @@ export interface RegionConstraintPorts {
     selector: { readonly id: string } | { readonly key: string },
   ) => Promise<unknown>;
 }
+export type GeographySource = {
+  readonly generation: number;
+} & (
+  | { readonly kind: 'material'; readonly sourceRevision: number }
+  | { readonly kind: 'command'; readonly commandId: string }
+  | { readonly kind: 'legacy1' }
+);
 export interface GeographyState extends GeographyRevisions {
+  readonly desiredSource?: GeographySource;
   readonly desiredRevision: number;
   readonly materialRevision: number;
   readonly publishedRevision: number;
@@ -85,7 +96,32 @@ export interface GeographyContext {
   readonly base: GeographyRevisions;
   readonly routeIds: Readonly<Record<string, string>>;
 }
-export interface GeographyRun {
+export interface GeographyRunHeader {
+  readonly recording?: { readonly accountId: string; readonly source: GeographySource };
+  readonly contextSha256?: string;
+  readonly modelContextSha256?: string;
+  readonly normalWakeId?: string;
+  readonly claimWakeClaimId?: string;
+  readonly hasContext: boolean;
+  readonly id: string;
+  readonly desiredRevision: number;
+  readonly status: 'queued' | 'prepared' | 'blocked' | 'unknown' | 'accepted' | 'rejected' | 'stale' | 'insufficient';
+  readonly claimId?: string;
+  readonly claimUntil?: string;
+  readonly outcome?: string;
+}
+export interface GeographyAccountingHeader {
+  readonly claimId?: string;
+  readonly claimUntil?: string;
+  readonly claimWakeClaimId?: string;
+  readonly normalWakeId?: string;
+  readonly legacyOrigin: boolean;
+  readonly id: string;
+  readonly status: GeographyRunHeader['status'];
+  readonly accountId?: string;
+  readonly generation?: number;
+}
+export interface GeographyRun extends Omit<GeographyRunHeader, 'hasContext'> {
   readonly id: string;
   readonly desiredRevision: number;
   readonly status: 'queued' | 'prepared' | 'blocked' | 'unknown' | 'accepted' | 'rejected' | 'stale' | 'insufficient';
@@ -97,10 +133,17 @@ export interface GeographyRun {
   readonly outcome?: string;
 }
 export interface GeographyStore {
+  root(scope: RecordingScopeTx): Promise<{ readonly accountId: string; readonly revision: number }>;
+  header(scope: PersonalScopeTx, id: string): Promise<GeographyRunHeader | undefined>;
+  accountingHeader(scope: PersonalScopeTx, id: string): Promise<GeographyAccountingHeader | undefined>;
+  context(scope: RecordingScopeTx, id: string): Promise<GeographyContext | undefined>;
+  retire(scope: PersonalScopeTx, id: string): Promise<void>;
+  finishUnadmitted(scope: PersonalScopeTx, id: string, claimId: string): Promise<void>;
+  consumeNormalWake(scope: PersonalScopeTx, id: string, wakeId: string): Promise<boolean>;
+  setNormalWake(scope: PersonalScopeTx, id: string, wakeId: string): Promise<boolean>;
   state(scope: PersonalScopeTx): Promise<GeographyState>;
   writeState(scope: PersonalScopeTx, state: GeographyState): Promise<void>;
   view(scope: PersonalScopeTx): Promise<GeographyView>;
-  run(scope: PersonalScopeTx, id: string): Promise<GeographyRun | undefined>;
   writeRun(scope: PersonalScopeTx, run: GeographyRun): Promise<void>;
   findDelta(
     scope: PersonalScopeTx,
@@ -113,6 +156,8 @@ export interface GeographyStore {
 }
 export interface GeographyPorts {
   readonly withScope: WithPersonalScope;
+  readonly fenceOwn: FenceOwnAccount;
+  readonly fenceRecording: FencePersonalRecording;
   readonly ownerActive: CheckPersonalOwnerActive;
   readonly store: GeographyStore;
   readonly readInputs: ReadCoverageInputs;
@@ -122,10 +167,12 @@ export interface GeographyPorts {
   readonly now: () => Date;
   readonly advance: (scope: PersonalScopeTx) => Promise<number>;
   readonly enqueue: (
-    scope: PersonalScopeTx,
+    scope: RecordingScopeTx,
     runId: string,
     delayed?: { readonly expectedClaimId: string; readonly startAfter: Date },
-  ) => Promise<void>;
+  ) => Promise<boolean>;
+  /** Necessary metadata cleanup only: current desired source may wake a revoked older header. */
+  readonly enqueueRetirement: (scope: RecordingScopeTx, runId: string) => Promise<void>;
   readonly applied: GeographyApplied;
   readonly rootRevision: (scope: PersonalScopeTx) => Promise<number>;
   readonly enqueueDelta: (scope: PersonalScopeTx, delta: UniverseDelta) => Promise<void>;
@@ -143,14 +190,14 @@ export interface GeographyPorts {
   };
 }
 export interface CartographerPorts extends GeographyPorts {
-  readonly harness: ReasoningHarness;
+  readonly harness: RecordingReasoningHarness;
   readonly enabled: () => boolean;
   /** Separate reviewed economic permission, never inferred from feature flag or credentials. */
   readonly permitted: (scope: PersonalScopeTx) => Promise<boolean>;
 }
 export type MaterialGeographyChange = (
-  scope: PersonalScopeTx,
-  input: { readonly sourceRevision: number },
+  scope: RecordingScopeTx,
+  input: { readonly sourceRevision: number; readonly recordingGeneration: number },
 ) => Promise<void>;
 export type RequestCartographyResult =
   | {
@@ -160,10 +207,13 @@ export type RequestCartographyResult =
       readonly privacyEpoch: number;
       readonly revision: number;
     }
-  | { readonly kind: 'refused'; readonly reason: 'scope_refused' | 'command_key_reused' | 'run_not_resumable' };
+  | {
+      readonly kind: 'refused';
+      readonly reason: 'scope_refused' | 'command_key_reused' | 'run_not_resumable' | 'recording_required';
+    };
 export type RequestCartography = (
   authority: PersonalAuthority,
-  command: { readonly commandId: string; readonly resumeRunId?: string },
+  command: { readonly commandId: string; readonly resumeRunId?: string; readonly recordingGeneration?: number },
 ) => Promise<RequestCartographyResult>;
 export type RunCartographer = (job: CartographyJob, signal: AbortSignal) => Promise<void>;
 export type PublishGeographyDelta = (job: PublishDeltaJob) => Promise<void>;
@@ -203,9 +253,10 @@ export type ReadGeographySceneInput = (scope: PersonalScopeTx) => Promise<
   | { readonly kind: 'refused' }
 >;
 export type GeographyApplied = (
-  scope: PersonalScopeTx,
+  scope: RecordingScopeTx,
   input: {
     readonly transitionId: string;
+    readonly recordingGeneration: number;
     readonly geography: GeographyRevisions;
     readonly personalRevision: number;
     /** Actual creation operations from the just-committed delta, not model proposals or Scene

@@ -36,6 +36,24 @@ async function mount(options: { unknown?: boolean; completed?: boolean; initialU
     newQueryClient: () => new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } }),
     fetch: async (request) => {
       const path = new URL(request.url).pathname;
+      // Explicit current-policy HTTP fixture; independent of the encounter/Keep command log.
+      if (path === '/v1/privacy/recording/read')
+        return request
+          .clone()
+          .json()
+          .then((input: { readId: string; target: unknown }) => {
+            const claim = request.headers.get('x-ks-scope')!.split(':');
+            return new Response(
+              JSON.stringify({
+                version: 'recording-policy.v1',
+                ...input,
+                scope: { accountId: claim[0], privacyEpoch: Number(claim[1]) },
+                revision: 0,
+                policy: { on: true, generation: 1 },
+              }),
+              { headers: { 'content-type': 'application/json' } },
+            );
+          });
       if (path === '/auth/session')
         return json({
           account: { ...account, privacyEpoch: epoch },
@@ -105,9 +123,7 @@ describe('P02 selective Clear', () => {
     expect(before.scope.active).toBe(false);
     expect(f.calls.filter((c) => c.path.endsWith('/clear-exploration'))).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Clear exploration' })).toBeNull();
-    expect(
-      screen.getByText(/Recording pause, history export and account deletion are not available/),
-    ).toBeOnTheScreen();
+    expect(screen.getByText(/History export and account deletion are not available/)).toBeOnTheScreen();
     await f.app.unmount();
   });
   it('retains original same-body Retry through the actual provider scope remount without offering a new clear', async () => {

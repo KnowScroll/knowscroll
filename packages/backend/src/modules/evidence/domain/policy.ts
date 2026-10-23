@@ -59,3 +59,9 @@ export const OBSERVATION_BOUNDS_V1: ObservationBounds = Object.freeze({
   maxFutureSkewMs: 300_000,
   maxEventAgeMs: 7 * 24 * 60 * 60 * 1000,
 });
+
+/** Same thresholds, explicitly new session-domain summary semantics. */
+export const SCROLL_RECORDING_QUALIFICATION_POLICY: ScrollQualificationPolicy = Object.freeze({
+  ...SCROLL_QUALIFICATION_POLICY_V0,
+  version: 'scroll-qualification.recording.v1',
+});

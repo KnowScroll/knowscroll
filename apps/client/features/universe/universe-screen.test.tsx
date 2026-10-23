@@ -81,6 +81,16 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
     fetch: async (request) => {
       const path = new URL(request.url).pathname,
         body = (await request.json()) as Record<string, unknown>;
+      if (path === '/v1/privacy/recording/read')
+        return new Response(
+          JSON.stringify({
+            ...body,
+            scope: { accountId: fixtureAccount.accountId, privacyEpoch: 1 },
+            revision: 1,
+            policy: { on: true, generation: 1 },
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        );
       calls.push({ path, body });
       let value: unknown;
       if (path.endsWith('/region/preview'))
@@ -124,6 +134,8 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
       return new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } });
     },
   });
+  let recordingReadId = 9900;
+  scope.recording?.useIdSource(() => fixtureId(++recordingReadId));
   mockScope = scope;
   const view = await render(<UniverseScreen />);
   await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());

@@ -125,3 +125,11 @@ export type {
   FriendsAcceptance,
   FriendsCommandState,
 } from './friends-types';
+
+export {
+  createRecordingPolicySession,
+  recordingCommandFields,
+  freezeRecordingCommand,
+  type RecordingPolicyState,
+  type RecordingPolicySession,
+} from './recording-policy';

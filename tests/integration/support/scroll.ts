@@ -1,7 +1,25 @@
+import {
+  FENCE_OWN_ACCOUNT,
+  FENCE_PERSONAL_RECORDING,
+  READ_RECORDING_LIFECYCLE,
+} from '@knowscroll/backend/modules/identity';
+import {
+  accountAccessUseCases,
+  identityScopeOwnerProviders,
+} from '@knowscroll/backend/modules/identity/nest-providers';
+import { plannerRequestProviders } from '@knowscroll/backend/modules/planner/nest-providers';
+import { PLANNER_MATERIAL_CHANGE, type PlannerMaterialChange } from '@knowscroll/backend/modules/planner';
+import { geographyProviders } from '@knowscroll/backend/modules/geography/nest-providers';
+import { GEOGRAPHY_MATERIAL_CHANGE, type MaterialGeographyChange } from '@knowscroll/backend/modules/geography';
+import { sceneAppliedProviders } from '@knowscroll/backend/modules/scenes/nest-providers';
 import { readFileSync } from 'node:fs';
 import type { PgBoss } from 'pg-boss';
 import { createBoss, makeEnqueueJob, type EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  fencePersonalRecording,
+  makeWithPersonalScope,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
 import { RENDER_SCROLL, type ImportEditorialScroll, type RenderScroll } from '@knowscroll/backend/modules/content';
 import {
   contentProviders,
@@ -29,6 +47,7 @@ import {
 import {
   READ_ACTIVITY_STATISTICS,
   CHECK_COVERAGE_EVIDENCE,
+  CHECK_RECORDING_COVERAGE_EVIDENCE,
   READ_OBSERVATION_TAIL,
   READ_RECENT_TOPIC_IDS,
 } from '@knowscroll/backend/modules/evidence';
@@ -38,6 +57,7 @@ import type {
   ActivateOffer,
   ReadExposureContext,
   ApplyEncounterAction,
+  ApplyAction,
   ListSaved,
 } from '@knowscroll/backend/modules/experience';
 import type {
@@ -67,9 +87,11 @@ import {
   ACTIVATE_OFFER,
   READ_EXPOSURE_CONTEXT,
   APPLY_ENCOUNTER_ACTION,
+  APPLY_ACTION,
   LIST_SAVED,
 } from '@knowscroll/backend/modules/experience/nest-providers';
-import type { WithPersonalScope } from '@knowscroll/backend/modules/identity';
+import type { WithPersonalScope, RecordingScopeTx } from '@knowscroll/backend/modules/identity';
+import { EXPERIENCE_RECORDING_EFFECTS, type ExperienceRecordingEffects } from '@knowscroll/backend/modules/experience';
 import type { TestDatabase } from './database.js';
 import { buildFromProviders } from './providers.js';
 
@@ -77,6 +99,7 @@ import { PROJECT_ENCOUNTER_ACTIVITY, RECONCILE_ENCOUNTER_ACTIVITY } from '@knows
 const DATABASE = Symbol('test.database');
 const SCOPE = Symbol('test.withPersonalScope');
 const ENQUEUE = Symbol('test.enqueueJob');
+const MATERIAL_CHANGE = Symbol('test.actualPersonalMaterialChange');
 
 /** The shipped starter Scroll's source file (an `editorial-scroll.v1` JSON), as the operator command reads it. */
 export function starterSource(): { [key: string]: unknown } {
@@ -112,10 +135,12 @@ export async function scrollUseCases(
     readonly wrapEnqueue?: (enqueue: EnqueueJob) => EnqueueJob;
     readonly wrapScope?: (scope: WithPersonalScope) => WithPersonalScope;
     readonly activityNow?: () => Date;
+    /** Selects the actual recording-aware Experience composition, never a trusted eligibility flag. */
+    readonly recording?: true;
     readonly activityDerived?: ActivityDerivedEffect;
     readonly activityMaterialChange?: (
-      scope: Parameters<ActivityDerivedEffect['apply']>[0],
-      input: { readonly sourceRevision: number },
+      scope: RecordingScopeTx,
+      input: { readonly sourceRevision: number; readonly recordingGeneration: number },
     ) => Promise<void>;
   } = {},
 ): Promise<{
@@ -123,7 +148,12 @@ export async function scrollUseCases(
   readonly activateOffer: ActivateOffer;
   readonly readContext: ReadExposureContext;
   readonly applyEncounterAction: ApplyEncounterAction;
+  readonly applyAction: ApplyAction;
   readonly listSaved: ListSaved;
+  /** Actual owning effect from this fixture graph, for delegation/failure wrappers. */
+  readonly activityContextEffect: ActivityDerivedEffect;
+  /** Actual required Experience effects, exposed only for the selected recording fixture graph. */
+  readonly recordingEffects?: ExperienceRecordingEffects;
   readonly projectActivity: ProjectEncounterActivity;
   readonly reconcileActivity: ReconcileEncounterActivity;
   readonly readPrepared: ReadPreparedEvidenceInput;
@@ -146,32 +176,82 @@ export async function scrollUseCases(
   await boss.start();
   const enqueue = makeEnqueueJob(boss);
   const scope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+  const identity = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 });
+  const experienceReads = experienceEvidenceReadProviders();
+  const experienceReadFactories = experienceReads.filter(
+    (provider): provider is Extract<typeof provider, { useFactory: unknown }> =>
+      typeof provider.useFactory === 'function',
+  );
   const values = new Map<symbol, unknown>([
+    [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
+    [FENCE_OWN_ACCOUNT, identity.fenceOwnAccount],
+    [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
     [DATABASE, database.db],
     [SCOPE, options.wrapScope ? options.wrapScope(scope) : scope],
     [ENQUEUE, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],
     ...(options.activityDerived ? [[ACTIVITY_CONTEXT_EFFECT, options.activityDerived] as [symbol, unknown]] : []),
+    ...identityScopeOwnerProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),
-    ...experienceEvidenceReadProviders().map((provider) => [provider.provide, provider.useValue] as const),
+    ...experienceReads.flatMap((provider) =>
+      provider.useValue === undefined ? [] : [[provider.provide, provider.useValue] as const],
+    ),
   ]);
   values.set(RENDER_SCROLL, buildFromProviders(contentRenderProviders({ database: DATABASE }), RENDER_SCROLL, values));
   const composer = composerProviders({ isOperator: () => false });
   for (const p of composer) values.set(p.provide, p.useValue);
   const providers = [
+    ...experienceReadFactories,
+    ...sceneAppliedProviders({ enqueueJob: ENQUEUE }),
+    ...plannerRequestProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
+    ...geographyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
     ...personalContextProviders(),
     ...activityProviders({
       withPersonalScope: SCOPE,
       enqueueJob: ENQUEUE,
       derivedProjection: ACTIVITY_CONTEXT_EFFECT,
+      materialChange: MATERIAL_CHANGE,
       legacyPreparedRead: true,
     }),
-    ...navigationProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
-    ...experienceProviders({ database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
+    ...navigationProviders(
+      { withPersonalScope: SCOPE, enqueueJob: ENQUEUE },
+      options.recording ? { recordingEffects: EXPERIENCE_RECORDING_EFFECTS } : {},
+    ),
+    ...experienceProviders(
+      { database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE },
+      options.recording ? { recordingEffects: EXPERIENCE_RECORDING_EFFECTS } : {},
+    ),
     ...evidenceIntakeProviders({ database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
     ...evidenceProviders({ enqueueJob: ENQUEUE, withPersonalScope: SCOPE }),
   ];
-  const build = (token: symbol): unknown => buildFromProviders(providers, token, values);
+  // Resolve the actual request/read providers recursively; a missing or cyclic dependency refuses.
+  // No successful substitute is supplied for an owning effect or a model-role proof.
+  const building = new Set<symbol>();
+  const build = (token: symbol): unknown => {
+    if (values.has(token)) return values.get(token);
+    if (building.has(token)) throw new Error('CI_RECORDING_PROVIDER_CYCLE');
+    const provider = providers.find((candidate) => candidate.provide === token);
+    if (!provider) throw new Error('CI_RECORDING_PROVIDER_MISSING');
+    building.add(token);
+    try {
+      for (const dependency of provider.inject) if (!values.has(dependency)) build(dependency);
+      const value = buildFromProviders(providers, token, values);
+      values.set(token, value);
+      return value;
+    } finally {
+      building.delete(token);
+    }
+  };
+  values.set(
+    MATERIAL_CHANGE,
+    async (cap: RecordingScopeTx, input: { readonly sourceRevision: number; readonly recordingGeneration: number }) => {
+      const planner = build(PLANNER_MATERIAL_CHANGE) as PlannerMaterialChange;
+      const geography = build(GEOGRAPHY_MATERIAL_CHANGE) as MaterialGeographyChange;
+      await planner(cap, input);
+      await geography(cap, input);
+    },
+  );
   values.set(CHECK_COVERAGE_EVIDENCE, build(CHECK_COVERAGE_EVIDENCE));
+  values.set(CHECK_RECORDING_COVERAGE_EVIDENCE, build(CHECK_RECORDING_COVERAGE_EVIDENCE));
   if (!options.activityDerived) values.set(ACTIVITY_CONTEXT_EFFECT, build(ACTIVITY_CONTEXT_EFFECT));
   const activityPorts = build(ACTIVITY_PORTS);
   values.set(ACTIVITY_PORTS, {
@@ -191,7 +271,12 @@ export async function scrollUseCases(
     activateOffer: build(ACTIVATE_OFFER) as ActivateOffer,
     readContext: build(READ_EXPOSURE_CONTEXT) as ReadExposureContext,
     applyEncounterAction: build(APPLY_ENCOUNTER_ACTION) as ApplyEncounterAction,
+    applyAction: build(APPLY_ACTION) as ApplyAction,
     listSaved: build(LIST_SAVED) as ListSaved,
+    activityContextEffect: values.get(ACTIVITY_CONTEXT_EFFECT) as ActivityDerivedEffect,
+    ...(options.recording
+      ? { recordingEffects: build(EXPERIENCE_RECORDING_EFFECTS) as ExperienceRecordingEffects }
+      : {}),
     projectActivity: build(PROJECT_ENCOUNTER_ACTIVITY) as ProjectEncounterActivity,
     reconcileActivity: build(RECONCILE_ENCOUNTER_ACTIVITY) as ReconcileEncounterActivity,
     readPrepared: values.get(READ_PREPARED_ACTIVITY) as ReadPreparedEvidenceInput,

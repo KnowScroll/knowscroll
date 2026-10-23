@@ -1,79 +1,329 @@
+import {
+  parsePersonalRecordingPurpose,
+  type CheckPersonalRecordingRun,
+  type PersonalRecordingPurpose,
+} from '../../../reasoning/public.js';
 import type {
   CartographerPorts,
   GeographyPorts,
   RunCartographer,
   PublishGeographyDelta,
   GeographyRun,
+  GeographyAccountingHeader,
 } from './ports.js';
 import { GEOGRAPHY_POLICY } from '../domain/policy.js';
+import { CartographyJobSchema } from '../events.js';
 import { prepareGeography } from './context.js';
-import { cartographerRole, cartographyContextItems } from './role.js';
+import { cartographerRole, cartographyContextItems, geographyContextHashes } from './role.js';
 import { ensureCartography } from './request.js';
 import { applyProposal } from './apply.js';
-/** Short prepare/apply transactions around the shared attempt ledger; no network under root locks. */
+const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+/** Actual owner: header/root/active claim before a separate cap-bound body read. */
+export function makeCheckGeographyRecordingRun(
+  p: Pick<GeographyPorts, 'store' | 'now' | 'hash'>,
+): CheckPersonalRecordingRun {
+  return async (cap, input) => {
+    const root = await p.store.root(cap);
+    const purpose = parsePersonalRecordingPurpose(input);
+    if (
+      !purpose ||
+      purpose.ownerModule !== 'geography' ||
+      purpose.purpose !== 'personal-cartographer' ||
+      purpose.recordingGeneration !== cap.generation ||
+      !same(purpose.universeId, cap.personal.authority.universeId) ||
+      purpose.privacyEpoch !== cap.personal.authority.privacyEpoch
+    )
+      return 'unavailable';
+    const state = await p.store.state(cap.personal),
+      h = await p.store.header(cap.personal, purpose.businessRunId);
+    if (
+      !h ||
+      !h.recording ||
+      !same(root.accountId, purpose.accountId) ||
+      !same(h.recording.accountId, purpose.accountId) ||
+      h.recording.source.generation !== cap.generation ||
+      state.activeRunId !== h.id ||
+      h.status !== 'prepared' ||
+      !h.claimId ||
+      !same(h.claimId, purpose.claimId) ||
+      !h.claimUntil ||
+      Date.parse(h.claimUntil) <= p.now().getTime() ||
+      !h.hasContext ||
+      h.contextSha256 !== purpose.contextSha256 ||
+      h.modelContextSha256 !== purpose.modelContextSha256
+    )
+      return 'unavailable';
+    const c = await p.store.context(cap, h.id);
+    if (
+      !c ||
+      c.version !== 'cartographer-context.v1' ||
+      !same(c.universeId, purpose.universeId) ||
+      c.privacyEpoch !== purpose.privacyEpoch ||
+      c.desiredRevision !== h.desiredRevision ||
+      new TextEncoder().encode(JSON.stringify(c)).length > 500000
+    )
+      return 'unavailable';
+    try {
+      const hashes = geographyContextHashes(c, h.id, p.hash);
+      return hashes.contextSha256 === purpose.contextSha256 && hashes.modelContextSha256 === purpose.modelContextSha256
+        ? 'current'
+        : 'unavailable';
+    } catch {
+      return 'unavailable';
+    }
+  };
+}
+/** Necessary revocation cleanup only; exact accounting owns its UPDATE fence before header. */
+async function retireRevoked(
+  p: CartographerPorts,
+  authority: Parameters<CartographerPorts['withScope']>[0],
+  runId: string,
+  delivered?: {
+    readonly generation: number | null;
+    readonly wakeId?: string;
+    readonly legacyOrdinary?: boolean;
+    readonly expectedClaimId?: string;
+  },
+) {
+  await p.withScope(authority, async (scope) => {
+    let h: GeographyAccountingHeader | undefined,
+      revoked = false,
+      legacyDelivery = false;
+    const result = await p.harness.readPersonalRunAccounting(scope, runId, async (current, owner) => {
+      h = await p.store.accountingHeader(current, runId);
+      if (!h || !delivered) return 'unavailable';
+      if (
+        delivered.wakeId
+          ? h.normalWakeId !== delivered.wakeId
+          : delivered.expectedClaimId
+            ? !!h.normalWakeId ||
+              h.status !== 'prepared' ||
+              h.claimId !== delivered.expectedClaimId ||
+              h.claimWakeClaimId !== delivered.expectedClaimId
+            : !!h.normalWakeId || !!h.claimId || !!h.claimWakeClaimId
+      )
+        return 'unavailable';
+      legacyDelivery = !!(
+        h &&
+        delivered?.legacyOrdinary &&
+        delivered.generation === 1 &&
+        delivered.wakeId &&
+        h.normalWakeId === delivered.wakeId &&
+        h.legacyOrigin
+      );
+      if (
+        !h ||
+        ((!h.accountId || h.generation === undefined) && !h.legacyOrigin) ||
+        (delivered && (h.generation ?? null) !== delivered.generation && !legacyDelivery) ||
+        !['queued', 'prepared', 'blocked', 'unknown'].includes(h.status)
+      )
+        return 'unavailable';
+      // A stale/forged wake never retires a genuinely current source.
+      if ((await p.fenceRecording(current, h.generation)).kind === 'recording') return 'unavailable';
+      if (
+        !same(owner.universeId, current.authority.universeId) ||
+        owner.privacyEpoch !== current.authority.privacyEpoch ||
+        (h.accountId && !same(h.accountId, owner.accountId))
+      )
+        return 'unavailable';
+      revoked = true;
+      return {
+        ownerModule: 'geography',
+        purpose: 'personal-cartographer',
+        accountId: h.accountId ?? owner.accountId,
+        privacyEpoch: current.authority.privacyEpoch,
+        recordingGeneration: h.generation ?? null,
+      };
+    });
+    if (!h || !revoked) return;
+    if (result.kind !== 'not_found' && (result.kind !== 'accounted' || result.disposition !== 'conclusive')) {
+      if (delivered?.wakeId && ((h.generation ?? null) === delivered.generation || legacyDelivery))
+        await p.store.consumeNormalWake(scope, h.id, delivered.wakeId);
+      return;
+    }
+    const state = await p.store.state(scope);
+    if (state.activeRunId !== h.id) return;
+    await p.store.retire(scope, h.id);
+    const idle = { ...state, activeRunId: undefined };
+    await p.store.writeState(scope, idle);
+    if (idle.desiredSource) {
+      const gate = await p.fenceRecording(scope, idle.desiredSource.generation);
+      if (gate.kind === 'recording') await ensureCartography(p, gate.scope, idle);
+    }
+  });
+}
+/** A missing provider may refuse before Reasoning admission. Only actual zero-retained
+ * accounting can release this exact current claim; no semantic apply or ledger close. */
+async function finishUnadmitted(
+  p: CartographerPorts,
+  authority: Parameters<CartographerPorts['withScope']>[0],
+  purpose: PersonalRecordingPurpose,
+) {
+  await p.withScope(authority, async (scope) => {
+    let eligible = false;
+    const result = await p.harness.readPersonalRunAccounting(scope, purpose.businessRunId, async (current, owner) => {
+      const h = await p.store.accountingHeader(current, purpose.businessRunId);
+      if (
+        !h ||
+        h.status !== 'prepared' ||
+        !h.accountId ||
+        !same(h.accountId, owner.accountId) ||
+        !same(owner.accountId, purpose.accountId) ||
+        h.generation !== purpose.recordingGeneration ||
+        h.claimId !== purpose.claimId ||
+        h.claimWakeClaimId !== purpose.claimId ||
+        h.normalWakeId ||
+        !h.claimUntil ||
+        Date.parse(h.claimUntil) <= p.now().getTime() ||
+        (await p.store.state(current)).activeRunId !== h.id ||
+        (await p.fenceRecording(current, purpose.recordingGeneration)).kind !== 'recording'
+      )
+        return 'unavailable';
+      eligible = true;
+      return {
+        ownerModule: 'geography',
+        purpose: 'personal-cartographer',
+        accountId: owner.accountId,
+        privacyEpoch: owner.privacyEpoch,
+        recordingGeneration: h.generation,
+      };
+    });
+    if (eligible && result.kind === 'not_found')
+      await p.store.finishUnadmitted(scope, purpose.businessRunId, purpose.claimId);
+  });
+}
+/** Short prepare/apply transactions around the shared finite attempt ledger. */
 export function makeRunCartographer(p: CartographerPorts): RunCartographer {
-  return async (job, signal) => {
-    const authority = {
-      universeId: job.universeId,
-      privacyEpoch: job.privacyEpoch,
-      actor: { kind: 'system' as const, purpose: 'geography.cartograph' },
-    };
+  return async (input, signal) => {
+    const job = CartographyJobSchema.parse(input),
+      authority = {
+        universeId: job.universeId,
+        privacyEpoch: job.privacyEpoch,
+        actor: { kind: 'system' as const, purpose: 'geography.cartograph' },
+      };
+    if (job.kind === 'retire') {
+      await retireRevoked(p, authority, job.runId, { generation: job.recordingGeneration ?? null, wakeId: job.wakeId });
+      return;
+    }
     const prepared = await p.withScope(authority, async (scope) => {
-      if (!(await p.ownerActive(scope))) return undefined;
-      const state = await p.store.state(scope),
-        run = await p.store.run(scope, job.runId);
-      if (!run || state.activeRunId !== run.id) return undefined;
+      if ((await p.fenceOwn(scope)).kind !== 'active') return undefined;
+      const gate = await p.fenceRecording(scope, job.v === 2 ? (job.recordingGeneration ?? undefined) : undefined);
+      if (gate.kind !== 'recording') return { kind: 'revoked' } as const;
+      const cap = gate.scope,
+        root = await p.store.root(cap),
+        state = await p.store.state(scope),
+        run = await p.store.header(scope, job.runId);
+      if (!run || state.activeRunId !== run.id || !['queued', 'prepared'].includes(run.status)) return undefined;
+      if (
+        run.recording
+          ? run.recording.source.generation !== cap.generation || !same(run.recording.accountId, root.accountId)
+          : cap.generation !== 1
+      )
+        return { kind: 'revoked' } as const;
+      if (Boolean(run.claimId) !== Boolean(run.claimUntil)) return undefined;
+      if (job.v === 1) {
+        if (run.recording || run.normalWakeId) return undefined;
+      } else if (
+        job.wakeId
+          ? run.normalWakeId !== job.wakeId
+          : !!run.normalWakeId ||
+            !job.expectedClaimId ||
+            run.claimId !== job.expectedClaimId ||
+            run.claimWakeClaimId !== job.expectedClaimId ||
+            run.status !== 'prepared'
+      )
+        return undefined;
       if (job.expectedClaimId && (run.claimId !== job.expectedClaimId || run.status !== 'prepared')) return undefined;
       if (run.claimUntil && Date.parse(run.claimUntil) > p.now().getTime()) {
-        if (run.status === 'prepared' && run.claimId)
-          await p.enqueue(scope, run.id, {
-            expectedClaimId: run.claimId,
-            startAfter: new Date(Date.parse(run.claimUntil) + 1000),
-          });
+        if (job.expectedClaimId) throw new Error('GEOGRAPHY_CLAIM_WAKE_EARLY');
         return undefined;
       }
-      if (run.status === 'blocked' || run.status === 'unknown') return undefined;
+      if (run.recording && run.hasContext && (!run.contextSha256 || !run.modelContextSha256)) return undefined;
+      const { normalWakeId: _normal, claimWakeClaimId: _wake, claimId: _claim, claimUntil: _until, ...consumed } = run;
       if (!p.enabled() || !(await p.permitted(scope))) {
         await p.store.writeRun(scope, {
-          ...run,
+          ...consumed,
           status: 'blocked',
           outcome: p.enabled() ? 'budget_unavailable' : 'disabled',
         });
         return undefined;
       }
-      const context = run.context ?? (await prepareGeography(p, scope, await p.store.view(scope)));
-      if (!context) {
-        await p.store.writeRun(scope, { ...run, status: 'insufficient', outcome: 'coverage_unavailable' });
+      const context = run.hasContext
+        ? await p.store.context(cap, run.id)
+        : await prepareGeography(p, cap, await p.store.view(scope));
+      if (
+        !context ||
+        context.version !== 'cartographer-context.v1' ||
+        !same(context.universeId, authority.universeId) ||
+        context.privacyEpoch !== authority.privacyEpoch ||
+        (run.hasContext && context.desiredRevision !== run.desiredRevision)
+      ) {
+        await p.store.writeRun(scope, { ...consumed, status: 'insufficient', outcome: 'coverage_unavailable' });
         await p.store.writeState(scope, { ...state, activeRunId: undefined });
         return undefined;
       }
+      let hashes: ReturnType<typeof geographyContextHashes>;
       try {
-        cartographyContextItems(context);
+        hashes = geographyContextHashes(context, run.id, p.hash);
       } catch (error) {
         if (!(error instanceof Error) || error.message !== 'GEOGRAPHY_CONTEXT_LIMIT') throw error;
-        await p.store.writeRun(scope, { ...run, status: 'insufficient', outcome: 'context_limit' });
+        await p.store.writeRun(scope, { ...consumed, status: 'insufficient', outcome: 'context_limit' });
         await p.store.writeState(scope, { ...state, activeRunId: undefined });
         return undefined;
       }
-      if (!(await p.ownerActive(scope)) || !(await p.permitted(scope))) {
-        await p.store.writeRun(scope, { ...run, status: 'blocked', outcome: 'budget_unavailable' });
+      if (
+        run.recording &&
+        run.hasContext &&
+        (hashes.contextSha256 !== run.contextSha256 || hashes.modelContextSha256 !== run.modelContextSha256)
+      )
         return undefined;
-      }
-      const claimed = {
-        ...run,
+      if (!(await p.ownerActive(scope)) || !(await p.permitted(scope))) return undefined;
+      const claimed: GeographyRun = {
+        ...consumed,
+        recording: run.recording ?? { accountId: root.accountId, source: { generation: 1, kind: 'legacy1' } },
+        ...hashes,
         desiredRevision: context.desiredRevision,
-        status: 'prepared' as const,
+        status: 'prepared',
         context,
         claimId: p.newId(),
         claimUntil: new Date(p.now().getTime() + 1150000).toISOString(),
       };
       await p.store.writeRun(scope, claimed);
-      return claimed;
+      // Every new claim, including delayed renewal, has its own durable recovery in this TX.
+      if (
+        !(await p.enqueue(cap, run.id, {
+          expectedClaimId: claimed.claimId!,
+          startAfter: new Date(Date.parse(claimed.claimUntil!) + 1000),
+        }))
+      )
+        throw new Error('GEOGRAPHY_REQUIRED_CLAIM_WAKE');
+      return { kind: 'prepared', run: claimed, context } as const;
     });
     if (prepared.kind !== 'entered' || !prepared.value) return;
-    const run = prepared.value,
-      c = run.context;
-    const outcome = await p.harness.propose(
+    if (prepared.value.kind === 'revoked') {
+      await retireRevoked(p, authority, job.runId, {
+        generation: job.v === 2 ? (job.recordingGeneration ?? null) : null,
+        wakeId: job.wakeId,
+        expectedClaimId: job.expectedClaimId,
+        legacyOrdinary: job.v === 2 && job.recordingGeneration === 1 && !!job.wakeId,
+      });
+      return;
+    }
+    const { run, context: c } = prepared.value;
+    const purpose: PersonalRecordingPurpose = {
+      version: 'personal-role-purpose.v1',
+      accountId: run.recording!.accountId,
+      universeId: authority.universeId,
+      privacyEpoch: authority.privacyEpoch,
+      ownerModule: 'geography',
+      purpose: 'personal-cartographer',
+      businessRunId: run.id,
+      recordingGeneration: run.recording!.source.generation,
+      contextSha256: run.contextSha256!,
+      modelContextSha256: run.modelContextSha256!,
+      claimId: run.claimId!,
+    };
+    const outcome = await p.harness.proposePersonal(
       {
         run: {
           id: run.id,
@@ -85,54 +335,74 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
         role: cartographerRole(c),
         context: { bundleRef: `geography:${run.id}`, items: cartographyContextItems(c) },
         limits: { allowRepair: true },
+        recordingPurpose: purpose,
       },
       signal,
     );
-    await p.withScope(authority, async (scope) => {
-      if (!(await p.ownerActive(scope))) return;
-      const state = await p.store.state(scope),
-        current = await p.store.run(scope, run.id);
+    if (outcome.kind === 'refused' && outcome.reason === 'provider_unavailable') {
+      await finishUnadmitted(p, authority, purpose);
+      return;
+    }
+    const applied = await p.harness.withPersonalApply(authority, purpose, async (cap) => {
+      const scope = cap.personal,
+        state = await p.store.state(scope),
+        current = await p.store.header(scope, run.id);
       if (!current || state.activeRunId !== run.id || current.claimId !== run.claimId || current.status !== 'prepared')
         return;
-      const { claimId: _claim, claimUntil: _until, ...released } = current;
+      const {
+        claimId: _claim,
+        claimUntil: _until,
+        claimWakeClaimId: _wake,
+        normalWakeId: _normal,
+        ...released
+      } = current;
       if (
         outcome.kind === 'unknown' ||
         outcome.kind === 'quota_unavailable' ||
         outcome.kind === 'budget_exhausted' ||
         outcome.kind === 'refused'
       ) {
-        const unknown = outcome.kind === 'unknown' || current.outcome === 'unknown';
         await p.store.writeRun(scope, {
           ...released,
-          status: unknown ? 'unknown' : 'blocked',
+          status: outcome.kind === 'unknown' || current.outcome === 'unknown' ? 'unknown' : 'blocked',
           outcome: outcome.kind === 'refused' ? outcome.reason : outcome.kind,
         });
         return;
       }
       let status: GeographyRun['status'] = 'rejected',
-        reason: string = outcome.kind;
-      if (!(await p.ownerActive(scope)) || !p.enabled() || !(await p.permitted(scope))) {
+        reason: string = outcome.kind,
+        closed = false;
+      const close = async () => {
+        if (
+          (await p.harness.closePersonalRun(cap, { runId: run.id, state: 'completed', recordingPurpose: purpose })) !==
+          'closed'
+        )
+          throw new Error('GEOGRAPHY_HARNESS_NOT_CLOSED');
+        closed = true;
+      };
+      if (!p.enabled() || !(await p.permitted(scope))) {
         status = 'stale';
         reason = 'scope_or_permit_changed';
       } else if (state.desiredRevision !== c.desiredRevision) {
         status = 'stale';
         reason = 'desired_revision_changed';
       } else if (outcome.kind === 'proposed') {
-        const result = await applyProposal(p, scope, run.id, c, outcome.output);
+        const result = await applyProposal(p, cap, run.id, c, outcome.output, close);
         if (result.kind === 'refused') {
           status = result.reason === 'no_changes' ? 'insufficient' : 'stale';
           reason = result.reason;
         } else {
+          if (result.kind === 'replayed') await close();
           status = 'accepted';
           reason = 'applied';
         }
       }
-      // A refusal/rollback never consumes a new answer: harness closure commits with all geography effects.
-      const closed = await p.harness.closeRun(scope, {
-        runId: run.id,
-        state: status === 'accepted' ? 'completed' : 'cancelled',
-      });
-      if (status === 'accepted' && closed !== 'closed') throw new Error('GEOGRAPHY_HARNESS_NOT_CLOSED');
+      if (
+        !closed &&
+        (await p.harness.closePersonalRun(cap, { runId: run.id, state: 'cancelled', recordingPurpose: purpose })) !==
+          'closed'
+      )
+        throw new Error('GEOGRAPHY_HARNESS_NOT_CLOSED');
       await p.store.writeRun(scope, {
         ...released,
         status,
@@ -142,11 +412,17 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       const updated = await p.store.state(scope),
         idle = { ...updated, activeRunId: undefined };
       await p.store.writeState(scope, idle);
-      if (updated.desiredRevision > run.desiredRevision) await ensureCartography(p, scope, idle);
+      if (updated.desiredRevision > run.desiredRevision && updated.desiredSource?.generation === cap.generation)
+        await ensureCartography(p, cap, idle);
     });
+    if (applied.kind === 'refused')
+      await retireRevoked(p, authority, run.id, {
+        generation: run.recording!.source.generation,
+        expectedClaimId: run.claimId,
+      });
   };
 }
-/** Durable delta was committed before this IDs-only hint job. This is not a scene projection. */
+/** Already committed delta display stays available while recording is paused. */
 export function makePublishDelta(p: GeographyPorts): PublishGeographyDelta {
   return async (job) => {
     await p.withScope(

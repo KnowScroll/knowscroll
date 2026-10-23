@@ -366,3 +366,25 @@ inventory. Selective Clear preserves it and root policy. No account deletion/exp
 authentication bypass, shared-production suspension or provider/accounting permission follows.
 Authored synthetic lock/SQL/Clear fixtures run in Actions only; source/static/schema evidence is
 not deployed end-to-end Pause or disposable-account dev acceptance.
+
+## Fresh recording lifecycle (0044; source only)
+
+Actual createAccount explicitly inserts mode1, whose root INSERT trigger atomically records the
+account/epoch1 birth witness. Disposable operator accounts use that same creation path. Existing
+NULL roots, timestamps, missing state and old Clear receipts cannot claim birth. The fixed current
+backend erasure runner checks the canonical v1 registry, invokes the actual frozen owner callbacks
+and catalogue verifier, and issues a live ClearCoreTx proof. Generic registries cannot issue it.
+coreDone writes its timestamp, creates the current witness and releases the barrier atomically.
+It does not wait for old unknown financial liabilities; recording generation/on and account
+recording receipts retain their account-lifetime values.
+
+READ_RECORDING_LIFECYCLE takes a genuine RecordingScopeTx after the caller's sole owning-account
+UPDATE gate. It reads current owner/epoch/status/barrier/g plus the exact witness; it neither
+acquires another root/account lock nor repairs anything. Fresh, legacy_unknown, not_ready and unavailable are distinct. not_ready means a valid mode1
+root/current original generation and actual own fence, with its current owner/epoch witness
+absent. Necessary commands remain available with no eligible origin/session/credit; this never
+grants legacy fallback. Genuine authority/protocol/dependency failure remains a hard refusal. A private live scope brand is issued only by the actual successful own UPDATE/fresh read; root-only, pair-only and failed-own scopes are unavailable. Copied/closed scopes fail. Full erasure removes this exploration witness; account
+deletion also owns its account FK. No automatic recertification follows erasure or sign-in replay.
+No API/control, provider permission or complete Pause/runtime acceptance is introduced.
+
+The pending0044 hosted correction binds the fixed manifest to both actual personal-role recording_account_id links. It replaces the unaccepted c21 source digest consistently; it does not accept historical hashes, rewrite witnesses or implement a Conversations registry transition. Runtime audit identity checks retain the exact scope/epoch/exposure/generation/audit predicates with positional SQL arguments. No full Pause/runtime or deployment acceptance follows from static checks.

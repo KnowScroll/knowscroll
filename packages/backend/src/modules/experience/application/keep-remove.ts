@@ -109,12 +109,17 @@ export function makeRemoveKeepEntry(p: KeepRemovalPorts) {
           assetId: command.entry.assetId,
           assetRevision: command.entry.assetRevision,
           at,
+          operation: KEEP_REMOVAL_OPERATION,
+          ...(Object.hasOwn(command, 'recordingGeneration')
+            ? { recordingGeneration: command.recordingGeneration }
+            : {}),
+          necessaryChanged: true,
         },
         before,
       );
       if (!effect.changed) throw new Error('KEEP_REMOVAL_EFFECT_INVARIANT');
       await p.completeReceipt(scope, command.commandId, value);
-      const revision = await p.advance(scope);
+      const revision = effect.recording?.changed ? effect.recording.revision : await p.advance(scope);
       await p.notify(scope, { revision, eventId: actionId });
       return { kind: 'ok', value };
     });

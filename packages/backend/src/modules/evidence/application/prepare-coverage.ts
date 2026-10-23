@@ -24,7 +24,12 @@ export function makePrepareObservedCoverage(p: ObservedCoveragePorts): PrepareOb
       bindings: [],
     };
     const result = (reason: ObservedCoverage['reason']) => ObservedCoverageSchema.parse({ ...value, reason });
-    const evidence = await p.readEvidence(scope, exposure.exposureId);
+    const evidence = await p.readEvidence(
+      scope,
+      exposure.exposureId,
+      exposure.recordingGeneration,
+      exposure.qualificationId,
+    );
     if (!evidence) return result(exposure.kind === 'scroll' ? 'qualification_missing' : 'unsupported_format');
     value = {
       ...value,

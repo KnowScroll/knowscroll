@@ -161,9 +161,76 @@ CI fixtures use synthetic semantic approvals only; no live map, observed dev cov
 geography, planet, native/browser journey or deployment acceptance is established by source/CI.
 
 `READ_COVERAGE_INPUTS` (#237/0025 consumer) supplies a separate bounded candidate-discovery port:
-current PC revision plus deterministic DISTINCT topic/facet/explanation-unit triples from the
-existing indexed `coverage_references`, at most100 /64KiB with101-row overflow sentinel. Overflow
-returns unavailable and no probes; completeness is always not_asserted. These retained index keys
+current PC revision plus deterministic topic/facet/explanation-unit triples. Each legacy/recording
+index supplies an ordered raw prefix of at most1001 references, using its existing probe index.
+The combined raw budget is1000, checked BEFORE bounded in-memory key deduplication; duplicate keys
+cannot hide an oversized history. No DISTINCT, grouping, shadow filtering or refill precedes the
+raw limit. At most100 probes/64KiB are returned. Overflow returns `availability: unavailable`,
+`reason: limit` and no probes; a complete bounded prefix says `reason: bounded`, while completeness
+is always not_asserted. These retained index keys
 are NOT trusted supports, unit counts or formation authority. Geography must call current
 `ReadTrustedCoverage` under the SAME live root through apply, preserving Evidence/Content SHARE
 checks. No legacy coveredFacets, support arithmetic or semantic approval changes are made.
+
+## Recording pipeline prerequisite (#381, schema42)
+
+The required Evidence effect implements four explicit methods. Legacy `apply/isCurrent` are an
+initial1 compatibility fixture boundary; new producers call `applyRecording/isRecordingCurrent`
+with a genuine `RecordingScopeTx`. No fallback upgrades a personal transaction or omitted original
+generation. A converted exposure refuses legacy mutation; legacy writes also refuse after the
+initial on/generation1 policy. Current Content reads and historical source reads remain available
+without authorizing new recording effects.
+
+`recording-activity.v1` separates `currentSegment` qualification/activity/certificate identity from
+`evidenceEffective`. PC never derives support from `evidenceEffective.qualified`. It freezes only
+its own already committed contribution as the generation baseline and unions actual current-g
+qualified structure. A negative-only/action-only segment with no current qualification cannot seed
+missing PC structure, even when Evidence carries qualified credit. Same-g correction replaces that
+segment; later generations retain the preceding committed effective PC value. Support refcounts
+still represent one exposure/key and one canonical explanation, with no cross-generation raw union.
+
+The strict PC contribution projects only exposure ID, asset ID/revision and activation time from
+the actual Evidence exposure. Runtime exposure objects also carry routing/action facts; spreading
+that object would fail the closed contribution schema. Those facts remain in their original
+owners and input vector, without changing PC qualification, support or contribution hashing.
+
+`recording_segment_heads` retain exact generation source contribution/certificate identity. They
+are separate from the mutable one-exposure `recording_exposure_contributions` and
+`recording_coverage_contributions` caches. Old heads are sealed by the root generation; no toggle
+writes or historical backfill occur. Each of at most16 coverage binding slots holds a frozen base
+pointer and optional current pointer; at most16 selected effective references occupy the indexed
+`recording_coverage_references`. Slots are bounded to32KiB; structural/certificate payloads to16KiB.
+A new current proof replaces the selected binding, while a same-g correction can fall back to its
+committed baseline. Valid retained legacy1 certificates remain a separate source kind, including
+alongside a new generation1 head. Current head replacement and all affected current-g references
+commit atomically through the deferred complete-witness FK. Sealed source heads are never rewritten.
+
+Trusted coverage keys contain source kind, exposure, generation, actual activity ID, qualification
+ID and certificate hash. These exact keys survive deduplication, Evidence checks, Content SHARE
+lock waits, repeated Evidence/Content checks and output. Exposure-only membership applies solely
+to the explicit unconverted legacy checker. Frozen certificates resolve retained PC source heads
+or exact original legacy certificate rows, never the mutable effective cache or latest exposure
+audit. Current mapping changes can invalidate availability immediately, but cannot certify old raw
+input. At most16 bindings on each old/new side change the existing coverage support counts.
+
+Legacy and recording coverage indexes each have a1001-row sentinel: at most2002 raw candidates,
+and a combined count above1000 refuses before hydration or shadow resolution. No anti-join scans
+arbitrary legacy history to fill a page. Supporting-unit reads use the same fixed two-source
+candidate budget for at most100 requested units. Overflow returns explicit backend
+`proofAvailability: unavailable` / `proofReason: limit`, empty qualified/supporting proofs and
+`completeness: not_asserted`; prepared statistics and routing remain usable. Coverage discovery
+independently reads at most1001 raw references per index (2002 total), refuses above1000 combined raw
+references before deduplication, then enforces100 probes/64KiB. Trusted
+coverage output retains its128KiB bound and does not claim historical completeness.
+
+Clear/full erasure deletes recording coverage references first, then effective coverage and
+structural caches, then generation source heads, then all legacy PC tables. This precedes Evidence
+source/audit/session erasure and Experience segment/origin erasure. No PC row is an account-lifetime
+recording receipt. Source fixtures cover the absent-PC-baseline boundary, complete witness
+replacement, mixed-index overflow, combined rollback and all-store Clear. They run only in CI;
+local formatting/type analysis is not a behavioral acceptance receipt.
+
+The earlier rollout paragraph is historical: activation now requires the complete fenced pipeline,
+client/API/role closure and the separately allocated finite legacy certification protocol. That
+certification remains unimplemented; no missing legacy state is assumed false or trustworthy, and
+no API/UI recording control or operational rollout is authorized by this module.

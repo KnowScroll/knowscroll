@@ -1,7 +1,8 @@
+import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { InteractionEvent } from '@knowscroll/contracts';
+import { ActiveDwellPayloadSchema, BlockInteractionPayloadSchema, type InteractionEvent } from '@knowscroll/contracts';
 import type { EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { projectScrollReadingQueue } from '@knowscroll/backend/modules/evidence';
@@ -10,6 +11,19 @@ import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { activatedAgo, coverage, dwell, event, openActive, type OpenedFixture } from '../support/observations.js';
 import { admitStarter, scrollUseCases, starterSource } from '../support/scroll.js';
 
+const StoredEnvelope = z.strictObject({
+  recording: z.strictObject({
+    v: z.literal(1),
+    clockDomain: z.enum(['legacy', 'session']),
+    wireSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    descriptorEligible: z.boolean(),
+    descriptorSha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/u)
+      .optional(),
+  }),
+  body: z.unknown(),
+});
 describe('observation intake (real database)', () => {
   let database: TestDatabase<Database>;
   let useCases: Awaited<ReturnType<typeof scrollUseCases>>;
@@ -184,15 +198,28 @@ describe('observation intake (real database)', () => {
     const { person, exposure } = await setup();
     await activatedAgo(database.db, exposure.exposureId, 10);
     const eventId = randomUUID();
-    await ingest(person, [event(exposure, dwell([0, 2_000]), { eventId })]);
-    const second = await ingest(person, [event(exposure, dwell([0, 9_000]), { eventId })]);
-    expect(second).toMatchObject({ accepted: 0, duplicates: 1 });
+    const original = event(exposure, dwell([0, 2000]), { eventId });
+    await ingest(person, [original]);
+    expect(await ingest(person, [original])).toMatchObject({ accepted: 0, duplicates: 1, rejected: 0 });
+    const second = await ingest(person, [
+      { ...original, payload: { activeIntervalsMs: [[0, 9000]] } } as InteractionEvent,
+    ]);
+    expect(second).toMatchObject({
+      accepted: 0,
+      duplicates: 0,
+      rejected: 1,
+      results: [{ eventId, status: 'rejected', reason: 'lineage_mismatch' }],
+    });
     const row = await database.db
       .selectFrom('evidence.observations')
       .select('payload')
       .where('universe_id', '=', person.universeId)
       .executeTakeFirstOrThrow();
-    expect(row.payload).toEqual({ activeIntervalsMs: [[0, 2_000]] });
+    const envelope = StoredEnvelope.parse(row.payload);
+    expect(envelope.recording.clockDomain).toBe('legacy');
+    expect(ActiveDwellPayloadSchema.parse(envelope.body)).toEqual({ activeIntervalsMs: [[0, 2000]] });
+    expect(await observationCount(person.universeId)).toBe(1);
+    expect(await projectionJobs(person.universeId)).toBe(1);
   });
 
   it('serialises concurrent retries of one batch: every event is accepted once in total', async () => {
@@ -278,13 +305,13 @@ describe('observation intake (real database)', () => {
       .orderBy('seq')
       .execute();
     expect(rows.every((row) => row.bounded)).toBe(true);
-    const firstDwell = rows[0]?.payload as { activeIntervalsMs: [number, number][] };
+    const firstDwell = ActiveDwellPayloadSchema.parse(StoredEnvelope.parse(rows[0]?.payload).body);
     expect(firstDwell.activeIntervalsMs).toHaveLength(1);
     expect(firstDwell.activeIntervalsMs[0]?.[0]).toBe(0);
     // Elapsed since activation plus the 2 s allowance: seconds, not an hour.
     expect(firstDwell.activeIntervalsMs[0]?.[1]).toBeLessThan(30_000);
-    expect((rows[2]?.payload as { activeIntervalsMs: unknown[] }).activeIntervalsMs).toEqual([]);
-    expect((rows[3]?.payload as { atMs: number }).atMs).toBeLessThan(30_000);
+    expect(ActiveDwellPayloadSchema.parse(StoredEnvelope.parse(rows[2]?.payload).body).activeIntervalsMs).toEqual([]);
+    expect(BlockInteractionPayloadSchema.parse(StoredEnvelope.parse(rows[3]?.payload).body).atMs).toBeLessThan(30_000);
   });
 
   it('clamps a claimed future time and refuses an event older than a week', async () => {

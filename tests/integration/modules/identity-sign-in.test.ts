@@ -210,6 +210,16 @@ describe('sign-in, sessions and operator links (real database)', () => {
       .where('identity.email_addresses.address', '=', address)
       .execute();
     expect(universe).toEqual([{ id: result.outcome.universeId, privacy_epoch: 1, disposable: false }]);
+    expect(
+      await database.db
+        .selectFrom('identity.recording_lifecycle_witnesses')
+        .select(['account_id', 'privacy_epoch', 'origin_kind', 'clear_operation_id'])
+        .where('universe_id', '=', result.outcome.universeId)
+        .execute(),
+    ).toEqual([
+      { account_id: result.outcome.accountId, privacy_epoch: 1, origin_kind: 'birth', clear_operation_id: null },
+    ]);
+
     const receipt = await database.db
       .selectFrom('receipts.personal_commands')
       .select(['operation', 'outcome', 'privacy_epoch'])

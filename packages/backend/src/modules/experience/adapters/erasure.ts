@@ -3,6 +3,11 @@ import { sql } from 'kysely';
 import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 const tables = [
+  'recording_channel_certificates',
+  'recording_segment_inputs',
+  'recording_segments',
+  'recording_offer_origins',
+  'recording_command_origins',
   'action_links',
   'action_state',
   'navigation_transitions',

@@ -1,3 +1,5 @@
+import { recordingChannelSelection } from './channel-certification.js';
+import { READ_RECORDING_CHANNEL_SELECTION } from '../public.js';
 import { checkRequestSource } from './request-source.js';
 import { CHECK_REQUEST_SOURCE } from '../public.js';
 import type { Kysely } from 'kysely';
@@ -13,8 +15,15 @@ import {
   type FindOpenableAsset,
   type RenderScroll,
 } from '../../content/public.js';
-import { projectEncounterActivityQueue, applyActionEvidenceQueue } from '../../evidence/public.js';
-import type { PersonalScopeTx, WithPersonalScope } from '../../identity/public.js';
+import { projectEncounterActivityQueue } from '../../evidence/public.js';
+import {
+  FENCE_OWN_ACCOUNT,
+  READ_RECORDING_LIFECYCLE,
+  type ReadRecordingLifecycle,
+  type FenceOwnAccount,
+  type PersonalScopeTx,
+  type WithPersonalScope,
+} from '../../identity/public.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
@@ -30,7 +39,7 @@ import { makeActivateExposure } from '../application/activate-exposure.js';
 import { makeApplyAction } from '../application/apply-action.js';
 import { hydratedSaved } from './saved-store.js';
 import { makeApplyEncounterAction } from '../application/encounter-action.js';
-import { makeCommitAction, makeRecordLegacyAction, readChannels } from './action-store.js';
+import { makeCommitAction, makeRecordLegacyAction, makeEnqueueActionEvidence, readChannels } from './action-store.js';
 import {
   readActivityLineage,
   ensureActivityLineage,
@@ -47,7 +56,19 @@ import {
 import { makeOpenExposure } from '../application/open-exposure.js';
 import { makeReadExposureDocument } from '../application/read-exposure-document.js';
 import type { JsonValue } from '../application/ports.js';
-import { READ_ACTION_FOR_EVIDENCE, READ_EXPOSURE_FOR_EVIDENCE } from '../public.js';
+import {
+  READ_ACTION_FOR_EVIDENCE,
+  READ_EXPOSURE_FOR_EVIDENCE,
+  READ_RECORDING_SEGMENT,
+  type ExperienceRecordingEffects,
+} from '../public.js';
+import {
+  legacyRecording,
+  recordingCommandHooks,
+  withExperienceScope,
+  requireRecordingEffects,
+  readRecordingSegment,
+} from './recording-store.js';
 import {
   insertExposure,
   makeReadExposureForDocument,
@@ -79,28 +100,63 @@ export interface ExperienceDependencyTokens {
  * `FIND_OPENABLE_ASSET`, `RENDER_SCROLL`) in the same composition root. Only the apps' composition
  * roots import this file.
  */
-export function experienceProviders(tokens: ExperienceDependencyTokens) {
+export function experienceProviders(
+  tokens: ExperienceDependencyTokens,
+  options: { readonly recordingEffects?: symbol } = {},
+) {
   return [
     {
       provide: APPLY_ENCOUNTER_ACTION,
-      inject: [tokens.withPersonalScope, tokens.enqueueJob, FIND_ASSET_FOR_ACTION],
-      useFactory: (withScope: WithPersonalScope, enqueue: EnqueueJob, findAsset: FindAssetForAction) =>
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        READ_RECORDING_LIFECYCLE,
+        tokens.enqueueJob,
+        FIND_ASSET_FOR_ACTION,
+        ...(options.recordingEffects ? [options.recordingEffects] : []),
+      ],
+      useFactory: (
+        withScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        lifecycle: ReadRecordingLifecycle,
+        enqueue: EnqueueJob,
+        findAsset: FindAssetForAction,
+        effects?: ExperienceRecordingEffects,
+      ) =>
         makeApplyEncounterAction({
-          ...commandPorts(withScope),
+          ...commandPorts(withExperienceScope(withScope, fenceOwn), lifecycle),
           findAsset,
           readExposure: readExposureForEvidence,
           readChannels,
-          commitAction: makeCommitAction(enqueue),
+          commitAction: makeCommitAction(
+            enqueue,
+            lifecycle,
+            options.recordingEffects ? requireRecordingEffects(effects) : undefined,
+          ),
           advance: advanceScopeRevision,
           notify: notifyScopeChanged,
         }),
     },
     {
       provide: APPLY_ACTION,
-      inject: [tokens.withPersonalScope, tokens.enqueueJob, FIND_ASSET_FOR_ACTION],
-      useFactory: (withPersonalScope: WithPersonalScope, enqueueJob: EnqueueJob, findAsset: FindAssetForAction) =>
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        READ_RECORDING_LIFECYCLE,
+        tokens.enqueueJob,
+        FIND_ASSET_FOR_ACTION,
+        ...(options.recordingEffects ? [options.recordingEffects] : []),
+      ],
+      useFactory: (
+        withPersonalScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        lifecycle: ReadRecordingLifecycle,
+        enqueueJob: EnqueueJob,
+        findAsset: FindAssetForAction,
+        effects?: ExperienceRecordingEffects,
+      ) =>
         makeApplyAction({
-          withPersonalScope,
+          withPersonalScope: withExperienceScope(withPersonalScope, fenceOwn),
           hashRequest: (operation, request) => requestHash(operation, request),
           findReceipt: findPersonalReceipt,
           insertReceipt: insertPersonalReceipt,
@@ -112,8 +168,12 @@ export function experienceProviders(tokens: ExperienceDependencyTokens) {
           },
           readSavedState,
           writeSavedState,
-          recordAction: makeRecordLegacyAction(enqueueJob),
-          enqueueActionEvidence: (scope, payload) => enqueueJob(scope, applyActionEvidenceQueue, payload),
+          recordAction: makeRecordLegacyAction(
+            enqueueJob,
+            lifecycle,
+            options.recordingEffects ? requireRecordingEffects(effects) : undefined,
+          ),
+          enqueueActionEvidence: makeEnqueueActionEvidence(enqueueJob, lifecycle, effects),
           advanceRevision: advanceScopeRevision,
           notifyScopeChanged,
           newId: () => uuidv7(),
@@ -127,33 +187,58 @@ export function experienceProviders(tokens: ExperienceDependencyTokens) {
     },
     {
       provide: OPEN_EXPOSURE,
-      inject: [tokens.withPersonalScope, FIND_OPENABLE_ASSET],
-      useFactory: (withPersonalScope: WithPersonalScope, findOpenableAsset: FindOpenableAsset) =>
+      inject: [tokens.withPersonalScope, FENCE_OWN_ACCOUNT, READ_RECORDING_LIFECYCLE, FIND_OPENABLE_ASSET],
+      useFactory: (
+        withPersonalScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        lifecycle: ReadRecordingLifecycle,
+        findOpenableAsset: FindOpenableAsset,
+      ) =>
         makeOpenExposure({
-          ...commandPorts(withPersonalScope),
+          ...commandPorts(withExperienceScope(withPersonalScope, fenceOwn), lifecycle),
           findOpenableAsset,
           insertExposure,
         }),
     },
     {
       provide: ACTIVATE_EXPOSURE,
-      inject: [tokens.withPersonalScope, tokens.enqueueJob, READ_ENCOUNTER_ATTRIBUTION],
-      useFactory: (withPersonalScope: WithPersonalScope, enqueue: EnqueueJob, metadata: ReadEncounterAttribution) =>
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        READ_RECORDING_LIFECYCLE,
+        tokens.enqueueJob,
+        READ_ENCOUNTER_ATTRIBUTION,
+        ...(options.recordingEffects ? [options.recordingEffects] : []),
+      ],
+      useFactory: (
+        withPersonalScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        lifecycle: ReadRecordingLifecycle,
+        enqueue: EnqueueJob,
+        metadata: ReadEncounterAttribution,
+        effects?: ExperienceRecordingEffects,
+      ) =>
         makeActivateExposure({
-          ...commandPorts(withPersonalScope),
+          ...commandPorts(withExperienceScope(withPersonalScope, fenceOwn), lifecycle),
+          recording: recordingCommandHooks(
+            metadata,
+            lifecycle,
+            options.recordingEffects ? requireRecordingEffects(effects) : undefined,
+          ),
           readExposure,
-          markActivated: async (scope, id, at) => {
+          markActivated: async (scope, id, at, originalGeneration) => {
             await markExposureActivated(scope, id, at);
             const exposure = await readExposure(scope, id);
             if (exposure) {
               const m = await metadata(scope, { assetId: exposure.assetId, assetRevision: exposure.assetRevision });
-              if (m) await recordActivation(scope, id, m);
-              await enqueue(scope, projectEncounterActivityQueue, {
-                v: 1,
-                universeId: scope.authority.universeId,
-                privacyEpoch: scope.authority.privacyEpoch,
-                exposureId: id,
-              });
+              if (m && !effects) await recordActivation(scope, id, m, lifecycle, undefined, originalGeneration);
+              if (!effects && (await legacyRecording(scope, originalGeneration, lifecycle)))
+                await enqueue(scope, projectEncounterActivityQueue, {
+                  v: 1,
+                  universeId: scope.authority.universeId,
+                  privacyEpoch: scope.authority.privacyEpoch,
+                  exposureId: id,
+                });
             }
           },
         }),
@@ -168,9 +253,10 @@ export function experienceProviders(tokens: ExperienceDependencyTokens) {
 }
 
 /** The receipt and scope ports every experience command shares. */
-function commandPorts(withPersonalScope: WithPersonalScope) {
+function commandPorts(withPersonalScope: WithPersonalScope, lifecycle: ReadRecordingLifecycle) {
   return {
     withPersonalScope,
+    recording: recordingCommandHooks(() => Promise.resolve(undefined), lifecycle),
     hashRequest: (operation: string, request: JsonValue) => requestHash(operation, request),
     findReceipt: findPersonalReceipt,
     insertReceipt: insertPersonalReceipt,
@@ -187,9 +273,15 @@ function commandPorts(withPersonalScope: WithPersonalScope) {
  */
 export function experienceEvidenceReadProviders() {
   return [
+    {
+      provide: READ_RECORDING_CHANNEL_SELECTION,
+      inject: [READ_RECORDING_LIFECYCLE],
+      useFactory: recordingChannelSelection,
+    },
+    { provide: READ_RECORDING_SEGMENT, useValue: readRecordingSegment },
     { provide: CHECK_REQUEST_SOURCE, useValue: checkRequestSource },
     { provide: READ_ACTIVITY_LINEAGE, useValue: readActivityLineage },
-    { provide: ENSURE_ACTIVITY_LINEAGE, useValue: ensureActivityLineage },
+    { provide: ENSURE_ACTIVITY_LINEAGE, inject: [READ_RECORDING_LIFECYCLE], useFactory: ensureActivityLineage },
     { provide: READ_ROUTING_HISTORY, useValue: readRoutingHistory },
     { provide: READ_ACTIVITY_RECONCILE_PAGE, useValue: readActivityReconcilePage },
     { provide: READ_ACTION_FOR_EVIDENCE, useValue: readActionForEvidence },

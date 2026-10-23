@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { PersonalAuthority, ScopeRefusal } from '../../identity/public.js';
 import { decideActionEffect, type ActionKind } from '../domain/actions.js';
-import type { ApplyActionPorts } from './ports.js';
+import { recordingRequest, type ApplyActionPorts } from './ports.js';
 
 export const APPLY_ACTION_OPERATION = 'experience.apply-action';
 /** Version of the stored outcome below. A new shape gets a new version (blueprint §5). */
@@ -9,6 +9,7 @@ export const ACTION_OUTCOME_VERSION = 1;
 
 export interface ApplyActionCommand {
   readonly commandId: string;
+  readonly recordingGeneration?: number;
   readonly kind: ActionKind;
   readonly target: { readonly assetId: string; readonly assetRevision: number };
 }
@@ -65,6 +66,7 @@ export function makeApplyAction(ports: ApplyActionPorts) {
     command: ApplyActionCommand,
   ): Promise<ApplyActionResult> {
     const request = {
+      ...recordingRequest(command),
       kind: command.kind,
       target: { assetId: command.target.assetId, assetRevision: command.target.assetRevision },
     };
@@ -112,13 +114,16 @@ export function makeApplyAction(ports: ApplyActionPorts) {
           at,
         });
       }
-      await ports.recordAction(scope, {
+      const recorded = await ports.recordAction(scope, {
         id: actionId,
         commandId: command.commandId,
         kind: command.kind,
         assetId: command.target.assetId,
         assetRevision: command.target.assetRevision,
         at,
+        necessaryChanged: effect.changed,
+        operation: APPLY_ACTION_OPERATION,
+        ...recordingRequest(command),
       });
       await ports.enqueueActionEvidence(scope, {
         v: 1,
@@ -127,8 +132,8 @@ export function makeApplyAction(ports: ApplyActionPorts) {
         actionId,
       });
       let revision = scope.revisionAtEntry;
-      if (effect.changed) {
-        revision = await ports.advanceRevision(scope);
+      if (effect.changed || recorded?.recording.changed) {
+        revision = recorded?.recording.changed ? recorded.recording.revision : await ports.advanceRevision(scope);
         await ports.notifyScopeChanged(scope, { revision, eventId: actionId });
       }
       const outcome: ActionOutcome = {

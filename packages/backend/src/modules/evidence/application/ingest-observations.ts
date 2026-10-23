@@ -1,4 +1,10 @@
-import { OBSERVATION_LIMITS, type InteractionEvent, type ObservationBatchResponse } from '@knowscroll/contracts';
+import {
+  OBSERVATION_LIMITS,
+  ObservationBatchRequestSchema,
+  RecordingObservationBatchRequestSchema,
+  type InteractionEvent,
+  type ObservationBatchResponse,
+} from '@knowscroll/contracts';
 import { isReadingInteractionAllowed, type ReadingFacts } from '../../content/public.js';
 import type { PersonalAuthority, ScopeRefusal } from '../../identity/public.js';
 import { boundIntervals, boundOccurredAt, elapsedCapMs } from '../domain/bounds.js';
@@ -8,22 +14,33 @@ import type { IngestObservationsPorts, NewObservation } from './ports.js';
 
 export interface IngestObservationsCommand {
   /** Which recorder build produced the batch. */
+  readonly version?: 'observation-batch.v2';
+  readonly recordingGeneration?: number;
   readonly instrumentationVersion: number;
   readonly events: readonly InteractionEvent[];
 }
 
-export type IngestObservationsRefusal = 'batch_too_large' | 'epoch_changed' | 'universe_unavailable';
+export type IngestObservationsRefusal =
+  'batch_too_large' | 'invalid_input' | 'recording_required' | 'epoch_changed' | 'universe_unavailable';
 
 type EventResult = ObservationBatchResponse['results'][number];
 
 export type IngestObservationsResult =
   | {
       readonly kind: 'ingested';
+      readonly recordingGeneration: number;
       readonly results: readonly EventResult[];
       readonly accepted: number;
       readonly duplicates: number;
       readonly rejected: number;
       /** The universe revision under the lock; observations change nothing a client reads. */
+      readonly revision: number;
+    }
+  | {
+      readonly kind: 'not_recorded';
+      readonly reason: 'recording_paused' | 'recording_generation_stale';
+      readonly recordingGeneration: number;
+      readonly currentGeneration: number;
       readonly revision: number;
     }
   | { readonly kind: 'refused'; readonly reason: IngestObservationsRefusal };
@@ -32,6 +49,7 @@ export type IngestObservationsResult =
 interface ExposureState {
   readonly exposure: ExposureLineage;
   readonly facts: ReadingFacts | undefined;
+  readonly descriptorSha256?: string;
   count: number;
   nextSeq: number;
   accepted: number;
@@ -67,9 +85,35 @@ export function makeIngestObservations(ports: IngestObservationsPorts) {
     authority: PersonalAuthority,
     command: IngestObservationsCommand,
   ): Promise<IngestObservationsResult> {
-    if (new TextEncoder().encode(JSON.stringify(command.events)).length > OBSERVATION_LIMITS.maxBatchBytes)
+    if (command === null || typeof command !== 'object') return { kind: 'refused', reason: 'invalid_input' };
+    if (new TextEncoder().encode(JSON.stringify(command)).length > OBSERVATION_LIMITS.maxBatchBytes)
       return { kind: 'refused', reason: 'batch_too_large' };
+    const versioned = Object.hasOwn(command, 'version') || Object.hasOwn(command, 'recordingGeneration');
+    const parsed = versioned
+      ? RecordingObservationBatchRequestSchema.safeParse(command)
+      : ObservationBatchRequestSchema.safeParse(command);
+    if (!parsed.success) return { kind: 'refused', reason: 'invalid_input' };
+    // Zod clones the validated original before the first authority wait. Never read a mutable
+    // caller reference later or let an unknown retry acquire a different generation/body.
+    command = parsed.data;
     const entered = await ports.withPersonalScope(authority, async (scope): Promise<IngestObservationsResult> => {
+      if ((await ports.fenceOwn(scope)).kind !== 'active') return { kind: 'refused', reason: 'universe_unavailable' };
+      const gated = await ports.fenceRecording(scope, versioned ? command.recordingGeneration : undefined);
+      if (gated.kind !== 'recording') {
+        if (versioned && (gated.kind === 'paused' || gated.kind === 'stale'))
+          return {
+            kind: 'not_recorded',
+            reason: gated.kind === 'paused' ? 'recording_paused' : 'recording_generation_stale',
+            recordingGeneration: command.recordingGeneration!,
+            currentGeneration: gated.currentGeneration,
+            revision: scope.revisionAtEntry,
+          };
+        return {
+          kind: 'refused',
+          reason: gated.kind === 'unavailable' ? 'universe_unavailable' : 'recording_required',
+        };
+      }
+      const cap = gated.scope;
       const receivedAt = ports.now();
       const states = new Map<string, ExposureState | undefined>();
       const stateOf = async (exposureId: string): Promise<ExposureState | undefined> => {
@@ -79,7 +123,23 @@ export function makeIngestObservations(ports: IngestObservationsPorts) {
         if (exposure !== undefined && exposure.privacyEpoch === scope.authority.privacyEpoch) {
           const facts = await ports.readReadingFacts(scope, exposure.assetId, exposure.assetRevision);
           const intake = await ports.readIntakeState(scope, exposure.id);
-          state = { exposure, facts, count: intake.count, nextSeq: intake.maxSeq + 1, accepted: 0 };
+          const descriptor = await ports.readSegment(cap, exposure.id);
+          const descriptorSha256 =
+            descriptor?.recordingGeneration === cap.generation &&
+            descriptor.exposure.exposureId === exposure.id &&
+            descriptor.exposure.assetId === exposure.assetId &&
+            descriptor.exposure.assetRevision === exposure.assetRevision &&
+            descriptor.firstEligibleActivationAt !== undefined
+              ? descriptor.attributionSha256
+              : undefined;
+          state = {
+            exposure,
+            facts,
+            ...(descriptorSha256 ? { descriptorSha256 } : {}),
+            count: intake.count,
+            nextSeq: intake.maxSeq + 1,
+            accepted: 0,
+          };
         }
         states.set(exposureId, state);
         return state;
@@ -97,6 +157,32 @@ export function makeIngestObservations(ports: IngestObservationsPorts) {
           rejected += 1;
           continue;
         }
+        const sessionStart = versioned
+          ? await ports.readRecordingSession(cap, event.exposureId, event.sessionId)
+          : undefined;
+        if ((versioned && !sessionStart) || (!versioned && (await ports.hasRecordingSession(cap, event.sessionId)))) {
+          results.push({ eventId: event.eventId, status: 'rejected', reason: 'lineage_mismatch' });
+          rejected++;
+          continue;
+        }
+        const wireSha256 = ports.hashEvent({
+          clockDomain: versioned ? 'session' : 'legacy',
+          recordingGeneration: cap.generation,
+          instrumentationVersion: command.instrumentationVersion,
+          event,
+        });
+        const prior = await ports.findEvent(cap, event.eventId);
+        if (prior) {
+          // Pre-envelope rows cannot prove the original body, especially after timestamp/interval clamping.
+          if (prior.generation === cap.generation && prior.wireSha256 === wireSha256) {
+            results.push({ eventId: event.eventId, status: 'duplicate' });
+            duplicates++;
+          } else {
+            results.push({ eventId: event.eventId, status: 'rejected', reason: 'lineage_mismatch' });
+            rejected++;
+          }
+          continue;
+        }
         const occurred = boundOccurredAt(new Date(event.occurredAt), receivedAt, OBSERVATION_BOUNDS_V1);
         if (occurred.kind === 'too_old') {
           results.push({ eventId: event.eventId, status: 'rejected', reason: 'too_old' });
@@ -108,7 +194,7 @@ export function makeIngestObservations(ports: IngestObservationsPorts) {
           rejected += 1;
           continue;
         }
-        const capMs = elapsedCapMs(state.exposure.activatedAt, receivedAt, OBSERVATION_BOUNDS_V1);
+        const capMs = elapsedCapMs(sessionStart ?? state.exposure.activatedAt, receivedAt, OBSERVATION_BOUNDS_V1);
         const bounded = boundPayload(event, capMs);
         const observation: NewObservation = {
           id: ports.newId(),
@@ -124,30 +210,48 @@ export function makeIngestObservations(ports: IngestObservationsPorts) {
           occurredAt: occurred.occurredAt,
           receivedAt,
           bounded: bounded.bounded || occurred.clamped,
-          payload: bounded.payload,
+          payload: {
+            recording: {
+              v: 1,
+              clockDomain: versioned ? 'session' : 'legacy',
+              wireSha256,
+              descriptorEligible: state.descriptorSha256 !== undefined,
+              ...(state.descriptorSha256 ? { descriptorSha256: state.descriptorSha256 } : {}),
+            },
+            body: bounded.payload,
+          },
+          recordingGeneration: cap.generation,
         };
-        if (await ports.insertObservation(scope, observation)) {
+        if (await ports.insertObservation(cap, observation)) {
           state.nextSeq += 1;
           state.count += 1;
           state.accepted += 1;
           accepted += 1;
           results.push({ eventId: event.eventId, status: 'accepted' });
         } else {
-          duplicates += 1;
-          results.push({ eventId: event.eventId, status: 'duplicate' });
+          throw new Error('OBSERVATION_EVENT_ID_RACE');
         }
       }
       for (const state of states.values()) {
         if (state !== undefined && state.accepted > 0) {
-          await ports.enqueueProjection(scope, {
-            v: 1,
+          await ports.enqueueProjection(cap, {
+            v: versioned ? 2 : 1,
+            ...(versioned ? { recordingGeneration: cap.generation } : {}),
             universeId: authority.universeId,
             privacyEpoch: authority.privacyEpoch,
             exposureId: state.exposure.id,
           });
         }
       }
-      return { kind: 'ingested', results, accepted, duplicates, rejected, revision: scope.revisionAtEntry };
+      return {
+        kind: 'ingested',
+        recordingGeneration: cap.generation,
+        results,
+        accepted,
+        duplicates,
+        rejected,
+        revision: scope.revisionAtEntry,
+      };
     });
     return entered.kind === 'entered' ? entered.value : { kind: 'refused', reason: refusalOfScope(entered.refusal) };
   };

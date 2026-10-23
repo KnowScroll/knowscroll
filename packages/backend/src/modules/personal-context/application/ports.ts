@@ -28,6 +28,8 @@ export interface ExplorationSnapshot {
   /** Highest applied scope revision is not a claim that a historical rollout finished. */
   readonly completeness: 'not_asserted';
   readonly coverageAvailability: 'unavailable';
+  readonly proofAvailability: 'available' | 'unavailable';
+  readonly proofReason: 'bounded' | 'limit' | 'unresolved';
   readonly topics: readonly (TopicStatistics & {
     readonly qualifiedExplanationUnits: number;
     readonly coveredFacets: number;
@@ -79,6 +81,8 @@ export interface ContextPorts {
     scope: PersonalScopeTx,
     query: ContextQuery,
   ) => Promise<{
+    readonly proofAvailability: ExplorationSnapshot['proofAvailability'];
+    readonly proofReason: ExplorationSnapshot['proofReason'];
     readonly topics: readonly {
       readonly topicId: string;
       readonly qualifiedExplanationUnits: number;
