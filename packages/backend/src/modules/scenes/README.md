@@ -26,11 +26,17 @@ No network/provider work runs in the transaction.
 
 ## Stored appearance and finite policy
 
-`canonical-lattice.v1` selects only explicit canonical catalogue IDs: Earth system/star and
-Seasons use `terraced.v1`, Tides uses `archipelago.v1`, Greenhouse uses `ridged.v1`; canonical
-regions inherit the admitted parent family. This is a cosmetic convention, not scientific or
-personal classification. Unknown IDs and unrepresentable/ambiguous labels fail closed rather
-than truncating labels or guessing from text, evidence, activity or a hash. Aliases stay in
+`canonical-lattice.v1` selects only explicit canonical catalogue IDs, and reads the family from the
+content library plan (`content/domain/library/`, exposed as `sceneFamilyOf`): a system and its star
+take the system's `sceneFamily`, a planet takes its own or its system's, and a region inherits its
+planet's. Earth keeps what it always had: system, star and Seasons `terraced.v1`, Tides
+`archipelago.v1`, Greenhouse `ridged.v1`. The three families are the ones `scene-core` draws
+(`terraced.v1`, `ridged.v1`, `archipelago.v1`). This is a cosmetic convention, not scientific or
+personal classification. A system or star must be a catalogue system, a planet must be a planet
+of its parent system, and a region must be a facet of its parent planet. Unknown IDs and
+unrepresentable/ambiguous labels fail closed rather than truncating labels or guessing from
+text, evidence, activity or a hash. A stored object's family never changes (a different family for
+an existing object refuses), so a plan edit sets families for new systems and planets only. Aliases stay in
 Geography; each Scene target remains its own object ID, with no redirect/merge inference.
 
 An adapter creates a private random 256-bit world seed once. Versioned policy + seed + opaque
@@ -55,12 +61,12 @@ chunk references with their original input stamps, as the shared wire explicitly
 
 ## Projection stores and reads
 
-| Store | Purpose and access |
-|---|---|
-| scenes.state | Current epoch pointer, pinned policy, private world seed, route allocation and latest failure stamp; one locked scope |
-| scenes.objects | Stable descriptor, system/chunk membership and finite slot; caller/epoch/object lookup |
-| scenes.chunks | Immutable chunk versions; exact caller/epoch/chunk/revision lookup |
-| scenes.manifests | Immutable whole-manifest versions; caller/epoch/scene revision |
+| Store            | Purpose and access                                                                                                    |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
+| scenes.state     | Current epoch pointer, pinned policy, private world seed, route allocation and latest failure stamp; one locked scope |
+| scenes.objects   | Stable descriptor, system/chunk membership and finite slot; caller/epoch/object lookup                                |
+| scenes.chunks    | Immutable chunk versions; exact caller/epoch/chunk/revision lookup                                                    |
+| scenes.manifests | Immutable whole-manifest versions; caller/epoch/scene revision                                                        |
 
 Migration0027 is additive; all26 prior SQL blobs remain unchanged. No seed, personal row or job
 is inserted by migration. Versions retain history until personal erasure; schema growth is

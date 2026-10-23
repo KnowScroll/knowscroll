@@ -10,6 +10,7 @@ export type { Contribution, ContextQuery } from './domain/context.js';
 export type {
   ApplyProjectedEncounter,
   ReadExplorationSnapshot,
+  ReadCurrentPlan,
   ExplorationSnapshot,
   TopicStatistics,
   ReadRecentContextTopics,
@@ -29,7 +30,7 @@ import type { TrustedCoverageQuery } from './domain/coverage.js';
 export type { ReadTrustedCoverage } from './application/coverage-ports.js';
 export const READ_TRUSTED_COVERAGE = Symbol('personal-context.readTrustedCoverage');
 
-/** Bounded indexed candidate keys and PC revision only; not counts or current formation authority. */
+/** Bounded indexed candidate keys (at most 1000, from at most 1000 raw references) and PC revision only; not counts or current formation authority. */
 export type ReadCoverageInputs = (scope: PersonalScopeTx) => Promise<{
   readonly revision: number;
   readonly completeness: 'not_asserted';

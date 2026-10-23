@@ -454,7 +454,7 @@ export const FENCE_PERSONAL_RECORDING = Symbol('identity.fencePersonalRecording'
 
 /** Current lifecycle provenance, read only under the caller's genuine recording capability.
  * This is metadata, not another account gate or a reusable authority token. */
-export const RECORDING_LIFECYCLE_PROTOCOL_SHA256 = 'ebbec3bda043ab47c5566ebb29e80322e841f4dc15ef7940fc2ee4c053176dc1';
+export const RECORDING_LIFECYCLE_PROTOCOL_SHA256 = 'd7942e43bb8211f37dfd08b4dfb6ac2e1b2543229a257f9c5ba850df135a1d10';
 export type RecordingLifecycle =
   | {
       readonly kind: 'fresh';

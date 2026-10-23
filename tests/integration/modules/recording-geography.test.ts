@@ -75,7 +75,6 @@ describe('Geography original generation and exact wake ownership (Actions only)'
     makeRunCartographer({
       ...p,
       enabled: () => false,
-      permitted: never,
       harness: {
         proposePersonal: never,
         withPersonalApply: never,
@@ -98,6 +97,11 @@ describe('Geography original generation and exact wake ownership (Actions only)'
       .where('universe_id', '=', u)
       .where('id', '=', id)
       .executeTakeFirstOrThrow();
+  /** A run parked by earlier code: wake consumed, status blocked, outcome disabled. Still a state to resume or retire. */
+  const park = (u: string, id: string) =>
+    sql`update geography.runs set status='blocked',outcome='disabled',normal_wake_id=null where universe_id=${u}::uuid and id=${id}::uuid`.execute(
+      database.db,
+    );
   const jobCount = async (u: string) =>
     (
       await sql<{ n: number }>`select count(*)::int n from pgboss.job where data->>'universeId'=${u}`.execute(
@@ -195,7 +199,7 @@ describe('Geography original generation and exact wake ownership (Actions only)'
     for (const recordingGeneration of [undefined, null, 0, 1.5, '1', 2147483648])
       await expect(request(a.authority, { commandId: randomUUID(), recordingGeneration } as never)).rejects.toThrow();
   });
-  it('old ordinary A cannot consume fresh pending B; matching disabled B consumes only its own wake without private work', async () => {
+  it('a disabled delivery releases its own run without private work; a stale wake cannot touch a newer pending run', async () => {
     const a = await seedPerson(database.db),
       first = await request(a.authority, { commandId: randomUUID(), recordingGeneration: 1 });
     if (first.kind !== 'accepted') throw new Error('CI request');
@@ -209,46 +213,49 @@ describe('Geography original generation and exact wake ownership (Actions only)'
         wakeId: hA.normal_wake_id!,
       };
     await worker()(A, new AbortController().signal);
-    expect((await header(a.universeId, first.runId)).normal_wake_id).toBeNull();
-    expect(
-      await request(a.authority, { commandId: randomUUID(), resumeRunId: first.runId, recordingGeneration: 1 }),
-    ).toMatchObject({ kind: 'accepted', runId: first.runId });
-    const before = await header(a.universeId, first.runId),
-      jobs = await jobCount(a.universeId);
-    expect(before.normal_wake_id).not.toBe(A.wakeId);
-    expect(before.normal_wake_id).not.toBeNull();
-    await worker()(A, new AbortController().signal);
-    await worker()(A, new AbortController().signal);
-    expect(await header(a.universeId, first.runId)).toEqual(before);
-    expect(await jobCount(a.universeId)).toBe(jobs);
-    await worker()({ ...A, wakeId: before.normal_wake_id! }, new AbortController().signal);
-    const done = await header(a.universeId, first.runId);
-    expect(done).toMatchObject({
-      status: 'blocked',
+    const released = {
+      status: 'insufficient',
       outcome: 'disabled',
       normal_wake_id: null,
       context: null,
       recording_context_sha256: null,
       recording_model_context_sha256: null,
-    });
+    };
+    expect(await header(a.universeId, first.runId)).toMatchObject(released);
+    expect(
+      (
+        await database.db
+          .selectFrom('geography.state')
+          .select('active_run_id')
+          .where('universe_id', '=', a.universeId)
+          .executeTakeFirstOrThrow()
+      ).active_run_id,
+    ).toBeNull();
+    // The released run is not resumable; new reading or a new request starts another run.
+    expect(
+      await request(a.authority, { commandId: randomUUID(), resumeRunId: first.runId, recordingGeneration: 1 }),
+    ).toEqual({ kind: 'refused', reason: 'run_not_resumable' });
+    const next = await request(a.authority, { commandId: randomUUID(), recordingGeneration: 1 });
+    if (next.kind !== 'accepted') throw new Error('CI request');
+    expect(next.runId).not.toBe(first.runId);
+    const before = await header(a.universeId, next.runId),
+      jobs = await jobCount(a.universeId);
+    expect(before.normal_wake_id).not.toBe(A.wakeId);
+    expect(before.normal_wake_id).not.toBeNull();
+    await worker()(A, new AbortController().signal);
+    await worker()(A, new AbortController().signal);
+    expect(await header(a.universeId, next.runId)).toEqual(before);
+    expect(await header(a.universeId, first.runId)).toMatchObject(released);
+    expect(await jobCount(a.universeId)).toBe(jobs);
+    await worker()({ ...A, runId: next.runId, wakeId: before.normal_wake_id! }, new AbortController().signal);
+    expect(await header(a.universeId, next.runId)).toMatchObject(released);
     expect(await jobCount(a.universeId)).toBe(jobs);
   });
   it('revoked unproved accounting consumes only its own retirement UUID and never starts a successor', async () => {
     const a = await seedPerson(database.db),
       first = await request(a.authority, { commandId: randomUUID(), recordingGeneration: 1 });
     if (first.kind !== 'accepted') throw new Error('CI request');
-    const initial = await header(a.universeId, first.runId);
-    await worker()(
-      {
-        v: 2,
-        universeId: a.universeId,
-        privacyEpoch: 1,
-        runId: first.runId,
-        recordingGeneration: 1,
-        wakeId: initial.normal_wake_id!,
-      },
-      new AbortController().signal,
-    );
+    await park(a.universeId, first.runId);
     // Present legacy/NULL proof is deliberately unproved, not zero retained.
     await database.db
       .insertInto('reasoning.business_runs')
@@ -319,18 +326,7 @@ describe('Geography original generation and exact wake ownership (Actions only)'
     const a = await seedPerson(database.db),
       first = await request(a.authority, { commandId: randomUUID(), recordingGeneration: 1 });
     if (first.kind !== 'accepted') throw new Error('CI request');
-    const initial = await header(a.universeId, first.runId);
-    await worker()(
-      {
-        v: 2,
-        universeId: a.universeId,
-        privacyEpoch: 1,
-        runId: first.runId,
-        recordingGeneration: 1,
-        wakeId: initial.normal_wake_id!,
-      },
-      new AbortController().signal,
-    );
+    await park(a.universeId, first.runId);
     const policy = recordingPolicyFor(database.db, { lockTimeoutMs: 5000 });
     for (const [expectedRecordingGeneration, on] of [
       [1, false],
@@ -524,18 +520,7 @@ describe('Geography original generation and exact wake ownership (Actions only)'
       const a = await seedPerson(database.db),
         first = await request(a.authority, { commandId: randomUUID(), recordingGeneration: 1 });
       if (first.kind !== 'accepted') throw new Error('CI request');
-      const initial = await header(a.universeId, first.runId);
-      await worker()(
-        {
-          v: 2,
-          universeId: a.universeId,
-          privacyEpoch: 1,
-          runId: first.runId,
-          recordingGeneration: 1,
-          wakeId: initial.normal_wake_id!,
-        },
-        new AbortController().signal,
-      );
+      await park(a.universeId, first.runId);
       if (retained)
         await p.withScope(a.authority, async (scope) => {
           if ((await p.fenceOwn(scope)).kind !== 'active') throw new Error('CI own');

@@ -61,6 +61,7 @@ describe('Experience navigation and actual routing activity (real PostgreSQL CI 
     const c = current;
     const p = await recordingPerson(database);
     await fixtureAsset(c);
+    await fixtureAsset(c);
     const command = discovery();
     const pair = await Promise.all([c.navigate(p.authority, command), c.navigate(p.authority, command)]);
     const a = ready(pair[0]),

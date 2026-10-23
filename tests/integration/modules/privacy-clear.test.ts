@@ -11,7 +11,7 @@ import {
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { composeEncounter } from '@knowscroll/backend/modules/composer';
 import { makeComposerStore } from '@knowscroll/backend/modules/composer/nest-providers';
-import { fixtureComposerSnapshot } from '../support/composer.js';
+import { fixtureComposerSnapshot, seedComposerBuffer } from '../support/composer.js';
 import { evidenceUseCase } from '../support/evidence.js';
 import { experienceUseCases } from '../support/experience.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
@@ -803,6 +803,7 @@ describe('durable selective Clear', () => {
           composeEncounter(fixtureComposerSnapshot(person.authority)),
         ),
       );
+      await seedComposerBuffer(withPersonalScope, person.authority);
       await seedReading(person);
       const opened = await scroll.navigate(person.authority, {
         commandId: randomUUID(),

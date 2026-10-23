@@ -20,7 +20,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/region-encounter.ts` | U04 declaration-only side-effect-free preview, exact displayed-target Open expectation, scoped Composer outcome and closed problems |
 | `src/formation-presentation.ts` | U05 declaration-only read, cross-device claim/current eligibility and shown/skipped terminal acknowledgement |
 | `src/supply.ts` | Declaration-only topic/format-variant requests, immutable acceptance/cancel receipts and current private request status; topic/variant HTTP declarations in `apiContract.supply` (#239 prerequisite; adapters pending) |
-| `src/geography.ts` | Declaration-only established geography pages, retained routes/aliases and typed applied universe deltas; not routed by `apiContract` (#237/#238 prerequisite) |
+| `src/geography.ts` | Established geography pages, retained routes/aliases, typed applied universe deltas and the unlabelled dust cues (`geography.read`, `.deltas`, `.emerging`) |
 | `src/interactions.ts` | `interaction.v1`: the observation envelope, three `scroll.*` payloads and bounded paired `reel.playback` intervals; `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
 | `src/media.ts` | `reel-document.v1` and `POST /v1/media/grants`: a session-scoped short-lived playback grant for an existing exposure |
 
@@ -221,6 +221,13 @@ These are read-only operations: POST preserves the bounded nested selection/curs
 inventing string codecs or a second query schema. Neither route is a cartography command or shown/
 skipped transition acknowledgement. The API adapters retain the existing origin/session/scope
 guards and current own-scope backend reads; a cursor or revision grants no authority.
+
+`POST /v1/universe/emerging/read` (`universe-emerging.v1`, D-038) takes an empty body and returns
+`dust`: one opaque, unlabelled cue for each catalogue system that qualified reading has reached and
+that is not established yet. A cue carries only an ID that is stable for the universe and epoch. It
+has no label, topic, count or promise of a future place, and it is not a geography object. The read
+is own-scope, read-only and never enqueues cartography. The response also carries the geography
+revisions it was read against, so a client can pair it with a snapshot.
 
 These HTTP declarations alone grant no authority. The separate Geography API read adapters are
 implemented on integration, using the current own-scope backend reads and existing guards. This is

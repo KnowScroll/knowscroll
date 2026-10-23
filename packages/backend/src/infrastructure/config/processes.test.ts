@@ -62,11 +62,16 @@ describe('process configuration', () => {
     ]);
   });
 
-  it('keeps Planner spending disabled until its explicit role gate is enabled', () => {
-    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).plannerEnabled).toBe(false);
+  it('runs the Planner by default only in the local world and keeps KS_PLANNER_ENABLED a switch', () => {
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).plannerEnabled).toBe(true);
     expect(
-      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_PLANNER_ENABLED: '1' }).plannerEnabled,
-    ).toBe(true);
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_PLANNER_ENABLED: '0' }).plannerEnabled,
+    ).toBe(false);
+    for (const world of ['dev', 'stage', 'ci', 'live'])
+      expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: world }).plannerEnabled).toBe(false);
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev', KS_PLANNER_ENABLED: '1' }).plannerEnabled).toBe(
+      true,
+    );
     expect(() =>
       readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_PLANNER_ENABLED: 'true' }),
     ).toThrow();
@@ -81,6 +86,11 @@ describe('process configuration', () => {
     expect(() =>
       readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_CARTOGRAPHER_ENABLED: 'true' }),
     ).toThrow();
+  });
+  it('keeps Jev off until its switch is explicitly enabled', () => {
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).jevEnabled).toBe(false);
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_JEV_ENABLED: '1' }).jevEnabled).toBe(true);
+    expect(() => readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_JEV_ENABLED: 'true' })).toThrow();
   });
   it('defaults the commit and artifact outside production, but never the world', () => {
     const config = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' });
@@ -410,11 +420,29 @@ describe('process configuration', () => {
     });
     expect(config.reasoning.minimax).toEqual({
       apiKey: fixtureKey,
-      model: 'MiniMax-M3',
-      requestTimeoutMs: 60_000,
+      model: 'MiniMax-M3.1-Flash',
+      requestTimeoutMs: 240_000,
       quotaFloorPercent: 25,
     });
     expect(config.reasoning.caps.scope.requestsPerDay).toBe(5);
+  });
+
+  it('gives a reasoning request four minutes by default, accepts five and refuses more', () => {
+    // A Scroll writer request took up to 126 s on MiniMax-M3.1-Flash; an attempt cut off after the
+    // request left is `unknown` and never resent, so the default must not sit near the real latency.
+    const env = {
+      DATABASE_URL: secretUrl,
+      KS_WORLD: 'local',
+      KS_REASONING_PROVIDER: 'minimax',
+      MINIMAX_API_KEY: 'sk-cp-FIXTUREfixtureFIXTUREfixture0000',
+    };
+    expect(readWorkerConfig(env).reasoning.minimax?.requestTimeoutMs).toBe(240_000);
+    expect(
+      readWorkerConfig({ ...env, KS_MINIMAX_REQUEST_TIMEOUT_MS: '300000' }).reasoning.minimax?.requestTimeoutMs,
+    ).toBe(300_000);
+    expect(
+      configurationError(() => readWorkerConfig({ ...env, KS_MINIMAX_REQUEST_TIMEOUT_MS: '300001' })).problems,
+    ).toEqual(['KS_MINIMAX_REQUEST_TIMEOUT_MS: out_of_range']);
   });
 
   it('reads the worker operator command configuration (world and database only)', () => {
@@ -424,6 +452,22 @@ describe('process configuration', () => {
     const config = readWorkerOperatorConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev' });
     expect(config.world).toBe('dev');
     expect(config.database.applicationName).toBe('knowscroll-operator-dev');
+  });
+
+  it('defaults every role to MiniMax-M3.1-Flash unless the operator names another model', () => {
+    const env = {
+      KS_WORLD: 'local',
+      DATABASE_URL: secretUrl,
+      KS_REASONING_PROVIDER: 'minimax',
+      MINIMAX_API_KEY: 'sk-cp-FIXTUREfixtureFIXTUREfixture0000',
+    };
+    expect(readScrollProductionOperatorConfig(env).reasoning.minimax?.model).toBe('MiniMax-M3.1-Flash');
+    expect(
+      readScrollProductionOperatorConfig({ ...env, KS_MINIMAX_MODEL: 'MiniMax-M3' }).reasoning.minimax?.model,
+    ).toBe('MiniMax-M3');
+    expect(
+      configurationError(() => readScrollProductionOperatorConfig({ ...env, KS_MINIMAX_MODEL: 'MiniMax-M9' })).problems,
+    ).toContain('KS_MINIMAX_MODEL: not_allowed');
   });
 
   it('keeps Scroll production disabled and pins its expected grant generation explicitly', () => {

@@ -53,19 +53,29 @@ from the personal harness. Nonpersonal Scroll supply requires explicit worker co
 the database root enabled/generation gate; both default disabled. Shared sweep/purge/operator
 maintenance still records and resolves production liabilities while production is disabled.
 
-The content production operator is `node dist/operator.js content produce-scroll --topic
-seasons|tides|greenhouse [--dry-run] [--resume]`. It refuses worlds outside dev/stage/ci/local,
-prints a four-request maximum, uses the explicit nonpersonal harness grant, and emits bounded
-IDs/outcome codes and reported usage only. `--resume` reuses frozen stages and attempt IDs;
-unknown attempts never resend. No production job or source text is placed on the HTTP path.
+The content production operator is `node dist/operator.js content produce-scroll --topic <recipe>
+[--dry-run] [--resume]`. It refuses worlds outside dev/stage/ci/local, defaults to
+`MiniMax-M3.1-Flash`, prints a two-request maximum (one writer call and at most one repair), uses the
+explicit nonpersonal harness grant, and emits bounded IDs, outcome codes and reported usage only.
+`--resume` reuses the frozen job and attempt IDs; unknown attempts never resend. When a Scroll is
+refused, `node dist/operator.js reasoning rejected [--attempt <uuid>]` shows the kept, redacted answer
+and the validator's findings. No production job or source text is placed on the HTTP path.
 
 The explicit `planner.run` consumer (#236) calls the personal Planner with the delivery abort
-signal. `KS_PLANNER_ENABLED=0` is the default; deliveries persist `blocked_disabled` with no
-reservation. The role needs a separately approved paid allowance before enablement. Backend
+signal. `KS_PLANNER_ENABLED` defaults to 1 in world `local` and 0 elsewhere (dev sets 1); with 0,
+deliveries persist `blocked_disabled` with no reservation. The role spends the shared MiniMax plan
+within the harness caps. Backend
 `RequestPlanner(authority,{commandId,resumeRunId})` requeues the same blocked business ID after
 review; unknown attempts remain ledger-bound and never resend. There is no direct paid Planner
 operator command or consumer UI in this slice. Protected `planner.*` rows expose revisions/status
 for operator inspection; ordinary logs contain no Planner context or proposal text.
+
+The `composer.prepare-buffer` consumer (#234) prepares the next vertical Explore move for an offer the
+person just activated and stores it for the next navigation (`modules/composer/README.md`). It reads the
+session, candidates and Hide in one short transaction, may ask Jev (`KS_JEV_ENABLED=1`) outside any
+transaction, then persists the ranking and replaces the person's buffer in a second one. A job for a
+superseded intent, an unactivated offer or an old epoch is skipped. A redelivery does nothing. It logs
+`composer.buffer_prepared` with the outcome code and counts only.
 
 Connected Cutroom source (#240) registers explicit normal pool/follow/accounting/settle consumers
 and a bounded scheduled recovery consumer; all work stays disabled unless the complete separate

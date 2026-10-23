@@ -27,9 +27,14 @@ import type { PlannerMaterialChange } from '@knowscroll/backend/modules/planner'
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { resolveSupplyQueue, RESOLVE_CONTENT_REQUEST, type ResolveRequest } from '@knowscroll/backend/modules/supply';
-import { plannerRequestProviders, plannerWorkerProviders } from '@knowscroll/backend/modules/planner/nest-providers';
+import {
+  plannerReadProviders,
+  plannerRequestProviders,
+  plannerWorkerProviders,
+} from '@knowscroll/backend/modules/planner/nest-providers';
 import {
   PLANNER_MATERIAL_CHANGE,
+  READ_CURRENT_PLAN,
   RUN_PLANNER,
   plannerQueue,
   type RunPlanner,
@@ -60,7 +65,12 @@ import {
   evidenceProviders,
   activityProviders,
 } from '@knowscroll/backend/modules/evidence/nest-providers';
-import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
+import {
+  experienceBufferSourceProviders,
+  experienceEvidenceReadProviders,
+} from '@knowscroll/backend/modules/experience/nest-providers';
+import { PREPARE_COMPOSER_BUFFER, prepareBufferQueue, type PrepareBuffer } from '@knowscroll/backend/modules/composer';
+import { composerBufferWorkerProviders, composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
 import {
   SWEEP_SIGN_IN_RECORDS,
   sweepSignInRecordsQueue,
@@ -115,10 +125,15 @@ export const jobWiring: Provider[] = [
   ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...plannerRequestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...plannerWorkerProviders({ workerConfig: WORKER_CONFIG }),
+  ...plannerReadProviders(),
   ...experienceEvidenceReadProviders(),
+  ...experienceBufferSourceProviders(),
+  // The worker persists decisions and ranks; it exposes no operator read of them.
+  ...composerProviders({ isOperator: () => false }),
+  ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
   ...contentProviders(),
   // Same required PC-owned Composer adapter as the API; no legacy prepared-input binding.
-  ...personalContextProviders(),
+  ...personalContextProviders({ readCurrentPlan: READ_CURRENT_PLAN }),
   ...evidenceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...activityProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
@@ -138,6 +153,7 @@ export const jobWiring: Provider[] = [
       PUBLISH_GEOGRAPHY_DELTA,
       RESOLVE_CONTENT_REQUEST,
       RUN_PLANNER,
+      PREPARE_COMPOSER_BUFFER,
       APPLY_ACTION_EVIDENCE,
       PROJECT_SCROLL_READING,
       PROJECT_ENCOUNTER_ACTIVITY,
@@ -156,6 +172,7 @@ export const jobWiring: Provider[] = [
       publishDelta: PublishGeographyDelta,
       resolveRequest: ResolveRequest,
       runPlanner: RunPlanner,
+      prepareBuffer: PrepareBuffer,
       applyActionEvidence: ApplyActionEvidence,
       projectScrollReading: ProjectScrollReading,
       projectActivity: ProjectEncounterActivity,
@@ -195,6 +212,16 @@ export const jobWiring: Provider[] = [
       }),
       jobConsumer(plannerQueue, async (payload, delivery) => {
         await runPlanner(payload, delivery.signal);
+      }),
+      jobConsumer(prepareBufferQueue, async (payload, delivery) => {
+        const startedAt = performance.now();
+        const result = await prepareBuffer(payload, { jobId: delivery.jobId, signal: delivery.signal });
+        logEvent('composer.buffer_prepared', {
+          outcome: result.kind,
+          reasonCode: result.kind === 'skipped' ? result.reason : result.jev,
+          count: result.kind === 'prepared' ? result.offers : 0,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
       }),
       jobConsumer(applyActionEvidenceQueue, async (payload) => {
         const result = await applyActionEvidence(payload);

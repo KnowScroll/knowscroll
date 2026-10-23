@@ -1,402 +1,47 @@
 import { projectSceneQueue } from '@knowscroll/backend/modules/scenes';
-import { sceneAppliedProviders } from '@knowscroll/backend/modules/scenes/nest-providers';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
-import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
-import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
+import { fencePersonalRecording, transactionOf } from '@knowscroll/backend/infrastructure/postgres';
+import { publishDeltaQueue, type PublishGeographyDelta } from '@knowscroll/backend/modules/geography';
 import {
-  makeWithPersonalScope,
-  fencePersonalRecording,
-  transactionOf,
-  insideTransaction,
-  type Database,
-} from '@knowscroll/backend/infrastructure/postgres';
-import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
-import {
-  accountAccessUseCases,
-  identityScopeOwnerProviders,
-} from '@knowscroll/backend/modules/identity/nest-providers';
-import {
-  makeAdmitCoverage,
-  makeCoverageAdmissionPorts,
-  coverageCatalogue,
-} from '@knowscroll/backend/modules/content/nest-providers';
-import {
-  COVERAGE_POLICY,
-  CONCEPT_CATALOGUE_VERSION,
-  type CoverageMapping,
-  type CoverageCommand,
-} from '@knowscroll/backend/modules/content';
-import { READ_COVERAGE_INPUTS, READ_TRUSTED_COVERAGE } from '@knowscroll/backend/modules/personal-context';
-import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
-import {
-  GEOGRAPHY_MATERIAL_CHANGE,
-  GEOGRAPHY_APPLIED,
-  REQUEST_CARTOGRAPHY,
-  READ_OWN_GEOGRAPHY,
-  READ_OWN_DELTAS,
-  PUBLISH_GEOGRAPHY_DELTA,
-  publishDeltaQueue,
-  type MaterialGeographyChange,
-  type RequestCartography,
-  type ReadOwnGeography,
-  type ReadOwnDeltas,
-  type PublishGeographyDelta,
-} from '@knowscroll/backend/modules/geography';
-import {
-  geographyProviders,
-  GEOGRAPHY_PORTS,
   geographyStore,
   makeRunCartographer,
   applyProposal,
   makeCheckGeographyRecordingRun,
-  type GeographyPorts,
-  type CartographerPorts,
   type GeographyContext,
 } from '@knowscroll/backend/modules/geography/nest-providers';
 import { plannerStore, makeCheckPlannerRecordingRun } from '@knowscroll/backend/modules/planner/nest-providers';
 import { personalRecordingReasoningHarnessFor } from '@knowscroll/backend/reasoning/nest-providers';
-import type { PersonalRecordingPurpose } from '@knowscroll/backend/reasoning';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { fixtureHarness, fixtureModel, fixtureSettings, silent, attemptsOf, signal } from '../support/fixture-model.js';
-import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { seedPerson, type FixturePerson } from '../support/fixtures.js';
-import { scrollUseCases, starterSource } from '../support/scroll.js';
-import { buildFromProviders } from '../support/providers.js';
-import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
+import { fixtureHarness, fixtureSettings, silent, attemptsOf, signal } from '../support/fixture-model.js';
+import { seedPerson } from '../support/fixtures.js';
+import { geographyWorld, topic, facet, otherFacet, type GeographyWorld } from '../support/geography-world.js';
 
 /** Authored CI sources/maps/model proposals only. No source approval, provider or real formation claim. */
 describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtures)', () => {
-  let database: TestDatabase<Database>, c: Awaited<ReturnType<typeof scrollUseCases>>, base: GeographyPorts;
-  let material: MaterialGeographyChange,
-    request: RequestCartography,
-    read: ReadOwnGeography,
-    deltas: ReadOwnDeltas,
-    publish: PublishGeographyDelta;
-  const approvals = new Map<string, string>();
-  const scope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
+  let world: GeographyWorld;
+  let database: GeographyWorld['database'], base: GeographyWorld['base'];
+  let request: GeographyWorld['request'], read: GeographyWorld['read'], deltas: GeographyWorld['deltas'];
+  let publish: GeographyWorld['publish'], scope: GeographyWorld['scope'];
+  let fixture: GeographyWorld['fixture'], observe: GeographyWorld['observe'], coherent: GeographyWorld['coherent'];
+  let state: GeographyWorld['state'], context: GeographyWorld['context'], job: GeographyWorld['job'];
+  let formation: GeographyWorld['formation'], runner: GeographyWorld['runner'], snapshot: GeographyWorld['snapshot'];
+  let scopeApply: GeographyWorld['scopeApply'], manualApply: GeographyWorld['manualApply'];
   beforeAll(async () => {
-    database = await createTestDatabase<Database>('geography');
-    c = await scrollUseCases(database, { recording: true, activityMaterialChange: (s, x) => material(s, x) });
-    const SCOPE = Symbol('scope'),
-      ENQUEUE = Symbol('enqueue'),
-      providers = [
-        ...sceneAppliedProviders({ enqueueJob: ENQUEUE }),
-        ...geographyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
-      ];
-    const values = new Map<symbol, unknown>([
-      [SCOPE, scope()],
-      [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
-      [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
-      [ENQUEUE, makeEnqueueJob(c.boss)],
-      [READ_TRUSTED_COVERAGE, c.readTrustedCoverage],
-      [READ_COVERAGE_INPUTS, buildFromProviders(personalContextProviders(), READ_COVERAGE_INPUTS, new Map())],
-      ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
-    ]);
-    values.set(GEOGRAPHY_APPLIED, buildFromProviders(providers, GEOGRAPHY_APPLIED, values));
-    const get = <T>(token: symbol): T => {
-      const value = buildFromProviders(providers, token, values);
-      values.set(token, value);
-      return value as T;
-    };
-    base = get(GEOGRAPHY_PORTS);
-    material = get(GEOGRAPHY_MATERIAL_CHANGE);
-    request = get(REQUEST_CARTOGRAPHY);
-    read = get(READ_OWN_GEOGRAPHY);
-    deltas = get(READ_OWN_DELTAS);
-    publish = get(PUBLISH_GEOGRAPHY_DELTA);
+    world = await geographyWorld('geography');
+    ({ database, base, request, read, deltas, publish, scope } = world);
+    ({ fixture, observe, coherent, state, context, job, formation, runner, snapshot } = world);
+    ({ scopeApply, manualApply } = world);
   });
-  afterAll(async () => {
-    await c.close();
-    await database.drop();
-  });
-  const topic = 'earth.seasons',
-    facet = 'earth.seasons.axial-tilt',
-    otherFacet = 'earth.seasons.hemispheres';
-  async function fixture(unit = `ci-geography-unit-${randomUUID()}`, t = topic, facets = [facet]) {
-    const source = starterSource() as {
-      assetId: string;
-      reference: string;
-      publication: { explanationUnitId: string };
-      draft: { title: string };
-    };
-    source.assetId = randomUUID();
-    source.reference = 'ci-only-synthetic-geography-map';
-    source.publication.explanationUnitId = unit;
-    source.draft.title = 'Authored CI Geography source';
-    const imported = await c.importScroll(source);
-    if (imported.kind !== 'imported') throw new Error('CI fixture import refused');
-    await database.db
-      .insertInto('content.encounter_topics')
-      .values({ asset_id: source.assetId, asset_revision: 1, topic_id: t, role: 'primary', weight: 1 })
-      .execute();
-    const row = await database.db
-      .selectFrom('content.asset_revisions')
-      .select(['document_sha256', 'reading_facts'])
-      .where('asset_id', '=', source.assetId)
-      .executeTakeFirstOrThrow();
-    const provenance = await database.db
-      .selectFrom('content.asset_provenance')
-      .select('provenance')
-      .where('asset_id', '=', source.assetId)
-      .executeTakeFirstOrThrow();
-    const map: CoverageMapping = {
-      version: COVERAGE_POLICY,
-      documentSha256: row.document_sha256,
-      provenanceSha256: canonicalSha256(provenance.provenance),
-      explanationUnitId: unit,
-      framing: 'factual',
-      framingSha256: canonicalSha256({ kind: 'factual' }),
-      readingFactsVersion: 2,
-      readingFactsSha256: canonicalSha256(row.reading_facts),
-      catalogueVersion: CONCEPT_CATALOGUE_VERSION,
-      catalogueSha256: coverageCatalogue.sha256,
-      bindings: facets.map((f) => ({
-        topicId: t,
-        facetId: f,
-        meaningSha256: coverageCatalogue.meaningSha256(t, f)!,
-        requiredBlockIds: f === facets[0] ? ['intro-look-up'] : ['intro-look-up', 'intro-short-version'],
-      })),
-    };
-    const command: CoverageCommand = {
-      version: 'content-coverage-command.v1',
-      assetId: source.assetId,
-      assetRevision: 1,
-      expectedHeadRevision: 0,
-      semanticReviewReference: 'ci-geography-semantic-fixture-only',
-      change: { kind: 'admit', mapping: map },
-    };
-    approvals.set(canonicalSha256(command), command.semanticReviewReference);
-    await makeAdmitCoverage(makeCoverageAdmissionPorts(database.db, (digest, ref) => approvals.get(digest) === ref))(
-      command,
-    );
-    return {
-      assetId: source.assetId,
-      revision: 1,
-      unit,
-      map,
-      command,
-      blocks: (row.reading_facts as { blocks: { id: string }[] }).blocks.map((b) => b.id),
-    };
+  afterAll(() => world.close());
+  async function kindsOf(person: Parameters<typeof snapshot>[0]) {
+    const result = await snapshot(person);
+    return 'page' in result ? result.page.objects.map((object) => object.kind).sort() : [];
   }
-  async function observe(
-    p: FixturePerson,
-    f: Awaited<ReturnType<typeof fixture>>,
-    omit: string[] = [],
-    minutesAgo = 20,
-  ) {
-    const e = await openActive(c, p, f);
-    await activatedAgo(database.db, e.exposureId, minutesAgo);
-    await c.ingestObservations(p.authority, {
-      instrumentationVersion: 1,
-      events: [
-        event(
-          e,
-          coverage(
-            f.blocks.filter((id) => !omit.includes(id)),
-            1000,
-          ),
-        ),
-        event(e, dwell([0, 700000])),
-      ],
-    });
-    expect(
-      await c.projectScrollReading({ v: 1, universeId: p.universeId, privacyEpoch: 1, exposureId: e.exposureId }),
-    ).toMatchObject({ kind: 'applied', qualification: 'qualified' });
-    expect(
-      await c.projectActivity({ v: 1, universeId: p.universeId, privacyEpoch: 1, exposureId: e.exposureId }),
-    ).toMatchObject({ kind: 'applied' });
-    return e;
-  }
-  async function coherent(p: FixturePerson) {
-    const assets = [];
-    for (let i = 0; i < 3; i++) {
-      const f = await fixture(undefined, topic, [i === 1 ? otherFacet : facet]);
-      assets.push(f);
-      await observe(p, f);
-    }
-    return assets;
-  }
-  async function state(p: FixturePerson) {
-    const result = await scope()(p.authority, (s) => geographyStore.state(s));
-    if (result.kind !== 'entered') throw new Error('CI scope refused');
-    return result.value;
-  }
-  async function context(p: FixturePerson, runId: string) {
-    return (
-      await database.db
-        .selectFrom('geography.runs')
-        .select('context')
-        .where('universe_id', '=', p.universeId)
-        .where('id', '=', runId)
-        .executeTakeFirstOrThrow()
-    ).context as unknown as GeographyContext;
-  }
-  const job = async (p: FixturePerson, runId: string) => {
-    const h = await database.db
-      .selectFrom('geography.runs')
-      .select(['normal_wake_id', 'claim_wake_claim_id', 'recording_generation'])
-      .where('universe_id', '=', p.universeId)
-      .where('id', '=', runId)
-      .executeTakeFirstOrThrow();
-    if (!h.recording_generation || (!h.normal_wake_id && !h.claim_wake_claim_id))
-      throw new Error('CI exact durable wake absent');
-    return {
-      v: 2 as const,
-      universeId: p.universeId,
-      privacyEpoch: 1,
-      runId,
-      recordingGeneration: h.recording_generation,
-      ...(h.normal_wake_id ? { wakeId: h.normal_wake_id } : { expectedClaimId: h.claim_wake_claim_id! }),
-    };
-  };
-  const formation = (ctx: GeographyContext, t = topic) => ({
-    version: 'cartographer-proposal.v1' as const,
-    operations: ctx.facts.candidates
-      .filter(
-        (x) =>
-          x.kind === 'system' ||
-          x.kind === 'star' ||
-          (x.kind === 'planet' && x.conceptId === t) ||
-          (x.kind === 'region' && ctx.facts.supports.some((s) => s.topicId === t && s.facetId === x.conceptId)),
-      )
-      .filter((x) => !ctx.facts.objects.some((o) => o.key === x.key))
-      .map((x) => ({
-        kind: (
-          { system: 'create_system', star: 'establish_star', planet: 'form_planet', region: 'add_region' } as const
-        )[x.kind],
-        key: x.key,
-        label: x.labels[0]!,
-        truthStatus: 'factual' as const,
-        supportRefs: ctx.facts.supports
-          .filter(
-            (s) =>
-              x.kind === 'system' ||
-              x.kind === 'star' ||
-              (x.kind === 'planet' ? s.topicId === x.conceptId : s.facetId === x.conceptId),
-          )
-          .map((s) => s.ref),
-      })),
-  });
-  function runner(
-    p: FixturePerson,
-    script?: (ctx: GeographyContext, sequence: number) => FixtureScenario | Promise<FixtureScenario>,
-    overrides: Partial<CartographerPorts> = {},
-  ) {
-    const model = fixtureModel(
-      async (sequence) => {
-        expect(insideTransaction()).toBe(false);
-        const active = (await state(p)).activeRunId!;
-        const ctx = await context(p, active);
-        return script ? script(ctx, sequence) : { kind: 'success', text: JSON.stringify(formation(ctx)) };
-      },
-      { label: 'geography-authored-ci-only' },
-    );
-    const fixture = fixtureHarness(database.db, { model }),
-      now = overrides.now ?? base.now;
-    const harness = personalRecordingReasoningHarnessFor({
-      db: database.db,
-      model: fixture.ports.model,
-      withPersonalScope: fixture.ports.withPersonalScope,
-      fenceOwn: base.fenceOwn,
-      settings: fixtureSettings,
-      logEvent: silent,
-      overrides: fixture.ports,
-      checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now }),
-      checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now }),
-    });
-    const ports: CartographerPorts = {
-      ...base,
-      harness,
-      enabled: () => true,
-      permitted: () => Promise.resolve(true),
-      ...overrides,
-    };
-    return { model, ports, run: makeRunCartographer(ports) };
-  }
-  async function snapshot(
-    p: FixturePerson,
-    query: Parameters<ReadOwnGeography>[1] = { selection: { kind: 'universe' }, limit: 100 },
-  ) {
-    const r = await read(p.authority, query);
-    if (r.kind !== 'read') throw new Error('CI geography read refused');
-    return r.snapshot;
-  }
-  async function scopeApply(
-    p: FixturePerson,
-    runId: string,
-    ctx: GeographyContext,
-    proposal: ReturnType<typeof formation>,
-    ports = base,
-  ) {
-    return scope()(p.authority, async (s) => {
-      if ((await ports.fenceOwn(s)).kind !== 'active') throw new Error('CI own');
-      const gate = await ports.fenceRecording(s, 1);
-      if (gate.kind !== 'recording') throw new Error('CI recording');
-      return applyProposal(ports, gate.scope, runId, ctx, proposal, () =>
-        Promise.reject(new Error('CI immutable replay must never close ledger')),
-      );
-    });
-  }
-  async function manualApply(
-    p: FixturePerson,
-    work: (
-      cap: Parameters<typeof applyProposal>[1],
-      ctx: GeographyContext,
-      runId: string,
-      close: () => Promise<void>,
-    ) => ReturnType<typeof applyProposal>,
-  ) {
-    const r = runner(p),
-      state0 = await state(p),
-      runId = state0.activeRunId!;
-    let entered!: () => void, release!: () => void, purpose!: PersonalRecordingPurpose;
-    const ready = new Promise<void>((resolve) => {
-        entered = resolve;
-      }),
-      held = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-    const running = makeRunCartographer({
-      ...r.ports,
-      harness: {
-        ...r.ports.harness,
-        withPersonalApply: () => Promise.reject(new Error('CI manual facade takeover')),
-        proposePersonal: async (input, abort) => {
-          const result = await r.ports.harness.proposePersonal(input, abort);
-          purpose = input.recordingPurpose;
-          entered();
-          await held;
-          return result;
-        },
-      },
-    })(await job(p, runId), signal());
-    await Promise.race([
-      ready,
-      running.then(() => {
-        throw new Error('CI actual proposal did not prepare');
-      }),
-    ]);
-    try {
-      const ctx = await context(p, runId);
-      return await r.ports.harness.withPersonalApply(p.authority, purpose, (cap) =>
-        work(cap, ctx, runId, async () => {
-          expect(
-            await r.ports.harness.closePersonalRun(cap, { runId, state: 'completed', recordingPurpose: purpose }),
-          ).toBe('closed');
-        }),
-      );
-    } finally {
-      release();
-      await running.catch((error) => {
-        if (!(error instanceof Error) || error.message !== 'CI manual facade takeover') throw error;
-      });
-    }
-  }
-  it('actual missing-provider refusal releases only the exact zero-retained claim without semantic apply or ledger closure', async () => {
+  it('a refusal before admission settles the claim by the rules when no attempt is retained, and keeps it when one is', async () => {
     for (const retained of [false, true]) {
       const a = await seedPerson(database.db);
       await coherent(a);
@@ -426,12 +71,11 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now: base.now }),
       });
       const forbidden = () => {
-        throw new Error('CI unadmitted run cannot apply or close');
+        throw new Error('CI unadmitted run has no ledger run to apply under or close');
       };
       await makeRunCartographer({
         ...base,
         enabled: () => true,
-        permitted: () => Promise.resolve(true),
         harness: { ...actual, withPersonalApply: forbidden, closePersonalRun: forbidden },
       })(await job(a, runId), signal());
       const h = await database.db
@@ -440,19 +84,34 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         .where('universe_id', '=', a.universeId)
         .where('id', '=', runId)
         .executeTakeFirstOrThrow();
-      expect(h.status).toBe(retained ? 'prepared' : 'blocked');
-      expect(h.outcome).toBe(retained ? null : 'provider_unavailable');
       expect(h.normal_wake_id).toBeNull();
+      expect(await attemptsOf(database.db, a.universeId)).toEqual([]);
+      const deltas = await database.db
+        .selectFrom('geography.deltas')
+        .select('transition_id')
+        .where('universe_id', '=', a.universeId)
+        .execute();
       if (retained) {
+        // A retained attempt cannot be proved away: the claim stays until it expires.
+        expect(h.status).toBe('prepared');
+        expect(h.outcome).toBeNull();
         expect(h.claim_id).not.toBeNull();
         expect(h.claim_wake_claim_id).toBe(h.claim_id);
+        expect(await state(a)).toEqual(before);
+        expect(deltas).toEqual([]);
       } else {
-        expect(h.claim_id).toBeNull();
-        expect(h.claim_until).toBeNull();
-        expect(h.claim_wake_claim_id).toBeNull();
+        // The provider is missing, so no model ran; the rules still formed the places.
+        expect(h).toMatchObject({
+          status: 'accepted',
+          outcome: 'applied_by_rules',
+          claim_id: null,
+          claim_until: null,
+          claim_wake_claim_id: null,
+        });
+        expect(await kindsOf(a)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+        expect(deltas).toHaveLength(1);
+        expect((await state(a)).activeRunId).toBeUndefined();
       }
-      expect(await state(a)).toEqual(before);
-      expect(await attemptsOf(database.db, a.universeId)).toEqual([]);
       expect(
         await database.db
           .selectFrom('reasoning.business_runs')
@@ -460,13 +119,6 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
           .where('universe_id', '=', a.universeId)
           .execute(),
       ).toHaveLength(retained ? 1 : 0);
-      expect(
-        await database.db
-          .selectFrom('geography.deltas')
-          .select('transition_id')
-          .where('universe_id', '=', a.universeId)
-          .execute(),
-      ).toEqual([]);
     }
   });
   it('unviewed assets and readonly map visits create no work, coverage, model call or objects', async () => {
@@ -486,7 +138,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     expect(r.model.calls).toHaveLength(0);
     expect(await snapshot(p)).toMatchObject({ status: 'empty', geography: { revision: 0 } });
   });
-  it('shipped feature-off and absent economic permit each block real queued work without attempts; receipts coalesce/replay', async () => {
+  it('a switched-off role releases real queued work without attempts, receipts coalesce/replay, and asking again runs a new run once', async () => {
     const p = await seedPerson(database.db);
     await coherent(p);
     const c0 = { commandId: randomUUID() },
@@ -497,30 +149,22 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     await r.run(await job(p, a.runId), signal());
     expect(r.model.calls).toHaveLength(0);
     expect(
-      (
-        await database.db
-          .selectFrom('geography.runs')
-          .select('outcome')
-          .where('id', '=', a.runId)
-          .executeTakeFirstOrThrow()
-      ).outcome,
-    ).toBe('disabled');
-    await request(p.authority, { commandId: randomUUID(), resumeRunId: a.runId });
-    await makeRunCartographer({ ...r.ports, enabled: () => true, permitted: () => Promise.resolve(false) })(
-      await job(p, a.runId),
-      signal(),
-    );
-    expect(
-      (
-        await database.db
-          .selectFrom('geography.runs')
-          .select('outcome')
-          .where('id', '=', a.runId)
-          .executeTakeFirstOrThrow()
-      ).outcome,
-    ).toBe('budget_unavailable');
+      await database.db
+        .selectFrom('geography.runs')
+        .select(['status', 'outcome'])
+        .where('id', '=', a.runId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ status: 'insufficient', outcome: 'disabled' });
+    expect((await state(p)).activeRunId).toBeUndefined();
     expect(await attemptsOf(database.db, p.universeId)).toHaveLength(0);
     expect(await snapshot(p)).toMatchObject({ status: 'empty' });
+    // Switching the role on and asking again starts a new run, which runs once.
+    const again = await request(p.authority, { commandId: randomUUID() });
+    if (again.kind !== 'accepted') throw new Error('CI request refused');
+    expect(again.runId).not.toBe(a.runId);
+    await makeRunCartographer({ ...r.ports, enabled: () => true })(await job(p, again.runId), signal());
+    expect(r.model.calls).toHaveLength(1);
+    expect(await snapshot(p)).toMatchObject({ status: 'ready', geography: { revision: 1 } });
   });
   it('repeated actual variants remain one unit; ALL-OF missing leaves cannot supply a second facet', async () => {
     const p = await seedPerson(database.db),
@@ -540,17 +184,25 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         .execute(),
     ).toHaveLength(0);
   });
-  it('three qualified units with only one actual supported facet cannot partially apply an invalid planet proposal', async () => {
+  it('three qualified units with one actual facet: the invalid planet proposal is refused and the rules form only the system and star', async () => {
     const p = await seedPerson(database.db);
     for (let i = 0; i < 3; i++) await observe(p, await fixture());
     const r = runner(p),
       s = await state(p);
     await r.run(await job(p, s.activeRunId!), signal());
     expect(r.model.calls).toHaveLength(2);
-    expect(await snapshot(p)).toMatchObject({ status: 'empty', geography: { revision: 0 } });
+    const result = await snapshot(p);
+    if (result.status !== 'ready') throw new Error('CI ready expected');
+    expect(result.page.objects.map((o) => o.kind).sort()).toEqual(['star', 'system']);
     expect(
-      await database.db.selectFrom('geography.objects').select('id').where('universe_id', '=', p.universeId).execute(),
-    ).toHaveLength(0);
+      (
+        await database.db
+          .selectFrom('geography.runs')
+          .select('outcome')
+          .where('id', '=', s.activeRunId!)
+          .executeTakeFirstOrThrow()
+      ).outcome,
+    ).toBe('applied_by_rules');
   });
   it('three coherent qualified units plus two actual facets form stable meaning; pages/deltas and required hint job are real', async () => {
     const p = await seedPerson(database.db);
@@ -778,7 +430,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       .execute();
     expect(await snapshot(p)).toMatchObject({ status: 'unavailable', reason: 'temporarily_unavailable' });
   });
-  it('indexed PC discovery overflow is unavailable, never a truncated set of formation witnesses', async () => {
+  it('raw discovery overflow is unavailable, never a truncated set of formation witnesses', async () => {
     const p = await seedPerson(database.db),
       f = await fixture(),
       e = await observe(p, f);
@@ -791,7 +443,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         .where('universe_id', '=', p.universeId)
         .where('exposure_id', '=', e.exposureId)
         .executeTakeFirstOrThrow();
-      const rows = Array.from({ length: 101 }, (_, i) => ({
+      const rows = Array.from({ length: 1001 }, (_, i) => ({
         ...source,
         topic_id: `ci.overflow.${i}`,
         facet_id: `ci.overflow.${i}.facet`,

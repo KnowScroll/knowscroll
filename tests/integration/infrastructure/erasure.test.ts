@@ -14,7 +14,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { composeEncounter } from '@knowscroll/backend/modules/composer';
 import { makeComposerStore } from '@knowscroll/backend/modules/composer/nest-providers';
-import { fixtureComposerSnapshot } from '../support/composer.js';
+import { fixtureComposerSnapshot, seedComposerBuffer } from '../support/composer.js';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import {
   checkErasureInventory,
@@ -413,6 +413,7 @@ describe('the erasure registry (real database)', () => {
           composeEncounter(fixtureComposerSnapshot(person.authority)),
         ),
       );
+      await seedComposerBuffer(withPersonalScope, person.authority);
       await seedReading(person);
       const opened = await scroll.navigate(person.authority, {
         commandId: randomUUID(),

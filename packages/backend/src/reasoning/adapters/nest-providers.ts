@@ -45,6 +45,7 @@ import { guardedModelPort } from './guarded-model.js';
 import { makeMiniMaxModelPort } from './minimax/minimax-model.js';
 import { makeAttemptLedger } from './postgres-ledger.js';
 import { makeProductionAttemptLedger } from './postgres-production-ledger.js';
+import { makeRejectedAnswerReader } from './postgres-rejected-answers.js';
 import { readProductionRunAccounting } from './production-accounting.js';
 import type {
   ReadProductionRunAccounting,
@@ -299,6 +300,7 @@ export function reasoningOperatorFor(db: Kysely<Database>, logEvent: LogEvent) {
   const personal = makeAttemptLedger(db);
   const production = makeProductionAttemptLedger(db);
   return makeReasoningOperator({
+    rejectedAnswers: makeRejectedAnswerReader(db),
     ledger: {
       ...personal,
       async writeOff(attemptId, reason, source) {

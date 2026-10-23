@@ -1,9 +1,15 @@
 # modules/composer
 
-Bounded backend slice of #234 / blueprint §9. Pure policy, private persistence and Experience's
-navigation consumer are implemented in source. Navigation reads the Personal Context owner's
-bounded snapshot through `READ_COMPOSER_CONTEXT`; actual dev acceptance remains coordinator work.
-No provider, Jev assessment or new buffer job is installed by this slice.
+Composer ranks encounters for Explore (blueprint §9). It has three parts: the pure ranking policy,
+a private store of every decision, and **worker-prepared buffers** with an optional model assessment
+(Jev). Navigation reads the Personal Context owner's bounded snapshot through `READ_COMPOSER_CONTEXT`.
+
+| Capability | State |
+|---|---|
+| Pure policy `composeEncounter`, private decisions, erasure | implemented |
+| Buffer job `composer.prepare-buffer`, `composer.buffers`, serving from a buffer | implemented (integration-tested; not yet run on dev) |
+| Jev (`composer.jev`, `KS_JEV_ENABLED`) | implemented; four real MiniMax calls succeeded locally (M3 x3, M3.1-Flash x1); not yet run on dev |
+| Stored-assessment use on the HTTP path | implemented |
 
 `composeEncounter(snapshot)` takes an already authorized, immutable prepared snapshot. It performs
 no writes, Nest calls, clock reads or network I/O. Experience prepares it
@@ -48,10 +54,13 @@ recent repetition uses facet overlap (unknown facets neutral 0.5). Prepared offe
 the recent-input type. Input lineage, count consistency, time order, unique IDs and bounds are
 validated, including same universe/epoch/evaluation time/context watermark.
 
-`lexical-admitted.v0` is the **only** SemanticFit implementation: Jaccard overlap of bounded
-lowercased Unicode word tokens (maximum 128 unique tokens) from explicit intent text and admitted
-title/summary/facets. Missing text is neutral 0.5. It is a documented deterministic fallback, never
-an embedding/model/Jev score. Similarity is same-explanation 1, otherwise mean facet/text overlap;
+SemanticFit is `lexical-admitted.v0` unless Jev assessed part of the shortlist (see Jev below):
+Jaccard overlap of bounded lowercased Unicode word tokens (maximum 128 unique tokens) from explicit
+intent text and admitted title/summary/facets. Missing text is neutral 0.5. The lexical score is the
+deterministic fallback; it is never an embedding or model score. When assessments are in play, an
+assessed candidate scores its combined criteria and every unassessed candidate scores a neutral 0.5,
+because the lexical overlap sits on a much lower scale and would otherwise rank unassessed candidates
+below assessed ones by itself. Similarity is same-explanation 1, otherwise mean facet/text overlap;
 missing overlap inputs are neutral 0.5. MMR repeatedly takes score minus 0.2 times maximum similarity
 to the chosen buffer and deduplicates explanation identity, including format twins.
 
@@ -105,3 +114,111 @@ completeness limit. The adapter writes nothing and requests provisionalLimit0. P
 has no Evidence preparation fallback; an absent PC binding is a startup/DI failure. Legacy Evidence
 preparation is opt-in for direct compatibility fixtures only. No shared wire or migration changes
 are part of this adapter. Real dev reading/context inspection is still required before closing235.
+
+
+## Subject moves never repeat the current explanation
+
+A vertical move (Explore's "Next subject") excludes every candidate whose explanation unit is the one
+the person is on, in either format (exclusion `current_explanation`). This is hard eligibility, not a
+penalty: the just-activated encounter may not have reached Evidence yet, and the person must never be
+offered what is already on screen. With nothing else to offer the move is exhausted
+(`no_eligible_content`), never a repeat. Series, related, variant and return moves are unchanged.
+
+## Buffers and Jev (#234)
+
+**Journey.** The person activates an offer in Explore. In the same transaction Experience enqueues
+`composer.prepare-buffer` (IDs only: universe, epoch, session, intent revision, source offer and
+exposure). The worker ranks the next vertical move for that exact source and stores it. The person's
+next "Next subject" from that offer finds the stored ranking and serves it; any other case ranks as
+before. No model call or provider wait is ever on the HTTP path.
+
+**Entry points.**
+
+| Surface | Role |
+|---|---|
+| `prepareBufferQueue`, `PrepareBuffer` (`makePrepareBuffer`) | the worker job and use case |
+| `composerBufferProviders` | API side: read, release and request a buffer |
+| `composerBufferWorkerProviders` | worker side: the use case, with Jev when `KS_JEV_ENABLED=1` |
+| `assembleSnapshot`, `evidenceQueryFor`, `readVerticalCandidates` | shared by the worker and Experience's navigation, so both rank the same inputs |
+| `READ_BUFFER_SOURCE`, `READ_HIDDEN_ASSETS` | ports Experience implements (sessions, activations and Hide are its tables) |
+
+**What a buffer is.** One row of `composer.buffers` per person and mode (`vertical`). It points at an
+ordinary Composer decision (so the offers it produces reference a real decision) and lists up to three
+selected offers with the catalogue watermark each had when ranked. It is bound to the session, the
+session's intent revision and the source offer and exposure. A buffer is not an encounter and creates
+no evidence. The decision is bound to revision + 1, which is the revision the serving navigation commits.
+
+**When a buffer is served.** Transaction 1 of a navigation reads the row for exactly (session, intent
+revision, source offer, source exposure) and serves it while it is within its life (10 minutes).
+Transaction 2 rechecks every selected offer exactly as for a fresh ranking: still admitted at the exact
+revision, same catalogue watermark, not hidden. If anything drifted the buffer and its decision are
+deleted and the move is ranked again once. A served buffer's row is deleted in the committing
+transaction, so a buffer serves at most once. Transaction 2 also checks that the buffer transaction 1
+chose is still there, unreplaced and within its life; if the worker replaced or removed it in between,
+the move falls back to the rerank instead of failing. A stale buffer (other intent revision, other
+source, past its life, other epoch) is never served.
+
+**Cleanup.** A buffer is one bounded row per person. A navigation that finds the person's buffer past
+its life, with no still-valid assessment, deletes it and its decision before reading. The worker's
+replacement deletes the previous one. `pruneComposerDecisions` deletes an expired buffer before its
+decision and skips decisions a live buffer references. Clear and full erasure remove buffers before
+decisions. There is no separate sweep: an idle person keeps at most one expired row until their next
+navigation, the next preparation or erasure.
+
+**Coalescing and duplicates.** The job carries the intent revision it was made for. A job whose session
+has moved on does nothing (`session_superseded`), so a newer activation supersedes older queued jobs.
+The primary key (universe, mode) keeps one buffer per person: preparing replaces the previous one and
+deletes its decision. A redelivery finds the buffer already prepared and does nothing.
+
+**Jev.** `composer.jev` (role version `jev.1`) runs on the shared reasoning harness (`REASONING_HARNESS`)
+inside the buffer job, outside any transaction. For up to 20 of the best eligible candidates by the
+deterministic baseline it returns three criteria per candidate, each in [0,1]: relevance to the current
+step, appropriateness as a next explanation and redundancy with the current step. Code combines them:
+`SemanticFit = 0.4 relevance + 0.4 appropriateness + 0.2 (1 - redundancy)`. Entries naming an unknown or
+repeated candidate are dropped. The assessments are stored with the role and prompt versions, the model
+and a 30-minute expiry, inside the buffer row, and are reused by a later preparation or by the HTTP
+ranking while valid, so the same pair is never paid for twice. Provider failure, refusal, a budget stop
+or an unusable answer is the absence of an assessment: with none at all the lexical baseline applies as
+before, and nothing is judged negatively. The harness run ID is the queue job ID, so a redelivery answers from the attempt
+ledger and a possibly sent request is never resent. `KS_JEV_ENABLED` defaults to 0 and is meant to be 1
+on dev. Limit: the generic personal harness only runs while recording is at its initial generation (a
+person who has used Pause has no Jev until the recording-aware harness accepts a Composer purpose).
+
+**Exploration.** Unchanged: a vertical decision gives the first slot to the exploration pool with
+probability 0.10 and logs the branch and the realised probability in the decision; a buffer's decision
+logs the same.
+
+**Tables, jobs, lock order, erasure.**
+
+| Item | Detail |
+|---|---|
+| Tables | `composer.decisions` (0017), `composer.buffers` (0047) |
+| Job | `composer.prepare-buffer` (concurrency 2, expiry 700 s, 2 retries, no dead letter, payload IDs only) |
+| Notices | none; the next navigation reads the durable row |
+| Lock order | personal root first in both worker transactions; the model call is between them |
+| Erasure | Clear and full erasure delete `composer.buffers` before `composer.decisions`, and the queue payloads (`pgboss/composer.prepare-buffer`) |
+| Config | `KS_JEV_ENABLED` (worker); the model is the harness's configured model |
+
+**Failure and recovery.** A job for a changed epoch, an unactivated offer or a superseded revision is
+skipped. A thrown error rolls back both transactions and pg-boss retries. A crash after the model call
+leaves the run in the attempt ledger under the job ID; the retry reads it and does not pay again.
+
+## Planner plan (#236, D-035)
+
+Personal Context may add the person's current Planner plan to the prepared context as
+`evidence.plan`: at most three opportunities, each with its move, topics, explanation unit, suited
+threads, formats, expiry and whether its target is admitted content. A plan is not evidence and
+creates none. Titles, purposes and briefs never enter the snapshot or the decision.
+
+The base features come first, from the intent and links alone. When the plan has an unexpired
+opportunity suited to the move, `domain/plan.ts` then lifts one feature (Intent for a vertical move,
+Continuity for a horizontal move) for the eligible candidates that tie for its best base value
+(within 0.01) and match an opportunity: `+0.15 × agreement`, capped at 1. Agreement is 1 for the same
+explanation in a format the opportunity lists when its target is admitted content, and 0.5 for a shared
+non-incidental topic in a listed format. Nothing is scaled down and a candidate below the best is never
+lifted, so a plan can only decide between candidates the current intent or link does not separate
+and cannot outrank a better match. Return and variant moves ignore plans. Each lifted candidate's
+evaluation in the decision carries `plan` with the revision, opportunity position, match, feature and
+the value before and after. When every same-topic candidate already has Intent 1 (a source with topics),
+the plan changes nothing among them. Capability state: implemented, CI-verified, run locally against the
+real model; not yet runtime-verified on dev.

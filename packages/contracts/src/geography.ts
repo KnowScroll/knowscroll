@@ -323,6 +323,31 @@ export const UniverseDeltasSchema = z
       ctx.addIssue({ code: 'custom', message: 'Catch-up progress is inconsistent with current geography.' });
   });
 
+/** Transport bound: at most one cue per catalogue system. */
+export const EMERGING_LIMITS = { dust: 16 } as const;
+
+/** No input: everything is derived from the authenticated own scope. */
+export const ReadEmergingUniverseSchema = z.strictObject({});
+
+/**
+ * Unlabelled cues that recent qualified reading or watching is gathering toward a system that is
+ * not established yet. A cue is not a place: it has no label, topic, count or promise that a system
+ * or planet will form, and it disappears once the system is established or the evidence is cleared.
+ * Its ID is opaque and stable for this universe and epoch, so a client keeps its drawing in place
+ * between reads; it never becomes an object ID. Reads never enqueue formation.
+ */
+export const EmergingUniverseSchema = z.strictObject({
+  version: z.literal('universe-emerging.v1'),
+  ...ScopeFields,
+  recordedAt: z.iso.datetime(),
+  /** The geography this was read against; established places are in the geography snapshot. */
+  geography: GeographyRevisionsSchema,
+  dust: z
+    .array(z.strictObject({ id: UuidSchema }))
+    .max(EMERGING_LIMITS.dust)
+    .refine((cues) => new Set(cues.map((cue) => cue.id)).size === cues.length, 'Duplicate dust cue.'),
+});
+
 function sameSelection(a: z.infer<typeof Selection>, b: z.infer<typeof Selection>): boolean {
   return a.kind === b.kind && (a.kind === 'universe' || (b.kind === 'system' && a.systemId === b.systemId));
 }
@@ -336,6 +361,8 @@ export type GeographySnapshot = z.infer<typeof GeographySnapshotSchema>;
 export type UniverseDelta = z.infer<typeof UniverseDeltaSchema>;
 export type ReadUniverseDeltas = z.infer<typeof ReadUniverseDeltasSchema>;
 export type UniverseDeltas = z.infer<typeof UniverseDeltasSchema>;
+export type ReadEmergingUniverse = z.infer<typeof ReadEmergingUniverseSchema>;
+export type EmergingUniverse = z.infer<typeof EmergingUniverseSchema>;
 
 /** Read-only POST preserves the existing bounded nested selection/cursor as one JSON body.
  * The future adapter authenticates current personal scope; it never schedules cartography. */
@@ -349,3 +376,9 @@ export const readUniverseDeltasContract = oc
   .route({ method: 'POST', path: '/v1/universe/geography/deltas/read', successStatus: 200 })
   .input(ReadUniverseDeltasSchema)
   .output(UniverseDeltasSchema);
+
+/** Read-only: which unestablished systems recent reading is gathering toward. Never a command. */
+export const readEmergingUniverseContract = oc
+  .route({ method: 'POST', path: '/v1/universe/emerging/read', successStatus: 200 })
+  .input(ReadEmergingUniverseSchema)
+  .output(EmergingUniverseSchema);

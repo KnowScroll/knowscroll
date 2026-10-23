@@ -9,7 +9,7 @@ import { keepContract } from './keep.js';
 import { removeKeepEntryContract } from './keep-remove.js';
 import { sharingContract } from './sharing.js';
 import { readSceneManifestContract, readSceneChunkContract } from './scenes.js';
-import { readGeographyContract, readUniverseDeltasContract } from './geography.js';
+import { readEmergingUniverseContract, readGeographyContract, readUniverseDeltasContract } from './geography.js';
 import { mediaGrantContract } from './media.js';
 import { cancelContentRequestContract, createContentRequestContract, readContentRequestContract } from './supply.js';
 import { exposureContextContract, navigateExperienceContract } from './navigation.js';
@@ -47,7 +47,11 @@ export const apiContract: {
   publicContentShares: typeof publicContentSharesContract;
   scenes: { manifest: typeof readSceneManifestContract; chunk: typeof readSceneChunkContract };
   formation: typeof formationPresentationContract;
-  geography: { read: typeof readGeographyContract; deltas: typeof readUniverseDeltasContract };
+  geography: {
+    read: typeof readGeographyContract;
+    deltas: typeof readUniverseDeltasContract;
+    emerging: typeof readEmergingUniverseContract;
+  };
   media: { grant: typeof mediaGrantContract };
   supply: {
     create: typeof createContentRequestContract;
@@ -89,7 +93,11 @@ export const apiContract: {
   publicContentShares: publicContentSharesContract,
   scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract },
   formation: formationPresentationContract,
-  geography: { read: readGeographyContract, deltas: readUniverseDeltasContract },
+  geography: {
+    read: readGeographyContract,
+    deltas: readUniverseDeltasContract,
+    emerging: readEmergingUniverseContract,
+  },
   media: { grant: mediaGrantContract },
   supply: {
     create: createContentRequestContract,

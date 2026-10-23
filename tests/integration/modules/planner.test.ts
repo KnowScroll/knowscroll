@@ -45,6 +45,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { buildFromProviders } from '../support/providers.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
+import { realRecordPlannedDemand } from '../support/planned-demand.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 
 /** Real PostgreSQL and real harness/pg-boss adapters. Every model reply is an authored CI fixture. */
@@ -52,6 +53,8 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
   let database: TestDatabase<Database>, c: Awaited<ReturnType<typeof scrollUseCases>>;
   let base: Parameters<typeof makeRunPlanner>[0], request: RequestPlanner, material: PlannerMaterialChange;
   let asset: { assetId: string; revision: number }, blocks: string[];
+  // A second admitted explanation the people in this file never read: a valid existing target.
+  let unread: { assetId: string; revision: number };
   const topic = `ci.planner.${randomUUID()}`;
   beforeAll(async () => {
     database = await createTestDatabase<Database>('planner');
@@ -80,6 +83,23 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     await database.db
       .insertInto('content.encounter_topics')
       .values({ asset_id: asset.assetId, asset_revision: asset.revision, topic_id: topic, role: 'primary', weight: 1 })
+      .execute();
+    const second = starterSource() as { assetId: string; publication: { explanationUnitId: string } };
+    second.assetId = randomUUID();
+    second.publication.explanationUnitId = `ci-planner-unread-${randomUUID()}`;
+    const admittedSecond = await c.importScroll(second);
+    if (admittedSecond.kind !== 'imported') throw new Error('CI fixture admission refused');
+    unread = { assetId: admittedSecond.assetId, revision: admittedSecond.revision };
+    await database.db.deleteFrom('content.encounter_topics').where('asset_id', '=', unread.assetId).execute();
+    await database.db
+      .insertInto('content.encounter_topics')
+      .values({
+        asset_id: unread.assetId,
+        asset_revision: unread.revision,
+        topic_id: topic,
+        role: 'primary',
+        weight: 1,
+      })
       .execute();
     const facts = await database.db
       .selectFrom('content.asset_revisions')
@@ -185,6 +205,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       readExact: readExactEncounter,
       capabilities: { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] },
       harness,
+      recordDemand: realRecordPlannedDemand(database, c.boss),
       enabled: () => enabled,
       now: () => clock ?? new Date(),
       hash: (x) => requestHash('personal-planner.v0', x as Parameters<typeof requestHash>[1]),
@@ -550,7 +571,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       running = r.run(await job(p, s.active_run_id!), signal());
     await entered;
     const context = await frozen(p),
-      target = context.facts.inventory.find((a) => a.assetId === asset.assetId)!;
+      target = context.facts.inventory.find((a) => a.assetId === unread.assetId)!;
     const proposed = answer(context),
       candidate = {
         ...proposed.opportunities[0]!,
@@ -565,7 +586,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     await database.db
       .updateTable('content.assets')
       .set({ status: 'withdrawn' })
-      .where('id', '=', asset.assetId)
+      .where('id', '=', unread.assetId)
       .execute();
     try {
       release({ kind: 'success', text: JSON.stringify({ ...proposed, opportunities: [candidate] }) });
@@ -578,7 +599,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       await database.db
         .updateTable('content.assets')
         .set({ status: 'admitted' })
-        .where('id', '=', asset.assetId)
+        .where('id', '=', unread.assetId)
         .execute();
     }
   });
@@ -675,7 +696,17 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       kind: 'entered',
       value: { kind: 'unknown' },
     });
+    // New evidence wakes the unknown run once. Its attempt is unresolved and young, so nothing changes.
     await request(p.authority, { commandId: randomUUID() });
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
+      kind: 'entered',
+      value: { kind: 'awaiting_explicit_resume' },
+    });
+    // The delivered wake is finished, as pg-boss would record, so an explicit resume may queue the run.
+    await database.pool.query(
+      "update pgboss.job set state='completed' where name='planner.run' and data->>'runId'=$1",
+      [s.active_run_id],
+    );
     await request(p.authority, { commandId: randomUUID(), resumeRunId: s.active_run_id! });
     expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
       kind: 'entered',
@@ -690,7 +721,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       harness: {
         ...r.ports.harness,
         proposePersonal: (input, abort) =>
-          r.ports.harness.proposePersonal({ ...input, role: { ...input.role, version: 'planner2' } }, abort),
+          r.ports.harness.proposePersonal({ ...input, role: { ...input.role, version: 'planner-ci-mismatch' } }, abort),
       },
     });
     for (let resume = 0; resume < 2; resume++) {

@@ -7,8 +7,12 @@ import {
   accountAccessUseCases,
   identityScopeOwnerProviders,
 } from '@knowscroll/backend/modules/identity/nest-providers';
-import { plannerRequestProviders } from '@knowscroll/backend/modules/planner/nest-providers';
-import { PLANNER_MATERIAL_CHANGE, type PlannerMaterialChange } from '@knowscroll/backend/modules/planner';
+import { plannerReadProviders, plannerRequestProviders } from '@knowscroll/backend/modules/planner/nest-providers';
+import {
+  PLANNER_MATERIAL_CHANGE,
+  READ_CURRENT_PLAN,
+  type PlannerMaterialChange,
+} from '@knowscroll/backend/modules/planner';
 import { geographyProviders } from '@knowscroll/backend/modules/geography/nest-providers';
 import { GEOGRAPHY_MATERIAL_CHANGE, type MaterialGeographyChange } from '@knowscroll/backend/modules/geography';
 import { sceneAppliedProviders } from '@knowscroll/backend/modules/scenes/nest-providers';
@@ -32,7 +36,7 @@ import {
   type ReconcileEncounterActivity,
   type ActivityDerivedEffect,
 } from '@knowscroll/backend/modules/evidence';
-import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
+import { composerBufferProviders, composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import {
   ACTIVITY_CONTEXT_EFFECT,
@@ -137,6 +141,8 @@ export async function scrollUseCases(
     readonly activityNow?: () => Date;
     /** Selects the actual recording-aware Experience composition, never a trusted eligibility flag. */
     readonly recording?: true;
+    /** Serves worker-prepared buffers and requests the next one on activation, like the API. */
+    readonly buffers?: true;
     readonly activityDerived?: ActivityDerivedEffect;
     readonly activityMaterialChange?: (
       scope: RecordingScopeTx,
@@ -199,12 +205,16 @@ export async function scrollUseCases(
   values.set(RENDER_SCROLL, buildFromProviders(contentRenderProviders({ database: DATABASE }), RENDER_SCROLL, values));
   const composer = composerProviders({ isOperator: () => false });
   for (const p of composer) values.set(p.provide, p.useValue);
+  const bufferProviders = options.buffers ? composerBufferProviders({ enqueueJob: ENQUEUE }) : [];
+  for (const p of bufferProviders) if ('useValue' in p) values.set(p.provide, p.useValue);
   const providers = [
+    ...bufferProviders.filter((p): p is Extract<typeof p, { useFactory: unknown }> => 'useFactory' in p),
     ...experienceReadFactories,
     ...sceneAppliedProviders({ enqueueJob: ENQUEUE }),
     ...plannerRequestProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
+    ...plannerReadProviders(),
     ...geographyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
-    ...personalContextProviders(),
+    ...personalContextProviders({ readCurrentPlan: READ_CURRENT_PLAN }),
     ...activityProviders({
       withPersonalScope: SCOPE,
       enqueueJob: ENQUEUE,
@@ -214,7 +224,10 @@ export async function scrollUseCases(
     }),
     ...navigationProviders(
       { withPersonalScope: SCOPE, enqueueJob: ENQUEUE },
-      options.recording ? { recordingEffects: EXPERIENCE_RECORDING_EFFECTS } : {},
+      {
+        ...(options.recording ? { recordingEffects: EXPERIENCE_RECORDING_EFFECTS } : {}),
+        ...(options.buffers ? { buffers: true } : {}),
+      },
     ),
     ...experienceProviders(
       { database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE },

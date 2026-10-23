@@ -97,3 +97,31 @@ checksum is now3b85edec0d4c135b72637ba52527002f57b8a6d4ac23ce4df05af8251fad50cb;
 0001–0041 and0043/0044 remain byte-exact. Earlier source/failure and disabled operator pins remain
 historical and must be rebound after exact full44 candidate acceptance. No schema deployment follows
 from this source correction.
+
+0047 adds `composer.buffers`: one worker-prepared next-move buffer per person and mode, pointing at an
+ordinary Composer decision, with optional stored Jev assessments. The new personal store and the job
+payload store `pgboss/composer.prepare-buffer` change the fresh-recording registry, so its digest becomes
+`d7942e43bb8211f37dfd08b4dfb6ac2e1b2543229a257f9c5ba850df135a1d10`. The same migration moves the places
+that repeat the digest (the witness table's CHECK and the birth trigger) to the new value and re-stamps
+every existing witness. Schema 44 is live on dev, and the application reads a witness with any other
+digest as an unavailable lifecycle, so without the re-stamp every existing account would fail its next
+recording-aware command until it ran Clear. Re-stamping is truthful: the new stores are empty for every
+existing universe. The witness guard trigger refuses all updates, so it is disabled for that one statement.
+Deploy the new binary with the migration: a process still holding the old digest sees the lifecycle as
+unavailable. Any later personal store repeats this step until the registry manifest is simplified.
+
+0048 adds Planner-originated demand to Supply: `origin`, `planner_run_id` and `planner_slot` on
+`supply.requests`, the `deferred` state, and two unique indexes: one plan opportunity is one demand, and
+a person has at most one open planned waiter per shared matching group.
+The checks are `NOT VALID`; older writers default to `origin='person'` and never write `deferred`.
+No new table, so the erasure inventory is unchanged and Clear removes planned demand with the rest
+of the person's requests.
+
+0050 adds `reasoning.production_rejected_answers` and ends the separate claims stage of Scroll production.
+The table keeps a refused model answer of a nonpersonal production attempt, redacted and cut at 64 KiB,
+with the validator's findings, for 30 days; `answer_kind` says whether the text is the model's answer or
+the raw body of an unreadable reply (only an answer is ever fed back to a repair). Personal roles never
+write to it, so the erasure inventory is unchanged. On `content.scroll_production_runs` it drops
+`claims_run_id`, closes any job still parked in the retired `claims` state as rejected, and replaces the
+state check without `claims` (`NOT VALID`, like the other vocabulary changes). Apply it together with the
+workers of recipe `scroll-production.v14`; no process of the previous recipe may run a job afterwards.
