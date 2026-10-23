@@ -89,7 +89,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
   const rejectedRows = () =>
     database.db
       .selectFrom('reasoning.production_rejected_answers')
-      .select(['attempt_id', 'reason', 'issues', 'answer_text', 'truncated'])
+      .select(['attempt_id', 'reason', 'issues', 'answer_kind', 'answer_text', 'truncated'])
       .orderBy('recorded_at')
       .execute();
 
@@ -169,7 +169,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     ]);
     // The refused primary is kept for diagnosis, with the validator's own findings.
     const [kept] = await rejectedRows();
-    expect(kept).toMatchObject({ reason: 'OUTPUT_SCHEMA_MISMATCH', truncated: false });
+    expect(kept).toMatchObject({ reason: 'OUTPUT_SCHEMA_MISMATCH', answer_kind: 'answer', truncated: false });
     expect(kept?.issues).toEqual([expect.objectContaining({ path: 'blocks[2]', code: 'copied_passage' })]);
     expect(kept?.answer_text).toContain('CANARYWORD');
   });
@@ -655,12 +655,18 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       expect(attempt).toMatchObject({ state: 'failed', outcome_code: 'MODEL_MISMATCH', output_tokens: 700 });
     });
 
-    it('keeps the bounded raw reply of an unreadable answer, thinking only', async () => {
+    it('keeps the bounded raw reply of an unreadable answer for the operator and never feeds it back to the repair', async () => {
       const p = viaTransport(() => message([{ type: 'thinking', thinking: 'ONLY-THINKING', signature: 'ci' }]));
       await p.produce('seasons', false, signal());
       const rows = await rejectedRows();
       expect(rows.map((row) => row.reason)).toEqual(['REPLY_NO_TEXT', 'REPLY_NO_TEXT']);
+      expect(rows.map((row) => row.answer_kind)).toEqual(['raw_reply', 'raw_reply']);
       expect(rows[0]?.answer_text).toContain('ONLY-THINKING');
+      // The repair carries the fixed findings only: no envelope, no thinking, no previous-answer block.
+      expect(p.calls).toHaveLength(2);
+      const repair = JSON.stringify(p.calls[1]);
+      expect(repair).not.toContain('ONLY-THINKING');
+      expect(repair).not.toContain('<previous-answer>');
     });
   });
 });

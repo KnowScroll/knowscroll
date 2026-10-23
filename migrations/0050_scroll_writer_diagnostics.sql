@@ -26,7 +26,11 @@ create table reasoning.production_rejected_answers (
   reason text not null,
   -- The validator's own findings as the repair request carried them: [{path, code, detail?}].
   issues jsonb not null,
-  -- Redacted answer text (or bounded raw reply body for an unreadable reply), cut at 64 KiB.
+  -- What answer_text holds: the model's answer text, or the provider's raw reply body when the reply
+  -- could not be read as an answer. Only an answer is ever fed back to a repair; a raw reply is for
+  -- the operator.
+  answer_kind text not null,
+  -- Redacted text, cut at 64 KiB.
   answer_text text not null,
   -- Length of the answer before it was cut.
   answer_chars integer not null,
@@ -37,6 +41,7 @@ create table reasoning.production_rejected_answers (
   constraint production_rejected_answers_attempt_fkey foreign key (scope_id, attempt_id)
     references reasoning.production_attempts (scope_id, id) on delete restrict,
   constraint production_rejected_answers_issues_check check (jsonb_typeof(issues) = 'array'),
+  constraint production_rejected_answers_kind_check check (answer_kind in ('answer', 'raw_reply')),
   constraint production_rejected_answers_size_check check (answer_chars >= 0 and char_length(answer_text) <= 65536),
   constraint production_rejected_answers_expiry_check check (expires_at > recorded_at)
 );

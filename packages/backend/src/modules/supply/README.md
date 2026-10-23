@@ -5,6 +5,21 @@ coalesces compatible missing supply under one active public key, and resolves ea
 It has no HTTP route, request UI, producer/provider bridge or paid allowance. #239 remains open.
 The existing Scroll operator is not a Supply commissioning capability and is never called here.
 
+## Planned demand (#236, D-035)
+
+`RecordPlannedDemand` (token `RECORD_PLANNED_DEMAND`) is how the Planner asks for content that does not
+exist yet. It runs inside the Planner's accepting transaction, so a plan and its demand commit together.
+The brief is built like a person's catalogue ask, from the first code-admitted catalogue topic of the
+opportunity, so only catalogue topics in English become demand. Reuse applies only to admitted content
+the person has not met (`alreadyMet`), giving a `ready` row. Otherwise the row is `deferred`: it joins or
+creates the shared matching group (`join` or `create`). No resolver job is queued, no receipt is written,
+no client hint is sent and nothing is produced; a later production path binds deferred demand.
+A person has at most one open planned demand (`deferred`, or `ready` while its content is still there) per
+brief, however many plan revisions ask for it; a unique index per person and shared group backs the check.
+`supply.requests` gains `origin` (`person` or `planner`), `planner_run_id` and `planner_slot` (one demand
+per opportunity), and the `deferred` state. A deferred demand reads as `preparing` and can be cancelled.
+Capability state: implemented, CI-verified; production for deferred demand is planned.
+
 ## Public use cases
 
 `CreateRequest`, `ReadRequest`, `CancelRequest` and `ResolveRequest` are framework-free public

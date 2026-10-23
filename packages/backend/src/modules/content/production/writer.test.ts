@@ -138,23 +138,70 @@ describe('compileGeneratedScroll', () => {
     expect(outcome.kind === 'refused' && outcome.issues).toContainEqual({ code: 'format_required', path: '$' });
   });
 
-  it('never lets a reader see the source or publisher, found by name and by the source’s registered host name', () => {
-    const named = full([
-      comparison,
-      prose('NASA explains this in detail elsewhere, and so does the usual coastal handbook.', ['e1', 'e2']),
-    ]);
-    const outcome = compileGeneratedScroll(named, provenance, passages, 'comparison');
-    expect(outcome.kind === 'refused' && outcome.issues).toContainEqual({
-      code: 'reader_source_or_url',
-      path: `blocks.${named.blocks.length - 1}`,
+  const refusedAt = (blocks: AuthoredScroll['blocks'], title?: string) => {
+    const outcome = compileGeneratedScroll(full(blocks, title), provenance, passages, 'comparison');
+    return outcome.kind === 'refused' ? outcome.issues : [];
+  };
+  const lastIndex = full([comparison, prose('x', ['e1'])]).blocks.length - 1;
+
+  it('never lets a reader see the source’s organisation or its address', () => {
+    const named = (text: string) => refusedAt([comparison, prose(text, ['e1', 'e2'])]);
+    expect(named('NASA explains this in detail elsewhere, and so does the usual coastal handbook.')).toContainEqual({
+      code: 'source_name_nasa',
+      path: `blocks.${lastIndex}`,
     });
-    const titled = compileGeneratedScroll(
-      full([comparison], 'What nasa says about lamps'),
-      provenance,
-      passages,
-      'comparison',
+    expect(
+      named('The National Aeronautics and Space Administration keeps a fine record of such lamps.'),
+    ).toContainEqual({
+      code: 'source_name_national_aeronautics_and_space_administration',
+      path: `blocks.${lastIndex}`,
+    });
+    expect(named('More is written at science.nasa.gov for anyone who is curious about lamps.')).toContainEqual({
+      code: 'source_name_science_nasa_gov',
+      path: `blocks.${lastIndex}`,
+    });
+    expect(refusedAt([comparison], 'What nasa says about lamps')).toContainEqual({
+      code: 'source_name_nasa',
+      path: 'title',
+    });
+  });
+
+  it('writes the word to remove into the repair hint, from a fixed list and not from the answer', () => {
+    const hints = writerRole({ provenance, passages, format: 'comparison' }).safeCustomIssues ?? {};
+    expect(hints['source_name_nasa']).toBe(
+      'Remove the name "NASA" from this text. Never name the source or its publisher.',
     );
-    expect(titled.kind === 'refused' && titled.issues).toContainEqual({ code: 'reader_source_or_url', path: 'title' });
+    expect(hints['source_name_science_nasa_gov']).toBe('Remove the web address "science.nasa.gov" from this text.');
+    // A publisher that none of the offered sources belongs to has no entry: it is an ordinary name there.
+    expect(hints).not.toHaveProperty('source_name_wikipedia');
+  });
+
+  it('allows ordinary words that happen to be part of a host name, and names of other organisations', () => {
+    const ordinary = refusedAt([
+      comparison,
+      prose(
+        'The science of lamps is old, and an ocean service for ships once relied on a developer of better glass. Wikipedia and the Python Software Foundation are not discussed here.',
+        ['e1', 'e2'],
+      ),
+    ]);
+    expect(ordinary.filter((issue) => issue.code.startsWith('source_name_'))).toEqual([]);
+  });
+
+  it('refuses a block type the recipe does not allow, at the block, even when the document is otherwise sound', () => {
+    const timeline = {
+      type: 'timeline' as const,
+      cites: ['e1', 'e3'],
+      title: 'A short history of the lamp',
+      events: [
+        { when: 'Earlier', title: 'A keeper winds the clockwork', detail: 'Every few hours through the night.' },
+        { when: 'Today', title: 'A small motor turns the lamp' },
+      ],
+    };
+    const issues = refusedAt([comparison, timeline]);
+    expect(issues).toContainEqual({ code: 'block_type_not_allowed', path: `blocks.${lastIndex}` });
+    // The same block is allowed when the recipe asks for a timeline.
+    const asked = compileGeneratedScroll(full([timeline]), provenance, passages, 'timeline');
+    expect(asked.kind === 'refused' && asked.issues.map((issue) => issue.code)).not.toContain('block_type_not_allowed');
   });
 
   it('compiles, admits and describes a Scroll that follows the contract', () => {
@@ -180,7 +227,12 @@ describe('the writer role', () => {
     expect(Object.isFrozen(role.safeCustomIssues)).toBe(true);
     expect(role.safeCustomIssues?.['copied_passage']).toContain('from scratch');
     expect(Object.keys(role.safeCustomIssues ?? {})).toEqual(
-      expect.arrayContaining(['format_required', 'reader_source_or_url', 'authoring_number_not_in_evidence']),
+      expect.arrayContaining([
+        'format_required',
+        'block_type_not_allowed',
+        'source_name_nasa',
+        'authoring_number_not_in_evidence',
+      ]),
     );
     expect(role.instructions.length).toBeLessThan(32_768);
   });

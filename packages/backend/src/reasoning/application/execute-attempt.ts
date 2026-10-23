@@ -460,6 +460,7 @@ export function makeExecuteAttempt<A, S>(ports: ExecutionPorts<A, S>) {
           attempt: ref(attemptId),
           reason: settlement.judgement.reason,
           issues: settlement.judgement.issues,
+          kind: answer.kind === 'text' ? 'answer' : 'raw_reply',
           text: answer.kind === 'text' ? answer.text : (answer.detail ?? ''),
         });
       } catch (error) {

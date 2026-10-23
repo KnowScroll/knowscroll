@@ -14,6 +14,7 @@ database or the provider. The production root `scroll-supply` must be enabled in
 KS_WORLD=dev DATABASE_URL=… MINIMAX_API_KEY=…
 KS_REASONING_PROVIDER=minimax KS_REASONING_PRODUCTION_ENABLED=1
 KS_MINIMAX_MODEL=MiniMax-M3.1-Flash          # the default for every role
+KS_MINIMAX_REQUEST_TIMEOUT_MS=240000         # the default; a writer request takes up to ~2 minutes
 KS_SCROLL_PRODUCTION_GENERATION=1            # must match the database root
 
 node dist/operator.js content produce-scroll --topic seasons --dry-run

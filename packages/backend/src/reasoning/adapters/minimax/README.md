@@ -9,7 +9,8 @@ whether anything is ever sent again.
   every reply's `model` must equal the configured one; a mismatch is a conclusive `MODEL_MISMATCH`
   failure that still records the reported usage.
 - **Thinking:** `MiniMax-M3.1-Flash` is sent `thinking: {type: "adaptive"}`; it refuses `disabled`
-  (HTTP 400, code 2013). The other models are sent `disabled`. A role's `effort` becomes
+  (HTTP 400, code 2013). `MiniMax-M3` is sent `disabled`, the one value verified for it; the
+  M2.7 models are sent no `thinking` parameter, because none was verified. A role's `effort` becomes
   `output_config.effort` for the adaptive model, `low` when the role names none: left at the
   provider default, thinking can use the whole token budget (a reply that thinks for 15,000 tokens
   and never answers was observed), while `medium` uses a few thousand and `low` tens. Thinking tokens count against `max_tokens` and are recorded as

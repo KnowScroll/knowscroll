@@ -1277,6 +1277,7 @@ export interface ReasoningProductionAttempts {
 
 export interface ReasoningProductionRejectedAnswers {
   answer_chars: number;
+  answer_kind: string;
   answer_text: string;
   attempt_id: string;
   expires_at: Timestamp;
@@ -1508,6 +1509,9 @@ export interface SupplyRequests {
   created_at: Timestamp;
   decision: string;
   id: string;
+  origin: Generated<string>;
+  planner_run_id: string | null;
+  planner_slot: number | null;
   privacy_epoch: number;
   reason: string | null;
   request_revision: number;

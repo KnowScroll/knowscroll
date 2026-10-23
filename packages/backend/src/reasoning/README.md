@@ -61,10 +61,10 @@ as recorded, so improved diagnostics do not rewrite historic repair requests.
   continues, and never returns output, across a reset.
 - **Queue settings for a job that calls `propose`.** A job's `expireInSeconds` must exceed everything
   one delivery can do: per attempt the quota preflight (10 s) plus the request deadline
-  (`KS_MINIMAX_REQUEST_TIMEOUT_MS`, default 60 s, at most 300 s) plus the database waits (each
+  (`KS_MINIMAX_REQUEST_TIMEOUT_MS`, default 240 s, at most 300 s) plus the database waits (each
   personal-scope lock wait is at most `KS_SCOPE_LOCK_TIMEOUT_MS`, 5 s, and there are two), and a
   repair doubles it. Declare `expireInSeconds ≥ 2 × (10 + request deadline in seconds + 10) + 30`
-  (190 s with the defaults, 670 s at the 300 s maximum). Below that, pg-boss expires a delivery that
+  (550 s with the defaults, 670 s at the 300 s maximum). Below that, pg-boss expires a delivery that
   is still waiting on the provider; the next delivery finds the attempt `dispatched`, marks it
   `unknown` (never resent) and the operator has to write it off.
 - **Aborts.** A graceful stop (the delivery's signal) before the request leaves records a failure
@@ -145,7 +145,7 @@ A refused answer of a **nonpersonal production** attempt is kept in `production_
 so a failing writer can be diagnosed from evidence: the harness verdict, the validator's own
 findings (the same fixed `{path, code, detail}` items the repair request carried), and the answer
 text redacted by `redactProviderText` and cut at 64 KiB (an unreadable reply keeps its bounded raw
-body instead). One row per attempt, kept 30 days; the protected-request purge deletes expired
+body instead, marked `raw_reply`: for the operator only, never fed back to a repair). One row per attempt, kept 30 days; the protected-request purge deletes expired
 rows. Only the production ledger implements `recordRejectedAnswer`, so a personal ledger keeps no
 answer text. A failure to record is logged (`reasoning.rejected_answer_not_recorded`) and never
 changes the attempt's outcome. The operator lists and shows them (`reasoning rejected`).
@@ -284,8 +284,13 @@ with its own reservation, `causation_attempt_id` = the first attempt, sending th
 structural findings. The findings are built from the role's schema only: names the schema declares,
 array positions, the placeholder `[key]` for the keys of a record or map, `?` for anything else,
 fixed issue codes, and the schema's own expectations (types, bounds with their unit, allowed
-values). No string the model chose (a key, a value, a message) ever reaches the next request or the
-ledger, and neither does the rejected answer. Never after `unknown` or `failed`.
+values). No string the model chose (a key, a value, a message) is ever part of these findings or of
+the ledger's issue record. A role may also opt in (`repairWithPreviousAnswer`, honoured only for
+nonpersonal production, whose ledger keeps refused answers) to have the refused answer repeated in
+the repair: escaped and delimited as `<previous-answer>` data in the user message, never in the
+system text, so the model revises instead of rewriting. A personal role never receives its refused
+answer; neither does a production role that does not opt in, nor one whose answer was not the
+model's own text (a raw provider reply) or was cut at the bound. Never after `unknown` or `failed`.
 
 ## Budgets
 
@@ -345,8 +350,8 @@ applicable, 1 failure. This is the worker tree's `dist/operator.js`; the API tre
 - `minimax/`: the MiniMax token-plan transport (Anthropic-compatible `…/anthropic/v1/messages`;
   `MiniMax-M3.1-Flash`, `MiniMax-M3`, `MiniMax-M2.7`, `MiniMax-M2.7-highspeed`). One `fetch` per
   attempt, no SDK, no retries, no redirects, one deadline over the whole exchange, bounded request
-  and response. `MiniMax-M3.1-Flash` is sent `thinking: adaptive` (it refuses `disabled`), the
-  others `disabled`; `thinking` blocks and a leading `<think>…</think>` are dropped from the
+  and response. `MiniMax-M3.1-Flash` is sent `thinking: adaptive` (it refuses `disabled`),
+  `MiniMax-M3` `disabled` (the one verified value) and the M2.7 models none; `thinking` blocks and a leading `<think>…</think>` are dropped from the
   **answer** only, and thinking tokens are recorded as reasoning tokens. The reply's `model` must
   equal the configured model: an unknown name is silently served by another model, so a mismatch
   is a conclusive `MODEL_MISMATCH` failure that still charges the reported usage. Mapping: 200 →

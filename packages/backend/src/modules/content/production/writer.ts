@@ -54,7 +54,7 @@ const FORMAT_GUIDANCE: Readonly<Record<WriterFormat, string>> = {
 
 /**
  * Fixed hints for the one repair: the producer's own, sharpened for an authored document, plus the
- * two checks that live in this module.
+ * checks that live in this module. The hints for source names are added per job (`sourceHints`).
  */
 const WRITER_SAFE_ISSUES: Readonly<Record<string, string>> = Object.freeze({
   ...REPAIR_HINTS,
@@ -63,7 +63,8 @@ const WRITER_SAFE_ISSUES: Readonly<Record<string, string>> = Object.freeze({
   reading_length_out_of_brief:
     'The Scroll must read in two to eight minutes: write about 450 to 600 words of prose, besides the interactive block.',
   format_required: 'Include the block the recipe asks for, as described in the instructions.',
-  reader_source_or_url: 'Remove source or publisher names and web addresses from all reader-facing text.',
+  block_type_not_allowed:
+    'This block type is not allowed in this Scroll. Replace the block with a paragraph, or with the block the recipe asks for.',
 });
 
 /** The instructions for one recipe: the contract, the writing rules, the block reference and the format. */
@@ -153,20 +154,87 @@ export function generatedProvenance(input: {
   };
 }
 
-const KNOWN_SOURCE_NAMES =
-  /\b(?:NASA|NOAA|USGS|NWS|Space Place|Wikipedia|OpenStax|arXiv|Our World in Data|National Aeronautics|National Oceanic)\b/iu;
-const GENERIC_HOST_LABELS = new Set(['www', 'en', 'com', 'org', 'gov', 'edu', 'net', 'io', 'co', 'uk']);
+/** A name a reader must not see because the Scroll rests on that publisher's or site's pages. */
+interface SourceName {
+  /** Hostname suffixes of the sources this name belongs to. */
+  readonly hosts: readonly string[];
+  /** How the name reads in a text. Organisation names only, never ordinary words. */
+  readonly pattern: RegExp;
+  /** The name as the repair hint says it. Fixed here: the hint never echoes the model's text. */
+  readonly label: string;
+}
 
-/** The names a reader must never see: the known publishers, and the registered name of every offered source host. */
-function sourceNames(provenance: DraftProvenance): RegExp {
-  const hosts = provenance.sources.flatMap((source) =>
-    new URL(source.url).hostname.split('.').filter((label) => !GENERIC_HOST_LABELS.has(label) && label.length > 2),
-  );
-  const escaped = [...new Set(hosts)].map((label) => label.replace(/[^a-z0-9]/giu, '\\$&'));
-  return new RegExp(
-    `${KNOWN_SOURCE_NAMES.source}${escaped.length === 0 ? '' : `|\\b(?:${escaped.join('|')})\\b`}`,
-    'iu',
-  );
+const PUBLISHER_NAMES: readonly SourceName[] = [
+  { hosts: ['nasa.gov'], pattern: /\bNASA\b/iu, label: 'NASA' },
+  {
+    hosts: ['nasa.gov'],
+    pattern: /\bNational Aeronautics and Space Administration\b/iu,
+    label: 'National Aeronautics and Space Administration',
+  },
+  { hosts: ['nasa.gov'], pattern: /\bSpace Place\b/u, label: 'Space Place' },
+  { hosts: ['noaa.gov'], pattern: /\bNOAA\b/iu, label: 'NOAA' },
+  {
+    hosts: ['noaa.gov'],
+    pattern: /\bNational Oceanic and Atmospheric Administration\b/iu,
+    label: 'National Oceanic and Atmospheric Administration',
+  },
+  { hosts: ['usgs.gov'], pattern: /\bUSGS\b/iu, label: 'USGS' },
+  { hosts: ['usgs.gov'], pattern: /\b(?:U\.?S\.? )?Geological Survey\b/iu, label: 'Geological Survey' },
+  { hosts: ['weather.gov'], pattern: /\bNWS\b/iu, label: 'NWS' },
+  { hosts: ['weather.gov'], pattern: /\bNational Weather Service\b/iu, label: 'National Weather Service' },
+  { hosts: ['wikipedia.org'], pattern: /\bWikipedia\b/iu, label: 'Wikipedia' },
+  { hosts: ['wikipedia.org'], pattern: /\bWikimedia\b/iu, label: 'Wikimedia' },
+  { hosts: ['arxiv.org'], pattern: /\barXiv\b/iu, label: 'arXiv' },
+  { hosts: ['ourworldindata.org'], pattern: /\bOur World in Data\b/iu, label: 'Our World in Data' },
+  { hosts: ['mozilla.org'], pattern: /\bMDN\b/u, label: 'MDN' },
+  { hosts: ['mozilla.org'], pattern: /\bMozilla\b/iu, label: 'Mozilla' },
+  { hosts: ['python.org'], pattern: /\bPython Software Foundation\b/iu, label: 'Python Software Foundation' },
+  { hosts: ['openstax.org'], pattern: /\bOpenStax\b/iu, label: 'OpenStax' },
+];
+
+/** One thing a reader must not see in this job, with the code its finding and hint carry. */
+interface BannedName {
+  readonly code: string;
+  readonly pattern: RegExp;
+  readonly hint: string;
+}
+
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+const hostMatches = (hostname: string, suffix: string): boolean =>
+  hostname === suffix || hostname.endsWith(`.${suffix}`);
+const codeFor = (label: string): string =>
+  `source_name_${label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, '_')
+    .replace(/^_|_$/gu, '')}`.slice(0, 64);
+
+/**
+ * What a reader must not see for the sources this job offers: the organisation names that belong to
+ * those sources' hosts and the hostnames themselves. Ordinary words are never banned, so a recipe
+ * on a `science.nasa.gov` page may still write "science". Each entry has its own code, so the repair
+ * hint can name the word to remove without echoing anything the model wrote.
+ */
+function bannedNames(provenance: DraftProvenance): readonly BannedName[] {
+  const hostnames = [...new Set(provenance.sources.map((source) => new URL(source.url).hostname))];
+  const organisations = PUBLISHER_NAMES.filter((name) =>
+    hostnames.some((hostname) => name.hosts.some((suffix) => hostMatches(hostname, suffix))),
+  ).map(({ pattern, label }): BannedName => ({
+    code: codeFor(label),
+    pattern,
+    hint: `Remove the name "${label}" from this text. Never name the source or its publisher.`,
+  }));
+  const addresses = hostnames.map((hostname): BannedName => ({
+    code: codeFor(hostname),
+    pattern: new RegExp(`(?<![\\p{L}\\p{N}-])${escapeRegExp(hostname)}(?![\\p{L}\\p{N}-])`, 'iu'),
+    hint: `Remove the web address "${hostname}" from this text.`,
+  }));
+  return [...organisations, ...addresses];
+}
+
+/** The fixed hints of the writer, with the source names of this job. */
+function writerSafeIssues(provenance: DraftProvenance): Readonly<Record<string, string>> {
+  const sourceHints = Object.fromEntries(bannedNames(provenance).map((name) => [name.code, name.hint]));
+  return Object.freeze({ ...WRITER_SAFE_ISSUES, ...sourceHints });
 }
 
 /** Strings of an authored value, depth first; citations are handles, not reader text. */
@@ -178,16 +246,26 @@ function* readerStrings(value: unknown, key = ''): Generator<string> {
     for (const [name, item] of Object.entries(value)) yield* readerStrings(item, name);
 }
 
+/** The block types a recipe may use: prose, and the block its format asks for. */
+function allowedBlockTypes(format: WriterFormat): ReadonlySet<string> {
+  return new Set<string>(['heading', 'paragraph', 'list', 'callout', ...FORMAT_BLOCKS[format]]);
+}
+
 /** Findings that belong to the writer module rather than the producer contract. */
-function moduleIssues(authored: AuthoredScroll, format: WriterFormat, names: RegExp): AdmissionIssue[] {
+function moduleIssues(authored: AuthoredScroll, format: WriterFormat, names: readonly BannedName[]): AdmissionIssue[] {
   const issues: AdmissionIssue[] = [];
   const wanted = new Set<string>(FORMAT_BLOCKS[format]);
   if (!authored.blocks.some((block) => wanted.has(block.type))) issues.push({ code: 'format_required', path: '$' });
-  const named = (value: unknown) => [...readerStrings(value)].some((text) => names.test(text));
-  if (named(authored.title) || named(authored.dek)) issues.push({ code: 'reader_source_or_url', path: 'title' });
+  const allowed = allowedBlockTypes(format);
   authored.blocks.forEach((block, index) => {
-    if (named(block)) issues.push({ code: 'reader_source_or_url', path: `blocks.${index}` });
+    if (!allowed.has(block.type)) issues.push({ code: 'block_type_not_allowed', path: `blocks.${index}` });
   });
+  const namedIn = (value: unknown, path: string) => {
+    const texts = [...readerStrings(value)];
+    for (const name of names) if (texts.some((text) => name.pattern.test(text))) issues.push({ code: name.code, path });
+  };
+  namedIn([authored.title, authored.dek], 'title');
+  authored.blocks.forEach((block, index) => namedIn(block, `blocks.${index}`));
   return issues;
 }
 
@@ -204,7 +282,7 @@ export function compileGeneratedScroll(
   passages: readonly EvidencePassage[],
   format: WriterFormat,
 ): CompileOutcome {
-  const own = moduleIssues(authored, format, sourceNames(provenance));
+  const own = moduleIssues(authored, format, bannedNames(provenance));
   const compiled = compileAuthored(authored, provenance, authoringEvidence(passages));
   if (compiled.kind === 'refused')
     return { kind: 'refused', stage: compiled.stage, issues: [...compiled.issues, ...own].slice(0, 32) };
@@ -237,10 +315,11 @@ export function writerRole(input: {
   readonly passages: readonly EvidencePassage[];
   readonly format: WriterFormat;
 }): ReasoningRole<AuthoredScroll> {
+  const safeIssues = writerSafeIssues(input.provenance);
   return {
     id: 'content.scroll-writer',
     version: WRITER_PROMPT_VERSION,
-    safeCustomIssues: WRITER_SAFE_ISSUES,
+    safeCustomIssues: safeIssues,
     // Thinking tokens count against this ceiling, besides about 4,000 tokens of JSON.
     maxOutputTokens: 16_000,
     effort: 'medium',
@@ -255,7 +334,7 @@ export function writerRole(input: {
           path:
             issue.path === '$' ? [] : issue.path.split('.').map((part) => (/^\d+$/u.test(part) ? Number(part) : part)),
           message: 'Writer validation refused.',
-          ...(Object.hasOwn(WRITER_SAFE_ISSUES, issue.code) ? { params: { safeCode: issue.code } } : {}),
+          ...(Object.hasOwn(safeIssues, issue.code) ? { params: { safeCode: issue.code } } : {}),
         });
     }),
   };

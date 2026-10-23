@@ -647,7 +647,8 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
       if (input.limits?.allowRepair === false) return invalid;
 
       // At most one repair: a new attempt, caused by the conclusively complete primary, sending
-      // the validator's findings (never the rejected answer itself).
+      // the validator's findings and, only for a production role that opts in, the model's own
+      // refused answer as delimited data (a raw provider reply is never returned by the ledger).
       const previousAnswer =
         role.repairWithPreviousAnswer === true
           ? await ports.ledger.readRejectedAnswerText?.({

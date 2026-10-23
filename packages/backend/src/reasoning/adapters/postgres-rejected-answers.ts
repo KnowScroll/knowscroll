@@ -35,6 +35,7 @@ export function makeRejectedAnswerStore(db: Kysely<Database>) {
           attempt_id: answer.attempt.attemptId,
           reason: answer.reason,
           issues: JSON.stringify(answer.issues),
+          answer_kind: answer.kind,
           answer_text: kept.text,
           answer_chars: kept.chars,
           truncated: kept.truncated,
@@ -44,13 +45,14 @@ export function makeRejectedAnswerStore(db: Kysely<Database>) {
         .execute();
     },
 
-    /** The kept text of an answer that was stored whole and has not expired. */
+    /** The kept text of the model's own answer, stored whole and not expired; a raw provider reply is never returned. */
     async readText(attempt: { readonly scopeId: string; readonly attemptId: string }): Promise<string | undefined> {
       const row = await db
         .selectFrom('reasoning.production_rejected_answers')
         .select('answer_text')
         .where('scope_id', '=', attempt.scopeId)
         .where('attempt_id', '=', attempt.attemptId)
+        .where('answer_kind', '=', 'answer')
         .where('truncated', '=', false)
         .where('expires_at', '>', sql<Date>`now()`)
         .executeTakeFirst();
@@ -73,6 +75,9 @@ export function makeRejectedAnswerStore(db: Kysely<Database>) {
   };
 }
 
+/** The column is a text with a CHECK of the two kinds. */
+const kindOf = (stored: string): RejectedAnswer['kind'] => (stored === 'raw_reply' ? 'raw_reply' : 'answer');
+
 const detailColumns = [
   'rejected.attempt_id',
   'attempt.run_id',
@@ -81,6 +86,7 @@ const detailColumns = [
   'attempt.role_version',
   'attempt.model',
   'rejected.reason',
+  'rejected.answer_kind',
   'rejected.answer_chars',
   'rejected.truncated',
   'rejected.recorded_at',
@@ -112,6 +118,7 @@ export function makeRejectedAnswerReader(db: Kysely<Database>): RejectedAnswerRe
         model: row.model,
         reason: row.reason,
         issueCount: row.issue_count,
+        answerKind: kindOf(row.answer_kind),
         answerChars: row.answer_chars,
         truncated: row.truncated,
         recordedAt: row.recorded_at,
@@ -135,6 +142,7 @@ export function makeRejectedAnswerReader(db: Kysely<Database>): RejectedAnswerRe
         model: row.model,
         reason: row.reason,
         issues: row.issues as unknown as readonly OutputIssue[],
+        answerKind: kindOf(row.answer_kind),
         answerText: row.answer_text,
         answerChars: row.answer_chars,
         truncated: row.truncated,

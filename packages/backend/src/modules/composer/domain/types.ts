@@ -23,12 +23,44 @@ export interface EncounterSnapshot extends EncounterRef {
   readonly catalogWatermark: string;
   readonly attributionVersion: string;
 }
+/**
+ * The part of a Planner opportunity that Composer reads. Titles, purposes and supply briefs stay
+ * with the Planner: ranking needs only where the opportunity points and which threads and
+ * formats it suits.
+ */
+export interface PlannedOpportunity {
+  readonly move: 'example' | 'mechanism' | 'limitation' | 'consequence' | 'perspective' | 'connection';
+  readonly topicIds: readonly string[];
+  readonly explanationUnitId: string;
+  readonly eligibility: readonly ('vertical' | 'related')[];
+  readonly formats: readonly ('reel' | 'scroll')[];
+  readonly expiresAt: string;
+  /** `existing` names admitted content (matched by explanation); `missing_supply` is matched by topic only. */
+  readonly target: 'existing' | 'missing_supply';
+}
+/** The person's current accepted plan, opportunities in priority order. A plan is never evidence. */
+export interface CurrentPlan {
+  readonly revision: number;
+  readonly opportunities: readonly PlannedOpportunity[];
+}
+/** Which opportunity raised which feature of a candidate, kept in the decision record. */
+export interface PlanInfluence {
+  readonly planRevision: number;
+  /** Position of the opportunity in the plan (0 is the highest priority). */
+  readonly opportunity: number;
+  readonly match: 'unit' | 'topic';
+  readonly feature: 'intent' | 'continuity';
+  readonly before: number;
+  readonly after: number;
+}
 export interface PreparedEvidenceInput {
   readonly universeId: string;
   readonly privacyEpoch: number;
   readonly evaluatedAt: string;
   readonly watermark: string;
   readonly policyVersion: string;
+  /** Optional Planner plan read for this person. Not evidence: it only informs Intent and Continuity. */
+  readonly plan?: CurrentPlan;
   /** Already decayed by the authorized projector at evaluatedAt; Composer does not form context. */
   readonly topics: readonly {
     readonly topicId: string;
@@ -129,6 +161,8 @@ export interface CandidateEvaluation extends EncounterRef {
   readonly eligible: boolean;
   readonly exclusions: readonly string[];
   readonly features: Features;
+  /** Present only when a plan opportunity matched this candidate. */
+  readonly plan?: PlanInfluence;
   readonly score: number;
 }
 export interface ComposerDecision {

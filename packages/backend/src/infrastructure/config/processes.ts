@@ -451,7 +451,9 @@ const reasoningVariables = z.object({
   KS_REASONING_PROVIDER: z.enum(['none', 'minimax']).default('none'),
   MINIMAX_API_KEY: z.string().optional(),
   KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3.1-Flash'),
-  KS_MINIMAX_REQUEST_TIMEOUT_MS: positiveInteger(60_000, 300_000),
+  // A reasoning model thinks before it answers: Scroll writer requests took up to 126 s, so a shorter
+  // default would turn a healthy attempt into `unknown` (never resent) after the request left.
+  KS_MINIMAX_REQUEST_TIMEOUT_MS: positiveInteger(240_000, 300_000),
   // At least 1: a floor of 0 would switch the quota check off.
   KS_MINIMAX_QUOTA_FLOOR_PERCENT: z.coerce.number().int().min(1).max(100).default(25),
   KS_REASONING_GLOBAL_REQUESTS_PER_DAY: positiveInteger(300, 1_000_000),
@@ -550,7 +552,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     checkEnvironment(
       z.object({
         ...databaseVariables,
-        KS_PLANNER_ENABLED: z.enum(['0', '1']).default('0'),
+        KS_PLANNER_ENABLED: z.enum(['0', '1']).optional(),
         KS_CARTOGRAPHER_ENABLED: z.enum(['0', '1']).default('0'),
         KS_JEV_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CUTROOM_COMMISSIONING_ENABLED: z.enum(['0', '1']).default('0'),
@@ -680,7 +682,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
           }
         : {}),
     },
-    plannerEnabled: parsed.KS_PLANNER_ENABLED === '1',
+    plannerEnabled: (parsed.KS_PLANNER_ENABLED ?? (release.world === 'local' ? '1' : '0')) === '1',
     cartographerEnabled: parsed.KS_CARTOGRAPHER_ENABLED === '1',
     jevEnabled: parsed.KS_JEV_ENABLED === '1',
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),

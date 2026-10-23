@@ -27,8 +27,9 @@ operator ─▶ job (research) ─▶ evidence passages ─▶ writer (1 call + 
    where a heading block starts a section and every other block carries `cites`, the handles it
    rests on. A recipe names the rich block it wants (`interactiveKind`: diagram, simulation, chart,
    comparison, timeline or sequence); the instructions describe only that block and the prose
-   blocks. The harness allows one repair, which receives fixed, path-located findings and never the
-   rejected text.
+   blocks. The harness allows one repair, which receives fixed, path-located findings and, because the
+   writer opts in (`repairWithPreviousAnswer`), the refused answer as escaped, delimited data in the
+   user message so it can revise instead of rewriting.
 4. **Compile** (`compileGeneratedScroll`). Code converts the authored document into the canonical
    draft, derives the claim bindings from the citations and runs every check: structure, the
    simulation grid proof, numbers (a figure must appear in a passage the block cites; a chart plots

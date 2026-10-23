@@ -333,14 +333,17 @@ export interface AttemptRef {
 }
 
 /**
- * A refused answer of a nonpersonal production attempt, kept for diagnosis. `text` is what the
- * provider returned (or the bounded raw reply body when the reply was unreadable); the ledger
- * redacts and bounds it before storing. `issues` are the validator's own findings.
+ * A refused answer of a nonpersonal production attempt, kept for diagnosis. `text` is the model's
+ * answer (`kind: 'answer'`) or the bounded raw reply body when the reply could not be read as an
+ * answer (`kind: 'raw_reply'`, for the operator only: it can carry the provider's envelope and
+ * thinking). The ledger redacts and bounds it before storing. `issues` are the validator's own findings.
  */
 export interface RejectedAnswer {
   readonly attempt: AttemptRef;
   readonly reason: string;
   readonly issues: readonly OutputIssue[];
+  /** `answer`: the model's text. `raw_reply`: the provider's body of a reply that was not readable as one. */
+  readonly kind: 'answer' | 'raw_reply';
   readonly text: string;
 }
 
@@ -354,6 +357,7 @@ export interface RejectedAnswerRecord {
   readonly model: string;
   readonly reason: string;
   readonly issues: readonly OutputIssue[];
+  readonly answerKind: RejectedAnswer['kind'];
   readonly answerText: string;
   readonly answerChars: number;
   readonly truncated: boolean;
@@ -453,8 +457,9 @@ export interface AttemptLedger<S = PersonalScopeTx> {
    */
   readonly recordRejectedAnswer?: (answer: RejectedAnswer) => Promise<void>;
   /**
-   * The kept text of a refused answer, if it was kept whole (not cut at the bound) and has not
-   * expired: what a role that asks for it gets to revise in its one repair. Production ledger only.
+   * The kept text of a refused answer, if it is the model's own answer (never a raw provider reply),
+   * was kept whole (not cut at the bound) and has not expired: what a role that asks for it gets to
+   * revise in its one repair. Production ledger only.
    */
   readonly readRejectedAnswerText?: (attempt: AttemptRef) => Promise<string | undefined>;
   /** Usage that arrived for an attempt already written off: recorded on its receipt only. */

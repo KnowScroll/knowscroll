@@ -202,3 +202,23 @@ logs the same.
 **Failure and recovery.** A job for a changed epoch, an unactivated offer or a superseded revision is
 skipped. A thrown error rolls back both transactions and pg-boss retries. A crash after the model call
 leaves the run in the attempt ledger under the job ID; the retry reads it and does not pay again.
+
+## Planner plan (#236, D-035)
+
+Personal Context may add the person's current Planner plan to the prepared context as
+`evidence.plan`: at most three opportunities, each with its move, topics, explanation unit, suited
+threads, formats, expiry and whether its target is admitted content. A plan is not evidence and
+creates none. Titles, purposes and briefs never enter the snapshot or the decision.
+
+The base features come first, from the intent and links alone. When the plan has an unexpired
+opportunity suited to the move, `domain/plan.ts` then lifts one feature (Intent for a vertical move,
+Continuity for a horizontal move) for the eligible candidates that tie for its best base value
+(within 0.01) and match an opportunity: `+0.15 × agreement`, capped at 1. Agreement is 1 for the same
+explanation in a format the opportunity lists when its target is admitted content, and 0.5 for a shared
+non-incidental topic in a listed format. Nothing is scaled down and a candidate below the best is never
+lifted, so a plan can only decide between candidates the current intent or link does not separate
+and cannot outrank a better match. Return and variant moves ignore plans. Each lifted candidate's
+evaluation in the decision carries `plan` with the revision, opportunity position, match, feature and
+the value before and after. When every same-topic candidate already has Intent 1 (a source with topics),
+the plan changes nothing among them. Capability state: implemented, CI-verified, run locally against the
+real model; not yet runtime-verified on dev.

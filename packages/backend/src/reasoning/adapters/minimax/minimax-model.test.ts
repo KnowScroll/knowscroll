@@ -93,7 +93,7 @@ describe('the MiniMax transport (fake fetch)', () => {
     expect(first).not.toContain('sk-cp-');
   });
 
-  it('asks MiniMax-M3.1-Flash for adaptive thinking at the requested effort, and the other models for none', () => {
+  it('asks MiniMax-M3.1-Flash for adaptive thinking at the requested effort, M3 for none, and sends the rest no thinking parameter', () => {
     const encoded = (model: MiniMaxSettings['model']) =>
       JSON.parse(
         new TextDecoder().decode(
@@ -108,10 +108,12 @@ describe('the MiniMax transport (fake fetch)', () => {
       thinking: { type: 'adaptive' },
       output_config: { effort: 'low' },
     });
-    for (const model of ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] as const) {
-      expect(encoded(model).thinking).toEqual({ type: 'disabled' });
+    // `disabled` is verified for M3 only; an unverified model is not sent a parameter it may refuse.
+    expect(encoded('MiniMax-M3').thinking).toEqual({ type: 'disabled' });
+    for (const model of ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] as const)
+      expect(encoded(model)).not.toHaveProperty('thinking');
+    for (const model of ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] as const)
       expect(encoded(model)).not.toHaveProperty('output_config');
-    }
   });
 
   it('gives a role that names no effort the low effort, so thinking cannot eat a small ceiling', () => {

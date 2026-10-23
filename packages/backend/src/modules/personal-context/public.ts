@@ -10,6 +10,7 @@ export type { Contribution, ContextQuery } from './domain/context.js';
 export type {
   ApplyProjectedEncounter,
   ReadExplorationSnapshot,
+  ReadCurrentPlan,
   ExplorationSnapshot,
   TopicStatistics,
   ReadRecentContextTopics,
