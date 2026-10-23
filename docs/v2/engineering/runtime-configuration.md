@@ -148,6 +148,6 @@ failed start, failed or overdue stop, or an unhandled error. Output is JSON diag
 stdout only (journald), one per line.
 
 `KS_PLANNER_ENABLED` (worker, 0/1; default 1 in world `local`, otherwise 0; dev sets 1): run the personal
-Planner. With `MiniMax-M3.1-Flash` it needs `KS_MINIMAX_REQUEST_TIMEOUT_MS` of at least 180000. Disabled jobs remain blocked without model reservation; explicit typed
+Planner. With `MiniMax-M3.1-Flash` it needs `KS_MINIMAX_REQUEST_TIMEOUT_MS=300000`. Disabled jobs remain blocked without model reservation; explicit typed
 `RequestPlanner` with `resumeRunId` resumes the same business run. This does not alter reasoning
 caps, quota or failure-brake policy and does not grant permission to use the #232 allowance.

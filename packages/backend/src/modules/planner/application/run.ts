@@ -4,10 +4,12 @@ import {
   opportunityIssue,
   PLANNER_POLICY,
   type Opportunity,
+  type PlannerProposal,
   type ValidationFacts,
 } from '../domain/proposal.js';
 import {
   parsePersonalRecordingPurpose,
+  type ProposeOutcome,
   type CheckPersonalRecordingRun,
   type PersonalRecordingPurpose,
 } from '../../../reasoning/public.js';
@@ -25,7 +27,7 @@ import type {
 import { encounteredUnits, prepareContext } from './context.js';
 import { recordMissingSupplyDemand } from './demand.js';
 import { ensureRun } from './request.js';
-import { PlannerJobSchema } from '../events.js';
+import { PlannerJobSchema, type PlannerJob } from '../events.js';
 import { plannerContextItems, plannerContextHashes, plannerRole } from './role.js';
 
 async function currentFacts(
@@ -233,7 +235,7 @@ async function finishUnadmitted(
       };
     });
     if (!header || accounting.kind !== 'not_found') return { kind: 'accounting_unavailable' } as const;
-    const { claimId: _c, claimUntil: _u, claimWakeClaimId: _w, normalWakeId: _n, ...released } = header;
+    const released = withoutClaim(header);
     await p.store.writeRun(scope, {
       ...released,
       status: kind === 'insufficient' ? 'insufficient' : 'blocked',
@@ -245,6 +247,219 @@ async function finishUnadmitted(
     return { kind: kind === 'insufficient' ? 'insufficient' : 'blocked' } as const;
   });
 }
+type Authority = Parameters<PlannerPorts['withPersonalScope']>[0];
+/** A run this delivery has claimed: frozen context, its two hashes and a live claim. */
+type ClaimedRun = PlannerRun & {
+  readonly recording: NonNullable<PlannerRun['recording']>;
+  readonly context: FrozenContext;
+  readonly contextSha256: string;
+  readonly modelContextSha256: string;
+  readonly claimId: string;
+  readonly claimUntil: string;
+};
+
+/** The run as it is once nobody holds it: no claim and no pending wake. */
+function withoutClaim<T extends PlannerRunHeader | PlannerRun>(run: T) {
+  const { normalWakeId: _wake, claimWakeClaimId: _claimWake, claimId: _claim, claimUntil: _until, ...released } = run;
+  return released;
+}
+
+/**
+ * Step 1 of a delivery: under the personal root, check that this delivery still owns the run, then
+ * freeze its context once and claim it for 1150 s with a delayed recovery wake. Every gate on the run
+ * header precedes any read of frozen bytes, intent, personal context or catalogue.
+ * No model call and no network wait happens here.
+ */
+async function claimRun(p: PlannerPorts, authority: Authority, payload: PlannerJob, original: number) {
+  return p.withPersonalScope(authority, async (scope) => {
+    const owner = await p.fenceOwn(scope);
+    if (owner.kind !== 'active') return { kind: 'universe_unavailable' } as const;
+    const gate = await p.fenceRecording(scope, original);
+    if (gate.kind !== 'recording') return { kind: 'recording_ineligible' } as const;
+    const cap = gate.scope,
+      header = await p.store.header(scope, payload.runId);
+    if (!header) return { kind: 'not_active' } as const;
+    if (!header.recording && header.hasRecordingMetadata) return { kind: 'recording_proof_unavailable' } as const;
+    if (
+      (header.recording?.source.generation ?? 1) !== original ||
+      (header.recording && header.recording.accountId !== owner.owner.accountId)
+    )
+      return { kind: 'generation_mismatch' } as const;
+    if (header.recording && header.hasContext && (!header.contextSha256 || !header.modelContextSha256))
+      return { kind: 'recording_proof_unavailable' } as const;
+    if (
+      payload.v === 1 &&
+      header.recording &&
+      (header.recording.source.kind !== 'legacy1' ||
+        header.claimId !== undefined ||
+        header.claimWakeClaimId !== undefined)
+    )
+      return { kind: 'obsolete_wake' } as const;
+    if (payload.expectedClaimId) {
+      if (
+        header.claimId !== payload.expectedClaimId ||
+        header.status !== 'prepared' ||
+        header.claimWakeClaimId !== payload.expectedClaimId
+      )
+        return { kind: 'obsolete_claim_wake' } as const;
+    } else if (payload.v === 2 ? header.normalWakeId !== payload.wakeId : header.normalWakeId !== undefined)
+      return { kind: 'obsolete_wake' } as const;
+    const stateHeader = await p.store.stateHeader(scope);
+    if (stateHeader.activeRunId !== header.id) return { kind: 'not_active' } as const;
+    if (header.claimUntil && Date.parse(header.claimUntil) > p.now().getTime()) {
+      if (payload.expectedClaimId) throw new Error('PLANNER_CLAIM_WAKE_EARLY');
+      return { kind: 'already_running' } as const;
+    }
+    if (header.status === 'blocked' || header.status === 'unknown')
+      return { kind: 'awaiting_explicit_resume' } as const;
+    const recording = header.recording ?? {
+      accountId: owner.owner.accountId,
+      source: { generation: 1, kind: 'legacy1' as const },
+    };
+    if (!p.enabled()) {
+      const released = withoutClaim(header);
+      await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'blocked_disabled' });
+      return { kind: 'blocked_disabled' } as const;
+    }
+    // The header gates above precede frozen bytes, intent, PC/catalogue reads and claim mutation.
+    const state = await p.store.state(scope);
+    if (state.desiredSource && state.desiredSource.generation !== original)
+      return { kind: 'generation_mismatch' } as const;
+    let context = header.hasContext ? await p.store.context(scope, header.id) : undefined;
+    if (context && context.snapshot.proofAvailability !== 'available') {
+      const released = withoutClaim(header);
+      await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'proof_unavailable' });
+      return { kind: 'proof_unavailable' } as const;
+    }
+    try {
+      context ??= await prepareContext(p, scope, state);
+      const hashes = plannerContextHashes(context, header.id, p.canonicalHash);
+      if (
+        header.hasContext &&
+        ((header.contextSha256 && header.contextSha256 !== hashes.contextSha256) ||
+          (header.modelContextSha256 && header.modelContextSha256 !== hashes.modelContextSha256))
+      )
+        throw new Error('PLANNER_FROZEN_CONTEXT_MISMATCH');
+      const { claimWakeClaimId: _wake, normalWakeId: _normal, ...rest } = header;
+      const run = {
+        ...rest,
+        recording,
+        revision: header.hasContext ? header.revision : state.desiredRevision,
+        status: 'prepared' as const,
+        context,
+        contextSha256: hashes.contextSha256,
+        modelContextSha256: hashes.modelContextSha256,
+        claimId: p.newId(),
+        claimUntil: new Date(p.now().getTime() + 1150000).toISOString(),
+      };
+      await p.store.writeRun(scope, run);
+      await p.enqueue(cap, run.id, {
+        expectedClaimId: run.claimId,
+        startAfter: new Date(Date.parse(run.claimUntil) + 1000),
+      });
+      return { kind: 'prepared', run } as const;
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !['PLANNER_CONTEXT_TOO_LARGE', 'PLANNER_PROOF_UNAVAILABLE'].includes(error.message)
+      )
+        throw error;
+      const released = withoutClaim(header);
+      const unavailable = error.message === 'PLANNER_PROOF_UNAVAILABLE';
+      await p.store.writeRun(scope, {
+        ...released,
+        status: unavailable ? 'blocked' : 'insufficient',
+        outcome: unavailable ? 'proof_unavailable' : 'context_bounds',
+      });
+      if (!unavailable) {
+        const { activeRunId: _active, ...idle } = state;
+        await p.store.writeState(scope, idle);
+      }
+      return { kind: unavailable ? 'proof_unavailable' : 'context_bounds' } as const;
+    }
+  });
+}
+
+/**
+ * Step 3 of a delivery: apply the model's outcome under the facade's single root, account and
+ * original-generation gate (no nested root, no second account gate). The ledger run closes while
+ * the owner row is still prepared and claimed, and the accepted plan, its supply demand and the
+ * owner status change commit with that close or not at all.
+ */
+async function applyProposal(
+  p: PlannerPorts,
+  authority: Authority,
+  purpose: PersonalRecordingPurpose,
+  run: ClaimedRun,
+  outcome: ProposeOutcome<PlannerProposal>,
+) {
+  const context = run.context;
+  return p.harness.withPersonalApply(authority, purpose, async (cap) => {
+    const scope = cap.personal,
+      state = await p.store.state(scope),
+      current = await p.store.header(scope, run.id);
+    if (!current || state.activeRunId !== run.id || current.claimId !== run.claimId || current.status !== 'prepared')
+      throw new Error('PLANNER_APPLY_OWNER_CHANGED');
+    const released = withoutClaim(current);
+    if (outcome.kind === 'unknown' || outcome.kind === 'quota_unavailable') {
+      await p.store.writeRun(scope, {
+        ...released,
+        status: outcome.kind === 'unknown' ? 'unknown' : 'blocked',
+        outcome: outcome.kind,
+      });
+      return { kind: outcome.kind };
+    }
+    if (outcome.kind === 'budget_exhausted' || outcome.kind === 'refused') {
+      await p.store.writeRun(scope, {
+        ...released,
+        status: current.outcome === 'unknown' ? 'unknown' : 'blocked',
+        outcome: outcome.kind === 'refused' ? outcome.reason : outcome.kind,
+      });
+      return { kind: 'blocked' };
+    }
+    if (!p.enabled()) {
+      await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'blocked_disabled' });
+      return { kind: 'blocked_disabled' };
+    }
+    let status: PlannerRun['status'] = 'rejected';
+    let accepted: readonly Opportunity[] = [];
+    if (outcome.kind === 'proposed') {
+      const fresh = await currentFacts(p, scope, context, outcome.output.opportunities);
+      if (!fresh) {
+        await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'proof_unavailable' });
+        return { kind: 'proof_unavailable' };
+      }
+      if (state.desiredRevision !== run.revision || fresh.revision !== context.contextRevision) status = 'stale';
+      else if (outcome.output.opportunities.every((x) => !opportunityIssue(x, fresh.facts))) {
+        accepted = diversify(outcome.output.opportunities);
+        status = 'accepted';
+      }
+    }
+    const closed = await p.harness.closePersonalRun(cap, {
+      runId: run.id,
+      state: status === 'accepted' ? 'completed' : 'cancelled',
+      recordingPurpose: purpose,
+    });
+    if (status === 'accepted' && closed !== 'closed') throw new Error('PLANNER_REASONING_CLOSE_FAILED');
+    if (status === 'accepted' && outcome.kind === 'proposed') {
+      await p.store.accept(scope, run, accepted, outcome.attemptId);
+      await recordMissingSupplyDemand(p, scope, {
+        runId: run.id,
+        language: context.intent.language,
+        alreadyMet: [...encounteredUnits(context)],
+        opportunities: accepted,
+      });
+    }
+    await p.store.writeRun(scope, { ...released, status, outcome: outcome.kind });
+    const { activeRunId: _a, ...idle } = state,
+      next = { ...idle, acceptedRevision: status === 'accepted' ? run.revision : state.acceptedRevision };
+    await p.store.writeState(scope, next);
+    if (state.desiredRevision > run.revision && state.desiredSource?.generation === cap.generation)
+      await ensureRun(p, cap, next);
+    return { kind: status };
+  });
+}
+
 export function makeRunPlanner(p: PlannerPorts): RunPlanner {
   return async (raw, signal) => {
     const payload = PlannerJobSchema.parse(raw),
@@ -258,115 +473,9 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
     if (retired.kind !== 'entered') return retired;
     if (retired.value !== undefined) return { kind: 'entered', value: retired.value };
     if (payload.kind === 'retire') throw new Error('PLANNER_RETIREMENT_COLLECTION_FORBIDDEN');
-    const preparation = await p.withPersonalScope(authority, async (scope) => {
-      const owner = await p.fenceOwn(scope);
-      if (owner.kind !== 'active') return { kind: 'universe_unavailable' } as const;
-      const gate = await p.fenceRecording(scope, original);
-      if (gate.kind !== 'recording') return { kind: 'recording_ineligible' } as const;
-      const cap = gate.scope,
-        header = await p.store.header(scope, payload.runId);
-      if (!header) return { kind: 'not_active' } as const;
-      if (!header.recording && header.hasRecordingMetadata) return { kind: 'recording_proof_unavailable' } as const;
-      if (
-        (header.recording?.source.generation ?? 1) !== original ||
-        (header.recording && header.recording.accountId !== owner.owner.accountId)
-      )
-        return { kind: 'generation_mismatch' } as const;
-      if (header.recording && header.hasContext && (!header.contextSha256 || !header.modelContextSha256))
-        return { kind: 'recording_proof_unavailable' } as const;
-      if (
-        payload.v === 1 &&
-        header.recording &&
-        (header.recording.source.kind !== 'legacy1' ||
-          header.claimId !== undefined ||
-          header.claimWakeClaimId !== undefined)
-      )
-        return { kind: 'obsolete_wake' } as const;
-      if (payload.expectedClaimId) {
-        if (
-          header.claimId !== payload.expectedClaimId ||
-          header.status !== 'prepared' ||
-          header.claimWakeClaimId !== payload.expectedClaimId
-        )
-          return { kind: 'obsolete_claim_wake' } as const;
-      } else if (payload.v === 2 ? header.normalWakeId !== payload.wakeId : header.normalWakeId !== undefined)
-        return { kind: 'obsolete_wake' } as const;
-      const stateHeader = await p.store.stateHeader(scope);
-      if (stateHeader.activeRunId !== header.id) return { kind: 'not_active' } as const;
-      if (header.claimUntil && Date.parse(header.claimUntil) > p.now().getTime()) {
-        if (payload.expectedClaimId) throw new Error('PLANNER_CLAIM_WAKE_EARLY');
-        return { kind: 'already_running' } as const;
-      }
-      if (header.status === 'blocked' || header.status === 'unknown')
-        return { kind: 'awaiting_explicit_resume' } as const;
-      const recording = header.recording ?? {
-        accountId: owner.owner.accountId,
-        source: { generation: 1, kind: 'legacy1' as const },
-      };
-      if (!p.enabled()) {
-        const { normalWakeId: _n, claimWakeClaimId: _w, claimId: _c, claimUntil: _u, ...released } = header;
-        await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'blocked_disabled' });
-        return { kind: 'blocked_disabled' } as const;
-      }
-      // The header gates above precede frozen bytes, intent, PC/catalogue reads and claim mutation.
-      const state = await p.store.state(scope);
-      if (state.desiredSource && state.desiredSource.generation !== original)
-        return { kind: 'generation_mismatch' } as const;
-      let context = header.hasContext ? await p.store.context(scope, header.id) : undefined;
-      if (context && context.snapshot.proofAvailability !== 'available') {
-        const { normalWakeId: _n, claimWakeClaimId: _w, claimId: _c, claimUntil: _u, ...released } = header;
-        await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'proof_unavailable' });
-        return { kind: 'proof_unavailable' } as const;
-      }
-      try {
-        context ??= await prepareContext(p, scope, state);
-        const hashes = plannerContextHashes(context, header.id, p.canonicalHash);
-        if (
-          header.hasContext &&
-          ((header.contextSha256 && header.contextSha256 !== hashes.contextSha256) ||
-            (header.modelContextSha256 && header.modelContextSha256 !== hashes.modelContextSha256))
-        )
-          throw new Error('PLANNER_FROZEN_CONTEXT_MISMATCH');
-        const { claimWakeClaimId: _wake, normalWakeId: _normal, ...rest } = header;
-        const run = {
-          ...rest,
-          recording,
-          revision: header.hasContext ? header.revision : state.desiredRevision,
-          status: 'prepared' as const,
-          context,
-          contextSha256: hashes.contextSha256,
-          modelContextSha256: hashes.modelContextSha256,
-          claimId: p.newId(),
-          claimUntil: new Date(p.now().getTime() + 1150000).toISOString(),
-        };
-        await p.store.writeRun(scope, run);
-        await p.enqueue(cap, run.id, {
-          expectedClaimId: run.claimId,
-          startAfter: new Date(Date.parse(run.claimUntil) + 1000),
-        });
-        return { kind: 'prepared', run } as const;
-      } catch (error) {
-        if (
-          !(error instanceof Error) ||
-          !['PLANNER_CONTEXT_TOO_LARGE', 'PLANNER_PROOF_UNAVAILABLE'].includes(error.message)
-        )
-          throw error;
-        const { normalWakeId: _n, claimWakeClaimId: _w, claimId: _c, claimUntil: _u, ...released } = header;
-        const unavailable = error.message === 'PLANNER_PROOF_UNAVAILABLE';
-        await p.store.writeRun(scope, {
-          ...released,
-          status: unavailable ? 'blocked' : 'insufficient',
-          outcome: unavailable ? 'proof_unavailable' : 'context_bounds',
-        });
-        if (!unavailable) {
-          const { activeRunId: _active, ...idle } = state;
-          await p.store.writeState(scope, idle);
-        }
-        return { kind: unavailable ? 'proof_unavailable' : 'context_bounds' } as const;
-      }
-    });
-    if (preparation.kind !== 'entered' || preparation.value.kind !== 'prepared') return preparation;
-    const run = preparation.value.run,
+    const claim = await claimRun(p, authority, payload, original);
+    if (claim.kind !== 'entered' || claim.value.kind !== 'prepared') return claim;
+    const run = claim.value.run,
       context = run.context;
     const purpose: PersonalRecordingPurpose = {
       version: 'personal-role-purpose.v1',
@@ -382,6 +491,7 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
       claimId: run.claimId,
     };
     if (context.facts.evidence.length === 0) return finishUnadmitted(p, authority, purpose, 'insufficient');
+    // Step 2: the model call, outside every database transaction.
     const outcome = await p.harness.proposePersonal(
       {
         run: {
@@ -400,78 +510,7 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
     );
     if (outcome.kind === 'refused' && outcome.reason === 'provider_unavailable')
       return finishUnadmitted(p, authority, purpose, 'provider_unavailable');
-    // Sole facade entry owns root/account/originalg and actual owner/ledger header proof. No nested
-    // root and no repeated Identity account gate. Close while owner is still prepared/claimed.
-    return p.harness.withPersonalApply(authority, purpose, async (cap) => {
-      const scope = cap.personal,
-        state = await p.store.state(scope),
-        current = await p.store.header(scope, run.id);
-      if (!current || state.activeRunId !== run.id || current.claimId !== run.claimId || current.status !== 'prepared')
-        throw new Error('PLANNER_APPLY_OWNER_CHANGED');
-      const {
-        claimId: _claim,
-        claimUntil: _until,
-        claimWakeClaimId: _wake,
-        normalWakeId: _normal,
-        ...released
-      } = current;
-      if (outcome.kind === 'unknown' || outcome.kind === 'quota_unavailable') {
-        await p.store.writeRun(scope, {
-          ...released,
-          status: outcome.kind === 'unknown' ? 'unknown' : 'blocked',
-          outcome: outcome.kind,
-        });
-        return { kind: outcome.kind };
-      }
-      if (outcome.kind === 'budget_exhausted' || outcome.kind === 'refused') {
-        await p.store.writeRun(scope, {
-          ...released,
-          status: current.outcome === 'unknown' ? 'unknown' : 'blocked',
-          outcome: outcome.kind === 'refused' ? outcome.reason : outcome.kind,
-        });
-        return { kind: 'blocked' };
-      }
-      if (!p.enabled()) {
-        await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'blocked_disabled' });
-        return { kind: 'blocked_disabled' };
-      }
-      let status: PlannerRun['status'] = 'rejected';
-      let accepted: readonly Opportunity[] = [];
-      if (outcome.kind === 'proposed') {
-        const fresh = await currentFacts(p, scope, context, outcome.output.opportunities);
-        if (!fresh) {
-          await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'proof_unavailable' });
-          return { kind: 'proof_unavailable' };
-        }
-        if (state.desiredRevision !== run.revision || fresh.revision !== context.contextRevision) status = 'stale';
-        else if (outcome.output.opportunities.every((x) => !opportunityIssue(x, fresh.facts))) {
-          accepted = diversify(outcome.output.opportunities);
-          status = 'accepted';
-        }
-      }
-      const closed = await p.harness.closePersonalRun(cap, {
-        runId: run.id,
-        state: status === 'accepted' ? 'completed' : 'cancelled',
-        recordingPurpose: purpose,
-      });
-      if (status === 'accepted' && closed !== 'closed') throw new Error('PLANNER_REASONING_CLOSE_FAILED');
-      if (status === 'accepted' && outcome.kind === 'proposed') {
-        await p.store.accept(scope, run, accepted, outcome.attemptId);
-        await recordMissingSupplyDemand(p, scope, {
-          runId: run.id,
-          language: context.intent.language,
-          alreadyMet: [...encounteredUnits(context)],
-          opportunities: accepted,
-        });
-      }
-      await p.store.writeRun(scope, { ...released, status, outcome: outcome.kind });
-      const { activeRunId: _a, ...idle } = state,
-        next = { ...idle, acceptedRevision: status === 'accepted' ? run.revision : state.acceptedRevision };
-      await p.store.writeState(scope, next);
-      if (state.desiredRevision > run.revision && state.desiredSource?.generation === cap.generation)
-        await ensureRun(p, cap, next);
-      return { kind: status };
-    });
+    return applyProposal(p, authority, purpose, run, outcome);
   };
 }
 export function makeReadPlannerOpportunities(p: PlannerReadPorts): ReadPlannerOpportunities {

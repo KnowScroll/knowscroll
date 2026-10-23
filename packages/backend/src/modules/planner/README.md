@@ -129,7 +129,7 @@ person's planned demand in `supply.requests`. A delivery for an earlier epoch is
 
 The role uses policy `personal-planner.v0`, role version `planner2`, 12,288 output tokens (thinking
 counts against them), one primary request and at most one repair. With `MiniMax-M3.1-Flash` a run
-takes 20 to 110 seconds, so the worker needs `KS_MINIMAX_REQUEST_TIMEOUT_MS` of at least 180000.
+takes 15 to 225 seconds, so the worker needs `KS_MINIMAX_REQUEST_TIMEOUT_MS=300000`. A call that spends the whole ceiling on thinking returns no text and the single repair usually recovers it.
 
 ## Entry points
 
