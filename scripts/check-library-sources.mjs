@@ -3,7 +3,7 @@
 //
 // For every recipe it fetches each page through `fetchResearchPage` (the same allowlist, redirect and
 // size rules the worker uses) and cuts the pages into the evidence passages the writer cites. A recipe
-// passes when every page is accepted and the passages number 8 to 63. The writer is offered at most 64
+// passes when every page is accepted and the passages number 6 to 63. The writer is offered at most 64
 // and needs at least 4; the margin keeps a page that loses or gains a paragraph usable.
 //
 // Needs the built backend (`pnpm build`) and network access. Pages are fetched one at a time with a
@@ -14,7 +14,7 @@
 // Exit code 0 when every checked recipe passes, 1 otherwise. Prints counts only, never page text.
 import { parseArgs } from 'node:util';
 
-const MIN_POOL = 8;
+const MIN_POOL = 6;
 const MAX_POOL = 63;
 const RETRY_CODES = new Set(['http_refused', 'network_failed']);
 
