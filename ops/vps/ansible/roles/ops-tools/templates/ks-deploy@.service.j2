@@ -1,0 +1,20 @@
+# #250: independent request lifetime; installation never enables or starts a request.
+[Unit]
+Description=KnowScroll one-use deployment request %i
+After=network-online.target postgresql@16-main.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+Slice=system.slice
+ExecStart=/usr/bin/flock --timeout 1800 /run/knowscroll/deploy.lock /usr/local/bin/ks managed-deploy %i
+Restart=no
+RuntimeMaxSec=infinity
+TimeoutStopSec=infinity
+SendSIGKILL=no
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+UMask=0077
+# No PartOf/BindsTo/Requires for SSH, Actions, caller cgroup or transport process.
