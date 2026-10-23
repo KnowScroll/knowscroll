@@ -5,8 +5,10 @@ import { apiContract, type ProblemCode } from '@knowscroll/contracts';
 import {
   READ_OWN_GEOGRAPHY,
   READ_OWN_DELTAS,
+  READ_OWN_EMERGING,
   type ReadOwnGeography,
   type ReadOwnDeltas,
+  type ReadOwnEmerging,
 } from '@knowscroll/backend/modules/geography';
 import { authorityOf } from './callers.js';
 import { problem } from './problems.js';
@@ -19,12 +21,13 @@ const refusalProblems: Record<ReadRefusal, ProblemCode> = {
   selection_not_found: 'NOT_FOUND',
 };
 
-/** Current own-world reads. Neither route requests cartography or acknowledges a transition. */
+/** Current own-world reads. No route requests cartography or acknowledges a transition. */
 @Controller()
 export class GeographyController {
   constructor(
     @Inject(READ_OWN_GEOGRAPHY) private readonly readGeography: ReadOwnGeography,
     @Inject(READ_OWN_DELTAS) private readonly readDeltas: ReadOwnDeltas,
+    @Inject(READ_OWN_EMERGING) private readonly readEmerging: ReadOwnEmerging,
   ) {}
 
   @Implement(apiContract.geography.read)
@@ -42,6 +45,15 @@ export class GeographyController {
       const result = await this.readDeltas(authorityOf(admittedCaller(request)), input);
       if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
       return result.deltas;
+    });
+  }
+
+  @Implement(apiContract.geography.emerging)
+  emergingRoute(@Req() request: Request) {
+    return implement(apiContract.geography.emerging).handler(async ({ input }) => {
+      const result = await this.readEmerging(authorityOf(admittedCaller(request)), input);
+      if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
+      return result.emerging;
     });
   }
 }

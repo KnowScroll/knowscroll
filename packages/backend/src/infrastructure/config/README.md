@@ -35,10 +35,13 @@ work remains durable and resumes only through an explicit same-business-run requ
 optional semantic assessment in the Composer buffer job. Off, the job still prepares buffers from the
 deterministic ranking and makes no model call. Dev sets it to 1. It does not change reasoning caps.
 
-`KS_CARTOGRAPHER_ENABLED` (#237) accepts0/1 and defaults0. It is a feature gate only. Geography's
-worker additionally requires an independently reviewed economic-permit callback, default false;
-credentials, flag1 or a deployment never grant paid Cartographer calls. No actual host/env setting
-or role allowance is changed by this source declaration.
+`KS_CARTOGRAPHER_ENABLED` (#237) accepts 0/1 and defaults 0. Set it to 1 on the worker to let
+reading form places (D-038). It is the only switch of the role: spend is bounded by the shared
+reasoning budgets and the role's failure brake, not by a second permit. The role needs
+`KS_REASONING_PROVIDER=minimax` and `MINIMAX_API_KEY` on that worker. With a provider, code still
+forms every place the rules entitle when the model fails or answers badly. Without one, or with the
+switch off, no model run starts: a claimed run applies the rules (provider missing) or is released
+(`disabled`), and later reading starts a new run, so nobody is stranded.
 
 Connected Cutroom worker source is off by default (`KS_CUTROOM_COMMISSIONING_ENABLED=0`). Enabling
 it is permitted only for `dev`/`stage` and requires every explicit dependency:
