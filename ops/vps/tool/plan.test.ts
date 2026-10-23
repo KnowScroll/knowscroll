@@ -17,11 +17,6 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
-  parseDeploymentRequest,
-  parseDeploymentIntent,
-  deploymentWindowLive,
-  deploymentMatches,
-  type DeploymentIntent,
   activationPlan,
   activateAfterSchemaCheck,
   afterFailedDeploy,
@@ -683,7 +678,7 @@ test('#228 /health must name the world and commit, and for v2 the received artif
 // ------------------------------------------------------------------------------------------------
 
 /** An in-memory release for linkStaysInside: folders, files and links by relative path. */
-function fakeTree(entries: Record<string, string | { link: string }>): FsView {
+function fakeTree(entries: Record<string, string | { link: string } | 'dir'>): FsView {
   return {
     kind(rel) {
       if (rel === '') return 'dir';
@@ -1007,136 +1002,4 @@ test('#228 m4: a release checksum file is exactly one line naming exactly that t
   assert.equal(checksumFor(`${h}  other.tar\n`, tar).ok, false, 'another file');
   assert.equal(checksumFor(`${h} ${tar}\n`, tar).ok, false, 'one space');
   assert.equal(checksumFor('', tar).ok, false);
-});
-
-function admissionFixture(): DeploymentIntent {
-  return {
-    version: 'ks-deploy-request.v1',
-    requestId: '11111111-1111-4111-8111-111111111111',
-    world: 'dev',
-    mode: 'deploy',
-    commit: A,
-    intentVersion: 'ks-deploy-intent.v1',
-    nonce: '22222222-2222-4222-8222-222222222222',
-    bootId: '33333333-3333-4333-8333-333333333333',
-    unit: 'ks-deploy@11111111-1111-4111-8111-111111111111.service',
-    pid: 123,
-    startTicks: '456',
-    cgroup: '/system.slice/ks-deploy@11111111-1111-4111-8111-111111111111.service',
-    device: '8:1',
-    inode: '42',
-    toolSha256: '1'.repeat(64),
-    unitSha256: '2'.repeat(64),
-    artifactSha256: '3'.repeat(64),
-    artifactBytes: 1024,
-    repository: 'KnowScroll/knowscroll',
-    workflowRunId: 10,
-    workflowRunAttempt: 1,
-    workflowSha256: '4'.repeat(64),
-    pushHead: A,
-    proofSha256: '5'.repeat(64),
-    reviewSha256: '6'.repeat(64),
-    expectedCurrent: B,
-    expectedPrevious: null,
-    notBeforeUtc: '2026-10-23T00:00:00.000Z',
-    expiresUtc: '2026-10-23T00:00:01.000Z',
-    notBeforeMono: 100,
-    expiresMono: 1100,
-  };
-}
-test('#250 admission codecs close fields, units, origins, bounds and independent clocks', () => {
-  const i = admissionFixture();
-  assert.deepEqual(parseDeploymentIntent(i), i);
-  const { version, requestId, world, mode, commit } = i;
-  const r = { version, requestId, world, mode, commit };
-  assert.deepEqual(parseDeploymentRequest(r), r);
-  for (const bad of [
-    { ...r, world: 'live' },
-    { ...r, mode: 'rollback' },
-    { ...r, extra: true },
-    { ...r, requestId: '../a' },
-    { ...r, commit: A.toUpperCase() },
-  ])
-    assert.equal(parseDeploymentRequest(bad), undefined);
-  for (const patch of [
-    { extra: true },
-    { artifactBytes: 0 },
-    { artifactBytes: 16 * 1024 ** 3 + 1 },
-    { pid: 0 },
-    { startTicks: '01' },
-    { pushHead: B },
-    { repository: 'foreign/repo' },
-    { unit: 'ssh.service' },
-    { cgroup: '/user.slice/a' },
-    { expectedCurrent: undefined },
-    { workflowRunId: 1.5 },
-    { notBeforeMono: -1 },
-    { expiresMono: 1101 },
-    { expiresUtc: '2026-10-23T00:00:00.000Z' },
-    { expiresUtc: '2026-10-23T00:31:00.000Z' },
-  ])
-    assert.equal(parseDeploymentIntent({ ...i, ...patch }), undefined);
-  assert.equal(deploymentWindowLive(i, Date.parse(i.notBeforeUtc), 100), true);
-  for (const [utc, mono] of [
-    [Date.parse(i.expiresUtc), 100],
-    [Date.parse(i.notBeforeUtc), 1100],
-    [Date.parse(i.notBeforeUtc) - 1, 100],
-    [Date.parse(i.notBeforeUtc), 99],
-  ])
-    assert.equal(deploymentWindowLive(i, utc!, mono!), false);
-  const identity = {
-    bootId: i.bootId,
-    unit: i.unit,
-    pid: i.pid,
-    startTicks: i.startTicks,
-    cgroup: i.cgroup,
-    device: i.device,
-    inode: i.inode,
-    toolSha256: i.toolSha256,
-    unitSha256: i.unitSha256,
-  };
-  assert.equal(deploymentMatches(r, i, identity), true);
-  for (const key of Object.keys(identity))
-    assert.equal(deploymentMatches(r, i, { ...identity, [key]: 'different' }), false);
-  assert.equal(deploymentMatches({ ...r, world: 'stage' }, i, identity), false);
-});
-test('#250 final admission is after verified dump; expired admission cannot invoke DDL', () => {
-  const calls: string[] = [];
-  assert.throws(
-    () =>
-      prepareV2Deployment({
-        quiesce() {
-          calls.push('quiesce');
-        },
-        dump() {
-          calls.push('verified_dump');
-          return 'dump';
-        },
-        beforeMigrate() {
-          calls.push('expired');
-          throw new Error('expired');
-        },
-        migrate() {
-          calls.push('DDL');
-        },
-      }),
-    /expired/,
-  );
-  assert.deepEqual(calls, ['quiesce', 'verified_dump', 'expired']);
-  const success: string[] = [];
-  prepareV2Deployment({
-    quiesce() {
-      success.push('quiesce');
-    },
-    dump() {
-      success.push('dump');
-    },
-    beforeMigrate() {
-      success.push('durable_may_start');
-    },
-    migrate() {
-      success.push('same_invocation_DDL');
-    },
-  });
-  assert.deepEqual(success, ['quiesce', 'dump', 'durable_may_start', 'same_invocation_DDL']);
 });

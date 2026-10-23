@@ -18,7 +18,7 @@ case "${1:-}" in
     [ "$#" -eq 3 ] || refuse "usage: $1 <world> <commit>"
     [ "$2" = "$allowed" ] || refuse "this key deploys only $allowed"
     is_commit "$3" || refuse "the commit must be 40 lowercase hex characters"
-    exec sudo -n /usr/local/bin/ks request-deploy "$1" "$2" "$3"
+    exec sudo -n /usr/bin/flock --timeout 1800 /run/knowscroll/deploy.lock /usr/local/bin/ks "$1" "$2" "$3"
     ;;
   *) refuse "only deploy, promote or has-release" ;;
 esac
