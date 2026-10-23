@@ -1,6 +1,31 @@
 import { z } from 'zod';
-import type { RecordingScopeTx } from '../../identity/public.js';
-import type { GeographyPorts, GeographyState, MaterialGeographyChange, RequestCartography } from './ports.js';
+import type { PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js';
+import type {
+  GeographyAccountingHeader,
+  GeographyPorts,
+  GeographyState,
+  MaterialGeographyChange,
+  RequestCartography,
+} from './ports.js';
+/**
+ * True when the active run has no live claim and only waits for a wake: queued or prepared with a
+ * released or expired claim, or parked by older code because its role was switched off or its
+ * provider missing. Those two waited for an operator; the next material change restarts them.
+ */
+async function waitsForWake(
+  p: Pick<GeographyPorts, 'store' | 'now'>,
+  scope: PersonalScopeTx,
+  header: GeographyAccountingHeader,
+): Promise<boolean> {
+  if (header.status === 'blocked') {
+    const outcome = (await p.store.header(scope, header.id))?.outcome;
+    return outcome === 'disabled' || outcome === 'provider_unavailable';
+  }
+  if (header.status !== 'queued' && header.status !== 'prepared') return false;
+  const released = !header.claimId && !header.claimUntil;
+  const expired = !!header.claimId && !!header.claimUntil && Date.parse(header.claimUntil) <= p.now().getTime();
+  return released || expired;
+}
 /** Immutable birth identity from a current accepted source, never a resumed prepare. */
 export async function ensureCartography(
   p: Pick<GeographyPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement' | 'now'>,
@@ -12,12 +37,7 @@ export async function ensureCartography(
     if (state.desiredSource?.generation === cap.generation) {
       const h = await p.store.accountingHeader(cap.personal, state.activeRunId);
       if (h?.generation === cap.generation && h.accountId === root.accountId) {
-        if (
-          ['queued', 'prepared'].includes(h.status) &&
-          ((!h.claimId && !h.claimUntil) ||
-            (h.claimId && h.claimUntil && Date.parse(h.claimUntil) <= p.now().getTime()))
-        )
-          await p.enqueue(cap, h.id);
+        if (await waitsForWake(p, cap.personal, h)) await p.enqueue(cap, h.id);
       } else await p.enqueueRetirement(cap, state.activeRunId);
     }
     return state;

@@ -141,7 +141,13 @@ export interface GeographyStore {
   accountingHeader(scope: PersonalScopeTx, id: string): Promise<GeographyAccountingHeader | undefined>;
   context(scope: RecordingScopeTx, id: string): Promise<GeographyContext | undefined>;
   retire(scope: PersonalScopeTx, id: string): Promise<void>;
-  finishUnadmitted(scope: PersonalScopeTx, id: string, claimId: string): Promise<void>;
+  /** Settles the exact claimed run the harness refused before admitting it, and releases its claim. */
+  finishUnadmitted(
+    scope: PersonalScopeTx,
+    id: string,
+    claimId: string,
+    settlement: { readonly status: 'accepted' | 'insufficient' | 'stale'; readonly outcome: string },
+  ): Promise<void>;
   consumeNormalWake(scope: PersonalScopeTx, id: string, wakeId: string): Promise<boolean>;
   setNormalWake(scope: PersonalScopeTx, id: string, wakeId: string): Promise<boolean>;
   state(scope: PersonalScopeTx): Promise<GeographyState>;

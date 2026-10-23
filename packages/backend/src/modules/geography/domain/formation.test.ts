@@ -1,9 +1,13 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 import { CONCEPTS } from '../../content/public.js';
-import { completeProposal, requiredChanges } from './formation.js';
+import { compactSupports } from './compaction.js';
+import { reconcileWithRules, requiredChanges } from './formation.js';
 import {
+  FORMATION,
   MAX_PROPOSAL_OPERATIONS,
+  activityFor,
+  formationEligible,
   proposalIssue,
   semanticKey,
   type Candidate,
@@ -27,7 +31,7 @@ const candidates: Candidate[] = CONCEPTS.flatMap((topic, index): Candidate[] => 
     conceptId,
     parentKey,
     truthStatus: 'factual',
-    labels: [conceptId],
+    labels: [conceptId, `${conceptId} (canonical meaning)`],
   });
   if (topic.parent === null)
     return [slot('system', topic.id, 'universe', 0), slot('star', topic.id, semanticKey('system', topic.id), 1)];
@@ -156,7 +160,7 @@ describe('what the formation rules require, without a model', () => {
   });
 });
 
-describe('completing a model proposal with what the rules require', () => {
+describe('reconciling a model proposal with what the rules require', () => {
   const full = facts([support('a'), support('b', hemispheres), support('c')]);
   const only = (...kinds: string[]): GeographyProposal => ({
     version: 'cartographer-proposal.v1',
@@ -164,19 +168,187 @@ describe('completing a model proposal with what the rules require', () => {
   });
 
   it('adds the planet and regions a model left out, parents first', () => {
-    const completed = completeProposal(only('create_system', 'establish_star'), full);
-    expect(kindsOf(completed)).toEqual(['create_system', 'establish_star', 'form_planet', 'add_region', 'add_region']);
-    expect(proposalIssue(completed, full)).toBeUndefined();
+    const plan = reconcileWithRules(only('create_system', 'establish_star'), full);
+    expect(plan.source).toBe('model_with_rules');
+    expect(kindsOf(plan.proposal)).toEqual([
+      'create_system',
+      'establish_star',
+      'form_planet',
+      'add_region',
+      'add_region',
+    ]);
+    expect(proposalIssue(plan.proposal, full)).toBeUndefined();
   });
 
-  it('returns a proposal that already covers the rules unchanged', () => {
+  it('keeps a proposal that already covers the rules as the model proposed it', () => {
     const proposal = requiredChanges(full);
-    expect(completeProposal(proposal, full)).toBe(proposal);
+    expect(reconcileWithRules(proposal, full)).toEqual({ proposal, source: 'model' });
   });
 
   it('fills an empty proposal from the rules alone', () => {
-    expect(completeProposal({ version: 'cartographer-proposal.v1', operations: [] }, full)).toEqual(
-      requiredChanges(full),
+    expect(reconcileWithRules({ version: 'cartographer-proposal.v1', operations: [] }, full)).toEqual({
+      proposal: requiredChanges(full),
+      source: 'rules',
+    });
+  });
+
+  it('applies the rules alone when the model touches a place the rules also change', () => {
+    const quietSupports = [
+      support('a', tilt, seasons, '2026-08-01T00:00:00.000Z'),
+      support('b', tilt, seasons, '2026-08-01T00:00:00.000Z'),
+    ];
+    const system = candidates.find((candidate) => candidate.key === semanticKey('system', 'earth'))!;
+    const established: Place = {
+      ...system,
+      label: system.labels[0]!,
+      objectRevision: 1,
+      originTransitionId: '20000000-0000-4000-8000-000000000001',
+      activity: { availability: 'available', state: 'active' },
+    };
+    const aged = facts(quietSupports, [established]);
+    const relabel: GeographyProposal = {
+      version: 'cartographer-proposal.v1',
+      operations: [
+        {
+          kind: 'revise_label',
+          objectId: system.id,
+          label: system.labels[1]!,
+          supportRefs: quietSupports.map((entry) => entry.ref),
+        },
+      ],
+    };
+    expect(proposalIssue(relabel, aged)).toBeUndefined();
+    const plan = reconcileWithRules(relabel, aged);
+    expect(plan.source).toBe('rules');
+    expect(kindsOf(plan.proposal)).toEqual(['establish_star', 'set_activity']);
+    expect(proposalIssue(plan.proposal, aged)).toBeUndefined();
+  });
+
+  it('applies the rules alone, capped at one delta, when the combination would not fit', () => {
+    const everything = CONCEPTS.filter((topic) => topic.parent !== null).flatMap((topic) =>
+      ['u1', 'u2', 'u3'].flatMap((unit) =>
+        topic.facets.slice(0, 2).map((facetEntry) => support(`${topic.id}-${unit}`, facetEntry.id, topic.id)),
+      ),
     );
+    // The last region's whole chain is established, so the model's one operation is valid alone.
+    const region = candidates
+      .filter(
+        (candidate) => candidate.kind === 'region' && everything.some((entry) => entry.facetId === candidate.conceptId),
+      )
+      .at(-1)!;
+    const planet = candidates.find((candidate) => candidate.key === region.parentKey)!;
+    const system = candidates.find((candidate) => candidate.key === planet.parentKey)!;
+    const star = candidates.find((candidate) => candidate.kind === 'star' && candidate.conceptId === system.conceptId)!;
+    const established: Place[] = [system, star, planet].map((candidate) => ({
+      ...candidate,
+      label: candidate.labels[0]!,
+      objectRevision: 1,
+      originTransitionId: '20000000-0000-4000-8000-000000000001',
+      activity: { availability: 'available', state: 'active' },
+    }));
+    const rich = facts(everything, established);
+    const model: GeographyProposal = {
+      version: 'cartographer-proposal.v1',
+      operations: [
+        {
+          kind: 'add_region',
+          key: region.key,
+          label: region.labels[0]!,
+          truthStatus: 'factual',
+          supportRefs: everything.filter((entry) => entry.facetId === region.conceptId).map((entry) => entry.ref),
+        },
+      ],
+    };
+    expect(proposalIssue(model, rich)).toBeUndefined();
+    const plan = reconcileWithRules(model, rich);
+    expect(plan.source).toBe('rules');
+    expect(plan.proposal.operations).toHaveLength(MAX_PROPOSAL_OPERATIONS);
+    expect(proposalIssue(plan.proposal, rich)).toBeUndefined();
+  });
+});
+
+describe('compacting supports for one frozen context', () => {
+  const planetTopics = CONCEPTS.filter((topic) => topic.parent !== null);
+  // Per planet the rules need its newest support per facet plus enough further units.
+  const keepsEverythingTheRulesRead = planetTopics.reduce(
+    (sum, topic) => sum + topic.facets.length + FORMATION.planetUnits,
+    0,
+  );
+  const day = 86_400_000;
+
+  test.prop([
+    fc.array(
+      fc.record({
+        unit: fc.constantFrom(...Array.from({ length: 12 }, (_, n) => `unit-${n}`)),
+        topic: fc.constantFrom(...planetTopics),
+        facet: fc.nat(2),
+        ageDays: fc.nat(120),
+      }),
+      { maxLength: 400 },
+    ),
+  ])('changes no place the rules form and no activity they set', (picks) => {
+    const byRef = new Map(
+      picks
+        .map(({ unit, topic, facet, ageDays }) =>
+          support(
+            unit,
+            topic.facets[facet % topic.facets.length]!.id,
+            topic.id,
+            new Date(Date.parse(NOW) - ageDays * day).toISOString(),
+          ),
+        )
+        .map((entry) => [entry.ref, entry] as const),
+    );
+    const all = [...byRef.values()];
+    const kept = compactSupports(
+      all.map((entry) => ({ support: entry, bytes: 1_000 })),
+      { count: keepsEverythingTheRulesRead, bytes: Number.MAX_SAFE_INTEGER },
+    ).map((entry) => entry.support);
+    expect(kept.length).toBeLessThanOrEqual(keepsEverythingTheRulesRead);
+    const before = facts(all),
+      after = facts(kept);
+    for (const candidate of candidates) {
+      expect(formationEligible(after, candidate)).toBe(formationEligible(before, candidate));
+      expect(activityFor(after, candidate)).toBe(activityFor(before, candidate));
+    }
+    expect(requiredChanges(after).operations.map((operation) => operation.kind)).toEqual(
+      requiredChanges(before).operations.map((operation) => operation.kind),
+    );
+  });
+
+  it('keeps the newest support of each facet first, then further units, within the count and bytes', () => {
+    const entries = [
+      support('old-1', tilt, seasons, '2026-01-01T00:00:00.000Z'),
+      support('new-1', tilt, seasons, '2026-10-01T00:00:00.000Z'),
+      support('new-2', tilt, seasons, '2026-10-02T00:00:00.000Z'),
+      support('only-limits', limits, seasons, '2026-03-01T00:00:00.000Z'),
+      support('third-unit', hemispheres, seasons, '2026-02-01T00:00:00.000Z'),
+    ].map((entry) => ({ support: entry, bytes: 100 }));
+    const refs = (list: readonly { support: { ref: string } }[]) => list.map((entry) => entry.support.ref);
+    // Facet tier: the newest per facet (new-2, only-limits, third-unit). Unit tier then needs no more.
+    expect(refs(compactSupports(entries, { count: 3, bytes: 10_000 }))).toEqual(
+      refs([entries[2]!, entries[3]!, entries[4]!]),
+    );
+    // A byte budget for two keeps the two newest facets.
+    expect(refs(compactSupports(entries, { count: 10, bytes: 200 }))).toEqual(refs([entries[2]!, entries[3]!]));
+    // Within budget nothing changes, and order is the input's.
+    expect(compactSupports(entries, { count: 10, bytes: 10_000 })).toBe(entries);
+  });
+
+  it('is deterministic whatever the input order', () => {
+    const entries = planetTopics
+      .flatMap((topic) =>
+        topic.facets.flatMap((facetEntry, index) =>
+          ['a', 'b', 'c'].map((unit) =>
+            support(`${unit}-${index}`, facetEntry.id, topic.id, `2026-10-0${1 + index}T00:00:00.000Z`),
+          ),
+        ),
+      )
+      .map((entry) => ({ support: entry, bytes: 400 }));
+    const budget = { count: 100, bytes: 360_000 };
+    const refs = (list: readonly { support: { ref: string } }[]) => list.map((entry) => entry.support.ref).sort();
+    const forward = compactSupports(entries, budget);
+    expect(forward.length).toBeLessThanOrEqual(100);
+    expect(refs(compactSupports([...entries].reverse(), budget))).toEqual(refs(forward));
   });
 });
