@@ -18,6 +18,9 @@ export const supplyStore: SupplyStore = {
       id: r.id,
       command: r.command as unknown as Demand['command'],
       status: r.state as Demand['status'],
+      ...(r.planner_run_id !== null && r.planner_slot !== null
+        ? { planned: { runId: r.planner_run_id, slot: r.planner_slot } }
+        : {}),
       requestRevision: r.request_revision,
       revision: r.revision,
       decision: r.decision as Demand['decision'],
@@ -40,6 +43,9 @@ export const supplyStore: SupplyStore = {
         id: d.id,
         command: JSON.stringify(d.command),
         state: d.status,
+        origin: d.planned ? 'planner' : 'person',
+        planner_run_id: d.planned?.runId ?? null,
+        planner_slot: d.planned?.slot ?? null,
         request_revision: d.requestRevision,
         revision: d.revision,
         decision: d.decision,
@@ -70,7 +76,7 @@ export const supplyStore: SupplyStore = {
       .where('universe_id', '=', scope.authority.universeId)
       .where('privacy_epoch', '=', scope.authority.privacyEpoch)
       .where('id', '=', d.id)
-      .where('state', '=', 'requested')
+      .where('state', 'in', ['requested', 'deferred'])
       .executeTakeFirst();
     if (changed.numUpdatedRows !== 1n) throw new Error('SUPPLY_REQUEST_NOT_OPEN');
   },
@@ -84,6 +90,19 @@ export const supplyStore: SupplyStore = {
     );
     const actual = r.rows[0]!.id;
     return { id: actual, joined: actual !== id };
+  },
+  async findOpenPlanned(scope, brief) {
+    const row = await transactionOf(scope)
+      .selectFrom('supply.requests')
+      .select(['id', 'state'])
+      .where('universe_id', '=', scope.authority.universeId)
+      .where('privacy_epoch', '=', scope.authority.privacyEpoch)
+      .where('origin', '=', 'planner')
+      .where('state', 'in', ['deferred', 'ready'])
+      .where(sql<boolean>`brief = ${JSON.stringify(brief)}::jsonb`)
+      .orderBy('created_at')
+      .executeTakeFirst();
+    return row ? { id: row.id, state: row.state as 'deferred' | 'ready' } : undefined;
   },
   async closeWork(scope, id) {
     await transactionOf(scope)

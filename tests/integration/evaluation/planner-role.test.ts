@@ -59,6 +59,7 @@ describe('Personal Planner role evaluation (synthetic context, CI model, real le
         evidence: [{ ref: 'fixture:qualified:1', explanationUnitId: 'fixture-unit', topicIds: ['fixture.attention'] }],
         inventory: [],
         hiddenAssetIds: [],
+        encounteredUnitIds: [],
       },
       currentPlan: [],
       memory: [],

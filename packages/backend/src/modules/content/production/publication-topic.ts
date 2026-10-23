@@ -14,7 +14,7 @@ import { coverageHeadPorts } from '../adapters/coverage-store.js';
 import { inAdmissionTransaction } from '../adapters/postgres-store.js';
 import { admitRecipeCoverage } from '../application/admit-recipe-coverage.js';
 import { validateTopics } from '../domain/discovery.js';
-import { WRITER_PROMPT_VERSION } from './roles.js';
+import { WRITER_PROMPT_VERSION } from './writer.js';
 import { explanationUnitFor, parseScrollTopic, SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
 
 const ATTRIBUTION_VERSION = 'published-scroll-brief-taxonomy.v1';

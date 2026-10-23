@@ -282,7 +282,6 @@ export interface ContentScrollProductionRuns {
   asset_id: string | null;
   asset_revision: number | null;
   claims: Json | null;
-  claims_run_id: string;
   completed_at: Timestamp | null;
   created_at: Generated<Timestamp>;
   id: string;
@@ -1276,6 +1275,19 @@ export interface ReasoningProductionAttempts {
   written_off_reason: string | null;
 }
 
+export interface ReasoningProductionRejectedAnswers {
+  answer_chars: number;
+  answer_kind: string;
+  answer_text: string;
+  attempt_id: string;
+  expires_at: Timestamp;
+  issues: Json;
+  reason: string;
+  recorded_at: Generated<Timestamp>;
+  scope_id: string;
+  truncated: boolean;
+}
+
 export interface ReasoningProductionRequests {
   attempt_id: string;
   body: Buffer;
@@ -1497,6 +1509,9 @@ export interface SupplyRequests {
   created_at: Timestamp;
   decision: string;
   id: string;
+  origin: Generated<string>;
+  planner_run_id: string | null;
+  planner_slot: number | null;
   privacy_epoch: number;
   reason: string | null;
   request_revision: number;
@@ -1612,6 +1627,7 @@ export interface DB {
   "reasoning.cutroom_settlements": ReasoningCutroomSettlements;
   "reasoning.external_attempts": ReasoningExternalAttempts;
   "reasoning.production_attempts": ReasoningProductionAttempts;
+  "reasoning.production_rejected_answers": ReasoningProductionRejectedAnswers;
   "reasoning.production_requests": ReasoningProductionRequests;
   "reasoning.production_runs": ReasoningProductionRuns;
   "reasoning.production_scopes": ReasoningProductionScopes;

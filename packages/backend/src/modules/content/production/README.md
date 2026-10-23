@@ -1,263 +1,85 @@
 # Scroll production
 
-Writer roles belong to content (blueprint §§11,15); `production/` owns their briefs, schemas,
-semantic checks, frozen research and application. `infrastructure/research` owns the public HTTP
-boundary. The shared reasoning engine retains transport, admission and the external attempt ledger.
+Writer roles belong to content (blueprint §§11, 15). `production/` owns the evidence packaging, the
+writer's instructions and checks, the job state and the application of a result.
+`infrastructure/research` owns the public HTTP boundary, and the shared reasoning engine keeps
+transport, admission and the external attempt ledger.
 
-| Stored table                                   | Role                                                                                                                               | Main query                             | Lifetime                                                               |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
-| `content.scroll_production_runs` (0015)        | Authoritative, private topic/version job; research pages/passages, accepted claims, code-only outcomes, draft and revision pointer | Unique `(topic, policy_version)`, UUID | Nonpersonal public supply; retained for correction, no account erasure |
-| `content.asset_revisions` / `asset_provenance` | Immutable admitted consumer bytes / internal evidence and generation lineage                                                       | Asset + revision                       | Shared content; no account erasure                                     |
-| `reasoning.production_*` (0013)                | Role runs and every possible paid attempt                                                                                          | Stable claims/writer run UUID          | Harness retention and liability policy                                 |
+Status: the pipeline below is **implemented** and has been **runtime-verified** with real
+`MiniMax-M3.1-Flash` calls against a local database (summary in the pull request for #232). It is
+not yet running on dev.
 
-`makeProduceScroll` reserves a topic/version, retrieves code-selected public pages, freezes original
-plain-text passages with content-derived IDs, asks the claims role, asks the writer, and publishes.
-The claims role selects offered evidence IDs; code hydrates exact stored characters. Both role
-schemas include semantic checks inside the harness's single repair allowance: at most two claims requests plus two writer requests, **four total**.
-Writer output is canonical `scroll-draft.v1`; `compileDraft` checks support bindings, numbers, copying,
-structure and simulation honesty, then `admitDocument` checks the exact stored consumer bytes. Code
-also refuses source names/web addresses in reader text and unbound narrative blocks. Numerical
-checks and exact quotations do not prove semantic entailment: human sampling is still required.
+## The pipeline
 
-No jobs are registered yet: the worker operator triggers this bounded sequence. Lock order:
-production root → production job row → asset advisory lock → asset rows. Short transactions freeze
-or apply data; HTTP/model waits never hold them. Each stage closes its harness run in the same
-transaction as its accepted domain effect. Every rejection and final write requires its exact expected stage under the root and job lock.
-A delayed research/closed-role delivery reports the advanced job instead of rejecting or invoking
-its next stage; a concurrent/late result cannot apply after a terminal state. `--resume` explicitly continues the same frozen research, accepted claims and stable role
-run IDs through the ledger after a crash; no new business run or hidden model retry is created.
-An unknown attempt stays unknown and is never resent. Ordinary reruns report existing state;
-terminal rejection stays rejected. A changed prompt, source list or policy requires a reviewed
-version bump, never editing the old job or published revision.
+```text
+operator ─▶ job (research) ─▶ evidence passages ─▶ writer (1 call + 1 repair) ─▶ compile ─▶ publish
+```
+
+1. **Job.** `makeProduceScroll` reserves one job per `(topic, SCROLL_PRODUCTION_VERSION)` in
+   `content.scroll_production_runs`, then fetches the recipe's public pages by code, never by the
+   model, and freezes them on the job.
+2. **Evidence** (`evidence.ts`). The frozen page text is cut into passages of 40 to 600 characters
+   at sentence ends and numbered `e1`, `e2`, … (at least four, at most 64). A handle maps to a
+   claim ID that hashes the page, passage and span, so a resumed job sees the same evidence.
+3. **Writer** (`writer.ts`). One call of the stable role `content.scroll-writer`. It reads the
+   brief and the numbered passages and returns plain JSON in the authored shape
+   (`scroll-authoring.v1`, `@knowscroll/scroll-model/producer`): title, dek and a flat list of blocks,
+   where a heading block starts a section and every other block carries `cites`, the handles it
+   rests on. A recipe names the rich block it wants (`interactiveKind`: diagram, simulation, chart,
+   comparison, timeline or sequence); the instructions describe only that block and the prose
+   blocks. The harness allows one repair, which receives fixed, path-located findings and, because the
+   writer opts in (`repairWithPreviousAnswer`), the refused answer as escaped, delimited data in the
+   user message so it can revise instead of rewriting.
+4. **Compile** (`compileGeneratedScroll`). Code converts the authored document into the canonical
+   draft, derives the claim bindings from the citations and runs every check: structure, the
+   simulation grid proof, numbers (a figure must appear in a passage the block cites; a chart plots
+   only such figures), copy limits (no nine words in a row from the sources), reading length (two to
+   eight minutes), no source or publisher names, the requested block is present, and stored-document
+   admission. Findings are reported at the block the writer wrote (`blocks.7`, `title`).
+5. **Publish.** In one transaction under the production root: close the writer run, store the
+   immutable revision and its private provenance, mark the job published and project the topic.
+
+Numbers and quotations are checked mechanically; they do not prove that a sentence is entailed by
+its passage. Human sampling of generated Scrolls is still required.
+
+## Why this shape
+
+Earlier recipes asked for the canonical draft inside a tool call, then for a JSON string inside a
+tool call, with a separate claims call before the writer. Every real attempt failed: a model that
+writes a long, deeply nested document inside an escaped string loses count of quotes and brackets
+(observed: a dropped quote, an unbalanced bracket). Plain text JSON worked, and so does a flatter
+shape the model finds easy: strings for rich text, ids it chooses for diagram nodes, derived
+accessibility text and fallback text, and citations instead of anchored bindings. One call replaces
+two because the writer sees the numbered source passages itself and cites them per block; code
+hydrates the exact text of each cited passage, so a claim is still always a substring of fetched
+research. Decision D-032.
+
+## State, locks and recovery
+
+| Stored table | Role | Main query | Lifetime |
+|---|---|---|---|
+| `content.scroll_production_runs` (0015, 0045, 0050) | Authoritative, private job: research pages, the authored document and the cited claims once published, code-only outcomes, the revision pointer. States `research`, `writer`, then `published`, `rejected` or `unknown` | Unique `(topic, policy_version)`, UUID | Nonpersonal public supply; retained for correction, no account erasure |
+| `content.asset_revisions` / `asset_provenance` | Immutable admitted consumer bytes / internal evidence and generation lineage | Asset + revision | Shared content; no account erasure |
+| `reasoning.production_*` (0013, 0050) | The writer run, every possible paid attempt, and the refused answers kept 30 days for diagnosis | Stable writer run UUID | Harness retention and liability policy |
+
+No jobs are registered yet: the worker operator triggers the sequence (`docs/v2/operations/scroll-production.md`).
+Lock order: production root → production job row → asset advisory lock → asset rows. Short
+transactions freeze or apply data; no model or HTTP wait holds one. Every rejection and the final
+write require their expected stage under the root and job lock, so a delayed delivery reports the
+advanced job instead of acting on it. `--resume` continues the same frozen research and the same
+writer run through the ledger after a crash. An unknown attempt stays unknown and is never resent.
+A rerun reports the existing state; a terminal rejection stays rejected. A changed recipe is a new
+`SCROLL_PRODUCTION_VERSION` (and `WRITER_PROMPT_VERSION`), never an edit of an old job.
+
+When a Scroll fails, `reasoning rejected` lists the refused answers with the validator's findings
+(`packages/backend/src/reasoning/README.md`); that is where to look first.
+
+Jobs: none. Notices: none. Erasure: nonpersonal supply, nothing to erase.
 
 The recipes the producer runs are the library plan in `../domain/library/` (one file per topic
-system); `topics.ts` is only its index. Three explanation identities are `legacy-cutroom-seasons-v5`,
-`legacy-cutroom-tides-v4`, and `legacy-cutroom-greenhouse`, exactly matching the approved Reel import. The frozen v1 scripts are
-continuity references only. No v1 Scroll or authored example is presented as generated content.
-Neither private research nor provenance is reachable through content's client-facing read ports.
-
-## Prompt repair and version boundaries
-
-A real local v1 run completed its claims request, then both writer attempts were refused with
-`OUTPUT_NOT_ONE_JSON_OBJECT`; no asset was published. The invalid reply text was not retained,
-so its syntax cause is unknown. The catalogue contains reference grammar rather than literal
-JSON; v2 makes that distinction explicit and adds one `JSON.stringify`-generated fictional syntax
-example. This is a bounded prompt correction, not evidence that the earlier model copied grammar
-or that the revised prompt will succeed. Parsing, schemas, admission and repair limits are unchanged.
-
-| Identity                                  | v1                                       | v2                                                    | v3                                  | v4                     | v5                                            | v6                                                  | v7                                        | v8                     |
-| ----------------------------------------- | ---------------------------------------- | ----------------------------------------------------- | ----------------------------------- | ---------------------- | --------------------------------------------- | --------------------------------------------------- | ----------------------------------------- | ---------------------- |
-| Job policy / unique topic-version key     | `scroll-production.v1`                   | `scroll-production.v2`                                | `scroll-production.v3`              | `scroll-production.v4` | `scroll-production.v5`                        | `scroll-production.v6`                              | `scroll-production.v7`                    | `scroll-production.v8` |
-| Claims role version                       | `scroll-production.v1`                   | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged              | Unchanged                                     | `scroll-claims.v3` (native object carrier)          | `scroll-claims.v4` (advisory input shape) | Unchanged              |
-| Writer role and provenance prompt version | `scroll-production.v1`                   | `scroll-writer.v2`                                    | `scroll-writer.v2` (unchanged)      | `scroll-writer.v3`     | `scroll-writer.v4` (semantic repair feedback) | `scroll-writer.v5` (native object + original prose) | `scroll-writer.v6` (advisory input shape) | Unchanged              |
-| Research policy / draft DSL               | `public-research.v1` / `scroll-draft.v1` | Unchanged                                             | Unchanged                           | Unchanged              | Unchanged                                     | Unchanged                                           | Unchanged                                 | Unchanged              |
-| Evidence candidate recipe                 | None                                     | None                                                  | `quote-candidates.v1`               | Unchanged              | Unchanged                                     | Unchanged                                           | Unchanged                                 | Unchanged              |
-
-All four rejected v1/v2/v3 jobs, their stable run IDs and eleven attempts stay untouched. A reviewed v4 invocation
-creates a different job and role runs; it is not a resend or resume of an earlier version. It still
-needs an explicit coordinator allocation and costs at most four requests, with the same
-4,000/12,000 role ceilings.
-The synthetic example uses `example-only-claim`, outside the claims role's accepted `claim-`
-namespace; it cannot be authorized by real offered claims. CI checks its JSON/schema/compilation
-with fictional fixture evidence and its refusal under production evidence. It is not library content.
-
-## Selection-only evidence in v3
-
-A real v2 claims primary failed its truth-state enum; its repair failed two exact-quote checks.
-Only safe paths/codes were inspected, so the rejected values and text edits are unknown. The v3
-correction removes both free statement generation and quote transcription from this role.
-
-Code first verifies the frozen page/passages and their content hashes, then derives at most 32
-`quote-candidates.v1` entries. Each is a whole paragraph or a group of complete sentences,
-40–600 original characters, with exact UTF-16 offsets and a hash binding policy, source URL,
-page/passages and text. Long paragraphs are partitioned only at conservative sentence boundaries;
-look-ahead keeps a short final caveat with a neighbouring sentence. Unpartitionable text, incomplete
-long tails, duplicate identities, fewer than four candidates or pool overflow refuse before model
-admission. No text is clipped, normalised or rephrased to fit, and no oversized pool is truncated.
-
-The model sees the actual bounded ID/text pool and selects four to eight distinct offered IDs.
-Its strict JSON has only `candidateIds`. Within the same one-repair schema, code rechecks pool
-integrity/membership, then hydrates each statement and quote to the identical original substring,
-assigning a hash-derived `claim-` ID. `documented` means a direct source quotation; it does not
-mean proven world truth or verified entailment. The role cannot author synthesis, interpretation
-or modelled claims. Relevance, faithful selection and final teaching quality still need human review.
-
-The harness retains/revalidates the raw selection, not the transformed hydrated claims. The
-content job stores those hydrated claims privately. Resume deterministically rebuilds the pool
-from frozen pages and verifies the stored claims before writer admission. The writer creates
-original prose using the separately versioned writer recipe; all research participates in the unchanged copy check,
-and number, honesty, binding, parser and admission checks remain in force. CI fixtures cover raw
-selection replay, source/claim tampering, foreign/duplicate IDs, long caveats, multiple sources,
-max-four repairs, and byte preservation of terminal v1/v2 rows. No fixture is model generation.
-
-## Compact writer recipe in v4
-
-The real v3 greenhouse claims request succeeded. Writer primary was valid JSON but failed array
-validation at masked paths; repair failed internal JSON syntax with a separator-category diagnostic.
-Invalid answers were not retained, so neither exact fields nor punctuation are known. A smaller
-recipe may reduce mistakes; CI does not establish a successful real generation.
-
-Writer v3 asks for a finished 2–3 minute explanation (roughly 450–600 words), three short sections,
-paragraphs, one useful comparison or toggle diagram, and a closing limits callout. The code's
-computed measure and 2–8 minute admission contract are unchanged. Greenhouse uses a comparison
-with nested RichText arrays; seasons/tides use useful bounded interactive states. The full canonical
-catalogue remains authoritative, and each request includes exactly one matching JSON.stringify
-fictional shape example. Nothing authored is published as generation.
-
-The writer wire schema is directly exported `ScrollDraft.superRefine`: canonical arrays are
-required before compilation, so schema-declared outer paths are available to existing safe repair
-feedback. This removes only content's writer preprocessing wrapper; global compiler normalization
-and strict JSON extraction remain unchanged. Copy-nine, binding, numeric, honesty, source/privacy,
-interactive and admission checks still use the same one repair. Role identity and failure brake are
-unchanged; writer provenance records `scroll-writer.v3`. CI preserves synthetic historical terminal
-job/attempt bytes and tests both valid modes, malformed arrays and unchanged refusals.
-
-## Fixed semantic repair feedback in v5
-
-The real dev v4 greenhouse job completed its claims request, then writer primary and repair failed
-`OUTPUT_SCHEMA_MISMATCH`. Only `custom` codes and masked paths were retained. Failed drafts are
-unavailable, so the exact rejected rule is unknown; no copy, numeric or other cause is inferred.
-
-Policy `scroll-production.v5` and writer/provenance version `scroll-writer.v4` change the repair
-feedback behavior: the writer declares the existing static producer `REPAIR_HINTS` plus three fixed
-content checks (`reader_block_unbound`, `reader_source_or_url`, `interactive_required`). Its custom
-Zod issues attach `params.safeCode` only for those own allowlisted codes. The shared harness uses
-the corresponding fixed code/hint with its unchanged schema path masking and eight-issue bound;
-it never reads custom messages, draft values, source excerpts or unknown path names. The internal
-`admission_refused` invariant remains undeclared and masked as `custom`, without a repair hint.
-Claims remain `scroll-claims.v2` and do not opt into semantic feedback. Role IDs are unchanged.
-
-The primary writer request recipe and all schema, compilation, copy-nine, numeric, binding, length,
-DSL, interactive and stored-admission assertions are unchanged. The same primary plus one repair
-per role still costs at most four calls per topic. No failed raw draft is retained. The version
-change records an actual feedback contract change, never resets the daily ledger, role failure
-brake, production generation or external allowance, and does not authorize a call. New invocation
-requires a separately reviewed coordinator allocation; terminal v1–v4 jobs/runs/attempts stay
-immutable. CI preserves five historical job shapes/fourteen attempts byte-for-byte and exercises
-actual writer semantic refusal → safe stored issue → fixed repair context → replay without resend.
-This is fixture evidence; no real generation success is established by this change.
-
-The publication hook imports the current policy/writer constants in addition to all existing
-scope, closure, receipt and admission checks. No historical reconciliation or backfill is added.
-
-## Native object carrier and original prose in v6
-
-The latest real dev v5 claims primary selected fewer than four IDs; its single repair succeeded.
-Writer primary parsed but failed `copied_passage` at a masked reader path: at least nine consecutive
-words matched the supplied material. Its repair failed one-object JSON handling, with only a bare
-object prefix, `unexpected_token` category and 8,147-character count retained. Invalid drafts were
-not stored; the exact copied passage and malformed token are unknown.
-
-Policy `scroll-production.v6` uses the reviewed shared `single-tool-object` format for both
-`scroll-claims.v3` and `scroll-writer.v5`. Both primary and repair submit one native object through
-the fixed `submit_output` data carrier; it executes no action and creates no tool interaction loop.
-The writer asks for freshly composed sentences from the selected documented claims, preserving
-their technical meaning and caveats. A copy refusal asks for rewritten prose and corresponding
-passage anchors, without omitting substance or evading the check across spans/blocks. This is
-prompt guidance, not evidence of improved actual model output or semantic entailment.
-
-The [MiniMax Messages reference](https://platform.minimax.io/docs/api-reference/text-chat-anthropic)
-and [published ToolChoice schema](https://platform.minimax.io/docs/api-reference/text/api/openapi-chat-anthropic.json)
-document only `auto` choice. The model can choose an invalid reply. There is no forced-name or
-schema-decoder guarantee, response-format mode, schema conversion, text fallback or JSON salvage.
-The reviewed M3 adapter accepts exactly one correctly named tool with object input and a conclusive
-tool stop, no mixed text or extra tools. Unsupported transports/models refuse before reasoning
-reservation/quota/dispatch. All other roles with no opt-in retain their historical hp2 bytes.
-
-Stable role IDs, generation, research, candidate selection, min-four claims, strict JSON/Zod,
-canonical DSL, copy-nine, numeric/honesty/support binding, privacy, publication admission, daily
-brake and all spend/unknown/replay rules are unchanged. At most two claims calls and two writer
-calls remain possible. The new job policy and role versions record actual format/instruction
-changes; they do not alter or resume terminal v1–v5 jobs, old attempts, receipts or protected bytes.
-That version's publication attribution requires v6 job lineage and v5 writer provenance automatically
-through the same imported constants. No runtime activation, new allowance or call is authorized.
-
-CI uses authored HTTP responses through the real reviewed M3 encoder/parser and production harness
-to exercise both role primaries/repairs, native min-four/copy refusals, exact new lineage, private
-safe feedback, stored bytes, max-four accounting, terminal/unknown replay and unsupported models.
-Historical synthetic v1–v5 job/attempt snapshots stay byte-identical. Such fixtures establish
-protocol/application behavior; actual provider selection, three generated Scrolls (two interactive)
-and quality review still require separately allocated real runs and connected reading evidence.
-
-## Advisory native input shape in v7
-
-Policy `scroll-production.v7`, claims `scroll-claims.v4` and writer/provenance `scroll-writer.v6`
-add `nativeOutputSchema: zod-structural.v1` to both existing native-object roles. The reviewed
-shared harness derives structural input from their existing Zod schemas, uses `hp4-tool-schema`
-framing and includes the bounded canonical schema in the same fixed `submit_output` data carrier.
-Claims still submit the pre-transform `candidateIds`; code still hydrates exact offered quotes.
-The writer's complete canonical ScrollDraft arrays/fields are described without copying a DSL.
-Both primary and the existing single repair carry the same structural schema; the full encoded
-request stays within the unchanged 100000-byte limit or refuses before reasoning admission.
-
-This is advisory guidance, not constrained decoding or semantic truth. Custom refinements, exact
-source/selection checks, min-four, copy-nine, binding, numeric/honesty, compiler and stored-document
-admission remain unchanged. Role instructions, the three existing topic recipes, stable role IDs,
-4000/12000 output ceilings, max-four attempts, daily caps/brakes, generation and unknown/replay
-rules are unchanged. No actual failed v6 draft is available or reconstructed here.
-
-The unique v7 job key creates new lineage; it never rewrites or resumes v1–v6 terminal jobs,
-provenance, attempts or protected bytes. Publication uses the existing imported policy/writer
-constants, so new attribution requires v7/v6 lineage and rejects previous native versions.
-CI uses labelled fake HTTP through the real M3 encoder/parser and real PostgreSQL to check full
-primary/repair schemas, bytes/hashes/accounting, exact new publication lineage, null invalid drafts,
-one repair and retained historical snapshots. Fixtures are not generated content or real provider
-acceptance. This source change authorises no call, allowance, role-cap reset or runtime activation;
-a reviewed operator profile and any missing owner allocation remain separate work.
-
-## Coherent explanation recipes in v8
-
-Policy `scroll-production.v8` adds three code-owned recipe keys under the same existing
-`earth.greenhouse-effect` primary topic. Each has an independent static asset ID and explicit
-explanation identity. The original `seasons`, `tides`, and `greenhouse` keys, scripts, briefs,
-source URLs, asset IDs and Reel-shared explanation identities remain exact. Their required
-interaction values remain true, true and false. `TOPICS` now declares explanation identity and
-interaction explicitly; the producer uses that value for both writer validation and compilation.
-No new recipe inherits a Reel identity, series relationship or semantic coverage map.
-
-| Key / explanation identity                                     | Intended teaching question                                                                                            | Required interaction                                                                | Bounded source list                    |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------- |
-| `greenhouse-radiation` / `earth-greenhouse-radiation-paths-v1` | Follow reflection, absorption and emission along incoming/outgoing radiation paths                                    | Selectable physical-process diagram frames with accessible text; no time simulation | NASA radiation budget + greenhouse FAQ |
-| `greenhouse-balance` / `earth-greenhouse-system-balance-v1`    | Distinguish internal redistribution from energy crossing the whole-system boundary; compare equilibrium and imbalance | Qualitative balance/imbalance diagram states with accessible text; no prediction    | NASA energy budget + greenhouse FAQ    |
-| `greenhouse-limits` / `earth-greenhouse-analogy-audit-v1`      | Audit useful versus misleading blanket inferences and natural versus strengthened context                             | Comparison or disclosure; no interactive requirement                                | NASA radiation budget + greenhouse FAQ |
-
-The analogy audit deliberately excludes another complete radiation-path/balance tutorial. It
-still overlaps background ideas in the unchanged broad greenhouse overview: new keys, titles,
-formats and IDs cannot establish conceptual variety. After actual generation, editorial review
-must check all three outputs against each other and the old overview for distinct explanatory
-work, faithful support, caveats, useful interaction and absence of redundant retelling.
-Coverage is decided by code at publication from the recipe (see "Publication: topic attribution and
-coverage"), never from a person's or a model's approval. Recipes and fixtures never form geography.
-
-The investigation used the actual `public-research.v1` extraction and unchanged candidate builder
-on unauthenticated public pages. The retained radiation-budget pool had 15 candidates, FAQ 7 and
-energy-budget 20. Thus radiation+FAQ had 22 and energy+FAQ 27; the 35-candidate energy+radiation
-combination and 33-candidate climate-causes page were refused by the unchanged 32 limit. Nothing
-is clipped or a bound raised. Fetches remain live and bounded: different future extracts can
-refuse, and these counts are dated investigation evidence, not a runtime promise. The retained
-energy-budget extract ended before later greenhouse sections; those unseen sections confer no
-writer authority. Historical numerical estimates must not be represented as current measurements.
-The briefs forbid temperature forecasts, invented calculations/timescales and glasshouse experiments.
-
-Forward migration `0026_scroll_recipe_units` extends only the closed job recipe-key constraint
-from immutable 0015, after Geography 0025. It inserts no job, asset, personal evidence, semantic
-approval or operation grant and rewrites no historical row. Unknown keys still refuse in the
-operator parser and database. Old workers continue recognizing only their own keys.
-
-Claims v4, writer/provenance v6, hp4 advisory schema, role instructions, strict validators,
-min-four, copy-nine, support/honesty checks, canonical compilation/admission, 100000 request bytes,
-4000/12000 output ceilings, max-four attempts, one repair per role, stable roles, generation,
-daily brakes and unknown liabilities remain unchanged. The new policy records changed prepared
-recipe context; no v1–v7 job is rewritten or resumed. Publication uses the existing private
-current-version hook, so only genuinely completed new publications can project the shared topic.
-
-CI uses authored bounded context (matching the investigated pool counts/text sizes, without
-committing full public pages), the real M3 encoder and labelled PostgreSQL/publication stand-ins.
-It checks full primary/repair request shapes/bytes and retained refusals, all six identities and
-interaction values, closed unknown keys, three exact new publication lineages under one canonical
-topic, and unchanged historical snapshots. This establishes source/protocol behavior, not generated
-content, semantic variety, provider acceptance, UI reading or formation. No call, allowance,
-role-cap/day reset, deployment or live registry seed is authorized by this source extension.
+system); `topics.ts` is only its index. The recipe key, the brief, the research pages and the
+interactive block kind (`interactiveKind`) all come from the plan. Neither private research nor
+provenance is reachable through content's client-facing read ports.
 
 ## Publication: topic attribution and coverage
 
@@ -330,62 +152,6 @@ No automatic sum/settlement or new<=75c allowance per child follows. Publication
 source/framing/rights/media gates, exact-script owner approval, live fal balance and pool reconciliation
 remain separate future requirements. No content/evidence/coverage/encounter is admitted here.
 
-## Bounded writer feedback in v9
-
-Policy `scroll-production.v9` and writer/provenance `scroll-writer.v7` record a real instruction and
-feedback change. Claims remain `scroll-claims.v4`; the fixed native carrier, hp4 framing and
-canonical structural ScrollDraft input remain unchanged. Every primary/repair requests the complete
-required object with native `sections`/`bindings` arrays. The writer distinguishes its strict span
-arrays from compiler convenience notation and states combined canonical text limits and whole-text
-trimming without changing those checks.
-
-The writer opts into only the two new core-owned intrinsic RichText codes, `rich_text_too_long` and
-`rich_text_not_trimmed`, with fixed module-owned hints. They distinguish combined-length overflow
-from empty/outer-whitespace concatenated text. Unknown/custom issue messages and values remain
-hidden; shared schema-path diagnostics retain later union branches under fixed privacy/work bounds.
-This improves future feedback. The real rejected v8 radiation answer is unavailable: its masked
-nested fields and exact RichText cause are not reconstructed or retrospectively classified.
-
-CI uses authored native HTTP objects through the real M3 encoder/parser and disposable PostgreSQL:
-nested optional-object and RichText refusal → one complete valid repair, terminal non-array repair,
-null failed outputs, no third writer attempt, no fifth total request and no replay dispatch. Existing
-historical v1–v7 snapshots and new terminal v8 issue/request snapshots stay byte-identical. Both
-interactive/noninteractive modes retain strict arrays, min-four claims, copy-nine, number/support,
-honesty, privacy, interaction and admitted stored-document checks.
-
-All recipe keys/briefs/pages/asset+explanation identities, stable role IDs, generation, cumulative
-failure brakes, token/request/output ceilings and unknown-liability ledgers remain unchanged.
-A new policy is not a cap reset or a retry grant. No SQL, operator activation, allocation, reservation,
-provider request, default or runtime permission changes here; a later operation needs separately
-reviewed exact source/release/profile and budget authority. Fixtures do not prove provider success.
-
-## Canonical production profiles in v10
-
-Policy `scroll-production.v10` / writer `scroll-writer.v8` changes the actual production input
-contract to a strict subset of the unchanged canonical `scroll-draft.v1`. The interactive profile
-selects paragraph/diagram/callout with canonical toggle interaction and two to four frames; the
-comparison profile selects paragraph/comparison/callout with two columns and two points each.
-Both retain canonical passage/header/heading/block bindings. Non-text accessibility and fallback
-fields are required. The profile selects original exported canonical schema nodes and narrows
-through public Zod APIs; it does not copy fields, coerce strings, introduce a DSL or change core
-Scroll schemas. Root/section array bounds stay canonical. Full compilation, support, copy-nine,
-number/honesty checks, min-four claims, actual interaction and computed two-to-eight-minute
-admission remain authoritative.
-
-The tool's actual advisory input schema is now the selected structural reference. The production
-prompt omits the full general-purpose catalogue and compiler convenience notation, retaining one
-matching authored fictional JSON example. That example cannot be admitted under actual offered
-claims and is never product content. Other users of the full catalogue/schema retain all16 types.
-
-The real v9 radiation job was rejected after claims succeeded and both writer attempts reported
-non-array-contract failures at sections/bindings. Failed raw replies were not retained; their
-received member types and bytes are unknown. No serialization defect or causal explanation was
-established. Reducing irrelevant grammar may help, but authored CI fixtures do not prove future
-provider compliance or content quality. M3's auto-choice carrier remains advisory, not forced
-schema decoding. Claims4/hp4, every recipe/source/asset/explanation identity, stable roles,
-generation, token/request/quota/brake bounds and max-four/one-repair limits remain unchanged.
-Historical v1–v9 jobs, attempts, issues and protected request bytes remain immutable. This source
-version supplies no operator profile, rollout, allocation, reservation or permission to call again.
 
 ## Durable Reel commission B prerequisite (#240)
 
@@ -526,36 +292,6 @@ cancellation remain best-effort cleanup, never an awaited prerequisite to return
 finite deadline result; late replies cannot become observed reports. The actual stalled-body
 regression is retained with its unchanged suite timeout.
 
-## Canonical prose binding projection in v12
-
-Policy `scroll-production.v12` / writer `scroll-writer.v10` narrows only the selected passage
-binding's optional `field` to literal `text` through the canonical node's `safeExtend`. Omission
-retains the compiler's canonical prose default. Paragraph and callout span arrays project to that
-field; `data.spans`, `data.spans.0.text`, `data.text` and other JSON/schema paths are not prose
-binding fields. The full core DSL remains unchanged. Header/heading/block nodes are reused
-exactly; the selected format uses whole-block bindings for diagrams/comparisons. Empirical numbers
-still require exact canonical support, otherwise the explanation must remain qualitative.
-
-Instructions distinguish the projected field from the input JSON, require exact unique
-single-sentence anchors from the writer's own original prose and actual supplied claim IDs,
-and show passage/default/explicit-text, header and heading syntax in the fictional example.
-The example remains nonpublishable under real offered evidence. No quote transcription,
-copy-nine evasion, source/honesty/numeric/a11y/reading-bound or admission relaxation is added.
-
-The real v11 job was rejected after three settled calls. Its bounded metadata contains six
-`binding_field_unknown` and one `copied_passage` entry at masked primary paths; repair records
-the fixed `unreadable` root category with `REPLY_TOOL_JSON_INVALID`. Failed bodies were discarded.
-These categories do not reveal the actual fields, received types, prose or malformed tool JSON.
-This correction follows the canonical projection's source contract, not reconstructed answers.
-
-Claims4/hp4, writer hp5 JSON-string carrier, all recipes/identities, stable roles, generation,
-4000/12000 output ceilings, 100000-byte request cap, tokens, brakes and one repair/max-four
-accounting remain unchanged. The new version is source lineage, not another allocation or paid
-retry grant. Existing historical rows/requests/SQL remain immutable. Actions use authored
-default/explicit-text positives and invented-path negatives through canonical compilation and
-native HTTP/PostgreSQL repair/replay; these fixtures do not prove provider success. No operator
-profile, ready config, deployment, live query, reservation or model call is authorized here.
-
 ## Durable sanitized chain evidence (#240)
 
 The separately selected `makeCutroomChainSnapshotCollector` shares the existing GET/parser/projection
@@ -625,30 +361,6 @@ next-send and one writer. Actual installed revision/profile/rates, lease suitabi
 send/receipt state remain separately mandatory Root activation facts. Unknown or unexpected
 provider billing is not proved away; the exact overage hold remains defensive accounting, not
 retroactive authorization. Source never widens, refunds or clips the approved ceiling.
-
-## Cell-free canonical flow selection in v13
-
-Policy `scroll-production.v13` and writer/provenance `scroll-writer.v11` select only canonical
-`flow-lr` diagrams with canonical nodes whose optional `cell` property is omitted. The selected
-schema still requires a toggle with two to four meaningful frames, all canonical arrays, accessible
-labels and fallback text. It reuses canonical node fields and bounds; valid grids and every other
-layout remain available to other producers. The shared DSL, compiler, semantic/admission checks,
-copy-nine, support/honesty/numeric/reading rules and comparative mode are unchanged.
-
-A real v12 job ended rejected with no asset after three settled requests. Its bounded safe metadata
-records only `unreadable` at the primary root and one `diagram_cells_invalid` at a masked repair
-path. Both failed bodies are absent. That rule covers missing/duplicate grid cells and cells on a
-non-grid layout; the retained evidence cannot distinguish these cases or reconstruct the discarded
-primary JSON. Selecting a cell-free canonical flow removes all three combinations from this writer's
-structural grammar. It does not prove the historical offending value, repair the primary carrier,
-or establish future provider/editorial success.
-
-Claims4/hp4, writer carrier hp5, topics/assets/explanation units, roles and generation remain stable.
-All request/output/token/quota/brake/max-four/one-repair limits and historical financial state remain
-unchanged. The real v12 stop-on-first-failure remains in force. This source version authorizes no
-operator change, reservation, provider retry, new job or deployment. Authored Actions fixtures cover
-the three invalid cell cases, canonical grids outside this selection, actual HTTP/PG bounded repair
-and policy12 historical-byte preservation. They are not generated library content.
 
 ## CF62 receiving production boundary (#373)
 

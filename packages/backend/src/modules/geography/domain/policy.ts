@@ -2,6 +2,8 @@ import { z } from 'zod';
 /** Experimental passive-formation thresholds, not claims of knowledge or permanent product constants. */
 export const GEOGRAPHY_POLICY = 'geography-passive.v1' as const;
 export const FORMATION = { systemUnits: 2, planetUnits: 3, planetFacets: 2, quietAfterDays: 30 } as const;
+/** One delta carries at most this many operations on the wire. */
+export const MAX_PROPOSAL_OPERATIONS = 32;
 const Label = z.string().min(1).max(160);
 const Ref = z.string().min(1).max(240);
 const Supported = { supportRefs: z.array(Ref).min(1).max(100) };
@@ -31,7 +33,7 @@ export const GeographyProposalSchema = z.strictObject({
         }),
       ]),
     )
-    .max(32),
+    .max(MAX_PROPOSAL_OPERATIONS),
 });
 export type GeographyProposal = z.infer<typeof GeographyProposalSchema>;
 export type PlaceKind = 'system' | 'star' | 'planet' | 'region';

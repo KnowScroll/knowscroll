@@ -5,6 +5,7 @@ import { productionTransactionOf as transactionOf } from '../../infrastructure/p
 import type { ProductionScopeTx } from '../application/production.js';
 import { OUTCOME_NOT_RECORDED, canTransition, isSettled, type AttemptState } from '../domain/attempts.js';
 import type { AttemptLedger } from '../application/ports.js';
+import { makeRejectedAnswerStore } from './postgres-rejected-answers.js';
 
 import {
   BUDGET_LOCK_KEY,
@@ -28,6 +29,7 @@ import {
  * Protected request bytes are written with the attempt and read only by the harness.
  */
 export function makeProductionAttemptLedger(db: Kysely<Database>): AttemptLedger<ProductionScopeTx> {
+  const rejectedAnswers = makeRejectedAnswerStore(db);
   return {
     async find(scopeId, runId, step) {
       const row = await db
@@ -236,6 +238,9 @@ export function makeProductionAttemptLedger(db: Kysely<Database>): AttemptLedger
       });
     },
 
+    recordRejectedAnswer: (answer) => rejectedAnswers.record(answer),
+    readRejectedAnswerText: (attempt) => rejectedAnswers.readText(attempt),
+
     async recordLateUsage(attemptId, usage) {
       await withTransaction(db, 'attempt-ledger', (trx) =>
         trx
@@ -333,8 +338,8 @@ export function makeProductionAttemptLedger(db: Kysely<Database>): AttemptLedger
       }));
     },
 
-    purgeExpiredRequests(limit) {
-      return withTransaction(db, 'protected-request-expiry', async (trx) => {
+    async purgeExpiredRequests(limit) {
+      const requests = await withTransaction(db, 'protected-request-expiry', async (trx) => {
         // An expired `reserved` attempt will never be sent (its bytes are about to go): settle it
         // `not_sent` first and release its reservation. A redelivery reserves a fresh attempt.
         const expired = await sql<{ id: string }>`
@@ -366,6 +371,7 @@ export function makeProductionAttemptLedger(db: Kysely<Database>): AttemptLedger
           )`.execute(trx);
         return Number(result.numAffectedRows ?? 0n);
       });
+      return requests + (await rejectedAnswers.purgeExpired(limit));
     },
 
     sweepStaleDispatched(olderThanSeconds, limit) {

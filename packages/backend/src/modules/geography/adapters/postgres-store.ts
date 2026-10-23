@@ -166,10 +166,10 @@ export const geographyStore: GeographyStore = {
       );
     return result.rows.length === 1;
   },
-  async finishUnadmitted(scope, id, claimId) {
+  async finishUnadmitted(scope, id, claimId, settlement) {
     const { tx, u, e } = owner(scope);
     const result =
-      await sql`update geography.runs set status='blocked',outcome='provider_unavailable',claim_id=null,claim_until=null,claim_wake_claim_id=null,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and status='prepared' and claim_id=${claimId}::uuid and claim_wake_claim_id=${claimId}::uuid and normal_wake_id is null returning id`.execute(
+      await sql`update geography.runs set status=${settlement.status},outcome=${settlement.outcome},claim_id=null,claim_until=null,claim_wake_claim_id=null,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and status='prepared' and claim_id=${claimId}::uuid and claim_wake_claim_id=${claimId}::uuid and normal_wake_id is null returning id`.execute(
         tx,
       );
     if (result.rows.length !== 1) throw new Error('GEOGRAPHY_UNADMITTED_CLAIM_CHANGED');

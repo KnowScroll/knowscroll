@@ -44,7 +44,15 @@ import {
   makeCheckPlannerRecordingRun as makeOwnerChecker,
 } from '../application/run.js';
 import type { PlannerPorts, RequestPlannerOutcome } from '../application/ports.js';
-import { REQUEST_PLANNER, PLANNER_MATERIAL_CHANGE, RUN_PLANNER, READ_PLANNER_OPPORTUNITIES } from '../public.js';
+import {
+  REQUEST_PLANNER,
+  PLANNER_MATERIAL_CHANGE,
+  RUN_PLANNER,
+  READ_PLANNER_OPPORTUNITIES,
+  READ_CURRENT_PLAN,
+} from '../public.js';
+import { RECORD_PLANNED_DEMAND, type RecordPlannedDemand } from '../../supply/public.js';
+import { makeReadCurrentPlan } from '../application/read-plan.js';
 const REQUEST_PORTS = Symbol('planner.request-ports');
 const PLANNER_PORTS = Symbol('planner.ports');
 const hash = (value: unknown) => requestHash('personal-planner.v0', value as Parameters<typeof requestHash>[1]);
@@ -249,6 +257,13 @@ export function plannerRequestProviders(t: { readonly withPersonalScope: symbol;
     },
   ];
 }
+/**
+ * The stored plan read Composer uses on the navigation path. Needs no harness, provider or worker
+ * configuration, so the API and the worker install the same reader.
+ */
+export function plannerReadProviders() {
+  return [{ provide: READ_CURRENT_PLAN, inject: [], useFactory: () => makeReadCurrentPlan({ store: plannerStore }) }];
+}
 /** Worker-only role; execution gate is checked before preparing a model reservation. */
 export function plannerWorkerProviders(t: { readonly workerConfig: symbol }) {
   return [
@@ -261,6 +276,7 @@ export function plannerWorkerProviders(t: { readonly workerConfig: symbol }) {
         READ_DISCOVERY_CANDIDATES,
         READ_EXACT_ENCOUNTER,
         RECORDING_REASONING_HARNESS,
+        RECORD_PLANNED_DEMAND,
         t.workerConfig,
       ],
       useFactory: (
@@ -270,6 +286,7 @@ export function plannerWorkerProviders(t: { readonly workerConfig: symbol }) {
         readInventory: ReadDiscoveryCandidates,
         readExact: ReadExactEncounter,
         harness: RecordingReasoningHarness,
+        recordDemand: RecordPlannedDemand,
         config: WorkerConfig,
       ): PlannerPorts => ({
         ...request,
@@ -278,6 +295,7 @@ export function plannerWorkerProviders(t: { readonly workerConfig: symbol }) {
         readInventory,
         readExact,
         harness,
+        recordDemand,
         capabilities,
         now,
         enabled: () => config.plannerEnabled,

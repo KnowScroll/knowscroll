@@ -28,7 +28,7 @@ Background reading:
 | Entry | Who may import it | Contents |
 |---|---|---|
 | `@knowscroll/scroll-model` | everyone (server, worker, client); see *Limits and cost* for which functions a client may call | Document and block schemas, limits, `admitDocument` / `validateDocument`, `parseDocument`, `admitBlock`, `parseBlock`, `negotiate`, `parseCapabilities`, locators and anchor maps, block state and snapshots, the telemetry payload, measures and coverage, simulation evaluation and its runtime guards, the readers of a simulation's stored display (`displayScale`, `displayRange`), `fallbackTextOf`, `textFields`, canonical JSON and SHA-256 |
-| `@knowscroll/scroll-model/producer` | backend only | `ScrollDraft` (what the writer model returns), `DraftProvenance` (the compile input), `blockCatalogueText()` for the prompt, `validateDraft`, `compileDraft`, `draftFromDocument`, stages and repair hints |
+| `@knowscroll/scroll-model/producer` | backend only | `AuthoredScroll` (what the writer model returns), `compileAuthored`, `authoringReference()` for the prompt, `ScrollDraft` (the canonical draft), `DraftProvenance` (the compile input), `validateDraft`, `compileDraft`, `draftFromDocument`, stages and repair hints |
 | `@knowscroll/scroll-model/internal` | backend only | `ScrollProvenance` (claims, sources, bindings, checks, production record) and the honesty checks |
 | `@knowscroll/scroll-model/admission` | backend only | `admitDocument`, `admitBlock` and `validateDocument`: every check including the full-grid proof. The public entry still re-exports the same functions for code written before this entry existed (they are the same function objects); new server code imports them from here, and client code may import neither (see the rules below). |
 | `@knowscroll/scroll-model/fixtures/<name>.json` | tests only | The labelled consumer-document fixtures (`fixtures/documents/`). Drafts, compile inputs and internal provenance fixtures are not exported. |
@@ -55,9 +55,9 @@ Dependency direction, enforced by dependency-cruiser and proved by `pnpm boundar
 ## How it takes part in the reading journey
 
 1. **Production (worker).**
-   - The writer role returns one JSON object.
-   - `validateDraft` checks it in stages.
-   - `compileDraft(draft, provenance)` turns it into the immutable consumer document and its internal provenance. This is **admission**: every check runs, including the full-grid proof of each simulation.
+   - The writer role returns one JSON object in the authored shape (below).
+   - `compileAuthored(authored, provenance, evidence)` converts it into a canonical draft, derives its claim bindings from the passages each block cites, and runs the stages below. Hand-authored editorial drafts take `validateDraft` / `compileDraft` directly.
+   - `compileDraft(draft, provenance)` turns a draft into the immutable consumer document and its internal provenance. This is **admission**: every check runs, including the full-grid proof of each simulation.
    - Code, not the model, sets: missing ids, versions, gestures, text blocks' accessibility label, the "Illustrative" notice, framing, template, theme, series, reading time, coverage weights and the integrity hash.
 2. **Storage.** The document is stored per revision and served to clients. The provenance is stored beside it and never served. A revision is admitted with `admitDocument` (the same checks again, on exactly the stored bytes).
 3. **Serving.**
@@ -407,6 +407,33 @@ Weights are in word-equivalents:
 - Reading minutes = round(total / 200), at least 1.
 - `coverageOf(document, seenBlockIds)` gives the weighted fraction, overall and per section.
 
+## The authored shape (`scroll-authoring.v1`)
+
+What a writer model returns is deliberately smaller and more forgiving than the canonical draft.
+Long nested JSON is where models slip (a dropped quote, an unbalanced bracket), so:
+
+- **Flat blocks.** `{title, dek, blocks}`; a `heading` block starts a section. Types: `heading`,
+  `paragraph`, `list`, `callout`, `comparison` (columns and rows), `timeline`, `sequence`, `diagram`,
+  `bar-chart`, `line-chart`, `simulation`.
+- **Plain strings** stand for rich text. Diagram nodes get ids the writer chooses; frames name nodes
+  and edges by id, by label or as `from>to`. A simulation lists parameters, constants and outputs
+  with the canonical closed formula kinds; code aligns its grid and always marks it illustrative.
+  Cosmetic text up to twice its limit is shortened at a word boundary; prose keeps its strict limit.
+- **Citations instead of anchors.** Every non-heading block has `cites`, the handles of the offered
+  evidence passages (`e1`, …) it rests on. `deriveBindings` turns them into claim bindings: a `block`
+  binding per citation, and for every sentence of any reader-facing text that states a number, an
+  anchor on a cited claim whose source text contains that same figure. A figure in no cited passage,
+  a chart value in no cited passage (zero excepted), an unknown handle and fewer than four distinct
+  cited passages are findings.
+- **Derived envelope.** Accessibility labels and fallback texts are built from each block's own words.
+- **Findings are located at the authored block** (`blocks.7`, `title`), via the converter's
+  positions, so a repair can name the block the writer wrote. Four reason codes belong to this shape
+  (`authoring_*`), each with a fixed hint.
+
+`authoringReference(types)` is the prompt's description of the shape, built from the limits tables.
+Its examples are invented syntax guidance. Everything else in this package is unchanged by it: the
+converter produces a canonical `ScrollDraft` and every canonical check still runs.
+
 ## The producer contract (`./producer`)
 
 - **`ScrollDraft` (`scroll-draft.v1`).**
@@ -421,7 +448,7 @@ Weights are in word-equivalents:
   - Research excerpts for the copy check.
   - Offered media.
   - The production record.
-- **`blockCatalogueText()`.** The prompt description, generated from the limits tables (≈ 6.9 KB, test-bounded at 8 KB). It separates **rules code checks** from **guidance code does not check**. `scrollDraftJsonSchema()` is the much larger JSON Schema for constrained decoding.
+- **`scrollDraftJsonSchema()`.** The JSON Schema of the canonical draft, for providers that constrain decoding. The writer does not use it.
 - **`validateDraft` stages.** They run in order and stop at the first stage with findings:
   1. `envelope`: one object, at most 32 levels deep, at most 256 KiB, the right version, no reserved or unknown types.
   2. `schema`: after `normalise.v1` (NFC; strings to spans; null-prototype copies, so an own `__proto__` key is just an unknown member).

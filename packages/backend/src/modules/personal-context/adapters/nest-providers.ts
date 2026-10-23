@@ -27,7 +27,7 @@ import { READ_ROUTING_HISTORY, type ReadRoutingHistory } from '../../experience/
 import { formatFit, interest } from '../domain/context.js';
 import { makeReadExplorationSnapshot } from '../application/read-snapshot.js';
 import { makeReadComposerContext } from '../application/read-composer-context.js';
-import type { ReadExplorationSnapshot } from '../application/ports.js';
+import type { ReadCurrentPlan, ReadExplorationSnapshot } from '../application/ports.js';
 import {
   APPLY_PROJECTED_ENCOUNTER,
   READ_EXPLORATION_SNAPSHOT,
@@ -36,13 +36,18 @@ import {
   READ_COMPOSER_CONTEXT,
 } from '../public.js';
 import { applyProjectedEncounter, readContextRevision, readStructure } from './postgres-store.js';
-export function personalContextProviders() {
+/**
+ * `readCurrentPlan` optionally names the token of the Planner's plan reader. When given, Composer's
+ * prepared context carries the person's current plan; the Planner stays the only owner of plans.
+ */
+export function personalContextProviders(tokens: { readonly readCurrentPlan?: symbol } = {}) {
   return [
     { provide: READ_COVERAGE_INPUTS, inject: [], useFactory: () => readCoverageInputs },
     {
       provide: READ_COMPOSER_CONTEXT,
-      inject: [READ_EXPLORATION_SNAPSHOT],
-      useFactory: (read: ReadExplorationSnapshot) => makeReadComposerContext(read),
+      inject: [READ_EXPLORATION_SNAPSHOT, ...(tokens.readCurrentPlan ? [tokens.readCurrentPlan] : [])],
+      useFactory: (read: ReadExplorationSnapshot, readCurrentPlan?: ReadCurrentPlan) =>
+        makeReadComposerContext(read, readCurrentPlan),
     },
     {
       provide: READ_RECENT_CONTEXT_TOPICS,

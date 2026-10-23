@@ -9,10 +9,12 @@ import {
 } from './reply.js';
 
 /** Response bodies below are fixtures shaped like the route's documented fields, not provider output. */
+const MODEL = 'MiniMax-M3.1-Flash';
 const answer = (content: unknown[], extra: Record<string, unknown> = {}) =>
   JSON.stringify({
     id: 'msg_fixture_01',
     type: 'message',
+    model: MODEL,
     role: 'assistant',
     content,
     stop_reason: 'end_turn',
@@ -28,6 +30,7 @@ describe('MiniMax reply parsing (fixtures)', () => {
         { type: 'text', text: '{"ok": true,' },
         { type: 'text', text: ' "echo": "lantern"}' },
       ]),
+      MODEL,
     );
     expect(parsed).toEqual({
       kind: 'reply',
@@ -52,6 +55,7 @@ describe('MiniMax reply parsing (fixtures)', () => {
     expect(stripThinkingFraming('<think>never closed')).toEqual({ ok: false });
     const parsed = parseMessagesReply(
       answer([{ type: 'text', text: '<think>budget gone' }], { stop_reason: 'max_tokens' }),
+      MODEL,
     );
     expect(parsed).toMatchObject({
       kind: 'reply',
@@ -60,37 +64,64 @@ describe('MiniMax reply parsing (fixtures)', () => {
   });
 
   it('maps stop reasons and marks a cut-off answer', () => {
-    expect(parseMessagesReply(answer([{ type: 'text', text: '{' }], { stop_reason: 'max_tokens' }))).toMatchObject({
-      reply: { answer: { kind: 'text', stop: 'max_tokens' } },
-    });
-    expect(parseMessagesReply(answer([{ type: 'text', text: '{}' }], { stop_reason: 'tool_use' }))).toMatchObject({
-      reply: { answer: { kind: 'text', stop: 'other' } },
-    });
+    expect(
+      parseMessagesReply(answer([{ type: 'text', text: '{' }], { stop_reason: 'max_tokens' }), MODEL),
+    ).toMatchObject({ reply: { answer: { kind: 'text', stop: 'max_tokens' } } });
+    expect(
+      parseMessagesReply(answer([{ type: 'text', text: '{}' }], { stop_reason: 'tool_use' }), MODEL),
+    ).toMatchObject({ reply: { answer: { kind: 'text', stop: 'other' } } });
+    // Thinking can use the whole token budget before any text arrives: that is truncation, not an unreadable reply.
+    expect(
+      parseMessagesReply(
+        answer([{ type: 'thinking', thinking: 'long deliberation' }], { stop_reason: 'max_tokens' }),
+        MODEL,
+      ),
+    ).toMatchObject({ reply: { answer: { kind: 'text', text: '', stop: 'max_tokens' } } });
   });
 
   it('treats a body that is not a JSON object, or has no text, as an unreadable answer', () => {
-    expect(parseMessagesReply('<html>gateway</html>')).toMatchObject({
+    expect(parseMessagesReply('<html>gateway</html>', MODEL)).toMatchObject({
+      reply: { answer: { kind: 'unreadable', code: 'REPLY_NOT_JSON', detail: '<html>gateway</html>' } },
+    });
+    expect(parseMessagesReply('[]', MODEL)).toMatchObject({
       reply: { answer: { kind: 'unreadable', code: 'REPLY_NOT_JSON' } },
     });
-    expect(parseMessagesReply('[]')).toMatchObject({
-      reply: { answer: { kind: 'unreadable', code: 'REPLY_NOT_JSON' } },
-    });
-    expect(parseMessagesReply(answer([{ type: 'thinking', thinking: 'only this' }]))).toMatchObject({
-      reply: { answer: { kind: 'unreadable', code: 'REPLY_NO_TEXT' } },
-    });
+    const noText = parseMessagesReply(answer([{ type: 'thinking', thinking: 'only this' }]), MODEL);
+    expect(noText).toMatchObject({ reply: { answer: { kind: 'unreadable', code: 'REPLY_NO_TEXT' } } });
+    // The bounded raw body travels with the unreadable reply for production diagnostics.
+    expect(JSON.stringify(noText)).toContain('only this');
   });
 
   it('treats an error object in a 200 body as a conclusive rejection with a sanitised code', () => {
     expect(
       parseMessagesReply(
         JSON.stringify({ type: 'error', error: { type: 'overloaded_error', message: 'sk-cp-canary' } }),
+        MODEL,
       ),
     ).toEqual({ kind: 'rejected', code: 'PROVIDER_ERROR_OVERLOADED_ERROR' });
     expect(
-      parseMessagesReply(JSON.stringify({ base_resp: { status_code: 1008, status_msg: 'insufficient balance' } })),
+      parseMessagesReply(
+        JSON.stringify({ base_resp: { status_code: 1008, status_msg: 'insufficient balance' } }),
+        MODEL,
+      ),
     ).toEqual({
       kind: 'rejected',
       code: 'PROVIDER_ERROR_MINIMAX_1008',
+    });
+  });
+
+  it('rejects an answer served by another model than the one asked for, charging its usage (D-031)', () => {
+    const served = answer([{ type: 'text', text: '{}' }], { model: 'MiniMax-M3' });
+    expect(parseMessagesReply(served, MODEL)).toEqual({
+      kind: 'rejected',
+      code: 'MODEL_MISMATCH',
+      usage: { inputTokens: 214, outputTokens: 13, reasoningTokens: null, cachedTokens: 128 },
+    });
+    const unnamed = JSON.parse(answer([{ type: 'text', text: '{}' }])) as Record<string, unknown>;
+    delete unnamed['model'];
+    expect(parseMessagesReply(JSON.stringify(unnamed), MODEL)).toMatchObject({
+      kind: 'rejected',
+      code: 'MODEL_MISMATCH',
     });
   });
 
@@ -120,6 +151,10 @@ describe('MiniMax reply parsing (fixtures)', () => {
       reasoningTokens: 2,
       cachedTokens: null,
     });
+    // MiniMax-M3.1-Flash reports its thinking separately; it is part of output_tokens.
+    expect(
+      parseUsage({ input_tokens: 117, output_tokens: 91, output_tokens_details: { thinking_tokens: 56 } }),
+    ).toMatchObject({ outputTokens: 91, reasoningTokens: 56 });
   });
 
   it('records only safe remote IDs and error codes (never messages)', () => {

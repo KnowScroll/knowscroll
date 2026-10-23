@@ -1,8 +1,9 @@
 import { RECIPES, type RecipeKey } from '../domain/library/index.js';
 
-/** Reviewed production recipe, including role prompt changes; new versions never resume old jobs. */
-export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v13';
-export const REQUEST_BOUND_PER_TOPIC = 4;
+/** The current production recipe. A topic has one job per version; a new recipe is a new version. */
+export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v14';
+/** One writer call and at most one repair. */
+export const REQUEST_BOUND_PER_TOPIC = 2;
 /**
  * The explanation recipes the generator runs, by operator key. The plan itself (systems, planets,
  * facets, briefs and research pages) is code-owned data in `domain/library/`, one file per system.

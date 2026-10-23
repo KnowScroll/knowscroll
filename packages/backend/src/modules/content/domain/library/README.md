@@ -34,9 +34,9 @@ import only domain code. It has no behaviour, no storage and no model call.
   say they are physiology or history, not advice.
 - `supportingFacetId` is for a second angle the brief explicitly asks the closing section to cover.
 - Research pages must be allowlisted (`infrastructure/research/public-pages.ts`) and fetchable. The
-  quote-candidate pool of all a recipe's pages together holds at most 32 candidates, so name one long
-  page (about 20 to 30 candidates) or two short ones. Run `node scripts/check-library-sources.mjs`
-  after changing a page.
+  writer is offered the passages of all a recipe's pages together, at most 64 (it needs at least
+  4), so name one long page or two short ones. Run `node scripts/check-library-sources.mjs` after
+  changing a page.
 - Every system has a `sceneFamily` and a planet may override it (`terraced.v1`, `ridged.v1` or
   `archipelago.v1`). The Scene projection draws from it, and a drawn object never changes family, so
   set it once when the system or planet is added. Earth's assignments are fixed by a test.
@@ -47,7 +47,7 @@ import only domain code. It has no behaviour, no storage and no model call.
 ## Checking the pages
 
 `scripts/check-library-sources.mjs` fetches every page through the product's fetcher and builds each
-recipe's pool, printing counts only. It needs `pnpm build` and network access.
+recipe's evidence passages, printing counts only. It needs `pnpm build` and network access.
 
 Status: the plan is _implemented_. Every research page was last checked on 24 Oct 2026 (see the PR
 that added the plan for the summary); pages change, so re-run the script before a generation batch.

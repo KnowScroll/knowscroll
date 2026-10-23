@@ -1,10 +1,14 @@
 /**
- * `@knowscroll/scroll-model/producer`: the backend-only producer contract — the draft the writer
- * model returns, the compile input, the prompt catalogue, staged draft validation and compilation
- * into the consumer document plus its internal provenance. Client packages must never import this
- * entry (dependency-cruiser `clients-never-import-scroll-internals`).
+ * `@knowscroll/scroll-model/producer`: the backend-only producer contract — the authored shape the
+ * writer model returns (`scroll-authoring.v1`) and its compilation, the canonical draft and its
+ * compile input, staged draft validation and compilation into the consumer document plus its
+ * internal provenance. Client packages must never import this entry (dependency-cruiser
+ * `clients-never-import-scroll-internals`).
  */
-export { blockCatalogueText, CATALOGUE_MAX_BYTES } from './catalogue.js';
+export { compileAuthored } from './authoring.js';
+export { type AuthoringEvidence } from './authoring-bind.js';
+export { authoringReference } from './authoring-reference.js';
+export { AuthoredScroll, SCROLL_AUTHORING_VERSION, type AuthoredBlockType } from './authoring-schema.js';
 export {
   COPY_RUN_WORDS,
   compileDraft,

@@ -2,6 +2,7 @@ import { sql } from 'kysely';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { ReadCoverageInputs } from '../public.js';
 import { readContextRevision } from './postgres-store.js';
+const MAX_DISCOVERY_BYTES = 262144;
 /** Candidate discovery only. The separate current trusted read must fence every actual apply. */
 export const readCoverageInputs: ReadCoverageInputs = async (scope) => {
   const { revision } = await readContextRevision(scope);
@@ -25,7 +26,9 @@ export const readCoverageInputs: ReadCoverageInputs = async (scope) => {
       [...legacy.rows, ...recording.rows].map((r) => [JSON.stringify([r.topicId, r.facetId, r.explanationUnitId]), r]),
     ).values(),
   ].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
-  const overflow = union.length > 100 || new TextEncoder().encode(JSON.stringify(union)).byteLength > 65536;
+  // The raw-reference budget above already bounds the distinct keys to 1000. A consumer batches them
+  // (a trusted read takes 100 probes), so more than 100 distinct keys is not an overflow.
+  const overflow = new TextEncoder().encode(JSON.stringify(union)).byteLength > MAX_DISCOVERY_BYTES;
   return {
     revision,
     completeness: 'not_asserted',

@@ -1,11 +1,69 @@
 import { z } from 'zod';
 import { IntentSchema } from '../domain/proposal.js';
-import type { PlannerMaterialChange, PlannerPorts, PlannerState, RequestPlanner } from './ports.js';
+import type {
+  PlannerMaterialChange,
+  PlannerPorts,
+  PlannerRun,
+  PlannerRunHeader,
+  PlannerState,
+  RequestPlanner,
+} from './ports.js';
 import type { RecordingScopeTx } from '../../identity/public.js';
+
+/** The run as it is once nobody holds it: no claim and no pending wake. */
+export function withoutClaim<T extends PlannerRunHeader | PlannerRun>(run: T) {
+  const { normalWakeId: _wake, claimWakeClaimId: _claimWake, claimId: _claim, claimUntil: _until, ...released } = run;
+  return released;
+}
+
+/**
+ * Puts a run that stopped before any model request left back in the queue. This is the one
+ * transition an explicit resume and new evidence share: a run that never froze its context starts
+ * over as `queued`, one that did continues as `prepared`, and an `unknown` run keeps that mark.
+ * The same business run is used, so a paid answer already kept in the ledger is reused, never paid
+ * for twice. Returns false while an earlier wake is still in flight.
+ */
+async function requeueRun(
+  p: Pick<PlannerPorts, 'store' | 'enqueue' | 'prepareNormalWake'>,
+  cap: RecordingScopeTx,
+  run: PlannerRunHeader,
+): Promise<boolean> {
+  if ((await p.prepareNormalWake(cap, run.id)) !== 'ready') return false;
+  await p.store.writeRun(cap.personal, {
+    ...withoutClaim(run),
+    status: run.hasContext ? 'prepared' : 'queued',
+    ...(run.status === 'unknown' ? { outcome: 'unknown' } : {}),
+  });
+  await p.enqueue(cap, run.id);
+  return true;
+}
+
+/**
+ * New evidence must never leave the person with a run nothing will pick up again.
+ * - `queued` / `prepared` with no claim: wake it again.
+ * - `blocked` (disabled, no provider, quota, budget, refusal: nothing was sent): requeue it.
+ * - `unknown` (a request may have been sent): wake the worker, which retires the run only once its
+ *   attempt is settled or old enough (`retireSettledUnknown`), and never resends the attempt.
+ */
+async function reviveActiveRun(
+  p: Pick<PlannerPorts, 'store' | 'enqueue' | 'prepareNormalWake'>,
+  cap: RecordingScopeTx,
+  run: PlannerRunHeader,
+  accountId: string,
+): Promise<void> {
+  if (run.claimId) return;
+  if (run.recording && run.recording.accountId !== accountId) return;
+  if (run.status === 'queued' || run.status === 'prepared' || run.status === 'unknown') {
+    await p.enqueue(cap, run.id);
+    return;
+  }
+  if (run.status === 'blocked' && !(run.hasContext && (!run.contextSha256 || !run.modelContextSha256)))
+    await requeueRun(p, cap, run);
+}
 
 /** Birth identity comes from an accepted source, never worker preparation or a resumed clock. */
 export async function ensureRun(
-  p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement'>,
+  p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement' | 'prepareNormalWake'>,
   cap: RecordingScopeTx,
   state: PlannerState,
 ): Promise<PlannerState & { readonly activeRunId: string }> {
@@ -22,8 +80,7 @@ export async function ensureRun(
       await p.enqueueRetirement(cap, old.id);
     else if (old?.generation === cap.generation) {
       const current = await p.store.header(cap.personal, old.id);
-      if (current && ['queued', 'prepared'].includes(current.status) && !current.claimId)
-        await p.enqueue(cap, current.id);
+      if (current) await reviveActiveRun(p, cap, current, root.accountId);
     }
     return { ...state, activeRunId: state.activeRunId };
   }
@@ -40,7 +97,7 @@ export async function ensureRun(
   return next;
 }
 export function makeMaterialChange(
-  p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement'>,
+  p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement' | 'prepareNormalWake'>,
 ): PlannerMaterialChange {
   return async (cap, input) => {
     const root = await p.store.root(cap);
@@ -131,26 +188,13 @@ export function makeRequestPlanner(
           await p.receipts.complete(scope, c.commandId, outcome);
           return outcome;
         }
-        if ((await p.prepareNormalWake(cap, run.id)) !== 'ready') {
+        // An unknown keeps the same business identity. The harness alone reconciles its attempt;
+        // explicit resume cannot retag/reissue it or permit an unproved successor.
+        if (!(await requeueRun(p, cap, run))) {
           const outcome = { kind: 'refused', reason: 'run_not_resumable' } as const;
           await p.receipts.complete(scope, c.commandId, outcome);
           return outcome;
         }
-        // An unknown keeps the same business identity. The harness alone reconciles its attempt;
-        // explicit resume cannot retag/reissue it or permit an unproved successor.
-        const {
-          claimId: _claim,
-          claimUntil: _until,
-          claimWakeClaimId: _wake,
-          normalWakeId: _normal,
-          ...released
-        } = run;
-        await p.store.writeRun(scope, {
-          ...released,
-          status: run.hasContext ? 'prepared' : 'queued',
-          ...(run.status === 'unknown' ? { outcome: 'unknown' } : {}),
-        });
-        await p.enqueue(cap, run.id);
         const outcome = { kind: 'accepted', revision: state.desiredRevision, runId: run.id } as const;
         await p.receipts.complete(scope, c.commandId, outcome);
         return outcome;

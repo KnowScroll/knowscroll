@@ -1,6 +1,4 @@
-import { readFileSync } from 'node:fs';
 import { sql, type Kysely } from 'kysely';
-import { ScrollDraft, normaliseDraftInput } from '@knowscroll/scroll-model/producer';
 import { makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   makeProductionReasoningHarness,
@@ -12,57 +10,132 @@ import {
   type ResearchPage,
 } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
-import {
-  hydrateSelectedClaims,
-  quoteCandidates,
-} from '../../../packages/backend/src/modules/content/production/quote-candidates.js';
-import { writerDraftExampleJson } from '../../../packages/backend/src/modules/content/production/writer-example.js';
+import type { WriterFormat } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { fixtureModel, fixtureSettings, silent } from './fixture-model.js';
 import type { FixtureModelPort, FixtureScenario } from './fixture-model-port.js';
 
 /**
  * CI fixtures that drive the real Scroll production path (`makeProduceScroll`) against a labelled
- * fixture model: authored research text, an authored claim selection and an authored writer draft.
- * Nothing here is provider output or product content.
+ * fixture model. Every source paragraph and every model answer here is authored text about an
+ * invented lighthouse: never provider output and never product content.
  */
-const passage =
-  'This deliberately authored fixture passage describes the public research snapshot boundary with sufficiently distinctive wording for exact quote checks while avoiding overlap with the separate fixture explanation.';
-/** Served for every recipe page, so use recipes that name exactly one page. */
+export const FIXTURE_SOURCE = [
+  'The Skerry lighthouse keeper winds the lamp clockwork every four hours through the long winter nights.',
+  'A prism ring around the flame gathers the light into a single beam that sweeps across the water.',
+  'Sailors count the seconds between flashes to learn which lighthouse they are approaching on the coast.',
+  'Fog signals complement the beam, because light cannot cross a thick bank of fog for any useful distance.',
+  'The tower stands twenty-one metres tall, which places the lamp high enough to clear distant waves.',
+  'Today the clockwork has been replaced by a small motor, though the prisms are still the original glass.',
+];
+const researchHtml = (paragraphs: readonly string[]) =>
+  `<html><title>CI fixture</title><main>${paragraphs.map((text) => `<p>${text}</p>`).join('')}</main></html>`;
 export const fixtureResearchPage: ResearchPage = extractResearch(
-  `<html><title>CI fixture</title><main>${[0, 1, 2, 3].map((n) => `<p>${passage} Example ${n}.</p>`).join('')}</main></html>`,
+  researchHtml(FIXTURE_SOURCE),
   'https://spaceplace.nasa.gov/seasons/en/',
   '2026-10-20T00:00:00.000Z',
 );
-const candidates = quoteCandidates([fixtureResearchPage]);
-/** The claims role's answer: four candidate quotes. */
-export const fixtureClaimSelection = { candidateIds: candidates.slice(0, 4).map(({ id }) => id) };
-const claims = hydrateSelectedClaims([fixtureResearchPage], candidates, fixtureClaimSelection.candidateIds);
 
-/** The writer's answer: the authored starter prose plus the format block the recipe asks for. */
-export function fixtureWriterDraft(interactive: boolean) {
-  const starter = JSON.parse(
-    readFileSync(
-      new URL(
-        '../../../packages/backend/src/modules/content/starter/why-the-sky-is-blue.editorial-scroll.json',
-        import.meta.url,
-      ),
-      'utf8',
-    ),
-  ) as { draft: unknown };
-  const draft = ScrollDraft.parse(normaliseDraftInput(starter.draft));
-  draft.sections = draft.sections
-    .map((section) => ({
-      ...section,
-      blocks: section.blocks.filter((block) => block.type === 'paragraph' || block.type === 'callout'),
-    }))
-    .filter((section) => section.blocks.length > 0);
-  const format = ScrollDraft.parse(JSON.parse(writerDraftExampleJson(interactive))).sections[0]?.blocks[1];
-  if (format === undefined) throw new Error('CI_FORMAT_MISSING');
-  draft.sections[0]?.blocks.push(format);
-  for (const section of draft.sections)
-    for (const block of section.blocks)
-      draft.bindings.push({ kind: 'block', blockId: block.id ?? '', claimId: claims.claims[0]?.claimId ?? '' });
-  return draft;
+/**
+ * The page a fixture serves for a recipe URL: the first page of the seasons recipe as it is, any
+ * other URL with one extra paragraph of its own, so a recipe with two pages gets two distinct ones.
+ */
+export function fixtureResearchFor(url: string): ResearchPage {
+  if (url === fixtureResearchPage.url) return fixtureResearchPage;
+  const closing = `This invented fixture page for ${url} adds nothing further about the lighthouse.`;
+  return extractResearch(researchHtml([...FIXTURE_SOURCE, closing]), url, '2026-10-20T00:00:00.000Z');
+}
+
+/** Reader prose in other words than the source (no nine-word run in common), ~280 words in all. */
+export const FIXTURE_PROSE = [
+  'Ships need a way to know where the land begins long before they can see it. A tall tower with a bright lamp answers that need, and the clever part is how the lamp is shaped rather than how strong it is. Glass rings bend the glow into one narrow ribbon.',
+  'Because the ribbon turns, a distant observer sees it only for a moment each rotation. Those regular flashes are not decoration. Each tower repeats its own rhythm, so a navigator who times the gaps can tell neighbouring towers apart on a dark coast.',
+  'Someone had to keep that rotation going. In earlier times a keeper climbed the stairs on a fixed schedule to wind a weight-driven mechanism, and a missed visit meant a dark coast. Modern towers use a motor, yet the glass that shapes the beam is often the very same.',
+  'Weather changes what a lamp can do. Thick fog scatters light in every direction, so the beam dissolves after a short distance, however clever its glass. That is why towers also carry sound signals, which travel through fog far better than any flash.',
+  'Height matters as well as brightness. Raising the lamp pushes the horizon outward, so the beam can be seen from farther away before the curve of the sea hides the tower. A modest hill or a tall column both do the same job.',
+  'Put together, these ideas describe a small system: a shaped beam, a signature rhythm, a dependable rotation and a backup for bad weather. Each part solves a different problem, and the whole is only as reliable as its weakest piece.',
+];
+const DIAGRAM = {
+  type: 'diagram',
+  cites: ['e2', 'e3', 'e4'],
+  title: 'A lighthouse in two conditions',
+  layout: 'flow-lr',
+  nodes: [
+    { id: 'lamp', label: 'Lamp' },
+    { id: 'prisms', label: 'Prism ring', kind: 'process' },
+    { id: 'ship', label: 'Ship' },
+  ],
+  edges: [
+    { id: 'glow', from: 'lamp', to: 'prisms', label: 'Glow' },
+    { id: 'beam', from: 'prisms', to: 'ship', label: 'Beam' },
+  ],
+  frames: [
+    {
+      label: 'Clear night',
+      description: 'The beam crosses open water and reaches the ship.',
+      highlight: ['beam'],
+    },
+    {
+      label: 'Thick fog',
+      description: 'The beam fades early, so a sound signal must take over.',
+      hide: ['beam'],
+    },
+  ],
+} as const;
+const COMPARISON = {
+  type: 'comparison',
+  cites: ['e2', 'e3', 'e4'],
+  title: 'A lighthouse in two conditions',
+  columns: ['Clear night', 'Thick fog'],
+  rows: [
+    ['The beam crosses open water and reaches the ship.', 'The beam fades early, so the ship sees nothing of it.'],
+    ['Sailors time the flashes to name the tower.', 'A sound signal must take over from the lamp.'],
+  ],
+} as const;
+
+/** The block a recipe's format asks for, authored about the same invented lighthouse. */
+function formatBlock(format: WriterFormat) {
+  switch (format) {
+    case 'diagram':
+      return DIAGRAM;
+    case 'comparison':
+      return COMPARISON;
+    case 'chart':
+    case 'sequence':
+    case 'simulation':
+    case 'timeline':
+      throw new Error(`CI_FIXTURE_FORMAT_UNSUPPORTED:${format}`);
+  }
+}
+
+/** The writer's answer in the authoring shape, with the block the recipe's format asks for. */
+export function fixtureAuthored(
+  format: WriterFormat,
+  overrides: { readonly drop?: string; readonly paragraph?: string } = {},
+) {
+  const prose = FIXTURE_PROSE.map((text, index) => (index === 1 && overrides.paragraph ? overrides.paragraph : text));
+  return {
+    title: 'How a lighthouse guides ships',
+    dek: 'A shaped beam, a rhythm and a dependable rotation turn one lamp into a coastal signal.',
+    blocks: [
+      { type: 'heading', text: 'The beam' },
+      { type: 'paragraph', cites: ['e1', 'e2'], text: prose[0] },
+      { type: 'paragraph', cites: ['e2', 'e3'], text: prose[1] },
+      { type: 'heading', text: 'The upkeep' },
+      { type: 'paragraph', cites: ['e1', 'e6'], text: prose[2] },
+      { type: 'paragraph', cites: ['e4'], text: prose[3] },
+      formatBlock(format),
+      { type: 'heading', text: 'Putting it together' },
+      { type: 'paragraph', cites: ['e5'], text: prose[4] },
+      { type: 'paragraph', cites: ['e3', 'e5'], text: prose[5] },
+      {
+        type: 'callout',
+        cites: ['e4'],
+        kind: 'limit',
+        title: 'Where this stops',
+        text: 'This picture ignores radio and satellite navigation, which now do most of the work.',
+      },
+    ].filter((block) => block.type !== overrides.drop),
+  };
 }
 
 export const answerWith = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });
@@ -77,14 +150,7 @@ export function fixtureProduction(
   script: Parameters<typeof fixtureModel>[0],
 ): { readonly calls: FixtureModelPort['calls']; readonly produce: ReturnType<typeof makeProduceScroll> } {
   const fixture = fixtureModel(script, { label: 'generated-scroll-CI-fixture' });
-  const model = guardedModelPort({
-    ...fixture,
-    supportsSingleToolObject: true,
-    supportsSingleToolJsonString: true,
-    supportsNativeOutputSchema: true,
-    provider: 'minimax',
-    model: 'MiniMax-M3',
-  });
+  const model = guardedModelPort({ ...fixture, provider: 'minimax', model: 'MiniMax-M3.1-Flash' });
   const withScope = makeWithProductionScope(db, { enabled: true, lockTimeoutMs: 5000 });
   const harness = makeProductionReasoningHarness(
     postgresProductionHarnessPorts({
@@ -102,7 +168,7 @@ export function fixtureProduction(
     withScope,
     harness,
     model: model.model,
-    research: () => Promise.resolve(fixtureResearchPage),
+    research: (url) => Promise.resolve(fixtureResearchFor(url)),
   });
   return { calls: fixture.calls, produce };
 }

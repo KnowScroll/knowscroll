@@ -1,6 +1,7 @@
 import type { ReadRecentTopicIds } from '../../evidence/public.js';
 export type ReadRecentContextTopics = ReadRecentTopicIds;
 import type { PersonalScopeTx } from '../../identity/public.js';
+import type { CurrentPlan } from '../../composer/public.js';
 import type { Contribution, ContextQuery, CONTEXT_POLICY } from '../domain/context.js';
 
 export interface TopicStatistics {
@@ -67,6 +68,15 @@ export interface ExplorationSnapshot {
     readonly hasMore: boolean;
   };
 }
+/**
+ * The person's current accepted Planner plan at `evaluatedAt`, or undefined when there is none or
+ * every opportunity has expired. A cheap stored read for the navigation path: it never reasons,
+ * waits on a provider or writes. The Planner module implements it; a plan is never evidence.
+ */
+export type ReadCurrentPlan = (
+  scope: PersonalScopeTx,
+  query: { readonly evaluatedAt: string },
+) => Promise<CurrentPlan | undefined>;
 export type ApplyProjectedEncounter = (scope: PersonalScopeTx, input: Contribution) => Promise<boolean>;
 export type ReadExplorationSnapshot = (scope: PersonalScopeTx, query: ContextQuery) => Promise<ExplorationSnapshot>;
 export interface ContextPorts {

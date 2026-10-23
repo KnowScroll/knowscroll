@@ -450,6 +450,24 @@ export function makeExecuteAttempt<A, S>(ports: ExecutionPorts<A, S>) {
     const durationMs = Math.max(0, ports.now() - startedAt);
     const settlement = 'reply' in sent ? settlementForReply(sent.reply, judgeSafely(judge, sent.reply)) : sent.failure;
 
+    /** Keeps the refused answer of a production attempt; diagnostics never change the outcome. */
+    async function keepRejectedAnswer(): Promise<void> {
+      const record = ledger.recordRejectedAnswer;
+      if (record === undefined || !('reply' in sent) || settlement.judgement?.valid !== false) return;
+      const { answer } = sent.reply;
+      try {
+        await record({
+          attempt: ref(attemptId),
+          reason: settlement.judgement.reason,
+          issues: settlement.judgement.issues,
+          kind: answer.kind === 'text' ? 'answer' : 'raw_reply',
+          text: answer.kind === 'text' ? answer.text : (answer.detail ?? ''),
+        });
+      } catch (error) {
+        logEvent('reasoning.rejected_answer_not_recorded', { attemptId, error });
+      }
+    }
+
     // 6. Ledger settlement.
     // The eraser may have marked/deleted the personal row while this transport was in flight.
     // Never synthesize an eligible answer from the still-private local settlement details.
@@ -462,6 +480,7 @@ export function makeExecuteAttempt<A, S>(ports: ExecutionPorts<A, S>) {
         durationMs,
         ...(settlement.details.usage === undefined ? {} : { usage: settlement.details.usage }),
       });
+      await keepRejectedAnswer();
       return committedSettlement();
     }
     // A concurrent delivery decided this attempt was lost and marked it `unknown`. A conclusive
@@ -472,6 +491,7 @@ export function makeExecuteAttempt<A, S>(ports: ExecutionPorts<A, S>) {
         durationMs,
         ...(settlement.details.usage === undefined ? {} : { usage: settlement.details.usage }),
       });
+      await keepRejectedAnswer();
       return committedSettlement();
     }
     // Written off meanwhile: the late answer is not applied, but its usage settles the receipt.
