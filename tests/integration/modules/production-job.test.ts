@@ -1,7 +1,11 @@
 import { sql } from 'kysely';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createBoss, drainConsumers, jobConsumer, startConsumers } from '@knowscroll/backend/infrastructure/jobs';
-import type { Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  makeWithProductionScope,
+  productionTransactionOf,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
 import {
   planLibraryProduction,
   produceScrollJob,
@@ -20,6 +24,7 @@ import type { ProductionReasoningHarness } from '@knowscroll/backend/reasoning';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { fixtureAuthored } from '../support/generated-scroll.js';
+import { productionStore } from '../../../packages/backend/src/modules/content/production/store.js';
 import { signal, silent } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 
@@ -261,14 +266,16 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       }
     });
 
-    it('lets two senders ask for the same take at once and starts it once', async () => {
+    it('creates a take once however many senders ask at the same moment', async () => {
       const p = setup(rejected);
       await p.run(produceScrollJob('seasons', 1), delivery());
-      const [a, b] = await Promise.all([
-        p.run(produceScrollJob('seasons', 2), delivery()),
-        p.run(produceScrollJob('seasons', 2), delivery()),
-      ]);
-      expect([a, b].filter((r) => r.kind === 'finished' && r.result.outcome === 'rejected')).not.toHaveLength(0);
+      const store = productionStore(database.db);
+      const withScope = makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
+      const authority = { scopeId: 'scroll-supply', generation: 1 };
+      const ask = () => withScope(authority, (scope) => store.create(productionTransactionOf(scope), 'seasons', 1, 2));
+      const results = await Promise.all([ask(), ask(), ask()]);
+      const jobs = results.map((entered) => (entered.kind === 'entered' ? entered.value : undefined));
+      expect(jobs.filter((job) => job?.kind === 'job' && job.created)).toHaveLength(1);
       expect((await takes()).filter(([take]) => take === 2)).toHaveLength(1);
     });
   });

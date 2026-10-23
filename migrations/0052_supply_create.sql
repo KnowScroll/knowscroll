@@ -45,6 +45,7 @@ alter table content.scroll_production_runs add constraint scroll_production_runs
  check(take between 1 and 3) not valid;
 -- squawk-ignore ban-drop-constraint
 alter table content.scroll_production_runs drop constraint scroll_production_runs_topic_policy_version_key;
--- squawk-ignore disallowed-unique-constraint
+-- The table holds at most three rows per recipe and version, so the unique key's build is instant.
+-- squawk-ignore disallowed-unique-constraint, constraint-missing-not-valid
 alter table content.scroll_production_runs add constraint scroll_production_runs_topic_version_take_key
  unique(topic,policy_version,take);
