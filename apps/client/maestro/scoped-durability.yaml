@@ -1,0 +1,32 @@
+# Private dedicated APK only. Shell owns cold starts; NEVER launchApp/clearState here.
+appId: com.knowscroll.client
+---
+- runFlow:
+    when:
+      true: ${ACTION == "complete"}
+    commands:
+      - tapOn:
+          id: native249-complete-pending
+- runFlow:
+    when:
+      true: ${ACTION == "fault"}
+    commands:
+      - tapOn:
+          id: native249-fail-closed
+- runFlow:
+    when:
+      true: ${ACTION == "retry"}
+    commands:
+      - tapOn:
+          id: native249-retry-cleanup
+- extendedWaitUntil:
+    visible:
+      id: native249-${PHASE}
+    timeout: 60000
+- assertVisible:
+    id: ks-native-durability-screen-v1
+- assertNotVisible:
+    id: native249-failed
+- assertNotVisible:
+    id: native249-bootstrap-unavailable
+- takeScreenshot: native249-${PHASE}

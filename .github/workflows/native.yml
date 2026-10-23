@@ -26,6 +26,10 @@ on:
         description: Build with the developer component gallery (EXPO_PUBLIC_KS_GALLERY=1) and run the gallery flows
         type: boolean
         default: true
+      durability_sdk:
+        description: Build a separate synthetic fixture APK and run actual-SDK restart/fault cases on a fresh disposable emulator
+        type: boolean
+        default: false
   pull_request:
     types: [labeled, synchronize, opened, reopened]
 permissions:
@@ -173,6 +177,22 @@ jobs:
             test "$marker" -eq 0 || { echo "EXPO_PUBLIC_KS_GALLERY is unset, but the bundle carries the developer gallery"; exit 1; }
           fi
           test "$origin" -ge 1 || { echo "the API origin $KS_API_ORIGIN is not in the bundle"; exit 1; }
+          # Normal gallery/production APK never contains either private CI body.
+          unzip -p "$apk" assets/index.android.bundle > "$RUNNER_TEMP/normal-embedded.bundle"
+          if grep -aE 'ks-native-durability-bootstrap-v1|ks-native-durability-screen-v1' "$RUNNER_TEMP/normal-embedded.bundle"; then
+            echo 'private native CI fixture entered a normal APK'; exit 1
+          fi
+          # The permanent source override must also compile the patch in ordinary Android APKs.
+          python3 - <<'PYSECURE'
+          import pathlib,json,zipfile,hashlib
+          package=json.loads(pathlib.Path('apps/client/package.json').read_text())
+          assert 'expo-secure-store' in package['expo']['autolinking']['android']['buildFromSource']
+          source=pathlib.Path('apps/client/node_modules/expo-secure-store/android/src/main/java/expo/modules/securestore/SecureStoreModule.kt')
+          assert 'if (!saveEncryptedItem(' in source.read_text()
+          with zipfile.ZipFile('apps/client/android/app/build/outputs/apk/release/app-release.apk') as z:
+              assert any(b'Could not commit encrypted value to SecureStore' in z.read(i) for i in z.infolist() if i.filename.endswith('.dex')), 'patched native branch absent from ordinary APK'
+          print('ordinary APK patched SecureStore branch present; source sha256='+hashlib.sha256(source.read_bytes()).hexdigest())
+          PYSECURE
       - name: Upload the APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -247,3 +267,270 @@ jobs:
             !${{ runner.temp }}/native-out/screenshots
           if-no-files-found: warn
           retention-days: 14
+
+  # Separate clean jobs/artifacts: the normal gallery APK and all old flows above stay independent.
+  durability-apk:
+    # Runs for a manual dispatch, and for a pull request that carries `run-native` (adding some
+    # other label to a labelled pull request does not start another run).
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.durability_sdk) ||
+      (contains(github.event.pull_request.labels.*.name, 'run-native') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'run-native'))
+    runs-on: ubuntu-latest
+    env:
+      KS_API_ORIGIN: https://native249.fixture.invalid
+      KS_GALLERY: 'true'
+      EXPO_PUBLIC_KS_GALLERY: '1'
+      EXPO_PUBLIC_KS_NATIVE_DURABILITY_CI: '1'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The build inputs are what the lane promises
+        run: |
+          case "$KS_API_ORIGIN" in
+            https://*) ;;
+            *) echo "api_origin must be an https:// origin (production native builds refuse plain HTTP): $KS_API_ORIGIN"; exit 1 ;;
+          esac
+          case "$KS_API_ORIGIN" in
+            *[[:space:]]*) echo "api_origin must not contain whitespace"; exit 1 ;;
+          esac
+          {
+            echo "### native: build inputs"
+            echo "- event: \`$GITHUB_EVENT_NAME\`"
+            echo "- API origin baked into the build: \`$KS_API_ORIGIN\`"
+            echo "- developer gallery (EXPO_PUBLIC_KS_GALLERY): \`$KS_GALLERY\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "EXPO_PUBLIC_KS_API_ORIGIN=$KS_API_ORIGIN" >> "$GITHUB_ENV"
+          if [ "$KS_GALLERY" = "true" ]; then echo "EXPO_PUBLIC_KS_GALLERY=1" >> "$GITHUB_ENV"; fi
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.0
+          cache: pnpm
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      # The native bundle reads @knowscroll/contracts from its dist/, like the web export (D-012).
+      - name: Build the packages the bundle reads
+        run: |
+          pnpm --filter @knowscroll/scroll-model build
+          pnpm --filter @knowscroll/scene-core build
+          pnpm --filter @knowscroll/contracts build
+      # android/ is generated (continuous native generation) and never committed. The template is
+      # the one inside the pinned expo package (expo/template.tgz), so Expo SDK 58 fixes AGP, Gradle,
+      # the NDK and the SDK levels.
+      - name: Expo prebuild (android)
+        env:
+          CI: '1'
+          EXPO_NO_TELEMETRY: '1'
+          EXPO_NO_GIT_STATUS: '1'
+        run: |
+          pnpm --filter @knowscroll/client exec expo prebuild --platform android --clean --no-install
+          test -f apps/client/android/gradlew
+          echo "tracked files changed by prebuild (expected: none):"
+          git status --short --untracked-files=no
+      - name: Pin the Gradle distribution and size the daemons
+        run: |
+          props=apps/client/android/gradle/wrapper/gradle-wrapper.properties
+          expected="distributionUrl=https\\://services.gradle.org/distributions/gradle-$KS_GRADLE_VERSION-bin.zip"
+          if ! grep -qxF "$expected" "$props"; then
+            echo "the generated wrapper no longer uses Gradle $KS_GRADLE_VERSION; update KS_GRADLE_VERSION and KS_GRADLE_SHA256 in native.yml and dependency-matrix.md"
+            grep '^distributionUrl=' "$props"
+            exit 1
+          fi
+          # The generated files may lack a final newline (prebuild's last property is
+          # `expo.inlineModules.watchedDirectories=[]`, which the build parses as JSON), so start a new line.
+          {
+            echo
+            echo "distributionSha256Sum=$KS_GRADLE_SHA256"
+          } >> "$props"
+          {
+            echo
+            echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+            echo "kotlin.daemon.jvmargs=-Xmx2g"
+          } >> apps/client/android/gradle.properties
+      # Only x86_64 (the emulator's ABI) is compiled. assembleRelease bundles the JavaScript into the
+      # APK (expo export:embed through the React Native Gradle plugin); the release build type is
+      # signed with the template's debug keystore, so no signing secret exists.
+      - name: Gradle release build (JS bundle embedded, debug-signed)
+        working-directory: apps/client/android
+        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=x86_64 --no-build-cache --rerun-tasks --console=plain --stacktrace
+      - name: Inspect the APK
+        run: |
+          apk=apps/client/android/app/build/outputs/apk/release/app-release.apk
+          test -f "$apk"
+          build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          badging=$("$build_tools/aapt2" dump badging "$apk")
+          printf '%s\n' "$badging" | grep -E "^package:|^sdkVersion|^targetSdkVersion|^launchable-activity" | tee "$RUNNER_TEMP/badging.txt"
+          grep -q "^package: name='$KS_APP_ID'" "$RUNNER_TEMP/badging.txt"
+          "$build_tools/apksigner" verify --print-certs "$apk" | tee "$RUNNER_TEMP/certs.txt"
+          unzip -l "$apk" > "$RUNNER_TEMP/apk-files.txt"
+          grep -E "assets/index.android.bundle|lib/x86_64/" "$RUNNER_TEMP/apk-files.txt" | head -n 20
+          grep -q "assets/index.android.bundle" "$RUNNER_TEMP/apk-files.txt"
+          # The Hermes bundle keeps ASCII strings readable; the gallery marker is the web export's check, on a device build.
+          marker=$(unzip -p "$apk" assets/index.android.bundle | grep -a -c 'ks-component-gallery' || true)
+          origin=$(unzip -p "$apk" assets/index.android.bundle | grep -a -c "$KS_API_ORIGIN" || true)
+          {
+            echo "### native: APK"
+            echo "- package: \`$KS_APP_ID\`, size: $(stat -c %s "$apk") bytes, sha256: \`$(sha256sum "$apk" | cut -d' ' -f1)\`"
+            echo "- embedded bundle: \`assets/index.android.bundle\` ($(unzip -l "$apk" | grep 'assets/index.android.bundle' | awk '{print $1}') bytes)"
+            echo "- gallery marker lines in the bundle: $marker (gallery build: $KS_GALLERY)"
+            echo "- API origin lines in the bundle: $origin"
+            echo "- signer: debug key (no signing secret exists)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # The native counterpart of the client job's "production export carries no developer gallery".
+          if [ "$KS_GALLERY" = "true" ]; then
+            test "$marker" -ge 1 || { echo "gallery build, but the bundle has no gallery marker"; exit 1; }
+          else
+            test "$marker" -eq 0 || { echo "EXPO_PUBLIC_KS_GALLERY is unset, but the bundle carries the developer gallery"; exit 1; }
+          fi
+          test "$origin" -ge 1 || { echo "the API origin $KS_API_ORIGIN is not in the bundle"; exit 1; }
+          unzip -p "$apk" assets/index.android.bundle > "$RUNNER_TEMP/durability-embedded.bundle"
+          grep -a -q 'ks-native-durability-bootstrap-v1' "$RUNNER_TEMP/durability-embedded.bundle"
+          grep -a -q 'ks-native-durability-screen-v1' "$RUNNER_TEMP/durability-embedded.bundle"
+      - name: Bind exact source, SDK linkage, patch, generated resources and every APK member
+        env:
+          CI: '1'
+        run: |
+          mkdir -p "$RUNNER_TEMP/native249-build"
+          pnpm --filter @knowscroll/client exec expo-modules-autolinking resolve --platform android --json > "$RUNNER_TEMP/native249-build/autolinking.json"
+          python3 - <<'PYPROOF'
+          import pathlib,hashlib,json,subprocess,zipfile
+          out=pathlib.Path(__import__('os').environ['RUNNER_TEMP'])/'native249-build'
+          sha=lambda data:hashlib.sha256(data).hexdigest()
+          apk=pathlib.Path('apps/client/android/app/build/outputs/apk/release/app-release.apk')
+          metadata=json.loads((out/'autolinking.json').read_text())
+          linked={module['packageName']:module for module in metadata['modules']}
+          for name in ['expo-secure-store','expo-sqlite','expo-crypto']:
+              assert linked[name]['projects'], 'native module project linkage absent'
+          assert 'expo-secure-store' in metadata['configuration']['buildFromSource']
+          assert any(project['name']=='expo-secure-store' for project in linked['expo-secure-store']['projects']), 'source-selection project name differs'
+          secure=pathlib.Path('apps/client/node_modules/expo-secure-store/android/src/main/java/expo/modules/securestore/SecureStoreModule.kt')
+          assert 'if (!saveEncryptedItem(' in secure.read_text()
+          with zipfile.ZipFile(apk) as z:
+              members=[{'path':i.filename,'bytes':i.file_size,'sha256':sha(z.read(i))} for i in z.infolist() if not i.is_dir()]
+              assert any('Could not commit encrypted value to SecureStore'.encode() in z.read(i) for i in z.infolist() if i.filename.endswith('.dex')), 'patched native branch absent'
+          tracked={}
+          for line in subprocess.check_output(['git','ls-tree','-r','HEAD'],text=True).splitlines():
+              meta,path=line.split('\t',1);tracked[path]=meta
+          inputs=['apps/client/package.json','pnpm-lock.yaml','pnpm-workspace.yaml','patches/expo-secure-store@58.0.2.patch','apps/client/app.json',str(secure)]
+          resources=[]
+          for f in pathlib.Path('apps/client/android/app/src/main').rglob('*.xml'):
+              resources.append({'path':str(f),'sha256':sha(f.read_bytes())})
+              if f.name=='AndroidManifest.xml' or 'backup' in f.name or 'extraction' in f.name:
+                  (out/f.name).write_bytes(f.read_bytes())
+          (out/'build-proof.json').write_text(json.dumps({'evidence':'build/source only; not SDK runtime proof','head':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),'tracked':tracked,'inputPins':{f:sha(pathlib.Path(f).read_bytes()) for f in inputs},'generatedResources':resources,'apkSha256':sha(apk.read_bytes()),'apkMembers':members},indent=2)+'\n')
+          PYPROOF
+          build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          "$build_tools/aapt2" dump xmltree apps/client/android/app/build/outputs/apk/release/app-release.apk --file AndroidManifest.xml > "$RUNNER_TEMP/native249-build/apk-manifest.txt"
+          if grep -q 'android:debuggable.*0xffffffff' "$RUNNER_TEMP/native249-build/apk-manifest.txt"; then
+            echo 'debuggable=true' > "$RUNNER_TEMP/native249-build/debuggability.txt"
+          else echo 'debuggable=false' > "$RUNNER_TEMP/native249-build/debuggability.txt"; fi
+      - name: Upload dedicated SDK build proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native249-build-proof
+          path: ${{ runner.temp }}/native249-build
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload the APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native249-durability-apk
+          path: apps/client/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  durability-emulator:
+    needs: durability-apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      KS_GALLERY: 'true'
+      KS_NATIVE_DURABILITY_CI: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download the APK
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: native249-durability-apk
+          path: ${{ runner.temp }}/apk
+      # Maestro needs Java 17+.
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install Maestro ${{ env.KS_MAESTRO_VERSION }} (checksum verified)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$KS_MAESTRO_VERSION/maestro.zip"
+          echo "$KS_MAESTRO_SHA256  $RUNNER_TEMP/maestro.zip" | sha256sum --check -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-cli"
+          echo "$RUNNER_TEMP/maestro-cli/maestro/bin" >> "$GITHUB_PATH"
+      - name: Prepare the output folder
+        run: mkdir -p "$RUNNER_TEMP/native249-out"
+      - name: Emulator (API 35, google_apis, x86_64) and Maestro flows
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          KS_APK: ${{ runner.temp }}/apk/app-release.apk
+          KS_OUT: ${{ runner.temp }}/native249-out
+          MAESTRO_CLI_NO_ANALYTICS: 'true'
+          MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: 'true'
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 3
+          ram-size: 4096M
+          disk-size: 6000M
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash apps/client/maestro/run-ci.sh
+      - name: Bind every safe evidence member (no raw SDK logcat or app data archive)
+        if: ${{ !cancelled() }}
+        run: |
+          python3 - <<'PYMANIFEST'
+          import pathlib,json,hashlib,os
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'native249-out'
+          out.mkdir(exist_ok=True)
+          files=[{'path':str(f.relative_to(out)),'bytes':f.stat().st_size,'sha256':hashlib.sha256(f.read_bytes()).hexdigest()} for f in sorted(out.rglob('*')) if f.is_file() and f.name!='manifest.json']
+          (out/'manifest.json').write_text(json.dumps({'kind':'synthetic fixture actual-SDK emulator evidence, requires independent acceptance','files':files},indent=2)+'\n')
+          PYMANIFEST
+      - name: Upload screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native249-screenshots
+          path: ${{ runner.temp }}/native249-out/screenshots
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload the Maestro report and logs
+        id: sdk-evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native249-sdk-report
+          path: |
+            ${{ runner.temp }}/native249-out
+            !${{ runner.temp }}/native249-out/screenshots
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Official immutable evidence archive identity
+        if: ${{ !cancelled() }}
+        run: |
+          echo 'SDK evidence artifact ID: ${{ steps.sdk-evidence.outputs.artifact-id }}' >> "$GITHUB_STEP_SUMMARY"
+          echo 'SDK evidence official archive digest: ${{ steps.sdk-evidence.outputs.artifact-digest }}' >> "$GITHUB_STEP_SUMMARY"

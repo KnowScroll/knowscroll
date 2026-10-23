@@ -19,6 +19,11 @@ app_id="${KS_APP_ID:-com.knowscroll.client}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -n "${ANDROID_HOME:-}" ]; then export PATH="$ANDROID_HOME/platform-tools:$PATH"; fi
 
+# Dedicated fixture APK uses a separate fresh emulator/job. Preserve every normal flow below.
+if [ "${KS_NATIVE_DURABILITY_CI:-false}" = "true" ]; then
+  exec bash "$here/native-storage-failure-ci.sh"
+fi
+
 mkdir -p "$KS_OUT/screenshots" "$KS_OUT/reports" "$KS_OUT/logs" "$KS_OUT/maestro"
 summary="$KS_OUT/summary.md"
 : > "$summary"

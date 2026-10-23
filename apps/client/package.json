@@ -54,5 +54,14 @@
     "jest-expo": "catalog:",
     "test-renderer": "catalog:",
     "typescript": "catalog:"
+  },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-secure-store"
+        ]
+      }
+    }
   }
 }

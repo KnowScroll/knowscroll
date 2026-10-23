@@ -127,3 +127,134 @@ shows up as a failed run, not as a silent change of what is tested.
 When Expo or React Native moves, the generated Gradle version changes with it: the `Pin the Gradle distribution`
 step fails with the new version, and the pin (`KS_GRADLE_VERSION`, `KS_GRADLE_SHA256`) is updated together with the
 matrix.
+
+## Dedicated scoped-durability SDK fixture (#249)
+
+The normal `apk`/`emulator` jobs and their four gallery flows above remain separate. A manual
+run elects the additional jobs with `durability_sdk=true`; a labelled `run-native` PR also runs
+those dedicated jobs. This source addition is not dispatch authority or runtime acceptance.
+The coordinator must first compose the independently reviewed native23 and harness9 blobs on the
+actual accepted base, preserving all current foreign/SQL bytes. Never merge the obsolete7417
+ancestry of the development branch. Fresh exact-source/actual-PR checks and independent evidence
+acceptance remain required. All programme requirements remain open.
+
+`durability-apk` starts from its own clean checkout and prebuild, with no restored Gradle task
+cache, `--no-build-cache --rerun-tasks`, and both explicit build flags:
+`EXPO_PUBLIC_KS_GALLERY=1` and `EXPO_PUBLIC_KS_NATIVE_DURABILITY_CI=1`. It uses the fixed origin
+`https://native249.fixture.invalid`. This produces `native249-durability-apk`, separate from
+`android-release-apk`. `durability-emulator` installs it once on a fresh disposable hosted
+emulator; it never installs it over a previous package. The normal APK inspection rejects both
+private CI markers. The dedicated APK requires `ks-native-durability-bootstrap-v1` and
+`ks-native-durability-screen-v1` as positive controls. Both the root bootstrap and route body
+use build-constant conditional require; a not-found route alone is not the exclusion proof.
+The coordinator separately appends the new production web route assertion to the final reviewed
+web-smoke leaf. No provider, native foundation, app config, dependency or contract is changed here.
+
+The root layout resolves a finite initial link (`seed`, `restore`, or `sqlite-denied`, with the
+fixed `native249-v1` scenario) before constructing/starting the provider manager. Missing or
+invalid selection blocks startup; it cannot fall back to the normal signed-out manager and
+purge a restart witness. A module-owned bootstrap promise gives the existing provider's manager
+prop exactly one stable actual manager, actual `sessionTokens`, actual singleton `scopeDurability`
+and default Expo Crypto/SecureStore/SQLite. Hooks run before the font early return. The screen
+only consumes that provider's context; it creates no second manager, adapter, socket or fake
+storage port. Synthetic HTTP is a finite strict-schema fixture and never falls through to fetch.
+Its public fixture credential is never sent to a real origin. These are synthetic authentication
+and HTTP results, not server/provider acceptance or qualified consumption evidence.
+
+Only explicit seed on a proved fresh installation may write the fixed fixture credential, after
+both token and root are absent. Restore verifies the same credential, account/epoch/origin and
+native-computed session binding, requires an existing OPEN root, and performs no token/root seed
+write or clearing before hydration. It compares the pre-hydration root identity internally with
+the hydrated root; random roots, keys, credentials, private bodies and their hashes are not emitted.
+The single adapter decrypts the existing snapshot. The pending command and immutable event batch
+are labelled authored fixture input. Grouped block state retains four revisions and its matching
+index; actual anchor and private resume controllers supply the exact place. Every ready marker
+waits for actual native exact-membership flush. No stored policy, ACK or snapshot grants collection.
+
+The fixture holds provider current reads and automatic outbox ACKs until the restored pending
+bytes, original generation/session/event order, grouped state/index, resume and unknown/no-collection
+witness are checked. It then acknowledges the same original batch at generation1, waits for actual
+committed removal, retries the original unknown Pause, and observes its receipt without collection.
+Only a separate current read confirms paused generation2. An actual Resume command then reaches
+generation3; its receipt alone still cannot collect, and another independent current read is required.
+The fixture never relabels the old batch to a new generation. Intake ACK is not qualification.
+
+### Process and fault sequence
+
+`run-ci.sh` dispatches to `native-storage-failure-ci.sh` only for the dedicated flag. Otherwise
+its old flows, assertions, independent results, tool pins and crash/ANR checks are unchanged.
+The dedicated shell requires GitHub-hosted CI, a fixed emulator serial shape and qemu property,
+the exact package and positive APK markers. It installs once. After seed-ready it records PID
+and `/proc/<pid>/stat` kernel starttime, force-stops, proves process absence, and opens the same
+APK/data with restore. The process identity pair must change. No clearState, pm clear, uninstall,
+reinstall, reseed or app-data archive exists between halves.
+
+Each fault is a separate required result, not a skipped pass. The shell records actual root and
+run-as capability; debug signing is never treated as debuggability. The APK manifest records the
+actual `android:debuggable` attribute. If required root/UID/metadata capability is absent, that
+case is **UNAVAILABLE**, emits a JUnit error and fails the dedicated job. No JS throw substitutes.
+
+Allowed private paths are only the fixed package's `files/SQLite`, `shared_prefs` and
+`shared_prefs/SecureStore.xml` under `/data/user/0/com.knowscroll.client` (its canonical
+`/data/data/com.knowscroll.client` alias is accepted). The shell checks exact canonical path,
+non-symlink leaf, package UID ownership and captures mode/UID/GID/SELinux metadata before changes.
+It never reads or uploads their contents, changes UID/GID/context, or accepts arbitrary path input.
+
+| Case | Actual fault and required result |
+|---|---|
+| Cold SQLite | Force-stop and prove PID absence first, closing every app descriptor; deny the existing SQLite directory with mode000. Actual manager preparation and a separate immediately closed SDK open/PRAGMA attempt must reject, leave no successful scope/memory fallback and keep the original token/root. Restore exact metadata, cold-launch restore again and verify the complete original snapshot before acknowledging work. |
+| SecureStore false commit | Keep the real process and its loaded SharedPreferences live. Set only that directory to500 and XML to400, denying atomic replacement and direct write. Actual scope end must reject with native `ERR_WRITE` and the pinned `Could not commit encrypted value to SecureStore` branch, not a generic encrypt/decrypt/permission rejection. The snapshot must remain, and actual manager signOut must stay unavailable with the original token. |
+| Retry and cleanup | Restore exact original metadata, then require a new acknowledged CLOSED write through actual manager cleanup before deletion/token removal succeeds. A process-local CLOSED read after failed commit is not persistence proof. Verify keyless CLOSED/zero rows after the acknowledged receipt, refuse the same binding through the same singleton lifecycle, then permit a different synthetic session via actual manager redeem only after cleanup and clean that scope too. |
+
+The CLOSED-before-DELETE temporal claim combines exact independently reviewed source ordering,
+the real native failed-commit/no-delete observation, restored permissions and successful awaited
+retry. Final row readback alone cannot prove commit ordering or disk persistence. The native
+patch source hash, actual DEX branch string and native linkage are separate build evidence gates.
+
+Every one-shot adb command has a finite timeout (5–60s); managed background logcat is capped
+at1200s and stopped by the cleanup trap. Process absence has50 attempts at200ms; Maestro
+phase runs are capped at100s and waits at60s. Initial-link selection is5s, internal observation
+polling15s, controller operations60s, held fixture HTTP replies180s, and each hosted job remains
+45 minutes. Replies are held to prevent authority races, not arbitrary test sleeps. EXIT/INT/TERM
+restore exact original permission metadata and preserve failure status; failed restoration fails
+the run. Cancellation/SIGKILL may interrupt a trap, so only a disposable hosted emulator is eligible;
+no cancelled run establishes restoration or acceptance. There are no broad chmod/chown/rm commands.
+
+### Evidence and limits
+
+`native249-build-proof` binds source head/tree/full tracked blob map, lock/catalog/patch and actual
+installed SecureStore source, autolinking metadata, generated manifest/backup XML and all APK ZIP
+members plus the APK digest. The actual APK manifest is inspected separately. The SDK evidence
+artifact includes an all-member SHA256 manifest and the upload action's official immutable archive
+ID/digest is recorded outside that archive in the step summary. The coordinator must download and
+verify the official archive and every member before acceptance; source generation is not that proof.
+
+Dedicated receipts contain finite phase names, booleans, counts, fixed fixture selectors and process
+identity. No root/key/token/private body or body-derived fingerprint is shown. Raw native logcat is
+kept outside the upload folder only long enough to reduce app crash/ANR to a boolean, then removed;
+it is never echoed or archived. Normal gallery logging remains its own unchanged lane. JUnit retains
+separate restart/cold-SQLite/strict ACK/falsecommit/cleanup results, including unavailable failures.
+Earlier successful results survive a later fault failure; failed/cancelled runs are never relabelled.
+
+No local suite, native SDK, Maestro, emulator, native build or SQL has run during authoring. Local
+checks are source parsing, shell/YAML syntax, types/lint/format/boundaries/Knip and normal web export.
+Hosted success, if independently accepted later, proves only this Android emulator's actual SDK
+process-restart/fault journey with synthetic HTTP. It does not prove real-service auth/recording,
+iOS/physical device, backup restore/anti-rollback, power-loss persistence or forensic erasure.
+
+
+### SecureStore must compile from the patched source
+
+The installed SDK58 SecureStore package includes a precompiled local-maven AAR that lacks the
+commit-false exception branch. Installing the pnpm Kotlin patch alone does not make an Android
+APK use it. `apps/client/package.json` permanently selects
+`expo.autolinking.android.buildFromSource: ["expo-secure-store"]` for ordinary and dedicated
+Android builds. Versions, dependencies, the patch and lockfile stay unchanged.
+
+The installed autolinking code reads the app's `expo.autolinking.android` configuration, carries
+`buildFromSource` into the Android resolver output, and converts this package name to the exact
+Gradle project name `expo-secure-store`. SettingsManager matches that full project name, disables
+its precompiled publication and includes the source project. The dedicated proof requires parsed
+resolver JSON with that configuration/project; both APK inspections require the actual patched
+exception literal in DEX and the patched installed Kotlin source. A missing branch fails either
+build. These are source/linkage build gates, not native commit, restart or fault runtime evidence.
