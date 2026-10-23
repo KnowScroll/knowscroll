@@ -10,9 +10,17 @@ export type ConversationMutation = 'start' | 'send' | 'markRead' | 'mute' | 'lea
 export type ShareOperation = keyof ApiClient['contentShares'];
 export type ShareInput<K extends ShareOperation> = Parameters<ApiClient['contentShares'][K]>[0];
 export type ShareOutput<K extends ShareOperation> = Awaited<ReturnType<ApiClient['contentShares'][K]>>;
-export type SocialFailure = 'network' | 'invalid' | 'unavailable' | 'authority' | 'refresh_required' | 'capacity' | 'busy';
-export type SocialRead<T> = { readonly status: 'idle' | 'loading' } | { readonly status: 'ready'; readonly data: T } | { readonly status: 'unavailable'; readonly reason: SocialFailure };
-export type SocialCommandState = { readonly status: 'idle' } | { readonly status: 'pending' | 'unknown'; readonly operation: string; readonly commandId: string } | { readonly status: 'accepted'; readonly operation: string; readonly commandId: string } | { readonly status: 'rejected'; readonly reason: SocialFailure };
+export type SocialFailure =
+  'network' | 'invalid' | 'unavailable' | 'authority' | 'refresh_required' | 'capacity' | 'busy';
+export type SocialRead<T> =
+  | { readonly status: 'idle' | 'loading' }
+  | { readonly status: 'ready'; readonly data: T }
+  | { readonly status: 'unavailable'; readonly reason: SocialFailure };
+export type SocialCommandState =
+  | { readonly status: 'idle' }
+  | { readonly status: 'pending' | 'unknown'; readonly operation: string; readonly commandId: string }
+  | { readonly status: 'accepted'; readonly operation: string; readonly commandId: string }
+  | { readonly status: 'rejected'; readonly reason: SocialFailure };
 export type ConversationDraft = ConversationInput<'send'>['body'];
 export type ConversationWindow = {
   readonly conversation: DirectConversationRef;
@@ -83,12 +91,28 @@ export interface ContentSharesSession {
   takeToken(): string | undefined;
   dispose(): void;
 }
-export const SOCIAL_LIMITS = Object.freeze({ windows: 8, messages: 100, bodyBytes: 2 * 1024 * 1024, drafts: 8, draftCharacters: 2000, page: 50, cursorHistory: 8, responseBytes: 2 * 1024 * 1024 });
+export const SOCIAL_LIMITS = Object.freeze({
+  windows: 8,
+  messages: 100,
+  bodyBytes: 2 * 1024 * 1024,
+  drafts: 8,
+  draftCharacters: 2000,
+  page: 50,
+  cursorHistory: 8,
+  responseBytes: 2 * 1024 * 1024,
+});
 export const sameSocialId = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
-export const sameConversation = (a: DirectConversationRef, b: DirectConversationRef) => sameSocialId(a.conversationId, b.conversationId) && sameSocialId(a.membershipId, b.membershipId) && a.membershipRevision === b.membershipRevision;
-export const conversationKey = (r: DirectConversationRef) => `${r.conversationId.toLowerCase()}:${r.membershipId.toLowerCase()}:${r.membershipRevision}`;
+export const sameConversation = (a: DirectConversationRef, b: DirectConversationRef) =>
+  sameSocialId(a.conversationId, b.conversationId) &&
+  sameSocialId(a.membershipId, b.membershipId) &&
+  a.membershipRevision === b.membershipRevision;
+export const conversationKey = (r: DirectConversationRef) =>
+  `${r.conversationId.toLowerCase()}:${r.membershipId.toLowerCase()}:${r.membershipRevision}`;
 export function freezeSocial<T>(value: T): T {
-  if (value && typeof value === 'object') { for (const child of Object.values(value)) freezeSocial(child); Object.freeze(value); }
+  if (value && typeof value === 'object') {
+    for (const child of Object.values(value)) freezeSocial(child);
+    Object.freeze(value);
+  }
   return value;
 }
 /** Descriptor-only JSON validation before any accessor, parse or stringify. No normalization. */
@@ -100,9 +124,11 @@ export function socialData(value: unknown): boolean {
     if (v === null || typeof v === 'string' || typeof v === 'boolean') return true;
     if (typeof v === 'number') return Number.isFinite(v);
     if (typeof v !== 'object' || ancestors.has(v)) return false;
-    const array = Array.isArray(v), proto: unknown = Object.getPrototypeOf(v);
+    const array = Array.isArray(v),
+      proto: unknown = Object.getPrototypeOf(v);
     if (proto !== (array ? Array.prototype : Object.prototype) && proto !== null) return false;
-    const ds = Object.getOwnPropertyDescriptors(v), keys = Reflect.ownKeys(ds);
+    const ds = Object.getOwnPropertyDescriptors(v),
+      keys = Reflect.ownKeys(ds);
     if (keys.some((k) => typeof k !== 'string')) return false;
     if (array) {
       const n: unknown = ds['length']?.value;
@@ -115,9 +141,14 @@ export function socialData(value: unknown): boolean {
       const d = ds[k as string];
       if (!d || !d.enumerable || !('value' in d) || !walk(d.value, depth + 1)) return false;
     }
-    ancestors.delete(v); return true;
+    ancestors.delete(v);
+    return true;
   }
-  try { return walk(value, 0); } catch { return false; }
+  try {
+    return walk(value, 0);
+  } catch {
+    return false;
+  }
 }
 function bodyBytes(value: unknown): number {
   if (!value || typeof value !== 'object') return 0;
@@ -133,29 +164,114 @@ function bodyBytes(value: unknown): number {
 const owners = new WeakMap<AccountScope, ReturnType<typeof makeOwner>>();
 function makeOwner(scope: AccountScope) {
   if (!scope.active || typeof scope.onEnd !== 'function') throw new ScopeEndedError();
-  let ended = false, slot: object | undefined;
-  const sizes = new Map<object, number>(), refs = new Map<string, DirectConversationRef>(), listeners = new Set<() => void>(), ends = new Set<{ purge: () => void; notify: () => void }>();
+  let ended = false,
+    slot: object | undefined;
+  const sizes = new Map<object, number>(),
+    refs = new Map<string, DirectConversationRef>(),
+    listeners = new Set<() => void>(),
+    ends = new Set<{ purge: () => void; notify: () => void }>();
   let publication = 0;
   const live = () => !ended && scope.active;
-  const notify = () => { const mine = ++publication; for (const listener of [...listeners]) { if (mine !== publication) break; try { if (listeners.has(listener)) listener(); } catch { /* Consumer cannot block purge. */ } } };
-  const end = () => { if (ended) return; ended = true; slot = undefined; sizes.clear(); refs.clear(); const callbacks = [...ends]; for (const callback of callbacks) { try { callback.purge(); } catch { /* Purge all owners. */ } } ends.clear(); for (const callback of callbacks) { try { callback.notify(); } catch { /* Every owner is already purged. */ } } notify(); listeners.clear(); };
+  const notify = () => {
+    const mine = ++publication;
+    for (const listener of [...listeners]) {
+      if (mine !== publication) break;
+      try {
+        if (listeners.has(listener)) listener();
+      } catch {
+        /* Consumer cannot block purge. */
+      }
+    }
+  };
+  const end = () => {
+    if (ended) return;
+    ended = true;
+    slot = undefined;
+    sizes.clear();
+    refs.clear();
+    const callbacks = [...ends];
+    for (const callback of callbacks) {
+      try {
+        callback.purge();
+      } catch {
+        /* Purge all owners. */
+      }
+    }
+    ends.clear();
+    for (const callback of callbacks) {
+      try {
+        callback.notify();
+      } catch {
+        /* Every owner is already purged. */
+      }
+    }
+    notify();
+    listeners.clear();
+  };
   scope.onEnd(end);
   return {
-    scope, live, end,
+    scope,
+    live,
+    end,
     busy: () => !!slot,
-    claim(token: object) { if (!live() || slot) return false; slot = token; notify(); return live() && slot === token; },
-    release(token: object) { if (slot === token) { slot = undefined; notify(); } },
-    retain(key: object, value: unknown) { if (!live()) return false; const next = bodyBytes(value); let bytes = next; for (const [k, size] of sizes) if (k !== key) bytes += size; if (bytes > SOCIAL_LIMITS.bodyBytes) return false; sizes.set(key, next); return true; },
-    drop(key: object) { sizes.delete(key); },
-    remember(ref: DirectConversationRef) { if (!live()) return; const key = conversationKey(ref); if (!refs.has(key) && refs.size >= 58) refs.delete(refs.keys().next().value!); refs.set(key, freezeSocial({ ...ref })); },
-    knows(ref: DirectConversationRef) { return live() && refs.has(conversationKey(ref)); },
-    forget(ref: DirectConversationRef) { refs.delete(conversationKey(ref)); },
-    onEnd(purge: () => void, notify: () => void) { const callbacks = { purge, notify }; if (!live()) { purge(); notify(); } else ends.add(callbacks); return () => ends.delete(callbacks); },
-    subscribe(callback: () => void) { if (!live()) return () => undefined; listeners.add(callback); return () => listeners.delete(callback); },
+    claim(token: object) {
+      if (!live() || slot) return false;
+      slot = token;
+      notify();
+      return live() && slot === token;
+    },
+    release(token: object) {
+      if (slot === token) {
+        slot = undefined;
+        notify();
+      }
+    },
+    retain(key: object, value: unknown) {
+      if (!live()) return false;
+      const next = bodyBytes(value);
+      let bytes = next;
+      for (const [k, size] of sizes) if (k !== key) bytes += size;
+      if (bytes > SOCIAL_LIMITS.bodyBytes) return false;
+      sizes.set(key, next);
+      return true;
+    },
+    drop(key: object) {
+      sizes.delete(key);
+    },
+    remember(ref: DirectConversationRef) {
+      if (!live()) return false;
+      const key = conversationKey(ref);
+      if (!refs.has(key) && refs.size >= 58) return false;
+      refs.set(key, freezeSocial({ ...ref }));
+      return true;
+    },
+    knows(ref: DirectConversationRef) {
+      return live() && refs.has(conversationKey(ref));
+    },
+    forget(ref: DirectConversationRef) {
+      refs.delete(conversationKey(ref));
+    },
+    onEnd(purge: () => void, notify: () => void) {
+      const callbacks = { purge, notify };
+      if (!live()) {
+        purge();
+        notify();
+      } else ends.add(callbacks);
+      return () => ends.delete(callbacks);
+    },
+    subscribe(callback: () => void) {
+      if (!live()) return () => undefined;
+      listeners.add(callback);
+      return () => listeners.delete(callback);
+    },
   };
 }
 export function socialOwnerFor(scope: AccountScope) {
-  let owner = owners.get(scope); if (!owner) { owner = makeOwner(scope); owners.set(scope, owner); }
+  let owner = owners.get(scope);
+  if (!owner) {
+    owner = makeOwner(scope);
+    owners.set(scope, owner);
+  }
   if (!owner.live()) throw new ScopeEndedError();
   return owner;
 }
