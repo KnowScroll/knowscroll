@@ -289,6 +289,7 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
   expect(commands.at(-1)?.body).toEqual({
     version: 'keep-remove.v1',
     commandId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+    recordingGeneration: 1,
     entry: { assetId: id(990), assetRevision: 2, savedEntryId: id(992) },
   });
   expect(commands.filter((call) => call.path === '/v1/actions')).toHaveLength(0);
