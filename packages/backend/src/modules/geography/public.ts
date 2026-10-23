@@ -7,6 +7,7 @@ export type {
   RunCartographer,
   ReadOwnGeography,
   ReadOwnDeltas,
+  ReadOwnEmerging,
   PublishGeographyDelta,
 } from './application/ports.js';
 export { CartographyJobSchema, type CartographyJob, cartographyQueue, publishDeltaQueue } from './events.js';
@@ -15,6 +16,7 @@ export const REQUEST_CARTOGRAPHY = Symbol('geography.requestCartography');
 export const RUN_CARTOGRAPHER = Symbol('geography.runCartographer');
 export const READ_OWN_GEOGRAPHY = Symbol('geography.readOwn');
 export const READ_OWN_DELTAS = Symbol('geography.readDeltas');
+export const READ_OWN_EMERGING = Symbol('geography.readEmerging');
 export const PUBLISH_GEOGRAPHY_DELTA = Symbol('geography.publishDelta');
 
 export type { GeographySceneInput, ReadGeographySceneInput, GeographyApplied } from './application/ports.js';

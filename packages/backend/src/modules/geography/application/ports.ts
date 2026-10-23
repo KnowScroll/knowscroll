@@ -8,6 +8,8 @@ import type {
   GeographySnapshot,
   ReadUniverseDeltas,
   UniverseDeltas,
+  EmergingUniverse,
+  ReadEmergingUniverse,
 } from '@knowscroll/contracts';
 import type {
   WithPersonalScope,
@@ -20,6 +22,7 @@ import type {
 } from '../../identity/public.js';
 import type {
   ReadCoverageInputs,
+  ReadExplorationSnapshot,
   ReadTrustedCoverage,
   TrustedCoverageQuery,
   TrustedCoverageRead,
@@ -228,6 +231,18 @@ export type ReadOwnDeltas = (
   query: ReadUniverseDeltas,
 ) => Promise<
   | { readonly kind: 'read'; readonly deltas: UniverseDeltas }
+  | { readonly kind: 'refused'; readonly reason: 'scope_refused' }
+>;
+
+/** Dust cues read the same scope and store as the other own reads, plus Personal Context's snapshot. */
+export interface EmergingPorts extends Pick<GeographyPorts, 'withScope' | 'ownerActive' | 'store' | 'hash' | 'now'> {
+  readonly readSnapshot: ReadExplorationSnapshot;
+}
+export type ReadOwnEmerging = (
+  authority: PersonalAuthority,
+  query: ReadEmergingUniverse,
+) => Promise<
+  | { readonly kind: 'read'; readonly emerging: EmergingUniverse }
   | { readonly kind: 'refused'; readonly reason: 'scope_refused' }
 >;
 

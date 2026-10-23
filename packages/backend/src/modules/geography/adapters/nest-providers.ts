@@ -2,8 +2,10 @@ import { sql } from 'kysely';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import {
   READ_COVERAGE_INPUTS,
+  READ_EXPLORATION_SNAPSHOT,
   READ_TRUSTED_COVERAGE,
   type ReadCoverageInputs,
+  type ReadExplorationSnapshot,
   type ReadTrustedCoverage,
 } from '../../personal-context/public.js';
 import {
@@ -42,11 +44,13 @@ import {
   RUN_CARTOGRAPHER,
   READ_OWN_GEOGRAPHY,
   READ_OWN_DELTAS,
+  READ_OWN_EMERGING,
   PUBLISH_GEOGRAPHY_DELTA,
   READ_OWN_REGION_CONSTRAINT,
 } from '../public.js';
 import { makeRequestCartography, makeGeographyMaterialChange } from '../application/request.js';
 import { makeReadGeography, makeReadDeltas } from '../application/read.js';
+import { makeReadOwnEmerging } from '../application/emerging.js';
 import {
   makeRunCartographer,
   makePublishDelta,
@@ -321,6 +325,12 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
     },
     { provide: READ_OWN_GEOGRAPHY, inject: [GEOGRAPHY_PORTS], useFactory: (p: GeographyPorts) => makeReadGeography(p) },
     { provide: READ_OWN_DELTAS, inject: [GEOGRAPHY_PORTS], useFactory: (p: GeographyPorts) => makeReadDeltas(p) },
+    {
+      provide: READ_OWN_EMERGING,
+      inject: [GEOGRAPHY_PORTS, READ_EXPLORATION_SNAPSHOT],
+      useFactory: (p: GeographyPorts, readSnapshot: ReadExplorationSnapshot) =>
+        makeReadOwnEmerging({ ...p, readSnapshot }),
+    },
     {
       provide: PUBLISH_GEOGRAPHY_DELTA,
       inject: [GEOGRAPHY_PORTS],

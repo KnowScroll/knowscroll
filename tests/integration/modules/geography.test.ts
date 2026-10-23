@@ -27,10 +27,15 @@ import {
 import {
   COVERAGE_POLICY,
   CONCEPT_CATALOGUE_VERSION,
+  CONCEPTS,
   type CoverageMapping,
   type CoverageCommand,
 } from '@knowscroll/backend/modules/content';
-import { READ_COVERAGE_INPUTS, READ_TRUSTED_COVERAGE } from '@knowscroll/backend/modules/personal-context';
+import {
+  READ_COVERAGE_INPUTS,
+  READ_EXPLORATION_SNAPSHOT,
+  READ_TRUSTED_COVERAGE,
+} from '@knowscroll/backend/modules/personal-context';
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import {
   GEOGRAPHY_MATERIAL_CHANGE,
@@ -38,12 +43,14 @@ import {
   REQUEST_CARTOGRAPHY,
   READ_OWN_GEOGRAPHY,
   READ_OWN_DELTAS,
+  READ_OWN_EMERGING,
   PUBLISH_GEOGRAPHY_DELTA,
   publishDeltaQueue,
   type MaterialGeographyChange,
   type RequestCartography,
   type ReadOwnGeography,
   type ReadOwnDeltas,
+  type ReadOwnEmerging,
   type PublishGeographyDelta,
 } from '@knowscroll/backend/modules/geography';
 import {
@@ -75,6 +82,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     request: RequestCartography,
     read: ReadOwnGeography,
     deltas: ReadOwnDeltas,
+    emerging: ReadOwnEmerging,
     publish: PublishGeographyDelta;
   const approvals = new Map<string, string>();
   const scope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
@@ -94,6 +102,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       [ENQUEUE, makeEnqueueJob(c.boss)],
       [READ_TRUSTED_COVERAGE, c.readTrustedCoverage],
       [READ_COVERAGE_INPUTS, buildFromProviders(personalContextProviders(), READ_COVERAGE_INPUTS, new Map())],
+      [READ_EXPLORATION_SNAPSHOT, c.readExploration],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
     ]);
     values.set(GEOGRAPHY_APPLIED, buildFromProviders(providers, GEOGRAPHY_APPLIED, values));
@@ -107,6 +116,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     request = get(REQUEST_CARTOGRAPHY);
     read = get(READ_OWN_GEOGRAPHY);
     deltas = get(READ_OWN_DELTAS);
+    emerging = get(READ_OWN_EMERGING);
     publish = get(PUBLISH_GEOGRAPHY_DELTA);
   });
   afterAll(async () => {
@@ -1236,5 +1246,165 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     expect(
       (await database.pool.query("select id from pgboss.job where data->>'universeId'=$1", [late.universeId])).rows,
     ).toHaveLength(0);
+  });
+
+  describe('stages of formation', () => {
+    const unavailable = (): FixtureScenario => ({ kind: 'server_error', status: 503 });
+    async function cartograph(p: FixturePerson, script?: Parameters<typeof runner>[1]) {
+      const active = (await state(p)).activeRunId;
+      if (!active) throw new Error('CI expected an active Cartographer run');
+      const r = runner(p, script);
+      await r.run(await job(p, active), signal());
+      return { ...r, runId: active };
+    }
+    async function kinds(p: FixturePerson) {
+      const result = await snapshot(p);
+      return 'page' in result ? result.page.objects.map((o) => o.kind).sort() : [];
+    }
+    async function dust(p: FixturePerson) {
+      const result = await emerging(p.authority, {});
+      if (result.kind !== 'read') throw new Error('CI emerging read refused');
+      return result.emerging.dust;
+    }
+    const outcomeOf = async (runId: string) =>
+      (
+        await database.db
+          .selectFrom('geography.runs')
+          .select('outcome')
+          .where('id', '=', runId)
+          .executeTakeFirstOrThrow()
+      ).outcome;
+
+    it('gathers dust, then a system with its star, then a planet with its regions, while the model is unavailable', async () => {
+      const p = await seedPerson(database.db);
+      expect(await dust(p)).toEqual([]);
+
+      await observe(p, await fixture(undefined, topic, [facet]));
+      const first = await cartograph(p, unavailable);
+      expect(await kinds(p)).toEqual([]);
+      expect(await dust(p)).toHaveLength(1);
+      expect(await outcomeOf(first.runId)).toBe('failed');
+
+      await observe(p, await fixture(undefined, topic, [otherFacet]));
+      const second = await cartograph(p, unavailable);
+      expect(await kinds(p)).toEqual(['star', 'system']);
+      expect(await dust(p)).toEqual([]);
+      expect(await outcomeOf(second.runId)).toBe('applied_by_rules');
+
+      await observe(p, await fixture(undefined, topic, [facet]));
+      const third = await cartograph(p, unavailable);
+      expect(await kinds(p)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+      expect(await outcomeOf(third.runId)).toBe('applied_by_rules');
+      const labels = await snapshot(p);
+      if (labels.status !== 'ready') throw new Error('CI ready expected');
+      expect(labels.page.objects.find((o) => o.kind === 'planet')?.label).toBe('Seasons');
+    });
+
+    it('keeps the dust cue stable between reads and turns it into the system once established', async () => {
+      const p = await seedPerson(database.db);
+      await observe(p, await fixture(undefined, topic, [facet]));
+      const before = await dust(p);
+      expect(before).toHaveLength(1);
+      expect(await dust(p)).toEqual(before);
+      await observe(p, await fixture(undefined, topic, [otherFacet]));
+      await cartograph(p);
+      expect(await dust(p)).toEqual([]);
+      const other = await seedPerson(database.db);
+      await observe(other, await fixture(undefined, topic, [facet]));
+      expect(await dust(other)).not.toEqual(before);
+    });
+
+    it('completes a valid but partial model proposal with the planet the rules require', async () => {
+      const p = await seedPerson(database.db);
+      await coherent(p);
+      const partial = await cartograph(p, (ctx) => ({
+        kind: 'success',
+        text: JSON.stringify({
+          ...formation(ctx),
+          operations: formation(ctx).operations.filter((o) => ['create_system', 'establish_star'].includes(o.kind)),
+        }),
+      }));
+      expect(partial.model.calls).toHaveLength(1);
+      expect(await kinds(p)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+      expect(await outcomeOf(partial.runId)).toBe('applied');
+    });
+
+    it('does not form a planet from three units in three different systems, only dust', async () => {
+      const p = await seedPerson(database.db);
+      const oneTopicPerSystem = [
+        ...new Map(CONCEPTS.filter((t) => t.parent !== null).map((t) => [t.parent, t])).values(),
+      ];
+      for (const t of oneTopicPerSystem.slice(0, 3))
+        await observe(p, await fixture(undefined, t.id, [t.facets[0]!.id]));
+      const run = await cartograph(p, unavailable);
+      expect(await kinds(p)).toEqual([]);
+      expect(await dust(p)).toHaveLength(3);
+      expect(await outcomeOf(run.runId)).toBe('failed');
+    });
+
+    it('does not form a planet from three units spread over three planets of one system', async () => {
+      const p = await seedPerson(database.db);
+      const planets = CONCEPTS.filter((t) => t.parent === 'earth');
+      for (const t of planets.slice(0, 3)) await observe(p, await fixture(undefined, t.id, [t.facets[0]!.id]));
+      await cartograph(p, unavailable);
+      expect(await kinds(p)).toEqual(['star', 'system']);
+    });
+
+    it('removes the places and the dust when the person clears everything', async () => {
+      const p = await seedPerson(database.db);
+      await observe(p, await fixture(undefined, topic, [facet]));
+      expect(await dust(p)).toHaveLength(1);
+      await observe(p, await fixture(undefined, topic, [otherFacet]));
+      await cartograph(p);
+      await observe(p, await fixture(undefined, 'earth.tides', ['earth.tides.forcing']));
+      expect(await kinds(p)).toEqual(['star', 'system']);
+      expect(await dust(p)).toEqual([]);
+      await database.db
+        .updateTable('identity.universes')
+        .set({ privacy_epoch: 2 })
+        .where('id', '=', p.universeId)
+        .execute();
+      const fresh = { ...p.authority, privacyEpoch: 2 };
+      await scope()(fresh, (sc) => eraseUniverse(sc, personalStores));
+      expect(await emerging(p.authority, {})).toEqual({ kind: 'refused', reason: 'scope_refused' });
+      const after = await emerging(fresh, {});
+      expect(after).toMatchObject({ kind: 'read', emerging: { dust: [], geography: { revision: 0 } } });
+      expect(await read(fresh, { selection: { kind: 'universe' }, limit: 100 })).toMatchObject({
+        kind: 'read',
+        snapshot: { status: 'empty' },
+      });
+    });
+
+    it('only makes a place quiet after long inactivity, keeping every id, label and origin', async () => {
+      const p = await seedPerson(database.db);
+      const recent = await coherent(p);
+      await cartograph(p);
+      const formed = await snapshot(p);
+      if (formed.status !== 'ready') throw new Error('CI ready expected');
+      for (const old of recent) {
+        const aged = await fixture(
+          old.unit,
+          topic,
+          old.map.bindings.map((b) => b.facetId),
+        );
+        await observe(p, aged, [], 40 * 24 * 60);
+        await database.db
+          .updateTable('content.assets')
+          .set({ status: 'withdrawn' })
+          .where('id', '=', old.assetId)
+          .execute();
+      }
+      await cartograph(p, unavailable);
+      const quiet = await snapshot(p);
+      if (quiet.status !== 'ready') throw new Error('CI ready expected');
+      expect(quiet.page.objects.map((o) => o.id).sort()).toEqual(formed.page.objects.map((o) => o.id).sort());
+      expect(quiet.page.objects.map((o) => o.label).sort()).toEqual(formed.page.objects.map((o) => o.label).sort());
+      expect(
+        quiet.page.objects.every((o) => o.activity.availability === 'available' && o.activity.state === 'quiet'),
+      ).toBe(true);
+      expect(quiet.page.objects.map((o) => o.originTransitionId)).toEqual(
+        formed.page.objects.map((o) => o.originTransitionId),
+      );
+    });
   });
 });

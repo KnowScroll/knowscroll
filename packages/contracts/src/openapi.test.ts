@@ -99,6 +99,7 @@ describe('the API contract', () => {
       apiContract.scenes.chunk,
       apiContract.geography.read,
       apiContract.geography.deltas,
+      apiContract.geography.emerging,
       apiContract.media.grant,
       apiContract.supply.create,
       apiContract.supply.read,
@@ -252,6 +253,17 @@ describe('the API contract', () => {
     for (const wire of [result, changes])
       for (const field of ['observations', 'evidenceRefs', 'provider', 'prompt', 'draftVersion', 'score', 'seed'])
         expect(wire).not.toContain(`"${field}"`);
+  });
+
+  it('describes the emerging read as an empty body returning opaque cues', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const document = await generator.generate(apiContract, { info: { title: 'KnowScroll API', version: '1' } });
+    const route = document.paths?.['/v1/universe/emerging/read']?.post;
+    expect(route?.responses?.['200']).toBeDefined();
+    const wire = JSON.stringify(route?.responses?.['200']);
+    for (const field of ['universe-emerging.v1', 'dust', 'geography', 'personalWatermark'])
+      expect(wire).toContain(field);
+    for (const field of ['label', 'topicId', 'score', 'count', 'accountId']) expect(wire).not.toContain(`"${field}"`);
   });
 
   it('enumerates canonical scene descriptors and bounded own-scope reads through the supported converter', async () => {
