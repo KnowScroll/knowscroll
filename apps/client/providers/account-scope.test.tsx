@@ -1,6 +1,6 @@
 import { QueryClient, useQuery } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react-native';
-import { AppState, Text, type AppStateStatus } from 'react-native';
+import { AppState, Platform, Text, type AppStateStatus } from 'react-native';
 import { createAccountScopeManager, memoryStore, type AccountScope } from '@knowscroll/client-core';
 import { AccountScopeProvider, useAccountScope } from './account-scope';
 
@@ -169,6 +169,17 @@ describe('AccountScopeProvider', () => {
 });
 
 it('native background inhibits recording and foreground rereads without remounting or resetting epoch (CI callbacks)', async () => {
+  const originalPlatform = Object.getOwnPropertyDescriptor(Platform, 'OS');
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
+  // RN's window exists without these DOM methods. Exercise that actual platform distinction
+  // in both hosted Jest projects while retaining the full background/reconnect/current-read flow.
+  const nativeWindow = typeof window === 'undefined' ? undefined : window;
+  const originalAdd = nativeWindow && Object.getOwnPropertyDescriptor(nativeWindow, 'addEventListener');
+  const originalRemove = nativeWindow && Object.getOwnPropertyDescriptor(nativeWindow, 'removeEventListener');
+  if (nativeWindow) {
+    Object.defineProperty(nativeWindow, 'addEventListener', { configurable: true, value: undefined });
+    Object.defineProperty(nativeWindow, 'removeEventListener', { configurable: true, value: undefined });
+  }
   const original = Object.getOwnPropertyDescriptor(AppState, 'currentState');
   Object.defineProperty(AppState, 'currentState', { configurable: true, value: 'active' });
   let change: ((state: AppStateStatus) => void) | undefined;
@@ -198,12 +209,13 @@ it('native background inhibits recording and foreground rereads without remounti
       });
     },
   });
-  const app = await render(
-    <AccountScopeProvider manager={manager}>
-      <Text>Lifecycle fixture</Text>
-    </AccountScopeProvider>,
-  );
+  let app: Awaited<ReturnType<typeof render>> | undefined;
   try {
+    app = await render(
+      <AccountScopeProvider manager={manager}>
+        <Text>Lifecycle fixture</Text>
+      </AccountScopeProvider>,
+    );
     await waitFor(() => expect(manager.getState().status).toBe('signed_in'));
     const first = manager.getState();
     if (first.status !== 'signed_in') throw new Error('fixture sign-in');
@@ -245,9 +257,20 @@ it('native background inhibits recording and foreground rereads without remounti
     expect(current.status === 'signed_in' && current.scope).toBe(scope);
     expect(scope.account.privacyEpoch).toBe(1);
   } finally {
-    await app.unmount();
-    subscription.mockRestore();
-    if (original) Object.defineProperty(AppState, 'currentState', original);
+    try {
+      await app?.unmount();
+    } finally {
+      manager.dispose();
+      subscription.mockRestore();
+      if (original) Object.defineProperty(AppState, 'currentState', original);
+      if (originalPlatform) Object.defineProperty(Platform, 'OS', originalPlatform);
+      if (nativeWindow) {
+        if (originalAdd) Object.defineProperty(nativeWindow, 'addEventListener', originalAdd);
+        else Reflect.deleteProperty(nativeWindow, 'addEventListener');
+        if (originalRemove) Object.defineProperty(nativeWindow, 'removeEventListener', originalRemove);
+        else Reflect.deleteProperty(nativeWindow, 'removeEventListener');
+      }
+    }
   }
   expect(remove).toHaveBeenCalled();
 });

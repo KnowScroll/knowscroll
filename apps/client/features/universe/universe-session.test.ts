@@ -173,6 +173,16 @@ function regionHarness() {
     fetch: async (request) => {
       const path = new URL(request.url).pathname,
         body = (await request.json()) as Record<string, unknown>;
+      if (path === '/v1/privacy/recording/read')
+        return new Response(
+          JSON.stringify({
+            ...body,
+            scope: { accountId: fixtureAccount.accountId, privacyEpoch: 1 },
+            revision: 1,
+            policy: { on: true, generation: 1 },
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        );
       calls.push({ path, body });
       if (path.endsWith('/region/preview')) {
         await gate;
@@ -217,6 +227,7 @@ function regionHarness() {
       return new Response(JSON.stringify(world.reply(path, body)), { headers: { 'content-type': 'application/json' } });
     },
   });
+  scope.recording?.useIdSource(() => fixtureId(sequence++));
   return {
     scope,
     calls,
@@ -247,7 +258,15 @@ it('opens only the displayed immutable card and returns exact scoped camera/hist
   await waitFor(() => expect(encounter.getState().phase).toBe('exhausted'));
   const open = h.calls.find((c) => c.path.endsWith('/region/open'))!.body;
   expect(open.expectedEncounter).toEqual({ assetId: card.encounter.assetId, assetRevision: 1 });
-  expect(Object.keys(open).sort()).toEqual(['capabilities', 'commandId', 'expectedEncounter', 'target', 'version']);
+  expect(Object.keys(open).sort()).toEqual([
+    'capabilities',
+    'commandId',
+    'expectedEncounter',
+    'recordingGeneration',
+    'target',
+    'version',
+  ]);
+  expect(open.recordingGeneration).toBe(1);
   s.setForeground(false);
   expect(encounter.back()).toBe(true);
   expect(returned).toBe(1);

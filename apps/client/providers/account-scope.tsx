@@ -78,10 +78,14 @@ export function AccountScopeProvider({
     const policy = scope?.recording;
     if (!scope || !policy) return;
     policy.useIdSource(newCommandId);
+    // React Native also defines window, without browser event APIs. Capture DOM ports only on web.
+    const web = Platform.OS === 'web';
+    const browserWindow = web && typeof window !== 'undefined' ? window : undefined;
+    const browserDocument = web && typeof document !== 'undefined' ? document : undefined;
     let appActive = AppState.currentState === 'active';
-    let focused = typeof document === 'undefined' || document.hasFocus();
+    let focused = !web || browserDocument?.hasFocus() === true;
     const foreground = () =>
-      appActive && focused && (typeof document === 'undefined' || document.visibilityState !== 'hidden');
+      appActive && focused && (!web || browserDocument?.visibilityState === 'visible');
     const refresh = () => {
       void policy.setForeground(scope.active && foreground());
     };
@@ -104,21 +108,21 @@ export function AccountScopeProvider({
         else void policy.setForeground(false);
       }
     };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', focus);
-      window.addEventListener('blur', background);
-      window.addEventListener('storage', storage);
-      document.addEventListener('visibilitychange', refresh);
+    if (browserWindow && browserDocument) {
+      browserWindow.addEventListener('focus', focus);
+      browserWindow.addEventListener('blur', background);
+      browserWindow.addEventListener('storage', storage);
+      browserDocument.addEventListener('visibilitychange', refresh);
     }
     refresh();
     return () => {
       void policy.setForeground(false);
       appState.remove();
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('focus', focus);
-        window.removeEventListener('blur', background);
-        window.removeEventListener('storage', storage);
-        document.removeEventListener('visibilitychange', refresh);
+      if (browserWindow && browserDocument) {
+        browserWindow.removeEventListener('focus', focus);
+        browserWindow.removeEventListener('blur', background);
+        browserWindow.removeEventListener('storage', storage);
+        browserDocument.removeEventListener('visibilitychange', refresh);
       }
     };
   }, [scope]);
