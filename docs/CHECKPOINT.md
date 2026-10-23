@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-23 00:44 UTC · **Phase:** RESUMED / second recording failure corrected in source; fresh Actions required · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-23 01:04 UTC · **Phase:** RESUMED / third recording failure retained; client correction reviewed; residual backend fixes allocated · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,25 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current authoritative phase — 2026-10-23 00:44 UTC
+## Current authoritative phase — 2026-10-23 01:04 UTC
+
+Actual integration remains **23fa942428b9ecc329f1cfc757abd9027b227b22 / schema41**. PR388 published sourcee5979172 and actual-PRa401ed0c are **UNACCEPTED**: source39880191868 and PR39880196269 terminal failure, static/integrity/build pass, release skipped. Installed-release132/132 pass. PostgreSQL source5failures/965passes and PR6/964 remain; client core344/344 and web374/374 now pass, exposing native20failures/207passes across7suites. Both COMPLETE86-entry official log archives/member maps are retained under the active resume root `recording381-corrected-e597/terminal-failure`; capture602cb406, sourceZIP36b8c194 and PRZIPfe1c5a4c. All earlier7417/d5 failures remain; no unchanged rerun, cancellation, override or merge.
+
+Root localf06aa398 has complete five-path independent source closurefdc0b0bf and passing types/scopedlint/format. Production provider now uses captured DOM ports only on web; React Native's window has no browser listener API, so native foreground authority remains AppState-only. Full callback fixture still checks background/reconnect/fresh policy/read/epoch/remount, now with native Platform/window lacking listeners. Three positive fixtures gain genuine correlated policy and original authored activation lineage; old unknown gates and all semantic assertions remain. This source does not prove20 cases now pass; no push follows until residual causes are resolved and composed.
+
+HIGH residual backend triage0a2e4c70 allocated exactly seven paths, no SQL/contracts/timeout/ledger changes. Four cases need genuine fixture prerequisites: modern reference FKs, consistent real role/queue clocks with aged support, direct attribution setup avoiding future PC reads, and a real unknown observed zero baseline before pending statistics. The PR-only concurrency case needs an actual held-provider loser barrier, preserving original result tuples plus one-dispatch proof. A separate current segment-source checker gap needs exact same-generation authoritative Q/activity pointer validation; never restore global-latest invalidation. Sealed old-generation and independent legacy-base witnesses must remain valid. Full seven-source independent review and fresh exact candidate Actions remain required.
+
+Native249 complete23-path reviewb94dd125 found ND249-END-REENTRY: recursive or throwing health/policy listeners can interrupt end before abort/cleanup. Original author is closing the entry latch, independent request fence and guaranteed finalization with actual adapter-to-policy regressions, and incorporating the reviewed two-provider correction. Originalb4/SDK/dependency/failure evidence remains. No native source acceptance, real restart, installed-library/backup/iOS/power-loss proof or publication exists.
+
+Conversations #242 has disjoint HIGH9-core/MEDIUM21-UI source allocations. Core7 WIP is preserved while its author fixes residual PG; Root's private6e4d8a0 copies exact actual WIP functions/types plus real exports solely for UI diagnostics, not a shim or accepted vertical. Scope-only message/draft copies purge onEnd; no persistent Social allowlist or cross-Clear selector owner. New scope restores current server inbox truth. No backend consumer, SQL45 or NEW owner digest is elected.
+
+Finite deployment guard250 has full10 independent source review7f7d47f5. Root prepared only those reviewed blobs on accepted23fa at local97a82b58 (composition5bc6bed5), preserving old branches and excluding failed-recording ancestry. Exact current-base static checks and hosted Linux FD/FIFO/flock/process tests precede any integration; installation/unit/writer/TX/preservation proof and fresh finite election remain separate. No host installation, intent, operational window, deployment or paid request occurred.
+
+Actual dev last-observed476baec5/schema35/archive8579c51b and stagelegacy8982391f remain unchanged; source dev106c4701 and main e5fdc319 remain untouched. Every old window is consumed/expired. Ledgerdf1dd4d5 remains36used/0held/0unknown of43; finite extension unapplied. Retain v12 terminal failure/NULL failed bodies,22 unexplained owner-consumer deltas and2 prejob/Saved uncertainty, with **ZERO accepted generated Scrolls**. Exact PR379 script stays individually approved for ONE future order≤75c, subject to separate current full launch gates. Privacy concrete NEW retention choices await owner selection; inherited P1/P6 direction stays authorised. Never reset history, alter owner data, update main or deploy production.
+
+Continue unblocked implementation/review/check phases, then D002 dev PR and IMMEDIATE plain mergeback, real disposable-account connected journeys, separately gated Cutroom/interactive generation and same-artifact stage. **All five programme requirements remain OPEN.**
+
+## Earlier authoritative phase — 2026-10-23 00:44 UTC
 
 Actual integration remains **23fa942428b9ecc329f1cfc757abd9027b227b22 / schema41**. Accepted PR389 source/actual-PR receipts1309bf72 and actual squash9645e5b5 remain valid. Conversations consumers and new storage are absent; no SQL45 or new owner-registry digest is elected.
 
