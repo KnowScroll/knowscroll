@@ -271,7 +271,7 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       await p.run(produceScrollJob('seasons', 1), delivery());
       const store = productionStore(database.db);
       const withScope = makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
-      const authority = { scopeId: 'scroll-supply', generation: 1 };
+      const authority = { scopeId: 'scroll-supply', generation: 1 } as const;
       const ask = () => withScope(authority, (scope) => store.create(productionTransactionOf(scope), 'seasons', 1, 2));
       const results = await Promise.all([ask(), ask(), ask()]);
       const jobs = results.map((entered) => (entered.kind === 'entered' ? entered.value : undefined));
