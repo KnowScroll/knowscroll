@@ -182,9 +182,14 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       blocks: (row.reading_facts as { blocks: { id: string }[] }).blocks.map((b) => b.id),
     };
   }
-  async function observe(p: FixturePerson, f: Awaited<ReturnType<typeof fixture>>, omit: string[] = []) {
+  async function observe(
+    p: FixturePerson,
+    f: Awaited<ReturnType<typeof fixture>>,
+    omit: string[] = [],
+    minutesAgo = 20,
+  ) {
     const e = await openActive(c, p, f);
-    await activatedAgo(database.db, e.exposureId, 20);
+    await activatedAgo(database.db, e.exposureId, minutesAgo);
     await c.ingestObservations(p.authority, {
       instrumentationVersion: 1,
       events: [
@@ -778,17 +783,20 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       f = await fixture(),
       e = await observe(p, f);
     await scope()(p.authority, async (sc) => {
+      // Deliberately invalid RAW discovery overflow, never a claim of semantic support.
+      // Copy the actual modern complete source binding so every real composite FK remains valid.
+      const source = await transactionOf(sc)
+        .selectFrom('personal_context.recording_coverage_references')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .where('exposure_id', '=', e.exposureId)
+        .executeTakeFirstOrThrow();
       const rows = Array.from({ length: 101 }, (_, i) => ({
-        universe_id: p.universeId,
-        privacy_epoch: 1,
-        exposure_id: e.exposureId,
+        ...source,
         topic_id: `ci.overflow.${i}`,
         facet_id: `ci.overflow.${i}.facet`,
-        meaning_sha256: 'a'.repeat(64),
-        explanation_unit_id: f.unit,
-        truth_sha256: 'b'.repeat(64),
       }));
-      await transactionOf(sc).insertInto('personal_context.coverage_references').values(rows).execute();
+      await transactionOf(sc).insertInto('personal_context.recording_coverage_references').values(rows).execute();
       expect(await base.readInputs(sc)).toMatchObject({
         availability: 'unavailable',
         completeness: 'not_asserted',
@@ -1009,31 +1017,43 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
   });
   it('quiet activity and label updates retain IDs/origins/structure; cursor expiry and catch-up gaps are explicit', async () => {
     const p = await seedPerson(database.db);
-    await coherent(p);
+    const recent = await coherent(p);
     const initial = runner(p),
       s = await state(p);
     await initial.run(await job(p, s.activeRunId!), signal());
     const before = await snapshot(p);
     if (before.status !== 'ready') throw new Error('CI ready expected');
     const planet = before.page.objects.find((o) => o.kind === 'planet')!;
-    const quiet = runner(
-      p,
-      (ctx) => ({
-        kind: 'success',
-        text: JSON.stringify({
-          version: 'cartographer-proposal.v1',
-          operations: [
-            {
-              kind: 'set_activity',
-              objectId: planet.id,
-              state: 'quiet',
-              supportRefs: ctx.facts.supports.map((s) => s.ref),
-            },
-          ],
-        }),
+    // Authored elapsed-reading fixtures, not future role/lease/queue clocks. Replace current
+    // authority with actually projected aged witnesses; prior recent certificates cannot win.
+    for (let i = 0; i < recent.length; i++) {
+      const old = recent[i]!;
+      const aged = await fixture(
+        old.unit,
+        topic,
+        old.map.bindings.map((b) => b.facetId),
+      );
+      await observe(p, aged, [], 40 * 24 * 60);
+      await database.db
+        .updateTable('content.assets')
+        .set({ status: 'withdrawn' })
+        .where('id', '=', old.assetId)
+        .execute();
+    }
+    const quiet = runner(p, (ctx) => ({
+      kind: 'success',
+      text: JSON.stringify({
+        version: 'cartographer-proposal.v1',
+        operations: [
+          {
+            kind: 'set_activity',
+            objectId: planet.id,
+            state: 'quiet',
+            supportRefs: ctx.facts.supports.map((s) => s.ref),
+          },
+        ],
       }),
-      { now: () => new Date(Date.now() + 40 * 86400000) },
-    );
+    }));
     const q = await request(p.authority, { commandId: randomUUID() });
     if (q.kind !== 'accepted') throw new Error('CI request refused');
     await quiet.run(await job(p, q.runId), signal());

@@ -154,8 +154,13 @@ export const checkRecordingCoverageEvidence: CheckRecordingCoverageEvidence = as
         asset_id: string;
         asset_revision: number;
         input_vector: Record<string, string | number>;
-      }>`select q.id,q.revision,q.input_watermark,q.policy_version,q.qualification,q.q,q.coverage,q.summary,q.asset_id,q.asset_revision,a.input_vector
+        head_activity_id: string | null;
+        head_legacy_q: string | null;
+        head_session_q: string | null;
+      }>`select q.id,q.revision,q.input_watermark,q.policy_version,q.qualification,q.q,q.coverage,q.summary,q.asset_id,q.asset_revision,a.input_vector,
+      h.activity_id as head_activity_id,h.source_vector->>'legacyQualificationId' as head_legacy_q,h.source_vector->>'sessionQualificationId' as head_session_q
       from evidence.encounter_evidence q join evidence.activity_revisions a on a.universe_id=q.universe_id and a.exposure_id=q.exposure_id and a.privacy_epoch=q.privacy_epoch and a.recording_generation=q.recording_generation
+      left join evidence.recording_segment_heads h on h.universe_id=q.universe_id and h.privacy_epoch=q.privacy_epoch and h.exposure_id=q.exposure_id and h.recording_generation=q.recording_generation
       where q.universe_id=${scope.authority.universeId}::uuid and q.privacy_epoch=${scope.authority.privacyEpoch} and q.exposure_id=${c.exposureId}::uuid and q.recording_generation=${w.recordingGeneration} and q.id=${w.qualificationId}::uuid and a.id=${w.activityId}::uuid and a.policy_version='activity.v0' limit 1`.execute(
         transactionOf(scope),
       )
@@ -164,6 +169,14 @@ export const checkRecordingCoverageEvidence: CheckRecordingCoverageEvidence = as
     const summary = ReadingCoverageSummarySchema.safeParse(row?.summary);
     if (
       row &&
+      // A retained generation keeps its sealed head. Within that same generation, a real
+      // descriptor-owned Q move immediately invalidates the old certificate, before PC catches up.
+      // Independent legacy-base witnesses never borrow a newer segment's authority.
+      (w.sourceKind === 'legacy' ||
+        (row.head_activity_id === w.activityId &&
+          (row.policy_version === SCROLL_QUALIFICATION_POLICY_V0.version
+            ? row.head_legacy_q === w.qualificationId
+            : row.head_session_q === w.qualificationId))) &&
       row.qualification === 'qualified' &&
       (row.policy_version === policy.version ||
         (w.sourceKind === 'segment' &&

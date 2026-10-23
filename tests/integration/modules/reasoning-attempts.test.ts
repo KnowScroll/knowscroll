@@ -821,9 +821,29 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     const model = fixtureModel(() => ({ kind: 'hold', until: release.promise }));
     const h = harness(model);
     const runId = randomUUID();
-    const both = Promise.all([propose(h, person, runId), propose(h, person, runId)]);
-    await expect.poll(() => model.calls.length, { timeout: 10_000 }).toBe(1);
-    release.open({ kind: 'success', text: '{"ok": true, "echo": "once"}', remoteId: 'fixture-concurrent' });
+    let finishedWhileHeld = 0;
+    const observed = async () => {
+      const result = await propose(h, person, runId);
+      finishedWhileHeld++;
+      return result;
+    };
+    const both = Promise.all([observed(), observed()]);
+    try {
+      await expect.poll(() => model.calls.length, { timeout: 10_000 }).toBe(1);
+      // A call being dispatched does not prove the other delivery reached the in-flight row.
+      // Wait for one actual delivery outcome while the provider remains held; a later kept-
+      // reply read is tested separately below, not mistaken for this dispatch race.
+      await expect.poll(() => finishedWhileHeld, { timeout: 10_000 }).toBe(1);
+      const held = await attemptsWithDispatch(person.universeId);
+      expect(held).toHaveLength(1);
+      expect(['dispatched', 'unknown']).toContain(held[0]!.state);
+      expect(held[0]!.dispatch_id).not.toBeNull();
+      const liability = await receiptsOf(database.db, [held[0]!.id]);
+      expect(liability).toHaveLength(1);
+      expect(liability[0]!.state).toBe(held[0]!.state === 'unknown' ? 'unknown' : 'held');
+    } finally {
+      release.open({ kind: 'success', text: '{"ok": true, "echo": "once"}', remoteId: 'fixture-concurrent' });
+    }
     const results = (await both).map((result) =>
       result.kind === 'proposed' ? `proposed${result.reconciled ? ':reconciled' : ''}` : result.kind,
     );
@@ -833,6 +853,20 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
     expect([JSON.stringify(['proposed', 'refused']), JSON.stringify(['proposed:reconciled', 'unknown'])]).toContain(
       JSON.stringify(results.sort()),
     );
+    const settled = await attemptsWithDispatch(person.universeId);
+    expect(settled).toHaveLength(1);
+    expect(settled[0]).toMatchObject({
+      remote_id: 'fixture-concurrent',
+      outcome_code: 'SUCCEEDED',
+      output: { v: 1, text: '{"ok":true,"echo":"once"}' },
+    });
+    expect(['succeeded', 'reconciled']).toContain(settled[0]!.state);
+    expect(await receiptsOf(database.db, [settled[0]!.id])).toEqual([
+      expect.objectContaining({ state: 'settled', input_tokens: 40, output_tokens: 12 }),
+    ]);
+    expect(echo(await propose(h, person, runId))).toEqual({ ok: true, echo: 'once' });
+    expect(await attemptsWithDispatch(person.universeId)).toEqual(settled);
+    expect(model.calls).toHaveLength(1);
   });
 
   it('records a late conclusive answer as reconciled after a redelivery marked the attempt unknown', async () => {
