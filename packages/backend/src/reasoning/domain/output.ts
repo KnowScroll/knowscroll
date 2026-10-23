@@ -85,6 +85,23 @@ type SyntaxCategory =
   | 'unexpected_token'
   | 'other';
 
+/** What a repair request tells the model about each syntax category: fixed words, never the engine's message. */
+const CATEGORY_ADVICE: Readonly<Record<SyntaxCategory, string>> = {
+  expected_property: 'a property name is missing or not in double quotes',
+  expected_comma_or_separator: 'a comma, colon or closing bracket is missing',
+  unterminated_string: 'a string is not closed; escape quotes that belong to the text',
+  unexpected_end: 'the text ends before every bracket is closed',
+  unexpected_token: 'a character appears where JSON does not allow it',
+  other: 'the syntax is invalid',
+};
+
+/** The character offset V8 reports for a syntax error (a number only; the message is never kept). */
+function syntaxPosition(error: unknown): number | undefined {
+  if (!(error instanceof SyntaxError)) return undefined;
+  const found = / at position (\d{1,7})(?:\D|$)/u.exec(error.message)?.[1];
+  return found === undefined ? undefined : Number(found);
+}
+
 /**
  * Only fixed engine prefixes are recognised; none of the message (which can contain a secret
  * key, token, URL or source snippet) is copied. Unknown engines fall back to `other`.
@@ -145,6 +162,7 @@ export function issueForExtraction(reason: InvalidOutputReason, text: string): O
         : 'other';
   let phase: 'framing' | 'syntax' = 'framing';
   let category: SyntaxCategory = 'other';
+  let position: number | undefined;
   if ((framing === 'bare' || framing === 'fenced') && prefix === 'object') {
     // A second built-in parse only classifies a refusal; its result is never returned or applied.
     // Incomplete object-shaped replies can fail the extractor's closing-brace guard before parse.
@@ -157,11 +175,19 @@ export function issueForExtraction(reason: InvalidOutputReason, text: string): O
           ? 'framing'
           : 'syntax';
       category = syntaxCategory(error);
+      position = syntaxPosition(error);
     }
   }
+  const where = position === undefined ? '' : ` near character ${position}`;
+  const advice =
+    phase === 'framing' && category === 'unexpected_token' && prefix === 'object'
+      ? `extra text follows the object${where}, usually one closing bracket too many`
+      : category === 'other'
+        ? ''
+        : `${CATEGORY_ADVICE[category]}${where}`;
   return {
     ...base,
-    detail: `${base.detail}; json-refusal.v1 phase=${phase} framing=${framing} prefix=${prefix} category=${category} chars=${candidate.length}`,
+    detail: `${base.detail}${advice === '' ? '' : `; ${advice}`}; json-refusal.v1 phase=${phase} framing=${framing} prefix=${prefix} category=${category} chars=${candidate.length}`,
   };
 }
 

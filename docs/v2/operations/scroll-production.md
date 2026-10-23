@@ -1,124 +1,105 @@
-# Producing the first Scroll library
+# Producing Scrolls
 
-Run the worker release operator with the selected world's child-process environment. Allowed
-worlds are `local`, `ci`, `dev`, `stage`; production is refused before database/provider work.
-The reasoning provider defaults to none; production additionally needs its explicit configuration
-switch and the database `scroll-supply` root enabled at the exact current generation (0013).
-`KS_SCROLL_PRODUCTION_GENERATION` is the explicit expected generation (default1); a newer
-database generation is refused until the operator updates this value. The command never adopts
-a replacement grant by reading its generation automatically.
-Never create a personal universe to authorize shared production.
+The worker operator runs the writer for one library recipe at a time. The pipeline and the reasons
+for its shape are in `packages/backend/src/modules/content/production/README.md`.
 
-```
+## Run it
+
+The operator refuses every world except `local`, `ci`, `dev` and `stage`, before it touches the
+database or the provider. The production root `scroll-supply` must be enabled in the database
+(`reasoning.production_scopes`, generation 1) and in the environment.
+
+```sh
+# environment (names only; the key stays in the process environment, never on a command line)
+KS_WORLD=dev DATABASE_URL=… MINIMAX_API_KEY=…
+KS_REASONING_PROVIDER=minimax KS_REASONING_PRODUCTION_ENABLED=1
+KS_MINIMAX_MODEL=MiniMax-M3.1-Flash          # the default for every role
+KS_MINIMAX_REQUEST_TIMEOUT_MS=240000         # the default; a writer request takes up to ~2 minutes
+KS_SCROLL_PRODUCTION_GENERATION=1            # must match the database root
+
 node dist/operator.js content produce-scroll --topic seasons --dry-run
 node dist/operator.js content produce-scroll --topic seasons
 node dist/operator.js content produce-scroll --topic attention-mechanism
-node dist/operator.js content produce-scroll --topic seasons --resume
+node dist/operator.js content produce-scroll --topic seasons --resume   # after a crash only
 ```
 
 `--topic` takes a recipe key of the library plan, the record keys in
-`packages/backend/src/modules/content/domain/library/` (one file per topic system). An unknown key is
-refused before any database or provider work. A published Scroll gets its planet and facet coverage
-from its recipe in the same transaction (D-033).
+`packages/backend/src/modules/content/domain/library/` (one file per topic system). An unknown key
+is refused before any database or provider work. A published Scroll gets its planet and facet
+coverage from its recipe in the same transaction (D-033).
 
 After editing the plan (a facet or planet added or reworded), decide coverage again for Scrolls that
 are already published. It is idempotent and appends corrected heads only where the decision changed:
 
-```
+```sh
 node dist/operator.js content readmit-coverage --dry-run
 node dist/operator.js content readmit-coverage
 ```
 
-Before a batch, check that every research page of
-the plan is still accepted by the fetcher and yields a usable passage pool (it fetches slowly, about
-three seconds a page, because Wikipedia rate-limits bursts):
+Before a batch, check that every research page of the plan is still accepted by the fetcher and
+yields a usable passage pool (it fetches slowly, about three seconds a page, because Wikipedia
+rate-limits bursts):
 
-```
+```sh
 pnpm build
 node scripts/check-library-sources.mjs [--only seasons,tides]
 ```
 
-The bound is **four model requests per topic**, including every structural and semantic repair:
-claims primary + at most one repair; writer primary + at most one repair. Writer output ceiling is
-12,000 tokens; claims is 4,000. A refusal, quota failure or unknown halts that job. No provider call
-runs from CI. `--dry-run` reports the bound and does no research/database/provider work. Use the
-owner's total grant ledger as an additional session-independent ceiling; daily harness caps are
-not renewed permission to spend. Never place keys on a command line, in logs, reports or artifacts.
+The bound is **two model requests per recipe**: the writer, and at most one repair. Refusals, a
+quota shortfall (`KS_MINIMAX_QUOTA_FLOOR_PERCENT`, default 25) and unknown outcomes halt the job.
+Output is one JSON line with IDs, outcome codes, attempt states and token counts; never prompts,
+drafts or page text. A rerun of a finished recipe reports its stored outcome. A new recipe version
+(`SCROLL_PRODUCTION_VERSION`) is a new job; an old terminal job is never edited or resumed. No
+provider call runs from CI. Never place keys on a command line, in logs, reports or artifacts.
 
-The operator prints bounded IDs, outcome/check codes and usage counts; never prompts, draft prose,
-page excerpts or credentials. A repeated topic/version reports the existing revision or rejected
-outcome. `--resume` explicitly re-enters unfinished stages using frozen pages, accepted claims and
-stable harness run IDs. It does not overwrite terminal jobs or resend an uncertain attempt. If a
-process may still be running, let its operation finish before resuming: the harness will treat a
-concurrently dispatched attempt as uncertain and halt safely. Inspect unknown liabilities using
-the reasoning operator; write-off records uncertainty, not proof of non-charge.
+`--resume` continues an unfinished job with its frozen research and the same writer run. It never
+resends an attempt whose outcome is unknown: if a process may still be running, let it finish first,
+then inspect with `reasoning unknown` and write the attempt off only when sure.
 
-Research policy `public-research.v1`: individually reviewed HTTPS hosts, default port, no URL
-credentials/query/hash, no cookies, manual redirects (at most three) with every URL/DNS answer
-rechecked, public-address-only DNS pinned to the HTTPS connection with original hostname/SNI
-verification, identity encoding only (compressed pages refused), at most 2 MiB HTML, bounded
-plain-text extraction, soft-404 refusal. OpenStax is explicitly refused. Code chooses pages, never
-the model. Snapshots/passages remain private in the nonpersonal production row.
+## When a Scroll is refused
 
-Before claiming acceptance, label source inspection, CI fixture, real database, real provider,
-browser/emulator/physical-device and dev/stage deployment evidence separately. Three genuine
-model-generated Scrolls, at least two interactive, still require actual publication and reading
-through the connected app. A fixture publication or green CI cannot establish this. Human quality
-notes must cover accuracy, clarity, interactivity, unsupported inference and analogy limitations.
+```sh
+node dist/operator.js reasoning rejected                    # newest first: attempt, step, verdict, number of findings
+node dist/operator.js reasoning rejected --attempt <uuid>   # the redacted answer text and the validator's findings
+```
 
-The current source recipe is `scroll-production.v8`, with `scroll-claims.v4` and
-`scroll-writer.v6` stage versions; the writer version is recorded as publication `promptVersion`.
-Both roles opt into the reviewed M3 single native-object data carrier with documented auto-only
-tool choice and the reviewed `zod-structural.v1` advisory input schema (`hp4-tool-schema`), with no
-execution or forced/schema-decoder guarantee. Structural input derives from existing role Zod
-schemas; transformations and semantic/compiler/admission checks remain authoritative. Full primary
-and repair bytes must fit the unchanged 100000-byte cap. The writer requests original prose
-and corresponding repair anchors; every existing check and max-four request bound stays in force.
-This is source configuration, not runtime/provider acceptance or permission to call. New jobs keep
-stable role IDs and generation; all terminal v1–v7 jobs, attempts, receipts and failed-draft privacy
-remain unchanged. No provider call, allowance or daily-cap change is authorised by this source
-version. See [the production contract](../../../packages/backend/src/modules/content/production/README.md#coherent-explanation-recipes-in-v8).
-Claims now select four to eight immutable offered evidence IDs. Code verifies source hashes,
-complete original 40–600-character quote spans, offsets and membership, then hydrates statement
-and quote to the same source text. `documented` labels a direct quotation, not proven truth or
-verified entailment. The pool has at most 32 candidates; insufficient, corrupt, oversized or
-unpartitionable pools refuse before provider admission. No source text is silently clipped.
+Each refused answer of a production attempt is kept for 30 days, redacted and cut at 64 KiB, with
+the same fixed findings the repair request carried (`blocks[7]: copied_passage`, …). The text is
+the model's own writing about public sources; read it from an operator shell, never paste it into
+an issue or a pull request. `reasoning purge-expired` removes expired ones on demand.
 
-The harness retains raw selections for exact same-run replay; writer resume also verifies privately
-stored hydrated claims. This narrower role cannot author synthesis or interpretation. The writer requests a finished 2–3 minute article using a smaller canonical recipe and one
-mode-matched fictional syntax example. Comparison points explicitly contain span arrays. The
-writer wire requires canonical arrays directly; global compiler normalization is unchanged.
-The full catalogue, computed 2–8 minute admission contract, strict parser, research policy, reader
-copy/honesty/number checks, admission, request bound and token ceilings remain unchanged. All four
-rejected v1/v2/v3 jobs and eleven attempts remain immutable. Invoking the reviewed new version is a new allocated business run,
-never an automatic retry of a rejected version. `--resume` applies only to an unfinished job of the
-current recipe. New exact-head CI/review and coordinator allocation are required before generation.
+Usual findings and what they mean:
 
-v5 changes only writer semantic repair feedback: code-owned producer hints and three fixed content
-codes now reach the same one repair through the role's explicit safe catalogue. Arbitrary custom
-messages, draft/source values and unknown path names stay suppressed; no failed raw reply is kept.
-The real v4 dev greenhouse job's masked custom failures do not reveal its exact failed rule. All
-terminal v1–v4 jobs stay immutable. This version change records the feedback behavior delta; it
-does not reset generation, the stable-role daily failure brake, attempt/spend ledger or external
-allowance. It authorizes no call. Coordinator operator profiles must pin the reviewed v5/v4 source
-and preserve their separately reviewed generation and remaining allowance.
+| Finding | Meaning |
+|---|---|
+| `copied_passage` | Nine words in a row match a source passage. |
+| `authoring_number_not_in_evidence` | A figure (or a plotted chart value) is in no passage the block cites. |
+| `too_big` / `too_small` at a field | A length limit; the finding names the field and the limit. |
+| `OUTPUT_NOT_ONE_JSON_OBJECT` | The reply is not one JSON object; the detail says where it stopped being JSON. |
+| `OUTPUT_TRUNCATED` | The reply hit the token ceiling, usually because the model thought too long. |
+| `reading_length_out_of_brief` | Under two or over eight minutes of reading. |
+| `MODEL_MISMATCH` (attempt code) | The route answered with another model than the configured one. |
 
-New publications project the three reviewed topic IDs only after same-transaction writer closure,
-exact job publication, provenance and attempt checks. A normal fixture transport/model stays
-unattributed. Projection uses the existing 0016 baseline and weight guard; it creates no personal
-evidence. Historical reconciliation is unavailable until a separately reviewed completed-run
-attestation port exists; no actual historical generated publication currently needs it. Deploy
-requires the actual ordered schema through 0017, including 0015, and a matching reviewed build.
+## Facts about the model
 
-The three new greenhouse keys are separate explanation units under `earth.greenhouse-effect`:
-radiation paths (interactive), system-boundary balance (interactive), and an analogy audit
-(comparison/disclosure). They have new static asset/explanation IDs. The old three keys and their
-identities/source lists/briefs remain exact. A different key or successful publication does not
-establish conceptual variety: inspect actual generated prose and interactions for redundancy and
-faithful support before any exact semantic map approval. No coverage registry seed is included.
-The selected source combinations fit the investigated 22/27-candidate pools; future changed pages
-can refuse under the unchanged 32 bound. Climate-causes and energy+radiation are unsuitable pools;
-never truncate or raise the bound. No numerical forecast or historical-estimate-as-current claim
-is intended. Deploying this extension requires ordered migrations through 0026 (0025 first), a
-matching reviewed build and separate operational authority. No source recipe grants model calls,
-new allocation or a cap/day reset. Historical v1–v7 jobs and protected bytes remain immutable.
+`MiniMax-M3.1-Flash` thinks before it answers and refuses `thinking: disabled`; thinking tokens
+count against `max_tokens`. Without a hint it can think for the whole budget and never answer, so
+the writer asks for `medium` effort and a 16,000-token ceiling. Its replies are plain text JSON.
+Unknown model names are silently served by another model; the adapter checks the reply's `model`.
+Quota: `GET https://www.minimax.io/v1/token_plan/remains`, entry `general`.
+
+## Research
+
+Policy `public-research.v1`: individually reviewed HTTPS hosts, default port, no URL
+credentials/query/hash, no cookies, manual redirects (at most three) with every URL and DNS answer
+rechecked, public addresses only, identity encoding only, at most 2 MiB of HTML, bounded plain-text
+extraction, soft-404 refusal. Code chooses the pages; the model never does. Snapshots stay private
+in the nonpersonal production row.
+
+## Evidence for acceptance
+
+Label what a result is: source inspection, CI fixture, real database, real provider, browser or
+device, dev or stage deployment. A generated Scroll counts only after it is published through this
+pipeline and read in the connected app; a fixture publication does not establish it. Human review
+notes cover accuracy, clarity, the interactive block, unsupported inference and where an analogy
+stops.

@@ -2,11 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
-import type { ClaimPackage } from './roles.js';
 import type { RoleReceipt } from './types.js';
 import { SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
 
-export type ProductionStage = 'research' | 'claims' | 'writer';
+export type ProductionStage = 'research' | 'writer';
 
 export interface ProductionRow {
   readonly id: string;
@@ -14,11 +13,11 @@ export interface ProductionRow {
   readonly policy_version: string;
   readonly scope_generation: number;
   readonly target_revision: number;
-  readonly state: 'research' | 'claims' | 'writer' | 'published' | 'rejected' | 'unknown';
-  readonly claims_run_id: string;
+  readonly state: 'research' | 'writer' | 'published' | 'rejected' | 'unknown';
   readonly writer_run_id: string;
   readonly research: readonly ResearchPage[];
-  readonly claims: ClaimPackage | null;
+  /** The passages the published Scroll rests on; null until it is published. */
+  readonly claims: unknown;
   readonly writer_output: unknown;
   readonly outcomes: readonly RoleReceipt[];
   readonly asset_id: string | null;
@@ -47,7 +46,7 @@ export function productionStore(db: Kysely<Database>) {
       generation: number,
     ): Promise<{ readonly row: ProductionRow; readonly created: boolean }> {
       const inserted =
-        await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,target_revision,scope_generation,state,claims_run_id,writer_run_id) values (${randomUUID()},${topic},${SCROLL_PRODUCTION_VERSION},(select coalesce((select revision from content.assets where id=${TOPICS[topic].assetId}),0)+1),${generation},'research',${randomUUID()},${randomUUID()}) on conflict (topic,policy_version) do nothing returning *`.execute(
+        await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},${SCROLL_PRODUCTION_VERSION},(select coalesce((select revision from content.assets where id=${TOPICS[topic].assetId}),0)+1),${generation},'research',${randomUUID()}) on conflict (topic,policy_version) do nothing returning *`.execute(
           tx,
         );
       if (inserted.rows[0]) return { row: inserted.rows[0], created: true };
@@ -60,12 +59,7 @@ export function productionStore(db: Kysely<Database>) {
       return { row, created: false };
     },
     async research(tx: Transaction<Database>, id: string, pages: readonly ResearchPage[]): Promise<void> {
-      await sql`update content.scroll_production_runs set research=${JSON.stringify(pages)}::jsonb,state='claims' where id=${id} and state='research'`.execute(
-        tx,
-      );
-    },
-    async claims(tx: Transaction<Database>, id: string, claims: ClaimPackage, receipt: RoleReceipt): Promise<void> {
-      await sql`update content.scroll_production_runs set claims=${JSON.stringify(claims)}::jsonb,state='writer',outcomes=outcomes||${JSON.stringify([receipt])}::jsonb where id=${id} and state='claims'`.execute(
+      await sql`update content.scroll_production_runs set research=${JSON.stringify(pages)}::jsonb,state='writer' where id=${id} and state='research'`.execute(
         tx,
       );
     },
@@ -76,9 +70,9 @@ export function productionStore(db: Kysely<Database>) {
       state: 'published' | 'rejected' | 'unknown',
       receipts: readonly RoleReceipt[],
       publication?: { readonly assetId: string; readonly revision: number },
-      draft?: unknown,
+      published?: { readonly authored: unknown; readonly claims: unknown },
     ): Promise<void> {
-      await sql`update content.scroll_production_runs set state=${state},outcomes=outcomes||${JSON.stringify(receipts)}::jsonb,writer_output=${draft === undefined ? null : JSON.stringify(draft)}::jsonb,asset_id=${publication?.assetId ?? null},asset_revision=${publication?.revision ?? null},completed_at=now() where id=${id} and state=${expectedStage}`.execute(
+      await sql`update content.scroll_production_runs set state=${state},outcomes=outcomes||${JSON.stringify(receipts)}::jsonb,writer_output=${published === undefined ? null : JSON.stringify(published.authored)}::jsonb,claims=${published === undefined ? null : JSON.stringify(published.claims)}::jsonb,asset_id=${publication?.assetId ?? null},asset_revision=${publication?.revision ?? null},completed_at=now() where id=${id} and state=${expectedStage}`.execute(
         tx,
       );
     },

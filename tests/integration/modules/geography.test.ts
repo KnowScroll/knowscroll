@@ -37,7 +37,11 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     ({ scopeApply, manualApply } = world);
   });
   afterAll(() => world.close());
-  it('actual missing-provider refusal releases only the exact zero-retained claim without semantic apply or ledger closure', async () => {
+  async function kindsOf(person: Parameters<typeof snapshot>[0]) {
+    const result = await snapshot(person);
+    return 'page' in result ? result.page.objects.map((object) => object.kind).sort() : [];
+  }
+  it('a refusal before admission settles the claim by the rules when no attempt is retained, and keeps it when one is', async () => {
     for (const retained of [false, true]) {
       const a = await seedPerson(database.db);
       await coherent(a);
@@ -67,7 +71,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now: base.now }),
       });
       const forbidden = () => {
-        throw new Error('CI unadmitted run cannot apply or close');
+        throw new Error('CI unadmitted run has no ledger run to apply under or close');
       };
       await makeRunCartographer({
         ...base,
@@ -80,19 +84,34 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         .where('universe_id', '=', a.universeId)
         .where('id', '=', runId)
         .executeTakeFirstOrThrow();
-      expect(h.status).toBe(retained ? 'prepared' : 'blocked');
-      expect(h.outcome).toBe(retained ? null : 'provider_unavailable');
       expect(h.normal_wake_id).toBeNull();
+      expect(await attemptsOf(database.db, a.universeId)).toEqual([]);
+      const deltas = await database.db
+        .selectFrom('geography.deltas')
+        .select('transition_id')
+        .where('universe_id', '=', a.universeId)
+        .execute();
       if (retained) {
+        // A retained attempt cannot be proved away: the claim stays until it expires.
+        expect(h.status).toBe('prepared');
+        expect(h.outcome).toBeNull();
         expect(h.claim_id).not.toBeNull();
         expect(h.claim_wake_claim_id).toBe(h.claim_id);
+        expect(await state(a)).toEqual(before);
+        expect(deltas).toEqual([]);
       } else {
-        expect(h.claim_id).toBeNull();
-        expect(h.claim_until).toBeNull();
-        expect(h.claim_wake_claim_id).toBeNull();
+        // The provider is missing, so no model ran; the rules still formed the places.
+        expect(h).toMatchObject({
+          status: 'accepted',
+          outcome: 'applied_by_rules',
+          claim_id: null,
+          claim_until: null,
+          claim_wake_claim_id: null,
+        });
+        expect(await kindsOf(a)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+        expect(deltas).toHaveLength(1);
+        expect((await state(a)).activeRunId).toBeUndefined();
       }
-      expect(await state(a)).toEqual(before);
-      expect(await attemptsOf(database.db, a.universeId)).toEqual([]);
       expect(
         await database.db
           .selectFrom('reasoning.business_runs')
@@ -100,13 +119,6 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
           .where('universe_id', '=', a.universeId)
           .execute(),
       ).toHaveLength(retained ? 1 : 0);
-      expect(
-        await database.db
-          .selectFrom('geography.deltas')
-          .select('transition_id')
-          .where('universe_id', '=', a.universeId)
-          .execute(),
-      ).toEqual([]);
     }
   });
   it('unviewed assets and readonly map visits create no work, coverage, model call or objects', async () => {
@@ -126,7 +138,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     expect(r.model.calls).toHaveLength(0);
     expect(await snapshot(p)).toMatchObject({ status: 'empty', geography: { revision: 0 } });
   });
-  it('a switched-off role blocks real queued work without attempts, receipts coalesce/replay, and resume runs it once when switched on', async () => {
+  it('a switched-off role releases real queued work without attempts, receipts coalesce/replay, and asking again runs a new run once', async () => {
     const p = await seedPerson(database.db);
     await coherent(p);
     const c0 = { commandId: randomUUID() },
@@ -137,19 +149,20 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     await r.run(await job(p, a.runId), signal());
     expect(r.model.calls).toHaveLength(0);
     expect(
-      (
-        await database.db
-          .selectFrom('geography.runs')
-          .select('outcome')
-          .where('id', '=', a.runId)
-          .executeTakeFirstOrThrow()
-      ).outcome,
-    ).toBe('disabled');
+      await database.db
+        .selectFrom('geography.runs')
+        .select(['status', 'outcome'])
+        .where('id', '=', a.runId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ status: 'insufficient', outcome: 'disabled' });
+    expect((await state(p)).activeRunId).toBeUndefined();
     expect(await attemptsOf(database.db, p.universeId)).toHaveLength(0);
     expect(await snapshot(p)).toMatchObject({ status: 'empty' });
-    // Switching the role on and asking again runs the same business run once.
-    await request(p.authority, { commandId: randomUUID(), resumeRunId: a.runId });
-    await makeRunCartographer({ ...r.ports, enabled: () => true })(await job(p, a.runId), signal());
+    // Switching the role on and asking again starts a new run, which runs once.
+    const again = await request(p.authority, { commandId: randomUUID() });
+    if (again.kind !== 'accepted') throw new Error('CI request refused');
+    expect(again.runId).not.toBe(a.runId);
+    await makeRunCartographer({ ...r.ports, enabled: () => true })(await job(p, again.runId), signal());
     expect(r.model.calls).toHaveLength(1);
     expect(await snapshot(p)).toMatchObject({ status: 'ready', geography: { revision: 1 } });
   });
@@ -417,7 +430,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       .execute();
     expect(await snapshot(p)).toMatchObject({ status: 'unavailable', reason: 'temporarily_unavailable' });
   });
-  it('indexed PC discovery overflow is unavailable, never a truncated set of formation witnesses', async () => {
+  it('raw discovery overflow is unavailable, never a truncated set of formation witnesses', async () => {
     const p = await seedPerson(database.db),
       f = await fixture(),
       e = await observe(p, f);
@@ -430,7 +443,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         .where('universe_id', '=', p.universeId)
         .where('exposure_id', '=', e.exposureId)
         .executeTakeFirstOrThrow();
-      const rows = Array.from({ length: 101 }, (_, i) => ({
+      const rows = Array.from({ length: 1001 }, (_, i) => ({
         ...source,
         topic_id: `ci.overflow.${i}`,
         facet_id: `ci.overflow.${i}.facet`,

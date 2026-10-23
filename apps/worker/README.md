@@ -53,11 +53,13 @@ from the personal harness. Nonpersonal Scroll supply requires explicit worker co
 the database root enabled/generation gate; both default disabled. Shared sweep/purge/operator
 maintenance still records and resolves production liabilities while production is disabled.
 
-The content production operator is `node dist/operator.js content produce-scroll --topic
-seasons|tides|greenhouse [--dry-run] [--resume]`. It refuses worlds outside dev/stage/ci/local,
-prints a four-request maximum, uses the explicit nonpersonal harness grant, and emits bounded
-IDs/outcome codes and reported usage only. `--resume` reuses frozen stages and attempt IDs;
-unknown attempts never resend. No production job or source text is placed on the HTTP path.
+The content production operator is `node dist/operator.js content produce-scroll --topic <recipe>
+[--dry-run] [--resume]`. It refuses worlds outside dev/stage/ci/local, defaults to
+`MiniMax-M3.1-Flash`, prints a two-request maximum (one writer call and at most one repair), uses the
+explicit nonpersonal harness grant, and emits bounded IDs, outcome codes and reported usage only.
+`--resume` reuses the frozen job and attempt IDs; unknown attempts never resend. When a Scroll is
+refused, `node dist/operator.js reasoning rejected [--attempt <uuid>]` shows the kept, redacted answer
+and the validator's findings. No production job or source text is placed on the HTTP path.
 
 The explicit `planner.run` consumer (#236) calls the personal Planner with the delivery abort
 signal. `KS_PLANNER_ENABLED` defaults to 1 in world `local` and 0 elsewhere (dev sets 1); with 0,

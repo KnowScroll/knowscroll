@@ -151,7 +151,7 @@ export const DraftProvenance = z.strictObject({
     /** Allowed reading time in minutes, inclusive. */
     targetMinutes: z.tuple([z.number().int().min(1), z.number().int().min(1)]).optional(),
   }),
-  claims: z.array(Claim).max(48),
+  claims: z.array(Claim).max(64),
   sources: z.array(Source).max(24),
   /** Research excerpts the copy check compares against (the material's own words stay out). */
   material: z.array(z.string().max(8_192)).max(8),

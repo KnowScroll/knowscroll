@@ -170,7 +170,8 @@ current PC revision plus deterministic topic/facet/explanation-unit triples. Eac
 index supplies an ordered raw prefix of at most1001 references, using its existing probe index.
 The combined raw budget is1000, checked BEFORE bounded in-memory key deduplication; duplicate keys
 cannot hide an oversized history. No DISTINCT, grouping, shadow filtering or refill precedes the
-raw limit. At most100 probes/64KiB are returned. Overflow returns `availability: unavailable`,
+raw limit. At most 1000 distinct probes (and 256 KiB) are returned; a consumer reads them in batches of 100.
+Overflow returns `availability: unavailable`,
 `reason: limit` and no probes; a complete bounded prefix says `reason: bounded`, while completeness
 is always not_asserted. These retained index keys
 are NOT trusted supports, unit counts or formation authority. Geography must call current
@@ -225,7 +226,7 @@ candidate budget for at most100 requested units. Overflow returns explicit backe
 `proofAvailability: unavailable` / `proofReason: limit`, empty qualified/supporting proofs and
 `completeness: not_asserted`; prepared statistics and routing remain usable. Coverage discovery
 independently reads at most1001 raw references per index (2002 total), refuses above1000 combined raw
-references before deduplication, then enforces100 probes/64KiB. Trusted
+references before deduplication, then enforces the 256 KiB size bound. Trusted
 coverage output retains its128KiB bound and does not claim historical completeness.
 
 Clear/full erasure deletes recording coverage references first, then effective coverage and

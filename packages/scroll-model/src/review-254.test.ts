@@ -28,13 +28,7 @@ import {
   type ScrollDocument,
   type SimulationParam,
 } from './index.js';
-import {
-  blockCatalogueText,
-  CATALOGUE_MAX_BYTES,
-  compileDraft,
-  draftFromDocument,
-  validateDraft,
-} from './producer/index.js';
+import { compileDraft, draftFromDocument, validateDraft } from './producer/index.js';
 import { normaliseDraftInput } from './producer/normalise.js';
 import { make, seal } from './test-support/arbitraries.js';
 import { fixture } from './test-support/fixtures.js';
@@ -522,9 +516,8 @@ describe('review-254 p7: validation cost is bounded and front-loads the cheap ch
   });
 });
 
-describe('review-254 p8: the writer catalogue and the fixtures stay bounded and idempotent', () => {
-  it('keeps the catalogue under 8 KB and every fixture compile idempotent', () => {
-    expect(utf8ByteLength(blockCatalogueText())).toBeLessThanOrEqual(CATALOGUE_MAX_BYTES);
+describe('review-254 p8: the fixtures stay idempotent', () => {
+  it('compiles every fixture idempotently', () => {
     for (const item of [attention, weight, fixture('spring-neap-tides')]) {
       const once = compileDraft(item.draft, item.provenance);
       if (once.kind !== 'compiled') throw new Error(JSON.stringify(once));

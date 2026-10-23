@@ -1,9 +1,11 @@
+import { sql } from 'kysely';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
+import { makeRunCartographer } from '@knowscroll/backend/modules/geography/nest-providers';
 import { CONCEPTS } from '@knowscroll/backend/modules/content';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { signal } from '../support/fixture-model.js';
+import { attemptsOf, signal } from '../support/fixture-model.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { geographyWorld, topic, facet, otherFacet, type GeographyWorld } from '../support/geography-world.js';
 import {
@@ -25,10 +27,14 @@ const providerDown: FixtureScenario = { kind: 'server_error', status: 503 };
 function cartographer(world: GeographyWorld) {
   const { database, state, runner, job, snapshot, emerging } = world;
   /** Runs the person's active Cartographer run once, with the given model behaviour. */
-  async function cartograph(person: FixturePerson, script?: Parameters<typeof runner>[1]) {
+  async function cartograph(
+    person: FixturePerson,
+    script?: Parameters<typeof runner>[1],
+    overrides?: Parameters<typeof runner>[2],
+  ) {
     const runId = (await state(person)).activeRunId;
     if (!runId) throw new Error('CI expected an active Cartographer run');
-    const run = runner(person, script);
+    const run = runner(person, script, overrides);
     await run.run(await job(person, runId), signal());
     return { ...run, runId };
   }
@@ -153,7 +159,7 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     }));
     expect(partial.model.calls).toHaveLength(1);
     expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
-    expect(await runOf(partial.runId)).toMatchObject({ status: 'accepted', outcome: 'applied' });
+    expect(await runOf(partial.runId)).toMatchObject({ status: 'accepted', outcome: 'applied_with_rules' });
   });
 
   it('keeps one stable, person-specific cue per gathering system until the system is established', async () => {
@@ -233,7 +239,7 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     ).toBe(true);
   });
 
-  it('removes the places and the dust when the person clears everything', async () => {
+  it('removes the places, the support behind them and the dust when the person clears everything', async () => {
     const { database, fixture, observe, read, scope } = world;
     const { cartograph, placeKinds, dust } = steps;
     const person = await seedPerson(database.db);
@@ -242,6 +248,45 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     await observe(person, await fixture(undefined, topic, [otherFacet]));
     await cartograph(person, () => garbage);
     expect(await placeKinds(person)).toEqual(['star', 'system']);
+    const stores = [
+      'personal_context.topics',
+      'personal_context.coverage_contributions',
+      'personal_context.coverage_references',
+      'personal_context.coverage_supports',
+      'personal_context.recording_coverage_contributions',
+      'personal_context.recording_coverage_references',
+      'geography.state',
+      'geography.runs',
+      'geography.objects',
+      'geography.deltas',
+    ] as const;
+    const rowsOf = async () =>
+      Object.fromEntries(
+        await Promise.all(
+          stores.map(
+            async (store) =>
+              [
+                store,
+                (
+                  await sql<{
+                    n: number;
+                  }>`select count(*)::int as n from ${sql.table(store)} where universe_id = ${person.universeId}::uuid`.execute(
+                    database.db,
+                  )
+                ).rows[0]!.n,
+              ] as const,
+          ),
+        ),
+      ) as Record<(typeof stores)[number], number>;
+    // The test can only fail if there is something to erase.
+    const before = await rowsOf();
+    expect(before['personal_context.topics']).toBeGreaterThan(0);
+    expect(
+      before['personal_context.coverage_references'] + before['personal_context.recording_coverage_references'],
+    ).toBeGreaterThan(0);
+    for (const store of ['geography.state', 'geography.runs', 'geography.objects', 'geography.deltas'] as const)
+      expect(before[store]).toBeGreaterThan(0);
+
     await database.db
       .updateTable('identity.universes')
       .set({ privacy_epoch: 2 })
@@ -249,6 +294,7 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
       .execute();
     const fresh = { ...person.authority, privacyEpoch: 2 };
     await scope()(fresh, (sc) => eraseUniverse(sc, personalStores));
+    expect(await rowsOf()).toEqual(Object.fromEntries(stores.map((store) => [store, 0])));
     expect(await world.emerging(person.authority, {})).toEqual({ kind: 'refused', reason: 'scope_refused' });
     expect(await world.emerging(fresh, {})).toMatchObject({
       kind: 'read',
@@ -259,6 +305,191 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
       snapshot: { status: 'empty' },
     });
   });
+
+  it('strands nobody while the role is switched off: reading after it is switched on forms the places', async () => {
+    const { database, fixture, observe, state } = world;
+    const { cartograph, placeKinds, runOf } = steps;
+    const person = await seedPerson(database.db);
+    const off = { enabled: () => false };
+    await observe(person, await fixture(undefined, topic, [facet]));
+    const first = await cartograph(person, undefined, off);
+    expect(await runOf(first.runId)).toMatchObject({ status: 'insufficient', outcome: 'disabled' });
+    expect((await state(person)).activeRunId).toBeUndefined();
+    await observe(person, await fixture(undefined, topic, [otherFacet]));
+    await cartograph(person, undefined, off);
+    expect(await placeKinds(person)).toEqual([]);
+    // The role is switched on. The next reading starts a run that forms what all three Scrolls earned.
+    await observe(person, await fixture(undefined, topic, [facet]));
+    const on = await cartograph(person, () => garbage);
+    expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+    expect(await runOf(on.runId)).toMatchObject({ status: 'accepted', outcome: 'applied_by_rules' });
+  });
+
+  it.each(['disabled', 'provider_unavailable'] as const)(
+    'restarts a run that earlier code parked as blocked/%s on the next reading',
+    async (parkedOutcome) => {
+      const { database, fixture, observe, state } = world;
+      const { cartograph, placeKinds, runOf } = steps;
+      const person = await seedPerson(database.db);
+      await observe(person, await fixture(undefined, topic, [facet]));
+      const parked = (await state(person)).activeRunId!;
+      await sql`update geography.runs set status='blocked', outcome=${parkedOutcome}, normal_wake_id=null
+        where universe_id = ${person.universeId}::uuid and id = ${parked}::uuid`.execute(database.db);
+      expect(await runOf(parked)).toMatchObject({ status: 'blocked', outcome: parkedOutcome });
+      await observe(person, await fixture(undefined, topic, [otherFacet]));
+      expect((await state(person)).activeRunId).toBe(parked);
+      const woken = await cartograph(person, () => garbage);
+      expect(woken.runId).toBe(parked);
+      expect(await placeKinds(person)).toEqual(['star', 'system']);
+      expect(await runOf(parked)).toMatchObject({ status: 'accepted', outcome: 'applied_by_rules' });
+    },
+  );
+
+  it('forms places by the rules when the harness refuses before admitting a run, and releases the run when nothing is due', async () => {
+    const { database, coherent, fixture, observe } = world;
+    const { placeKinds, runOf } = steps;
+    const noLedgerRun = () => {
+      throw new Error('CI a refusal before admission has no ledger run to apply under or close');
+    };
+    async function refused(person: FixturePerson) {
+      const base = world.runner(person);
+      const runId = (await world.state(person)).activeRunId!;
+      await makeRunCartographer({
+        ...base.ports,
+        harness: {
+          ...base.ports.harness,
+          proposePersonal: () => Promise.resolve({ kind: 'refused', reason: 'request_too_large' }),
+          withPersonalApply: noLedgerRun,
+          closePersonalRun: noLedgerRun,
+        },
+      })(await world.job(person, runId), signal());
+      return runId;
+    }
+    const heavy = await seedPerson(database.db);
+    await coherent(heavy);
+    const formed = await refused(heavy);
+    expect(await placeKinds(heavy)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+    expect(await runOf(formed)).toMatchObject({ status: 'accepted', outcome: 'applied_by_rules' });
+    expect(await attemptsOf(database.db, heavy.universeId)).toEqual([]);
+    expect((await world.state(heavy)).activeRunId).toBeUndefined();
+
+    const light = await seedPerson(database.db);
+    await observe(light, await fixture(undefined, topic, [facet]));
+    const released = await refused(light);
+    expect(await runOf(released)).toMatchObject({ status: 'insufficient', outcome: 'request_too_large' });
+    expect((await world.state(light)).activeRunId).toBeUndefined();
+  });
+
+  it('applies the rules when a refusal comes from a ledger run that is already closed', async () => {
+    const { database, coherent } = world;
+    const { placeKinds, runOf } = steps;
+    const person = await seedPerson(database.db);
+    await coherent(person);
+    const runId = (await world.state(person)).activeRunId!;
+    const base = world.runner(person);
+    await makeRunCartographer({
+      ...base.ports,
+      harness: {
+        ...base.ports.harness,
+        // The real attempt admits the ledger run; the answer then reports it closed.
+        proposePersonal: async (input, abort) => {
+          await base.ports.harness.proposePersonal(input, abort);
+          return { kind: 'refused', reason: 'run_closed' };
+        },
+        closePersonalRun: () => Promise.resolve('not_open'),
+      },
+    })(await world.job(person, runId), signal());
+    expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+    expect(await runOf(runId)).toMatchObject({ status: 'accepted', outcome: 'applied_by_rules' });
+  });
+
+  it('lets the rules win when the model relabels a place that the rules also put to sleep', async () => {
+    const { database, coherent, fixture, observe, snapshot } = world;
+    const { cartograph, runOf } = steps;
+    const person = await seedPerson(database.db);
+    const recent = await coherent(person);
+    await cartograph(person);
+    const formed = await snapshot(person);
+    if (formed.status !== 'ready') throw new Error('CI ready expected');
+    const planet = formed.page.objects.find((place) => place.kind === 'planet')!;
+    for (const old of recent) {
+      const aged = await fixture(
+        old.unit,
+        topic,
+        old.map.bindings.map((binding) => binding.facetId),
+      );
+      await observe(person, aged, [], 40 * 24 * 60);
+      await database.db
+        .updateTable('content.assets')
+        .set({ status: 'withdrawn' })
+        .where('id', '=', old.assetId)
+        .execute();
+    }
+    const relabel = await cartograph(person, (context) => ({
+      kind: 'success',
+      text: JSON.stringify({
+        version: 'cartographer-proposal.v1',
+        operations: [
+          {
+            kind: 'revise_label',
+            objectId: planet.id,
+            label: context.facts.objects.find((place) => place.id === planet.id)!.labels[1],
+            supportRefs: context.facts.supports.map((support) => support.ref),
+          },
+        ],
+      }),
+    }));
+    expect(await runOf(relabel.runId)).toMatchObject({ status: 'accepted', outcome: 'applied_by_rules' });
+    const after = await snapshot(person);
+    if (after.status !== 'ready') throw new Error('CI ready expected');
+    expect(after.page.objects.find((place) => place.id === planet.id)).toMatchObject({
+      label: planet.label,
+      activity: { availability: 'available', state: 'quiet' },
+    });
+  });
+
+  it('keeps forming places for a reader with more than 100 covered facet and unit pairs', async () => {
+    const { database, base, fixture, observe, scope, snapshot } = world;
+    const { cartograph } = steps;
+    const planets = CONCEPTS.filter((concept) => concept.parent !== null);
+    // The last planet in key order is the one a plain first-100 cut would drop.
+    const target = [...planets].sort((a, b) => a.id.localeCompare(b.id)).at(-1)!;
+    const person = await seedPerson(database.db);
+    let pairs = 0;
+    for (const planet of planets) {
+      const facets = planet.facets.map((entry) => entry.id);
+      for (let unit = 0; unit < (planet === target ? 3 : 2); unit++) {
+        await observe(person, await fixture(undefined, planet.id, facets));
+        pairs += facets.length;
+      }
+    }
+    expect(pairs).toBeGreaterThan(100);
+    const discovered = await scope()(person.authority, (sc) => base.readInputs(sc));
+    expect(discovered).toMatchObject({ kind: 'entered', value: { availability: 'available' } });
+    if (discovered.kind !== 'entered') throw new Error('CI scope refused');
+    expect(discovered.value.probes.length).toBe(pairs);
+
+    let frozen: Parameters<NonNullable<Parameters<typeof cartograph>[1]>>[0] | undefined;
+    await cartograph(person, (frozenContext) => {
+      frozen = frozenContext;
+      return garbage;
+    });
+    if (!frozen) throw new Error('CI the model never saw a context');
+    expect(frozen.facts.supports.length).toBeLessThanOrEqual(100);
+    expect(frozen.facts.supports.some((entry) => entry.topicId === target.id)).toBe(true);
+    const universe = await snapshot(person);
+    if (universe.status !== 'ready') throw new Error('CI ready expected');
+    const count = (kind: string) => universe.page.objects.filter((place) => place.kind === kind).length;
+    const systems = CONCEPTS.filter((concept) => concept.parent === null).length;
+    expect({ system: count('system'), star: count('star'), planet: count('planet'), region: count('region') }).toEqual({
+      system: systems,
+      star: systems,
+      planet: 1,
+      region: target.facets.length,
+    });
+    const planet = universe.page.objects.find((place) => place.kind === 'planet')!;
+    expect(universe.page.objects.some((place) => place.kind === 'system' && place.id === planet.parent.id)).toBe(true);
+  }, 180_000);
 });
 
 describe('Cartographer failure brake (real PostgreSQL CI fixtures)', () => {

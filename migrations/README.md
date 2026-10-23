@@ -116,3 +116,12 @@ a person has at most one open planned waiter per shared matching group.
 The checks are `NOT VALID`; older writers default to `origin='person'` and never write `deferred`.
 No new table, so the erasure inventory is unchanged and Clear removes planned demand with the rest
 of the person's requests.
+
+0050 adds `reasoning.production_rejected_answers` and ends the separate claims stage of Scroll production.
+The table keeps a refused model answer of a nonpersonal production attempt, redacted and cut at 64 KiB,
+with the validator's findings, for 30 days; `answer_kind` says whether the text is the model's answer or
+the raw body of an unreadable reply (only an answer is ever fed back to a repair). Personal roles never
+write to it, so the erasure inventory is unchanged. On `content.scroll_production_runs` it drops
+`claims_run_id`, closes any job still parked in the retired `claims` state as rejected, and replaces the
+state check without `claims` (`NOT VALID`, like the other vocabulary changes). Apply it together with the
+workers of recipe `scroll-production.v14`; no process of the previous recipe may run a job afterwards.

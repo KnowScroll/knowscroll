@@ -2,9 +2,9 @@
 // Checks the library plan's research pages against the product's own fetcher.
 //
 // For every recipe it fetches each page through `fetchResearchPage` (the same allowlist, redirect and
-// size rules the worker uses) and builds the recipe's quote-candidate pool, the passages the claims
-// role chooses from. A recipe passes when every page is accepted and its pool holds 6 to 30 candidates.
-// The limit the pool builder enforces is 32; the margin keeps a page that gains a paragraph usable.
+// size rules the worker uses) and cuts the pages into the evidence passages the writer cites. A recipe
+// passes when every page is accepted and the passages number 6 to 63. The writer is offered at most 64
+// and needs at least 4; the margin keeps a page that loses or gains a paragraph usable.
 //
 // Needs the built backend (`pnpm build`) and network access. Pages are fetched one at a time with a
 // pause between requests, because Wikipedia answers bursts with rate-limit errors.
@@ -15,7 +15,7 @@
 import { parseArgs } from 'node:util';
 
 const MIN_POOL = 6;
-const MAX_POOL = 30;
+const MAX_POOL = 63;
 const RETRY_CODES = new Set(['http_refused', 'network_failed']);
 
 const { values } = parseArgs({ options: { only: { type: 'string' }, 'delay-ms': { type: 'string' } } });
@@ -25,7 +25,7 @@ const only = values.only === undefined ? undefined : new Set(values.only.split('
 const backend = new URL('../packages/backend/dist/', import.meta.url);
 const { RECIPES } = await import(new URL('modules/content/domain/library/index.js', backend).href);
 const { fetchResearchPage } = await import(new URL('infrastructure/research/public-pages.js', backend).href);
-const { quoteCandidates } = await import(new URL('modules/content/production/quote-candidates.js', backend).href);
+const { evidencePassages } = await import(new URL('modules/content/production/evidence.js', backend).href);
 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -63,9 +63,9 @@ for (const [key, recipe] of Object.entries(RECIPES)) {
   let pool = 0;
   if (failures.length === 0) {
     try {
-      pool = quoteCandidates(pages).length;
+      pool = evidencePassages(pages).length;
       if (pool < MIN_POOL) failures.push(`pool_too_small ${String(pool)}`);
-      if (pool > MAX_POOL) failures.push(`pool_near_limit ${String(pool)}`);
+      if (pool > MAX_POOL) failures.push(`pool_at_limit ${String(pool)}`);
     } catch (error) {
       failures.push(`${error?.code ?? 'pool_failed'} (${String(recipe.pages.length)} pages)`);
     }

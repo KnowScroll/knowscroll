@@ -75,29 +75,41 @@ export function requiredChanges(facts: FormationFacts): GeographyProposal {
   return { version: 'cartographer-proposal.v1', operations };
 }
 
+/** What the rules decided to apply, and where it came from. */
+export interface FormationPlan {
+  readonly proposal: GeographyProposal;
+  /** `model`: as proposed. `model_with_rules`: the model's proposal plus what the rules require.
+   * `rules`: the rules alone, because there was no usable proposal or it conflicted with them. */
+  readonly source: 'model' | 'model_with_rules' | 'rules';
+}
+
 /**
- * A model proposal plus every place or activity change the rules require that it left out.
- * Formation is decided by the rules, never by a model's choice to omit something; the model keeps
- * what only it adds, such as routes and the choice between canonical labels. Returns the proposal
- * unchanged when the combination would not fit or validate.
+ * A valid model proposal reconciled with what the rules require. Formation is decided by the rules,
+ * never by a model's choice to omit something, so every required change the proposal left out is
+ * added (places parents first). The model keeps what only it adds, such as routes and the choice
+ * between canonical labels. When the combination conflicts (two operations on one place) or does
+ * not fit one delta, the rules are applied alone, still validated like any proposal.
  */
-export function completeProposal(proposal: GeographyProposal, facts: FormationFacts): GeographyProposal {
+export function reconcileWithRules(proposal: GeographyProposal, facts: FormationFacts): FormationPlan {
+  const required = requiredChanges(facts);
   const proposedPlaces = new Set(proposal.operations.filter(isCreation).map((operation) => operation.key));
   const proposedActivity = new Set(
     proposal.operations.flatMap((operation) => (operation.kind === 'set_activity' ? [operation.objectId] : [])),
   );
-  const missing = requiredChanges(facts).operations.filter((operation) =>
+  const missing = required.operations.filter((operation) =>
     isCreation(operation)
       ? !proposedPlaces.has(operation.key)
       : operation.kind === 'set_activity' && !proposedActivity.has(operation.objectId),
   );
-  if (!missing.length) return proposal;
+  if (!missing.length) return { proposal, source: 'model' };
+  const nothingFromModel = proposal.operations.length === 0;
   const all = [...proposal.operations, ...missing];
   const operations = [
     ...all.filter(isCreation).sort((a, b) => creationRank(a) - creationRank(b)),
     ...all.filter((operation) => !isCreation(operation)),
   ];
-  if (operations.length > MAX_PROPOSAL_OPERATIONS) return proposal;
-  const completed = { ...proposal, operations };
-  return proposalIssue(completed, facts) ? proposal : completed;
+  const combined = { ...proposal, operations };
+  if (operations.length <= MAX_PROPOSAL_OPERATIONS && !proposalIssue(combined, facts))
+    return { proposal: combined, source: nothingFromModel ? 'rules' : 'model_with_rules' };
+  return { proposal: required, source: 'rules' };
 }

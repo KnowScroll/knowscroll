@@ -189,16 +189,22 @@ describe('the recording boundary and the validator feedback (real database, fixt
     const invalid = `{"${fakeUrl}":nope,"private":"${fakeToken}"}`;
 
     it.each([
-      ['syntax', invalid, 'phase=syntax framing=bare prefix=object category=unexpected_token'],
+      [
+        'syntax',
+        invalid,
+        'phase=syntax framing=bare prefix=object category=unexpected_token',
+        '; a character appears where JSON does not allow it',
+      ],
       [
         'prose',
         `Private reply ${fakeUrl} ${fakeToken} ${invalid}`,
         'phase=framing framing=bare prefix=other category=other',
+        '',
       ],
-      ['fence', `\`\`\`json\n${invalid}`, 'phase=framing framing=invalid_fence prefix=other category=other'],
+      ['fence', `\`\`\`json\n${invalid}`, 'phase=framing framing=invalid_fence prefix=other category=other', ''],
     ])(
       'persists only fixed %s metadata and uses those exact issues in the one repair',
-      async (label, text, expected) => {
+      async (label, text, expected, advice) => {
         const person = await seedPerson(db());
         const model = fixtureModel(() => ({ kind: 'success', text }));
         const role = { ...echoRole, id: `fixture.json-${label}` };
@@ -225,7 +231,7 @@ describe('the recording boundary and the validator feedback (real database, fixt
               {
                 path: '(root)',
                 code: 'not_one_json_object',
-                detail: `answer with exactly one JSON object and nothing else; json-refusal.v1 ${expected} chars=${text.length}`,
+                detail: `answer with exactly one JSON object and nothing else${advice}; json-refusal.v1 ${expected} chars=${text.length}`,
               },
             ],
           });
