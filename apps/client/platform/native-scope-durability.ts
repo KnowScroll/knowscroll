@@ -273,14 +273,18 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
     );
     return result;
   };
-  async function database() {
+  async function database(current: () => boolean = () => true) {
+    if (!current()) throw unavailable();
     db ??= (async () => {
       const value = await ports.open();
       try {
+        if (!current()) throw unavailable();
         const journal = await value.getFirstAsync<{ journal_mode: string }>('PRAGMA journal_mode=WAL');
+        if (!current()) throw unavailable();
         await value.runAsync('PRAGMA synchronous=FULL');
+        if (!current()) throw unavailable();
         const sync = await value.getFirstAsync<{ synchronous: number }>('PRAGMA synchronous');
-        if (journal?.journal_mode !== 'wal' || sync?.synchronous !== 2) throw unavailable();
+        if (!current() || journal?.journal_mode !== 'wal' || sync?.synchronous !== 2) throw unavailable();
         await value.runAsync(
           'CREATE TABLE IF NOT EXISTS ks_scoped_snapshot (singleton INTEGER PRIMARY KEY CHECK(singleton=1),root_id TEXT NOT NULL,revision INTEGER NOT NULL CHECK(revision>=1 AND revision<=9007199254740991),body TEXT NOT NULL CHECK(length(body)<=710000))',
         );
@@ -297,13 +301,18 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
       db = undefined;
       throw error;
     });
-    return db;
+    const value = await db;
+    if (!current()) throw unavailable();
+    return value;
   }
-  async function transaction(work: (db: NativeDatabase) => Promise<void>) {
-    const value = await database();
+  async function transaction(work: (db: NativeDatabase) => Promise<void>, current: () => boolean = () => true) {
+    const value = await database(current);
+    if (!current()) throw unavailable();
     await value.runAsync('BEGIN IMMEDIATE');
     try {
+      if (!current()) throw unavailable();
       await work(value);
+      if (!current()) throw unavailable();
       await value.runAsync('COMMIT');
     } catch (error) {
       try {
@@ -315,14 +324,16 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
     }
   }
   async function close(rootId?: string) {
-    const raw = await ports.readRoot();
-    const root = raw === null ? undefined : parseRoot(raw);
+    const input = { raw: await ports.readRoot() };
+    const root = input.raw === null ? undefined : parseRoot(input.raw);
+    input.raw = null;
     if (rootId !== undefined && root?.rootId !== rootId) return; // Late old cleanup never touches a replacement.
     if (root) {
-      const { key: _key, ...rest } = root;
+      delete root.key;
+      root.status = 'closed';
       // A failed SharedPreferences commit can still change its process-local read view.
       // Even an already-CLOSED read needs a successful write acknowledgement on cleanup retry.
-      await ports.writeRoot(JSON.stringify({ ...rest, status: 'closed' }));
+      await ports.writeRoot(JSON.stringify(root));
     }
     await transaction(async (value) => {
       await value.runAsync('DELETE FROM ks_scoped_snapshot WHERE singleton=1');
@@ -334,9 +345,11 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
   function makeRuntime(root: Root, initial: Map<string, string>, initialRevision: number): Runtime {
     const prefix = `ks.scope.${root.accountId}:${root.privacyEpoch}.`;
     const mirror = new Map(initial),
-      ephemeral = new Map<string, string>();
-    let committed = new Map(initial),
-      revision = initialRevision,
+      ephemeral = new Map<string, string>(),
+      committed = new Map(initial),
+      inFlightMaps = new Set<Map<string, string | undefined>>();
+    initial.clear(); // Ownership transferred; do not retain a second hydrated plaintext map.
+    let revision = initialRevision,
       dirty = false,
       closed = false,
       healthy = true,
@@ -413,47 +426,58 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
         previous = revision,
         next = previous + 1;
       if (!Number.isSafeInteger(next)) {
+        snapshot.clear();
         fail();
         return false;
       }
+      inFlightMaps.add(snapshot);
       dirty = false;
       writing = exclusive(async () => {
         try {
-          const plain = JSON.stringify({
+          if (closed || !healthy) return false;
+          let plain: string | undefined = JSON.stringify({
             v: 1,
             revision: String(next),
             entries: [...snapshot].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
           });
-          parseSnapshot(plain, root, next);
-          const ciphertext = await ports.encrypt(plain, root.key!, aad(root, next));
+          parseSnapshot(plain, root, next).clear();
+          const encryption = ports.encrypt(plain, root.key!, aad(root, next));
+          plain = undefined; // The SDK may retain its argument; the writer no longer owns it across await.
+          const ciphertext = await encryption;
           if (closed || !healthy || ciphertext.length > 710000) throw unavailable();
-          await transaction(async (value) => {
-            if (closed) throw unavailable();
-            const updated =
-              previous === 0
-                ? await value.runAsync(
-                    'INSERT INTO ks_scoped_snapshot(singleton,root_id,revision,body) VALUES(1,?,?,?)',
-                    root.rootId,
-                    next,
-                    ciphertext,
-                  )
-                : await value.runAsync(
-                    'UPDATE ks_scoped_snapshot SET revision=?,body=? WHERE singleton=1 AND root_id=? AND revision=?',
-                    next,
-                    ciphertext,
-                    root.rootId,
-                    previous,
-                  );
-            if (updated.changes !== 1 || closed) throw unavailable();
-          });
+          await transaction(
+            async (value) => {
+              if (closed) throw unavailable();
+              const updated =
+                previous === 0
+                  ? await value.runAsync(
+                      'INSERT INTO ks_scoped_snapshot(singleton,root_id,revision,body) VALUES(1,?,?,?)',
+                      root.rootId,
+                      next,
+                      ciphertext,
+                    )
+                  : await value.runAsync(
+                      'UPDATE ks_scoped_snapshot SET revision=?,body=? WHERE singleton=1 AND root_id=? AND revision=?',
+                      next,
+                      ciphertext,
+                      root.rootId,
+                      previous,
+                    );
+              if (updated.changes !== 1 || closed) throw unavailable();
+            },
+            () => !closed && healthy,
+          );
           if (closed) return false;
           revision = next;
-          committed = snapshot;
+          committed.clear();
+          for (const [key, value] of snapshot) committed.set(key, value);
           return true;
         } catch {
           fail();
           return false;
         } finally {
+          snapshot.clear();
+          inFlightMaps.delete(snapshot);
           writing = undefined;
           if (dirty && healthy && !closed) schedule();
         }
@@ -471,20 +495,32 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
           .catch(fail);
       }
     }
-    const port: StorageDurability = {
-      async flush(expected) {
-        try {
-          if (!(await write()) || closed || !healthy) return false;
-        } catch {
-          fail();
-          return false;
+    async function flushMembership(membership: Map<string, string | undefined>): Promise<boolean> {
+      inFlightMaps.add(membership);
+      try {
+        if (!(await write()) || closed || !healthy) return false;
+        for (const [full, value] of membership) {
+          if (
+            !full.startsWith(prefix) ||
+            committed.get(full.slice(prefix.length)) !== value ||
+            mirror.get(full.slice(prefix.length)) !== value
+          )
+            return false;
         }
-        return Object.entries(expected).every(
-          ([full, value]) =>
-            full.startsWith(prefix) &&
-            committed.get(full.slice(prefix.length)) === value &&
-            mirror.get(full.slice(prefix.length)) === value,
-        );
+        return true;
+      } catch {
+        fail();
+        return false;
+      } finally {
+        membership.clear();
+        inFlightMaps.delete(membership);
+      }
+    }
+    const port: StorageDurability = {
+      flush(expected) {
+        if (closed || !healthy) return Promise.resolve(false);
+        // The synchronous frame releases the caller record; only the tracked map crosses await.
+        return flushMembership(new Map(Object.entries(expected)));
       },
       group(work) {
         grouped++;
@@ -507,6 +543,13 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
         closed = true;
         mirror.clear();
         ephemeral.clear();
+        committed.clear();
+        ages.clear();
+        for (const pending of inFlightMaps) pending.clear();
+        inFlightMaps.clear();
+        delete root.key;
+        dirty = false;
+        // Release owned references only. JS strings, SDK arguments/native buffers and GC are not securely erased.
         notify();
       },
       purge() {
@@ -592,7 +635,7 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
         const raw = await ports.readRoot();
         if (!live()) throw unavailable();
         const root = raw === null ? undefined : parseRoot(raw);
-        const value = await database();
+        const value = await database(live);
         if (!live()) throw unavailable();
         const row = await value.getFirstAsync<Row>(
           'SELECT root_id,revision,body FROM ks_scoped_snapshot WHERE singleton=1',

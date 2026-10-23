@@ -36,6 +36,7 @@ function fixture() {
   let activeSeals = 0,
     peakSeals = 0;
   const queries: string[] = [],
+    reads: string[] = [],
     roots: string[] = [],
     seals = new Map<string, { value: string; key: string; aad: number[] }>();
   const ports: NativeDurabilityPorts = {
@@ -44,6 +45,7 @@ function fixture() {
       return Promise.resolve({
         closeAsync: () => Promise.resolve(),
         getFirstAsync<T>(query: string) {
+          reads.push(query);
           if (query.includes('journal_mode')) return Promise.resolve({ journal_mode: journal } as T);
           if (query.includes('synchronous')) return Promise.resolve({ synchronous: sync } as T);
           return Promise.resolve(row ? ({ ...row } as T) : null);
@@ -104,6 +106,7 @@ function fixture() {
   return {
     ports,
     queries,
+    reads,
     roots,
     seals,
     root: () => root,
@@ -661,4 +664,145 @@ it('native IO failure isolates a throwing policy subscriber from later health li
   expect(scope.active).toBe(false);
   expect(f.row()).toBeNull();
   expect(JSON.parse(f.root()!)).not.toHaveProperty('key');
+});
+
+it.each(['queued', 'encrypt', 'commit'] as const)(
+  'native fence releases actual plaintext map/key owners during a %s writer without late refill (controlled ports, not memory erasure)',
+  async (phase) => {
+    const f = fixture(),
+      held = gate(),
+      maps = new Set<Map<unknown, unknown>>(),
+      roots = new Set<Record<string, unknown>>();
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- Called with the actual Map receiver via .call below.
+    const mapSet = Map.prototype.set;
+    const stringify = JSON.stringify;
+    const captureMaps = jest.spyOn(Map.prototype, 'set').mockImplementation(function (
+      this: Map<unknown, unknown>,
+      key: unknown,
+      value: unknown,
+    ) {
+      if (
+        typeof key === 'string' &&
+        (key === 'recording.policy.pending.v1' || key === 'private-hint' || key.startsWith(prefix))
+      )
+        maps.add(this);
+      return mapSet.call(this, key, value);
+    });
+    const captureRoots = jest
+      .spyOn(JSON, 'stringify')
+      .mockImplementation((...args: Parameters<typeof JSON.stringify>) => {
+        const value: unknown = args[0];
+        if (typeof value === 'object' && value !== null && 'rootId' in value && 'key' in value) roots.add(value);
+        return stringify(...args);
+      });
+    try {
+      const encrypt = jest.fn((value: string, key: string, aad: Uint8Array) => f.ports.encrypt(value, key, aad)),
+        owner = createNativeScopeDurability({ ...f.ports, encrypt }),
+        store = await owner.prepare(input, () => true);
+      const stateKey = prefix + `scroll.block.${id(4)}.1.panel-open`,
+        indexKey = prefix + `scroll.block.index.${id(4)}.panel-open`,
+        state = JSON.stringify({ type: 'disclosure', expanded: true }),
+        outboxKey = prefix + 'recorder.outbox.v2',
+        outbox = JSON.stringify({ v: 2, dropped: 0, legacyDiscarded: false, batches: [] });
+      store.durability!.group(() => {
+        store.setItem(pendingKey, command);
+        store.setItem(stateKey, state);
+        store.setItem(indexKey, '[1]');
+        store.setItem(outboxKey, outbox);
+      });
+      expect(await store.durability!.flush({ [pendingKey]: command, [stateKey]: state, [outboxKey]: outbox })).toBe(
+        true,
+      );
+      store.setItem(prefix + 'private-hint', 'fixture-only ephemeral payload');
+      const fetch = jest.fn(() => Promise.reject(new Error('no native network in fixture'))),
+        scope = createAccountScope({ account, baseUrl: input.origin, authorization: () => undefined, store, fetch });
+      const next = JSON.stringify({
+          version: 'recording-policy.v1',
+          commandId: id(30),
+          expectedPrivacyEpoch: 1,
+          expectedRecordingGeneration: 3,
+          on: false,
+        }),
+        encryptions = encrypt.mock.calls.length,
+        commits = f.queries.filter((query) => query === 'COMMIT').length;
+      if (phase === 'encrypt') f.holdEncrypt(held.promise);
+      if (phase === 'commit') f.holdCommit(held.promise);
+      store.setItem(pendingKey, next);
+      const writing = store.durability!.flush({ [pendingKey]: next });
+      if (phase === 'encrypt') await waitFor(() => expect(f.sealActivity().active).toBe(1));
+      if (phase === 'commit')
+        await waitFor(() => expect(f.queries.filter((query) => query === 'COMMIT')).toHaveLength(commits + 1));
+      // These are actual Map receivers used by the adapter, including committed, mirror,
+      // age metadata, pending writer snapshots and the exact-membership waiter. No diagnostic API.
+      expect([...maps].some((map) => map.get('recording.policy.pending.v1') === command)).toBe(true);
+      expect([...maps].filter((map) => map.get('recording.policy.pending.v1') === next)).toHaveLength(2);
+      expect([...maps].some((map) => typeof map.get('recording.policy.pending.v1') === 'number')).toBe(true);
+      expect([...maps].some((map) => map.get(pendingKey) === next)).toBe(true);
+      expect([...maps].some((map) => map.get('private-hint') === 'fixture-only ephemeral payload')).toBe(true);
+      expect(roots.size).toBe(1);
+      const beforeFence = f.queries.length;
+      owner.fence();
+      // Synchronous owner release, while encryption/COMMIT (if entered) is still blocked.
+      for (const map of maps) expect(map.size).toBe(0);
+      for (const root of roots) expect(root).not.toHaveProperty('key');
+      expect(await scope.recording!.retryOriginal()).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
+      const cleanup = owner.purge();
+      held.open();
+      expect(await writing).toBe(false);
+      await cleanup;
+      for (const map of maps) expect(map.size).toBe(0);
+      for (const root of roots) expect(root).not.toHaveProperty('key');
+      expect(encrypt).toHaveBeenCalledTimes(encryptions + (phase === 'queued' ? 0 : 1));
+      expect(f.queries.slice(beforeFence).filter((query) => /^(INSERT|UPDATE|CREATE)/u.test(query))).toEqual([]);
+      expect(JSON.parse(f.root()!)).toMatchObject({ status: 'closed' });
+      expect(JSON.parse(f.root()!)).not.toHaveProperty('key');
+      expect(f.row()).toBeNull();
+      store.setItem(pendingKey, command);
+      expect(await store.durability!.flush({ [pendingKey]: command })).toBe(false);
+      expect(f.row()).toBeNull();
+      await owner.purge();
+      expect(f.row()).toBeNull();
+      await expect(owner.prepare(input, () => true)).rejects.toThrow();
+      scope.end();
+      await scope.whenStorageClosed!();
+    } finally {
+      held.open();
+      captureRoots.mockRestore();
+      captureMaps.mockRestore();
+    }
+  },
+);
+
+it('a native fence while database open is pending prevents configuration and DDL from starting (controlled ports)', async () => {
+  const f = fixture(),
+    held = gate();
+  const close = jest.fn();
+  const open = jest.fn(async () => {
+    const database = await f.ports.open();
+    await held.promise;
+    return {
+      ...database,
+      closeAsync: () => {
+        close();
+        return database.closeAsync();
+      },
+    };
+  });
+  const owner = createNativeScopeDurability({ ...f.ports, open });
+  const preparing = owner.prepare(input, () => true);
+  try {
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+    owner.fence();
+    held.open();
+    await expect(preparing).rejects.toThrow('NATIVE_SCOPED_STORAGE_UNAVAILABLE');
+    expect(f.queries).toEqual([]);
+    expect(f.reads).toEqual([]);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(f.roots).toEqual([]);
+    expect(f.row()).toBeNull();
+    expect(f.seals.size).toBe(0);
+  } finally {
+    held.open();
+  }
 });
