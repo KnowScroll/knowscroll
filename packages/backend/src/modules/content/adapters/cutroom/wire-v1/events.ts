@@ -1,11 +1,11 @@
-import { z } from 'zod';
-import { ContractVersion } from './version.ts';
+import { z } from 'zod'
+import { ContractVersion } from './version.ts'
 
 // The numbered updates a caller follows while a run is being made. Each event carries its own
 // contractVersion, because an event can be stored or passed on without its page (D-106).
 
 /** How a finished run ended. `RunResult` in responses.ts has exactly these statuses. */
-export const ResultStatus = z.enum(['completed', 'refused', 'stopped', 'failed', 'cancelled']);
+export const ResultStatus = z.enum(['completed', 'refused', 'stopped', 'failed', 'cancelled'])
 
 const base = {
   contractVersion: ContractVersion,
@@ -14,7 +14,7 @@ const base = {
   seq: z.number().int().positive(),
   /** ISO 8601, UTC. */
   at: z.iso.datetime(),
-};
+}
 
 export const RunEvent = z.union([
   z.strictObject({ ...base, type: z.literal('run.accepted') }),
@@ -37,7 +37,7 @@ export const RunEvent = z.union([
     reason: z.string().min(1),
   }),
   z.strictObject({ ...base, type: z.literal('run.finished'), status: ResultStatus }),
-]);
+])
 
-export type ResultStatus = z.infer<typeof ResultStatus>;
-export type RunEvent = z.infer<typeof RunEvent>;
+export type ResultStatus = z.infer<typeof ResultStatus>
+export type RunEvent = z.infer<typeof RunEvent>

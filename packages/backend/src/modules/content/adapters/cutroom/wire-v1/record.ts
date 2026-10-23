@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import { Degradation } from './responses.ts';
-import { ContractVersion } from './version.ts';
+import { z } from 'zod'
+import { Degradation } from './responses.ts'
+import { ContractVersion } from './version.ts'
 
 // How a run was made: one entry per picture made, both candidates of a shot included (D-042),
 // one entry per take made, every attempt's (S-093), each check with its outcome (I-4), and every
@@ -56,6 +56,6 @@ export const RunRecord = z.strictObject({
     }),
   ),
   degradations: z.array(Degradation),
-});
+})
 
-export type RunRecord = z.infer<typeof RunRecord>;
+export type RunRecord = z.infer<typeof RunRecord>
