@@ -11,6 +11,7 @@ import {
   CHOOSE_SCROLL_RECIPE,
   READ_DISCOVERY_CANDIDATES,
   READ_EXACT_ENCOUNTER,
+  READ_REGION_ENCOUNTER_CANDIDATES,
   READ_SCROLL_PRODUCTION,
   LOCK_CURRENT_ENCOUNTERS,
   produceScrollJob,
@@ -19,6 +20,7 @@ import {
   type ChooseScrollRecipe,
   type ReadDiscoveryCandidates,
   type ReadExactEncounter,
+  type ReadRegionEncounterCandidates,
   type ReadScrollProduction,
   type LockCurrentEncounters,
 } from '../../content/public.js';
@@ -80,6 +82,7 @@ export function supplyProviders(t: {
         t.config,
         CHOOSE_SCROLL_RECIPE,
         READ_SCROLL_PRODUCTION,
+        READ_REGION_ENCOUNTER_CANDIDATES,
         READ_DISCOVERY_CANDIDATES,
         READ_EXACT_ENCOUNTER,
         LOCK_CURRENT_ENCOUNTERS,
@@ -92,6 +95,7 @@ export function supplyProviders(t: {
         settings: SupplySettings,
         chooseRecipe: ChooseScrollRecipe,
         readProduction: ReadScrollProduction,
+        readFacetCandidates: ReadRegionEncounterCandidates,
         readCandidates: ReadDiscoveryCandidates,
         readExact: ReadExactEncounter,
         lockCurrent: LockCurrentEncounters,
@@ -103,6 +107,7 @@ export function supplyProviders(t: {
         store: supplyStore,
         chooseRecipe,
         readProduction,
+        readFacetCandidates,
         createDailyCap: settings.supplyCreateDailyCap,
         enqueueProduction: (scope, recipe) => {
           const job = produceScrollJob(recipe);

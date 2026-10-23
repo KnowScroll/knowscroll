@@ -42,5 +42,8 @@ export function realSupply(database: TestDatabase<Database>, boss: PgBoss, optio
   };
 }
 
-export const realRecordPlannedDemand = (database: TestDatabase<Database>, boss: PgBoss): RecordPlannedDemand =>
-  realSupply(database, boss).record;
+export const realRecordPlannedDemand = (
+  database: TestDatabase<Database>,
+  boss: PgBoss,
+  options: { createDailyCap?: number } = {},
+): RecordPlannedDemand => realSupply(database, boss, options).record;

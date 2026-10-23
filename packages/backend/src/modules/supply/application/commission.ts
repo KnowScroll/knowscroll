@@ -21,7 +21,8 @@ const UTC_DAY_MS = 86_400_000;
 
 /**
  * Quartermaster's Join and Create for a brief that Reuse could not serve (blueprint §11, D-037).
- * Join first: an active group for exactly this brief already has work behind it, whoever started it.
+ * Join first: an active group for exactly this brief that is still producing already has work behind
+ * it, whoever started it.
  * Otherwise Create: code picks the library recipe that serves the brief, the day's cap is checked, and
  * the group and the recipe's production job commit with the caller's transaction, so a rollback
  * removes both. The job ID is stable per recipe and version, so two groups that choose the same recipe
@@ -42,7 +43,14 @@ export async function commissionSupply(
     return { kind: 'unavailable', reason: 'budget_unavailable' };
   await p.store.lockCommissioning(scope);
   const running = await p.store.findActiveWork(scope, brief);
-  if (running) return { kind: 'waiting', workId: running.id, decision: 'join' };
+  if (running) {
+    // Join only work that can still deliver. A group whose production ended has nothing left to
+    // wait for, so it is closed and the request starts afresh (another recipe, or an honest refusal).
+    const production = running.recipe === undefined ? 'stopped' : await p.readProduction(scope, running.recipe);
+    if (production === 'not_started' || production === 'running')
+      return { kind: 'waiting', workId: running.id, decision: 'join' };
+    await p.store.closeWork(scope, running.id);
+  }
   const startOfDay = new Date(Math.floor(p.now().getTime() / UTC_DAY_MS) * UTC_DAY_MS);
   if ((await p.store.countCommissionedSince(scope, startOfDay)) >= p.createDailyCap)
     return { kind: 'unavailable', reason: 'budget_unavailable' };

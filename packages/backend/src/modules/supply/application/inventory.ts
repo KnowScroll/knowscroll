@@ -55,14 +55,39 @@ export function catalogueBrief(
     },
   };
 }
+/** A facet is not checked here: a facet brief's candidates all come from coverage bound to that facet. */
 function matches(brief: CanonicalBrief, candidate: EncounterSnapshot): boolean {
   if (candidate.metadata.language !== brief.language || (brief.format !== 'either' && candidate.kind !== brief.format))
     return false;
   const s = brief.subject;
   return s.kind === 'variant'
     ? candidate.explanationUnitId === s.explanationUnitId
-    : candidate.topics.some((t) => t.topicId === s.topicId && t.role === 'primary') &&
-        (!s.facetId || candidate.facets.includes(s.facetId));
+    : candidate.topics.some((t) => t.topicId === s.topicId && t.role === 'primary');
+}
+/** The admitted candidates that may serve a catalogue brief: by coverage for a facet, by primary topic otherwise. */
+async function catalogueCandidates(
+  p: SupplyPorts,
+  scope: PersonalScopeTx,
+  c: CreateContentRequest,
+  brief: CanonicalBrief & { readonly subject: { readonly kind: 'catalogue' } },
+): Promise<readonly EncounterSnapshot[]> {
+  const { topicId, facetId } = brief.subject;
+  if (facetId !== undefined) {
+    const region = await p.readFacetCandidates(scope, {
+      topicId,
+      facetId,
+      truthStatus: 'factual',
+      capabilities: c.capabilities,
+    });
+    return region.kind === 'read' ? region.candidates.map((candidate) => candidate.encounter) : [];
+  }
+  return p.readCandidates(scope, {
+    languages: [brief.language],
+    formats: brief.format === 'either' ? ['reel', 'scroll'] : [brief.format],
+    capabilities: c.capabilities,
+    topicIds: [topicId],
+    limit: 100,
+  });
 }
 /** One sorted Content lock batch. Private/source data is never submitted as retrieval text. */
 export async function inventory(
@@ -81,14 +106,8 @@ export async function inventory(
             sourceSnapshot.siblings.map((ref) => p.readExact(scope, { ...ref, capabilities: c.capabilities })),
           )
         ).filter((e): e is EncounterSnapshot => e !== undefined)
-      : brief
-        ? await p.readCandidates(scope, {
-            languages: [brief.language],
-            formats: brief.format === 'either' ? ['reel', 'scroll'] : [brief.format],
-            capabilities: c.capabilities,
-            ...(brief.subject.kind === 'catalogue' ? { topicIds: [brief.subject.topicId] } : {}),
-            limit: 100,
-          })
+      : brief?.subject.kind === 'catalogue'
+        ? await catalogueCandidates(p, scope, c, { ...brief, subject: brief.subject })
         : [];
   const heads = await p.lockCurrent(scope, {
     refs: [

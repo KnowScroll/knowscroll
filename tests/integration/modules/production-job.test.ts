@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createBoss, drainConsumers, jobConsumer, startConsumers } from '@knowscroll/backend/infrastructure/jobs';
-import { makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   produceScrollJob,
   produceScrollSingletonKey,
@@ -11,18 +11,13 @@ import {
 import {
   makeEnqueueScrollProduction,
   makeRunScrollProduction,
-  produceScrollUseCase,
   readLibraryStatus,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import type { ProductionReasoningHarness } from '@knowscroll/backend/reasoning';
-import {
-  guardedModelPort,
-  makeProductionReasoningHarness,
-  postgresProductionHarnessPorts,
-} from '@knowscroll/backend/reasoning/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureAuthored, fixtureResearchFor } from '../support/generated-scroll.js';
-import { fixtureModel, fixtureSettings, signal, silent } from '../support/fixture-model.js';
+import { fixtureProductionWorker } from '../support/production-worker.js';
+import { fixtureAuthored } from '../support/generated-scroll.js';
+import { fixtureModel, signal, silent } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 
 const answer = (): FixtureScenario => ({ kind: 'success', text: JSON.stringify(fixtureAuthored('diagram')) });
@@ -38,32 +33,8 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     await database.drop();
   });
 
-  function setup(script: () => FixtureScenario, quota?: Parameters<typeof fixtureModel>[1]['quota']) {
-    const fixture = fixtureModel(script, { label: 'production-job-CI-fixture', ...(quota ? { quota } : {}) });
-    // No transport is real: the MiniMax stand-in identity lets the publication attribute its model.
-    const model = guardedModelPort({ ...fixture, provider: 'minimax', model: 'MiniMax-M3.1-Flash' });
-    const withScope = makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
-    const harness = makeProductionReasoningHarness(
-      postgresProductionHarnessPorts({
-        db: database.db,
-        withProductionScope: withScope,
-        enabled: true,
-        model,
-        logEvent: silent,
-        settings: fixtureSettings,
-      }),
-    );
-    const producer = (overrides: { readonly harness?: ProductionReasoningHarness } = {}) =>
-      produceScrollUseCase({
-        db: database.db,
-        authority: { scopeId: 'scroll-supply', generation: 1 },
-        withScope,
-        harness: overrides.harness ?? harness,
-        model: model.model,
-        research: (url) => Promise.resolve(fixtureResearchFor(url)),
-      });
-    return { fixture, harness, producer, run: makeRunScrollProduction(producer()) };
-  }
+  const setup = (script: () => FixtureScenario, quota?: Parameters<typeof fixtureModel>[1]['quota']) =>
+    fixtureProductionWorker(database, script, quota ? { quota } : {});
 
   const runRow = (recipe = 'seasons') =>
     database.db

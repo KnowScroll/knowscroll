@@ -205,7 +205,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       readExact: readExactEncounter,
       capabilities: { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] },
       harness,
-      recordDemand: realRecordPlannedDemand(database, c.boss),
+      recordDemand: realRecordPlannedDemand(database, c.boss, { createDailyCap: 10 }),
       enabled: () => enabled,
       now: () => clock ?? new Date(),
       hash: (x) => requestHash('personal-planner.v0', x as Parameters<typeof requestHash>[1]),

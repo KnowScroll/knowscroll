@@ -17,6 +17,7 @@ import type {
   EncounterSnapshot,
   ReadDiscoveryCandidates,
   ReadExactEncounter,
+  ReadRegionEncounterCandidates,
   ReadScrollProduction,
   LockCurrentEncounters,
 } from '../../content/public.js';
@@ -170,6 +171,12 @@ export interface SupplyPorts {
   readonly ownerActive: CheckPersonalOwnerActive;
   readonly store: SupplyStore;
   readonly readCandidates: ReadDiscoveryCandidates;
+  /**
+   * Scrolls whose admitted coverage binds an exact topic and facet. A catalogue facet is established
+   * by coverage, never by the discovery projection's own facet labels, which do not carry catalogue
+   * facet IDs.
+   */
+  readonly readFacetCandidates: ReadRegionEncounterCandidates;
   /** Quartermaster's Create: which library recipe a catalogue brief commissions, decided by code. */
   readonly chooseRecipe: ChooseScrollRecipe;
   /** Where one recipe's production stands, for a waiter deciding whether to keep waiting. */
