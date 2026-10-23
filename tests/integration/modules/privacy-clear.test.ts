@@ -1039,6 +1039,8 @@ describe('durable selective Clear', () => {
             structure_revision: 1,
             desired_revision: 1,
           })
+          // Real qualified effects already create this state; retain it unchanged.
+          .onConflict((conflict) => conflict.columns(['universe_id', 'privacy_epoch']).doNothing())
           .execute();
         await tx
           .insertInto('geography.objects')
@@ -1142,6 +1144,8 @@ describe('durable selective Clear', () => {
         await tx
           .insertInto('planner.state')
           .values({ universe_id: person.universeId, privacy_epoch: 1, desired_revision: 1, accepted_revision: 1 })
+          // Do not replace the genuine pending state with the authored erasure-only row.
+          .onConflict((conflict) => conflict.columns(['universe_id', 'privacy_epoch']).doNothing())
           .execute();
         await tx
           .insertInto('planner.revisions')
