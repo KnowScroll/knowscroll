@@ -405,7 +405,11 @@ function analyse(raw: unknown, provenanceInput: DraftProvenance): Analysis | Ref
  * The stages after the schema: structure, computation, evidence and the brief. Runs every stage
  * and stops at the first stage with findings. `bind` supplies the bindings.
  */
-export function analyseDraft(draft: ScrollDraft, provenance: DraftProvenance, bind: BindingResolver): Analysis | Refusal {
+export function analyseDraft(
+  draft: ScrollDraft,
+  provenance: DraftProvenance,
+  bind: BindingResolver,
+): Analysis | Refusal {
   const assembly = assemble(draft);
   const document: HonestyDocument = {
     kicker: provenance.publication.kicker,

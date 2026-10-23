@@ -132,8 +132,7 @@ export function deriveBindings(
       }
     }
     if (missing) {
-      const path =
-        kind === 'block' ? pathOfBlock.get(second) : kind === 'heading' ? pathOfSection.get(second) : second;
+      const path = kind === 'block' ? pathOfBlock.get(second) : kind === 'heading' ? pathOfSection.get(second) : second;
       issues.push({ code: 'authoring_number_not_in_evidence', path: path ?? '$' });
     }
   }

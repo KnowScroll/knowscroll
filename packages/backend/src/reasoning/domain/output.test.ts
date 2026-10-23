@@ -57,7 +57,7 @@ describe('strict JSON extraction', () => {
 describe('safe structural JSON refusal diagnostics (CI fixture)', () => {
   const reason = 'OUTPUT_NOT_ONE_JSON_OBJECT';
   const grammar =
-    /^answer with exactly one JSON object and nothing else; json-refusal\.v1 phase=(framing|syntax) framing=(bare|fenced|invalid_fence|embedded_fence) prefix=(object|array|scalar|other) category=(expected_property|expected_comma_or_separator|unterminated_string|unexpected_end|unexpected_token|other) chars=(\d{1,6})$/u;
+    /^answer with exactly one JSON object and nothing else(?:; [A-Za-z ,;]+(?: near character \d{1,7})?(?:, usually one closing bracket too many)?)?; json-refusal\.v1 phase=(framing|syntax) framing=(bare|fenced|invalid_fence|embedded_fence) prefix=(object|array|scalar|other) category=(expected_property|expected_comma_or_separator|unterminated_string|unexpected_end|unexpected_token|other) chars=(\d{1,6})$/u;
   it.each([
     ['unquoted property', '{unquoted:true}', 'syntax', 'bare', 'object', 'expected_property'],
     ['trailing comma', '{"a":true,}', 'syntax', 'bare', 'object', 'expected_property'],
@@ -83,6 +83,13 @@ describe('safe structural JSON refusal diagnostics (CI fixture)', () => {
     expect(issue.code).toBe('not_one_json_object');
     expect(issue.detail).toContain(`phase=${phase} framing=${framing} prefix=${prefix} category=${category}`);
     expect(issue.detail).toMatch(grammar);
+  });
+
+  it('tells the model where the text stopped being JSON, in fixed words and a number', () => {
+    const detail = (text: string) => issueForExtraction(reason, text).detail ?? '';
+    expect(detail('{"a":[{"b":1}]}]}')).toContain('extra text follows the object near character 15, usually one closing');
+    expect(detail('{"a":[1 2]}')).toContain('a comma, colon or closing bracket is missing near character 8');
+    expect(detail('{"a":')).toContain('the text ends before every bracket is closed');
   });
 
   it('preserves legacy issue details and all other refusal codes and bounds', () => {
@@ -135,7 +142,7 @@ describe('safe structural JSON refusal diagnostics (CI fixture)', () => {
         expect(extractJsonObject(answer)).toEqual({ ok: false, reason });
         const issue = issueForExtraction(reason, answer);
         expect(issue.detail).toMatch(grammar);
-        expect(issue.detail?.length).toBeLessThan(256);
+        expect(issue.detail?.length).toBeLessThan(400);
         const match = grammar.exec(issue.detail ?? '');
         expect(Number(match?.[5])).toBeLessThanOrEqual(MAX_ANSWER_CHARS);
         expect(Number(match?.[5])).toBeGreaterThanOrEqual(0);

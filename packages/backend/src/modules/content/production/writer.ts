@@ -52,9 +52,16 @@ const FORMAT_GUIDANCE: Readonly<Record<WriterFormat, string>> = {
     'Include one sequence block of three to six steps the reader moves through one at a time, in the order the process happens, each step one or two sentences.',
 };
 
-/** Fixed hints for the one repair: the producer's own, plus the two checks that live in this module. */
+/**
+ * Fixed hints for the one repair: the producer's own, sharpened for an authored document, plus the
+ * two checks that live in this module.
+ */
 const WRITER_SAFE_ISSUES: Readonly<Record<string, string>> = Object.freeze({
   ...REPAIR_HINTS,
+  copied_passage:
+    'Nine or more words in a row match a passage. Write every sentence of this block again from scratch, with different words and a different sentence structure.',
+  reading_length_out_of_brief:
+    'The Scroll must read in two to eight minutes: write about 450 to 600 words of prose, besides the interactive block.',
   format_required: 'Include the block the recipe asks for, as described in the instructions.',
   reader_source_or_url: 'Remove source or publisher names and web addresses from all reader-facing text.',
 });
@@ -72,9 +79,10 @@ export function writerInstructions(format: WriterFormat): string {
     'WRITING.',
     `- About 450 to 600 words of reader text in two or three short sections, mostly paragraphs, ending with a callout of kind "limit" that says what the explanation cannot do. Title up to ${FIELD_LIMITS.titleChars} characters, dek up to ${FIELD_LIMITS.dekChars}.`,
     '- Teach: open with the question or surprise, explain the mechanism, give an example, name the common misunderstanding. Keep the caveats of the passages.',
-    '- Use your own words and sentence structure. Never repeat nine or more words in a row from a passage, and do not paraphrase sentence by sentence.',
+    '- Write every sentence fresh. The passages are checked mechanically: any run of nine words in a row (ignoring case and punctuation) that also appears in a passage fails the Scroll. So never reuse a phrase of more than four words from a passage, even for a technical idea: say it another way, change the sentence structure, merge or split sentences. Keep names and exact figures.',
     '- State only what the cited passages support. A number may appear only if a cited passage states it, written the same way; otherwise say it in words. Keep digits out of the title, dek and headings.',
     '- Never name the source, its publisher or a website, and write no web addresses.',
+    '- The brief gives the subject and the angle. Use only the block types listed below, whatever the brief says about layout.',
     '',
     'BLOCKS (use only these types; examples are invented syntax guidance, never content to reuse):',
     authoringReference(blocks),

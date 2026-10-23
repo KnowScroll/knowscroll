@@ -16,8 +16,7 @@ export interface ConvertedScroll {
 }
 
 export type Conversion =
-  | ({ readonly kind: 'converted' } & ConvertedScroll)
-  | { readonly kind: 'refused'; readonly issues: readonly Issue[] };
+  ({ readonly kind: 'converted' } & ConvertedScroll) | { readonly kind: 'refused'; readonly issues: readonly Issue[] };
 
 type Authored<T extends AuthoredBlock['type']> = Extract<AuthoredBlock, { type: T }>;
 
@@ -25,6 +24,13 @@ type Authored<T extends AuthoredBlock['type']> = Extract<AuthoredBlock, { type: 
 const oneLine = (value: string): string => value.replace(/\s+/gu, ' ').trim();
 const fit = (value: string, max: number): string => truncateText(oneLine(value), max);
 const spans = (value: string) => [{ text: oneLine(value) }];
+/** `{ [key]: text }` for an optional text the writer gave, `{}` when it is absent or empty. */
+function optional<K extends string>(key: K, value: string | undefined, max: number): { [P in K]?: string } {
+  const text = value === undefined ? '' : fit(value, max);
+  return text === '' ? {} : ({ [key]: text } as { [P in K]?: string });
+}
+const given = (value: string | undefined): string | undefined =>
+  value === undefined ? undefined : oneLine(value) || undefined;
 
 /** A document-local id (`^[a-z][a-z0-9-]{1,39}$`) made from any text, and unique among `used`. */
 function localId(raw: string, fallback: string, used: Set<string>): string {
@@ -100,9 +106,7 @@ function diagram(block: Authored<'diagram'>, path: string, issues: Issue[]): Dra
     id: localId(frame.label, 'frame', used),
     label: fit(frame.label, 40),
     description: fit(frame.description, FIELD_LIMITS.frameDescriptionChars),
-    emphasis: (frame.highlight ?? []).flatMap((name, at) =>
-      elementOf(name, `${path}.frames.${index}.highlight.${at}`),
-    ),
+    emphasis: (frame.highlight ?? []).flatMap((name, at) => elementOf(name, `${path}.frames.${index}.highlight.${at}`)),
     hidden: (frame.hide ?? []).flatMap((name, at) => elementOf(name, `${path}.frames.${index}.hide.${at}`)),
     weights: [],
   }));
@@ -112,7 +116,7 @@ function diagram(block: Authored<'diagram'>, path: string, issues: Issue[]): Dra
     ...envelope(title, fallback, 'diagram'),
     data: {
       title,
-      ...(block.instruction === undefined ? {} : { instruction: fit(block.instruction, 120) }),
+      ...optional('instruction', block.instruction, 120),
       layout: block.layout ?? 'flow-lr',
       nodes: nodes.map((node) => ({
         id: node.id,
@@ -123,7 +127,7 @@ function diagram(block: Authored<'diagram'>, path: string, issues: Issue[]): Dra
         id: edge.id,
         from: edge.from,
         to: edge.to,
-        ...(edge.label === undefined ? {} : { label: fit(edge.label, FIELD_LIMITS.diagramLabelChars) }),
+        ...optional('label', edge.label, FIELD_LIMITS.diagramLabelChars),
         directed: true,
         style: edge.dashed === true ? ('dashed' as const) : ('solid' as const),
       })),
@@ -182,16 +186,16 @@ function simulation(block: Authored<'simulation'>): DraftBlock {
   const note = fit(block.note, 240);
   return {
     type: 'simulation',
-    ...envelope(title, `${title}. ${block.prompt ?? ''} ${note}`, 'simulation'),
+    ...envelope(title, `${title}. ${given(block.prompt) ?? ''} ${note}`, 'simulation'),
     data: {
       title,
-      ...(block.prompt === undefined ? {} : { prompt: fit(block.prompt, 120) }),
+      ...optional('prompt', block.prompt, 120),
       params: block.params.map((authored) => {
         const param = aligned(authored);
         return {
           key: authored.key,
           label: fit(authored.label, 60),
-          ...(authored.unit === undefined ? {} : { unit: fit(authored.unit, 16) }),
+          ...optional('unit', authored.unit, 16),
           min: param.min,
           max: param.max,
           step: param.step,
@@ -204,17 +208,17 @@ function simulation(block: Authored<'simulation'>): DraftBlock {
         key: constant.key,
         label: fit(constant.label, 60),
         value: constant.value,
-        ...(constant.unit === undefined ? {} : { unit: fit(constant.unit, 16) }),
+        ...optional('unit', constant.unit, 16),
       })),
       outputs: block.outputs.map((output) => ({
         key: output.key,
         label: fit(output.label, 60),
-        ...(output.unit === undefined ? {} : { unit: fit(output.unit, 16) }),
+        ...optional('unit', output.unit, 16),
         formula: output.formula,
         format: format(output.decimals ?? 1),
       })),
       view,
-      ...(block.readout === undefined ? {} : { readout: { template: oneLine(block.readout), bands: [] } }),
+      ...(given(block.readout) === undefined ? {} : { readout: { template: given(block.readout) ?? '', bands: [] } }),
       modelNote: note,
       // A model-authored simulation is a teaching model: its numbers are choices, and the reader is told.
       illustrative: true,
@@ -224,10 +228,10 @@ function simulation(block: Authored<'simulation'>): DraftBlock {
 
 function chart(block: Authored<'bar-chart'> | Authored<'line-chart'>): DraftBlock {
   const title = fit(block.title, 100);
-  const caption = block.caption === undefined ? {} : { caption: fit(block.caption, FIELD_LIMITS.captionChars) };
+  const caption = optional('caption', block.caption, FIELD_LIMITS.captionChars);
   const axis = (label: string, unit: string | undefined) => ({
     label: fit(label, 40),
-    ...(unit === undefined ? {} : { unit: fit(unit, 16) }),
+    ...optional('unit', unit, 16),
     scale: 'linear' as const,
   });
   if (block.type === 'bar-chart') {
@@ -237,7 +241,7 @@ function chart(block: Authored<'bar-chart'> | Authored<'line-chart'>): DraftBloc
       label: fit(entry.label, 40),
       values: entry.values,
     }));
-    const summary = `${title}. ${block.caption ?? ''} A bar chart of ${series.map((entry) => entry.label).join(', ')} by ${categories.join(', ')}.`;
+    const summary = `${title}. ${given(block.caption) ?? ''} A bar chart of ${series.map((entry) => entry.label).join(', ')} by ${categories.join(', ')}.`;
     return {
       type: 'chart',
       ...envelope(title, summary, 'chart'),
@@ -259,7 +263,7 @@ function chart(block: Authored<'bar-chart'> | Authored<'line-chart'>): DraftBloc
     label: fit(entry.label, 40),
     points: entry.points,
   }));
-  const summary = `${title}. ${block.caption ?? ''} A line chart of ${series.map((entry) => entry.label).join(', ')} against ${fit(block.xLabel, 40)}.`;
+  const summary = `${title}. ${given(block.caption) ?? ''} A line chart of ${series.map((entry) => entry.label).join(', ')} against ${fit(block.xLabel, 40)}.`;
   return {
     type: 'chart',
     ...envelope(title, summary, 'chart'),
@@ -282,7 +286,7 @@ function convertBlock(block: AuthoredBlock, path: string, issues: Issue[]): Draf
         type: 'callout',
         data: {
           kind: block.kind,
-          ...(block.title === undefined ? {} : { title: fit(block.title, FIELD_LIMITS.calloutTitleChars) }),
+          ...optional('title', block.title, FIELD_LIMITS.calloutTitleChars),
           spans: spans(block.text),
         },
       };
@@ -303,7 +307,7 @@ function convertBlock(block: AuthoredBlock, path: string, issues: Issue[]): Draf
         id: `event-${index + 1}`,
         when: fit(event.when, 32),
         title: fit(event.title, 80),
-        ...(event.detail === undefined ? {} : { detail: spans(event.detail) }),
+        ...(given(event.detail) === undefined ? {} : { detail: spans(given(event.detail) ?? '') }),
       }));
       const summary = events.map((event) => `${event.when}: ${event.title}`).join('; ');
       return { type: 'timeline', ...envelope(title, `${title}. ${summary}`, 'timeline'), data: { title, events } };

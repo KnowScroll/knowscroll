@@ -126,7 +126,9 @@ describe('compileAuthored: plain text in, canonical document out', () => {
     expect(anchor).toMatchObject({ claimId: 'claim-3', field: 'text' });
 
     // The figure is in passage e3, but this block cites e5 only: the figure is not in its evidence.
-    const uncited = compile(scroll([prose('The cistern holds 4,200 litres when it is full to the brim.', ['e5', 'e1'])]));
+    const uncited = compile(
+      scroll([prose('The cistern holds 4,200 litres when it is full to the brim.', ['e5', 'e1'])]),
+    );
     expect(refusal(uncited)).toEqual({
       stage: 'evidence',
       issues: [{ code: 'authoring_number_not_in_evidence', path: 'sections.0.blocks.2' }],
@@ -163,13 +165,17 @@ describe('compileAuthored: plain text in, canonical document out', () => {
 
   it('refuses nine copied words with the block that holds them, and web addresses', () => {
     const copied = compile(
-      scroll([prose('The brass harbour pump lifts water from the tidal basin into the cistern above the quay.', ['e1'])]),
+      scroll([
+        prose('The brass harbour pump lifts water from the tidal basin into the cistern above the quay.', ['e1']),
+      ]),
     );
     expect(refusal(copied)).toEqual({
       stage: 'evidence',
       issues: [{ code: 'copied_passage', path: 'sections.0.blocks.2' }],
     });
-    const address = compile(scroll([prose('Read more at www.example.org about the keepers and their chores.', ['e1'])]));
+    const address = compile(
+      scroll([prose('Read more at www.example.org about the keepers and their chores.', ['e1'])]),
+    );
     expect(refusal(address)?.issues).toEqual([{ code: 'text_mentions_web_address', path: 'sections.0.blocks.2' }]);
   });
 
@@ -190,7 +196,11 @@ describe('compileAuthored: the interactive blocks', () => {
     cites: ['e1', 'e4'],
     title: 'A harbour pump',
     layout: 'flow-lr',
-    nodes: [{ id: 'basin', label: 'Tidal basin' }, { label: 'Pump', kind: 'process' }, { id: 'cistern', label: 'Cistern' }],
+    nodes: [
+      { id: 'basin', label: 'Tidal basin' },
+      { label: 'Pump', kind: 'process' },
+      { id: 'cistern', label: 'Cistern' },
+    ],
     edges: [
       { from: 'basin', to: 'Pump', label: 'Intake' },
       { id: 'lift', from: 'Pump', to: 'cistern', dashed: true },
@@ -401,7 +411,10 @@ describe('AuthoredScroll: structure the harness can name', () => {
     });
     expect(missing.success).toBe(false);
     expect(missing.error?.issues[0]?.path).toEqual(['sections', 0, 'blocks', 0, 'cites']);
-    const unknown = AuthoredScroll.safeParse({ ...base, sections: [{ blocks: [{ type: 'carousel', cites: ['e1'] }] }] });
+    const unknown = AuthoredScroll.safeParse({
+      ...base,
+      sections: [{ blocks: [{ type: 'carousel', cites: ['e1'] }] }],
+    });
     expect(unknown.success).toBe(false);
   });
 

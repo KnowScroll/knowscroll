@@ -17,6 +17,8 @@ export const SCROLL_AUTHORING_VERSION = 'scroll-authoring.v1';
 
 /** Trimmed text of bounded length; control characters and line breaks are cleaned by the converter. */
 const text = (min: number, max: number) => z.string().trim().min(min).max(max);
+/** Optional text; an empty string means "none" (the converter drops it). */
+const optionalText = (max: number) => z.string().trim().max(max).optional();
 const evidenceHandle = text(1, 12);
 
 /** Offered evidence passages (`e1`, `e2`, …) this block rests on. */
@@ -35,7 +37,7 @@ const callout = z.object({
   type: z.literal('callout'),
   cites,
   kind: z.enum(CALLOUT_KINDS),
-  title: text(1, FIELD_LIMITS.calloutTitleChars).optional(),
+  title: optionalText(FIELD_LIMITS.calloutTitleChars),
   text: text(1, FIELD_LIMITS.calloutChars),
 });
 
@@ -59,7 +61,7 @@ const timeline = z.object({
   cites,
   title: text(1, 100),
   events: z
-    .array(z.object({ when: text(1, 32), title: text(1, 80), detail: text(1, 400).optional() }))
+    .array(z.object({ when: text(1, 32), title: text(1, 80), detail: optionalText(400) }))
     .min(2)
     .max(FIELD_LIMITS.timelineEvents),
 });
@@ -82,7 +84,7 @@ const diagram = z.object({
   type: z.literal('diagram'),
   cites,
   title: text(1, 100),
-  instruction: text(1, 120).optional(),
+  instruction: optionalText(120),
   layout: z.enum(AUTHORED_DIAGRAM_LAYOUTS).optional(),
   /** `toggle`: one button per frame (default). `steps`: Previous and Next through the frames. */
   interaction: z.enum(['toggle', 'steps']).optional(),
@@ -102,7 +104,7 @@ const diagram = z.object({
         id: text(1, 40).optional(),
         from: text(1, 40),
         to: text(1, 40),
-        label: text(1, FIELD_LIMITS.diagramLabelChars).optional(),
+        label: optionalText(FIELD_LIMITS.diagramLabelChars),
         dashed: z.boolean().optional(),
       }),
     )
@@ -129,13 +131,13 @@ const diagram = z.object({
 });
 
 const axisLabel = text(1, 40);
-const unit = text(1, 16).optional();
+const unit = optionalText(16);
 
 const barChart = z.object({
   type: z.literal('bar-chart'),
   cites,
   title: text(1, 100),
-  caption: text(1, FIELD_LIMITS.captionChars).optional(),
+  caption: optionalText(FIELD_LIMITS.captionChars),
   horizontal: z.boolean().optional(),
   categories: z.array(text(1, 24)).min(1).max(FIELD_LIMITS.barCategories),
   series: z
@@ -150,7 +152,7 @@ const lineChart = z.object({
   type: z.literal('line-chart'),
   cites,
   title: text(1, 100),
-  caption: text(1, FIELD_LIMITS.captionChars).optional(),
+  caption: optionalText(FIELD_LIMITS.captionChars),
   xLabel: axisLabel,
   xUnit: unit,
   yLabel: axisLabel,
@@ -173,7 +175,7 @@ const simulation = z.object({
   type: z.literal('simulation'),
   cites,
   title: text(1, 100),
-  prompt: text(1, 120).optional(),
+  prompt: optionalText(120),
   params: z
     .array(
       z.object({
@@ -207,7 +209,7 @@ const simulation = z.object({
   /** What the reader sees: one large number (default), the output as a curve over the first parameter, or every output side by side. */
   view: z.enum(['readout', 'plot', 'cards']).optional(),
   /** A sentence with `{key}` placeholders for parameters and outputs. */
-  readout: text(1, FIELD_LIMITS.templateChars).optional(),
+  readout: optionalText(FIELD_LIMITS.templateChars),
   /** Units, assumptions and limits of this simplified model. */
   note: text(10, 240),
 });
