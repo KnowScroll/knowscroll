@@ -116,10 +116,53 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
     expect((await rows(mixed.universeId))[0]!.brief).toMatchObject({ subject: { topicId: 'earth.tides' } });
   });
 
-  it('keeps one demand per opportunity slot', async () => {
+  it('adds nothing when an earlier plan already asked for the same brief, whichever way it was answered', async () => {
+    const waiting = await seedPerson(database.db);
+    const first = await record(waiting, demandInput(['earth.tides']));
+    expect(first).toMatchObject({ kind: 'deferred' });
+    // A later plan revision (a new run, any slot) proposes the same missing topic.
+    expect(await record(waiting, demandInput(['earth.tides'], { slot: 2 }))).toEqual({
+      kind: 'already_recorded',
+      requestId: (first as { requestId: string }).requestId,
+    });
+    expect(await rows(waiting.universeId)).toHaveLength(1);
+    // A different brief is a different demand; a closed one no longer counts.
+    expect(await record(waiting, demandInput(['earth.tides'], { format: 'reel' }))).toMatchObject({ kind: 'deferred' });
+    expect(await rows(waiting.universeId)).toHaveLength(2);
+    const scrollRow = (await rows(waiting.universeId)).find((r) => (r.brief as { format: string }).format === 'scroll');
+    await supply.cancel(waiting.authority, {
+      version: 'content-request-cancel.v1',
+      commandId: randomUUID(),
+      requestId: scrollRow!.id,
+    });
+    expect(await record(waiting, demandInput(['earth.tides']))).toMatchObject({ kind: 'deferred' });
+    // Reuse is deduplicated the same way while the content is still there.
+    await admit('earth.greenhouse-effect');
+    const reuse = await seedPerson(database.db);
+    const ready = await record(reuse, demandInput(['earth.greenhouse-effect']));
+    expect(ready).toMatchObject({ kind: 'ready' });
+    expect(await record(reuse, demandInput(['earth.greenhouse-effect'], { slot: 1 }))).toMatchObject({
+      kind: 'already_recorded',
+    });
+    expect(await rows(reuse.universeId)).toHaveLength(1);
+  });
+
+  it('the database refuses a second open planned waiter on the same group even if code did not check', async () => {
+    const person = await seedPerson(database.db);
+    await record(person, demandInput(['earth.tides']));
+    const [row] = await rows(person.universeId);
+    await expect(
+      database.db
+        .insertInto('supply.requests')
+        .values({ ...row!, id: randomUUID(), planner_run_id: randomUUID(), planner_slot: 0 })
+        .execute(),
+    ).rejects.toThrow(/supply_requests_planner_open_work/);
+  });
+
+  it('keeps one demand per opportunity slot of a run', async () => {
     const person = await seedPerson(database.db);
     const input = demandInput(['earth.tides']);
     await record(person, input);
-    await expect(record(person, input)).rejects.toThrow();
+    await expect(record(person, { ...input, topicIds: ['earth.seasons'] })).rejects.toThrow();
   });
 });

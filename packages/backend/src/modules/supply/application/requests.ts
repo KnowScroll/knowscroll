@@ -403,6 +403,11 @@ export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
       decision: 'join',
     };
     const reusable = (await inventory(p, scope, command, brief, new Set(input.alreadyMet))).ready;
+    // Plan after plan may ask for the same thing. One open waiter per brief is enough: a deferred one
+    // is still waiting, and a ready one still has content to bind.
+    const open = await p.store.findOpenPlanned(scope, brief);
+    if (open && (open.state === 'deferred' || reusable?.encounter))
+      return { kind: 'already_recorded', requestId: open.id };
     if (reusable?.encounter) {
       await p.store.insert(scope, {
         ...demand,

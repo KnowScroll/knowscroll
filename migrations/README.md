@@ -111,7 +111,8 @@ Deploy the new binary with the migration: a process still holding the old digest
 unavailable. Any later personal store repeats this step until the registry manifest is simplified.
 
 0048 adds Planner-originated demand to Supply: `origin`, `planner_run_id` and `planner_slot` on
-`supply.requests`, the `deferred` state, and a unique index so one plan opportunity is one demand.
+`supply.requests`, the `deferred` state, and two unique indexes: one plan opportunity is one demand, and
+a person has at most one open planned waiter per shared matching group.
 The checks are `NOT VALID`; older writers default to `origin='person'` and never write `deferred`.
 No new table, so the erasure inventory is unchanged and Clear removes planned demand with the rest
 of the person's requests.

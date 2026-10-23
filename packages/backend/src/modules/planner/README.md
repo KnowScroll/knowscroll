@@ -30,6 +30,13 @@ Both paths do the same thing: raise `planner.state.desired_revision` and make su
 active run and one `planner.run` job exist for the person. Many changes while a run is active
 become one newer desired revision, not many jobs.
 
+A run that stopped does not end the person's Planner. New evidence puts a `blocked` run (disabled, no
+provider, quota, budget, a refusal: nothing was sent) back in the queue by the same transition as an
+explicit resume, so a paid answer already kept in the ledger is reused, never paid for twice. An
+`unknown` run (a request may have been sent) is woken instead. The worker then retires it, and a
+successor with a new business run takes over, once the Reasoning ledger says its attempt is settled
+or the run is two hours old. The attempt is never resent; it stays in the ledger as a liability.
+
 `KS_PLANNER_ENABLED` is a switch on the worker. It defaults to `1` in the `local` world and to `0`
 elsewhere; the dev world sets it to `1` in its environment file. When it is `0`, a delivery stores
 `blocked_disabled` and reserves nothing. An explicit resume continues the same run.
@@ -56,7 +63,7 @@ accepted (`opportunityIssue`, `diversify`):
 - every topic is in the frozen context and every proposed topic has qualified evidence behind it;
 - every evidence reference exists;
 - an `existing` target is an exact admitted asset revision with its catalogue watermark, unit,
-  topics and format, and is not hidden;
+  topics and format, is not hidden, and is an explanation the person has not met yet;
 - a `missing_supply` target names a unit and topics that evidence or inventory already supports;
 - expiry is after evaluation and at most seven days later;
 - no duplicate IDs, formats or eligibility values inside one opportunity.
@@ -70,8 +77,8 @@ three. A run that finishes after newer evidence arrived is stored as `stale` and
 
 | Consumer | How | Entry point |
 |---|---|---|
-| Composer | The latest accepted revision's unexpired opportunities ride in Composer's prepared context. A match raises Intent (vertical moves) or Continuity (horizontal moves) by a bounded share, and the decision record names the opportunity. | `READ_CURRENT_PLAN`, read by Personal Context |
-| Supply | Each accepted `missing_supply` opportunity is recorded as private demand in the same transaction as the plan. Supply reuses admitted content the person has not met, otherwise the demand is `deferred` on a shared matching group. Nothing is produced. | `RecordPlannedDemand` |
+| Composer | The latest accepted revision's unexpired opportunities ride in Composer's prepared context. A match lifts Intent (vertical moves) or Continuity (horizontal moves) by a bounded amount among candidates the intent does not separate, and the decision record names the opportunity. | `READ_CURRENT_PLAN`, read by Personal Context |
+| Supply | Each accepted `missing_supply` opportunity is recorded as private demand in the same transaction as the plan, unless the person already has open planned demand for the same brief. Supply reuses admitted content the person has not met, otherwise the demand is `deferred` on a shared matching group. Nothing is produced. | `RecordPlannedDemand` |
 | Cartographer, scenes, evidence | Nothing. A plan creates no evidence and no geography. | none |
 
 `READ_CURRENT_PLAN` is a stored read of at most three small rows and is safe on the navigation

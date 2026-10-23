@@ -53,6 +53,8 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
   let database: TestDatabase<Database>, c: Awaited<ReturnType<typeof scrollUseCases>>;
   let base: Parameters<typeof makeRunPlanner>[0], request: RequestPlanner, material: PlannerMaterialChange;
   let asset: { assetId: string; revision: number }, blocks: string[];
+  // A second admitted explanation the people in this file never read: a valid existing target.
+  let unread: { assetId: string; revision: number };
   const topic = `ci.planner.${randomUUID()}`;
   beforeAll(async () => {
     database = await createTestDatabase<Database>('planner');
@@ -81,6 +83,23 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     await database.db
       .insertInto('content.encounter_topics')
       .values({ asset_id: asset.assetId, asset_revision: asset.revision, topic_id: topic, role: 'primary', weight: 1 })
+      .execute();
+    const second = starterSource() as { assetId: string; publication: { explanationUnitId: string } };
+    second.assetId = randomUUID();
+    second.publication.explanationUnitId = `ci-planner-unread-${randomUUID()}`;
+    const admittedSecond = await c.importScroll(second);
+    if (admittedSecond.kind !== 'imported') throw new Error('CI fixture admission refused');
+    unread = { assetId: admittedSecond.assetId, revision: admittedSecond.revision };
+    await database.db.deleteFrom('content.encounter_topics').where('asset_id', '=', unread.assetId).execute();
+    await database.db
+      .insertInto('content.encounter_topics')
+      .values({
+        asset_id: unread.assetId,
+        asset_revision: unread.revision,
+        topic_id: topic,
+        role: 'primary',
+        weight: 1,
+      })
       .execute();
     const facts = await database.db
       .selectFrom('content.asset_revisions')
@@ -552,7 +571,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       running = r.run(await job(p, s.active_run_id!), signal());
     await entered;
     const context = await frozen(p),
-      target = context.facts.inventory.find((a) => a.assetId === asset.assetId)!;
+      target = context.facts.inventory.find((a) => a.assetId === unread.assetId)!;
     const proposed = answer(context),
       candidate = {
         ...proposed.opportunities[0]!,
@@ -567,7 +586,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
     await database.db
       .updateTable('content.assets')
       .set({ status: 'withdrawn' })
-      .where('id', '=', asset.assetId)
+      .where('id', '=', unread.assetId)
       .execute();
     try {
       release({ kind: 'success', text: JSON.stringify({ ...proposed, opportunities: [candidate] }) });
@@ -580,7 +599,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       await database.db
         .updateTable('content.assets')
         .set({ status: 'admitted' })
-        .where('id', '=', asset.assetId)
+        .where('id', '=', unread.assetId)
         .execute();
     }
   });

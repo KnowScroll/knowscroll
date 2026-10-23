@@ -69,6 +69,6 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
   { name: '0047_composer_buffers', sha256: '741efe63da8ced2ed59bb2db079e9ba6a368129ac70c547454e30f967a90e9ba' },
   {
     name: '0048_supply_planned_demand',
-    sha256: '79cf241cd49606145f4459739b3630de0d4f00786e9dc27e4961f7cbd40693da',
+    sha256: '8e8c562332748e395aa69e26d2ccb713ea1b82cbdd48f7a10967800fe461048d',
   },
 ];

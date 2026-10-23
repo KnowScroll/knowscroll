@@ -71,6 +71,11 @@ export interface SupplyStore {
     id: string,
   ): Promise<{ readonly id: string; readonly joined: boolean }>;
   closeWork(scope: PersonalScopeTx, id: string): Promise<void>;
+  /** The person's open planned demand (`deferred` or `ready`) for exactly this canonical brief, if any. */
+  findOpenPlanned(
+    scope: PersonalScopeTx,
+    brief: CanonicalBrief,
+  ): Promise<{ readonly id: string; readonly state: 'deferred' | 'ready' } | undefined>;
 }
 export type Refusal =
   'scope_refused' | 'command_key_reused' | 'receipt_unavailable' | 'source_unavailable' | 'stale_source' | 'not_found';
@@ -106,6 +111,8 @@ export interface PlannedDemandInput {
 export type PlannedDemandOutcome =
   /** Reuse: admitted content the person has not met already fits. */
   | { readonly kind: 'ready'; readonly requestId: string }
+  /** The person already has open planned demand for this brief (an earlier plan asked); nothing is added. */
+  | { readonly kind: 'already_recorded'; readonly requestId: string }
   /** Join or Create-group: waits on the shared matching group. No resolver job and no production run. */
   | { readonly kind: 'deferred'; readonly requestId: string; readonly joined: boolean }
   /** Not a code-admitted catalogue brief (topic outside the catalogue, or a language it cannot produce). */

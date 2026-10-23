@@ -654,6 +654,7 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
             evidence: [],
             inventory: [],
             hiddenAssetIds: snapshot.routing.hiddenAssetIds,
+            encounteredUnitIds: [],
           },
           currentPlan: [],
           memory: [],

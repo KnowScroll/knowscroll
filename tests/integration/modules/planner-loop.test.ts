@@ -54,7 +54,7 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
   let reply: () => Promise<FixtureScenario> = () => Promise.reject(new Error('CI fixture reply not set'));
   const model = fixtureModel(() => reply(), { label: 'planner-loop-authored-ci-fixture' });
   type Asset = { assetId: string; revision: number; unit: string; blocks: string[] };
-  const assets: { watched?: Asset; first?: Asset; second?: Asset } = {};
+  const assets: { watched?: Asset; first?: Asset; second?: Asset; spare?: Asset } = {};
 
   async function admit(name: string, topics: { topicId: string; role: 'primary' | 'supporting'; weight: number }[]) {
     const source = starterSource() as {
@@ -109,6 +109,7 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
     ]);
     assets.first = await admit('first', [{ topicId: GREENHOUSE, role: 'primary', weight: 1 }]);
     assets.second = await admit('second', [{ topicId: GREENHOUSE, role: 'primary', weight: 1 }]);
+    assets.spare = await admit('spare', [{ topicId: GREENHOUSE, role: 'primary', weight: 1 }]);
 
     const SCOPE = Symbol('scope'),
       ENQUEUE = Symbol('enqueue');
@@ -360,6 +361,23 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
     expect(decision.input.candidates.map((x) => x.encounter.assetId)).toContain(planned.assetId);
     // Reading the plan wrote no evidence either.
     expect(await evidenceRows(p)).toEqual(evidenceBefore);
+
+    // 5. A later plan revision that asks for the same missing topic adds no second waiter.
+    expect(await c.projectActivity(await qualify(p, assets.first!))).toMatchObject({ kind: 'applied' });
+    reply = async () => ({ kind: 'success', text: JSON.stringify(proposal(await frozenContext(p), assets.spare!)) });
+    expect(await makeRunPlanner(ports)(await queuedJob(p), signal())).toMatchObject({ value: { kind: 'accepted' } });
+    expect(
+      await database.db
+        .selectFrom('planner.revisions')
+        .select('revision')
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(2);
+    expect(
+      (
+        await database.db.selectFrom('supply.requests').select('id').where('universe_id', '=', p.universeId).execute()
+      ).map((row) => row.id),
+    ).toEqual(demand.map((row) => row.id));
   });
 
   it('requeues a run that was blocked while the Planner was off, so the next evidence yields a plan', async () => {
@@ -396,7 +414,7 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
   it('retires an unknown run once its attempt is settled or old, never resends it, and then plans again', async () => {
     const p = await recordingPerson(database);
     const modelCalls = () => model.calls.length;
-    reply = async () => ({ kind: 'timeout_after_dispatch' });
+    reply = () => Promise.resolve({ kind: 'timeout_after_dispatch' });
     expect(await c.projectActivity(await qualify(p, assets.watched!))).toMatchObject({ kind: 'applied' });
     const unknownId = (await plannerState(p))!.active_run_id!;
     const before = modelCalls();
@@ -429,7 +447,7 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
     expect(await runRow(unknownId)).toMatchObject({ status: 'stale', outcome: 'unknown_settled' });
     const successorId = (await plannerState(p))!.active_run_id!;
     expect(successorId).not.toBe(unknownId);
-    reply = async () => ({ kind: 'success', text: JSON.stringify(proposal(await frozenContext(p), assets.second!)) });
+    reply = async () => ({ kind: 'success', text: JSON.stringify(proposal(await frozenContext(p), assets.spare!)) });
     expect(await makeRunPlanner(ports)(await queuedJob(p), signal())).toMatchObject({ value: { kind: 'accepted' } });
     // The unknown attempt was never resent: one attempt for the old run, one for its successor.
     expect((await attemptsOf(database.db, p.universeId)).map((a) => a.state).sort()).toEqual([
@@ -440,7 +458,7 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
 
   it('retires an unresolved unknown run after two hours without resending it', async () => {
     const p = await recordingPerson(database);
-    reply = async () => ({ kind: 'timeout_after_dispatch' });
+    reply = () => Promise.resolve({ kind: 'timeout_after_dispatch' });
     expect(await c.projectActivity(await qualify(p, assets.watched!))).toMatchObject({ kind: 'applied' });
     const unknownId = (await plannerState(p))!.active_run_id!;
     expect(await makeRunPlanner(ports)(await queuedJob(p), signal())).toMatchObject({ value: { kind: 'unknown' } });
@@ -472,6 +490,11 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
     expect(await c.projectActivity(again)).toMatchObject({ kind: 'applied' });
     const stale = await queuedJob(p);
     const callsBefore = model.calls.length;
+    // There is a plan and planned demand to clear.
+    for (const table of ['planner.revisions', 'supply.requests'] as const)
+      expect(
+        await database.db.selectFrom(table).select('universe_id').where('universe_id', '=', p.universeId).execute(),
+      ).toHaveLength(1);
 
     await clearRecordingPerson(database, c.boss, p);
 

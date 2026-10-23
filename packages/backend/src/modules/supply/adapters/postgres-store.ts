@@ -91,6 +91,19 @@ export const supplyStore: SupplyStore = {
     const actual = r.rows[0]!.id;
     return { id: actual, joined: actual !== id };
   },
+  async findOpenPlanned(scope, brief) {
+    const row = await transactionOf(scope)
+      .selectFrom('supply.requests')
+      .select(['id', 'state'])
+      .where('universe_id', '=', scope.authority.universeId)
+      .where('privacy_epoch', '=', scope.authority.privacyEpoch)
+      .where('origin', '=', 'planner')
+      .where('state', 'in', ['deferred', 'ready'])
+      .where(sql<boolean>`brief = ${JSON.stringify(brief)}::jsonb`)
+      .orderBy('created_at')
+      .executeTakeFirst();
+    return row ? { id: row.id, state: row.state as 'deferred' | 'ready' } : undefined;
+  },
   async closeWork(scope, id) {
     await transactionOf(scope)
       .updateTable('supply.work')

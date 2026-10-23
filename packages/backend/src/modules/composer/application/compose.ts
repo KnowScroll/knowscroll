@@ -1,6 +1,6 @@
 import { validateTopics } from '../../content/public.js';
 import { features, score, similarity } from '../domain/features.js';
-import { applyPlan } from '../domain/plan.js';
+import { planLifts } from '../domain/plan.js';
 import { COMPOSER_POLICY, randomSource, refKey, uniformIndex } from '../domain/policy.js';
 import { ComposerSnapshotSchema } from './snapshot-schema.js';
 import type { ComposerDecision, ComposerSnapshot } from '../domain/types.js';
@@ -141,34 +141,49 @@ export function validateSnapshot(s: ComposerSnapshot): void {
   }
   if (new TextEncoder().encode(JSON.stringify(s)).length > 192_000) fail();
 }
+/** Why a candidate cannot be offered at all, before any scoring. Empty means eligible. */
+function exclusionsOf(s: ComposerSnapshot, c: ComposerSnapshot['candidates'][number]): string[] {
+  const exclusions: string[] = [];
+  if (!c.admitted) exclusions.push('not_admitted');
+  if (!c.accessible) exclusions.push('inaccessible');
+  if (!c.renderable) exclusions.push('unrenderable');
+  if (c.encounter.metadata.language !== s.intent.language) exclusions.push('language');
+  if (s.intent.format && c.encounter.kind !== s.intent.format) exclusions.push('format');
+  if (s.intent.exactTarget && refKey(c.encounter) !== refKey(s.intent.exactTarget)) exclusions.push('exact_target');
+  if (s.mode === 'variant' && c.encounter.explanationUnitId !== s.intent.explanationUnitId)
+    exclusions.push('explanation');
+  // A subject move never offers the explanation the person is already on, in either format.
+  if (s.mode === 'vertical' && c.encounter.explanationUnitId === s.intent.explanationUnitId)
+    exclusions.push('current_explanation');
+  if (
+    s.intent.requiredTopicIds?.some(
+      (id) => !c.encounter.topics.some((t) => t.topicId === id && t.role !== 'incidental'),
+    )
+  )
+    exclusions.push('required_topic');
+  if (s.intent.continuityLinkId && c.continuity?.linkId !== s.intent.continuityLinkId) exclusions.push('exact_link');
+  if (s.mode === 'horizontal' && !c.continuity) exclusions.push('no_admitted_link');
+  if (s.evidence?.hiddenAssetIds.includes(c.encounter.assetId)) exclusions.push('hidden');
+  return exclusions;
+}
 /** Pure policy: caller prepares an authorized bounded snapshot; activation later rechecks eligibility. */
 export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
   // Clone first: a caller cannot mutate an asynchronous persistence input through shared references.
   const s: ComposerSnapshot = structuredClone(snapshot);
   validateSnapshot(s);
-  const evaluations = s.candidates.map((c) => {
-    const exclusions: string[] = [];
-    if (!c.admitted) exclusions.push('not_admitted');
-    if (!c.accessible) exclusions.push('inaccessible');
-    if (!c.renderable) exclusions.push('unrenderable');
-    if (c.encounter.metadata.language !== s.intent.language) exclusions.push('language');
-    if (s.intent.format && c.encounter.kind !== s.intent.format) exclusions.push('format');
-    if (s.intent.exactTarget && refKey(c.encounter) !== refKey(s.intent.exactTarget)) exclusions.push('exact_target');
-    if (s.mode === 'variant' && c.encounter.explanationUnitId !== s.intent.explanationUnitId)
-      exclusions.push('explanation');
-    // A subject move never offers the explanation the person is already on, in either format.
-    if (s.mode === 'vertical' && c.encounter.explanationUnitId === s.intent.explanationUnitId)
-      exclusions.push('current_explanation');
-    if (
-      s.intent.requiredTopicIds?.some(
-        (id) => !c.encounter.topics.some((t) => t.topicId === id && t.role !== 'incidental'),
-      )
-    )
-      exclusions.push('required_topic');
-    if (s.intent.continuityLinkId && c.continuity?.linkId !== s.intent.continuityLinkId) exclusions.push('exact_link');
-    if (s.mode === 'horizontal' && !c.continuity) exclusions.push('no_admitted_link');
-    if (s.evidence?.hiddenAssetIds.includes(c.encounter.assetId)) exclusions.push('hidden');
-    const { features: f, influence } = applyPlan(s, c, features(s, c));
+  const assessed = s.candidates.map((candidate) => ({
+    candidate,
+    exclusions: exclusionsOf(s, candidate),
+    base: features(s, candidate),
+  }));
+  // The plan lifts only among eligible candidates, after the intent has ranked them.
+  const lifts = planLifts(
+    s,
+    assessed.filter(({ exclusions }) => exclusions.length === 0),
+  );
+  const evaluations = assessed.map(({ candidate: c, exclusions, base }) => {
+    const lift = lifts.get(refKey(c.encounter));
+    const f = lift?.features ?? base;
     return {
       assetId: c.encounter.assetId,
       assetRevision: c.encounter.assetRevision,
@@ -176,7 +191,7 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
       eligible: exclusions.length === 0,
       exclusions,
       features: f,
-      ...(influence ? { plan: influence } : {}),
+      ...(lift ? { plan: lift.influence } : {}),
       score: score(f, s.mode === 'horizontal'),
     };
   });

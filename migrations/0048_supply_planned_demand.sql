@@ -3,8 +3,10 @@
 -- and the `deferred` state: demand with no admitted content that waits on a shared matching group
 -- until a production path (Create) exists. A planned demand is a private waiter like any other, so
 -- it is erased with the person's exploration; shared supply.work rows stay public and brief-only.
--- Queries: unchanged (owner/epoch index). One new unique index keeps a plan opportunity to one demand.
--- Growth: at most three planned demands per accepted Planner revision. Additive for older readers:
+-- Queries: unchanged (owner/epoch index). Two unique indexes: a plan opportunity is one demand, and a
+-- person has at most one open (deferred) planned waiter per shared matching group, however many plan
+-- revisions ask for the same thing.
+-- Growth: at most three planned demands per accepted Planner revision, and one per brief while open. Additive for older readers:
 -- the new columns default to a person request, and old processes never write `deferred`.
 set local lock_timeout='5s';
 set local statement_timeout='60s';
@@ -23,3 +25,7 @@ alter table supply.requests add constraint supply_requests_deferred_shape
 -- squawk-ignore require-concurrent-index-creation
 create unique index supply_requests_planner_slot
  on supply.requests(universe_id,privacy_epoch,planner_run_id,planner_slot) where planner_run_id is not null;
+-- squawk-ignore require-concurrent-index-creation
+create unique index supply_requests_planner_open_work
+ on supply.requests(universe_id,privacy_epoch,work_id)
+ where origin='planner' and state in('deferred','ready');

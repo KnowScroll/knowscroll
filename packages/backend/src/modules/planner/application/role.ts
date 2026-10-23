@@ -1,12 +1,13 @@
 import type { ContextItem, ReasoningRole } from '../../../reasoning/public.js';
 import { ProposalSchema, opportunityIssue, type PlannerProposal } from '../domain/proposal.js';
-import { encounteredUnits } from './context.js';
 import type { FrozenContext } from './ports.js';
 const SAFE_HINTS = {
   unknown_topic: 'Copy only topic IDs present in this prepared context.',
   evidence_authority: 'Copy exact evidence references; every proposed topic needs qualified supporting evidence.',
   target_authority:
     'Copy an exact eligible asset revision, unit, topics, format and catalog watermark; otherwise propose missing supply.',
+  already_encountered:
+    'An existing target must be an explanation the person has not read yet; otherwise propose missing supply built on it.',
   expiry: 'Expiry must be after evaluation and at most seven days later.',
   duplicate_reference: 'Do not repeat IDs, eligibility values or formats within an opportunity.',
 } as const;
@@ -82,7 +83,7 @@ export function plannerContextItems(c: FrozenContext): readonly ContextItem[] {
       }),
     },
   ];
-  const encountered = encounteredUnits(c);
+  const encountered = new Set(c.facts.encounteredUnitIds);
   for (const [kind, values] of [
     ['topics', c.snapshot.topics],
     ['inventory', c.facts.inventory.map((item) => ({ ...item, encountered: encountered.has(item.explanationUnitId) }))],

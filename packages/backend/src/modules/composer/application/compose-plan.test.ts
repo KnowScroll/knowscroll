@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { composeEncounter, type ComposerSnapshot, type CurrentPlan, type PlannedOpportunity } from '../public.js';
-import { PLAN_SHARE } from '../domain/plan.js';
+import { PLAN_LIFT } from '../domain/plan.js';
 
 /** Labelled CI input fixtures: no provider output and no claim about real Planner quality. */
 const EVALUATED_AT = '2026-10-20T12:00:00Z';
@@ -82,8 +82,8 @@ function snapshot(options: {
 const evaluationOf = (decision: ReturnType<typeof composeEncounter>, assetId: string) =>
   decision.evaluations.find((e) => e.assetId === assetId)!;
 
-describe('Composer reads the person’s Planner plan (labelled CI input fixtures)', () => {
-  it('prefers the explanation a planned opportunity names and records which opportunity did it', () => {
+describe('Composer reads the person\u2019s Planner plan (labelled CI input fixtures)', () => {
+  it('lifts the explanation a planned opportunity names among tied candidates and records which opportunity did it', () => {
     const plan = { revision: 7, opportunities: [opportunity({ topicIds: ['topic.z'], explanationUnitId: 'unit-1' })] };
     const withPlan = composeEncounter(snapshot({ plan }));
     const without = composeEncounter(snapshot({}));
@@ -96,12 +96,14 @@ describe('Composer reads the person’s Planner plan (labelled CI input fixtures
       match: 'unit',
       feature: 'intent',
       before: 0.5,
-      after: (1 - PLAN_SHARE) * 0.5 + PLAN_SHARE,
+      after: 0.5 + PLAN_LIFT,
     });
-    expect(named.features.intent).toBeCloseTo(0.625);
-    // The plan shifts every candidate's Intent the same way; only the named explanation gains.
-    expect(evaluationOf(withPlan, 'asset-0').features.intent).toBeCloseTo(0.375);
-    expect(evaluationOf(withPlan, 'asset-0').plan).toBeUndefined();
+    expect(named.features.intent).toBeCloseTo(0.65);
+    // Nobody else changes: the plan adds to one candidate and scales nothing down.
+    for (const id of ['asset-0', 'asset-2']) {
+      expect(evaluationOf(withPlan, id).features).toEqual(evaluationOf(without, id).features);
+      expect(evaluationOf(withPlan, id).plan).toBeUndefined();
+    }
   });
 
   it('leaves the decision exactly as before when there is no active opportunity', () => {
@@ -116,36 +118,68 @@ describe('Composer reads the person’s Planner plan (labelled CI input fixtures
     }
   });
 
-  it('current intent wins: a plan cannot lift a candidate that misses the intent over one that matches it', () => {
+  it('current intent wins even when the planned candidate is stronger on interest, format and novelty', () => {
+    // A matches the intent topic. B is off-topic but is exactly what the plan names, and B is better on
+    // every other feature. Without a plan A leads; the plan must not change that.
     const candidates = [candidate(0, 'topic.a'), candidate(1, 'topic.b')];
-    const plan = {
-      revision: 3,
-      opportunities: [opportunity({ topicIds: ['topic.b'], explanationUnitId: 'unit-1', formats: ['scroll'] })],
-    };
-    const d = composeEncounter(snapshot({ plan, intentTopics: ['topic.a'], candidates }));
-    expect(evaluationOf(d, 'asset-0').features.intent).toBeCloseTo((1 - PLAN_SHARE) * 1);
-    expect(evaluationOf(d, 'asset-1').features.intent).toBeCloseTo(PLAN_SHARE);
-    expect(evaluationOf(d, 'asset-1').plan).toMatchObject({ match: 'unit' });
-    expect(d.selection[0]?.assetId).toBe('asset-0');
+    const evidence = (plan?: CurrentPlan) => ({
+      universeId: 'fixture-universe',
+      privacyEpoch: 1,
+      evaluatedAt: EVALUATED_AT,
+      watermark: 'fixture-context',
+      policyVersion: 'fixture-actual-activity',
+      ...(plan ? { plan } : {}),
+      topics: [
+        { topicId: 'topic.a', activity: 0.2, formats: [] },
+        { topicId: 'topic.b', activity: 20, formats: [{ kind: 'scroll' as const, measured: 9, qualified: 9 }] },
+      ],
+      recent: [],
+      established: {
+        policyVersion: 'fixture-history',
+        watermark: 'fixture-history',
+        units: [
+          { explanationUnitId: 'unit-1', encountered: false, facets: [{ facetId: 'facet-1', encountered: false }] },
+        ],
+      },
+      hiddenAssetIds: [],
+    });
+    const plan = { revision: 3, opportunities: [opportunity({ topicIds: ['topic.b'], explanationUnitId: 'unit-1' })] };
+    const input = (withPlan: boolean) => ({
+      ...snapshot({ intentTopics: ['topic.a'], candidates }),
+      evidence: evidence(withPlan ? plan : undefined),
+    });
+    const without = composeEncounter(input(false));
+    const withPlan = composeEncounter(input(true));
+    expect(without.selection[0]?.assetId).toBe('asset-0');
+    expect(evaluationOf(without, 'asset-1').features.interest).toBeGreaterThan(
+      evaluationOf(without, 'asset-0').features.interest,
+    );
+    expect(withPlan.selection.map((r) => r.assetId)).toEqual(without.selection.map((r) => r.assetId));
+    expect(withPlan.evaluations.map((e) => [e.features, e.score])).toEqual(
+      without.evaluations.map((e) => [e.features, e.score]),
+    );
+    expect(withPlan.evaluations.every((e) => e.plan === undefined)).toBe(true);
   });
 
-  it('a plan breaks ties among candidates the intent already accepts', () => {
+  it('does nothing when the intent already puts every candidate at its maximum', () => {
     const plan = { revision: 3, opportunities: [opportunity({ explanationUnitId: 'unit-2' })] };
     const d = composeEncounter(snapshot({ plan, intentTopics: ['topic.a'] }));
-    expect(evaluationOf(d, 'asset-2').features.intent).toBeCloseTo(1);
-    expect(d.selection[0]?.assetId).toBe('asset-2');
+    for (const e of d.evaluations) {
+      expect(e.features.intent).toBe(1);
+      expect(e.plan).toBeUndefined();
+    }
   });
 
-  it('respects the opportunity’s format preference, so the other format of the same explanation gets no lift', () => {
+  it('respects the opportunity\u2019s format preference, so the other format of the same explanation gets no lift', () => {
     const candidates = [candidate(0, 'topic.a', 'reel'), candidate(1, 'topic.a', 'scroll')];
     const plan = { revision: 1, opportunities: [opportunity({ explanationUnitId: 'unit-0', formats: ['scroll'] })] };
     const d = composeEncounter(snapshot({ plan, candidates }));
     expect(evaluationOf(d, 'asset-0').plan).toBeUndefined();
     // The scroll is not the named explanation, so it only shares the topic.
-    expect(evaluationOf(d, 'asset-1').plan).toMatchObject({ match: 'topic' });
+    expect(evaluationOf(d, 'asset-1').plan).toMatchObject({ match: 'topic', after: 0.5 + PLAN_LIFT / 2 });
   });
 
-  it('matches missing-supply opportunities by topic only, at half the strength', () => {
+  it('matches missing-supply opportunities by topic only, at half the lift', () => {
     const plan = {
       revision: 2,
       opportunities: [opportunity({ target: 'missing_supply', explanationUnitId: 'unit-1' })],
@@ -153,7 +187,7 @@ describe('Composer reads the person’s Planner plan (labelled CI input fixtures
     const d = composeEncounter(snapshot({ plan }));
     const influenced = d.evaluations.filter((e) => e.plan);
     expect(influenced).toHaveLength(3);
-    for (const e of influenced) expect(e.plan).toMatchObject({ match: 'topic', after: 0.375 + PLAN_SHARE * 0.5 });
+    for (const e of influenced) expect(e.plan).toMatchObject({ match: 'topic', after: 0.5 + PLAN_LIFT / 2 });
   });
 
   it('the best opportunity wins and ties go to the higher priority', () => {
@@ -170,7 +204,7 @@ describe('Composer reads the person’s Planner plan (labelled CI input fixtures
     expect(evaluationOf(d, 'asset-0').plan).toMatchObject({ opportunity: 0, match: 'topic' });
   });
 
-  it('a horizontal move blends the plan into Continuity, never past the admitted link', () => {
+  it('a horizontal move lifts Continuity only among equally linked candidates, never past 1', () => {
     const source = { assetId: 'source', assetRevision: 1 };
     const linked = (index: number, strength: number) => {
       const c = candidate(index, 'topic.a');
@@ -185,16 +219,27 @@ describe('Composer reads the person’s Planner plan (labelled CI input fixtures
         },
       };
     };
-    const candidates = [linked(0, 0.8), linked(1, 0.7)];
     const plan = { revision: 5, opportunities: [opportunity({ topicIds: ['topic.z'], explanationUnitId: 'unit-1' })] };
-    const d = composeEncounter({ ...snapshot({ mode: 'horizontal', plan, candidates }), source });
-    expect(evaluationOf(d, 'asset-1').features.continuity).toBeCloseTo(0.75 * 0.7 + 0.25);
-    expect(evaluationOf(d, 'asset-1').plan).toMatchObject({ feature: 'continuity', before: 0.7 });
-    expect(evaluationOf(d, 'asset-0').features.continuity).toBeCloseTo(0.75 * 0.8);
-    for (const e of d.evaluations) {
-      expect(e.features.continuity).toBeGreaterThanOrEqual(0);
-      expect(e.features.continuity).toBeLessThanOrEqual(1);
-    }
+    const tied = composeEncounter({
+      ...snapshot({ mode: 'horizontal', plan, candidates: [linked(0, 0.8), linked(1, 0.8)] }),
+      source,
+    });
+    expect(evaluationOf(tied, 'asset-1').features.continuity).toBeCloseTo(0.95);
+    expect(evaluationOf(tied, 'asset-1').plan).toMatchObject({ feature: 'continuity', before: 0.8 });
+    expect(evaluationOf(tied, 'asset-0').features.continuity).toBe(0.8);
+    expect(tied.selection[0]?.assetId).toBe('asset-1');
+    // A planned candidate behind a stronger link is not lifted past it.
+    const behind = composeEncounter({
+      ...snapshot({ mode: 'horizontal', plan, candidates: [linked(0, 0.8), linked(1, 0.7)] }),
+      source,
+    });
+    expect(evaluationOf(behind, 'asset-1').plan).toBeUndefined();
+    expect(behind.selection[0]?.assetId).toBe('asset-0');
+    const capped = composeEncounter({
+      ...snapshot({ mode: 'horizontal', plan, candidates: [linked(0, 0.97), linked(1, 0.97)] }),
+      source,
+    });
+    expect(evaluationOf(capped, 'asset-1').features.continuity).toBe(1);
   });
 
   it('an exact target or a variant is not a place for a plan', () => {

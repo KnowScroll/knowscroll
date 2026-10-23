@@ -24,7 +24,7 @@ import type {
   ReadPlannerOpportunities,
   RunPlanner,
 } from './ports.js';
-import { encounteredUnits, prepareContext } from './context.js';
+import { encounteredUnitsOf, prepareContext } from './context.js';
 import { recordMissingSupplyDemand } from './demand.js';
 import { ensureRun, withoutClaim } from './request.js';
 import { PlannerJobSchema, type PlannerJob } from '../events.js';
@@ -39,7 +39,15 @@ async function currentFacts(
   const snapshot = await p.readSnapshot(scope, {
     evaluatedAt: p.now().toISOString(),
     topicIds: [...c.facts.topics],
-    candidates: c.snapshot.qualified.map((q) => ({ explanationUnitId: q.explanationUnitId, facets: [] })),
+    candidates: [
+      ...new Set([
+        ...c.snapshot.qualified.map((q) => q.explanationUnitId),
+        ...c.facts.inventory.map((a) => a.explanationUnitId),
+        ...opportunities.map((x) => x.explanationUnitId),
+      ]),
+    ]
+      .slice(0, 100)
+      .map((explanationUnitId) => ({ explanationUnitId, facets: [] })),
     candidateAssetIds: c.facts.inventory.map((a) => a.assetId),
     provisionalLimit: 0,
   });
@@ -73,6 +81,7 @@ async function currentFacts(
       inventory,
       evidence,
       hiddenAssetIds: snapshot.routing.hiddenAssetIds,
+      encounteredUnitIds: encounteredUnitsOf(snapshot),
     },
   };
 }
@@ -497,7 +506,7 @@ async function applyProposal(
       await recordMissingSupplyDemand(p, scope, {
         runId: run.id,
         language: context.intent.language,
-        alreadyMet: [...encounteredUnits(context)],
+        alreadyMet: context.facts.encounteredUnitIds,
         opportunities: accepted,
       });
     }
