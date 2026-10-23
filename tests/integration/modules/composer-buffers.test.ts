@@ -12,7 +12,11 @@ import {
   type PrepareBuffer,
   type PrepareBufferJob,
 } from '@knowscroll/backend/modules/composer';
-import { composerBufferWorkerProviders, composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
+import {
+  composerBufferStore,
+  composerBufferWorkerProviders,
+  composerProviders,
+} from '@knowscroll/backend/modules/composer/nest-providers';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
@@ -403,6 +407,21 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       const next = ready(await nextSubject(person, revisit, moved.from));
       expect(next.decisionId).not.toBe(buffer.decision_id);
       expect((await bufferOf(person.universeId))?.decision_id).toBe(buffer.decision_id);
+    });
+
+    it('a buffer of an earlier privacy epoch is never read', async () => {
+      const { person, from, open, buffer } = await prepared();
+      const key = { sessionId: open.sessionId, intentRevision: open.intentRevision, source: from };
+      const read = (epoch: number) =>
+        withScope()({ ...person.authority, privacyEpoch: epoch }, (scope) => composerBufferStore.read(scope, key));
+      expect(await read(1)).toMatchObject({ kind: 'entered', value: { decisionId: buffer.decision_id } });
+      await database.db
+        .updateTable('identity.universes')
+        .set({ privacy_epoch: 2 })
+        .where('id', '=', person.universeId)
+        .execute();
+      expect(await read(2)).toMatchObject({ kind: 'entered', value: undefined });
+      expect(await read(1)).toMatchObject({ kind: 'refused' });
     });
 
     it('a buffer past its life is not served', async () => {

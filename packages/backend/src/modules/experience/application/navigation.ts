@@ -287,9 +287,10 @@ async function buildOffers(
 async function writeOutcome(
   p: NavigationPorts,
   scope: PersonalScopeTx,
-  { command, key, prepared, ranked, firstEligibility }: CommitContext,
+  context: CommitContext,
   offers: readonly StoredOffer[],
 ): Promise<NavigationResult> {
+  const { command, key, prepared, ranked, firstEligibility } = context;
   const recording = await p.recording?.fence(scope, originalRecordingGeneration(command));
   if (recording?.kind === 'unavailable') return refuse('SERVICE_UNAVAILABLE');
   const eligible =
@@ -326,6 +327,16 @@ async function writeOutcome(
     command.commandId,
     eligible,
   );
+  return completeOutcome(p, scope, context, offers);
+}
+
+/** Advances the revision, completes the receipt with the immutable result identity and sends the hint. */
+async function completeOutcome(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  { command, prepared }: CommitContext,
+  offers: readonly StoredOffer[],
+): Promise<NavigationResult> {
   const revision = await p.advanceRevision(scope);
   const common = {
     commandId: command.commandId,

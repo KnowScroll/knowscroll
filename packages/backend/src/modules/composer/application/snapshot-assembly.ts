@@ -74,14 +74,7 @@ export interface AssembledSnapshot {
  */
 export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
   const { source, candidates, links } = input;
-  const retrieved = new Set(candidates.map(keyOf));
-  const assessedEntries = input.semanticAssessments?.entries.filter((entry) => retrieved.has(keyOf(entry)));
-  // Stored assessments may name candidates that are no longer retrieved; only present ones inform ranking.
-  const assessments =
-    input.semanticAssessments && assessedEntries?.length
-      ? { ...input.semanticAssessments, entries: assessedEntries }
-      : undefined;
-  const sourceTopics = source?.topics.filter((t) => t.role !== 'incidental').map((t) => t.topicId) ?? [];
+  const assessments = presentAssessments(input);
   const full: ComposerSnapshot = {
     universeId: input.universeId,
     privacyEpoch: input.privacyEpoch,
@@ -90,7 +83,7 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
     mode: input.mode,
     intent: {
       language: candidates[0]?.metadata.language ?? source?.metadata.language ?? 'en',
-      topicIds: sourceTopics,
+      topicIds: source?.topics.filter((t) => t.role !== 'incidental').map((t) => t.topicId) ?? [],
       text: source ? `${source.metadata.title} ${source.metadata.summary}`.slice(0, 2000) : '',
       ...(input.exactTarget ? { exactTarget: refOf(input.exactTarget) } : {}),
       // Variant: the explanation to stay on. Vertical: the explanation to move away from.
@@ -101,26 +94,7 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
       ...(links[0] ? { continuityLinkId: links[0].linkId } : {}),
     },
     ...(source ? { source: refOf(source) } : {}),
-    candidates: candidates.map((encounter) => {
-      const link = links.find((l) => keyOf(l.target) === keyOf(encounter));
-      return {
-        encounter,
-        admitted: true,
-        accessible: !input.hiddenAssetIds.includes(encounter.assetId),
-        renderable: true,
-        ...(link
-          ? {
-              continuity: {
-                linkId: link.linkId,
-                source: refOf(link.source),
-                target: refOf(link.target),
-                direction: link.direction,
-                strength: link.strength,
-              },
-            }
-          : {}),
-      };
-    }),
+    candidates: candidates.map((encounter) => candidateRow(input, encounter)),
     explorationPool: input.mode === 'vertical' ? candidates.map(refOf) : [],
     ...(input.evidence ? { evidence: input.evidence } : {}),
     ...(assessments ? { semanticAssessments: assessments } : {}),
@@ -132,6 +106,34 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
     },
   };
   return fitToBudget(full, input.hashCatalogWatermarks);
+}
+
+/** Stored assessments may name candidates that are no longer retrieved; only present ones inform ranking. */
+function presentAssessments(input: SnapshotInput): SemanticAssessments | undefined {
+  const retrieved = new Set(input.candidates.map(keyOf));
+  const entries = input.semanticAssessments?.entries.filter((entry) => retrieved.has(keyOf(entry)));
+  return input.semanticAssessments && entries?.length ? { ...input.semanticAssessments, entries } : undefined;
+}
+
+function candidateRow(input: SnapshotInput, encounter: EncounterSnapshot): ComposerSnapshot['candidates'][number] {
+  const link = input.links.find((l) => keyOf(l.target) === keyOf(encounter));
+  return {
+    encounter,
+    admitted: true,
+    accessible: !input.hiddenAssetIds.includes(encounter.assetId),
+    renderable: true,
+    ...(link
+      ? {
+          continuity: {
+            linkId: link.linkId,
+            source: refOf(link.source),
+            target: refOf(link.target),
+            direction: link.direction,
+            strength: link.strength,
+          },
+        }
+      : {}),
+  };
 }
 
 function sizeOf(snapshot: ComposerSnapshot): number {
