@@ -45,7 +45,11 @@ export function loadUniverseMemory(scope: AccountScope): UniverseMemory | undefi
       typeof place['label'] === 'string' &&
       typeof place['kind'] === 'string' &&
       KINDS.includes(place['kind'])
-        ? ({ id: place['id'], label: place['label'].slice(0, 120), kind: place['kind'] as SceneKind } satisfies LastPlace)
+        ? ({
+            id: place['id'],
+            label: place['label'].slice(0, 120),
+            kind: place['kind'] as SceneKind,
+          } satisfies LastPlace)
         : undefined;
     return {
       focusId: typeof value['focusId'] === 'string' ? value['focusId'] : null,

@@ -9,9 +9,18 @@ export interface DustCue {
 
 export type DustRead =
   | { readonly status: 'ready'; readonly cues: readonly DustCue[]; readonly geographyRevision: number }
-  | { readonly status: 'unavailable'; readonly reason: 'network' | 'authority' | 'invalid' | 'temporarily_unavailable' };
+  | {
+      readonly status: 'unavailable';
+      readonly reason: 'network' | 'authority' | 'invalid' | 'temporarily_unavailable';
+    };
 
-const AUTHORITY_CODES = ['UNAUTHENTICATED', 'FORBIDDEN', 'SCOPE_MISMATCH', 'PRIVACY_EPOCH_CHANGED', 'UNIVERSE_UNAVAILABLE'];
+const AUTHORITY_CODES = [
+  'UNAUTHENTICATED',
+  'FORBIDDEN',
+  'SCOPE_MISMATCH',
+  'PRIVACY_EPOCH_CHANGED',
+  'UNIVERSE_UNAVAILABLE',
+];
 
 /**
  * Reads the dust cues of this account's universe (`POST /v1/universe/emerging/read`).

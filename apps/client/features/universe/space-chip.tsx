@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { borderWidth, focusRing, overlay, radius, space, spacing, target } from '@knowscroll/design-tokens';
-import { Icon, Text, type IconName } from '@knowscroll/ui';
+import { borderWidth, overlay, radius, space, spacing, target } from '@knowscroll/design-tokens';
+import { Icon, Text, toggleSemantics, useFocusRing, type IconName } from '@knowscroll/ui';
 
 /** The accent of the Lately dot: teal, the "active" colour of the library. */
 const LATELY_DOT = '#14C79B';
@@ -33,34 +32,26 @@ export function SpaceChip({
   readonly testID?: string;
   readonly accessibilityLabel?: string;
 }) {
-  const [focused, setFocused] = useState(false);
+  const focus = useFocusRing('onDark');
   const solid = variant === 'solid';
   const foreground = solid ? space.onControl : space.label;
   return (
     <Pressable
       testID={testID}
-      accessibilityRole={toggled === undefined ? 'button' : 'togglebutton'}
+      {...(toggled === undefined ? { accessibilityRole: 'button' as const } : toggleSemantics(toggled))}
       accessibilityLabel={accessibilityLabel ?? label}
-      aria-checked={toggled}
       onPress={onPress}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      style={[
-        styles.chip,
-        solid ? styles.solid : styles.ghost,
-        focused
-          ? {
-              outlineColor: focusRing.onDark.color,
-              outlineWidth: focusRing.onDark.width,
-              outlineOffset: focusRing.onDark.offset,
-              outlineStyle: 'solid',
-            }
-          : null,
-      ]}
+      {...focus.props}
+      style={[styles.chip, solid ? styles.solid : styles.ghost, focus.style]}
     >
       {icon ? <Icon name={icon} size={16} color={foreground} strokeWidth={2.2} /> : null}
       {dot === undefined ? null : (
-        <View style={[styles.dot, { backgroundColor: dot ? LATELY_DOT : 'transparent', borderColor: dot ? LATELY_DOT : foreground }]} />
+        <View
+          style={[
+            styles.dot,
+            { backgroundColor: dot ? LATELY_DOT : 'transparent', borderColor: dot ? LATELY_DOT : foreground },
+          ]}
+        />
       )}
       <Text variant="uiS" color={foreground}>
         {label}

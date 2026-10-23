@@ -6,7 +6,7 @@ import { IconButton, Tag, Text, useDisplay } from '@knowscroll/ui';
 import { UniverseBackdrop } from './universe-backdrop';
 import { RegionCard, SystemCard } from './universe-cards';
 import { UniverseHeader } from './universe-header';
-import { viewFor, type UniverseIndex } from './universe-layout';
+import { isQuiet, viewFor, type UniverseIndex } from './universe-layout';
 import { OutlineList, UniverseListSheet } from './universe-outline';
 import { UniverseSearchPanel } from './universe-search-panel';
 import { SpaceChip } from './space-chip';
@@ -76,22 +76,28 @@ export function UniverseSurface({
       </View>
     ) : null;
 
-  const chips = !card && !searching ? (
-    <View style={styles.chips}>
-      {view.kind === 'universe' && state.lastPlace && state.lastPlace.id !== state.focusId ? (
-        <SpaceChip
-          testID="universe-return"
-          variant="solid"
-          icon="arrowRight"
-          label={`Return to ${state.lastPlace.label}`}
-          onPress={() => session.focusLast()}
-        />
-      ) : null}
-      {!desktop && places.length > 0 ? (
-        <SpaceChip testID="universe-list" icon="list" label="List view" onPress={() => session.showOverlay('outline')} />
-      ) : null}
-    </View>
-  ) : null;
+  const chips =
+    !card && !searching ? (
+      <View style={styles.chips}>
+        {view.kind === 'universe' && state.lastPlace && state.lastPlace.id !== state.focusId ? (
+          <SpaceChip
+            testID="universe-return"
+            variant="solid"
+            icon="arrowRight"
+            label={`Return to ${state.lastPlace.label}`}
+            onPress={() => session.focusLast()}
+          />
+        ) : null}
+        {!desktop && places.length > 0 ? (
+          <SpaceChip
+            testID="universe-list"
+            icon="list"
+            label="List view"
+            onPress={() => session.showOverlay('outline')}
+          />
+        ) : null}
+      </View>
+    ) : null;
 
   const stage = (
     <View style={styles.stageHost} onLayout={(event) => setStageSize(event.nativeEvent.layout)}>
@@ -99,7 +105,13 @@ export function UniverseSurface({
       {simple && view.kind === 'planet' ? (
         <SimplePlanet session={session} index={index} view={view} state={state} width={stageSize.width} />
       ) : (
-        <UniverseStage session={session} state={state} index={index} onSearch={openSearch} onDust={() => setDustNote(true)} />
+        <UniverseStage
+          session={session}
+          state={state}
+          index={index}
+          onSearch={openSearch}
+          onDust={() => setDustNote(true)}
+        />
       )}
       <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
         {header}
@@ -119,8 +131,18 @@ export function UniverseSurface({
       </View>
       {desktop ? (
         <View pointerEvents="box-none" style={styles.zoomControls}>
-          <IconButton icon="plus" label="Zoom in" variant="onSpace" onPress={() => session.camera({ ...state.frame, scale: state.frame.scale * 1.25 })} />
-          <IconButton icon="minus" label="Zoom out" variant="onSpace" onPress={() => session.camera({ ...state.frame, scale: state.frame.scale / 1.25 })} />
+          <IconButton
+            icon="plus"
+            label="Zoom in"
+            variant="onSpace"
+            onPress={() => session.camera({ ...state.frame, scale: state.frame.scale * 1.25 })}
+          />
+          <IconButton
+            icon="minus"
+            label="Zoom out"
+            variant="onSpace"
+            onPress={() => session.camera({ ...state.frame, scale: state.frame.scale / 1.25 })}
+          />
         </View>
       ) : null}
       {desktop ? <KeyHints /> : null}
@@ -152,23 +174,30 @@ export function UniverseSurface({
   );
 }
 
-const isQuietPlace = (place: { activity: { availability: string; state?: string } }) =>
-  place.activity.availability === 'available' && place.activity.state === 'quiet';
-
 /** Every planet of the system is quiet: say so kindly and offer a way back in. */
 function isDormant(index: UniverseIndex, systemId: string): boolean {
   const planets = index.planets.get(systemId) ?? [];
-  return planets.length > 0 && planets.every(isQuietPlace);
+  return planets.length > 0 && planets.every(isQuiet);
 }
 
-function DormantNote({ session, index, systemId }: { session: UniverseViewSession; index: UniverseIndex; systemId: string }) {
+function DormantNote({
+  session,
+  index,
+  systemId,
+}: {
+  session: UniverseViewSession;
+  index: UniverseIndex;
+  systemId: string;
+}) {
   const first = (index.planets.get(systemId) ?? [])[0];
   return (
     <View style={styles.dormant}>
       <Text variant="body" color={space.label}>
         Quiet for a while. Pick up anywhere.
       </Text>
-      {first ? <SpaceChip variant="solid" label={`Open ${first.label}`} onPress={() => session.focus(first.objectId)} /> : null}
+      {first ? (
+        <SpaceChip variant="solid" label={`Open ${first.label}`} onPress={() => session.focus(first.objectId)} />
+      ) : null}
     </View>
   );
 }
@@ -224,7 +253,13 @@ function SimplePlanet({
   return (
     <View style={styles.simple}>
       <View style={{ width: drawWidth, alignSelf: 'center' }}>
-        <FlatPlanet session={session} index={index} planet={view.planet} width={drawWidth} selectedRegion={view.selectedRegion} />
+        <FlatPlanet
+          session={session}
+          index={index}
+          planet={view.planet}
+          width={drawWidth}
+          selectedRegion={view.selectedRegion}
+        />
       </View>
       <View style={styles.simpleList}>
         {regions.map((region) => (
@@ -247,7 +282,14 @@ const styles = StyleSheet.create({
   stageHost: { flex: 1, overflow: 'hidden' },
   top: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: layout.topControlsInset, gap: spacing[2] },
   status: { alignItems: 'flex-end' },
-  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: layout.topControlsInset, gap: spacing[3] },
+  bottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: layout.topControlsInset,
+    gap: spacing[3],
+  },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], alignItems: 'center' },
   caption: { position: 'absolute', left: spacing[6], right: spacing[6], top: '62%', gap: spacing['1.5'] },
   captionTitle: { fontSize: 30, lineHeight: 34 },
@@ -263,11 +305,17 @@ const styles = StyleSheet.create({
   },
   dustText: { flexShrink: 1, paddingVertical: spacing[3] },
   dormant: { gap: spacing[2], alignItems: 'flex-start' },
-  zoomControls: { position: 'absolute', top: spacing[6], right: spacing[6], gap: spacing[2] },
+  zoomControls: { position: 'absolute', top: 104, right: spacing[4], gap: spacing[2] },
   hints: { position: 'absolute', left: spacing[6], bottom: spacing[5], flexDirection: 'row', gap: spacing[4] },
   hint: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   key: { paddingHorizontal: spacing[2], paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: space.edge },
-  panel: { width: 378, backgroundColor: content.paper, paddingTop: spacing[6], paddingHorizontal: spacing[4], gap: spacing[3] },
+  panel: {
+    width: 378,
+    backgroundColor: content.paper,
+    paddingTop: spacing[6],
+    paddingHorizontal: spacing[4],
+    gap: spacing[3],
+  },
   panelEyebrow: { paddingHorizontal: spacing[2] },
   panelList: { flex: 1 },
   panelCard: { paddingBottom: spacing[4] },

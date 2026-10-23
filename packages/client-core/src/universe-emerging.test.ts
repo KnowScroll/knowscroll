@@ -43,9 +43,7 @@ describe('readDustCues', () => {
   });
 
   it('maps authority, server and network failures to typed outcomes', async () => {
-    const authority = scopeReplying(() =>
-      json(problemDetails('NOT_FOUND'), 404) as Response,
-    );
+    const authority = scopeReplying(() => json(problemDetails('NOT_FOUND'), 404));
     expect((await readDustCues(authority)).status).toBe('unavailable');
     const offline = scopeReplying(() => {
       throw new TypeError('offline');

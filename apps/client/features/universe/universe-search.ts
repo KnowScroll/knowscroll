@@ -10,12 +10,7 @@ export const SEARCH_LIMIT = 12;
 const KIND_ORDER: Record<UniversePlace['kind'], number> = { system: 0, planet: 1, region: 2, star: 3 };
 
 const normalise = (text: string) =>
-  text
-    .normalize('NFKD')
-    .replaceAll(/\p{M}/gu, '')
-    .toLowerCase()
-    .replaceAll(/\s+/g, ' ')
-    .trim();
+  text.normalize('NFKD').replaceAll(/\p{M}/gu, '').toLowerCase().replaceAll(/\s+/g, ' ').trim();
 
 /** 0 best: whole name starts with the query, then a word does, then it appears inside a word. */
 function rank(name: string, query: string): number | undefined {
@@ -41,7 +36,9 @@ export function searchPlaces(places: readonly UniversePlace[], rawQuery: string)
     })
     .sort(
       (a, b) =>
-        a.score - b.score || KIND_ORDER[a.place.kind] - KIND_ORDER[b.place.kind] || a.place.label.localeCompare(b.place.label),
+        a.score - b.score ||
+        KIND_ORDER[a.place.kind] - KIND_ORDER[b.place.kind] ||
+        a.place.label.localeCompare(b.place.label),
     )
     .slice(0, SEARCH_LIMIT)
     .map(({ place }) => {

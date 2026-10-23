@@ -6,12 +6,15 @@ import { BODY_COLOURS, calmColours } from './universe-palette';
 import { DustGlyph, OrbitRing, PlanetGlyph, ShipGlyph, StarGlyph } from './universe-bodies';
 import {
   composeSystem,
+  isQuiet,
   overviewScale,
   placeDust,
   placeLabels,
   SYSTEM_CLUSTER_WORLD,
   worldBounds,
   ORBIT_BANDS,
+  outerOrbit,
+  type OrbitBand,
   PLANET_RADIUS,
   STAR_RADIUS,
   type LabelRequest,
@@ -25,9 +28,6 @@ export type DetailLevel = 'far' | 'mid' | 'near';
 /** Pixels per composition unit of a system cluster; one world unit is `scale` pixels. */
 export const clusterUnit = (scale: number) => Math.min(scale * (SYSTEM_CLUSTER_WORLD / ORBIT_BANDS[2].rx), 0.72);
 export const detailLevel = (unit: number): DetailLevel => (unit < 0.2 ? 'far' : unit < 0.45 ? 'mid' : 'near');
-
-const isQuiet = (descriptor: SceneDescriptor) =>
-  descriptor.activity.availability === 'available' && descriptor.activity.state === 'quiet';
 
 /**
  * U01 and U08: every system as a star with its orbits and planets, at a level of detail that follows
@@ -43,15 +43,23 @@ export function OverviewScene({ session, state, index, size, onDust }: SceneProp
     x: size.width / 2 + (point.x - bounds.center.x) * scale - state.frame.x,
     y: size.height * 0.47 + (point.y - bounds.center.y) * scale - state.frame.y,
   });
-  const onScreen = (point: Vec) => point.x > -140 && point.x < size.width + 140 && point.y > -140 && point.y < size.height + 140;
+  const onScreen = (point: Vec) =>
+    point.x > -140 && point.x < size.width + 140 && point.y > -140 && point.y < size.height + 140;
   const placed = systems
     .map((system) => ({ system, position: toScreen(system.anchor), composition: composeSystem(index, system) }))
     .filter(({ position }) => onScreen(position));
-  const dust = useMemo(() => placeDust(state.dust.cues.map((cue) => cue.id), systems), [state.dust.cues, systems]);
+  const dust = useMemo(
+    () =>
+      placeDust(
+        state.dust.cues.map((cue) => cue.id),
+        systems,
+      ),
+    [state.dust.cues, systems],
+  );
   const lone = state.dust.cues.length === 1 && systems.length === 0;
   const lastSystemId = state.lastPlace ? lastSystemIdOf(index, state.lastPlace.id) : undefined;
 
-  const outerRy = (bands: readonly number[]) => ORBIT_BANDS[(bands.at(-1) ?? 0) as 0 | 1 | 2].ry * unit;
+  const outerRy = (bands: readonly OrbitBand[]) => outerOrbit(bands).ry * unit;
   const requests: LabelRequest[] = placed.map(({ system, position, composition }) => {
     const text = system.label;
     return {
@@ -81,7 +89,9 @@ export function OverviewScene({ session, state, index, size, onDust }: SceneProp
       <Svg width={size.width} height={size.height} pointerEvents="none" aria-hidden>
         {[...dust].map(([id, world]) => {
           const at = toScreen(world);
-          return onScreen(at) ? <DustGlyph key={id} id={id} cx={at.x} cy={at.y} r={lone ? 74 : 30} lone={lone} /> : null;
+          return onScreen(at) ? (
+            <DustGlyph key={id} id={id} cx={at.x} cy={at.y} r={lone ? 74 : 30} lone={lone} />
+          ) : null;
         })}
         {placed.map(({ system, position, composition }) => {
           const calm = state.lately && isQuiet(system);
@@ -89,7 +99,6 @@ export function OverviewScene({ session, state, index, size, onDust }: SceneProp
             <ClusterDrawing
               key={system.objectId}
               session={session}
-              system={system}
               position={position}
               composition={composition}
               unit={unit}
@@ -100,7 +109,12 @@ export function OverviewScene({ session, state, index, size, onDust }: SceneProp
             />
           );
         })}
-        {ship ? <ShipGlyph x={ship.position.x + 22 + ORBIT_BANDS[0].rx * unit * 0.2} y={ship.position.y - outerRy(ship.composition.bands) - 14} /> : null}
+        {ship ? (
+          <ShipGlyph
+            x={ship.position.x + 22 + ORBIT_BANDS[0].rx * unit * 0.2}
+            y={ship.position.y - outerRy(ship.composition.bands) - 14}
+          />
+        ) : null}
       </Svg>
       <SceneLayer>
         {labels.map((label) => {
@@ -127,7 +141,7 @@ export function OverviewScene({ session, state, index, size, onDust }: SceneProp
             testID={`universe-focus-${system.objectId}`}
             x={position.x}
             y={position.y}
-            size={Math.min(160, Math.max(48, ORBIT_BANDS[(composition.bands.at(-1) ?? 0) as 0 | 1 | 2].rx * unit * 1.1))}
+            size={Math.min(160, Math.max(48, outerOrbit(composition.bands).rx * unit * 1.1))}
             label={system.label}
             kind="system"
             hypothetical={system.truthStatus === 'hypothetical'}
@@ -151,7 +165,6 @@ function lastSystemIdOf(index: SceneProps['index'], placeId: string): string | u
 
 function ClusterDrawing({
   session,
-  system,
   position,
   composition,
   unit,
@@ -161,7 +174,6 @@ function ClusterDrawing({
   selected,
 }: {
   readonly session: SceneProps['session'];
-  readonly system: SceneDescriptor;
   readonly position: Vec;
   readonly composition: ReturnType<typeof composeSystem>;
   readonly unit: number;
@@ -173,11 +185,27 @@ function ClusterDrawing({
   const starRadius = level === 'far' ? 5 : STAR_RADIUS * unit;
   return (
     <>
-      {selected ? <Circle cx={position.x} cy={position.y} r={Math.max(26, 90 * unit)} fill="none" stroke={space.focus} strokeWidth={2} /> : null}
+      {selected ? (
+        <Circle
+          cx={position.x}
+          cy={position.y}
+          r={Math.max(26, 90 * unit)}
+          fill="none"
+          stroke={space.focus}
+          strokeWidth={2}
+        />
+      ) : null}
       {level === 'far'
         ? null
         : composition.bands.map((band) => (
-            <OrbitRing key={band} cx={position.x} cy={position.y} rx={ORBIT_BANDS[band].rx * unit} ry={ORBIT_BANDS[band].ry * unit} calm={calm} />
+            <OrbitRing
+              key={band}
+              cx={position.x}
+              cy={position.y}
+              rx={ORBIT_BANDS[band].rx * unit}
+              ry={ORBIT_BANDS[band].ry * unit}
+              calm={calm}
+            />
           ))}
       <StarGlyph cx={position.x} cy={position.y} r={Math.max(4, starRadius)} calm={calm} />
       {level === 'far'
@@ -203,7 +231,10 @@ function ClusterDrawing({
                 cx={at.x}
                 cy={at.y}
                 r={Math.max(2.5, 8 * unit)}
-                fill={(planetCalm ? calmColours(BODY_COLOURS[descriptor.palette]) : BODY_COLOURS[descriptor.palette]).oceanMid}
+                fill={
+                  (planetCalm ? calmColours(BODY_COLOURS[descriptor.palette]) : BODY_COLOURS[descriptor.palette])
+                    .oceanMid
+                }
                 stroke={content.paper}
                 strokeOpacity={0.3}
               />

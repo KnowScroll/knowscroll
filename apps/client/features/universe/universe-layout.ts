@@ -23,7 +23,8 @@ export interface UniverseIndex {
   readonly routes: readonly SceneRoute[];
 }
 
-const byLabel = (a: SceneDescriptor, b: SceneDescriptor) => a.label.localeCompare(b.label) || a.objectId.localeCompare(b.objectId);
+const byLabel = (a: SceneDescriptor, b: SceneDescriptor) =>
+  a.label.localeCompare(b.label) || a.objectId.localeCompare(b.objectId);
 
 /** Groups descriptors by their parent. Order inside a group is by label, only for stable output. */
 export function indexUniverse(descriptors: readonly SceneDescriptor[], routes: readonly SceneRoute[]): UniverseIndex {
@@ -39,7 +40,14 @@ export function indexUniverse(descriptors: readonly SceneDescriptor[], routes: r
     else if (d.kind === 'region') push(regions, d.parentId, d);
   }
   for (const group of [...planets.values(), ...regions.values()]) group.sort(byLabel);
-  return { byId, systems: descriptors.filter((d) => d.kind === 'system').sort(byLabel), stars, planets, regions, routes };
+  return {
+    byId,
+    systems: descriptors.filter((d) => d.kind === 'system').sort(byLabel),
+    stars,
+    planets,
+    regions,
+    routes,
+  };
 }
 
 /** The system a place belongs to, whatever its kind. */
@@ -84,6 +92,8 @@ export const ORBIT_BANDS = [
   { rx: 196, ry: 96 },
 ] as const;
 export type OrbitBand = 0 | 1 | 2;
+/** The outermost orbit a system uses; the one it is as wide as. */
+export const outerOrbit = (bands: readonly OrbitBand[]) => ORBIT_BANDS[bands.at(-1) ?? 0];
 /** Radii of a star and a planet in composition units. */
 export const STAR_RADIUS = 24;
 export const PLANET_RADIUS = 19;
@@ -166,7 +176,8 @@ export function composeRegions(index: UniverseIndex, planet: SceneDescriptor): r
     const [seedUnit] = unitsFromId(descriptor.seed);
     const offset = placed.length
       ? candidates.reduce((best, spot) => {
-          const gap = (candidate: Vec) => Math.min(...placed.map((region) => length(difference(candidate, region.offset))));
+          const gap = (candidate: Vec) =>
+            Math.min(...placed.map((region) => length(difference(candidate, region.offset))));
           return gap(spot) > gap(best) + 1e-9 ? spot : best;
         })
       : candidates[Math.floor(seedUnit * candidates.length) % candidates.length]!;
@@ -251,7 +262,9 @@ export function placeLabels(
   blockers: readonly { x: number; y: number; width: number; height: number }[] = [],
 ): readonly PlacedLabel[] {
   const placed: PlacedLabel[] = [];
-  const ordered = requests.map((request, order) => ({ request, order })).sort((a, b) => b.request.priority - a.request.priority || a.order - b.order);
+  const ordered = requests
+    .map((request, order) => ({ request, order }))
+    .sort((a, b) => b.request.priority - a.request.priority || a.order - b.order);
   for (const { request } of ordered) {
     const { anchor, clearance, width, height } = request;
     const candidates = [
@@ -276,12 +289,14 @@ export function placeLabels(
   return placed;
 }
 
+/** No recent activity. Quiet only changes how a place is drawn and listed, never whether it exists. */
+export const isQuiet = (place: SceneDescriptor) =>
+  place.activity.availability === 'available' && place.activity.state === 'quiet';
+
 export interface OutlineRow {
   readonly place: SceneDescriptor;
   readonly depth: 0 | 1 | 2;
 }
-
-const isQuiet = (place: SceneDescriptor) => place.activity.availability === 'available' && place.activity.state === 'quiet';
 
 /**
  * The accessible outline of the whole map: every system, its planets and their regions, nothing

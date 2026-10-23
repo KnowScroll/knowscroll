@@ -217,7 +217,10 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     if (restored || !remembered) return;
     restored = true;
     const absent = isAbsent(remembered, now());
-    const lastPlace = remembered.lastPlace && places().some((p) => p.id === remembered.lastPlace!.id) ? remembered.lastPlace : undefined;
+    const lastPlace =
+      remembered.lastPlace && places().some((p) => p.id === remembered.lastPlace!.id)
+        ? remembered.lastPlace
+        : undefined;
     const camera: CameraEntry = {
       focusId: remembered.focusId,
       frame: remembered.frame,

@@ -30,8 +30,7 @@ export function OutlineList({
   // Open on the place the person is looking at, so the outline answers "where am I".
   useEffect(() => {
     if (currentRow > 0) list.current?.scrollToIndex({ index: currentRow, viewPosition: 0.3, animated: false });
-    // Only when the list opens or the focus changes, not when Lately reorders it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the list opens or the focus changes, not when Lately reorders it.
   }, [state.focusId]);
   const current = state.focusId ? index.byId.get(state.focusId) : undefined;
   const ancestors = new Set<string>();
@@ -92,14 +91,26 @@ export function UniverseListSheet({
   readonly index: UniverseIndex;
 }) {
   return (
-    <BottomSheet visible title="Your universe" closeLabel="Close list view" onClose={() => session.back()} testID="universe-list-sheet">
+    <BottomSheet
+      visible
+      title="Your universe"
+      closeLabel="Close list view"
+      onClose={() => session.back()}
+      testID="universe-list-sheet"
+    >
       <View style={styles.lens}>
         <Text variant="bodyS" color={content.ink2} style={styles.lensText}>
           {state.lately
             ? 'Lately on: places with recent activity come first in each group.'
             : 'Every place, in order. Turn on Lately to see recent activity first.'}
         </Text>
-        <Button label="Lately" size="sm" variant={state.lately ? 'ink' : 'default'} toggled={state.lately} onPress={() => session.setLately(!state.lately)} />
+        <Button
+          label="Lately"
+          size="sm"
+          variant={state.lately ? 'ink' : 'default'}
+          toggled={state.lately}
+          onPress={() => session.setLately(!state.lately)}
+        />
       </View>
       <View style={styles.sheetList}>
         <OutlineList session={session} state={state} index={index} />

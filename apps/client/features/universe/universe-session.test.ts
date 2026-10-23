@@ -2,6 +2,7 @@ import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
 import { waitFor } from '@testing-library/react-native';
 import { createUniverseViewSession } from './universe-session';
+import { saveUniverseMemory } from './universe-memory';
 import { universeSessionFor } from './use-universe-session';
 import { fixtureId, fixtureAccount, sceneFixture, universeHarness } from './universe.fixture';
 // Authored valid UUIDs replace Expo's native Jest UUID stub; production IDs are unchanged.
@@ -30,8 +31,10 @@ it('loads through the real core; hierarchy/travel/Back restore the precise priva
   expect(s.focus(fixtureId(999))).toBe(false);
   expect(s.travel(fixtureId(999))).toBe(false);
   expect(h.calls.every((p) => p.startsWith('/v1/universe/'))).toBe(true);
-  expect(h.store.keys()).toEqual([]);
+  // Only the camera memory is kept on the device; it is purged with the scope.
+  expect(h.store.keys().every((key) => key.endsWith('.universe.view.v1'))).toBe(true);
   h.scope.end();
+  expect(h.store.keys()).toEqual([]);
 });
 it('retains stale own labels, then clears every private resource on authority refusal and same-ID scope replacement', async () => {
   const h = universeHarness(),
@@ -330,4 +333,120 @@ it('formation is a pure current-map read until the service confirms a real claim
   expect(replacement.formation.getState()).toEqual({ status: 'idle' });
   expect(next.calls).toEqual([]);
   next.scope.end();
+});
+
+describe('what a person does on the map', () => {
+  it('reads dust cues without making them places, and again when the map foregrounds', async () => {
+    const h = universeHarness(0, 2),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await waitFor(() => expect(s.getState().dust.status).toBe('ready'));
+    expect(s.getState().dust.cues).toHaveLength(2);
+    expect(s.places()).toEqual([]);
+    const reads = () => h.calls.filter((path) => path.endsWith('/emerging/read')).length;
+    const before = reads();
+    s.setForeground(false);
+    s.setForeground(true);
+    await waitFor(() => expect(reads()).toBeGreaterThan(before));
+    h.scope.end();
+    expect(s.getState().dust).toEqual({ status: 'idle', cues: [] });
+  });
+
+  it('keeps the Lately lens and the ship per device, and purges both with the scope', async () => {
+    const h = universeHarness(),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    s.setLately(true);
+    s.focus(fixtureId(12));
+    expect(s.getState().lastPlace).toEqual({ id: fixtureId(12), label: 'CI planet 2', kind: 'planet' });
+    s.setForeground(false);
+    const next = createUniverseViewSession(h.scope);
+    expect(next.getState().lately).toBe(true);
+    expect(next.getState().lastPlace?.id).toBe(fixtureId(12));
+    next.setForeground(true);
+    await ready(next);
+    // Away only a moment: the camera comes back to the planet itself.
+    expect(next.getState().focusId).toBe(fixtureId(12));
+    expect(next.getState().absent).toBe(false);
+    h.scope.end();
+    expect(h.store.keys()).toEqual([]);
+  });
+
+  it('after a long absence starts framed on everything with the ship at its last place', async () => {
+    const h = universeHarness(),
+      first = createUniverseViewSession(h.scope);
+    first.setForeground(true);
+    await ready(first);
+    first.focus(fixtureId(12));
+    first.setForeground(false);
+    const days = 4 * 24 * 60 * 60 * 1000;
+    const later = createUniverseViewSession(h.scope, undefined, () => Date.now() + days);
+    later.setForeground(true);
+    await ready(later);
+    expect(later.getState().focusId).toBeNull();
+    expect(later.getState().absent).toBe(true);
+    expect(later.getState().lastPlace?.label).toBe('CI planet 2');
+    expect(later.focusLast()).toBe(true);
+    expect(later.getState().focusId).toBe(fixtureId(12));
+    expect(later.getState().absent).toBe(false);
+    h.scope.end();
+  });
+
+  it('forgets a remembered place that is no longer on the map', async () => {
+    const h = universeHarness();
+    saveUniverseMemory(h.scope, {
+      focusId: fixtureId(999),
+      frame: { x: 3, y: 4, scale: 2 },
+      lately: false,
+      lastPlace: { id: fixtureId(999), label: 'Gone', kind: 'planet' },
+      seenAt: Date.now(),
+    });
+    const s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    expect(s.getState()).toMatchObject({ focusId: null, lastPlace: undefined, absent: false });
+    expect(s.focusLast()).toBe(false);
+    h.scope.end();
+  });
+
+  it('picks a system without entering it, up steps through the hierarchy, and choosing a region opens its card', async () => {
+    const h = universeHarness(),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    s.select(fixtureId(10));
+    expect(s.getState().selectedId).toBe(fixtureId(10));
+    expect(s.getState().focusId).toBeNull();
+    expect(s.back()).toBe(true);
+    expect(s.getState().selectedId).toBeNull();
+    s.focus(fixtureId(14));
+    expect(s.getState()).toMatchObject({ focusId: fixtureId(14), overlay: 'place', selectedId: null });
+    s.up();
+    expect(s.getState()).toMatchObject({ focusId: fixtureId(12), overlay: null });
+    s.up();
+    expect(s.getState().focusId).toBe(fixtureId(10));
+    s.up();
+    expect(s.getState().focusId).toBeNull();
+    // A region card needs a focused region.
+    s.showOverlay('place');
+    expect(s.getState().overlay).toBeNull();
+    s.showOverlay('search');
+    expect(s.getState().overlay).toBe('search');
+    expect(s.canBack()).toBe(true);
+    h.scope.end();
+  });
+
+  it('moving between regions of one planet replaces the view instead of stacking Back steps', async () => {
+    const h = universeHarness(),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    s.focus(fixtureId(12));
+    s.focus(fixtureId(14));
+    const depth = s.getState().historyDepth;
+    s.focus(fixtureId(14));
+    expect(s.getState().historyDepth).toBe(depth);
+    h.scope.end();
+  });
 });

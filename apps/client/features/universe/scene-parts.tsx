@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { content, focusRing, highlightRing, space, target } from '@knowscroll/design-tokens';
-import { Text } from '@knowscroll/ui';
+import { content, highlightRing, space, target } from '@knowscroll/design-tokens';
+import { Text, useFocusRing } from '@knowscroll/ui';
 import type { UniverseIndex, Size, PlacedLabel } from './universe-layout';
 import type { UniverseViewSession, UniverseViewState } from './universe-session';
 
@@ -50,7 +50,7 @@ export function BodyTarget({
   readonly onPress: () => void;
   readonly testID: string;
 }) {
-  const [focused, setFocused] = useState(false);
+  const focus = useFocusRing('onDark');
   const side = Math.max(size, target.comfortable);
   return (
     <Pressable
@@ -59,19 +59,11 @@ export function BodyTarget({
       accessibilityLabel={kind ? `${label}, ${KIND_PHRASE[kind]}${hypothetical ? ', hypothetical' : ''}` : label}
       accessibilityState={{ selected: Boolean(selected) }}
       onPress={onPress}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+      {...focus.props}
       style={[
         styles.target,
         { left: x - side / 2, top: y - side / 2, width: side, height: side, borderRadius: side / 2 },
-        focused
-          ? {
-              outlineColor: focusRing.onDark.color,
-              outlineWidth: focusRing.onDark.width,
-              outlineOffset: -focusRing.onDark.width,
-              outlineStyle: 'solid',
-            }
-          : null,
+        focus.style,
         selected ? { borderWidth: highlightRing.width, borderColor: highlightRing.color } : null,
       ]}
     />

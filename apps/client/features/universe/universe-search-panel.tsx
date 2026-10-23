@@ -90,6 +90,12 @@ const styles = StyleSheet.create({
     borderWidth: borderWidth.regular,
     borderColor: content.ink,
   },
-  result: { minHeight: 56, justifyContent: 'center', paddingHorizontal: spacing[4], paddingVertical: spacing[2], gap: 2 },
+  result: {
+    minHeight: 56,
+    justifyContent: 'center',
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2],
+    gap: 2,
+  },
   hint: { paddingHorizontal: spacing[1] },
 });

@@ -79,12 +79,11 @@ export function UniverseStage({
     };
     element.addEventListener('wheel', wheel, { passive: false });
     return () => element.removeEventListener('wheel', wheel);
-    // `zoom` only reads the session's current frame, so one listener per session is enough.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `zoom` only reads the session's current frame, so one listener per session is enough.
   }, [session]);
   const onKeyDown: NonNullable<ViewProps['onKeyDown']> = (event) => {
     if (event.target !== event.currentTarget || !('key' in event.nativeEvent)) return;
-    const key = event.nativeEvent.key as string;
+    const key = event.nativeEvent.key;
     const moves: Record<string, () => void> = {
       ArrowLeft: () => pan(-KEY_PAN, 0),
       ArrowRight: () => pan(KEY_PAN, 0),

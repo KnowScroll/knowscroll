@@ -3,14 +3,11 @@ import { content } from '@knowscroll/design-tokens';
 import type { SceneDescriptor } from '@knowscroll/scene-core';
 import { LandmarkGlyph, PlanetGlyph, RegionPin, ShipGlyph, silhouettePath, type LandmarkKind } from './universe-bodies';
 import { BODY_COLOURS } from './universe-palette';
-import { composeRegions, placeLabels, unitsFromId, type LabelRequest } from './universe-layout';
+import { composeRegions, isQuiet, placeLabels, unitsFromId, type LabelRequest } from './universe-layout';
 import { BodyTarget, labelWidth, MapLabel, PILL_HEIGHT, SceneLayer, type SceneProps } from './scene-parts';
 
 /** How far the camera drops toward the land when a region is chosen (U03 "Region focus"). */
 const REGION_ZOOM = 2.2;
-
-const isQuiet = (descriptor: SceneDescriptor) =>
-  descriptor.activity.availability === 'available' && descriptor.activity.state === 'quiet';
 
 /**
  * U03 and U04: a planet drawn as a place, with its regions as pins on the land. Choosing a pin
@@ -30,12 +27,18 @@ export function PlanetScene({
   const baseRadius = Math.min(size.width * 0.39, size.height * 0.3);
   const zoom = selectedRegion ? REGION_ZOOM : 1;
   const radius = baseRadius * zoom * state.frame.scale;
-  const focus = regions.find(({ descriptor }) => descriptor.objectId === selectedRegion?.objectId)?.offset ?? { x: 0, y: 0 };
+  const focus = regions.find(({ descriptor }) => descriptor.objectId === selectedRegion?.objectId)?.offset ?? {
+    x: 0,
+    y: 0,
+  };
   const centre = {
     x: size.width / 2 - focus.x * radius - state.frame.x,
     y: size.height * (selectedRegion ? 0.36 : 0.34) - focus.y * radius - state.frame.y,
   };
-  const pinAt = (offset: { x: number; y: number }) => ({ x: centre.x + offset.x * radius, y: centre.y + offset.y * radius });
+  const pinAt = (offset: { x: number; y: number }) => ({
+    x: centre.x + offset.x * radius,
+    y: centre.y + offset.y * radius,
+  });
   const pinSize = Math.min(15, 11 + (zoom - 1) * 3);
   const route = [...regions]
     .sort((a, b) => a.offset.x - b.offset.x || a.offset.y - b.offset.y)
@@ -51,7 +54,8 @@ export function PlanetScene({
     clearance: pinSize + 6,
     width: labelWidth(descriptor.label, 18),
     height: PILL_HEIGHT,
-    priority: descriptor.objectId === selectedRegion?.objectId ? 3 : descriptor.objectId === state.lastPlace?.id ? 2 : 1,
+    priority:
+      descriptor.objectId === selectedRegion?.objectId ? 3 : descriptor.objectId === state.lastPlace?.id ? 2 : 1,
   }));
   const labels = placeLabels(requests, size);
   return (
@@ -79,13 +83,25 @@ export function PlanetScene({
           />
         ) : null}
         {landmarkRegion ? (
-          <LandmarkGlyph x={pinAt(landmarkRegion.offset).x + pinSize * 1.7} y={pinAt(landmarkRegion.offset).y - pinSize * 1.7} kind={landmarkKind} />
+          <LandmarkGlyph
+            x={pinAt(landmarkRegion.offset).x + pinSize * 1.7}
+            y={pinAt(landmarkRegion.offset).y - pinSize * 1.7}
+            kind={landmarkKind}
+          />
         ) : null}
         {regions.map(({ descriptor, offset }) => (
-          <RegionPin key={descriptor.objectId} x={pinAt(offset).x} y={pinAt(offset).y} size={pinSize} selected={descriptor.objectId === selectedRegion?.objectId} />
+          <RegionPin
+            key={descriptor.objectId}
+            x={pinAt(offset).x}
+            y={pinAt(offset).y}
+            size={pinSize}
+            selected={descriptor.objectId === selectedRegion?.objectId}
+          />
         ))}
         {parked ? <ShipGlyph x={pinAt(parked.offset).x + 30} y={pinAt(parked.offset).y - 26} /> : null}
-        {state.lastPlace?.id === planet.objectId ? <ShipGlyph x={centre.x - radius * 0.95} y={centre.y + radius * 0.92} /> : null}
+        {state.lastPlace?.id === planet.objectId ? (
+          <ShipGlyph x={centre.x - radius * 0.95} y={centre.y + radius * 0.92} />
+        ) : null}
       </Svg>
       <SceneLayer>
         {labels.map((label) => {
@@ -145,7 +161,13 @@ export function FlatPlanet({
     <>
       <Svg width={width} height={height} pointerEvents="none" aria-hidden>
         <Rect x={0} y={0} width={width} height={height} rx={14} fill={colours.oceanMid} />
-        <Path d={silhouettePath(geometry, centre, (radius * 1.15) / geometry.radius)} fill={colours.land} stroke={colours.stroke} strokeWidth={1.5} strokeLinejoin="round" />
+        <Path
+          d={silhouettePath(geometry, centre, (radius * 1.15) / geometry.radius)}
+          fill={colours.land}
+          stroke={colours.stroke}
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+        />
         {composeRegions(index, planet).map(({ descriptor, offset }) => (
           <RegionPin
             key={descriptor.objectId}

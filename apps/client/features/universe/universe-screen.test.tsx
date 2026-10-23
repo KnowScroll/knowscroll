@@ -14,6 +14,7 @@ jest.mock('../../platform/command-id', () => {
   return { newCommandId: () => `0199a000-0000-7000-8000-${(next++).toString(16).padStart(12, '0')}` };
 });
 const mockNavigate = jest.fn();
+let mockParams: Record<string, string> = {};
 jest.mock('../../providers/account-scope', () => ({
   useAccountScope: () => ({ state: { status: 'signed_in', scope: mockScope } }),
   useAccountInitial: () => 'F',
@@ -23,11 +24,13 @@ jest.mock('expo-router', () => {
   return {
     useFocusEffect: (effect: EffectCallback) => useEffect(effect, [effect]),
     useRouter: () => ({ navigate: mockNavigate, canGoBack: () => false }),
+    useLocalSearchParams: () => mockParams,
   };
 });
 jest.mock('expo-status-bar', () => ({ setStatusBarStyle: jest.fn() }));
 beforeEach(() => {
   mockNavigate.mockReset();
+  mockParams = {};
   Object.defineProperty(AppState, 'currentState', { value: 'active', configurable: true });
 });
 it('mounts the real core in StrictMode; shows loading, then actual empty without invented worlds', async () => {
@@ -53,21 +56,91 @@ it('mounts the real core in StrictMode; shows loading, then actual empty without
   await v.unmount();
   h.scope.end();
 });
-it('uses the actual mounted map/outline/card and does not manufacture a region encounter', async () => {
+it('draws the real map; the list view reaches a region whose card never manufactures an encounter', async () => {
   const h = universeHarness();
   mockScope = h.scope;
   const v = await render(<UniverseScreen />);
   await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
+  expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'CI region 4 · region' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'Place details' }));
-  await waitFor(() => expect(screen.getByText('Encounters from this place aren’t available.')).toBeOnTheScreen());
+  await fireEvent.press(screen.getByRole('button', { name: 'CI region 4, region' }));
+  await waitFor(() => expect(screen.getByText('Encounters from this region aren’t available yet.')).toBeOnTheScreen());
   await waitFor(() => expect(h.calls.filter((p) => p.endsWith('/region/preview'))).toHaveLength(1));
   expect(h.calls.every((p) => p.startsWith('/v1/universe/') || p === '/v1/experience/region/preview')).toBe(true);
   expect(h.calls.some((p) => /region\/open|activate|observations/.test(p))).toBe(false);
   await act(() => h.scope.end());
   expect(screen.queryByText('CI region 4')).toBeNull();
   await v.unmount();
+});
+
+it('flies from the map into a system and a planet, with Back steps up and the ship parked where they went', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  const v = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
+  expect(screen.getByRole('header', { name: 'Your universe' })).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
+  expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
+  expect(screen.getByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
+  expect(screen.getByText('Tap a region to land.')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: 'Back to CI system 0' }));
+  expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: 'Back to Universe' }));
+  expect(screen.getByRole('button', { name: 'Return to CI planet 2' })).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: 'Return to CI planet 2' }));
+  expect(screen.getByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+it('searches and toggles Lately without leaving the map, and none of it is a command', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  const v = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Search your universe' })).toBeOnTheScreen());
+  await fireEvent.press(screen.getByRole('togglebutton', { name: 'Lately' }));
+  expect(h.scope.storage.get('universe.view.v1')).toContain('"lately":true');
+  await fireEvent.press(screen.getByRole('button', { name: 'Search your universe' }));
+  await fireEvent.changeText(screen.getByLabelText('Search your universe'), 'planet 3');
+  await fireEvent.press(screen.getByRole('button', { name: /CI planet 3, planet/ }));
+  expect(screen.getByRole('header', { name: 'CI planet 3' })).toBeOnTheScreen();
+  await fireEvent.changeText(
+    screen.queryByLabelText('Search your universe') ?? screen.getByRole('header', { name: 'CI planet 3' }),
+    'x',
+  );
+  expect(h.calls.every((p) => p.startsWith('/v1/universe/') || p === '/v1/experience/region/preview')).toBe(true);
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+it('shows dust as an unlabelled, non-navigable cue before any system exists', async () => {
+  const h = universeHarness(0, 1);
+  mockScope = h.scope;
+  const v = await render(<UniverseScreen />);
+  const cue = await screen.findByRole('button', { name: 'Recent reading is gathering here' });
+  expect(screen.queryByText('Your universe starts quiet.')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'List view' })).toBeNull();
+  await fireEvent.press(cue);
+  expect(screen.getByText('Recent explorations are gathering here.')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: 'Close note' }));
+  expect(screen.queryByText('Recent explorations are gathering here.')).toBeNull();
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+it('flies to the last place on ?focus=last', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  const first = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
+  await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
+  await first.unmount();
+  mockParams = { focus: 'last' };
+  const second = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen());
+  await act(() => h.scope.end());
+  await second.unmount();
 });
 
 it('shows only an actual correlated card; deliberate Open sends displayed ref and exact local map return closes the dialog', async () => {
@@ -140,8 +213,7 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
   const view = await render(<UniverseScreen />);
   await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'CI region 4 · region' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'Place details' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'CI region 4, region' }));
   await waitFor(() => expect(screen.getByText('CI region explanation')).toBeOnTheScreen());
   expect(calls.filter((c) => c.path.endsWith('/region/open'))).toHaveLength(0);
   expect(calls.some((c) => /activate|observations|actions/.test(c.path))).toBe(false);
@@ -157,8 +229,11 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
     expect(encounterSessionFor(scope).back()).toBe(true);
   });
   expect(mockNavigate).toHaveBeenCalledWith('/universe');
-  expect(screen.queryByRole('dialog')).toBeNull();
-  expect(screen.getByRole('header', { name: /^CI region 4$/ })).toBeOnTheScreen();
+  expect(screen.queryByTestId('universe-region-card')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Back to CI planet 2' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'CI region 4, a region' }).props.accessibilityState).toMatchObject({
+    selected: true,
+  });
   await act(() => scope.end());
   await view.unmount();
 });

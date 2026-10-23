@@ -73,7 +73,11 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
 
   const dust = state.dust.cues.length > 0;
   if (read.status === 'empty' && !dust)
-    return state.dust.status === 'idle' || state.dust.status === 'loading' ? <QuietGround label="Looking at your universe" /> : <EmptyUniverseScreen />;
+    return state.dust.status === 'idle' || state.dust.status === 'loading' ? (
+      <QuietGround label="Looking at your universe" />
+    ) : (
+      <EmptyUniverseScreen />
+    );
   if (!snapshot && read.status !== 'empty')
     return <Unavailable session={session} state={state} onExplore={() => router.navigate('/explore')} />;
   return (
@@ -154,4 +158,3 @@ const styles = StyleSheet.create({
   centred: { flex: 1, justifyContent: 'center', gap: spacing[4] },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
 });
-

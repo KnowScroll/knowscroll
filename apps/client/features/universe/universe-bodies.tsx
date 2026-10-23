@@ -97,9 +97,19 @@ export function PlanetGlyph({ cx, cy, r, geometry, seed, calm, low, terminator }
             />
           </G>
         )}
-        {terminator && !calm ? <Circle cx={cx + r * 1.3} cy={cy + r * 0.85} r={r * 1.5} fill={space.s0} opacity={0.22} /> : null}
+        {terminator && !calm ? (
+          <Circle cx={cx + r * 1.3} cy={cy + r * 0.85} r={r * 1.5} fill={space.s0} opacity={0.22} />
+        ) : null}
       </G>
-      <Circle cx={cx} cy={cy} r={r + 0.5} fill="none" stroke={calm ? space.orbit : '#B8FFF4'} strokeOpacity={calm ? 1 : 0.5} strokeWidth={1.5} />
+      <Circle
+        cx={cx}
+        cy={cy}
+        r={r + 0.5}
+        fill="none"
+        stroke={calm ? space.orbit : '#B8FFF4'}
+        strokeOpacity={calm ? 1 : 0.5}
+        strokeWidth={1.5}
+      />
     </G>
   );
 }
@@ -120,9 +130,30 @@ export function StarGlyph({ cx, cy, r, calm }: { cx: number; cy: number; r: numb
 }
 
 /** An orbit hairline: decoration only. */
-export function OrbitRing({ cx, cy, rx, ry, calm }: { cx: number; cy: number; rx: number; ry: number; calm?: boolean }) {
+export function OrbitRing({
+  cx,
+  cy,
+  rx,
+  ry,
+  calm,
+}: {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  calm?: boolean;
+}) {
   return (
-    <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="none" stroke={content.paper} strokeOpacity={calm ? 0.1 : 0.18} strokeWidth={1.2} />
+    <Ellipse
+      cx={cx}
+      cy={cy}
+      rx={rx}
+      ry={ry}
+      fill="none"
+      stroke={content.paper}
+      strokeOpacity={calm ? 0.1 : 0.18}
+      strokeWidth={1.2}
+    />
   );
 }
 
@@ -159,7 +190,18 @@ export function DustGlyph({ cx, cy, r, id, lone }: { cx: number; cy: number; r: 
     <G>
       <Circle cx={cx} cy={cy} r={r} fill="#0E3A3F" opacity={lone ? 0.55 : 0.4} />
       <Circle cx={cx} cy={cy} r={r * 0.66} fill="#12525A" opacity={0.35} />
-      {lone ? <Circle cx={cx} cy={cy} r={r * 0.9} fill="none" stroke={content.paper} strokeOpacity={0.35} strokeDasharray="2 6" strokeLinecap="round" /> : null}
+      {lone ? (
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={r * 0.9}
+          fill="none"
+          stroke={content.paper}
+          strokeOpacity={0.35}
+          strokeDasharray="2 6"
+          strokeLinecap="round"
+        />
+      ) : null}
       {specks.map((speck, index) => (
         <Circle key={index} cx={speck.x} cy={speck.y} r={speck.size} fill={content.paper} opacity={0.55} />
       ))}
@@ -200,9 +242,19 @@ export function LandmarkGlyph({ x, y, kind }: { x: number; y: number; kind: Land
   if (kind === 'lighthouse')
     return (
       <G>
-        <Path d={`M ${x - 3} ${y + 8} L ${x - 2} ${y - 6} L ${x + 2} ${y - 6} L ${x + 3} ${y + 8} Z`} fill={content.paper} stroke={content.ink} strokeWidth={1} />
+        <Path
+          d={`M ${x - 3} ${y + 8} L ${x - 2} ${y - 6} L ${x + 2} ${y - 6} L ${x + 3} ${y + 8} Z`}
+          fill={content.paper}
+          stroke={content.ink}
+          strokeWidth={1}
+        />
         <Rect x={x - 3} y={y - 10} width={6} height={4} fill={space.focus} />
-        <Path d={`M ${x + 3} ${y - 8} L ${x + 22} ${y - 16} M ${x + 3} ${y - 8} L ${x + 22} ${y - 2}`} stroke={space.focus} strokeOpacity={0.75} strokeWidth={1.5} />
+        <Path
+          d={`M ${x + 3} ${y - 8} L ${x + 22} ${y - 16} M ${x + 3} ${y - 8} L ${x + 22} ${y - 2}`}
+          stroke={space.focus}
+          strokeOpacity={0.75}
+          strokeWidth={1.5}
+        />
       </G>
     );
   return (

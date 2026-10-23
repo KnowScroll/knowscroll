@@ -6,7 +6,19 @@ import { Button, IconButton, Text } from '@knowscroll/ui';
 import type { UniversePlace, UniverseViewSession, UniverseViewState } from './universe-session';
 
 /** The paper card the map shows for one place (U04 "Regions & topic card", U08 selection). */
-function CardFrame({ title, eyebrow, onClose, children, testID }: { title: string; eyebrow: string; onClose: () => void; children: ReactNode; testID: string }) {
+function CardFrame({
+  title,
+  eyebrow,
+  onClose,
+  children,
+  testID,
+}: {
+  title: string;
+  eyebrow: string;
+  onClose: () => void;
+  children: ReactNode;
+  testID: string;
+}) {
   const headingRef = useRef<ComponentRef<typeof View>>(null);
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -39,7 +51,12 @@ function CardFrame({ title, eyebrow, onClose, children, testID }: { title: strin
 /** A system picked on the far map: its name and the way in. It carries no counts or scores. */
 export function SystemCard({ session, place }: { session: UniverseViewSession; place: UniversePlace }) {
   return (
-    <CardFrame testID="universe-system-card" eyebrow="A system" title={place.label} onClose={() => session.select(null)}>
+    <CardFrame
+      testID="universe-system-card"
+      eyebrow="A system"
+      title={place.label}
+      onClose={() => session.select(null)}
+    >
       <View style={styles.actions}>
         <Button label="Open system" variant="ink" onPress={() => session.focus(place.id)} />
         <Button label="Close" variant="ghost" onPress={() => session.select(null)} />

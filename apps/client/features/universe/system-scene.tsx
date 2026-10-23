@@ -2,17 +2,28 @@ import Svg, { Path } from 'react-native-svg';
 import { space } from '@knowscroll/design-tokens';
 import type { SceneDescriptor } from '@knowscroll/scene-core';
 import { OrbitRing, PlanetGlyph, ShipGlyph, StarGlyph } from './universe-bodies';
-import { composeSystem, placeLabels, ORBIT_BANDS, PLANET_RADIUS, STAR_RADIUS, type LabelRequest } from './universe-layout';
+import {
+  composeSystem,
+  isQuiet,
+  placeLabels,
+  ORBIT_BANDS,
+  PLANET_RADIUS,
+  STAR_RADIUS,
+  type LabelRequest,
+} from './universe-layout';
 import { BodyTarget, labelWidth, LABEL_HEIGHT, MapLabel, SceneLayer, type SceneProps } from './scene-parts';
-
-const isQuiet = (descriptor: SceneDescriptor) =>
-  descriptor.activity.availability === 'available' && descriptor.activity.state === 'quiet';
 
 /**
  * U02: one system, organised by its star. Planets sit on orbits in the direction their persisted
  * anchors have from the star; a dashed line joins planets the Cartographer routed together.
  */
-export function SystemScene({ session, state, index, size, system }: SceneProps & { readonly system: SceneDescriptor }) {
+export function SystemScene({
+  session,
+  state,
+  index,
+  size,
+  system,
+}: SceneProps & { readonly system: SceneDescriptor }) {
   const composition = composeSystem(index, system);
   const unit =
     Math.min((size.width * 0.5) / composition.extent.width, (size.height * 0.24) / composition.extent.height, 1.5) *
@@ -34,7 +45,13 @@ export function SystemScene({ session, state, index, size, system }: SceneProps 
     <>
       <Svg width={size.width} height={size.height} pointerEvents="none" aria-hidden>
         {composition.bands.map((band) => (
-          <OrbitRing key={band} cx={centre.x} cy={centre.y} rx={ORBIT_BANDS[band].rx * unit} ry={ORBIT_BANDS[band].ry * unit} />
+          <OrbitRing
+            key={band}
+            cx={centre.x}
+            cy={centre.y}
+            rx={ORBIT_BANDS[band].rx * unit}
+            ry={ORBIT_BANDS[band].ry * unit}
+          />
         ))}
         {composition.routes.map((route) => {
           const from = at(route.from),
@@ -69,7 +86,9 @@ export function SystemScene({ session, state, index, size, system }: SceneProps 
             />
           ) : null;
         })}
-        {parked ? <ShipGlyph x={at(parked.position).x + planetRadius + 18} y={at(parked.position).y - planetRadius - 6} /> : null}
+        {parked ? (
+          <ShipGlyph x={at(parked.position).x + planetRadius + 18} y={at(parked.position).y - planetRadius - 6} />
+        ) : null}
       </Svg>
       <SceneLayer>
         {labels.map((label) => {

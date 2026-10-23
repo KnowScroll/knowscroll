@@ -68,9 +68,17 @@ export function calmer(hex: string, amount = 0.35): string {
 }
 
 export function calmColours(colours: BodyColours): BodyColours {
-  return Object.fromEntries(
-    Object.entries(colours).map(([key, value]) => [key, calmer(value)]),
-  ) as unknown as BodyColours;
+  return {
+    oceanLight: calmer(colours.oceanLight),
+    oceanMid: calmer(colours.oceanMid),
+    oceanDeep: calmer(colours.oceanDeep),
+    glow: calmer(colours.glow),
+    land: calmer(colours.land),
+    landMid: calmer(colours.landMid),
+    landLight: calmer(colours.landLight),
+    landCore: calmer(colours.landCore),
+    stroke: calmer(colours.stroke),
+  };
 }
 
 export const STAR_COLOUR = space.star;

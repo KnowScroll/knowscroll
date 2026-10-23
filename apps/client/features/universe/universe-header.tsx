@@ -42,7 +42,13 @@ export function UniverseHeader({
           </Text>
           {hasPlaces ? (
             <View style={styles.actions}>
-              <IconButton icon="search" label="Search your universe" variant="onSpace" onPress={onSearch} testID="universe-search" />
+              <IconButton
+                icon="search"
+                label="Search your universe"
+                variant="onSpace"
+                onPress={onSearch}
+                testID="universe-search"
+              />
               {lens}
             </View>
           ) : null}
@@ -55,13 +61,23 @@ export function UniverseHeader({
       </View>
     );
   const parent =
-    view.kind === 'system' ? undefined : session.places().find((place) => place.id === (view.kind === 'planet' ? view.planet.parentId : ''));
-  const backLabel = view.kind === 'system' ? 'Universe' : view.selectedRegion ? view.planet.label : (parent?.label ?? 'Universe');
+    view.kind === 'system'
+      ? undefined
+      : session.places().find((place) => place.id === (view.kind === 'planet' ? view.planet.parentId : ''));
+  const backLabel =
+    view.kind === 'system' ? 'Universe' : view.selectedRegion ? view.planet.label : (parent?.label ?? 'Universe');
   const title = view.kind === 'system' ? view.system.label : view.planet.label;
   return (
     <View style={styles.root}>
       <View style={styles.row}>
-        <SpaceChip testID="universe-up" variant="solid" icon="back" label={backLabel} accessibilityLabel={`Back to ${backLabel}`} onPress={() => session.up()} />
+        <SpaceChip
+          testID="universe-up"
+          variant="solid"
+          icon="back"
+          label={backLabel}
+          accessibilityLabel={`Back to ${backLabel}`}
+          onPress={() => session.up()}
+        />
         <View style={styles.actions}>
           {view.kind === 'planet' && state.detail === 'low' ? <Tag label="Low detail" variant="onDark" /> : null}
           {view.kind === 'system' ? lens : null}
