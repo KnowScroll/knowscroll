@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { CONCEPT_CATALOGUE_VERSION, conceptMeaning } from './concepts.js';
 
 export const COVERAGE_POLICY = 'scroll-static-coverage.v1' as const;
+/** Top-level reading prose is the only block kind a coverage locator may name. */
+export const COVERAGE_LOCATOR_TYPES: readonly string[] = ['paragraph', 'quote', 'callout'];
 const Hash = z.string().regex(/^[0-9a-f]{64}$/u);
 const Ref = z.string().min(1).max(160);
 const Id = z.uuid().transform((value) => value.toLowerCase());
@@ -99,7 +101,7 @@ export function validateCoverageMapping(
     bindings.add(key);
     for (const id of binding.requiredBlockIds) {
       const block = target.blocks.find((entry) => entry.id === id);
-      if (!block || block.nested || !block.truthSupported || !['paragraph', 'quote', 'callout'].includes(block.type))
+      if (!block || block.nested || !block.truthSupported || !COVERAGE_LOCATOR_TYPES.includes(block.type))
         throw new Error('CONTENT_COVERAGE_LOCATOR_INVALID');
     }
   }
