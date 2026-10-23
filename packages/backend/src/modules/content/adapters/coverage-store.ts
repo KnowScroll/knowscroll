@@ -8,6 +8,7 @@ import type { AdmissionTx } from '../application/ports.js';
 import type {
   CoverageAdmissionPorts,
   CoverageHead,
+  CoverageHeadPorts,
   LockCurrentCoverageAuthorities,
   ReadAdmittedCoverageMapping,
 } from '../application/coverage-ports.js';
@@ -125,48 +126,53 @@ async function readHead(db: Transaction<Database>, ref: CoverageRef): Promise<Co
   };
 }
 
+/**
+ * Coverage head reads and writes inside an admission transaction the caller already holds. Shared by
+ * the standalone reviewed-command path and by generated-Scroll publication, which uses it in the
+ * same transaction as the revision it describes.
+ */
+export const coverageHeadPorts: CoverageHeadPorts = {
+  hash: canonicalSha256,
+  bytes: (value) => utf8ByteLength(canonicalJson(value)),
+  catalogue: coverageCatalogue,
+  async lockTarget(tx: AdmissionTx, ref: CoverageRef) {
+    const trx = admissionTransaction(tx);
+    await sql`select pg_advisory_xact_lock(hashtextextended(${`content.coverage:${ref.assetId}:${String(ref.assetRevision)}`},0))`.execute(
+      trx,
+    );
+    await sql`select id from content.assets where id=${ref.assetId}::uuid for share`.execute(trx);
+    await sql`select revision from content.coverage_heads where asset_id=${ref.assetId}::uuid and asset_revision=${ref.assetRevision} for update`.execute(
+      trx,
+    );
+    return readTarget(trx, ref);
+  },
+  readHead: (tx, ref) => readHead(admissionTransaction(tx), ref),
+  async append(tx, command, head) {
+    const trx = admissionTransaction(tx);
+    await sql`insert into content.coverage_revisions(asset_id,asset_revision,revision,status,mapping_sha256,command_sha256,semantic_review_reference,mapping)
+      values(${command.assetId}::uuid,${command.assetRevision},${head.authority.headRevision},${head.status},${head.authority.mappingSha256},${head.commandSha256},${head.semanticReviewReference},${JSON.stringify(head.mapping)}::jsonb)`.execute(
+      trx,
+    );
+    if (command.expectedHeadRevision === 0) {
+      await sql`insert into content.coverage_heads(asset_id,asset_revision,revision) values(${command.assetId}::uuid,${command.assetRevision},${head.authority.headRevision})`.execute(
+        trx,
+      );
+    } else {
+      const changed =
+        await sql`update content.coverage_heads set revision=${head.authority.headRevision} where asset_id=${command.assetId}::uuid and asset_revision=${command.assetRevision} and revision=${command.expectedHeadRevision} returning revision`.execute(
+          trx,
+        );
+      if (changed.rows.length !== 1) throw new Error('CONTENT_COVERAGE_HEAD_STALE');
+    }
+  },
+};
+
 /** Standalone shared Content transaction. There is no authority-minting function on public.ts. */
 export function makeCoverageAdmissionPorts(
   db: Kysely<Database>,
   reviewed: CoverageAdmissionPorts['reviewed'],
 ): CoverageAdmissionPorts {
-  return {
-    hash: canonicalSha256,
-    bytes: (value) => utf8ByteLength(canonicalJson(value)),
-    catalogue: coverageCatalogue,
-    reviewed,
-    inAdmission: makeAdmissionStore(db).inAdmission,
-    async lockTarget(tx: AdmissionTx, ref: CoverageRef) {
-      const trx = admissionTransaction(tx);
-      await sql`select pg_advisory_xact_lock(hashtextextended(${`content.coverage:${ref.assetId}:${String(ref.assetRevision)}`},0))`.execute(
-        trx,
-      );
-      await sql`select id from content.assets where id=${ref.assetId}::uuid for share`.execute(trx);
-      await sql`select revision from content.coverage_heads where asset_id=${ref.assetId}::uuid and asset_revision=${ref.assetRevision} for update`.execute(
-        trx,
-      );
-      return readTarget(trx, ref);
-    },
-    readHead: (tx, ref) => readHead(admissionTransaction(tx), ref),
-    async append(tx, command, head) {
-      const trx = admissionTransaction(tx);
-      await sql`insert into content.coverage_revisions(asset_id,asset_revision,revision,status,mapping_sha256,command_sha256,semantic_review_reference,mapping)
-        values(${command.assetId}::uuid,${command.assetRevision},${head.authority.headRevision},${head.status},${head.authority.mappingSha256},${head.commandSha256},${head.semanticReviewReference},${JSON.stringify(head.mapping)}::jsonb)`.execute(
-        trx,
-      );
-      if (command.expectedHeadRevision === 0) {
-        await sql`insert into content.coverage_heads(asset_id,asset_revision,revision) values(${command.assetId}::uuid,${command.assetRevision},${head.authority.headRevision})`.execute(
-          trx,
-        );
-      } else {
-        const changed =
-          await sql`update content.coverage_heads set revision=${head.authority.headRevision} where asset_id=${command.assetId}::uuid and asset_revision=${command.assetRevision} and revision=${command.expectedHeadRevision} returning revision`.execute(
-            trx,
-          );
-        if (changed.rows.length !== 1) throw new Error('CONTENT_COVERAGE_HEAD_STALE');
-      }
-    },
-  };
+  return { ...coverageHeadPorts, reviewed, inAdmission: makeAdmissionStore(db).inAdmission };
 }
 
 /** Composition-only, default-deny admission capability bound to source-reviewed command digests. */

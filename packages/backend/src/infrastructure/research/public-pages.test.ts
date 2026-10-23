@@ -137,7 +137,8 @@ describe('public research boundary (CI fixture)', () => {
   it('drops footnote markers, typeset maths and reference lists, and keeps an arXiv-style abstract', () => {
     const cited = `${paragraph}<sup id="cite_ref-1" class="reference"><a href="#cite_note-1">[1]</a></sup>`;
     const withMaths = `${paragraph} where <span class="mwe-math-element"><math><mi>x</mi><annotation>{\\displaystyle x}</annotation></math></span> varies.`;
-    const references = '<ol class="references"><li id="cite_note-1">A cited work, a title and a journal reference, 2020.</li></ol>';
+    const references =
+      '<ol class="references"><li id="cite_note-1">A cited work, a title and a journal reference, 2020.</li></ol>';
     const abstract = `<blockquote class="abstract mathjax"><span class="descriptor">Abstract:</span> ${paragraph}</blockquote>`;
     const extracted = extractResearch(
       `<html><title>Public research</title><main><p>${cited}</p><p>${withMaths}</p>${references}${abstract}</main></html>`,
