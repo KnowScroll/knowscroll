@@ -16,9 +16,11 @@ interface OwnerColumn {
 }
 
 /**
- * Every column that can name an owner: by name (`universe_id`, `account_id`, `*_account_id`,
- * `person_id`, `*_person_id`) or by a foreign key to a personal root, whatever the column is
- * called. A table with any of them must be declared; there is no list of exceptions by name.
+ * Every column that can name an owner: by name (`universe_id`, `account_id`, `person_id`,
+ * `owner_id`, `member_id`, `*_universe_id`, `*_account_id`, `*_person_id`) or by a foreign key to a
+ * personal root, whatever the column is called. The name rule also catches a person reference that
+ * has no foreign key. A table with any of them must be declared; there is no list of exceptions by
+ * name.
  */
 const readOwnerColumns = (db: Kysely<Database>) =>
   sql<OwnerColumn>`
@@ -27,8 +29,9 @@ const readOwnerColumns = (db: Kysely<Database>) =>
     join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name
     where t.table_type = 'BASE TABLE'
       and c.table_schema <> all(${infrastructureSchemas}::text[])
-      and (c.column_name in ('universe_id', 'account_id', 'person_id')
-        or c.column_name like '%\\_account\\_id' or c.column_name like '%\\_person\\_id')
+      and (c.column_name in ('universe_id', 'account_id', 'person_id', 'owner_id', 'member_id')
+        or c.column_name like '%\\_universe\\_id' or c.column_name like '%\\_account\\_id'
+        or c.column_name like '%\\_person\\_id')
     union
     select n.nspname, rel.relname, att.attname
     from pg_constraint con
@@ -179,9 +182,9 @@ function indirectLinkProblems(
  *   exists with that column;
  * - every declared personal table references the personal root (`identity.universes`) from
  *   `universe_id` with `ON DELETE RESTRICT`, so deletion can only go through the erasers;
- * - every account or person column outside the identity schema (named `account_id`, `*_account_id`,
- *   `person_id` or `*_person_id`, or holding a foreign key to `identity.accounts` or
- *   `identity.universes` under any name) is declared by a module (account deletion must handle it);
+ * - every account or person column outside the identity schema (named like an owner, see
+ *   `readOwnerColumns`, or holding a foreign key to `identity.accounts` or `identity.universes`
+ *   under any name) is declared by a module (account deletion must handle it);
  * - every identity table other than the personal roots (`accounts`, `universes`) is declared as an
  *   account-keyed table, and every declared account table exists;
  * - every other table that reaches a personal root through foreign keys is declared too.
