@@ -371,10 +371,11 @@ not deployed end-to-end Pause or disposable-account dev acceptance.
 
 Actual createAccount explicitly inserts mode1, whose root INSERT trigger atomically records the
 account/epoch1 birth witness. Disposable operator accounts use that same creation path. Existing
-NULL roots, timestamps, missing state and old Clear receipts cannot claim birth. The fixed current
-backend erasure runner checks the canonical v1 registry, invokes the actual frozen owner callbacks
-and catalogue verifier, and issues a live ClearCoreTx proof. Generic registries cannot issue it.
+NULL roots, timestamps, missing state and old Clear receipts cannot claim birth. The backend's
+`eraseCurrentExploration` runner runs the real registry's Clear erasers after the schema inventory
+passes, and issues a live ClearCoreTx proof. A test registry cannot issue it.
 coreDone writes its timestamp, creates the current witness and releases the barrier atomically.
+A witness holds the epoch, account and origin (birth or Clear) and no registry digest (0051).
 It does not wait for old unknown financial liabilities; recording generation/on and account
 recording receipts retain their account-lifetime values.
 
@@ -387,4 +388,7 @@ grants legacy fallback. Genuine authority/protocol/dependency failure remains a 
 deletion also owns its account FK. No automatic recertification follows erasure or sign-in replay.
 No API/control, provider permission or complete Pause/runtime acceptance is introduced.
 
-The pending0044 hosted correction binds the fixed manifest to both actual personal-role recording_account_id links. It replaces the unaccepted c21 source digest consistently; it does not accept historical hashes, rewrite witnesses or implement a Conversations registry transition. Runtime audit identity checks retain the exact scope/epoch/exposure/generation/audit predicates with positional SQL arguments. No full Pause/runtime or deployment acceptance follows from static checks.
+The Planner and Geography `runs.recording_account_id` links are declared account columns, erased with
+their owning run rows. Runtime audit identity checks keep the exact scope, epoch, exposure, generation
+and audit predicates with positional SQL arguments. No full Pause/runtime or deployment acceptance
+follows from static checks.

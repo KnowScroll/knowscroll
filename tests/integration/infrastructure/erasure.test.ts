@@ -123,8 +123,8 @@ describe('the erasure registry (real database)', () => {
         : owner,
     );
     expect(await checkErasureInventory(database.db, omitted)).toEqual([
-      'geography.runs.recording_account_id links to an account but no module declares it',
-      'planner.runs.recording_account_id links to an account but no module declares it',
+      'geography.runs.recording_account_id links to an account or person but no module declares it',
+      'planner.runs.recording_account_id links to an account or person but no module declares it',
     ]);
   });
 
@@ -135,7 +135,7 @@ describe('the erasure registry (real database)', () => {
     try {
       expect(await checkErasureInventory(database.db, personalStores)).toEqual([
         'experience.forgotten_personal has a universe_id column but no module declares it in the erasure registry',
-        'experience.forgotten_personal.owner_account_id links to an account but no module declares it',
+        'experience.forgotten_personal.owner_account_id links to an account or person but no module declares it',
       ]);
       const declared = erasureRegistry([
         ...personalStores,
@@ -151,6 +151,60 @@ describe('the erasure registry (real database)', () => {
       );
     } finally {
       await sql`drop table experience.forgotten_personal`.execute(database.db);
+    }
+  });
+
+  it('finds owner columns by foreign key and by person naming, whatever they are called', async () => {
+    await sql`create table experience.forgotten_links (
+      created_by uuid references identity.accounts (id) on delete restrict,
+      home uuid references identity.universes (id) on delete restrict,
+      subject_person_id uuid)`.execute(database.db);
+    try {
+      expect(await checkErasureInventory(database.db, personalStores)).toEqual([
+        'experience.forgotten_links.created_by links to an account or person but no module declares it',
+        'experience.forgotten_links.home links to an account or person but no module declares it',
+        'experience.forgotten_links.subject_person_id links to an account or person but no module declares it',
+      ]);
+      const declared = erasureRegistry([
+        ...personalStores,
+        {
+          module: 'fixture',
+          tables: [],
+          accountColumns: ['created_by', 'home', 'subject_person_id'].map((column) => ({
+            schema: 'experience',
+            table: 'forgotten_links',
+            column,
+          })),
+          nonRowStores: [],
+          erase: () => Promise.reject(new Error('unused')),
+        },
+      ]);
+      expect(await checkErasureInventory(database.db, declared)).toEqual([]);
+    } finally {
+      await sql`drop table experience.forgotten_links`.execute(database.db);
+    }
+  });
+
+  it('finds a child table that reaches a personal root only through another table', async () => {
+    await sql`create table composer.forgotten_child (
+      decision_id uuid primary key references composer.decisions (id) on delete cascade)`.execute(database.db);
+    try {
+      expect(await checkErasureInventory(database.db, personalStores)).toEqual([
+        'composer.forgotten_child reaches a personal root through foreign keys but no module declares it',
+      ]);
+      const declared = erasureRegistry([
+        ...personalStores,
+        {
+          module: 'fixture',
+          tables: [],
+          accountTables: [{ schema: 'composer', table: 'forgotten_child', ownerColumn: 'decision_id' }],
+          nonRowStores: [],
+          erase: () => Promise.reject(new Error('unused')),
+        },
+      ]);
+      expect(await checkErasureInventory(database.db, declared)).toEqual([]);
+    } finally {
+      await sql`drop table composer.forgotten_child`.execute(database.db);
     }
   });
 
