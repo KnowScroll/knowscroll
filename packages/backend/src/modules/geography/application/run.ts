@@ -208,8 +208,9 @@ interface ModelAnswer {
  *
  * A valid proposal is completed with every place the rules require that it omitted. When the model
  * gave nothing usable (invalid output, provider failure, quota or budget), the rules alone are
- * applied with canonical labels. `unknown` never falls back: that attempt may still be reconciled
- * and the run stays blocked for the operator.
+ * applied with canonical labels. `unknown` never falls back: that attempt may still be reconciled,
+ * so the run stays unknown until an operator resumes it.
+ * An unusable answer with nothing due settles the run; the next qualified encounter starts a new one.
  */
 function proposalFor(
   outcome: ProposeOutcome<GeographyProposal>,
@@ -230,16 +231,12 @@ async function settleRun(p: CartographerPorts, cap: RecordingScopeTx, answer: Mo
     return;
   const { claimId: _claim, claimUntil: _until, claimWakeClaimId: _wake, normalWakeId: _normal, ...released } = current;
   const plan = proposalFor(outcome, context.facts);
-  if (!plan && outcome.kind !== 'invalid_output' && outcome.kind !== 'failed') {
-    await p.store.writeRun(scope, {
-      ...released,
-      status: outcome.kind === 'unknown' || current.outcome === 'unknown' ? 'unknown' : 'blocked',
-      outcome: outcome.kind === 'refused' ? outcome.reason : outcome.kind,
-    });
+  if (outcome.kind === 'unknown') {
+    await p.store.writeRun(scope, { ...released, status: 'unknown', outcome: 'unknown' });
     return;
   }
   let status: GeographyRun['status'] = 'rejected',
-    reason: string = outcome.kind,
+    reason: string = outcome.kind === 'refused' ? outcome.reason : outcome.kind,
     closed = false;
   const close = async () => {
     if (
