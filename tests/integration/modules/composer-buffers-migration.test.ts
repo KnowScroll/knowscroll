@@ -10,20 +10,20 @@ import { createEmptyDatabase } from '../support/empty-database.js';
 import { testQueues } from '../support/queues.js';
 import { scrollUseCases, starterSource, textCapabilities } from '../support/scroll.js';
 
-/** The registry digest 0044 stamped on every account created before 0045 (a labelled historical constant). */
-const DIGEST_BEFORE_0045 = 'ebbec3bda043ab47c5566ebb29e80322e841f4dc15ef7940fc2ee4c053176dc1';
+/** The registry digest 0044 stamped on every account created before 0047 (a labelled historical constant). */
+const DIGEST_BEFORE_0047 = 'ebbec3bda043ab47c5566ebb29e80322e841f4dc15ef7940fc2ee4c053176dc1';
 
-describe('migration 0045 over a database that already holds 0044-era accounts (real PostgreSQL)', () => {
+describe('migration 0047 over a database that already holds 0044-era accounts (real PostgreSQL)', () => {
   let empty: Awaited<ReturnType<typeof createEmptyDatabase>>;
   let handle: ReturnType<typeof createDatabase<Database>>;
   let migrator: ReturnType<typeof createDatabase<unknown>>;
   let settings: DatabaseSettings;
 
   beforeAll(async () => {
-    empty = await createEmptyDatabase('migration_0045');
+    empty = await createEmptyDatabase('migration_0047');
     settings = {
       url: empty.url,
-      applicationName: 'knowscroll-it-migration-0045',
+      applicationName: 'knowscroll-it-migration-0047',
       poolMax: 3,
       statementTimeoutMs: 30_000,
     };
@@ -38,12 +38,9 @@ describe('migration 0045 over a database that already holds 0044-era accounts (r
 
   it('re-stamps the existing witness, so the person can still open, activate and navigate', async () => {
     const migrations = loadMigrations();
-    const before0045 = migrations.slice(
-      0,
-      migrations.findIndex((m) => m.name.startsWith('0045_')),
-    );
-    expect(before0045.at(-1)?.name).toMatch(/^0044_/);
-    expect(await migrateToLatest(migrator.db, before0045)).toMatchObject({ kind: 'migrated' });
+    const through0044 = migrations.slice(0, migrations.findIndex((m) => m.name.startsWith('0044_')) + 1);
+    expect(through0044.at(-1)?.name).toMatch(/^0044_/);
+    expect(await migrateToLatest(migrator.db, through0044)).toMatchObject({ kind: 'migrated' });
 
     // An account created while schema 44 was current: the root insert trigger stamps the old digest.
     const accountId = randomUUID();
@@ -59,12 +56,11 @@ describe('migration 0045 over a database that already holds 0044-era accounts (r
       }>`select registry_sha256 from identity.recording_lifecycle_witnesses where universe_id=${universeId}::uuid`
         .execute(handle.db)
         .then((result) => result.rows.map((row) => row.registry_sha256));
-    expect(await witness()).toEqual([DIGEST_BEFORE_0045]);
+    expect(await witness()).toEqual([DIGEST_BEFORE_0047]);
 
-    expect(await migrateToLatest(migrator.db, migrations)).toMatchObject({
-      kind: 'migrated',
-      applied: [expect.stringMatching(/^0045_/) as unknown as string],
-    });
+    const rest = await migrateToLatest(migrator.db, migrations);
+    expect(rest).toMatchObject({ kind: 'migrated' });
+    expect(rest.kind === 'migrated' && rest.applied).toContain('0047_composer_buffers');
     expect(await witness()).toEqual([RECORDING_LIFECYCLE_PROTOCOL_SHA256]);
     const constraint = await sql<{
       convalidated: boolean;
@@ -74,7 +70,7 @@ describe('migration 0045 over a database that already holds 0044-era accounts (r
     expect(constraint.rows).toEqual([{ convalidated: true }]);
     // The guard trigger is back on: witnesses are immutable again.
     await expect(
-      sql`update identity.recording_lifecycle_witnesses set registry_sha256=${DIGEST_BEFORE_0045} where universe_id=${universeId}::uuid`.execute(
+      sql`update identity.recording_lifecycle_witnesses set registry_sha256=${DIGEST_BEFORE_0047} where universe_id=${universeId}::uuid`.execute(
         handle.db,
       ),
     ).rejects.toThrow();
@@ -95,7 +91,7 @@ describe('migration 0045 over a database that already holds 0044-era accounts (r
           publication: { explanationUnitId: string };
         };
         source.assetId = randomUUID();
-        source.publication.explanationUnitId = `migration-0045-${randomUUID()}`;
+        source.publication.explanationUnitId = `migration-0047-${randomUUID()}`;
         source.draft = { ...source.draft, title };
         expect((await cases.importScroll(source)).kind).toBe('imported');
       }
@@ -125,7 +121,7 @@ describe('migration 0045 over a database that already holds 0044-era accounts (r
       await cases.close();
     }
 
-    // A person who joins after 0045 is stamped with the new digest too.
+    // A person who joins after 0047 is stamped with the new digest too.
     const newcomer = randomUUID();
     const newcomerUniverse = randomUUID();
     await handle.db.insertInto('identity.accounts').values({ id: newcomer }).execute();

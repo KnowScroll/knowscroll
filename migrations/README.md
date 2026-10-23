@@ -98,7 +98,7 @@ checksum is now3b85edec0d4c135b72637ba52527002f57b8a6d4ac23ce4df05af8251fad50cb;
 historical and must be rebound after exact full44 candidate acceptance. No schema deployment follows
 from this source correction.
 
-0045 adds `composer.buffers`: one worker-prepared next-move buffer per person and mode, pointing at an
+0047 adds `composer.buffers`: one worker-prepared next-move buffer per person and mode, pointing at an
 ordinary Composer decision, with optional stored Jev assessments. The new personal store and the job
 payload store `pgboss/composer.prepare-buffer` change the fresh-recording registry, so its digest becomes
 `d7942e43bb8211f37dfd08b4dfb6ac2e1b2543229a257f9c5ba850df135a1d10`. The same migration moves the places

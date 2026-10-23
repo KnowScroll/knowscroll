@@ -192,7 +192,7 @@ logs the same.
 
 | Item | Detail |
 |---|---|
-| Tables | `composer.decisions` (0017), `composer.buffers` (0045) |
+| Tables | `composer.decisions` (0017), `composer.buffers` (0047) |
 | Job | `composer.prepare-buffer` (concurrency 2, expiry 700 s, 2 retries, no dead letter, payload IDs only) |
 | Notices | none; the next navigation reads the durable row |
 | Lock order | personal root first in both worker transactions; the model call is between them |

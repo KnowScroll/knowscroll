@@ -70,6 +70,8 @@ export const READ_SCROLL_READING_FACTS = Symbol('content.readScrollReadingFacts'
 
 /** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
 export { CONCEPT_CATALOGUE_VERSION, CONCEPTS } from './domain/concepts.js';
+/** Which Scene family draws a system, star or planet; defined by the library plan. */
+export { sceneFamilyOf } from './domain/library/index.js';
 export {
   COVERAGE_POLICY,
   CoverageCommandSchema,

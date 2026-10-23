@@ -67,6 +67,63 @@ describe('persisted Scene projection policy (authored CI fixtures)', () => {
     ).toBe(true);
     expect(new Set(p.objects.map((o) => o.slot)).size).toBe(objects.length);
   });
+  it('draws the planets of every system from the library plan and keeps the Earth assignments', () => {
+    const input = fixture();
+    const objects = [
+      ...input.objects,
+      place(6, 'planet', 2, 'earth.tides'),
+      place(7, 'planet', 2, 'earth.greenhouse-effect'),
+      place(10, 'system', 1, 'space'),
+      place(11, 'star', 10, 'space'),
+      place(12, 'planet', 10, 'space.black-holes'),
+      place(13, 'region', 12, 'space.black-holes.horizon'),
+      place(20, 'system', 1, 'machine-learning'),
+      place(21, 'star', 20, 'machine-learning'),
+      place(22, 'planet', 20, 'machine-learning.attention'),
+      place(23, 'planet', 20, 'machine-learning.transformers'),
+    ];
+    const families = new Map(
+      project({ ...input, objects }).objects.map((o) => [o.descriptor.objectId, o.descriptor.family]),
+    );
+    // Earth is unchanged from before the plan held other systems.
+    expect([2, 3, 4, 5, 6, 7].map((n) => families.get(id(n)))).toEqual([
+      'terraced.v1',
+      'terraced.v1',
+      'terraced.v1',
+      'terraced.v1',
+      'archipelago.v1',
+      'ridged.v1',
+    ]);
+    // Everything else comes from the plan: a system's star follows it, a planet may override it,
+    // a region inherits its planet, and a planet without an override follows its system.
+    expect([10, 11, 12, 13].map((n) => families.get(id(n)))).toEqual([
+      'archipelago.v1',
+      'archipelago.v1',
+      'ridged.v1',
+      'ridged.v1',
+    ]);
+    expect([20, 21, 22, 23].map((n) => families.get(id(n)))).toEqual([
+      'ridged.v1',
+      'ridged.v1',
+      'terraced.v1',
+      'ridged.v1',
+    ]);
+  });
+  it('fails closed on ids the plan does not hold or holds as another kind or under another parent', () => {
+    const input = fixture();
+    const refused = (extra: GeographySceneInput['objects']) =>
+      expect(() => project({ ...input, objects: [...input.objects, ...extra] })).toThrow(ProjectionUnavailable);
+    refused([place(6, 'system', 1, 'astronomy')]);
+    refused([place(6, 'planet', 2, 'earth.unknown')]);
+    refused([place(6, 'planet', 2, 'earth')]);
+    refused([place(6, 'system', 1, 'earth.seasons')]);
+    // A planet of another system under Earth.
+    refused([place(6, 'planet', 2, 'space.stars')]);
+    // A facet of another planet under the Seasons planet.
+    refused([place(6, 'region', 4, 'earth.tides.coasts')]);
+    // A region whose parent is a system rather than a planet.
+    refused([place(6, 'region', 2, 'earth.seasons.axial-tilt')]);
+  });
   it('persists descriptor identity and allocation through sibling arrival, quiet, relabel and shuffled restart', () => {
     const first = project(),
       input = fixture();

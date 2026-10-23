@@ -1,0 +1,78 @@
+/**
+ * Shapes of the library plan: the topic systems, planets and facets KnowScroll holds Scrolls for, and
+ * the explanation recipes the generator runs. The plan is code-owned data. The shared concept
+ * catalogue (`content-concepts.v1`) is derived from it, so a topic or facet exists only here.
+ */
+
+/** The block a recipe's interactive Scroll should prefer. Guidance for the writer, not a schema. */
+export const INTERACTIVE_KINDS = ['simulation', 'diagram', 'chart', 'comparison', 'timeline', 'sequence'] as const;
+export type InteractiveKind = (typeof INTERACTIVE_KINDS)[number];
+
+/**
+ * The silhouette family the Scene projection draws a system, star or planet with (D-026). It is a
+ * cosmetic convention, not classification. Once an object has been drawn its family never changes,
+ * so edit these for new systems and planets only.
+ */
+export type SceneFamilyName = 'terraced.v1' | 'ridged.v1' | 'archipelago.v1';
+
+/** A kind of angle on a topic (mechanism, example, limitation...), written as a topic-specific id. */
+export interface LibraryFacet {
+  readonly id: string;
+  readonly meaning: string;
+}
+
+/** A planet: an explored subtopic. Needs at least three recipes over at least two facets to form. */
+export interface LibraryTopic {
+  readonly id: string;
+  readonly meaning: string;
+  /** Overrides the system's family for this planet. Its regions inherit it. */
+  readonly sceneFamily?: SceneFamilyName;
+  readonly facets: readonly LibraryFacet[];
+}
+
+/** A broad domain: the container for related planets and their organising star. */
+export interface LibrarySystem {
+  readonly id: string;
+  readonly meaning: string;
+  /** The family of the system and its star, and the default for its planets. */
+  readonly sceneFamily: SceneFamilyName;
+  readonly topics: readonly LibraryTopic[];
+}
+
+type Interactivity =
+  | { readonly interactive: true; readonly interactiveKind: InteractiveKind }
+  | { readonly interactive: false; readonly interactiveKind: null };
+
+/**
+ * One explanation unit the generator can write as a Scroll. The record key in the system file is the
+ * stable operator key. Identity (`assetId`, `explanationUnitId`) never changes once a Scroll exists.
+ */
+export type LibraryRecipe<Topic extends string = string, Facet extends string = string> = Interactivity & {
+  /** Stable explanation identity. Shared with a Reel only for the original three recipes. */
+  readonly explanationUnitId: string;
+  /** Stable asset UUID of the Scroll this recipe produces. */
+  readonly assetId: string;
+  readonly systemId: string;
+  /** The planet this explanation counts toward. */
+  readonly topicId: Topic;
+  /** The angle this explanation teaches. */
+  readonly facetId: Facet;
+  /** A second angle the brief explicitly asks the closing section to cover. */
+  readonly supportingFacetId?: Facet;
+  /** Angle, what to explain and what to avoid. */
+  readonly brief: string;
+  /** One to three allowlisted public pages the writer may draw on. */
+  readonly pages: readonly string[];
+  /** Cutroom script name of the matching approved Reel, for the original three recipes only. */
+  readonly script?: string;
+};
+
+/**
+ * The recipes of one system file. The topic and facet ids a recipe may name are typed from the
+ * system's own plan, so a misspelt id fails to compile. That a facet belongs to the recipe's topic
+ * is checked by the library tests.
+ */
+export type SystemRecipes<S extends LibrarySystem> = Record<
+  string,
+  LibraryRecipe<S['topics'][number]['id'], S['topics'][number]['facets'][number]['id']>
+>;
