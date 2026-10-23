@@ -133,3 +133,18 @@ export {
   type RecordingPolicyState,
   type RecordingPolicySession,
 } from './recording-policy';
+
+// #242 provisional actual-source composition; final vertical needs reviewed core/backend ownership.
+export { createConversationsSession } from './conversations-session';
+export { createContentSharesSession } from './content-shares-session';
+export type {
+  ConversationsSession,
+  ConversationsState,
+  ConversationWindow,
+  ConversationDraft,
+  ContentSharesSession,
+  ContentSharesState,
+  SocialRead,
+  SocialFailure,
+  SocialCommandState,
+} from './conversations-types';
