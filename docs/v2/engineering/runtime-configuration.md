@@ -151,3 +151,8 @@ stdout only (journald), one per line.
 role allowance approval. Disabled jobs remain blocked without model reservation; explicit typed
 `RequestPlanner` with `resumeRunId` resumes the same business run. This does not alter reasoning
 caps, quota or failure-brake policy and does not grant permission to use the #232 allowance.
+
+`KS_JEV_ENABLED` (worker, 0/1, default 0): enable Jev, the optional semantic assessment run by the
+Composer `composer.prepare-buffer` job on the shared reasoning harness. Set it to 1 on dev. It needs a
+configured reasoning provider; without one Jev is simply absent and buffers are still prepared. It does
+not change reasoning caps, quota or failure-brake policy.

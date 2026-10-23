@@ -30,6 +30,10 @@ this parser does not mint a production grant.
 personal Planner before any model reservation and does not confer paid allowance. Disabled
 work remains durable and resumes only through an explicit same-business-run request.
 
+`KS_JEV_ENABLED` (#234) accepts 0/1 and defaults 0 in worker configuration. It switches on Jev, the
+optional semantic assessment in the Composer buffer job. Off, the job still prepares buffers from the
+deterministic ranking and makes no model call. Dev sets it to 1. It does not change reasoning caps.
+
 `KS_CARTOGRAPHER_ENABLED` (#237) accepts0/1 and defaults0. It is a feature gate only. Geography's
 worker additionally requires an independently reviewed economic-permit callback, default false;
 credentials, flag1 or a deployment never grant paid Cartographer calls. No actual host/env setting
