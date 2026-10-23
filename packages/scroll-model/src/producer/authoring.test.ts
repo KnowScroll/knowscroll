@@ -54,7 +54,7 @@ const provenance = (extra: Partial<DraftProvenance> = {}): DraftProvenance => ({
   ...extra,
 });
 
-type Block = AuthoredScroll['sections'][number]['blocks'][number];
+type Block = AuthoredScroll['blocks'][number];
 const prose = (text: string, cites = ['e1', 'e2']): Block => ({ type: 'paragraph', cites, text });
 const intro: Block[] = [
   prose('A small pump at a quiet quay does a steady job without anyone watching it closely.', ['e1', 'e2']),
@@ -67,7 +67,7 @@ function scroll(blocks: Block[], header: Partial<AuthoredScroll> = {}): Authored
   return AuthoredScroll.parse({
     title: 'How a harbour pump works',
     dek: 'A small invented pump explains lifting water in simple steps.',
-    sections: [{ heading: 'The pump', blocks: [...intro, ...blocks] }],
+    blocks: [{ type: 'heading', text: 'The pump' }, ...intro, ...blocks],
     ...header,
   });
 }
@@ -111,6 +111,47 @@ describe('compileAuthored: plain text in, canonical document out', () => {
     ]);
   });
 
+  it('starts a section at each heading block and reports findings at the block the writer wrote', () => {
+    const outcome = compile(
+      AuthoredScroll.parse({
+        title: 'How a harbour pump works',
+        dek: 'A small invented pump explains lifting water in simple steps.',
+        blocks: [
+          prose('An opening before any heading.', ['e1', 'e2']),
+          { type: 'heading', text: 'Second part' },
+          prose('The keepers drain the water each evening.', ['e3', 'e4']),
+          { type: 'heading', text: 'Third part' },
+          prose('Read more at www.example.org about the keepers and their chores.', ['e5']),
+        ],
+      }),
+    );
+    expect(refusal(outcome)?.issues).toEqual([{ code: 'text_mentions_web_address', path: 'blocks.4' }]);
+    const fine = compile(
+      AuthoredScroll.parse({
+        title: 'How a harbour pump works',
+        dek: 'A small invented pump explains lifting water in simple steps.',
+        blocks: [
+          prose('An opening before any heading.', ['e1', 'e2']),
+          { type: 'heading', text: 'Second part' },
+          prose('The keepers drain the water each evening.', ['e3', 'e4']),
+          { type: 'heading', text: 'Third part' },
+          prose('Leather washers are replaced in spring by the keepers.', ['e5']),
+        ],
+      }),
+    );
+    if (fine.kind !== 'compiled') throw new Error(JSON.stringify(fine));
+    expect(fine.document.sections.map((section) => section.heading)).toEqual([null, 'Second part', 'Third part']);
+    expect(fine.document.sections.map((section) => section.blocks.length)).toEqual([1, 1, 1]);
+  });
+
+  it('refuses a heading that no block follows, at the heading', () => {
+    const outcome = compile(scroll([{ type: 'heading', text: 'Nothing follows' }]));
+    expect(refusal(outcome)).toEqual({
+      stage: 'structure',
+      issues: [{ code: 'authoring_empty_section', path: 'blocks.3' }],
+    });
+  });
+
   it('compiles the same input to byte-identical output', () => {
     const authored = scroll([{ type: 'callout', cites: ['e3'], kind: 'note', text: 'Keepers drain it nightly.' }]);
     expect(JSON.stringify(compile(authored))).toBe(JSON.stringify(compile(authored)));
@@ -131,13 +172,11 @@ describe('compileAuthored: plain text in, canonical document out', () => {
     );
     expect(refusal(uncited)).toEqual({
       stage: 'evidence',
-      issues: [{ code: 'authoring_number_not_in_evidence', path: 'sections.0.blocks.2' }],
+      issues: [{ code: 'authoring_number_not_in_evidence', path: 'blocks.3' }],
     });
     // A figure that no passage contains.
     const invented = compile(scroll([prose('The cistern holds 9,999 litres when it is full to the brim.', ['e3'])]));
-    expect(refusal(invented)?.issues).toEqual([
-      { code: 'authoring_number_not_in_evidence', path: 'sections.0.blocks.2' },
-    ]);
+    expect(refusal(invented)?.issues).toEqual([{ code: 'authoring_number_not_in_evidence', path: 'blocks.3' }]);
   });
 
   it('lets a header state a figure that any cited passage contains', () => {
@@ -154,11 +193,11 @@ describe('compileAuthored: plain text in, canonical document out', () => {
 
   it('refuses unknown handles and a document that cites too few passages, at the block that cites them', () => {
     const unknown = compile(scroll([prose('The keepers drain the water each evening.', ['e9'])]));
-    expect(refusal(unknown)?.issues).toContainEqual({ code: 'authoring_cite_unknown', path: 'sections.0.blocks.2' });
+    expect(refusal(unknown)?.issues).toContainEqual({ code: 'authoring_cite_unknown', path: 'blocks.3' });
     const thin = AuthoredScroll.parse({
       title: 'How a harbour pump works',
       dek: 'A small invented pump explains lifting water in simple steps.',
-      sections: [{ heading: null, blocks: [prose('A short note grounded in one passage only.', ['e1'])] }],
+      blocks: [prose('A short note grounded in one passage only.', ['e1'])],
     });
     expect(refusal(compile(thin))?.issues).toContainEqual({ code: 'authoring_too_few_cites', path: '$' });
   });
@@ -171,12 +210,12 @@ describe('compileAuthored: plain text in, canonical document out', () => {
     );
     expect(refusal(copied)).toEqual({
       stage: 'evidence',
-      issues: [{ code: 'copied_passage', path: 'sections.0.blocks.2' }],
+      issues: [{ code: 'copied_passage', path: 'blocks.3' }],
     });
     const address = compile(
       scroll([prose('Read more at www.example.org about the keepers and their chores.', ['e1'])]),
     );
-    expect(refusal(address)?.issues).toEqual([{ code: 'text_mentions_web_address', path: 'sections.0.blocks.2' }]);
+    expect(refusal(address)?.issues).toEqual([{ code: 'text_mentions_web_address', path: 'blocks.3' }]);
   });
 
   it('reports the reading length against the brief at the document', () => {
@@ -250,7 +289,7 @@ describe('compileAuthored: the interactive blocks', () => {
     };
     broken.edges[0] = { from: 'basin', to: 'nowhere' };
     expect(refusal(compile(scroll([broken])))?.issues).toEqual([
-      { code: 'authoring_reference_unknown', path: 'sections.0.blocks.2' },
+      { code: 'authoring_reference_unknown', path: 'blocks.3' },
     ]);
   });
 
@@ -304,7 +343,7 @@ describe('compileAuthored: the interactive blocks', () => {
     );
     expect(refusal(outcome)).toEqual({
       stage: 'computation',
-      issues: [{ code: 'sim_output_not_finite', path: 'sections.0.blocks.2' }],
+      issues: [{ code: 'sim_output_not_finite', path: 'blocks.3' }],
     });
   });
 
@@ -394,10 +433,10 @@ describe('compileAuthored: the interactive blocks', () => {
     });
     expect(compile(scroll([chart(['e3'], 4200)])).kind).toBe('compiled');
     expect(refusal(compile(scroll([chart(['e5'], 4200)])))?.issues).toEqual([
-      { code: 'authoring_number_not_in_evidence', path: 'sections.0.blocks.2' },
+      { code: 'authoring_number_not_in_evidence', path: 'blocks.3' },
     ]);
     expect(refusal(compile(scroll([chart(['e3'], 4300)])))?.issues).toEqual([
-      { code: 'authoring_number_not_in_evidence', path: 'sections.0.blocks.2' },
+      { code: 'authoring_number_not_in_evidence', path: 'blocks.3' },
     ]);
   });
 });
@@ -407,13 +446,13 @@ describe('AuthoredScroll: structure the harness can name', () => {
     const base = { title: 'How a harbour pump works', dek: 'A small invented pump explains lifting water.' };
     const missing = AuthoredScroll.safeParse({
       ...base,
-      sections: [{ blocks: [{ type: 'paragraph', text: 'No cites.' }] }],
+      blocks: [{ type: 'paragraph', text: 'No cites.' }],
     });
     expect(missing.success).toBe(false);
-    expect(missing.error?.issues[0]?.path).toEqual(['sections', 0, 'blocks', 0, 'cites']);
+    expect(missing.error?.issues[0]?.path).toEqual(['blocks', 0, 'cites']);
     const unknown = AuthoredScroll.safeParse({
       ...base,
-      sections: [{ blocks: [{ type: 'carousel', cites: ['e1'] }] }],
+      blocks: [{ type: 'carousel', cites: ['e1'] }],
     });
     expect(unknown.success).toBe(false);
   });
@@ -423,9 +462,9 @@ describe('AuthoredScroll: structure the harness can name', () => {
       title: '  How a harbour pump works ',
       dek: 'A small invented pump explains lifting water.',
       note: 'ignored',
-      sections: [{ heading: null, blocks: [{ type: 'paragraph', cites: ['e1'], text: ' A line. ', id: 'x' }] }],
+      blocks: [{ type: 'paragraph', cites: ['e1'], text: ' A line. ', id: 'x' }],
     });
     expect(parsed.title).toBe('How a harbour pump works');
-    expect(parsed.sections[0]?.blocks[0]).toEqual({ type: 'paragraph', cites: ['e1'], text: 'A line.' });
+    expect(parsed.blocks[0]).toEqual({ type: 'paragraph', cites: ['e1'], text: 'A line.' });
   });
 });

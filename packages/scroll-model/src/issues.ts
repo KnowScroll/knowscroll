@@ -114,6 +114,7 @@ export const REASON_CODES = [
   'provenance_mismatch',
   // Producer: authored documents (`scroll-authoring.v1`)
   'authoring_reference_unknown',
+  'authoring_empty_section',
   'authoring_cite_unknown',
   'authoring_too_few_cites',
   'authoring_number_not_in_evidence',

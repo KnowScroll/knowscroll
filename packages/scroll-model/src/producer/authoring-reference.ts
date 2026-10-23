@@ -9,6 +9,8 @@ import { AUTHORED_DIAGRAM_LAYOUTS, AUTHORED_NODE_KINDS, type AuthoredBlockType }
  * recipe, never evidence and never publishable content.
  */
 const REFERENCE: Readonly<Record<AuthoredBlockType, string>> = {
+  heading: `heading: {"type":"heading","text":"Starts a new section"} (up to ${F.headingChars} characters; no cites; every heading is followed by at least one block)`,
+
   paragraph: `paragraph: {"type":"paragraph","cites":["e2"],"text":"Your own prose, up to ${F.paragraphChars} characters."}`,
 
   list: `list: {"type":"list","cites":["e2"],"style":"bullet","items":["First point","Second point"]} (style bullet or number; 2 to ${F.listItems} items of up to ${F.listItemChars} characters)`,

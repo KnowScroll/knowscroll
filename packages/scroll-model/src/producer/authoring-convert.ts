@@ -6,6 +6,17 @@ import type { AuthoredBlock, AuthoredScroll } from './authoring-schema.js';
 import type { DraftBlock, ScrollDraft } from './draft.js';
 
 /**
+ * Where each canonical section and block came from in the authored list, so a finding about the
+ * assembled document is reported at the block the writer wrote.
+ */
+export interface AuthoredPositions {
+  /** `blocks[section][block]`: index in the authored list. */
+  readonly blocks: readonly (readonly number[])[];
+  /** Index of the heading block that started each section, or null for an opening section without one. */
+  readonly headings: readonly (number | null)[];
+}
+
+/**
  * The evidence handles each block cites, by position: `blockCites[section][block]`. A canonical
  * draft has no place for them, so the converter returns them beside it and the binder turns them
  * into claim bindings once the document is assembled.
@@ -13,6 +24,7 @@ import type { DraftBlock, ScrollDraft } from './draft.js';
 export interface ConvertedScroll {
   readonly draft: ScrollDraft;
   readonly blockCites: readonly (readonly (readonly string[])[])[];
+  readonly positions: AuthoredPositions;
 }
 
 export type Conversion =
@@ -275,7 +287,7 @@ function chart(block: Authored<'bar-chart'> | Authored<'line-chart'>): DraftBloc
   };
 }
 
-function convertBlock(block: AuthoredBlock, path: string, issues: Issue[]): DraftBlock {
+function convertBlock(block: Exclude<AuthoredBlock, { type: 'heading' }>, path: string, issues: Issue[]): DraftBlock {
   switch (block.type) {
     case 'paragraph':
       return { type: 'paragraph', data: { spans: spans(block.text) } };
@@ -333,26 +345,37 @@ function convertBlock(block: AuthoredBlock, path: string, issues: Issue[]): Draf
 }
 
 /**
- * Converts an authored document into a canonical `ScrollDraft` without bindings. Pure: strings
- * become one-span rich text, accessibility labels and fallback texts are built from the block's
- * own words, ids are generated, simulation grids are aligned and diagram references are resolved.
- * A reference that names nothing is a finding at its path; every other rule is the canonical
- * checks' business.
+ * Converts an authored document into a canonical `ScrollDraft` without bindings. Pure: a heading
+ * block starts a section, strings become one-span rich text, accessibility labels and fallback
+ * texts are built from the block's own words, ids are generated, simulation grids are aligned and
+ * diagram references are resolved. A reference that names nothing and a heading with no block
+ * after it are findings at their path; every other rule is the canonical checks' business.
  */
 export function convertAuthored(authored: AuthoredScroll): Conversion {
   const issues: Issue[] = [];
+  const sections: { heading: string | null; blocks: DraftBlock[] }[] = [];
   const blockCites: string[][][] = [];
-  const sections = authored.sections.map((section, sectionIndex) => {
-    blockCites.push(section.blocks.map((block) => [...new Set(block.cites)]));
-    return {
-      heading:
-        section.heading === undefined || section.heading === null
-          ? null
-          : fit(section.heading, FIELD_LIMITS.headingChars),
-      blocks: section.blocks.map((block, blockIndex) =>
-        convertBlock(block, `sections.${sectionIndex}.blocks.${blockIndex}`, issues),
-      ),
-    };
+  const positions = { blocks: [] as number[][], headings: [] as (number | null)[] };
+  const open = (heading: string | null, headingIndex: number | null) => {
+    sections.push({ heading, blocks: [] });
+    blockCites.push([]);
+    positions.blocks.push([]);
+    positions.headings.push(headingIndex);
+  };
+  authored.blocks.forEach((block, index) => {
+    if (block.type === 'heading') {
+      open(fit(block.text, FIELD_LIMITS.headingChars), index);
+      return;
+    }
+    if (sections.length === 0) open(null, null);
+    sections.at(-1)?.blocks.push(convertBlock(block, `blocks.${index}`, issues));
+    blockCites.at(-1)?.push([...new Set(block.cites)]);
+    positions.blocks.at(-1)?.push(index);
+  });
+  sections.forEach((section, index) => {
+    const headingIndex = positions.headings[index];
+    if (section.blocks.length === 0 && headingIndex !== null && headingIndex !== undefined)
+      issues.push({ code: 'authoring_empty_section', path: `blocks.${headingIndex}` });
   });
   if (issues.length > 0) return { kind: 'refused', issues };
   return {
@@ -365,5 +388,6 @@ export function convertAuthored(authored: AuthoredScroll): Conversion {
       bindings: [],
     },
     blockCites,
+    positions,
   };
 }
