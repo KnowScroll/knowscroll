@@ -2,6 +2,12 @@ import { OpenAPIGenerator } from '@orpc/openapi';
 import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4';
 import { describe, expect, it } from 'vitest';
 import {
+  ReadOwnConversationSendSchema,
+  OwnConversationSendSchema,
+  ReadPublicContentSharePreviewSchema,
+  PublicContentSharePreviewSchema,
+  PublicContentShareProblemSchema,
+  PublicContentShareProblemIssueSchema,
   StartDirectConversationSchema,
   DirectConversationAcceptanceSchema,
   SendConversationMessageSchema,
@@ -87,6 +93,7 @@ describe('the API contract', () => {
       ...Object.values(apiContract.friendPages),
       ...Object.values(apiContract.conversations),
       ...Object.values(apiContract.contentShares),
+      ...Object.values(apiContract.publicContentShares),
       ...Object.values(apiContract.formation),
       apiContract.scenes.manifest,
       apiContract.scenes.chunk,
@@ -353,6 +360,7 @@ describe('the API contract', () => {
       '/v1/social/conversations/history': ['post'],
       '/v1/social/conversations/changes': ['post'],
       '/v1/social/conversations/send': ['post'],
+      '/v1/social/conversations/send/read': ['post'],
       '/v1/social/conversations/mark-read': ['post'],
       '/v1/social/conversations/mute': ['post'],
       '/v1/social/conversations/leave': ['post'],
@@ -1280,7 +1288,13 @@ describe('Social370 declaration OpenAPI metadata', () => {
         ),
       },
     });
-    const declarations = [...Object.values(apiContract.conversations), ...Object.values(apiContract.contentShares)];
+    // Freeze the original13 operations independently of the additive #242 declarations.
+    const declarations = [
+      ...Object.values(apiContract.conversations).filter(
+        (declaration) => declaration !== apiContract.conversations.readOwnSend,
+      ),
+      ...Object.values(apiContract.contentShares),
+    ];
     expect(declarations).toHaveLength(13);
     expect(new Set(declarations.map((x) => x['~orpc'].route.path)).size).toBe(13);
     for (const declaration of declarations) {
@@ -1466,5 +1480,142 @@ describe('friend-pages378 bounded scan declaration OpenAPI metadata', () => {
     }
     expect(document.paths?.['/v1/social/friends/read']?.post).toBeDefined();
     expect(document.paths?.['/v1/social/requests/read']?.post).toBeDefined();
+  });
+});
+
+describe('additive242 current-own-send and public-only preview OpenAPI', () => {
+  it('adds exactly two declarations without changing the original13 route/problem metadata', async () => {
+    const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
+    const publicErrors = apiContract.publicContentShares.preview['~orpc'].errorMap;
+    const privateErrors = apiContract.conversations.readOwnSend['~orpc'].errorMap;
+    const document = await generator.generate(apiContract, {
+      info: { title: 'KnowScroll API', version: '1' },
+      commonSchemas: {
+        ReadOwnSend: { schema: ReadOwnConversationSendSchema, strategy: 'input' },
+        OwnSend: { schema: OwnConversationSendSchema, strategy: 'output' },
+        ReadPublicPreview: { schema: ReadPublicContentSharePreviewSchema, strategy: 'input' },
+        PublicPreview: { schema: PublicContentSharePreviewSchema, strategy: 'output' },
+        PublicPreviewProblem: { schema: PublicContentShareProblemSchema, strategy: 'output' },
+        PublicPreviewIssue: { schema: PublicContentShareProblemIssueSchema },
+        ...Object.fromEntries(
+          Object.entries(publicErrors).map(([code, definition]) => [
+            `PublicPreviewProblem_${code}`,
+            { schema: definition.data },
+          ]),
+        ),
+      },
+    });
+    const { readOwnSend, ...originalConversations } = apiContract.conversations;
+    const { publicContentShares, ...withoutPublic } = apiContract;
+    const original = await generator.generate(
+      { ...withoutPublic, conversations: originalConversations },
+      {
+        info: { title: 'KnowScroll API', version: '1' },
+      },
+    );
+    expect(
+      Object.keys(document.paths ?? {})
+        .filter((path) => !(path in (original.paths ?? {})))
+        .sort(),
+    ).toEqual(['/s/preview', '/v1/social/conversations/send/read']);
+    expect(Object.values(originalConversations)).toHaveLength(9);
+    expect(Object.values(apiContract.contentShares)).toHaveLength(4);
+    expect(Object.values(apiContract.conversations)).toHaveLength(10);
+    expect(Object.values(publicContentShares)).toHaveLength(1);
+    expect(readOwnSend['~orpc'].errorMap).toEqual(apiContract.conversations.send['~orpc'].errorMap);
+    expect(Object.keys(privateErrors)).toHaveLength(17);
+    expect(Object.keys(publicErrors)).toEqual([
+      'INVALID_REQUEST',
+      'ORIGIN_NOT_ALLOWED',
+      'PAYLOAD_TOO_LARGE',
+      'UNSUPPORTED_MEDIA_TYPE',
+      'UNPROCESSABLE_REQUEST',
+      'TOO_MANY_REQUESTS',
+      'SERVICE_UNAVAILABLE',
+      'INTERNAL',
+    ]);
+    for (const [path, input, output] of [
+      ['/v1/social/conversations/send/read', 'ReadOwnSend', 'OwnSend'],
+      ['/s/preview', 'ReadPublicPreview', 'PublicPreview'],
+    ] as const) {
+      const route = document.paths?.[path];
+      expect(Object.keys(route ?? {})).toEqual(['post']);
+      expect(route?.post?.parameters ?? []).toEqual([]);
+      expect(route?.post?.requestBody).toMatchObject({
+        required: true,
+        content: { 'application/json': { schema: { $ref: `#/components/schemas/${input}` } } },
+      });
+      const response = route?.post?.responses?.['200'];
+      expect(response && !('$ref' in response) && response.content?.['application/json']?.schema).toEqual({
+        $ref: `#/components/schemas/${output}`,
+      });
+    }
+    const schemas = document.components?.schemas;
+    expect(schemas?.['ReadOwnSend']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'readId', 'conversation', 'selector'],
+    });
+    expect(schemas?.['ReadPublicPreview']).toMatchObject({
+      additionalProperties: false,
+      required: ['version', 'readId', 'token'],
+    });
+    const ownSend = JSON.stringify(schemas?.['OwnSend']);
+    for (const field of ['scope', 'selector', 'conversation', 'messageId', 'messageSequence', 'recordedAt', 'target'])
+      expect(ownSend).toContain(`"${field}"`);
+    expect(ownSend).toContain('"const":"text"');
+    // A discriminator value may be text; the schema must not expose a text/body property.
+    for (const field of ['text', 'body', 'note', 'token', 'replayed', 'operation', 'outcome'])
+      expect(ownSend).not.toContain(`"${field}":`);
+    const publicPreview = JSON.stringify(schemas?.['PublicPreview']);
+    for (const value of ['public_metadata', 'unavailable', 'corrected', 'assetRevision', 'title'])
+      expect(publicPreview).toContain(value);
+    for (const field of [
+      'scope',
+      'conversation',
+      'author',
+      'token',
+      'mediaUrl',
+      'providerUrl',
+      'redirect',
+      'exposureId',
+      'playbackGrant',
+    ])
+      expect(publicPreview).not.toContain(`"${field}"`);
+    expect(document.paths?.['/v1/s/preview']).toBeUndefined();
+    expect(document.paths?.['/s/{token}']).toBeUndefined(); // No falsely JSON-typed HTML landing.
+    expect(schemas?.['PublicPreviewIssue']).toMatchObject({
+      additionalProperties: false,
+      required: ['path', 'code'],
+      properties: { path: { maxItems: 8, items: { enum: ['version', 'readId', 'token', 'unknown'] } } },
+    });
+    const preview = document.paths?.['/s/preview']?.post;
+    for (const status of new Set(Object.values(publicErrors).map((e) => String(e.status)))) {
+      const response = preview?.responses?.[status];
+      expect(response && !('$ref' in response) && response.content).toEqual({
+        'application/problem+json': {
+          schema: {
+            oneOf: Object.entries(publicErrors)
+              .filter(([, definition]) => String(definition.status) === status)
+              .map(([code]) => ({ $ref: `#/components/schemas/PublicPreviewProblem_${code}` })),
+          },
+        },
+      });
+    }
+    expect(preview?.responses?.['401']).toBeUndefined();
+    expect(preview?.responses?.['404']).toBeUndefined();
+    expect(preview?.responses?.['409']).toBeUndefined();
+    for (const [code, definition] of Object.entries(publicErrors)) {
+      const schema = schemas?.[`PublicPreviewProblem_${code}`];
+      expect(schema).toMatchObject({
+        additionalProperties: false,
+        properties: {
+          code: { const: code },
+          title: { const: definition.message },
+          status: { const: definition.status },
+        },
+      });
+      for (const field of ['defined', 'message', 'detail', 'instance', 'scope', 'conversation', 'token', 'reason'])
+        expect(schema && !('$ref' in schema) && schema.properties).not.toHaveProperty(field);
+    }
   });
 });
