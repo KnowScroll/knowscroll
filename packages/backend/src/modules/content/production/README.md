@@ -4,11 +4,11 @@ Writer roles belong to content (blueprint §§11,15); `production/` owns their b
 semantic checks, frozen research and application. `infrastructure/research` owns the public HTTP
 boundary. The shared reasoning engine retains transport, admission and the external attempt ledger.
 
-| Stored table | Role | Main query | Lifetime |
-|---|---|---|---|
-| `content.scroll_production_runs` (0015) | Authoritative, private topic/version job; research pages/passages, accepted claims, code-only outcomes, draft and revision pointer | Unique `(topic, policy_version)`, UUID | Nonpersonal public supply; retained for correction, no account erasure |
-| `content.asset_revisions` / `asset_provenance` | Immutable admitted consumer bytes / internal evidence and generation lineage | Asset + revision | Shared content; no account erasure |
-| `reasoning.production_*` (0013) | Role runs and every possible paid attempt | Stable claims/writer run UUID | Harness retention and liability policy |
+| Stored table                                   | Role                                                                                                                               | Main query                             | Lifetime                                                               |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
+| `content.scroll_production_runs` (0015)        | Authoritative, private topic/version job; research pages/passages, accepted claims, code-only outcomes, draft and revision pointer | Unique `(topic, policy_version)`, UUID | Nonpersonal public supply; retained for correction, no account erasure |
+| `content.asset_revisions` / `asset_provenance` | Immutable admitted consumer bytes / internal evidence and generation lineage                                                       | Asset + revision                       | Shared content; no account erasure                                     |
+| `reasoning.production_*` (0013)                | Role runs and every possible paid attempt                                                                                          | Stable claims/writer run UUID          | Harness retention and liability policy                                 |
 
 `makeProduceScroll` reserves a topic/version, retrieves code-selected public pages, freezes original
 plain-text passages with content-derived IDs, asks the claims role, asks the writer, and publishes.
@@ -30,8 +30,9 @@ An unknown attempt stays unknown and is never resent. Ordinary reruns report exi
 terminal rejection stays rejected. A changed prompt, source list or policy requires a reviewed
 version bump, never editing the old job or published revision.
 
-Topic explanation identities are `legacy-cutroom-seasons-v5`, `legacy-cutroom-tides-v4`, and
-`legacy-cutroom-greenhouse`, exactly matching the approved Reel import. The frozen v1 scripts are
+The recipes the producer runs are the library plan in `../domain/library/` (one file per topic
+system); `topics.ts` is only its index. Three explanation identities are `legacy-cutroom-seasons-v5`,
+`legacy-cutroom-tides-v4`, and `legacy-cutroom-greenhouse`, exactly matching the approved Reel import. The frozen v1 scripts are
 continuity references only. No v1 Scroll or authored example is presented as generated content.
 Neither private research nor provenance is reachable through content's client-facing read ports.
 
@@ -44,13 +45,13 @@ JSON; v2 makes that distinction explicit and adds one `JSON.stringify`-generated
 example. This is a bounded prompt correction, not evidence that the earlier model copied grammar
 or that the revised prompt will succeed. Parsing, schemas, admission and repair limits are unchanged.
 
-| Identity | v1 | v2 | v3 | v4 | v5 | v6 | v7 | v8 |
-|---|---|---|---|---|---|---|---|---|
-| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` | `scroll-production.v5` | `scroll-production.v6` | `scroll-production.v7` | `scroll-production.v8` |
-| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged | Unchanged | `scroll-claims.v3` (native object carrier) | `scroll-claims.v4` (advisory input shape) | Unchanged |
-| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) | `scroll-writer.v3` | `scroll-writer.v4` (semantic repair feedback) | `scroll-writer.v5` (native object + original prose) | `scroll-writer.v6` (advisory input shape) | Unchanged |
-| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged |
-| Evidence candidate recipe | None | None | `quote-candidates.v1` | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged |
+| Identity                                  | v1                                       | v2                                                    | v3                                  | v4                     | v5                                            | v6                                                  | v7                                        | v8                     |
+| ----------------------------------------- | ---------------------------------------- | ----------------------------------------------------- | ----------------------------------- | ---------------------- | --------------------------------------------- | --------------------------------------------------- | ----------------------------------------- | ---------------------- |
+| Job policy / unique topic-version key     | `scroll-production.v1`                   | `scroll-production.v2`                                | `scroll-production.v3`              | `scroll-production.v4` | `scroll-production.v5`                        | `scroll-production.v6`                              | `scroll-production.v7`                    | `scroll-production.v8` |
+| Claims role version                       | `scroll-production.v1`                   | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged              | Unchanged                                     | `scroll-claims.v3` (native object carrier)          | `scroll-claims.v4` (advisory input shape) | Unchanged              |
+| Writer role and provenance prompt version | `scroll-production.v1`                   | `scroll-writer.v2`                                    | `scroll-writer.v2` (unchanged)      | `scroll-writer.v3`     | `scroll-writer.v4` (semantic repair feedback) | `scroll-writer.v5` (native object + original prose) | `scroll-writer.v6` (advisory input shape) | Unchanged              |
+| Research policy / draft DSL               | `public-research.v1` / `scroll-draft.v1` | Unchanged                                             | Unchanged                           | Unchanged              | Unchanged                                     | Unchanged                                           | Unchanged                                 | Unchanged              |
+| Evidence candidate recipe                 | None                                     | None                                                  | `quote-candidates.v1`               | Unchanged              | Unchanged                                     | Unchanged                                           | Unchanged                                 | Unchanged              |
 
 All four rejected v1/v2/v3 jobs, their stable run IDs and eleven attempts stay untouched. A reviewed v4 invocation
 creates a different job and role runs; it is not a resend or resume of an earlier version. It still
@@ -214,19 +215,19 @@ interaction values remain true, true and false. `TOPICS` now declares explanatio
 interaction explicitly; the producer uses that value for both writer validation and compilation.
 No new recipe inherits a Reel identity, series relationship or semantic coverage map.
 
-| Key / explanation identity | Intended teaching question | Required interaction | Bounded source list |
-|---|---|---|---|
-| `greenhouse-radiation` / `earth-greenhouse-radiation-paths-v1` | Follow reflection, absorption and emission along incoming/outgoing radiation paths | Selectable physical-process diagram frames with accessible text; no time simulation | NASA radiation budget + greenhouse FAQ |
-| `greenhouse-balance` / `earth-greenhouse-system-balance-v1` | Distinguish internal redistribution from energy crossing the whole-system boundary; compare equilibrium and imbalance | Qualitative balance/imbalance diagram states with accessible text; no prediction | NASA energy budget + greenhouse FAQ |
-| `greenhouse-limits` / `earth-greenhouse-analogy-audit-v1` | Audit useful versus misleading blanket inferences and natural versus strengthened context | Comparison or disclosure; no interactive requirement | NASA radiation budget + greenhouse FAQ |
+| Key / explanation identity                                     | Intended teaching question                                                                                            | Required interaction                                                                | Bounded source list                    |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------- |
+| `greenhouse-radiation` / `earth-greenhouse-radiation-paths-v1` | Follow reflection, absorption and emission along incoming/outgoing radiation paths                                    | Selectable physical-process diagram frames with accessible text; no time simulation | NASA radiation budget + greenhouse FAQ |
+| `greenhouse-balance` / `earth-greenhouse-system-balance-v1`    | Distinguish internal redistribution from energy crossing the whole-system boundary; compare equilibrium and imbalance | Qualitative balance/imbalance diagram states with accessible text; no prediction    | NASA energy budget + greenhouse FAQ    |
+| `greenhouse-limits` / `earth-greenhouse-analogy-audit-v1`      | Audit useful versus misleading blanket inferences and natural versus strengthened context                             | Comparison or disclosure; no interactive requirement                                | NASA radiation budget + greenhouse FAQ |
 
 The analogy audit deliberately excludes another complete radiation-path/balance tutorial. It
 still overlaps background ideas in the unchanged broad greenhouse overview: new keys, titles,
 formats and IDs cannot establish conceptual variety. After actual generation, editorial review
 must check all three outputs against each other and the old overview for distinct explanatory
-work, faithful support, caveats, useful interaction and absence of redundant retelling. Exact
-coverage-map approval remains separate and requires actual admitted bytes. Recipes, fixtures,
-publication metadata and primary topic attribution never seed trusted coverage or form geography.
+work, faithful support, caveats, useful interaction and absence of redundant retelling.
+Coverage is decided by code at publication from the recipe (see "Publication: topic attribution and
+coverage"), never from a person's or a model's approval. Recipes and fixtures never form geography.
 
 The investigation used the actual `public-research.v1` extraction and unchanged candidate builder
 on unauthenticated public pages. The retained radiation-budget pool had 15 candidates, FAQ 7 and
@@ -258,33 +259,40 @@ topic, and unchanged historical snapshots. This establishes source/protocol beha
 content, semantic variety, provider acceptance, UI reading or formation. No call, allowance,
 role-cap/day reset, deployment or live registry seed is authorized by this source extension.
 
-## New-publication topic authority
+## Publication: topic attribution and coverage
 
 `completeWriterPublication` is private to production and has no consumer/composition attribution
 port. It requires the current live production scope, the locked writer-stage job and actual
 successful `closeProductionRun`. After its publication callback stores the immutable revision and
-marks the exact job published, an unexported helper matches the current policy, target asset and
+marks the exact job published, unexported helpers match the current policy, target asset and
 revision, explanation identity, admitted Scroll status, document/provenance hashes, model
 production run and writer prompt version, successful primary/repair accounting identities and
 the job's exact writer receipt. Provider/model must be the configured real MiniMax family; a
 normal fixture transport/model, arbitrary editorial/model-kind or explanation-ID lookalike,
 missing job, foreign lineage, incomplete job or contradictory metadata does not gain authority.
-The helper reads no reasoning SQL, request bytes, raw answers or research text. Actual closure
+The helpers read no reasoning SQL, request bytes, raw answers or research text. Actual closure
 and bounded accounting come through the existing harness within the same production transaction.
 
-The `0016` trigger already creates the exact revision's baseline discovery row. Only then does
-this hook project one code-owned primary topic with weight 1 and a single facet:
-`earth.seasons`, `earth.tides`, or `earth.greenhouse-effect`, under
-`published-scroll-brief-taxonomy.v1`. Existing aggregate weight guards remain active. No immutable
-document/provenance bytes, personal encounters, activity, growth, series or relationships change.
-Projection failure rolls back writer closure, publication and metadata together; same-run ledger
-replay can recover without resending a paid answer. Missing authority remains unknown.
+Two things are then written in that same transaction, both decided by code from the recipe in
+`TOPICS` (the library plan in `domain/library/`, D-033):
 
-Historical-published reconciliation is **unavailable**: completed old runs need a separately named
-reasoning attestation read before any such capability can exist. All four actual historical jobs
-are rejected, so no known generated publication is omitted. CI uses explicitly labelled transport
-identity stand-ins for positives and fault injection for authority negatives; none is real provider
-or discovery journey evidence. The publication projection itself needs no SQL change; v8 extends only the closed recipe-key constraint in forward migration 0026.
+1. **Planet.** The `0016` trigger already creates the exact revision's baseline discovery row.
+   The hook projects one primary topic with weight 1 (the recipe's planet, for example
+   `machine-learning.attention`) under `published-scroll-brief-taxonomy.v1`. Existing aggregate
+   weight guards remain active.
+2. **Coverage.** `admitRecipeCoverage` binds the recipe's facet (and optional supporting facet) to
+   blocks of the stored document under the structural rule `scroll-recipe-coverage.v1`, and appends
+   the first coverage head. A document with too few body blocks publishes without coverage and a
+   `coverage_*` outcome is added to the job. See the content README, "Scroll coverage".
+
+No immutable document/provenance bytes, personal encounters, activity, growth, series or
+relationships change. Failure in either step rolls back writer closure, publication and metadata
+together; same-run ledger replay recovers without resending a paid answer. Missing authority
+remains unknown. Historical-published reconciliation is **unavailable**: completed old runs need a
+separately named reasoning attestation read before any such capability can exist.
+
+CI uses explicitly labelled transport identity stand-ins for positives and fault injection for
+authority negatives; none is real provider or discovery journey evidence.
 
 ## Cutroom commission contract prerequisite (#240)
 
@@ -321,7 +329,6 @@ aggregation semantics; cost remains explicitly unverified until reviewed account
 No automatic sum/settlement or new<=75c allowance per child follows. Publication, corpus fingerprint,
 source/framing/rights/media gates, exact-script owner approval, live fal balance and pool reconciliation
 remain separate future requirements. No content/evidence/coverage/encounter is admitted here.
-
 
 ## Bounded writer feedback in v9
 

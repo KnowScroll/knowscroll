@@ -398,7 +398,7 @@ describe('Scroll production roles (labelled CI fixture)', () => {
 
 describe('code-owned explanation recipes (source declarations, not generated semantic coverage)', () => {
   it('preserves every original recipe value and exact Reel explanation identity', () => {
-    expect(TOPICS.seasons).toEqual({
+    expect(TOPICS.seasons).toMatchObject({
       script: 'seasons-v5',
       topicId: 'earth.seasons',
       assetId: 'af2628f1-98a7-4c39-9f81-628506d247a1',
@@ -408,7 +408,7 @@ describe('code-owned explanation recipes (source declarations, not generated sem
         'Why Earth has seasons: axial tilt changes daylight and sunlight angle; distance is not the cause. Include a useful interactive diagram with frames for opposite hemispheres. Explain the limits of the simplified picture.',
       pages: ['https://spaceplace.nasa.gov/seasons/en/'],
     });
-    expect(TOPICS.tides).toEqual({
+    expect(TOPICS.tides).toMatchObject({
       script: 'tides-v4',
       topicId: 'earth.tides',
       assetId: '8349204a-0c98-45d3-a354-6c73be4a86de',
@@ -421,7 +421,7 @@ describe('code-owned explanation recipes (source declarations, not generated sem
         'https://oceanservice.noaa.gov/education/tutorial_tides/tides06_variations.html',
       ],
     });
-    expect(TOPICS.greenhouse).toEqual({
+    expect(TOPICS.greenhouse).toMatchObject({
       script: 'greenhouse',
       topicId: 'earth.greenhouse-effect',
       assetId: 'a73a7732-a154-4c10-aa6f-169fa10cd8aa',
@@ -440,8 +440,10 @@ describe('code-owned explanation recipes (source declarations, not generated sem
     expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v13');
     expect(units.map(({ interactive }) => interactive)).toEqual([true, true, false]);
     expect(units.every(({ topicId }) => topicId === 'earth.greenhouse-effect')).toBe(true);
-    expect(new Set(Object.values(TOPICS).map(({ assetId }) => assetId)).size).toBe(6);
-    expect(new Set(Object.values(TOPICS).map(({ explanationUnitId }) => explanationUnitId)).size).toBe(6);
+    expect(new Set(Object.values(TOPICS).map(({ assetId }) => assetId)).size).toBe(Object.keys(TOPICS).length);
+    expect(new Set(Object.values(TOPICS).map(({ explanationUnitId }) => explanationUnitId)).size).toBe(
+      Object.keys(TOPICS).length,
+    );
     for (const key of keys) {
       expect(parseScrollTopic(key)).toBe(key);
       expect(explanationUnitFor(key)).not.toMatch(/^legacy-cutroom-/u);

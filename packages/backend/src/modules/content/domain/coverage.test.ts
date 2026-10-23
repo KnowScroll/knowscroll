@@ -5,6 +5,7 @@ import {
   COVERAGE_POLICY,
   CoverageCommandSchema,
   CoverageMappingSchema,
+  currentCoverageMapping,
   validateCoverageMapping,
   type CoverageMapping,
   type CoverageTarget,
@@ -126,5 +127,35 @@ describe('Content static coverage admission, synthetic source fixtures only', ()
     map.bindings[0]!.requiredBlockIds = ['foreign'];
     expect(() => validateCoverageMapping(map, target, catalogue)).toThrow('CONTENT_COVERAGE_LOCATOR_INVALID');
     expect(CoverageCommandSchema.safeParse({ assetId: 'not-an-id' }).success).toBe(false);
+  });
+  describe('read-time view of a stored mapping', () => {
+    it('ignores the catalogue digest, so a plan edit does not make coverage unreadable', () => {
+      const grown = { sha256: 'c'.repeat(64), meaningSha256: () => hash };
+      expect(() => validateCoverageMapping(mapping(), target, grown)).toThrow('CONTENT_COVERAGE_IDENTITY_MISMATCH');
+      expect(currentCoverageMapping(mapping(), target, grown)).toEqual(mapping());
+    });
+    it('drops a binding whose facet vanished or changed meaning, and keeps the others', () => {
+      const two = mapping();
+      two.bindings.push({ ...two.bindings[0]!, facetId: 'earth.seasons.hemispheres' });
+      const reworded = {
+        meaningSha256: (_topic: string, facet: string) =>
+          facet === 'earth.seasons.axial-tilt' ? 'd'.repeat(64) : hash,
+      };
+      expect(currentCoverageMapping(two, target, reworded).bindings.map((b) => b.facetId)).toEqual([
+        'earth.seasons.hemispheres',
+      ]);
+      expect(currentCoverageMapping(two, target, { meaningSha256: () => undefined }).bindings).toEqual([]);
+    });
+    it('still refuses a mapping that does not fit the immutable document', () => {
+      expect(() => currentCoverageMapping(mapping(), { ...target, documentSha256: 'b'.repeat(64) }, catalogue)).toThrow(
+        'CONTENT_COVERAGE_IDENTITY_MISMATCH',
+      );
+      const foreign = mapping();
+      foreign.bindings[0]!.requiredBlockIds = ['foreign'];
+      expect(() => currentCoverageMapping(foreign, target, catalogue)).toThrow('CONTENT_COVERAGE_LOCATOR_INVALID');
+      const duplicate = mapping();
+      duplicate.bindings.push(duplicate.bindings[0]!);
+      expect(() => currentCoverageMapping(duplicate, target, catalogue)).toThrow('CONTENT_COVERAGE_BINDING_INVALID');
+    });
   });
 });

@@ -1412,8 +1412,8 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     expect(new Set(assets).size).toBe(3);
     expect(await database.db.selectFrom('identity.universes').select('id').execute()).toHaveLength(0);
   });
-  it('keeps the persisted recipe-key constraint closed after the forward extension', async () => {
-    for (const topic of ['greenhouse-new-unknown', '__proto__', 'GREENHOUSE']) {
+  it('keeps the persisted recipe-key constraint to the shape of a key; the code-owned plan decides which keys exist', async () => {
+    for (const topic of ['__proto__', 'GREENHOUSE', 'greenhouse_radiation', '-greenhouse', 'x'.repeat(65)]) {
       await expect(
         sql`insert into content.scroll_production_runs (id,topic,policy_version,target_revision,scope_generation,state,claims_run_id,writer_run_id) values (${randomUUID()},${topic},'CI-unknown',1,1,'research',${randomUUID()},${randomUUID()})`.execute(
           database.db,
