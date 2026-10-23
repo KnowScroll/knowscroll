@@ -692,7 +692,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       harness: {
         ...r.ports.harness,
         proposePersonal: (input, abort) =>
-          r.ports.harness.proposePersonal({ ...input, role: { ...input.role, version: 'planner2' } }, abort),
+          r.ports.harness.proposePersonal({ ...input, role: { ...input.role, version: 'planner-ci-mismatch' } }, abort),
       },
     });
     for (let resume = 0; resume < 2; resume++) {

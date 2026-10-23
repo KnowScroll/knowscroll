@@ -100,9 +100,11 @@ export interface PlannedDemandInput {
   readonly format: 'reel' | 'scroll' | 'either';
   readonly language: string;
   readonly capabilities: CreateContentRequest['capabilities'];
+  /** Explanations the person has already met. Reuse skips them: the opportunity asks for something new. */
+  readonly alreadyMet: readonly string[];
 }
 export type PlannedDemandOutcome =
-  /** Reuse: admitted content already fits. */
+  /** Reuse: admitted content the person has not met already fits. */
   | { readonly kind: 'ready'; readonly requestId: string }
   /** Join or Create-group: waits on the shared matching group. No resolver job and no production run. */
   | { readonly kind: 'deferred'; readonly requestId: string; readonly joined: boolean }

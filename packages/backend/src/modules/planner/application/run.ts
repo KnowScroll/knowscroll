@@ -22,7 +22,7 @@ import type {
   ReadPlannerOpportunities,
   RunPlanner,
 } from './ports.js';
-import { prepareContext } from './context.js';
+import { encounteredUnits, prepareContext } from './context.js';
 import { recordMissingSupplyDemand } from './demand.js';
 import { ensureRun } from './request.js';
 import { PlannerJobSchema } from '../events.js';
@@ -460,6 +460,7 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
         await recordMissingSupplyDemand(p, scope, {
           runId: run.id,
           language: context.intent.language,
+          alreadyMet: [...encounteredUnits(context)],
           opportunities: accepted,
         });
       }

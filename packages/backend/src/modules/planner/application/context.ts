@@ -2,6 +2,15 @@ import type { PersonalScopeTx } from '../../identity/public.js';
 import { PLANNER_LIMITS, opportunityIssue } from '../domain/proposal.js';
 import type { FrozenContext, PlannerPorts, PlannerState } from './ports.js';
 
+/** Explanations the person has already met, from qualified evidence and actual retained history. */
+export function encounteredUnits(context: FrozenContext): ReadonlySet<string> {
+  return new Set([
+    ...context.facts.evidence.map((e) => e.explanationUnitId),
+    ...context.snapshot.routing.recent.map((r) => r.explanationUnitId),
+    ...context.snapshot.routing.established.filter((u) => u.encountered).map((u) => u.explanationUnitId),
+  ]);
+}
+
 /** No history reconstruction: union real plan/inventory/recent projection seeds under one cap. */
 export async function prepareContext(
   p: PlannerPorts,

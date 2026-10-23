@@ -69,7 +69,13 @@ function matches(brief: CanonicalBrief, candidate: EncounterSnapshot): boolean {
         (!s.facetId || candidate.facets.includes(s.facetId));
 }
 /** One sorted Content lock batch. Private/source data is never submitted as retrieval text. */
-async function inventory(p: SupplyPorts, scope: PersonalScopeTx, c: CreateContentRequest, brief?: CanonicalBrief) {
+async function inventory(
+  p: SupplyPorts,
+  scope: PersonalScopeTx,
+  c: CreateContentRequest,
+  brief?: CanonicalBrief,
+  skipExplanations: ReadonlySet<string> = new Set(),
+) {
   const source = sourceOf(c);
   const sourceSnapshot = source ? await p.readExact(scope, { ...source, capabilities: c.capabilities }) : undefined;
   const candidates =
@@ -89,11 +95,16 @@ async function inventory(p: SupplyPorts, scope: PersonalScopeTx, c: CreateConten
           })
         : [];
   const heads = await p.lockCurrent(scope, {
-    refs: [...(source ? [source] : []), ...candidates.filter((x) => brief && matches(brief, x))],
+    refs: [
+      ...(source ? [source] : []),
+      ...candidates.filter((x) => brief && matches(brief, x) && !skipExplanations.has(x.explanationUnitId)),
+    ],
     capabilities: c.capabilities,
   });
   const sourceHead = source ? heads.find((x) => sameRef(x.ref, source)) : undefined;
-  const ready = heads.find((x) => x.encounter && brief && matches(brief, x.encounter));
+  const ready = heads.find(
+    (x) => x.encounter && brief && matches(brief, x.encounter) && !skipExplanations.has(x.encounter.explanationUnitId),
+  );
   return { heads, sourceHead, ready };
 }
 function checkedRevision(value: number): number {
@@ -391,7 +402,7 @@ export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
       status: 'deferred',
       decision: 'join',
     };
-    const reusable = (await inventory(p, scope, command, brief)).ready;
+    const reusable = (await inventory(p, scope, command, brief, new Set(input.alreadyMet))).ready;
     if (reusable?.encounter) {
       await p.store.insert(scope, {
         ...demand,
