@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-23 00:12 UTC · **Phase:** RESUMED / corrected recording candidate and accepted Conversations prerequisite · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-23 00:44 UTC · **Phase:** RESUMED / second recording failure corrected in source; fresh Actions required · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,25 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current authoritative phase — 2026-10-23 00:12 UTC
+## Current authoritative phase — 2026-10-23 00:44 UTC
+
+Actual integration remains **23fa942428b9ecc329f1cfc757abd9027b227b22 / schema41**. Accepted PR389 source/actual-PR receipts1309bf72 and actual squash9645e5b5 remain valid. Conversations consumers and new storage are absent; no SQL45 or new owner-registry digest is elected.
+
+PR388's second published candidate7417b528 failed source39877136693 and actual-PR39877141971: PostgreSQL56 failures/909 passes, installed HTTP3/129 and client2/342; static/integrity passed and release was skipped. Both complete83-entry official archives are retained in `recording381-corrected-7417/terminal-failure` under the active resume evidence root; capturec1b3a44e. Original d5 failures remain retained. Native39877142081 passed APK/emulator gallery: all3 official artifact ZIP digests and member maps3fc8904e are verified, but this proves no durable recording, authenticated connected journey or real generated Scroll. No unchanged rerun or required-check override occurred.
+
+Root now composes independently reviewed source corrections on actual23fa. Client fixture3055 uses valid block IDs (4450c8aa). Genuine Identity birth/direct-origin/installed vector fixturesf9d2 have full reviewc63c0100; its sole state-PK finding closes47d687de/e7df385c with exact composite DO NOTHING in both erasure fixtures, preserving genuine role state and every assertion. PC strict projection/actual financial dispatch observationf114 has full4 review07f6e528. Retained routing5f5ce2a5 has full5 review9938e624: fixed20 raw rows per legacy/recording lane, at most40 merged then dedup20, no refill, real eligible activation across retained generations and paused reads, correction-only exclusion and existing ANY-facet semantics. It creates no qualification, support or learning authority.
+
+Exactly THREE additive indexes were authorised in UNRELEASED0042; its new checksum is **3b85edec0d4c135b72637ba52527002f57b8a6d4ac23ce4df05af8251fad50cb**. Removing that block restores previous0042 exactly. Registry-only02af8dec is independently closede17f440f. Accepted0001–0041, 0043/0044, generated types and actual12-owner inventoryebbec3bd stay unchanged. Old disabled operator/registry-transition proposals require fresh checksum/source binding after actual full44 acceptance. These source closures do not prove the failed cases now pass. Fresh combined statics, whole-composition independent review and exact new source/actual-PR Actions/full artifacts remain mandatory before integration.
+
+Native249 encrypted snapshot and asynchronous account-scope cleanup implementation is now allocated23 literal paths and under final source checks; it is not accepted or deployed. Actual dependency/Android SecureStore commit patch, SDK storage, restart and failure evidence require independent source review and hosted execution. The existing installed app remains memory-only. Deployment guard250 local84307ed3 has full10 independent Root source review7f7d47f5 and preserves all55 original complete cases; meaningful Linux FD/FIFO/flock/process cases are authored, not executed. No installation, intent or operation window is elected. Compose only its reviewed paths on an actual accepted base before publication.
+
+Privacyv3 source proposal closurec0ed24ad remains; only concrete NEW retention/recovery choices await owner selection. Accepted own sent bodies, unavailable-peer markers, peer-independent data and honest layered completion remain authorised. Conversations full backend/client ownership and current registry compatibility must be bound before its coordinated vertical storage candidate.
+
+Fresh public health00:20UTC remains dev476baec5/schema35/archive8579c51b on both hosts and stage legacy8982391f. Source dev106c4701, stage8982391f and main e5fdc319 remain unchanged. Every old deployment/provider/host window is consumed or expired. Actual allowance ledgerdf1dd4d5 is unchanged:36used/0held/0unknown of43. The separately reviewed finite232 extension is not applied. Carry v12 terminal failure, NULL failed response bodies,22 unexplained own-consumer deltas,2 prejob exposures/Saved revision uncertainty and **ZERO accepted generated Scrolls**. Exact PR379 script remains individually approved for ONE future order≤75c; current principal, complete cost, corpus, pool, sole-writer and finite launch gates remain open. No paid request, owner-data/history mutation, pool reset, main or production action occurred.
+
+Continue corrected388 exact checks/integration, native/Social/privacy/design/operator coverage, D002 integration→dev PR and IMMEDIATE plain dev mergeback, real disposable-account connected journeys, separately gated Cutroom/interactive generation and identical-artifact stage. **All five programme requirements remain OPEN.**
+
+## Earlier authoritative phase — 2026-10-23 00:12 UTC
 
 **Actual integration is23fa942428b9ecc329f1cfc757abd9027b227b22/schema41.** PR389 shared Conversations prerequisite is actually squash-merged on exact7eb after independent full11 review94c8f9bd and correction reviewd45d4ee0. Source9a6f5c80/run39875707631 and actualPR95ec2de6/run39875714384 pass all six; acceptance1309bf72 verifies each complete114 logs/102 successful step logs, official artifact ZIP digests, all19,732 manifest entries/41SQL/smoke29. Actual-squash receipt9645e5b5 verifies parent/tree/clean integration fast-forward. Initial5f runs39874079955/39874085550 failed two new key-name assertions; both complete112-entry archives remain retained, never accepted. Corrected assertions distinguish forbidden property names from permitted text discriminator values, preserving private canaries and strict schemas. No Conversations consumer or deployment is implied.
 

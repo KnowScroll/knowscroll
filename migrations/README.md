@@ -88,3 +88,12 @@ The two `prefer-bigint-over-smallint` exceptions in0044 cover only literal CHECK
 not counters. No capacity or growing sequence relies on smallint.
 
 Pending0044 correction after hosted d5 failures: the fixed manifest includes the actual Planner and Geography runs.recording_account_id links, both erased with their owning run rows. The old c21 digest and failed source remain retained; no OLD/NEW compatibility or Conversations extension is installed. The exact0042 audit-identity function is replaced here using positional arguments solely to remove runtime PL/pgSQL name collisions; signatures, types and equality guards remain unchanged. All0001–0043 remain byte-exact.
+
+
+Pending routing correction before0042 has reached a shared database: exactly three additive
+recent/unit/facet query indexes read retained actual eligible activations across generations.
+They do not initialise historical channels or alter any other0042 statement. Its reviewed registry
+checksum is now3b85edec0d4c135b72637ba52527002f57b8a6d4ac23ce4df05af8251fad50cb;
+0001–0041 and0043/0044 remain byte-exact. Earlier source/failure and disabled operator pins remain
+historical and must be rebound after exact full44 candidate acceptance. No schema deployment follows
+from this source correction.
