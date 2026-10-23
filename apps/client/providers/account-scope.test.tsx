@@ -1,6 +1,8 @@
 import { QueryClient, useQuery } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react-native';
 import { AppState, Platform, Text, type AppStateStatus } from 'react-native';
+import * as Crypto from 'expo-crypto';
+import { ReadRecordingPolicySchema } from '@knowscroll/contracts';
 import {
   createAccountScopeManager,
   memoryStore,
@@ -194,6 +196,13 @@ it('native background inhibits recording and foreground rereads without remounti
     change = listener;
     return { remove };
   });
+  // jest-expo's native ExpoCrypto.randomUUID mock returns undefined. Supply only the UUID
+  // primitive; the actual provider, command adapter and strict correlated HTTP read stay real.
+  let uuidSequence = 0;
+  const uuid = jest.spyOn(Crypto, 'randomUUID').mockImplementation(() => {
+    uuidSequence++;
+    return `0199c000-0000-4000-8000-${uuidSequence.toString(16).padStart(12, '0')}`;
+  });
   let generation = 1;
   let wait: Promise<void> | undefined;
   const manager = createAccountScopeManager({
@@ -204,10 +213,12 @@ it('native background inhibits recording and foreground rereads without remounti
     fetch: async (request) => {
       if (request.url.endsWith('/auth/session'))
         return json(200, { account: accounts.a, client: 'web', expiresAt: '2099-10-23T00:00:00.000Z' });
-      const input = (await request.json()) as { readId: string; target: unknown };
+      expect(new URL(request.url).pathname).toBe('/v1/privacy/recording/read');
+      expect(request.headers.get('x-ks-scope')).toBe(`${accounts.a.accountId}:1`);
+      const input = ReadRecordingPolicySchema.parse(await request.json());
+      expect(input.target).toEqual({ kind: 'current' });
       await wait;
       return json(200, {
-        version: 'recording-policy.v1',
         ...input,
         scope: { accountId: accounts.a.accountId, privacyEpoch: 1 },
         revision: generation,
@@ -267,6 +278,7 @@ it('native background inhibits recording and foreground rereads without remounti
       await app?.unmount();
     } finally {
       manager.dispose();
+      uuid.mockRestore();
       subscription.mockRestore();
       if (original) Object.defineProperty(AppState, 'currentState', original);
       if (originalPlatform) Object.defineProperty(Platform, 'OS', originalPlatform);
@@ -284,6 +296,13 @@ it('native background inhibits recording and foreground rereads without remounti
 it('publishes hydrated native scope before replaying its original backlog, without restoring collection authority (CI lifecycle ports)', async () => {
   const original = Object.getOwnPropertyDescriptor(AppState, 'currentState');
   Object.defineProperty(AppState, 'currentState', { configurable: true, value: 'active' });
+  // The actual provider uses the native command adapter here too. Keep SDK-only UUID
+  // prerequisites valid while hydration, strict HTTP policy reads and backlog delivery stay real.
+  let uuidSequence = 0;
+  const uuid = jest.spyOn(Crypto, 'randomUUID').mockImplementation(() => {
+    if (++uuidSequence > 16) throw new Error('ci_fixture_uuid_exhausted');
+    return `0199d000-0000-4000-8000-${uuidSequence.toString(16).padStart(12, '0')}`;
+  });
   const store = memoryStore(),
     disk = new Map<string, string>(),
     listeners = new Set<() => void>();
@@ -370,10 +389,12 @@ it('publishes hydrated native scope before replaying its original backlog, witho
     }
     if (path === '/v1/saved') return json(200, { revision: 0, items: [] });
     if (path === '/v1/privacy/recording/read') {
+      const input = ReadRecordingPolicySchema.parse(body);
+      expect(request.headers.get('x-ks-scope')).toBe(`${accounts.a.accountId}:1`);
+      expect(input.target).toEqual({ kind: 'current' });
       policyReads.push(body);
       return json(200, {
-        version: 'recording-policy.v1',
-        ...(body as object),
+        ...input,
         scope: { accountId: accounts.a.accountId, privacyEpoch: 1 },
         revision: 7,
         policy: { on: true, generation: 5 },
@@ -426,6 +447,7 @@ it('publishes hydrated native scope before replaying its original backlog, witho
     expect(state.scope.account.privacyEpoch).toBe(1);
   } finally {
     await app.unmount();
+    uuid.mockRestore();
     if (original) Object.defineProperty(AppState, 'currentState', original);
   }
 });
