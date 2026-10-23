@@ -105,3 +105,22 @@ completeness limit. The adapter writes nothing and requests provisionalLimit0. P
 has no Evidence preparation fallback; an absent PC binding is a startup/DI failure. Legacy Evidence
 preparation is opt-in for direct compatibility fixtures only. No shared wire or migration changes
 are part of this adapter. Real dev reading/context inspection is still required before closing235.
+
+
+## Planner plan (#236, D-035)
+
+Personal Context may add the person's current Planner plan to the prepared context as
+`evidence.plan`: at most three opportunities, each with its move, topics, explanation unit, suited
+threads, formats, expiry and whether its target is admitted content. A plan is not evidence and
+creates none. Titles, purposes and briefs never enter the snapshot or the decision.
+
+When the plan has an unexpired opportunity suited to the move, `domain/plan.ts` blends it into one
+feature: Intent for a vertical move, Continuity for a horizontal move.
+`feature = 0.75 × base + 0.25 × agreement`. Agreement is 1 for the same explanation in a format the
+opportunity lists when its target is admitted content, 0.5 for a shared non-incidental topic in a
+listed format and 0 otherwise. Without a suited opportunity the features are unchanged, and return
+and variant moves ignore plans. A candidate that matches the current intent keeps at least 0.75 and
+one that does not keeps at most 0.25, so current intent decides first. Each matched candidate's
+evaluation in the decision carries `plan` with the revision, opportunity position, match, feature
+and the value before and after. Capability state: implemented, CI-verified, run locally against the
+real model; not yet runtime-verified on dev.

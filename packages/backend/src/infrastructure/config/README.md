@@ -26,8 +26,9 @@ the worker's reasoning transport/caps and scope-lock timeout. It does not requir
 or personal identity. Both configuration and the database production root still default disabled;
 this parser does not mint a production grant.
 
-`KS_PLANNER_ENABLED` accepts0/1 and defaults0 in worker configuration (#236). It gates the
-personal Planner before any model reservation and does not confer paid allowance. Disabled
+`KS_PLANNER_ENABLED` accepts 0/1. It defaults to 1 in world `local` and to 0 in every other world; the
+dev world sets 1 in its environment file (#236, D-035). It gates the personal Planner before any model
+reservation and does not confer paid allowance. Disabled
 work remains durable and resumes only through an explicit same-business-run request.
 
 `KS_CARTOGRAPHER_ENABLED` (#237) accepts0/1 and defaults0. It is a feature gate only. Geography's

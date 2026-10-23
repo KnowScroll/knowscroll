@@ -97,3 +97,9 @@ checksum is now3b85edec0d4c135b72637ba52527002f57b8a6d4ac23ce4df05af8251fad50cb;
 0001–0041 and0043/0044 remain byte-exact. Earlier source/failure and disabled operator pins remain
 historical and must be rebound after exact full44 candidate acceptance. No schema deployment follows
 from this source correction.
+
+0046 adds Planner-originated demand to Supply: `origin`, `planner_run_id` and `planner_slot` on
+`supply.requests`, the `deferred` state, and a unique index so one plan opportunity is one demand.
+The checks are `NOT VALID`; older writers default to `origin='person'` and never write `deferred`.
+No new table, so the erasure inventory is unchanged and Clear removes planned demand with the rest
+of the person's requests.

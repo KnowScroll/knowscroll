@@ -167,6 +167,9 @@
       KS_OPERATOR_SIGN_IN_PATTERN={{ ks_v2_operator_sign_in_pattern }}
       # Worker only: runs the Personal Planner after material evidence changes (#236).
       KS_PLANNER_ENABLED={{ '1' if item.name in ks_v2_planner_enabled_worlds else '0' }}
+      # MiniMax-M3.1-Flash thinks before it answers: real Planner calls took 20 to 110 seconds, and the
+      # 60 s default would leave a run unknown (never resent). Worker only; the API makes no model calls.
+      KS_MINIMAX_REQUEST_TIMEOUT_MS=180000
   loop: "{{ ks_v2_world_list }}"
   loop_control:
     label: "{{ item.name }}.v2.env"
