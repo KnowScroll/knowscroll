@@ -25,6 +25,21 @@ export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export interface ComposerBuffers {
+  assessments: Json | null;
+  decision_id: string;
+  expires_at: Timestamp;
+  intent_revision: number;
+  mode: string;
+  prepared_at: Generated<Timestamp>;
+  privacy_epoch: number;
+  selection: Json;
+  session_id: string;
+  source_exposure_id: string;
+  source_offer_id: string;
+  universe_id: string;
+}
+
 export interface ComposerDecisions {
   command_id: string;
   expires_at: Timestamp;
@@ -1503,6 +1518,7 @@ export interface SupplyWork {
 }
 
 export interface DB {
+  "composer.buffers": ComposerBuffers;
   "composer.decisions": ComposerDecisions;
   "content.asset_provenance": ContentAssetProvenance;
   "content.asset_revisions": ContentAssetRevisions;

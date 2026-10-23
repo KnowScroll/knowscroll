@@ -43,7 +43,7 @@ creating an exemption by name. No new personal payload, provider output or erasu
 ## Current recording lifecycle closure
 
 The fixed backend eraseCurrentExploration runner closes over the actual imported frozen owner
-callbacks and current canonical literal registry/writer protocol v1 (SHA256 ebbec3bda043ab47c5566ebb29e80322e841f4dc15ef7940fc2ee4c053176dc1).
+callbacks and current canonical literal registry/writer protocol v1 (SHA256 d7942e43bb8211f37dfd08b4dfb6ac2e1b2543229a257f9c5ba850df135a1d10).
 Generic clearExplorationRegistry/eraseExploration retains basic verification but cannot issue the
 separate live current-registry proof required for lifecycle READY. No caller supplies a digest,
 version flag, replacement registry or successful callback to that runner. The lifetime proof is

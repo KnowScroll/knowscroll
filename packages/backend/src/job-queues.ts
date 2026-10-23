@@ -3,6 +3,7 @@ import { projectSceneQueue } from './modules/scenes/public.js';
 import { cartographyQueue, publishDeltaQueue } from './modules/geography/public.js';
 import { resolveSupplyQueue } from './modules/supply/public.js';
 import { plannerQueue } from './modules/planner/public.js';
+import { prepareBufferQueue } from './modules/composer/public.js';
 import { queueRegistry } from './infrastructure/jobs/queues.js';
 import {
   applyActionEvidenceQueue,
@@ -46,6 +47,7 @@ export const releaseQueues = queueRegistry([
   publishDeltaQueue,
   resolveSupplyQueue,
   plannerQueue,
+  prepareBufferQueue,
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
   projectEncounterActivityQueue,
