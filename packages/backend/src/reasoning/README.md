@@ -122,13 +122,13 @@ run fence and prevents later proposal delivery. The applier reacquires the curre
 
 Production storage is separate (`0013_reasoning_production_scope`):
 
-| Table | Key / ownership | Retention |
-|---|---|---|
-| `production_scopes` | Fixed `scroll-supply` root; enabled + generation | Retained, operator controlled |
-| `production_runs` | `(scope_id, id)`, root FK, admitted generation and monotonic run fence | Audit retained; no automatic run retention job yet |
-| `production_attempts` | `(scope_id, id)`, composite production run FK; same state/dispatch/write-off checks | Audit retained, including unknown liabilities |
-| `production_requests` | `(scope_id, attempt_id)`, composite production attempt FK, exact hash-checked bytes; `nonpersonal_production` | Same configured request expiry/purge and database backup policy as personal bytes |
-| `production_rejected_answers` (0050) | `(scope_id, attempt_id)`, composite production attempt FK; redacted answer text, findings | 30 days, purged with the expired requests |
+| Table                                | Key / ownership                                                                                               | Retention                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `production_scopes`                  | Fixed `scroll-supply` root; enabled + generation                                                              | Retained, operator controlled                                                     |
+| `production_runs`                    | `(scope_id, id)`, root FK, admitted generation and monotonic run fence                                        | Audit retained; no automatic run retention job yet                                |
+| `production_attempts`                | `(scope_id, id)`, composite production run FK; same state/dispatch/write-off checks                           | Audit retained, including unknown liabilities                                     |
+| `production_requests`                | `(scope_id, attempt_id)`, composite production attempt FK, exact hash-checked bytes; `nonpersonal_production` | Same configured request expiry/purge and database backup policy as personal bytes |
+| `production_rejected_answers` (0050) | `(scope_id, attempt_id)`, composite production attempt FK; redacted answer text, findings                     | 30 days, purged with the expired requests                                         |
 
 These tables have **no identity/universe foreign key and no personal erasure entry**. Personal erasure
 cannot own, retain or delete global supply. The existing minimal `usage_receipts` table is shared:
@@ -172,12 +172,12 @@ enforce the new brake; enforce the policy only after all reasoning workers run t
 
 ## Tables
 
-| Table | Migration | Holds | Erasure |
-|---|---|---|---|
-| `reasoning.business_runs` | `0006`, `0009`, `0032` | One row per module run: owner module, purpose, privacy epoch, role id/version, policy version, provider, model, context bundle ref and item refs, `state`, `fence` | Erased with the universe once it has no attempts left |
-| `reasoning.external_attempts` | `0006`, `0009`, `0032` | One row per external call attempt: step, state, request hash, dispatch identity, remote id, usage, quota observation, outcome code, the validated output or validator issues, write-off reason and `cli:<name>` | Settled attempts are erased with the universe; `dispatched`/`unknown` and unproved reserved ones stay marked/redacted as unresolved liability; erasure reports `pending` until legitimate accounting resolves them |
-| `reasoning.protected_requests` | `0009` | The exact request bytes (`bytea`, 1 B – 256 KiB), their SHA-256 (the database checks it equals the bytes' hash), `erasure_class`, `expires_at` (default 48 h) | Expires and is purged; erased with the universe even for an open attempt |
-| `reasoning.usage_receipts` | `0009` | The minimal accounting identity per attempt: role, provider, model, UTC day, reserved and reported tokens, state. **No universe, purpose, context or output** | Not personal; kept so global and per-role budgets and late usage stay honest |
+| Table                          | Migration              | Holds                                                                                                                                                                                                           | Erasure                                                                                                                                                                                                            |
+| ------------------------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `reasoning.business_runs`      | `0006`, `0009`, `0032` | One row per module run: owner module, purpose, privacy epoch, role id/version, policy version, provider, model, context bundle ref and item refs, `state`, `fence`                                              | Erased with the universe once it has no attempts left                                                                                                                                                              |
+| `reasoning.external_attempts`  | `0006`, `0009`, `0032` | One row per external call attempt: step, state, request hash, dispatch identity, remote id, usage, quota observation, outcome code, the validated output or validator issues, write-off reason and `cli:<name>` | Settled attempts are erased with the universe; `dispatched`/`unknown` and unproved reserved ones stay marked/redacted as unresolved liability; erasure reports `pending` until legitimate accounting resolves them |
+| `reasoning.protected_requests` | `0009`                 | The exact request bytes (`bytea`, 1 B – 256 KiB), their SHA-256 (the database checks it equals the bytes' hash), `erasure_class`, `expires_at` (default 48 h)                                                   | Expires and is purged; erased with the universe even for an open attempt                                                                                                                                           |
+| `reasoning.usage_receipts`     | `0009`                 | The minimal accounting identity per attempt: role, provider, model, UTC day, reserved and reported tokens, state. **No universe, purpose, context or output**                                                   | Not personal; kept so global and per-role budgets and late usage stay honest                                                                                                                                       |
 
 Personal rows are keyed `(universe_id, id)`, each attempt is tied to its run, and each protected
 request to its attempt, by composite foreign keys that reference `identity.universes` with
@@ -248,7 +248,7 @@ redelivery reserves a fresh attempt with fresh bytes.
 ## Attempt state machine
 
 `reserved → dispatched → succeeded | failed | unknown`, `reserved → not_sent`,
-`unknown → reconciled | written_off`. `dispatched` means *may have been sent*: a later delivery
+`unknown → reconciled | written_off`. `dispatched` means _may have been sent_: a later delivery
 that finds it marks the attempt `unknown` and **never resends**; so does the scheduled sweep when no
 delivery ever comes back (a crash after dispatch). An answer that arrives for an `unknown` attempt
 is recorded as `reconciled`; for a `written_off` attempt only its usage is recorded (on the
@@ -263,7 +263,7 @@ receipt) and the answer is never applied.
 2. **Admission** (`withPersonalScope`, authority checked): admit or compare the run (including its
    epoch); re-read the step under the lock; check the three budgets; write the attempt (`reserved`),
    its protected request bytes and its usage receipt together.
-3. **Quota preflight** (no transaction): an *observation* recorded on the attempt, not a
+3. **Quota preflight** (no transaction): an _observation_ recorded on the attempt, not a
    reservation. Anything but `available`/`not_applicable` settles the attempt `not_sent`
    (`QUOTA_UNAVAILABLE`, charges nothing); a later delivery may reserve a new attempt of the same
    step, at most four.
@@ -288,7 +288,10 @@ values). No string the model chose (a key, a value, a message) is ever part of t
 the ledger's issue record. A role may also opt in (`repairWithPreviousAnswer`, honoured only for
 nonpersonal production, whose ledger keeps refused answers) to have the refused answer repeated in
 the repair: escaped and delimited as `<previous-answer>` data in the user message, never in the
-system text, so the model revises instead of rewriting. A personal role never receives its refused
+system text, so the model revises instead of rewriting. The role may also derive `repairNotes` from
+that answer (for the Scroll writer, the source words it copied): bounded to 2,000 characters,
+escaped and sent as `<repair-notes>` data after the previous answer, so third-party text such as
+public research never reaches the system text. A personal role never receives its refused
 answer; neither does a production role that does not opt in, nor one whose answer was not the
 model's own text (a raw provider reply) or was cut at the bound. Never after `unknown` or `failed`.
 
@@ -299,12 +302,12 @@ Three daily caps (UTC day), checked at admission under a transaction advisory lo
 `request bytes + max output tokens` tokens; reported usage replaces the estimate at settlement.
 What settles:
 
-| Outcome | Charge |
-|---|---|
-| `succeeded` / invalid answer / `reconciled` with an answer | the reported input + cached + output tokens; the whole reservation when the provider reported none |
-| `failed` (conclusive) or a late conclusive rejection that reconciled an `unknown` attempt | the reported usage if any; **nothing, and not a request**, when none was reported |
-| `unknown` | the whole reservation, until usage is known or it is written off (a write-off does not refund it) |
-| `not_sent` | nothing |
+| Outcome                                                                                   | Charge                                                                                             |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `succeeded` / invalid answer / `reconciled` with an answer                                | the reported input + cached + output tokens; the whole reservation when the provider reported none |
+| `failed` (conclusive) or a late conclusive rejection that reconciled an `unknown` attempt | the reported usage if any; **nothing, and not a request**, when none was reported                  |
+| `unknown`                                                                                 | the whole reservation, until usage is known or it is written off (a write-off does not refund it)  |
+| `not_sent`                                                                                | nothing                                                                                            |
 
 Accounting is deliberately conservative: input tokens include cache writes and the charge adds cache
 reads on top, which may count a cached read twice if MiniMax's `input_tokens` already includes it
@@ -324,10 +327,10 @@ sweep and the operator's reads take no root lock: they lock one attempt or recei
 
 ## Jobs
 
-| Queue | Schedule | Work |
-|---|---|---|
-| `reasoning.sweep-dispatched-attempts` | every 5 minutes (pg-boss cron, worker) | Move attempts `dispatched` for longer than the request deadline + 2 minutes to `unknown` (`OUTCOME_NOT_RECORDED`, receipt `unknown`). A crash after dispatch leaves such an attempt; without the sweep nothing could see it (not `reasoning unknown`, not the write-off) and the universe's erasure waited on it for ever. Never resends; a late answer from a live handler still reconciles. |
-| `reasoning.purge-expired-requests` | every 15 minutes (pg-boss cron, worker) | Delete protected request bytes past `expires_at`, in batches that skip locked rows, keeping those of `dispatched` attempts and settling expired `reserved` ones `not_sent` first. The attempt, its hash and its receipt stay. The harness also purges opportunistically (at most every 15 minutes per process). |
+| Queue                                 | Schedule                                | Work                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reasoning.sweep-dispatched-attempts` | every 5 minutes (pg-boss cron, worker)  | Move attempts `dispatched` for longer than the request deadline + 2 minutes to `unknown` (`OUTCOME_NOT_RECORDED`, receipt `unknown`). A crash after dispatch leaves such an attempt; without the sweep nothing could see it (not `reasoning unknown`, not the write-off) and the universe's erasure waited on it for ever. Never resends; a late answer from a live handler still reconciles. |
+| `reasoning.purge-expired-requests`    | every 15 minutes (pg-boss cron, worker) | Delete protected request bytes past `expires_at`, in batches that skip locked rows, keeping those of `dispatched` attempts and settling expired `reserved` ones `not_sent` first. The attempt, its hash and its receipt stay. The harness also purges opportunistically (at most every 15 minutes per process).                                                                               |
 
 Model calls themselves are made inside the owning module's job handlers. A queue delivery is never
 permission to repeat a paid call: the handler calls `propose`, which consults the ledger first.
@@ -465,7 +468,6 @@ charged. It cannot release an unknown original claim or authorize another POST/n
 original liability remains held pending conclusive reconciliation. Caller resume remains outside this seam. Unverified chain cost semantics block final settlement;
 actual cost is never clamped to an estimate or ceiling. Future capability/ports require implementation,
 persistence, authority and provider-specific conformance review before any consumer or paid use.
-
 
 ## Durable Cutroom B foundation (#240, migration0030)
 
@@ -635,7 +637,6 @@ holds do not qualify. The consumer receives only immutable sanitized report/rece
 digests, not a pool principal, connection or settlement capability. Its server-enforced readonly
 repeatable-read transaction cannot write jobs or financial rows. Existing claim/hold/settle/release
 behaviour is unchanged. Receiving itself never imports this financial adapter or opens a pool.
-
 
 ## Personal recording foundation (#381, forward schema dependency)
 
