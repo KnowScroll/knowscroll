@@ -12,19 +12,10 @@ import {
   target,
 } from '@knowscroll/design-tokens';
 import { Button, IconButton, RequestStatusChip, Text, useTypeStyle } from '@knowscroll/ui';
-import type { ContentRequestStatus } from '@knowscroll/contracts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RequestChoices } from './request-choices';
+import { unavailableCopy } from './request-copy';
 import { suggestions, type RequestSession } from './request-session';
-
-const reasons: Record<Extract<ContentRequestStatus, { status: 'unavailable' }>['reason'], string> = {
-  unsupported_request: "This request isn't supported yet. Try one of the suggested topics, or ask something else.",
-  no_compatible_supply: "There isn't a compatible explanation available for this request.",
-  not_permitted: "This explanation can't be prepared for you right now.",
-  budget_unavailable: "This explanation can't be prepared right now. Your request is closed.",
-  could_not_prepare: "We couldn't prepare this explanation. Your request is closed.",
-  source_unavailable: 'The original encounter is no longer available for this request.',
-};
 
 /** E04/E06 bounded composer inside the encounter's single accessible overlay host. */
 export function RequestPanel({ session, onClose }: { readonly session: RequestSession; readonly onClose: () => void }) {
@@ -90,7 +81,7 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
               ]}
             />
             <Text variant="meta" nativeID="request-text-help">
-              {state.text.length}/500 · Text requests aren't supported yet. Suggested topics can be checked for a match.
+              {state.text.length}/500 · We&apos;ll match your words to what KnowScroll can explain.
             </Text>
             <Text variant="uiS">Suggested topics</Text>
             <View style={styles.options}>
@@ -165,7 +156,12 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
             <Text variant="bodyS">Request accepted. Checking current availability.</Text>
           </View>
         ) : null}
-        {status?.status === 'preparing' ? <RequestStatusChip status={status.phase} /> : null}
+        {status?.status === 'preparing' ? (
+          <>
+            <RequestStatusChip status={status.phase} />
+            <Text variant="bodyS">We&apos;ll show it when it&apos;s ready. Keep watching meanwhile.</Text>
+          </>
+        ) : null}
         {status?.status === 'ready' ? (
           <>
             <Text variant="title">{status.content.metadata.title}</Text>
@@ -182,7 +178,7 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
         ) : null}
         {status?.status === 'unavailable' ? (
           <View role="status">
-            <Text variant="body">{reasons[status.reason]}</Text>
+            <Text variant="body">{unavailableCopy[status.reason]}</Text>
           </View>
         ) : null}
         {state.error === 'read' ? (

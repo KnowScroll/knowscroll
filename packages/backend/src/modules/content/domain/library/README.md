@@ -17,10 +17,13 @@ import only domain code. It has no behaviour, no storage and no model call.
 - `earth.ts`, `space.ts`, `machine-learning.ts`, `human-body.ts`, `computing.ts`, `history.ts`: one
   system each, with its planets, facets and recipes. The record key of a recipe is the operator key
   (`content produce-scroll --topic <key>`).
+- `serving.ts`: pure rules over the plan: which recipes serve a catalogue brief, a recipe's standing from
+  its takes, which take a send should name, and what a library run queues.
 - `index.ts`: assembles the systems and the `RECIPES` record. `../../production/topics.ts` is a thin
   index over it.
 - `library.test.ts`: the plan's acceptance rules (50 to 60 recipes, at least 22 interactive over all
-  six kinds, at least three recipes and two facets per planet, unique identities, allowlisted pages).
+  six kinds, at least three recipes and two facets per planet, a recipe for every facet, unique identities,
+  allowlisted pages). `serving.test.ts` covers the serving rules.
 
 ## Rules for editing the plan
 

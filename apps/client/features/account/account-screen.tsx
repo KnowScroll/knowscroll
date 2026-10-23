@@ -66,6 +66,13 @@ function SignedIn({ email }: { readonly email: string }) {
         <Banner kind="offline" lead="Not signed out." message="We couldn't reach KnowScroll. Try again." />
       ) : null}
       <Button
+        label="Your requests"
+        role="link"
+        href="/account/requests"
+        variant="ghost"
+        onPress={() => router.push('/account/requests')}
+      />
+      <Button
         label="Privacy & history"
         role="link"
         href="/account/privacy"

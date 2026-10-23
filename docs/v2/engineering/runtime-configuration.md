@@ -132,6 +132,22 @@ stdout, diagnostic records on stderr. Exit 0 done, 2 refused or not applicable, 
 tree's `dist/operator.js` is a different command (`issue-sign-in`). Running it on a world:
 `docs/v2/operations/environments.md`.
 
+## Library production operator (`node dist/operator.js content …` in the `worker/` tree)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KS_WORLD` | required | only `dev`, `stage`, `ci` or `local`; refused before the database is touched |
+| `DATABASE_URL` | required | the world's database (credential) |
+| `KS_DB_STATEMENT_TIMEOUT_MS` | 15000 | as for the API |
+
+`produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends the `content.produce-scroll`
+jobs of recipes that need one, and `production-status [--only <keys>]` lists every recipe's standing.
+Neither calls a provider or needs a key. `produce-scroll --topic <key> [--take <1-3>] [--dry-run]
+[--resume]` runs one job directly and needs the worker's reasoning variables
+(`KS_REASONING_PROVIDER=minimax`, `MINIMAX_API_KEY`, `KS_REASONING_PRODUCTION_ENABLED=1`,
+`KS_SCROLL_PRODUCTION_GENERATION`, and the production caps). One JSON line on stdout, diagnostics on
+stderr. Exit 0 done, 2 refused or not applicable, 1 failure. Steps: `docs/v2/operations/scroll-production.md`.
+
 ## Migrate (`node dist/migrate.js` in the `api/` tree)
 
 | Variable | Default | Meaning |

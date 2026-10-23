@@ -1,123 +1,122 @@
-# Supply / Quartermaster — bounded backend foundation (#239)
+# Supply (Quartermaster)
 
-This module accepts deliberate private topic/variant requests, reuses current admitted inventory,
-coalesces compatible missing supply under one active public key, and resolves each private waiter.
-It has no HTTP route, request UI, producer/provider bridge or paid allowance. #239 remains open.
-The existing Scroll operator is not a Supply commissioning capability and is never called here.
+Supply turns a person's ask for something to explore into admitted content they can open. It reuses
+what exists, joins work that is already under way, and otherwise creates it: it commissions the
+production of a library Scroll. Blueprint §3, §11, §15 and §19; decisions D-035 and D-037.
 
-## Planned demand (#236, D-035)
+Status: **implemented**, CI-verified, and **runtime-verified** on a local database with the real
+`MiniMax-M3.1-Flash` model (a free-text ask matched to the catalogue, produced and opened in the
+client). Not yet running on dev.
 
-`RecordPlannedDemand` (token `RECORD_PLANNED_DEMAND`) is how the Planner asks for content that does not
-exist yet. It runs inside the Planner's accepting transaction, so a plan and its demand commit together.
-The brief is built like a person's catalogue ask, from the first code-admitted catalogue topic of the
-opportunity, so only catalogue topics in English become demand. Reuse applies only to admitted content
-the person has not met (`alreadyMet`), giving a `ready` row. Otherwise the row is `deferred`: it joins or
-creates the shared matching group (`join` or `create`). No resolver job is queued, no receipt is written,
-no client hint is sent and nothing is produced; a later production path binds deferred demand.
-A person has at most one open planned demand (`deferred`, or `ready` while its content is still there) per
-brief, however many plan revisions ask for it; a unique index per person and shared group backs the check.
-`supply.requests` gains `origin` (`person` or `planner`), `planner_run_id` and `planner_slot` (one demand
-per opportunity), and the `deferred` state. A deferred demand reads as `preparing` and can be cancelled.
-Capability state: implemented, CI-verified; production for deferred demand is planned.
+## What a person can do
 
-## Public use cases
+- Ask for a catalogue topic, or a topic and one of its angles (a facet), as a Reel, a Scroll or either.
+- Type a request in their own words. A model proposes which catalogue topic it is about; code accepts
+  only an exact catalogue member. Anything else closes honestly as `unsupported_request`.
+- Ask for the same explanation in the other format (a variant).
+- Read the state of one request or of their recent requests, and cancel one that is still preparing.
 
-`CreateRequest`, `ReadRequest`, `CancelRequest` and `ResolveRequest` are framework-free public
-ports; composition binds their tokens through `supplyProviders`. API wiring installs use cases
-without exposing a route. Worker wiring registers the actual `supply.resolve-request` consumer.
-The merged declaration-only `contracts/supply` schemas define the accepted wire semantics.
+States a person sees: preparing (`requested` while their words are matched, `preparing` once work is
+under way), ready, unavailable with a coarse reason, cancelled. No percentages, no waiting times.
 
-Creation validates the wire input, enters `withPersonalScope`, checks the immutable receipt key,
-validates any exact owned activated source plus optional latest Composer session, then rechecks
-current Content after the sorted SHARE-lock wait. Retryable stale/source/authority refusals write
-no receipt. A fresh accepted demand, immutable acceptance receipt, personal revision and any
-required pg-boss work commit together. Identical replay keeps the original request ID, timestamp,
-epoch and watermark; only `replayed` changes. Different operation/input conflicts. Current scope
-is checked before every replay, so prior-epoch receipts cannot disclose private outcomes.
+## How a request is decided
 
-A source's optional session fences the deliberate submission, including after waiting. Subsequent
-ordinary navigation does not revoke an already accepted request. Resolution independently checks
-the current epoch, owning account active status, owned activated exact source and Content rights/head/capabilities; it does not
-borrow HTTP guards or infer the newest exposure. Account status is checked before/after Content
-waits through Identity's scoped read, preserving the system actor and existing root-before-status
-protocol. Session/device sign-out does not cancel an already accepted demand. None of these references creates consumption.
+1. **Reuse.** Exact current admitted content serves the brief: a primary topic (and, for a facet,
+   admitted coverage bound to that facet), the language, the format. The request is `ready` at once.
+2. **Join.** An active shared group for exactly this brief that is still producing already has work
+   behind it. The request waits on that group. A group whose production ended is closed, not joined.
+3. **Create.** `commissionSupply` picks a library recipe by code and commits the group and the
+   recipe's production job with the request, in one transaction. It refuses when:
+   - the brief is a Reel or a variant (no production path): `budget_unavailable`;
+   - the day's Create cap (`KS_SUPPLY_CREATE_DAILY_CAP`, UTC) is used up: `budget_unavailable`;
+   - no recipe is left (all published, or none can be taken again): `could_not_prepare`.
 
-## Deterministic matching and honest limits
+   Only an exact catalogue meaning can be produced. The catalogue is derived from the library plan and
+   a library test proves every facet has a recipe, so a recipe always exists for a valid brief.
 
-Only exact `content-concepts.v1` catalogue membership (and exact optional facet membership) or a
-current admitted public explanation lineage admits a canonical brief. Catalogue reuse requires
-an admitted primary topic and optional facet, exact language and requested format. Variant reuse
-reads actual Content siblings, matches the same explanation, and requires the other format.
-All candidates are exact current admitted revisions, negotiated for supplied client capabilities.
-The current canonical production policy admits English (`en`) only; arbitrary language strings
-never enter a shared brief. Other language requests close as unsupported until an explicit policy
-adds their canonical meanings/production capabilities.
-The current Content model grants shared admitted access; the brief's fixed `shared_admitted`
-rights class does not invent private-content rights or authorize a different future rights class.
+The planned demand of the Planner follows the same rules (`RecordPlannedDemand`). Where nothing can
+start it stores nothing and says so (`not_commissioned`); a later plan asks again.
 
-The public key hashes only this code-admitted brief: catalogue version/reference or public exact
-explanation/source lineage, format, language, fixed rights and policy version. There is no inferred
-angle/depth/freshness/continuity equivalence. A contextual catalogue ask needs a future admitted
-semantic brief; freeform text, contextual asks and unsupported catalogue/variant meanings are
-accepted as durable `unavailable/unsupported_request`, with no shared key or queued work. Their
-text/context remains only in the private row. Series/related future slots are unsupported.
+## Waiting for production
 
-Compatible current content is immediately ready, with no resolver job. Otherwise a unique partial
-index atomically joins/creates one active canonical matching group, and each private waiter gets
-its own transactionally committed resolver job. `create` here means a matching group, never a paid
-production run. Its current `preparing/phase:requested` status names this real bounded resolver,
-not generation progress. The resolver retries current inventory and either binds real admitted
-content or closes `unavailable/budget_unavailable`: no Supply commissioning allowance/bridge exists.
-This reason records the actual admission barrier; it is not an assertion that a provider failed.
-No percentages, ETA, model call, attempt ledger entry or claimed paid work is manufactured.
+Each waiter has its own `supply.resolve-request` job. It looks at the standing of the group's recipe
+and acts:
 
-Cancellation changes only an open owned waiter. A pending row that already projects unavailable
-freezes that own terminal outcome at a newer revision and returns `already_closed`, so later
-re-admission/resolution cannot revive it after that receipt. Shared work and other waiters remain
-unchanged. Ready/unavailable are `already_closed`; repeated
-cancellation is `already_cancelled`. A cancel receipt replays its original result. Cancellation
-never deletes admitted content, mutates another waiter, recalls a dispatched attempt or promises
-a refund. Closed requests never rebind or restart. A new deliberate request is a new command.
+| Standing | The waiter |
+|---|---|
+| Content now admitted | binds it and becomes `ready` |
+| Production queued or running | looks again in 20 seconds (a delayed job, one per request and slot) |
+| Production ended without a Scroll, or none stands behind it | closes as `could_not_prepare` or `budget_unavailable` |
+| Still waiting 30 minutes after the request | closes as `could_not_prepare`; the shared work carries on |
 
-## Persistence, revision and locking
+Every look is a fresh authority check under the personal root: owner active, epoch, source, and the
+content's current admission. A redelivery changes nothing that is already decided.
 
-| Store | Role / query / growth | Retention and erasure |
+## Free-text asks
+
+A free-text ask is stored as `matching` (no brief, no group, decision `pending`) and queues one resolver
+job. The worker runs one model call outside any transaction on the personal reasoning harness, with the
+request ID as the business run, so a redelivery never pays twice. The answer is `{topicId, facetId}`
+and must be an exact catalogue member (the schema refuses anything else; one repair is allowed). A match
+is then handled like a person's own catalogue ask. A cancel that arrives while the model thinks wins.
+An attempt of unknown outcome is never resent: the request closes as `could_not_prepare` and the run is
+left for an operator. A context-bearing text ask ("about this encounter") is not matched and closes as
+unsupported. The personal harness runs only while recording is at its initial generation, so a person
+who used Pause gets `could_not_prepare` for a free-text ask until the recording-aware harness accepts
+this purpose.
+
+## Entry points
+
+`CreateRequest`, `ReadRequest`, `ListRequests`, `CancelRequest` and `ResolveRequest` are framework-free
+ports; `supplyProviders` binds them. The API serves create, read, list and cancel
+(`apps/api/src/http/supply.controller.ts`); the worker runs `ResolveRequest` as the
+`supply.resolve-request` consumer and the Planner calls `RecordPlannedDemand` inside its accepting
+transaction. Reading and listing change nothing.
+
+Creation checks the immutable receipt key, validates any exact owned activated source and latest
+Composer session, then rechecks current Content after the sorted SHARE-lock wait. Retryable stale or
+source refusals write no receipt. A fresh accepted demand, its receipt, the personal revision and the
+queued jobs commit together. A replay keeps the original request ID and receipt. Cancel changes only an
+open owned waiter; shared work and other waiters are untouched.
+
+## Tables, jobs and lock order
+
+| Store | Role | Erasure |
 |---|---|---|
-| `supply.requests` | Private demand and waiter in one bounded row; exact `(universe_id,id)` and owner/epoch/recent index. Stores validated command, decision, group link and one immutable ready binding. | Full personal erasure removes every epoch; no surviving private context in public work. |
-| `supply.work` | Public canonical matching group; SHA-256 key, bounded brief, unique active-key index. No owner, context, prompt, ledger or second outbox. One group per admitted missing key while active. | Independently public metadata survives erasure; cancellation does not control shared work. Resolver closes its group; other waiters resolve through their own jobs. |
-| `pgboss/supply.resolve-request` | v1 owner/epoch/request IDs only; 180s expiry, three 10s backoff retries, local concurrency 1, 7d waiting retention, 2d settled retention and declared dead letter. | Eraser removes queued, active, settled and dead-letter payloads for the owner. pg-boss is the only work outbox. |
+| `supply.requests` | Private demand and waiter in one row: command, state, brief, group link, one ready binding. Person asks and Planner asks (`origin`). | Erased with the person (full erasure and Clear). |
+| `supply.work` | Public shared group: SHA-256 key of a code-built brief, the recipe whose production it commissioned, `active`. No owner, no private context. | Survives erasure; it is public metadata. |
+| `pgboss/supply.resolve-request` | IDs only (`universeId`, `privacyEpoch`, `requestId`). Four at a time, 360 s expiry, three retries. | The eraser removes every queued, active, retained and dead-lettered payload of the owner. |
+| `pgboss/content.produce-scroll` | Owned by Content; names a recipe, never a person. | Nothing personal to erase. |
 
-Lock order: personal root → owned demand → all required Content asset SHARE locks in canonical
-UUID order → matching group unique-key/row lock. A resolver handles one recipient per transaction;
-it never holds shared work while acquiring another personal root. Content admission never calls
-back into personal scopes. No provider/network wait occurs in a transaction or HTTP path.
+States of `supply.requests`: `matching`, `requested`, `deferred` (Planner), `ready`, `unavailable`,
+`cancelled`.
 
-`0024` also adds Content-owned `availability_revision` / `availability_changed_at`. Current asset
-revision alone cannot order withdrawal and re-admission of the same immutable bytes. A narrow
-trigger increases the integer counter only when admission status/current revision changes,
-ignores manual counter/timestamp edits otherwise, and fails closed on integer overflow. All old
-SQL bytes and legacy opening/historical exact-read semantics remain unchanged.
+Lock order: personal root, owned demand, Content asset SHARE locks in UUID order, the commissioning
+advisory lock, the shared group row. A resolver handles one recipient per transaction and never holds
+shared work while acquiring another personal root. No model call or network wait happens inside a
+transaction or on the HTTP path.
 
-Status is read-only: no mutation, queue or attempt. For an open/ready request it rechecks current
-source/target heads under SHARE. Its revision is stored request revision plus monotonic Content
-availability deltas from its one-time binding. Withdrawal invalidates ready; re-admission may
-restore the exact same binding at a higher revision. A terminal resolver/cancel freezes at the
-latest derived revision + 1 and never resumes/rebinds, so later reads cannot regress. Arithmetic
-must remain a positive safe integer. A read returns the current personal catch-up watermark;
-global Content changes do not increment that personal watermark or emit a personal hint. Consumers
-must poll/refetch/reconnect and fence snapshots by request revision as well as AccountScope.
-Ready contains allowlisted metadata only; explicit later open/activation still grants rendering.
+## Revision and status
 
-## Verification and outstanding acceptance
+Status is a read-only projection of the stored request and current Content availability. Its request
+revision is the stored revision plus Content's availability deltas since binding, so withdrawal
+invalidates `ready` and re-admission can restore it at a higher revision. A terminal outcome freezes at
+the latest derived revision plus one and never resumes. Clients keep the highest request revision they
+have seen and fence snapshots by AccountScope. Global Content changes do not advance the personal
+catch-up watermark.
 
-`tests/integration/modules/supply.test.ts` supplies authored CI content only and exercises real
-PostgreSQL/pg-boss: concurrent unique keys/replays, waiter privacy/cancel, unsupported private asks,
-atomic rollback, current eligibility/withdrawal/re-admission ordering, worker epoch/revocation,
-erasure and no paid attempt. The existing strict erasure inventory fixture is extended without
-weakening any assertion. Automated suites run in GitHub Actions only. Fresh SSD schema codegen,
-local type/lint/build checks and CI fixtures are separate from runtime/provider acceptance.
+## Verification
 
-Remaining: shared route declaration then HTTP consumer, E04 ask/E07 request UI and list/retry
-contracts, approved commissioning/budget/attempt-ledger bridge, Content-owned future continuation
-slots, and actual missing-format → real production → ready → explicit read acceptance on dev.
-No provider grant, #232 allowance, Cutroom script/spend or live deployment is changed here.
+- `tests/integration/modules/supply.test.ts`: receipts, sharing, cancel, source authority, erasure.
+- `tests/integration/modules/supply-create.test.ts`: Create end to end with a fixture writer: one
+  committed job, Join, one job for two briefs that choose one recipe, the daily cap, stopped and rejected
+  recipes, the wait limit, planned demand, the list, erasure, and free-text matching with a fixture model.
+- `tests/integration/modules/supply-planned.test.ts`, `planner-loop.test.ts`: the Planner's demand.
+- `tests/integration/release/requests-http.test.ts`: the installed API.
+
+CI fixtures only; real-provider runs are summarised in the pull request for #239.
+
+## Related
+
+Production jobs and recipes: `../content/production/README.md`. Decisions: `docs/v2/decisions.md` D-035,
+D-037. Client: `apps/client/features/requests/`. Operator runbook: `docs/v2/operations/scroll-production.md`.

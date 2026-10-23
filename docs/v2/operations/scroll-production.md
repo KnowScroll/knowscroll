@@ -1,27 +1,64 @@
 # Producing Scrolls
 
-The worker operator runs the writer for one library recipe at a time. The pipeline and the reasons
-for its shape are in `packages/backend/src/modules/content/production/README.md`.
+Scrolls are produced by `content.produce-scroll` jobs on the worker. The pipeline and the reasons for
+its shape are in `packages/backend/src/modules/content/production/README.md`. Two things send jobs:
+Quartermaster, when a person's request needs content that does not exist, and the operator, to seed the
+library.
 
 ## Run it
 
-The operator refuses every world except `local`, `ci`, `dev` and `stage`, before it touches the
+The operator commands refuse every world except `local`, `ci`, `dev` and `stage`, before they touch the
 database or the provider. The production root `scroll-supply` must be enabled in the database
-(`reasoning.production_scopes`, generation 1) and in the environment.
+(`reasoning.production_scopes`, generation 1) and in the worker's environment.
 
 ```sh
-# environment (names only; the key stays in the process environment, never on a command line)
+# worker environment (names only; the key stays in the process environment, never on a command line)
 KS_WORLD=dev DATABASE_URL=… MINIMAX_API_KEY=…
 KS_REASONING_PROVIDER=minimax KS_REASONING_PRODUCTION_ENABLED=1
 KS_MINIMAX_MODEL=MiniMax-M3.1-Flash          # the default for every role
-KS_MINIMAX_REQUEST_TIMEOUT_MS=240000         # the default; a writer request takes up to ~2 minutes
+KS_MINIMAX_REQUEST_TIMEOUT_MS=300000         # the largest accepted; a writer request takes up to ~2 minutes
 KS_SCROLL_PRODUCTION_GENERATION=1            # must match the database root
+KS_REASONING_PRODUCTION_REQUESTS_PER_DAY=200 # the production scope's own caps (the defaults)
+KS_REASONING_PRODUCTION_TOKENS_PER_DAY=3000000
+KS_SUPPLY_CREATE_DAILY_CAP=10                # API and worker: productions people's requests may start per day
 
+# seed the library through the same jobs Quartermaster sends (the worker runs them)
+node dist/operator.js content production-status [--only seasons,tides]
+node dist/operator.js content produce-library --dry-run [--only seasons,tides] [--interactive-first]
+node dist/operator.js content produce-library [--only seasons,tides] [--interactive-first]
+
+# run one job directly through the same use case (debugging)
 node dist/operator.js content produce-scroll --topic seasons --dry-run
-node dist/operator.js content produce-scroll --topic seasons
-node dist/operator.js content produce-scroll --topic attention-mechanism
+node dist/operator.js content produce-scroll --topic seasons [--take 2]
 node dist/operator.js content produce-scroll --topic seasons --resume   # after a crash only
 ```
+
+`produce-library` sends a job for every recipe that needs one and prints what it queued
+(`queued`), what was already queued or running (`alreadyQueued`), the recipes it takes again after a
+rejection (`retaking`) and the ones with nothing left to do (`skipped`, with `published` or `stopped`).
+A recipe whose job is still running is sent again on purpose: that resumes a run a crash or a spent
+budget left open. It is safe to run it again at any time.
+
+`production-status` lists every recipe with its standing: `not_started`, `running`, `published`,
+`retryable` (every take so far was rejected and another may start) or `stopped` (an attempt of unknown
+outcome, or all three takes used), the latest job state, how many takes exist, the Scroll's asset and
+revision once admitted, and the paid attempts so far.
+
+### Takes
+
+A rejected recipe can be taken again, at most three times in all, because a rejected job is final for its
+take. Take 2 or 3 starts only when every earlier take was rejected: never after a published job or an
+unknown attempt. Each take is a new business run, so nothing an earlier take sent is sent again.
+`produce-library` and Quartermaster send the next take by themselves. Check `reasoning unknown` before
+deciding what to do about a `stopped` recipe: it needs an operator, not another take.
+
+### Caps and pauses
+
+The production scope has its own daily caps (`KS_REASONING_PRODUCTION_*`, above), larger than the
+per-person ones, because seeding the library takes about 70 writer requests and 1.4M tokens. The global
+and role caps still apply. When a cap or the provider's quota (`KS_MINIMAX_QUOTA_FLOOR_PERCENT`, default
+25) is used up, a run **pauses** (`outcome: paused`): nothing is sent and the job stays open. Run
+`produce-library` again after the window or the UTC day resets.
 
 `--topic` takes a recipe key of the library plan, the record keys in
 `packages/backend/src/modules/content/domain/library/` (one file per topic system). An unknown key
@@ -45,10 +82,10 @@ pnpm build
 node scripts/check-library-sources.mjs [--only seasons,tides]
 ```
 
-The bound is **two model requests per recipe**: the writer, and at most one repair. Refusals, a
-quota shortfall (`KS_MINIMAX_QUOTA_FLOOR_PERCENT`, default 25) and unknown outcomes halt the job.
+The bound is **two model requests per take**: the writer, and at most one repair. A refusal ends the
+take; a spent budget or quota pauses it; an unknown outcome halts the recipe.
 Output is one JSON line with IDs, outcome codes, attempt states and token counts; never prompts,
-drafts or page text. A rerun of a finished recipe reports its stored outcome. A new recipe version
+drafts or page text. A rerun of a finished take reports its stored outcome. A new recipe version
 (`SCROLL_PRODUCTION_VERSION`) is a new job; an old terminal job is never edited or resumed. No
 provider call runs from CI. Never place keys on a command line, in logs, reports or artifacts.
 

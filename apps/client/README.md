@@ -15,6 +15,7 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 | `/friends` | `app/friends/index.tsx` | Real profile, exact handle lookup, bounded Friends/requests/blocked rosters, current pair actions and revocable invite links (#377); no fabricated presence or visibility | Friends |
 | `/friends/invite` | `app/friends/invite.tsx` | Fragment-only invitation entry; pure Check, then explicit Request; signed-out links are discarded before sign-in | Friend invitation |
 | `/saved` | `app/(tabs)/saved.tsx` | S01/S02 Keep: scoped bounded saved list, real metadata/status, filters, remove/retry and explicit immutable original/updated-version revisit choices. | Keep |
+| `/account/requests` | `app/(tabs)/account/requests.tsx` | E07 Your requests: the person's own asks with their state (requested, preparing, ready, couldn't prepare, cancelled), Open when ready, Cancel while preparing, "may be out of date" when a refresh fails (#239) | Requests |
 | `/account` | `app/(tabs)/account/` | The account stack, reached from the avatar on every tab (D-006 c): signed in, the address with "Sign out" and "Sign out on every device"; signed out, "Sign in"; API unreachable, "Try again". Back names where it goes ("Back to Keep") | Account |
 | `/welcome` | `app/(auth)/welcome.tsx` | A01 sign in: "Continue with email", "I have a sign-in link" (S1.3 #226) | Welcome |
 | `/signin` | `app/(auth)/signin/index.tsx` | The email form (labelled field; invalid · sending · too many links · can't reach) | Sign in |
@@ -192,9 +193,9 @@ or Request Scroll actions. Existing ready siblings keep the normal navigation pa
 
 `features/requests/request-session.ts` owns one memory-only draft/request per AccountScope. It sends
 real `supply.create/read/cancel` HTTP commands with the existing encounter capabilities. Private text
-is bounded to 500 characters; the current backend closes free-text requests as unsupported. Three
-explicit catalogue suggestions send their selected canonical intent, without interpreting private
-prose or claiming inventory. About-this/variant submissions freeze the exact exposure, immutable
+is bounded to 500 characters and is sent as a free-text ask: the server matches it to an exact
+catalogue topic or closes it as unsupported. Three explicit catalogue suggestions send their selected
+canonical intent, without interpreting private prose or claiming inventory. About-this/variant submissions freeze the exact exposure, immutable
 asset revision and latest authorised matching session revision; changed sources require a new choice.
 
 A deliberate send/cancel gets a fresh command ID. Unknown transport outcomes freeze the entire
@@ -207,6 +208,14 @@ waiter according to server authority; closing is not cancellation. Scope end cle
 frozen command, source, receipt, status and timers. There is no durable request list or production
 retry endpoint in this bounded consumer. CI fixtures cover these boundaries; actual connected web
 and native request journeys remain coordinator-owned acceptance work.
+
+`features/requests/requests-list-session.ts` is the memory-only session behind "Your requests"
+(`/account/requests`, E07). It reads `supply.list`, keeps the highest request revision it has seen of each
+ask, looks again every ten seconds while the list is visible and something is preparing, and keeps the last
+list marked out of date when a refresh fails. Cancel is the same command as in the request sheet, and an
+unconfirmed cancel is retried with its exact command ID. `RequestsList` and `useRequestsList` can be
+mounted anywhere; Keep's Requested view is meant to mount them. Closed-request copy lives in
+`request-copy.ts`: it says the request is closed and never names models, budgets or machinery.
 
 ## Mounted own Universe (#238)
 
