@@ -78,6 +78,34 @@ describe('PC to Composer compatibility read (labelled fixtures)', () => {
     (s.routing.recent[0]!.facets as string[]).push('late-mutation');
     expect(output?.recent[0]?.facets).toEqual(['facet']);
   });
+  it('carries the current plan beside the context and names it in the watermark; no plan changes nothing', async () => {
+    const plan = {
+      revision: 6,
+      opportunities: [
+        {
+          move: 'limitation' as const,
+          topicIds: ['positive'],
+          explanationUnitId: 'fixture-unit',
+          eligibility: ['vertical' as const],
+          formats: ['scroll' as const],
+          expiresAt: '2026-10-21T00:00:00.000Z',
+          target: 'existing' as const,
+        },
+      ],
+    };
+    const readPlan = vi.fn(() => Promise.resolve(plan));
+    const planned = await makeReadComposerContext(() => Promise.resolve(snapshot()), readPlan)(scope, query);
+    expect(readPlan).toHaveBeenCalledWith(scope, { evaluatedAt: query.evaluatedAt });
+    expect(planned?.plan).toEqual(plan);
+    expect(planned?.watermark).toBe('personal-context-composer.v0:4:12:10:not_asserted:plan-6');
+    expect(planned?.established?.watermark).toBe(planned?.watermark);
+    const none = await makeReadComposerContext(
+      () => Promise.resolve(snapshot()),
+      () => Promise.resolve(undefined),
+    )(scope, query);
+    expect(none).not.toHaveProperty('plan');
+    expect(none?.watermark).toBe('personal-context-composer.v0:4:12:10:not_asserted');
+  });
   it.each(['universe', 'epoch', 'time', 'scope', 'futureProjection'] as const)(
     'refuses mismatched %s rather than falling back to Evidence',
     async (kind) => {

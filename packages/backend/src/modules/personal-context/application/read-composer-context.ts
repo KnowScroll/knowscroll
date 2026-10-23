@@ -1,10 +1,17 @@
 import type { ReadPreparedEvidenceInput } from '../../composer/public.js';
 import { CONTEXT_POLICY, ContextQuerySchema } from '../domain/context.js';
-import type { ReadExplorationSnapshot } from './ports.js';
+import type { ReadCurrentPlan, ReadExplorationSnapshot } from './ports.js';
 
 const ADAPTER_VERSION = 'personal-context-composer.v0';
-/** Compatibility read only: no new score arithmetic, personal truth, projection or write. */
-export function makeReadComposerContext(readSnapshot: ReadExplorationSnapshot): ReadPreparedEvidenceInput {
+/**
+ * Compatibility read only: no new score arithmetic, personal truth, projection or write.
+ * When a plan reader is supplied the person's current Planner plan rides along, marked as a plan
+ * so Composer can never mistake it for evidence.
+ */
+export function makeReadComposerContext(
+  readSnapshot: ReadExplorationSnapshot,
+  readCurrentPlan?: ReadCurrentPlan,
+): ReadPreparedEvidenceInput {
   return async (scope, query) => {
     const q = ContextQuerySchema.parse({ ...query, provisionalLimit: 0 });
     const s = await readSnapshot(scope, q);
@@ -43,14 +50,19 @@ export function makeReadComposerContext(readSnapshot: ReadExplorationSnapshot): 
       s.routing.hiddenAssetIds.some((id) => !q.candidateAssetIds?.includes(id))
     )
       throw new Error('PERSONAL_CONTEXT_COMPOSER_INPUT_INVALID');
+    const plan = await readCurrentPlan?.(scope, { evaluatedAt: q.evaluatedAt });
     // A high latest-projection watermark does not assert complete historical reconciliation.
-    const watermark = `${ADAPTER_VERSION}:${s.revision}:${s.watermarks.scope}:${s.watermarks.projected}:${s.completeness}`;
+    // A new accepted plan changes what a prepared buffer would offer, so it changes the watermark.
+    const watermark = `${ADAPTER_VERSION}:${s.revision}:${s.watermarks.scope}:${s.watermarks.projected}:${s.completeness}${
+      plan ? `:plan-${String(plan.revision)}` : ''
+    }`;
     return structuredClone({
       universeId: s.universeId,
       privacyEpoch: s.privacyEpoch,
       evaluatedAt: s.evaluatedAt,
       watermark,
       policyVersion: s.policyVersion,
+      ...(plan ? { plan } : {}),
       // Row presence is authoritative: observed zero stays zero; absent history stays neutral.
       topics: s.topics
         .filter((t) => t.statisticsAvailability === 'available')

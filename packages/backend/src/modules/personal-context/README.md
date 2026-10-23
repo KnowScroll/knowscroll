@@ -106,6 +106,11 @@ including observed zero; not_observed default rows remain absent so missing-hist
 neutral. It copies A/Q/O and actual routing recent/established/Hide without new score arithmetic.
 The existing Composer type is a compatibility boundary, not another personal projection.
 
+`personalContextProviders({ readCurrentPlan })` optionally injects the Planner's stored plan reader
+(`ReadCurrentPlan`). The read then carries `plan` beside the context, and the watermark gains
+`:plan-<revision>` so a buffer prepared under an older plan is not served as current. Without a plan
+the read and watermark are unchanged. The plan is not evidence and never feeds personal context.
+
 The persisted input policy is personal-context.v0 and the versioned watermark binds PC revision,
 locked scope revision, latest projection and not_asserted completeness. Navigation uses the same
 watermark for its Composer snapshot. ProvisionalLimit0 avoids reading observation tails for this

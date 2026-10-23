@@ -13,5 +13,7 @@ export const REQUEST_PLANNER = Symbol('planner.request');
 export const PLANNER_MATERIAL_CHANGE = Symbol('planner.material-change');
 export const READ_PLANNER_OPPORTUNITIES = Symbol('planner.read-opportunities');
 export const RUN_PLANNER = Symbol('planner.run');
+/** Cheap stored read of the current accepted plan, for Composer on the navigation path. */
+export const READ_CURRENT_PLAN = Symbol('planner.read-current-plan');
 
 export type { PlannerSource } from './application/ports.js';

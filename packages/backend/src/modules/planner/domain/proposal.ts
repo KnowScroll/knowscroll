@@ -68,9 +68,16 @@ export interface ValidationFacts {
     readonly topicIds: readonly string[];
   }[];
   readonly hiddenAssetIds: readonly string[];
+  /** Explanations the person has already met, from qualified evidence and actual retained history. */
+  readonly encounteredUnitIds: readonly string[];
 }
 export type PlannerIssue =
-  'unknown_topic' | 'evidence_authority' | 'target_authority' | 'expiry' | 'duplicate_reference';
+  | 'unknown_topic'
+  | 'evidence_authority'
+  | 'target_authority'
+  | 'already_encountered'
+  | 'expiry'
+  | 'duplicate_reference';
 /** Pure authority checks. Semantic usefulness is evaluated separately from structural acceptance. */
 export function opportunityIssue(x: Opportunity, f: ValidationFacts): PlannerIssue | undefined {
   if ([x.topicIds, x.evidenceRefs, x.eligibility, x.formats].some((a) => new Set(a).size !== a.length))
@@ -83,6 +90,8 @@ export function opportunityIssue(x: Opportunity, f: ValidationFacts): PlannerIss
   if (!(delta > 0 && delta <= PLANNER_LIMITS.expiryDays * 86400000)) return 'expiry';
   if (x.target.kind === 'existing') {
     const target = x.target;
+    // The plan is about what to meet next. Content the person has already read is not an opportunity.
+    if (f.encounteredUnitIds.includes(x.explanationUnitId)) return 'already_encountered';
     const a = f.inventory.find(
       (a) =>
         a.assetId === target.assetId &&

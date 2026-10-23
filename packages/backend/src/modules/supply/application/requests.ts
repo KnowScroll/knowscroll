@@ -19,6 +19,7 @@ import type {
   ReadRequest,
   CancelRequest,
   ResolveRequest,
+  RecordPlannedDemand,
 } from './ports.js';
 
 const sourceOf = (command: CreateContentRequest): Source | undefined =>
@@ -68,7 +69,13 @@ function matches(brief: CanonicalBrief, candidate: EncounterSnapshot): boolean {
         (!s.facetId || candidate.facets.includes(s.facetId));
 }
 /** One sorted Content lock batch. Private/source data is never submitted as retrieval text. */
-async function inventory(p: SupplyPorts, scope: PersonalScopeTx, c: CreateContentRequest, brief?: CanonicalBrief) {
+async function inventory(
+  p: SupplyPorts,
+  scope: PersonalScopeTx,
+  c: CreateContentRequest,
+  brief?: CanonicalBrief,
+  skipExplanations: ReadonlySet<string> = new Set(),
+) {
   const source = sourceOf(c);
   const sourceSnapshot = source ? await p.readExact(scope, { ...source, capabilities: c.capabilities }) : undefined;
   const candidates =
@@ -88,11 +95,16 @@ async function inventory(p: SupplyPorts, scope: PersonalScopeTx, c: CreateConten
           })
         : [];
   const heads = await p.lockCurrent(scope, {
-    refs: [...(source ? [source] : []), ...candidates.filter((x) => brief && matches(brief, x))],
+    refs: [
+      ...(source ? [source] : []),
+      ...candidates.filter((x) => brief && matches(brief, x) && !skipExplanations.has(x.explanationUnitId)),
+    ],
     capabilities: c.capabilities,
   });
   const sourceHead = source ? heads.find((x) => sameRef(x.ref, source)) : undefined;
-  const ready = heads.find((x) => x.encounter && brief && matches(brief, x.encounter));
+  const ready = heads.find(
+    (x) => x.encounter && brief && matches(brief, x.encounter) && !skipExplanations.has(x.encounter.explanationUnitId),
+  );
   return { heads, sourceHead, ready };
 }
 function checkedRevision(value: number): number {
@@ -103,7 +115,7 @@ function checkedRevision(value: number): number {
 async function snapshot(p: SupplyPorts, scope: PersonalScopeTx, d: Demand) {
   const source = sourceOf(d.command);
   const heads =
-    d.status === 'ready' || d.status === 'requested'
+    d.status === 'ready' || d.status === 'requested' || d.status === 'deferred'
       ? await p.lockCurrent(scope, {
           refs: [...(source ? [source] : []), ...(d.content ? [d.content] : [])],
           capabilities: d.command.capabilities,
@@ -133,7 +145,7 @@ async function snapshot(p: SupplyPorts, scope: PersonalScopeTx, d: Demand) {
     return ContentRequestStatusSchema.parse({ ...base, status: 'unavailable', reason: d.reason });
   if ((source && !sourceHead?.encounter) || (d.status === 'ready' && !contentHead?.encounter))
     return ContentRequestStatusSchema.parse({ ...base, status: 'unavailable', reason: 'source_unavailable' });
-  if (d.status === 'requested')
+  if (d.status === 'requested' || d.status === 'deferred')
     return ContentRequestStatusSchema.parse({ ...base, status: 'preparing', phase: 'requested' });
   const e = contentHead!.encounter!;
   return ContentRequestStatusSchema.parse({
@@ -276,7 +288,7 @@ export function makeCancelRequest(p: SupplyPorts): CancelRequest {
       // A pending row can already project unavailable after a shared Content withdrawal.
       // Respect that public outcome and freeze its own terminal state, rather than rename it
       // cancelled or allow a later resolver to revive it after this already_closed receipt.
-      if (d.status === 'requested' && current.status === 'unavailable')
+      if ((d.status === 'requested' || d.status === 'deferred') && current.status === 'unavailable')
         await p.store.finish(scope, {
           ...d,
           status: 'unavailable',
@@ -349,5 +361,65 @@ export function makeResolveRequest(p: SupplyPorts): ResolveRequest {
         await p.notify(scope, revision, d.id);
       },
     );
+  };
+}
+
+/**
+ * The Planner's missing-supply opportunity becomes private demand. The brief is built exactly like
+ * a person's catalogue ask, so Reuse and Join/Create-group follow the same deterministic rules.
+ * Nothing is queued: a deferred demand stays on its shared group until a production path binds it.
+ * No receipt is written (the caller's accepted plan is the idempotency boundary) and no client
+ * hint is sent (planned demand is not a request the person made).
+ */
+export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
+  return async (scope, input) => {
+    const topicId = input.topicIds.find((id) => CONCEPTS.some((topic) => topic.id === id));
+    if (topicId === undefined) return { kind: 'unsupported' };
+    const command: CreateContentRequest = {
+      version: 'content-request.v1',
+      commandId: p.newId(),
+      intent: {
+        kind: 'topic',
+        subject: { kind: 'catalogue', catalogueVersion: 'content-concepts.v1', topicId },
+        format: input.format,
+      },
+      language: input.language,
+      capabilities: input.capabilities,
+    };
+    const brief = briefOf(command, undefined);
+    if (!brief) return { kind: 'unsupported' };
+    const id = p.newId(),
+      now = p.now().toISOString();
+    const demand: Demand = {
+      id,
+      command,
+      brief,
+      planned: { runId: input.plannerRunId, slot: input.slot },
+      requestRevision: 1,
+      revision: scope.revisionAtEntry,
+      createdAt: now,
+      updatedAt: now,
+      status: 'deferred',
+      decision: 'join',
+    };
+    const reusable = (await inventory(p, scope, command, brief, new Set(input.alreadyMet))).ready;
+    // Plan after plan may ask for the same thing. One open waiter per brief is enough: a deferred one
+    // is still waiting, and a ready one still has content to bind.
+    const open = await p.store.findOpenPlanned(scope, brief);
+    if (open && (open.state === 'deferred' || reusable?.encounter))
+      return { kind: 'already_recorded', requestId: open.id };
+    if (reusable?.encounter) {
+      await p.store.insert(scope, {
+        ...demand,
+        status: 'ready',
+        decision: 'reuse',
+        content: reusable.encounter,
+        contentAvailabilityRevision: reusable.availabilityRevision,
+      });
+      return { kind: 'ready', requestId: id };
+    }
+    const work = await p.store.joinOrCreate(scope, brief, p.newId());
+    await p.store.insert(scope, { ...demand, workId: work.id, decision: work.joined ? 'join' : 'create' });
+    return { kind: 'deferred', requestId: id, joined: work.joined };
   };
 }

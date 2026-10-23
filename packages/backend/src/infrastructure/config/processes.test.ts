@@ -62,11 +62,16 @@ describe('process configuration', () => {
     ]);
   });
 
-  it('keeps Planner spending disabled until its explicit role gate is enabled', () => {
-    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).plannerEnabled).toBe(false);
+  it('runs the Planner by default only in the local world and keeps KS_PLANNER_ENABLED a switch', () => {
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).plannerEnabled).toBe(true);
     expect(
-      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_PLANNER_ENABLED: '1' }).plannerEnabled,
-    ).toBe(true);
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_PLANNER_ENABLED: '0' }).plannerEnabled,
+    ).toBe(false);
+    for (const world of ['dev', 'stage', 'ci', 'live'])
+      expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: world }).plannerEnabled).toBe(false);
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev', KS_PLANNER_ENABLED: '1' }).plannerEnabled).toBe(
+      true,
+    );
     expect(() =>
       readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_PLANNER_ENABLED: 'true' }),
     ).toThrow();
