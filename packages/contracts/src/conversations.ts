@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { AssetIdSchema, CommandIdSchema, UuidSchema } from './ids.js';
 import { EncounterMetadataSchema } from './navigation.js';
 import { PublicPersonRefSchema } from './sharing.js';
-import { socialPost } from './social-problems.js';
+import { socialJsonData, socialPost } from './social-problems.js';
 
 const Version = z.literal('direct-conversation.v1');
 const Revision = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
@@ -312,6 +312,41 @@ export const ConversationMessageAcceptanceSchema = z.strictObject({
     z.strictObject({ kind: z.literal('content'), target: ConversationContentRefSchema }),
   ]),
 });
+/** Current own resource lookup after an unknown send, including after Clear. This is not
+ * historical command replay. Current pair/block/member/source identity gates precede lookup;
+ * the immutable sent identity never grants present access, reauthorises an old body or resends.
+ * Unavailable is not proof of not-sent; preserve the original pending command and its uncertainty. */
+const OwnSendSelectorSchema = z.strictObject({ kind: z.literal('command'), commandId: CommandIdSchema });
+export const ReadOwnConversationSendSchema = socialJsonData(
+  z.strictObject({
+    ...Read,
+    conversation: DirectConversationRefSchema,
+    selector: OwnSendSelectorSchema,
+  }),
+);
+export const OwnConversationSendSchema = socialJsonData(
+  z.discriminatedUnion('status', [
+    z.strictObject({
+      ...ScopedRead,
+      selector: OwnSendSelectorSchema,
+      status: z.literal('unavailable'),
+    }),
+    z.strictObject({
+      ...ScopedRead,
+      conversation: DirectConversationRefSchema,
+      selector: OwnSendSelectorSchema,
+      status: z.literal('accepted'),
+      messageId: UuidSchema,
+      messageSequence: Revision,
+      recordedAt: z.iso.datetime(),
+      sent: z.discriminatedUnion('kind', [
+        z.strictObject({ kind: z.literal('text') }),
+        z.strictObject({ kind: z.literal('content'), target: ConversationContentRefSchema }),
+      ]),
+    }),
+  ]),
+);
+
 export const MarkConversationReadSchema = z.strictObject({
   ...Command,
   conversation: DirectConversationRefSchema,
@@ -362,6 +397,11 @@ export const conversationsContract = {
   history: socialPost('/v1/social/conversations/history', ReadConversationHistorySchema, ConversationHistoryPageSchema),
   changes: socialPost('/v1/social/conversations/changes', ReadConversationChangesSchema, ConversationChangesPageSchema),
   send: socialPost('/v1/social/conversations/send', SendConversationMessageSchema, ConversationMessageAcceptanceSchema),
+  readOwnSend: socialPost(
+    '/v1/social/conversations/send/read',
+    ReadOwnConversationSendSchema,
+    OwnConversationSendSchema,
+  ),
   markRead: socialPost(
     '/v1/social/conversations/mark-read',
     MarkConversationReadSchema,
@@ -374,3 +414,47 @@ export type DirectConversationRef = z.infer<typeof DirectConversationRefSchema>;
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
 export type SendConversationMessage = z.infer<typeof SendConversationMessageSchema>;
 export type ConversationChangesPage = z.infer<typeof ConversationChangesPageSchema>;
+
+export type ReadOwnConversationSend = z.infer<typeof ReadOwnConversationSendSchema>;
+export type OwnConversationSend = z.infer<typeof OwnConversationSendSchema>;
+
+const CurrentOwnSendReadSchema = socialJsonData(
+  z.strictObject({
+    scope: ConversationScopeSchema,
+    conversation: DirectConversationRefSchema,
+  }),
+);
+/** Correlation only, never an authority check. Pass independently obtained current scope and
+ * participation after the real gates. A missing/stale/malformed value refuses without falling
+ * back to an old receipt. UUID comparisons use canonical case, without rewriting the body. */
+export function ownConversationSendForRead(
+  request: unknown,
+  reply: unknown,
+  current: unknown,
+): OwnConversationSend | undefined {
+  const input = ReadOwnConversationSendSchema.safeParse(request);
+  const output = OwnConversationSendSchema.safeParse(reply);
+  const actual = CurrentOwnSendReadSchema.safeParse(current);
+  if (!input.success || !output.success || !actual.success) return undefined;
+  const a = input.data,
+    b = output.data,
+    c = actual.data;
+  const sameId = (x: string, y: string) => x.toLowerCase() === y.toLowerCase();
+  const sameConversation = (
+    x: z.infer<typeof DirectConversationRefSchema>,
+    y: z.infer<typeof DirectConversationRefSchema>,
+  ) =>
+    sameId(x.conversationId, y.conversationId) &&
+    sameId(x.membershipId, y.membershipId) &&
+    x.membershipRevision === y.membershipRevision;
+  if (
+    !sameId(a.readId, b.readId) ||
+    !sameId(a.selector.commandId, b.selector.commandId) ||
+    !sameId(b.scope.accountId, c.scope.accountId) ||
+    b.scope.privacyEpoch !== c.scope.privacyEpoch ||
+    !sameConversation(a.conversation, c.conversation) ||
+    (b.status === 'accepted' && !sameConversation(b.conversation, c.conversation))
+  )
+    return undefined;
+  return b;
+}

@@ -1,3 +1,4 @@
+import { publicContentSharesContract } from './public-content-shares.js';
 import { conversationsContract } from './conversations.js';
 import { contentSharesContract } from './content-shares.js';
 import { friendPagesContract } from './friend-pages.js';
@@ -43,6 +44,7 @@ export const apiContract: {
   friendPages: typeof friendPagesContract;
   conversations: typeof conversationsContract;
   contentShares: typeof contentSharesContract;
+  publicContentShares: typeof publicContentSharesContract;
   scenes: { manifest: typeof readSceneManifestContract; chunk: typeof readSceneChunkContract };
   formation: typeof formationPresentationContract;
   geography: { read: typeof readGeographyContract; deltas: typeof readUniverseDeltasContract };
@@ -84,6 +86,7 @@ export const apiContract: {
   friendPages: friendPagesContract,
   conversations: conversationsContract,
   contentShares: contentSharesContract,
+  publicContentShares: publicContentSharesContract,
   scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract },
   formation: formationPresentationContract,
   geography: { read: readGeographyContract, deltas: readUniverseDeltasContract },

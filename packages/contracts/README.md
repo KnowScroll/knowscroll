@@ -1190,3 +1190,57 @@ fixtures cover all eight absent/valid/max/even/malformed/explicit-undefined case
 wrong originals and actual union fallback. All existing assertions are retained.
 Automated suites run only in Actions; no runtime Pause, current eligibility,
 receipt-hash implementation or deployed journey is established by declarations.
+
+
+## Current own-send recovery and public-only preview additions (#242)
+
+The original13 direct-conversation/content-share operations above keep their schemas and
+refinements. Two additive declarations provide prerequisites for the later vertical implementation:
+
+- `conversations.readOwnSend`: `POST /v1/social/conversations/send/read` accepts a fresh `readId`,
+  the current exact `DirectConversationRef`, and `{kind:'command',commandId}` selector. A current
+  own-resource result repeats that selector and current account/epoch scope. `accepted` contains
+  only original message UUID/sequence/time and text-kind or exact content identity; no body,
+  note, historical acceptance, token, replay flag or delivery assertion. `unavailable` has no
+  conversation or private cause and never proves not-sent. Preserve the original pending command
+  and its unknown outcome; do not mint another UUID or infer permission to resend. After Clear,
+  this is a fresh owned-resource lookup, not re-authorisation of the old-epoch command. Actual
+  current own/pair/block/member/incarnation/source gates must precede lookup.
+- `publicContentShares.preview`: `POST /s/preview` reuses the exact `content-share.v1` JSON
+  `readId`/sensitive-token input. Its separate schema can return only `unavailable` or bounded
+  `public_metadata`, including an explicit same-asset correction. It rejects the full private
+  resolver's `conversation` variant, even for signed-in members. Cookies, private audience,
+  sender or peer-private block cannot widen/change this public-only projection. This is outside
+  private `/v1`, without widening `socialPost` or adding an unscoped-v1 wildcard.
+
+`ownConversationSendForRead` checks every initiating read/selector and current scope/participation
+field; UUID identity is compared case-insensitively without rewriting bodies.
+`publicContentSharePreviewForRead` checks read correlation while reparsing only the public union.
+Both are pure syntax/correlation helpers. Their explicit current inputs are not authenticated by
+this package; no lookup, lock, session, Origin check or permission is installed. A mismatch returns
+`undefined`, never a historical fallback or replacement command. The new JSON surfaces reject
+accessors without evaluating getters, own undefined/symbol/nonenumerable properties, non-JSON
+prototypes, cycles and coercion/defaults. A fixed512-node/depth12 precheck bounds these small shapes.
+
+The public error family has exactly eight fixed catalogue codes: invalid request, Origin refusal,
+payload too large, unsupported media type, unprocessable request, rate limit, unavailable service
+and internal failure. No auth/scope/pair/block-existence channel is exposed. Issue paths contain
+only `version`, `readId`, `token` or `unknown` (max8 segments/max32 issues); dynamic keys, values,
+numeric paths, raw errors, `detail` and `instance` are forbidden. Future HTTP adapters must project
+raw parser issues into this allowlist and install the direct RFC9457 serializer. Contract parsing
+alone does not sanitize parser exceptions for logging. OpenAPI describes the strict public error
+schemas and the original private Social family separately.
+
+The dedicated future `GET /s/:token` HTML landing is the explicit token-in-URL exception. It must
+isolate proxy/access logs, referrers, history, OpenGraph and redirects. Tokens stay out of ordinary
+API URLs/query strings, receipts, diagnostics, notices and error bodies; the JSON preview carries
+its token only in its request body. No GET landing or cookie/cache/Origin policy is mounted here.
+No preview grants media, joins a conversation, creates a recipient encounter or supplies personal
+Evidence. Content correction/withdrawal and real canonical recipient Open still require fresh
+application authority.
+
+Fixtures preserve the original13 declaration assertions and add exact operation inventories,
+strict public/private injection, unknown-send ambiguity, scope/incarnation/read correlation,
+getter/secret canaries and converter-produced OpenAPI/problem metadata. Behavioral suites run
+only in Actions. No consumer, schema migration, lifecycle registry compatibility, export/deletion,
+shared-data policy, runtime deployment or account data mutation is implemented by these additions.
