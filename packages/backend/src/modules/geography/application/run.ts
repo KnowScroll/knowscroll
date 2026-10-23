@@ -2,16 +2,20 @@ import {
   parsePersonalRecordingPurpose,
   type CheckPersonalRecordingRun,
   type PersonalRecordingPurpose,
+  type ProposeOutcome,
 } from '../../../reasoning/public.js';
+import type { RecordingScopeTx } from '../../identity/public.js';
 import type {
   CartographerPorts,
+  GeographyContext,
   GeographyPorts,
   RunCartographer,
   PublishGeographyDelta,
   GeographyRun,
   GeographyAccountingHeader,
 } from './ports.js';
-import { GEOGRAPHY_POLICY } from '../domain/policy.js';
+import { completeProposal, requiredChanges } from '../domain/formation.js';
+import { GEOGRAPHY_POLICY, type GeographyProposal } from '../domain/policy.js';
 import { CartographyJobSchema } from '../events.js';
 import { prepareGeography } from './context.js';
 import { cartographerRole, cartographyContextItems, geographyContextHashes } from './role.js';
@@ -192,6 +196,92 @@ async function finishUnadmitted(
       await p.store.finishUnadmitted(scope, purpose.businessRunId, purpose.claimId);
   });
 }
+/** What the harness returned for one Cartographer run, with the frozen run it belongs to. */
+interface ModelAnswer {
+  readonly run: GeographyRun;
+  readonly context: GeographyContext;
+  readonly purpose: PersonalRecordingPurpose;
+  readonly outcome: ProposeOutcome<GeographyProposal>;
+}
+/**
+ * What to apply for a model answer, decided by code.
+ *
+ * A valid proposal is completed with every place the rules require that it omitted. When the model
+ * gave nothing usable (invalid output, provider failure, quota or budget), the rules alone are
+ * applied with canonical labels. `unknown` never falls back: that attempt may still be reconciled,
+ * so the run stays unknown until an operator resumes it.
+ * An unusable answer with nothing due settles the run; the next qualified encounter starts a new one.
+ */
+function proposalFor(
+  outcome: ProposeOutcome<GeographyProposal>,
+  facts: GeographyContext['facts'],
+): { readonly proposal: GeographyProposal; readonly source: 'model' | 'rules' } | undefined {
+  if (outcome.kind === 'proposed') return { proposal: completeProposal(outcome.output, facts), source: 'model' };
+  if (outcome.kind === 'unknown') return undefined;
+  const proposal = requiredChanges(facts);
+  return proposal.operations.length ? { proposal, source: 'rules' } : undefined;
+}
+/** Short apply transaction: recheck the claim, apply or record why not, close the ledger run. */
+async function settleRun(p: CartographerPorts, cap: RecordingScopeTx, answer: ModelAnswer): Promise<void> {
+  const { run, context, purpose, outcome } = answer;
+  const scope = cap.personal,
+    state = await p.store.state(scope),
+    current = await p.store.header(scope, run.id);
+  if (!current || state.activeRunId !== run.id || current.claimId !== run.claimId || current.status !== 'prepared')
+    return;
+  const { claimId: _claim, claimUntil: _until, claimWakeClaimId: _wake, normalWakeId: _normal, ...released } = current;
+  const plan = proposalFor(outcome, context.facts);
+  if (outcome.kind === 'unknown') {
+    await p.store.writeRun(scope, { ...released, status: 'unknown', outcome: 'unknown' });
+    return;
+  }
+  let status: GeographyRun['status'] = 'rejected',
+    reason: string = outcome.kind === 'refused' ? outcome.reason : outcome.kind,
+    closed = false;
+  const close = async () => {
+    if (
+      (await p.harness.closePersonalRun(cap, { runId: run.id, state: 'completed', recordingPurpose: purpose })) !==
+      'closed'
+    )
+      throw new Error('GEOGRAPHY_HARNESS_NOT_CLOSED');
+    closed = true;
+  };
+  if (!p.enabled()) {
+    status = 'stale';
+    reason = 'disabled';
+  } else if (state.desiredRevision !== context.desiredRevision) {
+    status = 'stale';
+    reason = 'desired_revision_changed';
+  } else if (plan) {
+    const result = await applyProposal(p, cap, run.id, context, plan.proposal, close);
+    if (result.kind === 'refused') {
+      status = result.reason === 'no_changes' ? 'insufficient' : 'stale';
+      reason = result.reason;
+    } else {
+      if (result.kind === 'replayed') await close();
+      status = 'accepted';
+      reason = plan.source === 'model' ? 'applied' : 'applied_by_rules';
+    }
+  }
+  if (
+    !closed &&
+    (await p.harness.closePersonalRun(cap, { runId: run.id, state: 'cancelled', recordingPurpose: purpose })) !==
+      'closed'
+  )
+    throw new Error('GEOGRAPHY_HARNESS_NOT_CLOSED');
+  await p.store.writeRun(scope, {
+    ...released,
+    status,
+    outcome: reason,
+    ...(plan ? { proposal: plan.proposal } : {}),
+    ...(outcome.kind === 'proposed' ? { attemptId: outcome.attemptId } : {}),
+  });
+  const updated = await p.store.state(scope),
+    idle = { ...updated, activeRunId: undefined };
+  await p.store.writeState(scope, idle);
+  if (updated.desiredRevision > run.desiredRevision && updated.desiredSource?.generation === cap.generation)
+    await ensureCartography(p, cap, idle);
+}
 /** Short prepare/apply transactions around the shared finite attempt ledger. */
 export function makeRunCartographer(p: CartographerPorts): RunCartographer {
   return async (input, signal) => {
@@ -240,12 +330,8 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       }
       if (run.recording && run.hasContext && (!run.contextSha256 || !run.modelContextSha256)) return undefined;
       const { normalWakeId: _normal, claimWakeClaimId: _wake, claimId: _claim, claimUntil: _until, ...consumed } = run;
-      if (!p.enabled() || !(await p.permitted(scope))) {
-        await p.store.writeRun(scope, {
-          ...consumed,
-          status: 'blocked',
-          outcome: p.enabled() ? 'budget_unavailable' : 'disabled',
-        });
+      if (!p.enabled()) {
+        await p.store.writeRun(scope, { ...consumed, status: 'blocked', outcome: 'disabled' });
         return undefined;
       }
       const context = run.hasContext
@@ -277,7 +363,7 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
         (hashes.contextSha256 !== run.contextSha256 || hashes.modelContextSha256 !== run.modelContextSha256)
       )
         return undefined;
-      if (!(await p.ownerActive(scope)) || !(await p.permitted(scope))) return undefined;
+      if (!(await p.ownerActive(scope))) return undefined;
       const claimed: GeographyRun = {
         ...consumed,
         recording: run.recording ?? { accountId: root.accountId, source: { generation: 1, kind: 'legacy1' } },
@@ -343,78 +429,9 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       await finishUnadmitted(p, authority, purpose);
       return;
     }
-    const applied = await p.harness.withPersonalApply(authority, purpose, async (cap) => {
-      const scope = cap.personal,
-        state = await p.store.state(scope),
-        current = await p.store.header(scope, run.id);
-      if (!current || state.activeRunId !== run.id || current.claimId !== run.claimId || current.status !== 'prepared')
-        return;
-      const {
-        claimId: _claim,
-        claimUntil: _until,
-        claimWakeClaimId: _wake,
-        normalWakeId: _normal,
-        ...released
-      } = current;
-      if (
-        outcome.kind === 'unknown' ||
-        outcome.kind === 'quota_unavailable' ||
-        outcome.kind === 'budget_exhausted' ||
-        outcome.kind === 'refused'
-      ) {
-        await p.store.writeRun(scope, {
-          ...released,
-          status: outcome.kind === 'unknown' || current.outcome === 'unknown' ? 'unknown' : 'blocked',
-          outcome: outcome.kind === 'refused' ? outcome.reason : outcome.kind,
-        });
-        return;
-      }
-      let status: GeographyRun['status'] = 'rejected',
-        reason: string = outcome.kind,
-        closed = false;
-      const close = async () => {
-        if (
-          (await p.harness.closePersonalRun(cap, { runId: run.id, state: 'completed', recordingPurpose: purpose })) !==
-          'closed'
-        )
-          throw new Error('GEOGRAPHY_HARNESS_NOT_CLOSED');
-        closed = true;
-      };
-      if (!p.enabled() || !(await p.permitted(scope))) {
-        status = 'stale';
-        reason = 'scope_or_permit_changed';
-      } else if (state.desiredRevision !== c.desiredRevision) {
-        status = 'stale';
-        reason = 'desired_revision_changed';
-      } else if (outcome.kind === 'proposed') {
-        const result = await applyProposal(p, cap, run.id, c, outcome.output, close);
-        if (result.kind === 'refused') {
-          status = result.reason === 'no_changes' ? 'insufficient' : 'stale';
-          reason = result.reason;
-        } else {
-          if (result.kind === 'replayed') await close();
-          status = 'accepted';
-          reason = 'applied';
-        }
-      }
-      if (
-        !closed &&
-        (await p.harness.closePersonalRun(cap, { runId: run.id, state: 'cancelled', recordingPurpose: purpose })) !==
-          'closed'
-      )
-        throw new Error('GEOGRAPHY_HARNESS_NOT_CLOSED');
-      await p.store.writeRun(scope, {
-        ...released,
-        status,
-        outcome: reason,
-        ...(outcome.kind === 'proposed' ? { proposal: outcome.output, attemptId: outcome.attemptId } : {}),
-      });
-      const updated = await p.store.state(scope),
-        idle = { ...updated, activeRunId: undefined };
-      await p.store.writeState(scope, idle);
-      if (updated.desiredRevision > run.desiredRevision && updated.desiredSource?.generation === cap.generation)
-        await ensureCartography(p, cap, idle);
-    });
+    const applied = await p.harness.withPersonalApply(authority, purpose, (cap) =>
+      settleRun(p, cap, { run, context: c, purpose, outcome }),
+    );
     if (applied.kind === 'refused')
       await retireRevoked(p, authority, run.id, {
         generation: run.recording!.source.generation,

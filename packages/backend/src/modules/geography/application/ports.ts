@@ -8,6 +8,8 @@ import type {
   GeographySnapshot,
   ReadUniverseDeltas,
   UniverseDeltas,
+  EmergingUniverse,
+  ReadEmergingUniverse,
 } from '@knowscroll/contracts';
 import type {
   WithPersonalScope,
@@ -20,6 +22,7 @@ import type {
 } from '../../identity/public.js';
 import type {
   ReadCoverageInputs,
+  ReadExplorationSnapshot,
   ReadTrustedCoverage,
   TrustedCoverageQuery,
   TrustedCoverageRead,
@@ -191,9 +194,8 @@ export interface GeographyPorts {
 }
 export interface CartographerPorts extends GeographyPorts {
   readonly harness: RecordingReasoningHarness;
+  /** The `KS_CARTOGRAPHER_ENABLED` switch. Spend stays bounded by the shared reasoning budgets. */
   readonly enabled: () => boolean;
-  /** Separate reviewed economic permission, never inferred from feature flag or credentials. */
-  readonly permitted: (scope: PersonalScopeTx) => Promise<boolean>;
 }
 export type MaterialGeographyChange = (
   scope: RecordingScopeTx,
@@ -229,6 +231,18 @@ export type ReadOwnDeltas = (
   query: ReadUniverseDeltas,
 ) => Promise<
   | { readonly kind: 'read'; readonly deltas: UniverseDeltas }
+  | { readonly kind: 'refused'; readonly reason: 'scope_refused' }
+>;
+
+/** Dust cues read the same scope and store as the other own reads, plus Personal Context's snapshot. */
+export interface EmergingPorts extends Pick<GeographyPorts, 'withScope' | 'ownerActive' | 'store' | 'hash' | 'now'> {
+  readonly readSnapshot: ReadExplorationSnapshot;
+}
+export type ReadOwnEmerging = (
+  authority: PersonalAuthority,
+  query: ReadEmergingUniverse,
+) => Promise<
+  | { readonly kind: 'read'; readonly emerging: EmergingUniverse }
   | { readonly kind: 'refused'; readonly reason: 'scope_refused' }
 >;
 

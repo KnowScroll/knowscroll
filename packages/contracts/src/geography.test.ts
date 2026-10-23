@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EMERGING_LIMITS,
+  EmergingUniverseSchema,
   GEOGRAPHY_LIMITS,
   GeographyAliasSchema,
   GeographyObjectSchema,
   GeographyRevisionsSchema,
   GeographyRouteSchema,
   GeographySnapshotSchema,
+  ReadEmergingUniverseSchema,
   ReadGeographySchema,
   ReadUniverseDeltasSchema,
   UniverseDeltaSchema,
@@ -342,5 +345,36 @@ describe('Geography declaration-only wire contracts', () => {
       { afterGeographyRevision: 0, limit: 1, create: true },
     ])
       expect(ReadUniverseDeltasSchema.safeParse(query).success).toBe(false);
+  });
+});
+
+describe('emerging universe cues', () => {
+  const emerging = {
+    version: 'universe-emerging.v1',
+    ...scope,
+    recordedAt: '2026-10-21T10:00:00.000Z',
+    geography,
+    dust: [{ id: uuid(20) }, { id: uuid(21) }],
+  };
+
+  it('carries opaque unlabelled cues and nothing that names a topic, a count or a score', () => {
+    expect(EmergingUniverseSchema.parse(emerging)).toEqual(emerging);
+    expect(EmergingUniverseSchema.parse({ ...emerging, dust: [] }).dust).toEqual([]);
+    for (const change of [
+      { dust: [{ id: uuid(20), label: 'Machine learning' }] },
+      { dust: [{ id: uuid(20), units: 2 }] },
+      { dust: [{ id: uuid(20) }, { id: uuid(20) }] },
+      { dust: Array.from({ length: EMERGING_LIMITS.dust + 1 }, (_, n) => ({ id: uuid(100 + n) })) },
+      { dust: [{ id: 'not-a-uuid' }] },
+      { geography: { revision: 1, structureRevision: 2, activityRevision: 0 } },
+      { version: 'universe-emerging.v2' },
+      { selection },
+    ])
+      expect(EmergingUniverseSchema.safeParse({ ...emerging, ...change }).success).toBe(false);
+  });
+
+  it('takes no input, so a caller cannot name an account or a topic', () => {
+    expect(ReadEmergingUniverseSchema.parse({})).toEqual({});
+    expect(ReadEmergingUniverseSchema.safeParse({ topicId: 'earth' }).success).toBe(false);
   });
 });

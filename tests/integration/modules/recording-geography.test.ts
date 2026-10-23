@@ -75,7 +75,6 @@ describe('Geography original generation and exact wake ownership (Actions only)'
     makeRunCartographer({
       ...p,
       enabled: () => false,
-      permitted: never,
       harness: {
         proposePersonal: never,
         withPersonalApply: never,
