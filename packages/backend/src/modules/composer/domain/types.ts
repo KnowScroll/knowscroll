@@ -58,6 +58,23 @@ export interface PreparedEvidenceInput {
   };
   readonly hiddenAssetIds: readonly string[];
 }
+/** Jev's atomic criteria for one candidate, each in [0,1]. Code combines them (`semanticFitOf`); the model never scores. */
+export interface JevCriteria {
+  readonly relevance: number;
+  readonly appropriateness: number;
+  readonly redundancy: number;
+}
+/**
+ * Stored optional semantic assessments for part of a shortlist. A candidate without an entry is
+ * neutral (SemanticFit 0.5): absence is never a negative judgement.
+ */
+export interface SemanticAssessments {
+  readonly roleVersion: string;
+  readonly model: string;
+  readonly assessedAt: string;
+  readonly expiresAt: string;
+  readonly entries: readonly (EncounterRef & JevCriteria)[];
+}
 export interface ComposerSnapshot {
   readonly universeId: string;
   readonly privacyEpoch: number;
@@ -90,6 +107,7 @@ export interface ComposerSnapshot {
   }[];
   readonly explorationPool: readonly EncounterRef[];
   readonly evidence?: PreparedEvidenceInput;
+  readonly semanticAssessments?: SemanticAssessments;
   readonly watermarks: {
     readonly catalog: string;
     readonly continuity: string;

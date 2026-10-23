@@ -82,6 +82,11 @@ describe('process configuration', () => {
       readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_CARTOGRAPHER_ENABLED: 'true' }),
     ).toThrow();
   });
+  it('keeps Jev off until its switch is explicitly enabled', () => {
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).jevEnabled).toBe(false);
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_JEV_ENABLED: '1' }).jevEnabled).toBe(true);
+    expect(() => readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_JEV_ENABLED: 'true' })).toThrow();
+  });
   it('defaults the commit and artifact outside production, but never the world', () => {
     const config = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' });
     expect(config).toMatchObject({
