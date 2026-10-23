@@ -1,18 +1,30 @@
 # Status
 
-**Updated:** 2026-10-23 · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222) · **Working flow:** `AGENTS.md` "How we work" (D-030)
+**Updated:** 2026-10-24 · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222) · **Working flow:** `AGENTS.md` "How we work" (D-030)
 
-The Codex coordinator was stopped on 2026-10-23. Its 708-line checkpoint is replaced by this page (the old text is in Git history at `d9fa95c5:docs/CHECKPOINT.md`).
+**Current phase:** F0 done; F1 (real Scrolls) and the first F2 slices in progress. A Claude coordinator (Opus 5.5) runs the finishing phases with Sonnet 5.5 agents. Agent briefs are on the SSD in `knowscroll-dev/v2/agents/`.
 
 ## Where things run
 
 | Place | Revision | What it is |
 |---|---|---|
-| Integration branch `codex/release-knowscroll-v2` | `d9fa95c5`, schema 44 | All v2 work. `checks` green. |
-| dev host (`app.dev.knowscroll.space`) | `476baec5`, schema 35 | v2 deployed by hand on 22 Oct; 29 commits behind integration. |
-| `dev` branch | `106c4701` | Still v1. v2 was never promoted through the D-002 PR. |
+| Integration branch `codex/release-knowscroll-v2` | `9b82c754`, schema 44 | All v2 work. `checks` green. Protected from deletion by its own ruleset. |
+| `dev` branch and dev host (`app.dev.knowscroll.space`) | `992bbfdf`, schema 44 | v2, promoted through the D-002 PR (#392) on 24 Oct. Database recreated empty first. |
 | stage | `8982391f` | v1. |
 | main | `e5fdc319` | v1. Owner-only. |
+
+## What works on dev today (F0, 24 Oct)
+
+Checked with a disposable account (`f0-asha@test.knowscroll.space`) at phone width:
+
+- Operator sign-in link → "Continue as …" → signed in.
+- Explore opens a Reel (three approved v1 Cutroom Reels were imported) and plays it. The authored starter Scroll "Why the sky is blue" reads well.
+- Universe shows its empty state; Talk says conversations are not available; Keep is empty.
+- **Broken:** "Next subject" serves the Reel you are already watching (Composer does not exclude the current exposure). Being fixed in #234.
+- **Far from the design:** the Explore Reel screen has no overlay actions, topic chip or progress; Keep and Talk use operational copy ("End of this traversal"). The Scroll reader shows a dev-only evidence panel.
+- No generated content exists yet, so there are no topics, no planets and no Scroll twins for Reels.
+
+Local baseline on the Mac: typecheck and lint pass; 944 of 953 integration and 601 of 604 backend unit tests pass. The 12 failures are media and Cutroom import tests that refuse macOS's `/var → /private/var` temp symlink; they pass in CI.
 
 ## What exists and works in source
 
@@ -67,6 +79,22 @@ Covered by `checks` (unit tests plus about 885 integration tests against real Po
 - **Removed from the repo:** the dead workflows for Codex's v12 launch proof and their fixtures.
 - **GitHub:** closed Codex child issues whose code merged, closed v1 issues replaced by v2, and closed the probe PRs.
 
+## Active agents
+
+| Agent | Issue | Branch / worktree | What |
+|---|---|---|---|
+| w232 | #232 | `claude/232-working-writer` | Scroll writer on `MiniMax-M3.1-Flash`, visible failures |
+| t237 | #237 | `claude/237-library-topics` | 50–60 recipe library plan; code-owned topic coverage |
+| c234 | #234 | `claude/234-composer-buffers` | Worker-prepared buffers, Jev, the "Next repeats" bug |
+| p236 | #236 | `claude/236-planner-loop` | Planner on, wired to Composer and Quartermaster |
+
+Each agent's worktree is `/Volumes/Mrigesh SSD/knowscroll-worktrees/<issue>-<slug>` and its PostgreSQL runs under `knowscroll-dev/v2/tmp/<agent>/`.
+
+## Provider facts learned
+
+- `MiniMax-M3.1-Flash` refuses `thinking: {type: "disabled"}` (HTTP 400, code 2013). Use `adaptive` and discard thinking blocks.
+- fal balance on 24 Oct: $11.99, enough for the $4 Reel budget.
+
 ## Next
 
-Follow the phase plan in #222.
+Merge the F1 slices, run production jobs for the library on dev, then the F2 loops and Reels (#222).
