@@ -3,6 +3,7 @@ import { problemDetails } from '@knowscroll/contracts';
 import {
   ScopeEndedError,
   createAccountScope,
+  fencedFetch,
   memoryStore,
   scopeIdOf,
   type ScopeStorageLifecycle,
@@ -1166,4 +1167,126 @@ it('native refresh cannot mount an unconfirmed new credential during or after it
   expect(f.prepared).toHaveLength(1);
   expect(manager.getState().status).toBe('signed_out');
   manager.dispose();
+});
+
+it('an end-entry fence blocks authenticated requests before the existing abort phase (CI transport fixture)', async () => {
+  const ended = new AbortController(),
+    fetch = vi.fn(() => Promise.resolve(saved(0)));
+  const request = fencedFetch({
+    fetch,
+    ended: ended.signal,
+    scope: scopeIdOf(accountA),
+    authorization: () => 'Bearer fixture-end-entry',
+    isEnding: () => true,
+  });
+  expect(ended.signal.aborted).toBe(false);
+  await expect(request(new Request('https://app.scope.test/v1/saved'))).rejects.toThrow(ScopeEndedError);
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it('end-entry is idempotent and finalizes abort/cache/purge even when a native fence and teardown resource throw (CI lifecycle ports)', async () => {
+  const base = memoryStore(),
+    order: string[] = [],
+    requests: Promise<unknown>[] = [];
+  let mediaError: unknown, callbackActive: boolean | undefined, receipt: Promise<void> | undefined;
+  const fetch = vi.fn(() => Promise.resolve(saved(0))),
+    close = vi.fn(() => {
+      order.push('socket');
+      throw new Error('fixture socket close');
+    });
+  const purge = vi.fn(() => {
+    order.push('purge');
+    return Promise.resolve();
+  });
+  const store: KeyValueStore = {
+    ...base,
+    durability: {
+      flush: () => Promise.resolve(false),
+      group: (work) => work(),
+      healthy: () => true,
+      subscribe: () => () => undefined,
+      fence() {
+        order.push('fence');
+        scope.end();
+        throw new Error('fixture native fence');
+      },
+      purge,
+    },
+  };
+  const connect = vi.fn(() => ({ close }));
+  const scope = createAccountScope({
+    account: accountA,
+    baseUrl: 'https://app.scope.test',
+    fetch,
+    authorization: () => 'Bearer fixture-end-entry',
+    store,
+    connect,
+  });
+  scope.queryClient.setQueryData(scope.queryKey('private'), { label: 'private fixture' });
+  scope.storage.set('resume', 'fixture-block');
+  scope.onEnd!(() => {
+    order.push('first callback');
+    callbackActive = scope.active;
+    receipt = scope.whenStorageClosed!();
+    scope.end();
+    requests.push(scope.api.experience.listSaved({}));
+    try {
+      scope.mediaSource!('/media/fixture');
+    } catch (error) {
+      mediaError = error;
+    }
+    scope.reconnect();
+    throw new Error('fixture teardown subscriber');
+  });
+  scope.onEnd!(() => {
+    order.push('second callback');
+  });
+  expect(() => scope.end()).not.toThrow();
+  scope.end();
+  expect(callbackActive).toBe(true);
+  expect(scope.active).toBe(false);
+  expect(mediaError).toBeInstanceOf(ScopeEndedError);
+  expect(receipt).toBe(scope.whenStorageClosed!());
+  await expect(receipt).rejects.toThrow('fixture native fence');
+  await expect(requests[0]).rejects.toThrow(ScopeEndedError);
+  expect(fetch).not.toHaveBeenCalled();
+  expect(connect).toHaveBeenCalledTimes(1);
+  expect(close).toHaveBeenCalledTimes(1);
+  expect(purge).toHaveBeenCalledTimes(1);
+  expect(order).toEqual(['fence', 'first callback', 'second callback', 'socket', 'purge']);
+  expect(scope.queryClient.getQueryCache().getAll()).toEqual([]);
+  expect(base.keys()).toEqual([]);
+});
+
+it('end-entry drops an in-flight mismatch body before it can start an authenticated session recheck (CI transport fixture)', async () => {
+  let release!: () => void,
+    ending = false;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      release = () => {
+        controller.enqueue(new TextEncoder().encode(JSON.stringify(problemDetails('SCOPE_MISMATCH'))));
+        controller.close();
+      };
+    },
+  });
+  const response = new Response(body, { status: 409, headers: { 'content-type': 'application/problem+json' } });
+  const clone = vi.spyOn(response, 'clone'),
+    onMismatch = vi.fn(),
+    ended = new AbortController();
+  const fetch = vi.fn(() => Promise.resolve(response));
+  const sending = fencedFetch({
+    fetch,
+    ended: ended.signal,
+    scope: scopeIdOf(accountA),
+    authorization: () => undefined,
+    onMismatch,
+    isEnding: () => ending,
+  })(new Request('https://app.scope.test/v1/saved'));
+  await vi.waitFor(() => expect(clone).toHaveBeenCalledTimes(1));
+  ending = true;
+  expect(ended.signal.aborted).toBe(false);
+  release();
+  await expect(sending).rejects.toThrow(ScopeEndedError);
+  expect(onMismatch).not.toHaveBeenCalled();
+  expect(fetch).toHaveBeenCalledTimes(1);
 });

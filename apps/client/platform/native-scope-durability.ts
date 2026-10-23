@@ -346,9 +346,19 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
     const listeners = new Set<() => void>();
     const ages = new Map([...mirror.keys()].map((k) => [k, 0]));
     let age = 0;
+    const notify = () => {
+      for (const listener of [...listeners]) {
+        try {
+          listener();
+        } catch {
+          /* One consumer cannot interrupt a storage fence or another listener. */
+        }
+      }
+    };
     const fail = () => {
+      if (!healthy) return;
       healthy = false;
-      for (const listener of [...listeners]) listener();
+      if (!closed) notify();
     };
     const bounded = () => {
       const limits = { state: 96, index: 96, anchor: 24, resume: 24 };
@@ -493,10 +503,11 @@ export function createNativeScopeDurability(ports: NativeDurabilityPorts = actua
         };
       },
       fence() {
+        if (closed) return;
         closed = true;
         mirror.clear();
         ephemeral.clear();
-        for (const listener of [...listeners]) listener();
+        notify();
       },
       purge() {
         port.fence();

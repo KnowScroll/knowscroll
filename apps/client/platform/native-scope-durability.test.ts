@@ -1,4 +1,4 @@
-import { createAccountScope } from '@knowscroll/client-core';
+import { createAccountScope, ScopeEndedError } from '@knowscroll/client-core';
 import { waitFor } from '@testing-library/react-native';
 import { createNativeScopeDurability, type NativeDurabilityPorts } from './native-scope-durability';
 
@@ -548,4 +548,117 @@ it('native restore rejects fabricated persisted collection permission rather tha
   seal.value = JSON.stringify({ v: 1, revision: '1', entries: [['recording.policy.on', 'true']] });
   await expect(createNativeScopeDurability(f.ports).prepare(input, () => true)).rejects.toThrow();
   expect(f.roots).toHaveLength(1);
+});
+
+it.each(['recursive', 'throw'] as const)(
+  'actual native fence survives a %s policy subscriber and completes one scoped cleanup (controlled ports)',
+  async (mode) => {
+    const f = fixture(),
+      owner = createNativeScopeDurability(f.ports),
+      store = await owner.prepare(input, () => true);
+    store.setItem(pendingKey, command);
+    expect(await store.durability!.flush({ [pendingKey]: command })).toBe(true);
+    const fetch = jest.fn(() => Promise.reject(new Error('native teardown fixture must not send'))),
+      socketClose = jest.fn(),
+      connect = jest.fn(() => ({ close: socketClose }));
+    const scope = createAccountScope({
+      account,
+      baseUrl: input.origin,
+      authorization: () => 'Bearer fixture-native-end',
+      store,
+      fetch,
+      connect,
+    });
+    scope.queryClient.setQueryData(scope.queryKey('private'), { label: 'native private fixture' });
+    const policyStates: string[] = [],
+      activeDuringPolicy: boolean[] = [],
+      mediaErrors: unknown[] = [],
+      requests: Promise<unknown>[] = [];
+    scope.recording!.subscribe(() => {
+      policyStates.push(scope.recording!.getState().status);
+      activeDuringPolicy.push(scope.active);
+      requests.push(scope.api.experience.listSaved({}));
+      try {
+        scope.mediaSource!('/media/fixture');
+      } catch (error) {
+        mediaErrors.push(error);
+      }
+      scope.reconnect();
+      if (mode === 'recursive') scope.end();
+      else throw new Error('fixture policy subscriber throws');
+    });
+    const health = jest.fn();
+    store.durability!.subscribe(health);
+    const activeDuringEnd: boolean[] = [];
+    const onEnd = jest.fn(() => {
+      activeDuringEnd.push(scope.active);
+      scope.end();
+    });
+    scope.onEnd!(onEnd);
+    expect(() => scope.end()).not.toThrow();
+    const closed = scope.whenStorageClosed!();
+    scope.end();
+    expect(scope.whenStorageClosed!()).toBe(closed);
+    expect(scope.active).toBe(false);
+    expect(policyStates).toEqual(['unknown', 'ended']);
+    expect(activeDuringPolicy).toEqual([true, true]);
+    expect(activeDuringEnd).toEqual([true]);
+    expect(health).toHaveBeenCalledTimes(1);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(socketClose).toHaveBeenCalledTimes(1);
+    expect(scope.queryClient.getQueryCache().getAll()).toEqual([]);
+    expect(mediaErrors).toHaveLength(2);
+    for (const error of mediaErrors) expect(error).toBeInstanceOf(ScopeEndedError);
+    for (const request of requests) await expect(request).rejects.toThrow(ScopeEndedError);
+    expect(fetch).not.toHaveBeenCalled();
+    await closed;
+    expect(f.queries.filter((query) => query.startsWith('DELETE'))).toHaveLength(1);
+    expect(f.row()).toBeNull();
+    expect(JSON.parse(f.root()!)).toMatchObject({ status: 'closed' });
+    expect(JSON.parse(f.root()!)).not.toHaveProperty('key');
+    await Promise.resolve().then(() => {
+      store.setItem(pendingKey, command);
+      scope.storage.set('recording.policy.pending.v1', command);
+    });
+    expect(await store.durability!.flush({ [pendingKey]: command })).toBe(false);
+    expect(f.row()).toBeNull();
+    // An explicit persistent cleanup retry acknowledges CLOSED again, without another scope pass.
+    await owner.purge();
+    expect(f.row()).toBeNull();
+    expect(f.roots.map((raw) => (JSON.parse(raw) as { status: string }).status)).toEqual(['open', 'closed', 'closed']);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(socketClose).toHaveBeenCalledTimes(1);
+    expect(health).toHaveBeenCalledTimes(1);
+    await expect(owner.prepare(input, () => true)).rejects.toThrow();
+  },
+);
+
+it('native IO failure isolates a throwing policy subscriber from later health listeners and cleanup (controlled ports)', async () => {
+  const f = fixture(),
+    owner = createNativeScopeDurability(f.ports),
+    store = await owner.prepare(input, () => true);
+  const scope = createAccountScope({
+    account,
+    baseUrl: input.origin,
+    authorization: () => undefined,
+    store,
+    fetch: () => Promise.reject(new Error('no fixture network')),
+  });
+  scope.recording!.subscribe(() => {
+    throw new Error('fixture health subscriber');
+  });
+  const observed = jest.fn();
+  store.durability!.subscribe(observed);
+  f.failCommit(true);
+  store.setItem(pendingKey, command);
+  expect(await store.durability!.flush({ [pendingKey]: command })).toBe(false);
+  expect(observed).toHaveBeenCalledTimes(1);
+  expect(scope.recording!.getState()).toMatchObject({ status: 'unknown', collecting: false });
+  f.failCommit(false);
+  expect(() => scope.end()).not.toThrow();
+  await scope.whenStorageClosed!();
+  expect(scope.active).toBe(false);
+  expect(f.row()).toBeNull();
+  expect(JSON.parse(f.root()!)).not.toHaveProperty('key');
 });
