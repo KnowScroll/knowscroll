@@ -1,4 +1,5 @@
--- Quartermaster Create (#239, D-037). Owner: modules/supply.
+-- Quartermaster Create and bounded production takes (#239, D-037). Owner: modules/supply, and
+-- content/production for the take column at the end.
 -- supply.work gains the library recipe whose production job the group commissioned, set when Create
 -- starts the group and never changed. A group without one commissioned nothing: it was created before
 -- Create existed, or it only waits on work that someone else started. Public metadata like the rest of
@@ -30,3 +31,20 @@ alter table supply.requests add constraint requests_decision_check
  check(decision in('reuse','join','create','refuse','pending')) not valid;
 alter table supply.requests add constraint supply_requests_matching_shape
  check(state<>'matching' or (origin='person' and decision='pending' and work_id is null and brief is null)) not valid;
+
+-- content.scroll_production_runs (owner: content/production): a recipe's job at one recipe version may
+-- be taken again after it was rejected. The job's identity is (topic, policy_version, take), the take
+-- is 1 to 3, and each take is its own business run with its own writer run and attempts. The rule
+-- that a take starts only after every earlier take was rejected is code, checked under the job row
+-- lock; SQL bounds the number and keeps one row per take. Existing jobs are take 1.
+-- Queries: unchanged (unique key now also names the take; UUID primary key). Growth: at most three
+-- rows per recipe and version. Retention, erasure and lock order: unchanged (nonpersonal, retained).
+-- Rollout: additive for older writers, which write only take 1 and use the default.
+alter table content.scroll_production_runs add column take integer not null default 1;
+alter table content.scroll_production_runs add constraint scroll_production_runs_take_check
+ check(take between 1 and 3) not valid;
+-- squawk-ignore ban-drop-constraint
+alter table content.scroll_production_runs drop constraint scroll_production_runs_topic_policy_version_key;
+-- squawk-ignore disallowed-unique-constraint
+alter table content.scroll_production_runs add constraint scroll_production_runs_topic_version_take_key
+ unique(topic,policy_version,take);

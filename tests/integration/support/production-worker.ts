@@ -11,6 +11,9 @@ import { fixtureModel, fixtureSettings, silent } from './fixture-model.js';
 import type { FixtureScenario } from './fixture-model-port.js';
 import { fixtureResearchFor } from './generated-scroll.js';
 
+/** The fixture model's quota observation per attempt. */
+export type QuotaScript = NonNullable<Parameters<typeof fixtureModel>[1]>['quota'];
+
 /**
  * The production job's consumer over a labelled fixture model (CI fixture, never provider output). The
  * transport carries a MiniMax stand-in identity so a publication passes the same identity checks as a
@@ -19,7 +22,7 @@ import { fixtureResearchFor } from './generated-scroll.js';
 export function fixtureProductionWorker(
   database: TestDatabase<Database>,
   script: () => FixtureScenario,
-  options: { readonly quota?: Parameters<typeof fixtureModel>[1]['quota'] } = {},
+  options: { readonly quota?: QuotaScript } = {},
 ) {
   const fixture = fixtureModel(script, {
     label: 'production-worker-CI-fixture',

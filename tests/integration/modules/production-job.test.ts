@@ -3,9 +3,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createBoss, drainConsumers, jobConsumer, startConsumers } from '@knowscroll/backend/infrastructure/jobs';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
+  planLibraryProduction,
   produceScrollJob,
   produceScrollSingletonKey,
   produceScrollQueue,
+  ProduceScrollJobSchema,
+  SCROLL_PRODUCTION_VERSION,
   type ProduceScrollJob,
 } from '@knowscroll/backend/modules/content';
 import {
@@ -15,9 +18,9 @@ import {
 } from '@knowscroll/backend/modules/content/nest-providers';
 import type { ProductionReasoningHarness } from '@knowscroll/backend/reasoning';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureProductionWorker } from '../support/production-worker.js';
+import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { fixtureAuthored } from '../support/generated-scroll.js';
-import { fixtureModel, signal, silent } from '../support/fixture-model.js';
+import { signal, silent } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 
 const answer = (): FixtureScenario => ({ kind: 'success', text: JSON.stringify(fixtureAuthored('diagram')) });
@@ -33,7 +36,7 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     await database.drop();
   });
 
-  const setup = (script: () => FixtureScenario, quota?: Parameters<typeof fixtureModel>[1]['quota']) =>
+  const setup = (script: () => FixtureScenario, quota?: QuotaScript) =>
     fixtureProductionWorker(database, script, quota ? { quota } : {});
 
   const runRow = (recipe = 'seasons') =>
@@ -66,7 +69,7 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     expect(await database.db.selectFrom('content.scroll_production_runs').select('id').execute()).toEqual([]);
   });
 
-  it('completes a delivery whose job was rejected, and never runs that recipe again at this version', async () => {
+  it('completes a delivery whose job was rejected, and never runs that take again', async () => {
     const p = setup(() => ({ kind: 'malformed' }));
     const first = await p.run(produceScrollJob('seasons'), delivery());
     expect(first).toMatchObject({ kind: 'finished', result: { outcome: 'rejected' } });
@@ -76,7 +79,11 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       result: { outcome: 'rejected' },
     });
     expect(p.fixture.calls).toHaveLength(calls);
-    expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'stopped', job: 'rejected' });
+    expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({
+      state: 'retryable',
+      job: 'rejected',
+      takes: 1,
+    });
   });
 
   it('leaves an attempt of unknown outcome unknown and never resends it, however often it is delivered', async () => {
@@ -137,6 +144,135 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     expect(p.fixture.calls).toHaveLength(1);
   });
 
+  describe('takes after a rejection', () => {
+    const rejected = () => ({ kind: 'malformed' }) as const;
+    const takes = async (recipe = 'seasons') =>
+      (
+        await database.db
+          .selectFrom('content.scroll_production_runs')
+          .select(['take', 'state', 'writer_run_id'])
+          .where('topic', '=', recipe)
+          .orderBy('take')
+          .execute()
+      ).map((row) => [row.take, row.state] as const);
+
+    it('publishes take 2 after take 1 was rejected, as a new business run that resends nothing', async () => {
+      let answerNow = false;
+      const p = setup(() => (answerNow ? answer() : rejected()));
+      expect(await p.run(produceScrollJob('seasons', 1), delivery())).toMatchObject({
+        kind: 'finished',
+        result: { outcome: 'rejected', take: 1 },
+      });
+      const callsAfterFirst = p.fixture.calls.length;
+      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'retryable', takes: 1 });
+      // The rejected take stays final: asking for it again reports it and sends nothing.
+      expect(await p.run(produceScrollJob('seasons', 1), delivery())).toMatchObject({
+        result: { outcome: 'rejected' },
+      });
+      expect(p.fixture.calls).toHaveLength(callsAfterFirst);
+
+      answerNow = true;
+      expect(await p.run(produceScrollJob('seasons', 2), delivery())).toMatchObject({
+        kind: 'finished',
+        result: { outcome: 'published', take: 2, revision: 1 },
+      });
+      expect(await takes()).toEqual([
+        [1, 'rejected'],
+        [2, 'published'],
+      ]);
+      const writerRuns = (
+        await database.db
+          .selectFrom('content.scroll_production_runs')
+          .select('writer_run_id')
+          .where('topic', '=', 'seasons')
+          .execute()
+      ).map((row) => row.writer_run_id);
+      expect(new Set(writerRuns).size).toBe(2);
+      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'published', takes: 2 });
+      // A published recipe never takes again.
+      expect(await p.run(produceScrollJob('seasons', 3), delivery())).toMatchObject({
+        result: { outcome: 'take_refused' },
+      });
+    });
+
+    it('refuses a take that skips a take, and one after an unknown attempt', async () => {
+      const p = setup(() => ({ kind: 'gateway_timeout' }));
+      expect(await p.run(produceScrollJob('seasons', 2), delivery())).toMatchObject({
+        kind: 'finished',
+        result: { outcome: 'take_refused', take: 2 },
+      });
+      expect(await takes()).toEqual([]);
+      expect(await p.run(produceScrollJob('seasons', 1), delivery())).toMatchObject({ result: { outcome: 'unknown' } });
+      const calls = p.fixture.calls.length;
+      // The attempt may have reached the provider: no later take may start, and nothing is resent.
+      expect(await p.run(produceScrollJob('seasons', 2), delivery())).toMatchObject({
+        result: { outcome: 'take_refused' },
+      });
+      expect(p.fixture.calls).toHaveLength(calls);
+      expect(await takes()).toEqual([[1, 'unknown']]);
+      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'stopped', takes: 1 });
+    });
+
+    it('allows three takes in all and no fourth', async () => {
+      const p = setup(rejected);
+      for (const take of [1, 2, 3])
+        expect(await p.run(produceScrollJob('seasons', take), delivery())).toMatchObject({
+          result: { outcome: 'rejected', take },
+        });
+      expect(await takes()).toEqual([
+        [1, 'rejected'],
+        [2, 'rejected'],
+        [3, 'rejected'],
+      ]);
+      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'stopped', takes: 3 });
+      // The job schema refuses a fourth take, and the database refuses a fourth row.
+      expect(ProduceScrollJobSchema.safeParse({ ...produceScrollJob('seasons'), take: 4 }).success).toBe(false);
+      await expect(
+        sql`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (gen_random_uuid(),'seasons',${SCROLL_PRODUCTION_VERSION},4,1,1,'research',gen_random_uuid())`.execute(
+          database.db,
+        ),
+      ).rejects.toMatchObject({ constraint: 'scroll_production_runs_take_check' });
+    });
+
+    it('plans the next take of a rejected recipe and skips one that cannot be taken again', async () => {
+      const p = setup(rejected);
+      await p.run(produceScrollJob('seasons', 1), delivery());
+      const unknown = setup(() => ({ kind: 'gateway_timeout' }));
+      await unknown.run(produceScrollJob('tides', 1), delivery());
+      const plan = planLibraryProduction(await readLibraryStatus(database.db, ['seasons', 'tides', 'greenhouse']), {
+        interactiveFirst: false,
+      });
+      expect(plan.queue).toEqual([
+        { recipe: 'seasons', take: 2 },
+        { recipe: 'greenhouse', take: 1 },
+      ]);
+      expect(plan.skipped).toEqual([{ recipe: 'tides', reason: 'stopped' }]);
+
+      const boss = createBoss(database.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
+      await boss.start();
+      try {
+        const enqueue = makeEnqueueScrollProduction(boss);
+        expect(await enqueue('seasons', 2)).toBe('queued');
+        expect(await enqueue('seasons', 2)).toBe('already_queued');
+        // A different take is a different job.
+        expect(await enqueue('seasons', 3)).toBe('queued');
+      } finally {
+        await boss.stop({ graceful: false });
+      }
+    });
+
+    it('lets two senders ask for the same take at once and starts it once', async () => {
+      const p = setup(rejected);
+      await p.run(produceScrollJob('seasons', 1), delivery());
+      const [a, b] = await Promise.all([
+        p.run(produceScrollJob('seasons', 2), delivery()),
+        p.run(produceScrollJob('seasons', 2), delivery()),
+      ]);
+      expect([a, b].filter((r) => r.kind === 'finished' && r.result.outcome === 'rejected')).not.toHaveLength(0);
+      expect((await takes()).filter(([take]) => take === 2)).toHaveLength(1);
+    });
+  });
+
   it('keeps one job per recipe version in flight however many senders ask, and runs it once through a real queue consumer', async () => {
     const p = setup(answer);
     const producerBoss = createBoss(database.settings, 'producer', {
@@ -151,8 +287,8 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     await consumerBoss.start();
     try {
       const enqueue = makeEnqueueScrollProduction(producerBoss);
-      expect(await enqueue('seasons')).toBe('queued');
-      expect(await enqueue('seasons')).toBe('already_queued');
+      expect(await enqueue('seasons', 1)).toBe('queued');
+      expect(await enqueue('seasons', 1)).toBe('already_queued');
       const consumers = [
         jobConsumer(produceScrollQueue, async (job: ProduceScrollJob, deliveryOf) => {
           await p.run(job, deliveryOf);
@@ -170,7 +306,7 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
         ).rows[0]?.state;
       await expect.poll(jobState, { timeout: 30_000, interval: 250 }).toBe('completed');
       // A finished job does not block a new send; the redelivery finds the finished run and sends nothing.
-      expect(await enqueue('seasons')).toBe('queued');
+      expect(await enqueue('seasons', 1)).toBe('queued');
       await expect
         .poll(
           async () =>

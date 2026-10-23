@@ -141,6 +141,7 @@ export type {
   CatalogueBrief,
   LibraryProductionPlan,
   LibraryRecipeStatus,
+  ProductionSend,
   ScrollProductionState,
   ScrollRecipeChoice,
 } from './domain/library/serving.js';
@@ -152,7 +153,12 @@ export type ReadScrollProduction = (scope: PersonalScopeTx, recipe: string) => P
 export const READ_SCROLL_PRODUCTION = Symbol('content.readScrollProduction');
 
 /** Code-selected production topics and predictable model-request ceiling; no research is exported. */
-export { parseScrollTopic, REQUEST_BOUND_PER_TOPIC, SCROLL_PRODUCTION_VERSION } from './production/topics.js';
+export {
+  parseScrollTopic,
+  MAX_TAKES_PER_RECIPE,
+  REQUEST_BOUND_PER_TOPIC,
+  SCROLL_PRODUCTION_VERSION,
+} from './production/topics.js';
 export type { ScrollTopic } from './production/topics.js';
 export type { ProduceScrollResult } from './production/types.js';
 export {

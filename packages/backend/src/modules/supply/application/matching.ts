@@ -1,7 +1,7 @@
 import type { CreateContentRequest } from '@knowscroll/contracts';
 import type { ReasoningHarness } from '../../../reasoning/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { MATCH_POLICY_VERSION, MATCH_ROLE, matchContext, matchVerdict, type MatchVerdict } from '../domain/match.js';
+import { MATCH_POLICY_VERSION, MATCH_ROLE, matchContext, matchVerdict, type MatchVerdict } from './match-role.js';
 import type { ResolveSupplyJob } from '../events.js';
 import { commissionSupply, nextPoll } from './commission.js';
 import { catalogueBrief, checkedRevision, inventory, snapshot } from './inventory.js';
@@ -119,7 +119,7 @@ export function makeMatchRequest(p: SupplyPorts, harness: ReasoningHarness): Mat
         updatedAt: p.now().toISOString(),
       };
       await p.store.finish(scope, next);
-      if (next.status === 'requested') await p.enqueue(scope, d.id, nextPoll(d.id, d.createdAt, p.now()));
+      if (next.status === 'requested') await p.enqueue(scope, d.id, nextPoll(d.createdAt, p.now()));
       await p.notify(scope, revision, d.id);
     });
   };

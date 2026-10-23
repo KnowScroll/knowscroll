@@ -153,8 +153,8 @@ describe('Supply guarded HTTP contract adapter', () => {
 
   it('validates backend output instead of emitting a malformed acceptance receipt', async () => {
     const create = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: { ...receipt, requestId: 'bad' } }));
-    const { read, cancel } = wired();
-    const controller = new SupplyController(create, read, cancel);
+    const { read, list, cancel } = wired();
+    const controller = new SupplyController(create, read, list, cancel);
     await expect(call(controller.createRoute(await admittedRequest()), createInput)).rejects.toMatchObject({
       code: 'INTERNAL_SERVER_ERROR',
     });

@@ -34,7 +34,7 @@ import {
   productionHarnessSettings,
   postgresProductionHarnessPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
-import { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from '@knowscroll/backend/modules/content';
+import { MAX_TAKES_PER_RECIPE, parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from '@knowscroll/backend/modules/content';
 import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backend/modules/content/nest-providers';
 
 /**
@@ -54,7 +54,7 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js cutroom import-corpus | cutroom commission (trusted configured root packet required) | operator.js content produce-scroll --topic <recipe key> [--dry-run] [--resume] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js content readmit-coverage [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
+  'usage: operator.js cutroom import-corpus | cutroom commission (trusted configured root packet required) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js content readmit-coverage [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -95,6 +95,7 @@ async function main(): Promise<number> {
         'interactive-first': { type: 'boolean', default: false },
         'dry-run': { type: 'boolean', default: false },
         resume: { type: 'boolean', default: false },
+        take: { type: 'string' },
         run: { type: 'string' },
         script: { type: 'string' },
         fixture: { type: 'boolean' },
@@ -226,6 +227,11 @@ async function main(): Promise<number> {
       print({ result: 'topic_refused', requestBound: REQUEST_BOUND_PER_TOPIC });
       return 2;
     }
+    const take = args.values.take === undefined ? 1 : Number(args.values.take);
+    if (!Number.isInteger(take) || take < 1 || take > MAX_TAKES_PER_RECIPE) {
+      print({ result: 'take_refused', maxTakes: MAX_TAKES_PER_RECIPE });
+      return 2;
+    }
     try {
       // Both dry and real paths validate the allowlisted world before touching the database/provider.
       if (args.values['dry-run']) {
@@ -265,7 +271,7 @@ async function main(): Promise<number> {
           model: model?.model ?? 'none',
         });
         print({ command: 'content produce-scroll', requestBound: REQUEST_BOUND_PER_TOPIC, outcome: 'starting' });
-        const result = await produce(topic, false, abort.signal, args.values.resume);
+        const result = await produce(topic, false, abort.signal, args.values.resume, take);
         print({ command: 'content produce-scroll', ...result });
         return result.outcome === 'published' ? 0 : 2;
       } finally {

@@ -16,9 +16,19 @@ export interface ProduceScrollResult {
    * `paused`: nothing was sent because a daily budget or the provider's quota is used up. The job
    * stays open and a later run resumes it; it is not a verdict on the recipe.
    */
-  readonly outcome: 'dry_run' | 'published' | 'rejected' | 'unknown' | 'in_progress' | 'scope_refused' | 'paused';
+  readonly outcome:
+    | 'dry_run'
+    | 'published'
+    | 'rejected'
+    | 'unknown'
+    | 'in_progress'
+    | 'scope_refused'
+    | 'paused'
+    /** A take above 1 was asked for before every earlier take was rejected; nothing was started. */
+    | 'take_refused';
   readonly requestBound: number;
   readonly runId?: string;
+  readonly take?: number;
   readonly assetId?: string;
   readonly revision?: number;
   readonly codes?: readonly string[];

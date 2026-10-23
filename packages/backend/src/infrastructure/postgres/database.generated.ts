@@ -290,6 +290,7 @@ export interface ContentScrollProductionRuns {
   research: Generated<Json>;
   scope_generation: number;
   state: string;
+  take: Generated<number>;
   target_revision: number;
   topic: string;
   writer_output: Json | null;

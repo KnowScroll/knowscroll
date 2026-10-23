@@ -68,6 +68,7 @@ function withAccounting(base: RoleReceipt, attempts: readonly ProductionAttemptA
 
 function summary(row: ProductionRow): ProduceScrollResult {
   return {
+    take: row.take,
     outcome: TERMINAL_STATES.includes(row.state) ? (row.state as 'published' | 'rejected' | 'unknown') : 'in_progress',
     requestBound: REQUEST_BOUND_PER_TOPIC,
     runId: row.id,
@@ -77,12 +78,14 @@ function summary(row: ProductionRow): ProduceScrollResult {
 }
 
 /**
- * Produce one versioned, nonpersonal Scroll: reserve a unique topic/version once, freeze public
- * research, ask the writer once (and repair once), and atomically close and apply the publication
- * under the production root. No network or model wait holds a transaction. A repeated command
- * reports the prior terminal outcome; `resume` continues the same frozen job and harness ledger
- * after a crash. Unknown attempts halt: they are never resent. Scope revocation prevents applying
- * even a valid answer.
+ * Produce one versioned, nonpersonal Scroll: reserve one job per topic, version and take, freeze
+ * public research, ask the writer once (and repair once), and atomically close and apply the
+ * publication under the production root. No network or model wait holds a transaction. A repeated
+ * command reports the prior terminal outcome; `resume` continues the same frozen job and harness
+ * ledger after a crash. A rejected job is final for its take, but take 2 (then 3) may start once
+ * every earlier take was rejected: a new business run with its own writer run, so nothing is
+ * resent, and never after a published job or an unknown attempt. Unknown attempts halt: they are
+ * never resent. Scope revocation prevents applying even a valid answer.
  */
 export function makeProduceScroll(deps: ProduceScrollDependencies) {
   const store = productionStore(deps.db);
@@ -336,12 +339,15 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     dryRun: boolean,
     signal: AbortSignal,
     resume = false,
+    take = 1,
   ): Promise<ProduceScrollResult> => {
     if (dryRun) return { outcome: 'dry_run', requestBound: REQUEST_BOUND_PER_TOPIC };
     const reserved = await deps.withScope(deps.authority, (scope) =>
-      store.create(productionTransactionOf(scope), topic, deps.authority.generation),
+      store.create(productionTransactionOf(scope), topic, deps.authority.generation, take),
     );
     if (reserved.kind !== 'entered') return scopeRefused();
+    if (reserved.value.kind === 'take_refused')
+      return { outcome: 'take_refused', requestBound: REQUEST_BOUND_PER_TOPIC, take };
     const { created } = reserved.value;
     let { row } = reserved.value;
     if (!created && (!resume || TERMINAL_STATES.includes(row.state))) return summary(row);

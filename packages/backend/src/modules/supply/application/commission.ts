@@ -1,4 +1,3 @@
-import { stableUuid } from '../../../infrastructure/ids/index.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { CanonicalBrief, SupplyPorts, UnavailableReason } from './ports.js';
 
@@ -61,20 +60,20 @@ export async function commissionSupply(
   if (choice.kind === 'none') return { kind: 'unavailable', reason: 'could_not_prepare' };
   const work = await p.store.joinOrCreate(scope, brief, p.newId(), choice.recipe);
   if (work.joined) return { kind: 'waiting', workId: work.id, decision: 'join' };
-  await p.enqueueProduction(scope, choice.recipe);
+  await p.enqueueProduction(scope, choice.recipe, choice.take);
   return { kind: 'waiting', workId: work.id, decision: 'create' };
 }
 
 /**
- * When a waiter looks again, and the ID that makes a repeated delivery in the same slot one job. Slots
- * are fixed offsets from the request's creation, so two deliveries of the same poll schedule the same
- * next one and the chain of polls never forks.
+ * When a waiter looks again, and which slot that is. Slots are fixed offsets from the request's
+ * creation, and the sender makes one job per request and slot, so two deliveries of the same poll
+ * schedule the same next one and the chain of polls never forks.
  */
-export function nextPoll(requestId: string, createdAt: string, now: Date) {
+export function nextPoll(createdAt: string, now: Date) {
   const waited = now.getTime() - Date.parse(createdAt);
   const slot = Math.max(1, Math.floor(waited / WAIT_POLL_MS) + 1);
   return {
     startAfter: new Date(Date.parse(createdAt) + slot * WAIT_POLL_MS),
-    jobId: stableUuid(`supply-wait:${requestId}:${slot}`),
+    slot,
   };
 }

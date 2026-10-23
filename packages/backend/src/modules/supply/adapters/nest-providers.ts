@@ -30,7 +30,7 @@ import {
   type CheckPersonalOwnerActive,
   type WithPersonalScope,
 } from '../../identity/public.js';
-import { uuidv7 } from '../../../infrastructure/ids/index.js';
+import { stableUuid, uuidv7 } from '../../../infrastructure/ids/index.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import { advanceScopeRevision } from '../../../infrastructure/postgres/personal-scope.js';
 import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
@@ -109,8 +109,8 @@ export function supplyProviders(t: {
         readProduction,
         readFacetCandidates,
         createDailyCap: settings.supplyCreateDailyCap,
-        enqueueProduction: (scope, recipe) => {
-          const job = produceScrollJob(recipe);
+        enqueueProduction: (scope, recipe, take) => {
+          const job = produceScrollJob(recipe, take);
           return enqueue(scope, produceScrollQueue, job, {
             singletonKey: produceScrollSingletonKey(job),
             duplicate: 'ignore',
@@ -135,7 +135,13 @@ export function supplyProviders(t: {
               privacyEpoch: scope.authority.privacyEpoch,
               requestId,
             },
-            options === undefined ? undefined : { ...options, duplicate: 'ignore' },
+            options === undefined
+              ? undefined
+              : {
+                  startAfter: options.startAfter,
+                  jobId: stableUuid(`supply-wait:${requestId}:${options.slot}`),
+                  duplicate: 'ignore',
+                },
           ),
         receipts: {
           async find(scope, operation, commandId, command) {

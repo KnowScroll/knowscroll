@@ -181,8 +181,8 @@ export interface SupplyPorts {
   readonly chooseRecipe: ChooseScrollRecipe;
   /** Where one recipe's production stands, for a waiter deciding whether to keep waiting. */
   readonly readProduction: ReadScrollProduction;
-  /** Sends the production job of a recipe in the caller's transaction (idempotent per recipe and version). */
-  readonly enqueueProduction: (scope: PersonalScopeTx, recipe: string) => Promise<void>;
+  /** Sends the production job of one take of a recipe in the caller's transaction (idempotent per recipe, version and take). */
+  readonly enqueueProduction: (scope: PersonalScopeTx, recipe: string, take: number) => Promise<void>;
   /** Shared Scroll productions Create may start per UTC day; 0 turns Create off. */
   readonly createDailyCap: number;
   readonly lockCurrent: LockCurrentEncounters;
@@ -211,11 +211,14 @@ export interface SupplyPorts {
       receipt: ContentRequestReceipt | CancelContentRequestReceipt,
     ): Promise<void>;
   };
-  /** Sends a resolver job for one waiter in the caller's transaction; a `jobId` makes a repeat a no-op. */
+  /**
+   * Sends a resolver job for one waiter in the caller's transaction. A later poll names its slot, and a
+   * repeat of the same request and slot is a no-op.
+   */
   readonly enqueue: (
     scope: PersonalScopeTx,
     requestId: string,
-    options?: { readonly startAfter: Date; readonly jobId: string },
+    options?: { readonly startAfter: Date; readonly slot: number },
   ) => Promise<void>;
   readonly advance: (scope: PersonalScopeTx) => Promise<number>;
   readonly notify: (scope: PersonalScopeTx, revision: number, eventId: string) => Promise<void>;

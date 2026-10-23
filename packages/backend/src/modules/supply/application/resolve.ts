@@ -59,7 +59,7 @@ async function advanceWaiter(
         ? await waitingOutcome(p, scope, d)
         : { kind: 'unavailable', reason: 'source_unavailable' };
     if (ending.kind === 'wait') {
-      await p.enqueue(scope, d.id, nextPoll(d.id, d.createdAt, p.now()));
+      await p.enqueue(scope, d.id, nextPoll(d.createdAt, p.now()));
       return 'done';
     }
     const revision = await p.advance(scope);

@@ -8,6 +8,7 @@ export type ProduceScroll = (
   dryRun: boolean,
   signal: AbortSignal,
   resume?: boolean,
+  take?: number,
 ) => Promise<ProduceScrollResult>;
 
 export type ScrollProductionJobOutcome =
@@ -15,7 +16,8 @@ export type ScrollProductionJobOutcome =
   | { readonly kind: 'skipped'; readonly reason: 'policy_version' | 'unknown_recipe' }
   /**
    * The delivery is done: the business run is terminal (published, rejected or unknown), or it paused
-   * because a daily budget or the provider's quota is used up and waits for a later send.
+   * because a daily budget or the provider's quota is used up and waits for a later send, or the take
+   * may not start yet (`take_refused`: an earlier take was not rejected).
    */
   | { readonly kind: 'finished'; readonly result: ProduceScrollResult };
 
@@ -41,7 +43,7 @@ export function makeRunScrollProduction(produce: ProduceScroll) {
     if (job.policyVersion !== SCROLL_PRODUCTION_VERSION) return { kind: 'skipped', reason: 'policy_version' };
     const recipe = parseScrollTopic(job.recipe);
     if (recipe === undefined) return { kind: 'skipped', reason: 'unknown_recipe' };
-    const result = await produce(recipe, false, delivery.signal, true);
+    const result = await produce(recipe, false, delivery.signal, true, job.take);
     if (result.outcome === 'scope_refused') throw new Error('SCROLL_PRODUCTION_SCOPE_REFUSED');
     if (result.outcome === 'in_progress') throw new Error('SCROLL_PRODUCTION_IN_PROGRESS');
     return { kind: 'finished', result };

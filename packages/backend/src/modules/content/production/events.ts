@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { defineQueue } from '../../../infrastructure/jobs/queues.js';
-import { SCROLL_PRODUCTION_VERSION } from './topics.js';
+import { MAX_TAKES_PER_RECIPE, SCROLL_PRODUCTION_VERSION } from './topics.js';
 
 /**
  * One request to produce the Scroll of a library recipe. IDs only: the recipe key names code-owned
  * data, so no brief, research or person is in the payload. `policyVersion` is the recipe version the
- * sender knew; a worker running another version drops the job instead of producing under it.
+ * sender knew; a worker running another version drops the job instead of producing under it. `take`
+ * says which attempt at the recipe this is: 1, or the next after every earlier one was rejected.
  */
 export const ProduceScrollJobSchema = z.strictObject({
   v: z.literal(1),
@@ -14,6 +15,7 @@ export const ProduceScrollJobSchema = z.strictObject({
     .regex(/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/)
     .max(64),
   policyVersion: z.string().min(1).max(64),
+  take: z.number().int().min(1).max(MAX_TAKES_PER_RECIPE),
 });
 export type ProduceScrollJob = z.infer<typeof ProduceScrollJobSchema>;
 
@@ -40,16 +42,16 @@ export const produceScrollQueue = defineQueue({
   exclusive: true,
 });
 
-/** The job a sender enqueues for `recipe` under the current recipe version. */
-export function produceScrollJob(recipe: string): ProduceScrollJob {
-  return { v: 1, recipe, policyVersion: SCROLL_PRODUCTION_VERSION };
+/** The job a sender enqueues for `take` of `recipe` under the current recipe version. */
+export function produceScrollJob(recipe: string, take = 1): ProduceScrollJob {
+  return { v: 1, recipe, policyVersion: SCROLL_PRODUCTION_VERSION, take };
 }
 
 /**
- * The key that keeps one production job per recipe and version in flight (the queue is `exclusive`):
- * every sender that asks for the same Scroll reaches that job while it is queued or running, and a
- * finished or failed one never blocks a new send, which resumes the same business run.
+ * The key that keeps one production job per recipe, version and take in flight (the queue is
+ * `exclusive`): every sender that asks for the same take reaches that job while it is queued or
+ * running, and a finished or failed one never blocks a new send, which resumes the same business run.
  */
 export function produceScrollSingletonKey(job: ProduceScrollJob): string {
-  return `${job.recipe}:${job.policyVersion}`;
+  return `${job.recipe}:${job.policyVersion}:${job.take}`;
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { FULL_V1_CAPABILITIES } from '@knowscroll/scroll-model';
 import type { CreateContentRequest } from '@knowscroll/contracts';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
@@ -164,8 +164,8 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       .select(['work.id', 'work.active', 'work.production_recipe', 'request.decision'])
       .where('request.id', '=', requestId)
       .executeTakeFirstOrThrow();
-  const publish = (recipe: string) =>
-    production.run(produceScrollJob(recipe), { signal: new AbortController().signal });
+  const publish = (recipe: string, take = 1) =>
+    production.run(produceScrollJob(recipe, take), { signal: new AbortController().signal });
 
   it('commits the demand and the production job together, publishes through the worker, and resolves the waiter', async () => {
     await build();
@@ -281,6 +281,32 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     const requestId = await ask(second, catalogue('earth.greenhouse-effect'));
     expect((await workOf(requestId)).production_recipe).toBe('greenhouse-radiation');
     expect(await status(second, requestId)).toMatchObject({ status: 'preparing' });
+  });
+
+  it('takes a rejected recipe again when it is the only one that serves the brief, and binds the new waiter when take 2 publishes', async () => {
+    let writerWorks = false;
+    await build({ writer: () => (writerWorks ? writerAnswer() : { kind: 'malformed' }) });
+    const facet = catalogue('earth.tides', { facetId: 'earth.tides.forcing' });
+    const first = await seedPerson(database.db);
+    const a = await ask(first, facet);
+    expect(await publish('tides', 1)).toMatchObject({ result: { outcome: 'rejected', take: 1 } });
+    await resolve(job(first, a));
+    expect(await status(first, a)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+
+    // The recipe was rejected once and has takes left, so a new request starts take 2.
+    const second = await seedPerson(database.db);
+    const b = await ask(second, { ...facet, commandId: randomUUID() });
+    expect((await workOf(b)).production_recipe).toBe('tides');
+    expect(await status(second, b)).toMatchObject({ status: 'preparing' });
+    const queued = await sql<{
+      data: { take: number };
+    }>`select data from pgboss.job where name=${produceScrollQueue.name}`.execute(database.db);
+    expect(queued.rows.map((row) => row.data.take).sort()).toEqual([1, 2]);
+
+    writerWorks = true;
+    expect(await publish('tides', 2)).toMatchObject({ result: { outcome: 'published', take: 2 } });
+    await resolve(job(second, b));
+    expect(await status(second, b)).toMatchObject({ status: 'ready', content: { assetId: TOPICS.tides.assetId } });
   });
 
   it('starts at most the daily cap of productions, lets a joiner in past it, and closes the rest honestly', async () => {

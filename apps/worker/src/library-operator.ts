@@ -3,7 +3,7 @@ import { ConfigurationError, readContentOperatorConfig } from '@knowscroll/backe
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { libraryRecipes, parseScrollTopic, planLibraryProduction } from '@knowscroll/backend/modules/content';
-import type { ScrollTopic } from '@knowscroll/backend/modules/content';
+import type { ProductionSend, ScrollTopic } from '@knowscroll/backend/modules/content';
 import { makeEnqueueScrollProduction, readLibraryStatus } from '@knowscroll/backend/modules/content/nest-providers';
 
 type Print = (result: Record<string, unknown>) => void;
@@ -18,8 +18,9 @@ function selectedRecipes(only: string | undefined): readonly ScrollTopic[] | und
 /**
  * `content produce-library [--only <keys>] [--interactive-first] [--dry-run]`: seeds the library
  * through the same `content.produce-scroll` jobs Quartermaster sends. Recipes that already have a
- * Scroll, or whose job ended at this recipe version, are listed as skipped. Nothing is produced
- * here: a worker with the production grant runs the jobs. The shared database only; no provider and
+ * Scroll, or that cannot be taken again, are listed as skipped; a rejected recipe gets its next take
+ * (at most three) and is listed under `retaking`. Nothing is produced here: a worker with the
+ * production grant runs the jobs. The shared database only; no provider and
  * no personal root.
  */
 export async function produceLibraryCommand(
@@ -42,20 +43,32 @@ export async function produceLibraryCommand(
         interactiveFirst: options.interactiveFirst,
       });
       if (options.dryRun) {
-        print({ command: 'content produce-library', dryRun: true, wouldQueue: plan.queue, skipped: plan.skipped });
+        print({
+          command: 'content produce-library',
+          dryRun: true,
+          wouldQueue: plan.queue,
+          retaking: plan.queue.filter((send) => send.take > 1),
+          skipped: plan.skipped,
+        });
         return 0;
       }
       const boss = createBoss(config.database, 'producer', { onError: () => undefined, onWarning: () => undefined });
       await boss.start();
       try {
         const enqueue = makeEnqueueScrollProduction(boss);
-        const queued: string[] = [];
-        const alreadyExists: string[] = [];
-        for (const recipe of plan.queue) {
-          const sent = await enqueue(recipe);
-          (sent === 'queued' ? queued : alreadyExists).push(recipe);
+        const queued: ProductionSend[] = [];
+        const alreadyQueued: ProductionSend[] = [];
+        for (const send of plan.queue) {
+          const sent = await enqueue(send.recipe, send.take);
+          (sent === 'queued' ? queued : alreadyQueued).push(send);
         }
-        print({ command: 'content produce-library', queued, alreadyExists, skipped: plan.skipped });
+        print({
+          command: 'content produce-library',
+          queued,
+          alreadyQueued,
+          retaking: queued.filter((send) => send.take > 1),
+          skipped: plan.skipped,
+        });
         return 0;
       } finally {
         await boss.stop({ graceful: true, timeout: 5000 });
