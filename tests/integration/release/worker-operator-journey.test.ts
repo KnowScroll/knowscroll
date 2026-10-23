@@ -163,6 +163,8 @@ describe('the worker operator command (reasoning) from the built release', () =>
       'greenhouse-radiation',
       'greenhouse-balance',
       'greenhouse-limits',
+      'attention-mechanism',
+      'dns-lookup',
     ]) {
       const result = await operator(env(), ['content', 'produce-scroll', '--topic', topic, '--dry-run']);
       expect(result.code).toBe(0);
@@ -175,6 +177,19 @@ describe('the worker operator command (reasoning) from the built release', () =>
     }
     expect(await handle.db.selectFrom('content.scroll_production_runs').select('id').execute()).toHaveLength(0);
     expect(await handle.db.selectFrom('reasoning.production_attempts').select('id').execute()).toHaveLength(0);
+  });
+
+  it('reports what readmit-coverage would do on a database without generated Scrolls, and writes nothing', async () => {
+    const result = await operator(env(), ['content', 'readmit-coverage', '--dry-run']);
+    expect(result.code).toBe(0);
+    expect(result.result).toEqual({
+      command: 'content readmit-coverage',
+      dryRun: true,
+      considered: 0,
+      appended: 0,
+      unchanged: 0,
+      skipped: {},
+    });
   });
 
   it('refuses to start without its configuration, naming the variable and echoing no value', async () => {

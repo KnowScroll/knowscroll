@@ -55,18 +55,19 @@ export async function prepareGeography(
     coverage.supportedFormats[0] !== 'scroll'
   )
     throw new Error('GEOGRAPHY_COVERAGE_UNSUPPORTED');
-  const catalogueHash = p.hash({ version: CONCEPT_CATALOGUE_VERSION, concepts: CONCEPTS });
   const supports: Support[] = [];
   for (const s of coverage.supports) {
     const topic = CONCEPTS.find((t) => t.id === s.topicId),
       facet = topic?.facets.find((f) => f.id === s.facetId);
+    // A facet that vanished or changed meaning since the evidence was recorded supports nothing now.
+    // The catalogue grows with the library, so this is expected after a plan edit, not an error.
     if (
       !topic ||
       !facet ||
       s.meaningSha256 !==
         p.hash({ topicId: topic.id, topicMeaning: topic.meaning, facetId: facet.id, facetMeaning: facet.meaning })
     )
-      throw new Error('GEOGRAPHY_MEANING_CHANGED');
+      continue;
     const witnesses = coverage.witnesses.filter(
       (w) =>
         w.topicId === s.topicId &&
@@ -96,7 +97,6 @@ export async function prepareGeography(
           c.availability !== 'available' ||
           c.mapping?.framing !== 'factual' ||
           c.mapping.catalogueVersion !== CONCEPT_CATALOGUE_VERSION ||
-          c.mapping.catalogueSha256 !== catalogueHash ||
           c.explanationUnitId !== s.explanationUnitId ||
           c.mapping.framingSha256 !== s.truthSha256,
       )

@@ -128,7 +128,7 @@ Production storage is separate (`0013_reasoning_production_scope`):
 | `production_runs` | `(scope_id, id)`, root FK, admitted generation and monotonic run fence | Audit retained; no automatic run retention job yet |
 | `production_attempts` | `(scope_id, id)`, composite production run FK; same state/dispatch/write-off checks | Audit retained, including unknown liabilities |
 | `production_requests` | `(scope_id, attempt_id)`, composite production attempt FK, exact hash-checked bytes; `nonpersonal_production` | Same configured request expiry/purge and database backup policy as personal bytes |
-| `production_rejected_answers` (0045) | `(scope_id, attempt_id)`, composite production attempt FK; redacted answer text, findings | 30 days, purged with the expired requests |
+| `production_rejected_answers` (0050) | `(scope_id, attempt_id)`, composite production attempt FK; redacted answer text, findings | 30 days, purged with the expired requests |
 
 These tables have **no identity/universe foreign key and no personal erasure entry**. Personal erasure
 cannot own, retain or delete global supply. The existing minimal `usage_receipts` table is shared:
@@ -139,7 +139,7 @@ revocation is accounted but never returned as applicable output. Sweep, purge, u
 write-off include both personal and production tables, independent of production enablement.
 Unknown/write-off never authorises another send, and late usage only updates the kept receipt.
 
-### Refused answers of production attempts (migration 0045)
+### Refused answers of production attempts (migration 0050)
 
 A refused answer of a **nonpersonal production** attempt is kept in `production_rejected_answers`
 so a failing writer can be diagnosed from evidence: the harness verdict, the validator's own

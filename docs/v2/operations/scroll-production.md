@@ -18,14 +18,38 @@ KS_SCROLL_PRODUCTION_GENERATION=1            # must match the database root
 
 node dist/operator.js content produce-scroll --topic seasons --dry-run
 node dist/operator.js content produce-scroll --topic seasons
+node dist/operator.js content produce-scroll --topic attention-mechanism
 node dist/operator.js content produce-scroll --topic seasons --resume   # after a crash only
+```
+
+`--topic` takes a recipe key of the library plan, the record keys in
+`packages/backend/src/modules/content/domain/library/` (one file per topic system). An unknown key
+is refused before any database or provider work. A published Scroll gets its planet and facet
+coverage from its recipe in the same transaction (D-033).
+
+After editing the plan (a facet or planet added or reworded), decide coverage again for Scrolls that
+are already published. It is idempotent and appends corrected heads only where the decision changed:
+
+```sh
+node dist/operator.js content readmit-coverage --dry-run
+node dist/operator.js content readmit-coverage
+```
+
+Before a batch, check that every research page of the plan is still accepted by the fetcher and
+yields a usable passage pool (it fetches slowly, about three seconds a page, because Wikipedia
+rate-limits bursts):
+
+```sh
+pnpm build
+node scripts/check-library-sources.mjs [--only seasons,tides]
 ```
 
 The bound is **two model requests per recipe**: the writer, and at most one repair. Refusals, a
 quota shortfall (`KS_MINIMAX_QUOTA_FLOOR_PERCENT`, default 25) and unknown outcomes halt the job.
 Output is one JSON line with IDs, outcome codes, attempt states and token counts; never prompts,
 drafts or page text. A rerun of a finished recipe reports its stored outcome. A new recipe version
-(`SCROLL_PRODUCTION_VERSION`) is a new job; an old terminal job is never edited or resumed.
+(`SCROLL_PRODUCTION_VERSION`) is a new job; an old terminal job is never edited or resumed. No
+provider call runs from CI. Never place keys on a command line, in logs, reports or artifacts.
 
 `--resume` continues an unfinished job with its frozen research and the same writer run. It never
 resends an attempt whose outcome is unknown: if a process may still be running, let it finish first,

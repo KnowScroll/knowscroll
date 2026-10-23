@@ -529,15 +529,21 @@ const currentRecordingProtocol = {
       module: 'composer',
       personalTables: [
         {
+          table: 'composer.buffers',
+          ownerColumn: 'universe_id',
+        },
+        {
           table: 'composer.decisions',
           ownerColumn: 'universe_id',
         },
       ],
       accountTables: [],
       accountColumns: [],
-      nonRowStores: [],
+      nonRowStores: ['pgboss/composer.prepare-buffer'],
       clearDispositions: {
+        'composer.buffers': 'erase',
         'composer.decisions': 'erase',
+        'store:pgboss/composer.prepare-buffer': 'erase',
       },
     },
     {

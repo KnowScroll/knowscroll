@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { AuthoringEvidence } from '@knowscroll/scroll-model/producer';
-import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
+import { RESEARCH_POLICY, researchUrl, type ResearchPage } from '../../../infrastructure/research/public-pages.js';
 
 /**
  * The evidence a writer may cite: the frozen research text cut into passages the writer sees as
@@ -17,7 +17,7 @@ export interface EvidencePassage {
 }
 
 export class EvidenceRefusal extends Error {
-  constructor(readonly code: 'evidence_insufficient') {
+  constructor(readonly code: 'evidence_insufficient' | 'research_integrity') {
     super(code);
     this.name = 'EvidenceRefusal';
   }
@@ -85,11 +85,37 @@ function passagesOf(text: string): readonly { readonly start: number; readonly e
 }
 
 /**
+ * Frozen research is read back from the database, possibly by a later process, so its identities
+ * are recomputed from the text: a page id and hash follow its passages, a passage id follows its
+ * text. Altered or colliding rows are refused rather than offered to the writer.
+ */
+function verifyFrozenResearch(pages: readonly ResearchPage[]): void {
+  const pageIds = new Set<string>();
+  for (const page of pages) {
+    const sha256 = digest(page.passages.map((passage) => passage.text).join('\n'));
+    const passageIds = new Set(page.passages.map((passage) => passage.id));
+    researchUrl(page.url);
+    if (
+      page.policyVersion !== RESEARCH_POLICY ||
+      page.sha256 !== sha256 ||
+      page.id !== `page-${sha256.slice(0, 24)}` ||
+      pageIds.has(page.id) ||
+      passageIds.size !== page.passages.length ||
+      page.passages.some((passage) => passage.id !== `p-${digest(passage.text).slice(0, 24)}`)
+    )
+      throw new EvidenceRefusal('research_integrity');
+    pageIds.add(page.id);
+  }
+}
+
+/**
  * The passages offered to the writer for a set of frozen research pages, in page order. Pure and
  * deterministic: the same pages always give the same handles and claim IDs, so a resumed job sees
- * what the first attempt saw. Throws `EvidenceRefusal` when fewer than four passages exist.
+ * what the first attempt saw. Throws `EvidenceRefusal` when the stored research no longer matches
+ * its identities (`research_integrity`) or fewer than four passages exist (`evidence_insufficient`).
  */
 export function evidencePassages(pages: readonly ResearchPage[]): readonly EvidencePassage[] {
+  verifyFrozenResearch(pages);
   const passages: EvidencePassage[] = [];
   for (const page of pages) {
     for (const source of page.passages) {

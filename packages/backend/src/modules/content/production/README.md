@@ -57,9 +57,9 @@ research. Decision D-032.
 
 | Stored table | Role | Main query | Lifetime |
 |---|---|---|---|
-| `content.scroll_production_runs` (0015, 0045) | Authoritative, private job: research pages, the authored document and the cited claims once published, code-only outcomes, the revision pointer. States `research`, `writer`, then `published`, `rejected` or `unknown` | Unique `(topic, policy_version)`, UUID | Nonpersonal public supply; retained for correction, no account erasure |
+| `content.scroll_production_runs` (0015, 0045, 0050) | Authoritative, private job: research pages, the authored document and the cited claims once published, code-only outcomes, the revision pointer. States `research`, `writer`, then `published`, `rejected` or `unknown` | Unique `(topic, policy_version)`, UUID | Nonpersonal public supply; retained for correction, no account erasure |
 | `content.asset_revisions` / `asset_provenance` | Immutable admitted consumer bytes / internal evidence and generation lineage | Asset + revision | Shared content; no account erasure |
-| `reasoning.production_*` (0013, 0045) | The writer run, every possible paid attempt, and the refused answers kept 30 days for diagnosis | Stable writer run UUID | Harness retention and liability policy |
+| `reasoning.production_*` (0013, 0050) | The writer run, every possible paid attempt, and the refused answers kept 30 days for diagnosis | Stable writer run UUID | Harness retention and liability policy |
 
 No jobs are registered yet: the worker operator triggers the sequence (`docs/v2/operations/scroll-production.md`).
 Lock order: production root → production job row → asset advisory lock → asset rows. Short
@@ -75,33 +75,45 @@ When a Scroll fails, `reasoning rejected` lists the refused answers with the val
 
 Jobs: none. Notices: none. Erasure: nonpersonal supply, nothing to erase.
 
-## New-publication topic authority
+The recipes the producer runs are the library plan in `../domain/library/` (one file per topic
+system); `topics.ts` is only its index. The recipe key, the brief, the research pages and the
+interactive block kind (`interactiveKind`) all come from the plan. Neither private research nor
+provenance is reachable through content's client-facing read ports.
+
+## Publication: topic attribution and coverage
 
 `completeWriterPublication` is private to production and has no consumer/composition attribution
 port. It requires the current live production scope, the locked writer-stage job and actual
 successful `closeProductionRun`. After its publication callback stores the immutable revision and
-marks the exact job published, an unexported helper matches the current policy, target asset and
+marks the exact job published, unexported helpers match the current policy, target asset and
 revision, explanation identity, admitted Scroll status, document/provenance hashes, model
 production run and writer prompt version, successful primary/repair accounting identities and
 the job's exact writer receipt. Provider/model must be the configured real MiniMax family; a
 normal fixture transport/model, arbitrary editorial/model-kind or explanation-ID lookalike,
 missing job, foreign lineage, incomplete job or contradictory metadata does not gain authority.
-The helper reads no reasoning SQL, request bytes, raw answers or research text. Actual closure
+The helpers read no reasoning SQL, request bytes, raw answers or research text. Actual closure
 and bounded accounting come through the existing harness within the same production transaction.
 
-The `0016` trigger already creates the exact revision's baseline discovery row. Only then does
-this hook project one code-owned primary topic with weight 1 and a single facet:
-`earth.seasons`, `earth.tides`, or `earth.greenhouse-effect`, under
-`published-scroll-brief-taxonomy.v1`. Existing aggregate weight guards remain active. No immutable
-document/provenance bytes, personal encounters, activity, growth, series or relationships change.
-Projection failure rolls back writer closure, publication and metadata together; same-run ledger
-replay can recover without resending a paid answer. Missing authority remains unknown.
+Two things are then written in that same transaction, both decided by code from the recipe in
+`TOPICS` (the library plan in `domain/library/`, D-033):
 
-Historical-published reconciliation is **unavailable**: completed old runs need a separately named
-reasoning attestation read before any such capability can exist. All four actual historical jobs
-are rejected, so no known generated publication is omitted. CI uses explicitly labelled transport
-identity stand-ins for positives and fault injection for authority negatives; none is real provider
-or discovery journey evidence. The publication projection itself needs no SQL change; v8 extends only the closed recipe-key constraint in forward migration 0026.
+1. **Planet.** The `0016` trigger already creates the exact revision's baseline discovery row.
+   The hook projects one primary topic with weight 1 (the recipe's planet, for example
+   `machine-learning.attention`) under `published-scroll-brief-taxonomy.v1`. Existing aggregate
+   weight guards remain active.
+2. **Coverage.** `admitRecipeCoverage` binds the recipe's facet (and optional supporting facet) to
+   blocks of the stored document under the structural rule `scroll-recipe-coverage.v1`, and appends
+   the first coverage head. A document with too few body blocks publishes without coverage and a
+   `coverage_*` outcome is added to the job. See the content README, "Scroll coverage".
+
+No immutable document/provenance bytes, personal encounters, activity, growth, series or
+relationships change. Failure in either step rolls back writer closure, publication and metadata
+together; same-run ledger replay recovers without resending a paid answer. Missing authority
+remains unknown. Historical-published reconciliation is **unavailable**: completed old runs need a
+separately named reasoning attestation read before any such capability can exist.
+
+CI uses explicitly labelled transport identity stand-ins for positives and fault injection for
+authority negatives; none is real provider or discovery journey evidence.
 
 ## Cutroom commission contract prerequisite (#240)
 

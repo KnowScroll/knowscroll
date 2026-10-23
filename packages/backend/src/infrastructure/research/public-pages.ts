@@ -25,6 +25,8 @@ const hosts = new Set([
   'www.usgs.gov',
 ]);
 export const MAX_RESEARCH_BYTES = 2 * 1024 * 1024;
+/** Wikimedia's user-agent policy asks every client to say how to reach its operator. */
+const USER_AGENT = 'KnowScrollResearch/1.0 (+https://knowscroll.space/; public research page fetcher)';
 export interface ResearchPassage {
   readonly id: string;
   readonly text: string;
@@ -116,7 +118,14 @@ export function extractResearch(html: string, url: string, retrievedAt: string):
     throw new ResearchRefusal('soft_404');
   let body = html
     .replace(/<!--[\s\S]*?-->/gu, '')
-    .replace(/<(script|style|nav|header|footer|noscript|svg|form)\b[^>]*>[\s\S]*?<\/\1\s*>/giu, ' ');
+    .replace(/<(script|style|nav|header|footer|noscript|svg|form)\b[^>]*>[\s\S]*?<\/\1\s*>/giu, ' ')
+    // Footnote markers, typeset maths and reference lists are not prose. A trailing "[1]" also hides
+    // the end of a sentence from the quote-candidate splitter, which refuses the whole page.
+    .replace(/<sup\b[^>]*\bclass="[^"]*\b(?:reference|noprint)\b[^"]*"[^>]*>[\s\S]*?<\/sup\s*>/giu, '')
+    .replace(/<math\b[\s\S]*?<\/math\s*>/giu, ' ')
+    .replace(/<ol\b[^>]*\bclass="[^"]*\breferences\b[^"]*"[^>]*>[\s\S]*?<\/ol\s*>/giu, ' ')
+    // An arXiv abstract page keeps its abstract in a blockquote rather than a paragraph.
+    .replace(/<blockquote\b[^>]*\bclass="[^"]*\babstract\b[^"]*"[^>]*>([\s\S]*?)<\/blockquote\s*>/giu, '<p>$1</p>');
   const main = /<(main|article)\b[^>]*>([\s\S]*?)<\/\1\s*>/iu.exec(body);
   if (main?.[2]) body = main[2];
   const paragraphs = [...body.matchAll(/<(p|li|h[1-6])\b[^>]*>([\s\S]*?)<\/\1\s*>/giu)]
@@ -187,7 +196,7 @@ const network: ResearchNetwork = {
         {
           method: 'GET',
           agent: false,
-          headers: { Accept: 'text/html', 'Accept-Encoding': 'identity', 'User-Agent': 'KnowScrollResearch/1.0' },
+          headers: { Accept: 'text/html', 'Accept-Encoding': 'identity', 'User-Agent': USER_AGENT },
           lookup: (_hostname, options, callback) => {
             if (options.all) callback(null, [{ address: address.address, family: address.family }]);
             else callback(null, address.address, address.family);

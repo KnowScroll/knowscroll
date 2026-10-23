@@ -69,6 +69,13 @@ review; unknown attempts remain ledger-bound and never resend. There is no direc
 operator command or consumer UI in this slice. Protected `planner.*` rows expose revisions/status
 for operator inspection; ordinary logs contain no Planner context or proposal text.
 
+The `composer.prepare-buffer` consumer (#234) prepares the next vertical Explore move for an offer the
+person just activated and stores it for the next navigation (`modules/composer/README.md`). It reads the
+session, candidates and Hide in one short transaction, may ask Jev (`KS_JEV_ENABLED=1`) outside any
+transaction, then persists the ranking and replaces the person's buffer in a second one. A job for a
+superseded intent, an unactivated offer or an old epoch is skipped. A redelivery does nothing. It logs
+`composer.buffer_prepared` with the outcome code and counts only.
+
 Connected Cutroom source (#240) registers explicit normal pool/follow/accounting/settle consumers
 and a bounded scheduled recovery consumer; all work stays disabled unless the complete separate
 Cutroom worker configuration and trusted root packet exist. Each delivery re-reads bounded

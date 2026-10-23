@@ -181,6 +181,11 @@ export const diagnosticCatalogue = {
     module: 'evidence',
     fields: ['requestId', 'count', 'outcome', 'reasonCode'],
   },
+  'composer.buffer_prepared': {
+    severity: 'info',
+    module: 'composer',
+    fields: ['outcome', 'reasonCode', 'count', 'durationMs'],
+  },
   'evidence.reading_projected': {
     severity: 'info',
     module: 'evidence',

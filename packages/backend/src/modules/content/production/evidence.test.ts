@@ -77,4 +77,21 @@ describe('evidence passages', () => {
     expect(passages).toHaveLength(MAX_EVIDENCE_PASSAGES);
     expect(passages.at(-1)?.handle).toBe(`e${MAX_EVIDENCE_PASSAGES}`);
   });
+
+  it('refuses stored research whose text no longer matches its identities', () => {
+    const page = pageOf(paragraphs);
+    const first = page.passages[0];
+    if (first === undefined) throw new Error('CI_PAGE_EMPTY');
+    const withFirst = (passage: { id: string; text: string }) => ({
+      ...page,
+      passages: [passage, ...page.passages.slice(1)],
+    });
+    const refused = (changed: typeof page) =>
+      expect(() => evidencePassages([changed])).toThrow(new EvidenceRefusal('research_integrity'));
+    refused(withFirst({ ...first, text: `${first.text} Tampered.` }));
+    refused({ ...page, id: `page-${'0'.repeat(24)}` });
+    refused({ ...page, sha256: '0'.repeat(64) });
+    refused({ ...page, passages: [first, first, ...page.passages.slice(2)] });
+    expect(() => evidencePassages([page, page])).toThrow(new EvidenceRefusal('research_integrity'));
+  });
 });

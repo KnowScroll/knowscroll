@@ -6,7 +6,7 @@ import { redactProviderText } from './recording.js';
 
 /** Most characters of a refused answer kept (about 64 KiB of text). */
 export const REJECTED_ANSWER_MAX_CHARS = 65_536;
-/** Kept refused answers expire after this many days (migration 0045). */
+/** Kept refused answers expire after this many days (migration 0050). */
 export const REJECTED_ANSWER_RETENTION_DAYS = 30;
 
 /** Redacts provider text at the recording boundary, then cuts it without splitting a surrogate pair. */
@@ -19,7 +19,7 @@ function boundedRedacted(text: string): { readonly text: string; readonly chars:
 }
 
 /**
- * Diagnostics for refused answers of nonpersonal Scroll production (migration 0045). Written by the
+ * Diagnostics for refused answers of nonpersonal Scroll production (migration 0050). Written by the
  * production ledger after an attempt settled with an unusable answer; read and expired by the
  * operator. Never constructed for personal roles, so no personal answer text is kept.
  */

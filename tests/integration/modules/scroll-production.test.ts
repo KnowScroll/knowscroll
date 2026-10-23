@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -9,93 +10,31 @@ import {
   postgresProductionHarnessPorts,
   reasoningOperatorFor,
 } from '@knowscroll/backend/reasoning/nest-providers';
+import type { ProductionReasoningHarness } from '@knowscroll/backend/reasoning';
 import {
   extractResearch,
+  ResearchRefusal,
   type ResearchPage,
 } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
+import {
+  explanationUnitFor,
+  SCROLL_PRODUCTION_VERSION,
+  TOPICS,
+} from '../../../packages/backend/src/modules/content/production/topics.js';
+import {
+  WRITER_PROMPT_VERSION,
+  writerFormatOf,
+} from '../../../packages/backend/src/modules/content/production/writer.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureModel, fixtureSettings, signal, silent } from '../support/fixture-model.js';
+import { FIXTURE_PROSE, FIXTURE_SOURCE, fixtureAuthored, fixtureResearchFor } from '../support/generated-scroll.js';
+import { fixtureModel, fixtureSettings, gate, signal, silent } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 
-// Every source paragraph and every model answer below is an authored CI fixture about an invented
-// lighthouse, never provider output and never product content.
-const SOURCE = [
-  'The Skerry lighthouse keeper winds the lamp clockwork every four hours through the long winter nights.',
-  'A prism ring around the flame gathers the light into a single beam that sweeps across the water.',
-  'Sailors count the seconds between flashes to learn which lighthouse they are approaching on the coast.',
-  'Fog signals complement the beam, because light cannot cross a thick bank of fog for any useful distance.',
-  'The tower stands twenty-one metres tall, which places the lamp high enough to clear distant waves.',
-  'Today the clockwork has been replaced by a small motor, though the prisms are still the original glass.',
-];
-const page: ResearchPage = extractResearch(
-  `<html><title>CI fixture</title><main>${SOURCE.map((text) => `<p>${text}</p>`).join('')}</main></html>`,
-  'https://spaceplace.nasa.gov/seasons/en/',
-  '2026-10-20T00:00:00.000Z',
-);
-
-/** Reader prose in other words than the source (no nine-word run in common), ~280 words in all. */
-const PROSE = [
-  'Ships need a way to know where the land begins long before they can see it. A tall tower with a bright lamp answers that need, and the clever part is how the lamp is shaped rather than how strong it is. Glass rings bend the glow into one narrow ribbon.',
-  'Because the ribbon turns, a distant observer sees it only for a moment each rotation. Those regular flashes are not decoration. Each tower repeats its own rhythm, so a navigator who times the gaps can tell neighbouring towers apart on a dark coast.',
-  'Someone had to keep that rotation going. In earlier times a keeper climbed the stairs on a fixed schedule to wind a weight-driven mechanism, and a missed visit meant a dark coast. Modern towers use a motor, yet the glass that shapes the beam is often the very same.',
-  'Weather changes what a lamp can do. Thick fog scatters light in every direction, so the beam dissolves after a short distance, however clever its glass. That is why towers also carry sound signals, which travel through fog far better than any flash.',
-  'Height matters as well as brightness. Raising the lamp pushes the horizon outward, so the beam can be seen from farther away before the curve of the sea hides the tower. A modest hill or a tall column both do the same job.',
-  'Put together, these ideas describe a small system: a shaped beam, a signature rhythm, a dependable rotation and a backup for bad weather. Each part solves a different problem, and the whole is only as reliable as its weakest piece.',
-];
-
-function authored(overrides: { readonly drop?: string; readonly paragraph?: string } = {}) {
-  const prose = PROSE.map((text, index) => (index === 1 && overrides.paragraph ? overrides.paragraph : text));
-  return {
-    title: 'How a lighthouse guides ships',
-    dek: 'A shaped beam, a rhythm and a dependable rotation turn one lamp into a coastal signal.',
-    blocks: [
-      { type: 'heading', text: 'The beam' },
-      { type: 'paragraph', cites: ['e1', 'e2'], text: prose[0] },
-      { type: 'paragraph', cites: ['e2', 'e3'], text: prose[1] },
-      { type: 'heading', text: 'The upkeep' },
-      { type: 'paragraph', cites: ['e1', 'e6'], text: prose[2] },
-      { type: 'paragraph', cites: ['e4'], text: prose[3] },
-      {
-        type: 'diagram',
-        cites: ['e2', 'e3', 'e4'],
-        title: 'A lighthouse in two conditions',
-        layout: 'flow-lr',
-        nodes: [
-          { id: 'lamp', label: 'Lamp' },
-          { id: 'prisms', label: 'Prism ring', kind: 'process' },
-          { id: 'ship', label: 'Ship' },
-        ],
-        edges: [
-          { id: 'glow', from: 'lamp', to: 'prisms', label: 'Glow' },
-          { id: 'beam', from: 'prisms', to: 'ship', label: 'Beam' },
-        ],
-        frames: [
-          {
-            label: 'Clear night',
-            description: 'The beam crosses open water and reaches the ship.',
-            highlight: ['beam'],
-          },
-          {
-            label: 'Thick fog',
-            description: 'The beam fades early, so a sound signal must take over.',
-            hide: ['beam'],
-          },
-        ],
-      },
-      { type: 'heading', text: 'Putting it together' },
-      { type: 'paragraph', cites: ['e5'], text: prose[4] },
-      { type: 'paragraph', cites: ['e3', 'e5'], text: prose[5] },
-      {
-        type: 'callout',
-        cites: ['e4'],
-        kind: 'limit',
-        title: 'Where this stops',
-        text: 'This picture ignores radio and satellite navigation, which now do most of the work.',
-      },
-    ].filter((block) => block.type !== overrides.drop),
-  };
-}
+const SOURCE = FIXTURE_SOURCE;
+const PROSE = FIXTURE_PROSE;
+const authored = (overrides: { readonly drop?: string; readonly paragraph?: string } = {}) =>
+  fixtureAuthored('diagram', overrides);
 const answer = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });
 
 describe('Scroll production (CI fixture + real PostgreSQL; no provider network)', () => {
@@ -108,16 +47,18 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     await database.drop();
   });
 
-  function setup(script: (sequence: number) => FixtureScenario | Promise<FixtureScenario>) {
+  function setup(script: (sequence: number) => FixtureScenario | Promise<FixtureScenario>, minimaxIdentity = true) {
     const fixture = fixtureModel(script, { label: 'scroll-production-CI-fixture' });
-    // No transport is real: this stand-in identity lets the publication attribute its model.
-    const model = guardedModelPort({ ...fixture, provider: 'minimax', model: 'MiniMax-M3.1-Flash' });
+    // No transport is real: the MiniMax stand-in identity lets the publication attribute its model.
+    const model = guardedModelPort(
+      minimaxIdentity ? { ...fixture, provider: 'minimax', model: 'MiniMax-M3.1-Flash' } : fixture,
+    );
     return { fixture, ...wire(model) };
   }
 
   function wire(
     model: ReturnType<typeof guardedModelPort>,
-    research: (url: string) => Promise<ResearchPage> = () => Promise.resolve(page),
+    research: (url: string) => Promise<ResearchPage> = (url) => Promise.resolve(fixtureResearchFor(url)),
   ) {
     const withScope = makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
     const harness = makeProductionReasoningHarness(
@@ -130,15 +71,19 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         settings: fixtureSettings,
       }),
     );
-    const produce = makeProduceScroll({
-      db: database.db,
-      authority: { scopeId: 'scroll-supply', generation: 1 },
-      withScope,
-      harness,
-      model: model.model,
-      research,
-    });
-    return { model, harness, produce };
+    /** A producer over this model, optionally with another harness or research function. */
+    const producerWith = (
+      overrides: { readonly harness?: ProductionReasoningHarness; readonly research?: typeof research } = {},
+    ) =>
+      makeProduceScroll({
+        db: database.db,
+        authority: { scopeId: 'scroll-supply', generation: 1 },
+        withScope,
+        harness: overrides.harness ?? harness,
+        model: model.model,
+        research: overrides.research ?? research,
+      });
+    return { model, harness, produce: producerWith(), producerWith };
   }
 
   const rejectedRows = () =>
@@ -315,6 +260,326 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     expect(await p.produce('seasons', true, signal())).toEqual({ outcome: 'dry_run', requestBound: 2 });
     expect(p.fixture.calls).toHaveLength(0);
     expect(await database.db.selectFrom('content.scroll_production_runs').select('id').execute()).toEqual([]);
+  });
+
+  it('resumes a job whose research is frozen without fetching again, and refuses research that no longer matches its hashes', async () => {
+    const stopBeforeWriter = (p: ReturnType<typeof setup>): ProductionReasoningHarness => ({
+      readProductionRunAccounting: (scope, runId) => p.harness.readProductionRunAccounting(scope, runId),
+      closeProductionRun: (scope, run) => p.harness.closeProductionRun(scope, run),
+      proposeProduction: () => Promise.reject(new Error('CI_STOP_BEFORE_WRITER')),
+    });
+    const intact = setup(() => answer(authored()));
+    await expect(
+      intact.producerWith({ harness: stopBeforeWriter(intact) })('seasons', false, signal()),
+    ).rejects.toThrow('CI_STOP_BEFORE_WRITER');
+    const fetches: string[] = [];
+    const resumed = await intact.producerWith({
+      research: (url) => {
+        fetches.push(url);
+        return Promise.reject(new Error('CI_NO_SECOND_FETCH'));
+      },
+    })('seasons', false, signal(), true);
+    expect(resumed.outcome).toBe('published');
+    expect(fetches).toEqual([]);
+    expect(intact.fixture.calls).toHaveLength(1);
+  });
+
+  it('refuses to resume on stored research whose text was changed, before any model call', async () => {
+    const p = setup(() => answer(authored()));
+    const stop: ProductionReasoningHarness = {
+      readProductionRunAccounting: (scope, runId) => p.harness.readProductionRunAccounting(scope, runId),
+      closeProductionRun: (scope, run) => p.harness.closeProductionRun(scope, run),
+      proposeProduction: () => Promise.reject(new Error('CI_STOP_BEFORE_WRITER')),
+    };
+    await expect(p.producerWith({ harness: stop })('seasons', false, signal())).rejects.toThrow(
+      'CI_STOP_BEFORE_WRITER',
+    );
+    await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='seasons'`.execute(
+      database.db,
+    );
+    const resumed = await p.produce('seasons', false, signal(), true);
+    expect(resumed.outcome).toBe('rejected');
+    expect(resumed.codes).toContain('research_integrity');
+    expect(p.fixture.calls).toHaveLength(0);
+    expect(await database.db.selectFrom('content.asset_revisions').select('asset_id').execute()).toHaveLength(0);
+  });
+
+  it.each(['success', 'refusal'] as const)(
+    'keeps an advanced writer alive when a concurrent stale research delivery finishes with %s',
+    async (outcome) => {
+      const researchEntered = gate();
+      const researchRelease = gate();
+      const writerEntered = gate();
+      const writerRelease = gate<FixtureScenario>();
+      const p = setup(() => {
+        writerEntered.open();
+        return { kind: 'hold', until: writerRelease.promise };
+      });
+      const stale = p.producerWith({
+        research: async (url) => {
+          researchEntered.open();
+          await researchRelease.promise;
+          if (outcome === 'refusal') throw new ResearchRefusal('network_failed');
+          return fixtureResearchFor(url);
+        },
+      })('seasons', false, signal());
+      await researchEntered.promise;
+      const active = p.produce('seasons', false, signal(), true);
+      try {
+        await writerEntered.promise;
+        researchRelease.open();
+        const replay = await stale;
+        expect(replay.outcome).toBe('in_progress');
+        const current = await sql<{
+          state: string;
+          outcomes: unknown[];
+        }>`select state,outcomes from content.scroll_production_runs where id=${replay.runId}`.execute(database.db);
+        expect(current.rows[0]).toMatchObject({ state: 'writer', outcomes: [] });
+        expect(p.fixture.calls).toHaveLength(1);
+        const attempts = await database.db
+          .selectFrom('reasoning.production_attempts')
+          .select('state')
+          .orderBy('reserved_at')
+          .execute();
+        expect(attempts.map((attempt) => attempt.state)).toEqual(['dispatched']);
+        writerRelease.open(answer(authored()));
+        expect((await active).outcome).toBe('published');
+        expect(p.fixture.calls).toHaveLength(1);
+      } finally {
+        researchRelease.open();
+        writerRelease.open(answer(authored()));
+        await Promise.allSettled([stale, active]);
+      }
+    },
+  );
+
+  describe('publication authority (topic attribution)', () => {
+    const original = [
+      'seasons',
+      'tides',
+      'greenhouse',
+      'greenhouse-radiation',
+      'greenhouse-balance',
+      'greenhouse-limits',
+    ] as const;
+    const publishOnce = (topic: (typeof original)[number], minimaxIdentity = true) => {
+      const p = setup(() => answer(fixtureAuthored(writerFormatOf(TOPICS[topic]))), minimaxIdentity);
+      return { p, publish: (resume = false) => p.produce(topic, false, signal(), resume) };
+    };
+
+    it.each(original)(
+      'attributes only a newly completed exact %s publication (CI transport identity stand-in)',
+      async (topic) => {
+        const recipe = TOPICS[topic];
+        const { p, publish } = publishOnce(topic);
+        const result = await publish();
+        expect(result.outcome).toBe('published');
+        expect(p.fixture.calls).toHaveLength(1);
+        expect(p.fixture.calls[0]?.request.system).toContain(`version ${WRITER_PROMPT_VERSION},`);
+        expect(result.assetId).toBe(recipe.assetId);
+        expect(
+          await database.db
+            .selectFrom('content.asset_revisions')
+            .select('explanation_unit_id')
+            .where('asset_id', '=', result.assetId ?? '')
+            .executeTakeFirstOrThrow(),
+        ).toEqual({ explanation_unit_id: explanationUnitFor(topic) });
+        expect(
+          await database.db
+            .selectFrom('content.scroll_production_runs')
+            .select('policy_version')
+            .where('id', '=', result.runId ?? '')
+            .executeTakeFirstOrThrow(),
+        ).toEqual({ policy_version: SCROLL_PRODUCTION_VERSION });
+        expect(
+          await database.db
+            .selectFrom('content.asset_provenance')
+            .select('provenance')
+            .where('asset_id', '=', result.assetId ?? '')
+            .executeTakeFirstOrThrow(),
+        ).toMatchObject({ provenance: { production: { promptVersion: WRITER_PROMPT_VERSION } } });
+        expect(
+          await database.db
+            .selectFrom('content.discovery_revisions')
+            .select(['facets', 'attribution_version'])
+            .where('asset_id', '=', result.assetId ?? '')
+            .executeTakeFirstOrThrow(),
+        ).toEqual({ facets: [recipe.topicId], attribution_version: 'published-scroll-brief-taxonomy.v1' });
+        expect(
+          await database.db
+            .selectFrom('content.encounter_topics')
+            .select(['topic_id', 'role', 'weight'])
+            .where('asset_id', '=', result.assetId ?? '')
+            .execute(),
+        ).toEqual([{ topic_id: recipe.topicId, role: 'primary', weight: 1 }]);
+
+        const bytes = () =>
+          sql<{
+            document: string;
+            provenance: string;
+          }>`select row_to_json(r)::text as document,row_to_json(p)::text as provenance from content.asset_revisions r join content.asset_provenance p using(asset_id,revision) where r.asset_id=${result.assetId}::uuid`.execute(
+            database.db,
+          );
+        const before = (await bytes()).rows;
+        expect(await publish(true)).toEqual(result);
+        expect((await bytes()).rows).toEqual(before);
+        expect(p.fixture.calls).toHaveLength(1);
+        expect(await database.db.selectFrom('identity.universes').select('id').execute()).toHaveLength(0);
+      },
+    );
+
+    it('publishes three distinct units under one canonical topic without creating personal evidence', async () => {
+      const assets: string[] = [];
+      for (const topic of ['greenhouse-radiation', 'greenhouse-balance', 'greenhouse-limits'] as const) {
+        const result = await publishOnce(topic).publish();
+        expect(result.outcome).toBe('published');
+        expect(result.requestBound).toBe(2);
+        assets.push(result.assetId ?? '');
+      }
+      const topics = await database.db
+        .selectFrom('content.encounter_topics')
+        .select(['asset_id', 'topic_id', 'role', 'weight'])
+        .where('asset_id', 'in', assets)
+        .execute();
+      expect(topics).toHaveLength(3);
+      expect(new Set(topics.map(({ topic_id }) => topic_id))).toEqual(new Set(['earth.greenhouse-effect']));
+      expect(topics.every(({ role, weight }) => role === 'primary' && weight === 1)).toBe(true);
+      expect(new Set(assets).size).toBe(3);
+      expect(await database.db.selectFrom('identity.universes').select('id').execute()).toHaveLength(0);
+    });
+
+    it('keeps the persisted recipe-key constraint to the shape of a key; the code-owned plan decides which keys exist', async () => {
+      for (const topic of ['__proto__', 'GREENHOUSE', 'greenhouse_radiation', '-greenhouse', 'x'.repeat(65)]) {
+        await expect(
+          sql`insert into content.scroll_production_runs (id,topic,policy_version,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},'CI-unknown',1,1,'research',${randomUUID()})`.execute(
+            database.db,
+          ),
+        ).rejects.toMatchObject({ code: '23514', constraint: 'scroll_production_runs_topic_check' });
+      }
+      expect(await database.db.selectFrom('content.scroll_production_runs').select('id').execute()).toHaveLength(0);
+    });
+
+    it('keeps normal fixture-generated lookalikes unknown despite model-kind provenance and a matching explanation ID', async () => {
+      const result = await publishOnce('greenhouse', false).publish();
+      expect(result.outcome).toBe('published');
+      expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toHaveLength(0);
+      expect(
+        await database.db.selectFrom('content.discovery_revisions').select('facets').executeTakeFirstOrThrow(),
+      ).toEqual({ facets: [] });
+    });
+
+    // Each fault corrupts one fact the publication hook checks, inside the real publication
+    // transaction, and attribution must stay unknown. Deliberately corrupt fixture state, never a
+    // migration or a runtime capability.
+    const faults = {
+      no_job: 'delete from content.scroll_production_runs where id=new.id',
+      not_published:
+        "update content.scroll_production_runs set state='writer',asset_id=null,asset_revision=null,completed_at=null where id=new.id",
+      foreign_asset: 'update content.scroll_production_runs set asset_id=gen_random_uuid() where id=new.id',
+      wrong_writer_run: 'update content.scroll_production_runs set writer_run_id=gen_random_uuid() where id=new.id',
+      wrong_prompt_version:
+        "update content.asset_provenance set provenance=jsonb_set(provenance,'{production,promptVersion}','\"scroll-writer.foreign\"') where asset_id=new.asset_id",
+      previous_prompt_version:
+        "update content.asset_provenance set provenance=jsonb_set(provenance,'{production,promptVersion}','\"scroll-writer.v11\"') where asset_id=new.asset_id",
+      wrong_document_version:
+        "update content.asset_revisions set document_version='scroll-document.foreign' where asset_id=new.asset_id",
+      wrong_provenance_version:
+        "update content.asset_provenance set provenance_version='scroll-provenance.foreign' where asset_id=new.asset_id",
+      foreign_provenance_run:
+        "update content.asset_provenance set provenance=jsonb_set(provenance,'{production,runId}',to_jsonb(gen_random_uuid()::text)) where asset_id=new.asset_id",
+      foreign_receipt:
+        "update content.scroll_production_runs set outcomes=jsonb_set(outcomes,'{0,attemptId}',to_jsonb(gen_random_uuid()::text)) where id=new.id",
+      emptied_receipt:
+        "update content.scroll_production_runs set outcomes=jsonb_set(outcomes,'{0,attempts}','[]'::jsonb) where id=new.id",
+      fixture_provenance:
+        'update content.asset_provenance set provenance=jsonb_set(provenance,\'{production}\',\'{"kind":"fixture","label":"CI fixture authority must stay unknown"}\') where asset_id=new.asset_id',
+      foreign_attempt:
+        "update content.asset_provenance set provenance=jsonb_set(provenance,'{production,attemptIds}',jsonb_build_array(gen_random_uuid()::text)) where asset_id=new.asset_id",
+      foreign_model:
+        "update content.asset_provenance set provenance=jsonb_set(provenance,'{production,model}','\"foreign-model\"') where asset_id=new.asset_id",
+      wrong_job_version:
+        "update content.scroll_production_runs set policy_version='scroll-production.foreign' where id=new.id",
+      previous_job_version:
+        "update content.scroll_production_runs set policy_version='scroll-production.v13' where id=new.id",
+      no_writer_output: 'update content.scroll_production_runs set writer_output=null where id=new.id',
+      no_cited_claims: 'update content.scroll_production_runs set claims=null where id=new.id',
+      mismatched_revision:
+        'update content.scroll_production_runs set target_revision=target_revision+1 where id=new.id',
+      no_baseline: 'delete from content.discovery_revisions where asset_id=new.asset_id',
+      conflicting_topic:
+        "insert into content.encounter_topics values(new.asset_id,new.asset_revision,'ci.foreign-topic','primary',1)",
+      withdrawn: "update content.assets set status='withdrawn' where id=new.asset_id",
+    } as const;
+    it.each(Object.entries(faults))(
+      'leaves attribution unknown for %s authority (CI fault injection after job publication)',
+      async (_fault, statement) => {
+        // The trigger runs in the REAL publication transaction before the private hook.
+        await sql`create function content.ci_publication_fault() returns trigger language plpgsql as $$
+          begin ${sql.raw(statement)}; return new; end $$`.execute(database.db);
+        await sql`create trigger ci_publication_fault after update of state on content.scroll_production_runs for each row when (new.state='published' and old.state<>'published') execute function content.ci_publication_fault()`.execute(
+          database.db,
+        );
+        const { p, publish } = publishOnce('greenhouse');
+        await publish();
+        expect(p.fixture.calls).toHaveLength(1);
+        expect(
+          await database.db
+            .selectFrom('content.encounter_topics')
+            .select('topic_id')
+            .where('topic_id', '=', TOPICS.greenhouse.topicId)
+            .execute(),
+        ).toHaveLength(0);
+        expect(
+          await database.db
+            .selectFrom('content.discovery_revisions')
+            .select('asset_id')
+            .where('attribution_version', '=', 'published-scroll-brief-taxonomy.v1')
+            .execute(),
+        ).toHaveLength(0);
+      },
+    );
+
+    it('cannot publish or attribute when the same-scope writer closure does not succeed', async () => {
+      const p = setup(() => answer(fixtureAuthored('comparison')));
+      const denied: ProductionReasoningHarness = {
+        proposeProduction: (input, abort) => p.harness.proposeProduction(input, abort),
+        readProductionRunAccounting: (scope, runId) => p.harness.readProductionRunAccounting(scope, runId),
+        closeProductionRun: () => Promise.resolve('not_open'),
+      };
+      expect((await p.producerWith({ harness: denied })('greenhouse', false, signal())).outcome).toBe('in_progress');
+      expect(p.fixture.calls).toHaveLength(1);
+      expect(await database.db.selectFrom('content.asset_revisions').select('asset_id').execute()).toHaveLength(0);
+      expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toHaveLength(0);
+    });
+
+    it('rolls back closure and publication if topic projection fails, then resumes the same paid writer without a resend', async () => {
+      await sql`create function content.ci_fail_topic() returns trigger language plpgsql as $$ begin raise exception 'CI_TOPIC_PROJECTION_FAILURE'; end $$`.execute(
+        database.db,
+      );
+      await sql`create trigger ci_fail_topic before insert on content.encounter_topics for each row execute function content.ci_fail_topic()`.execute(
+        database.db,
+      );
+      const { p, publish } = publishOnce('greenhouse');
+      await expect(publish()).rejects.toThrow('CI_TOPIC_PROJECTION_FAILURE');
+      expect(p.fixture.calls).toHaveLength(1);
+      expect(await database.db.selectFrom('content.asset_revisions').select('asset_id').execute()).toHaveLength(0);
+      expect(
+        await database.db.selectFrom('content.scroll_production_runs').select('state').executeTakeFirstOrThrow(),
+      ).toEqual({ state: 'writer' });
+      expect(
+        await database.db
+          .selectFrom('reasoning.production_runs')
+          .select('state')
+          .where('role_id', '=', 'content.scroll-writer')
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ state: 'admitted' });
+      await sql`drop trigger ci_fail_topic on content.encounter_topics`.execute(database.db);
+      expect((await publish(true)).outcome).toBe('published');
+      expect(p.fixture.calls).toHaveLength(1);
+      expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([
+        { topic_id: TOPICS.greenhouse.topicId },
+      ]);
+    });
   });
 
   describe('through the MiniMax-M3.1-Flash transport (authored HTTP, no network)', () => {
