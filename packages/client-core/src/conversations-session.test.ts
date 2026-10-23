@@ -560,7 +560,7 @@ describe('scope-lifetime Conversations controller (authored HTTP fixtures)', () 
     await h.session.history(ref());
     expect(windowOf(h).messages).toHaveLength(100);
     await h.session.history(ref());
-    expect(windowOf(h)).toMatchObject({ status: 'refresh_required', reason: 'capacity' });
+    expect(windowOf(h)).toMatchObject({ status: 'ready', reason: 'capacity', historyAvailable: false });
     expect(windowOf(h).messages).toHaveLength(100);
     expect(h.session.getState().drafts).toHaveLength(1);
     expect(history).toBe(2);

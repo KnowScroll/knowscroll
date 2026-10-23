@@ -478,7 +478,29 @@ export function createConversationsSession(options: {
         const error = socialFailure(e);
         if (job.kind === 'recovery')
           publish({ recovery: { status: 'unavailable', reason: error.reason }, failure: error.reason });
-        else unavailable(error.reason, ref);
+        else if (
+          (job.kind === 'history' || job.kind === 'changes') &&
+          (error.reason === 'network' || error.reason === 'capacity') &&
+          key
+        ) {
+          // A failed optional page does not revoke the separately certified current snapshot.
+          // Keep its bounded data readable; capacity discloses that this window cannot grow.
+          const retained = windows.get(key);
+          if (retained)
+            windows.set(key, {
+              ...retained,
+              view: {
+                ...retained.view,
+                reason: error.reason,
+                ...(error.reason === 'capacity' && job.kind === 'history' ? { historyAvailable: false } : {}),
+                ...(error.reason === 'capacity' && job.kind === 'changes'
+                  ? { catchUp: 'refresh_required' as const }
+                  : {}),
+              },
+              ...(error.reason === 'capacity' && job.kind === 'history' ? { history: undefined } : {}),
+            });
+          publish({ failure: error.reason });
+        } else unavailable(error.reason, ref);
       }
     }
   }

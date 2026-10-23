@@ -218,7 +218,7 @@ describe('Conversations strict actual HTTP boundary (authored fixtures)', () => 
     expect(JSON.stringify(recovered)).not.toContain('body');
     valid.scope.end();
   });
-  it('refuses unknown fields, undefined, cycles and accessors without evaluating private canaries', async () => {
+  it('refuses unknown fields, undefined and accessors without evaluating private canaries', async () => {
     const h = fixture(() => cases[5]!.output),
       input = cases[5]!.input as ConversationInput<'send'>;
     let reads = 0;
