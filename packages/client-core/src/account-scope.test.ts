@@ -1290,3 +1290,37 @@ it('end-entry drops an in-flight mismatch body before it can start an authentica
   expect(onMismatch).not.toHaveBeenCalled();
   expect(fetch).toHaveBeenCalledTimes(1);
 });
+
+it.each(['policy', 'socket'] as const)(
+  'reconnect cannot open a replacement after its %s callback enters end (CI actual scope/policy fixture)',
+  async (phase) => {
+    const fetch = vi.fn(() => Promise.resolve(saved(0)));
+    const close = vi.fn(() => {
+      if (phase === 'socket') scope.end();
+    });
+    const connect = vi.fn(() => ({ close }));
+    const scope = createAccountScope({
+      account: accountA,
+      baseUrl: 'https://app.scope.test',
+      fetch,
+      authorization: () => 'Bearer fixture-end-entry',
+      store: memoryStore(),
+      connect,
+    });
+    const cleanup = vi.fn();
+    scope.onEnd!(cleanup);
+    scope.recording!.subscribe(() => {
+      if (phase === 'policy' && scope.recording!.getState().status === 'checking') scope.end();
+    });
+    scope.reconnect();
+    await scope.whenStorageClosed!();
+    expect(scope.active).toBe(false);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+    await expect(scope.api.experience.listSaved({})).rejects.toThrow(ScopeEndedError);
+    scope.reconnect();
+    expect(connect).toHaveBeenCalledTimes(1);
+    if (phase === 'policy') expect(fetch).not.toHaveBeenCalled();
+  },
+);

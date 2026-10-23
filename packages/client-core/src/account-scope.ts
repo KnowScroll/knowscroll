@@ -283,9 +283,14 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
     reconnect() {
       if (lifecycle !== 'active' || ended.signal.aborted) return;
       void scope.recording?.refresh();
-      if (options.connect === undefined) return;
-      connection?.close();
-      connection = options.connect(scope);
+      if (lifecycle !== 'active' || ended.signal.aborted || options.connect === undefined) return;
+      const previous = connection;
+      connection = undefined;
+      previous?.close();
+      if (lifecycle !== 'active' || ended.signal.aborted) return;
+      const next = options.connect(scope);
+      if (lifecycle !== 'active' || ended.signal.aborted) next.close();
+      else connection = next;
     },
     end() {
       if (lifecycle !== 'active' || ended.signal.aborted) return;
