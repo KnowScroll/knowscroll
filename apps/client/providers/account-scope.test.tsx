@@ -213,7 +213,6 @@ it('native background inhibits recording and foreground rereads without remounti
       expect(input.target).toEqual({ kind: 'current' });
       await wait;
       return json(200, {
-        version: 'recording-policy.v1',
         ...input,
         scope: { accountId: accounts.a.accountId, privacyEpoch: 1 },
         revision: generation,
