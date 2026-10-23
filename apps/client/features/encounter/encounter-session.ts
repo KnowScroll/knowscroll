@@ -62,8 +62,9 @@ export interface EncounterState {
   readonly actionPending?: boolean;
   readonly actionFailed?: boolean;
   readonly overlay: boolean;
-  readonly overlayOwner?: 'path' | 'request';
+  readonly overlayOwner?: 'path' | 'request' | 'share';
   readonly surfaceRevision: number;
+  readonly shareResumeRevision?: number;
   readonly contextReady?: boolean;
   readonly keepPlace?: KeepPlaceState;
   readonly removal?: SavedRemovalState;
@@ -118,6 +119,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let busy = false;
   let work: Work | undefined;
   let regionOrigin: { returnToMap: () => void; entry?: string; returned: boolean } | undefined;
+  let conversationReturn: (() => void) | undefined;
+  let sharePlaying: { entry: EncounterEntry; playing: boolean } | undefined;
+  let shareResume: EncounterEntry | undefined;
   let latestSession: { sessionId: string; intentRevision: number } | undefined;
   let action: { readonly input: ApplyActionRequest; readonly entry: EncounterEntry } | undefined;
   let actionRunning = false;
@@ -489,6 +493,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   ) => {
     if (!valid() || work || busy || actionRunning || action !== undefined) return false;
     target = freezeRecordingCommand(target);
+    sharePlaying = undefined;
+    shareResume = undefined;
+    conversationReturn = undefined;
     regionOrigin = undefined;
     const commandId = newId();
     const session = latestSession
@@ -540,9 +547,30 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     setOverlay(false);
     return true;
   });
-  const setOverlay = (overlay: boolean, overlayOwner: 'path' | 'request' = 'path') => {
-    if (overlay) history.park();
-    else {
+  const setOverlay = (overlay: boolean, overlayOwner: 'path' | 'request' | 'share' = 'path') => {
+    if (!valid()) return;
+    let resumeRevision = state.shareResumeRevision ?? 0;
+    if (overlay) {
+      const entry = history.current();
+      shareResume = undefined;
+      sharePlaying = undefined;
+      if (overlayOwner === 'share' && entry) {
+        const actual = entry.surface?.capture();
+        sharePlaying = { entry, playing: actual?.kind === 'reel' && actual.playing };
+      }
+      history.park();
+    } else {
+      if (
+        state.overlayOwner === 'share' &&
+        sharePlaying?.playing &&
+        sharePlaying.entry === history.current() &&
+        foreground &&
+        valid()
+      ) {
+        shareResume = sharePlaying.entry;
+        resumeRevision++;
+      }
+      sharePlaying = undefined;
       const entry = history.current();
       if (entry) entry.restored = true;
     }
@@ -551,6 +579,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       overlay,
       overlayOwner: overlay ? overlayOwner : undefined,
       surfaceRevision: state.surfaceRevision + (overlay ? 0 : 1),
+      shareResumeRevision: resumeRevision,
     });
   };
   const navigate = (intent: Intent) => {
@@ -622,6 +651,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   const end = () => {
     if (!live) return;
     live = false;
+    conversationReturn = undefined;
+    sharePlaying = undefined;
+    shareResume = undefined;
     removalOff();
     releaseCheckpoint();
     for (const [handle, off] of retiring) {
@@ -650,6 +682,28 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       };
     },
     open,
+    openConversationContent(target: { assetId: string; assetRevision: number }, returnToConversation: () => void) {
+      if (!open({ kind: 'return', ...target })) return false;
+      conversationReturn = returnToConversation;
+      return true;
+    },
+    consumeShareResume(entry: EncounterEntry) {
+      const permitted =
+        valid() &&
+        foreground &&
+        !state.overlay &&
+        state.phase === 'active' &&
+        !entry.disposed &&
+        history.current() === entry &&
+        shareResume === entry;
+      shareResume = undefined;
+      return permitted;
+    },
+    openShare() {
+      if (!valid() || !foreground || state.phase !== 'active' || state.overlay || !history.current()) return false;
+      setOverlay(true, 'share');
+      return true;
+    },
     openRegion(displayed: AvailableRegionPreview, returnToMap: () => void) {
       if (!valid() || work || busy || actionRunning || action !== undefined) return false;
       const preview = RegionEncounterPreviewResponseSchema.safeParse(displayed);
@@ -673,6 +727,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
           ? { session: { sessionId: latestSession.sessionId, expectedIntentRevision: latestSession.intentRevision } }
           : {}),
       });
+      conversationReturn = undefined;
+      sharePlaying = undefined;
+      shareResume = undefined;
       regionOrigin = { returnToMap, returned: false };
       begin(
         async (fields) => {
@@ -864,6 +921,10 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     setForeground(value: boolean) {
       const returning = value && !foreground;
       foreground = value;
+      if (!value) {
+        sharePlaying = undefined;
+        shareResume = undefined;
+      }
       if (value && regionOrigin) regionOrigin.returned = false;
       requests.visible(value && state.overlayOwner === 'request' && state.overlay);
       if (returning) {
@@ -917,6 +978,17 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         const entry = history.current();
         if (entry) entry.restored = true;
         setOverlay(false);
+        return true;
+      }
+      if (conversationReturn) {
+        const returnToConversation = conversationReturn;
+        conversationReturn = undefined;
+        foreground = false;
+        requests.visible(false);
+        history.park();
+        releaseCheckpoint();
+        publish({ overlay: false, overlayOwner: undefined });
+        returnToConversation();
         return true;
       }
       if (

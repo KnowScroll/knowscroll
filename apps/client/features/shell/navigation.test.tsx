@@ -41,7 +41,7 @@ describe('navigation shell', () => {
 
     await fireEvent.press(screen.getByRole('tab', { name: 'Talk' }));
     expect(app.getPathname()).toBe('/conversations');
-    expect(screen.getByText('No conversations yet')).toBeOnTheScreen();
+    expect(screen.getByText('Sign in to talk with your friends.')).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('tab', { name: 'Universe' }));
     expect(app.getPathname()).toBe('/universe');
@@ -90,10 +90,12 @@ describe('navigation shell', () => {
     expect(app.getPathname()).toBe('/explore');
   });
 
-  it('renders no control whose backend does not exist yet on Talk', async () => {
+  it('requires sign-in before exposing conversation mutations on Talk', async () => {
     await renderApp('/conversations');
 
-    expect(await screen.findByRole('link', { name: 'Share something' })).toBeOnTheScreen();
+    expect(await screen.findByRole('link', { name: 'Sign in' })).toBeOnTheScreen();
+    expect(screen.getByRole('link', { name: 'Go to Explore' }).props.href).toBe('/explore');
+    expect(screen.queryByText('No conversations yet')).toBeNull();
     expect(screen.queryByText('Invite a friend')).toBeNull();
     expect(screen.queryByRole('button', { name: 'New message' })).toBeNull();
   });

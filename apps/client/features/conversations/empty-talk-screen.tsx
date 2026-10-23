@@ -28,21 +28,22 @@ function TwoBubbles() {
 
 /**
  * C01 "Empty · first visit to Talk". Real conversations only, so there is nothing to list. "Share
- * something" goes to Explore; Friends opens its real roster/request interface. Conversations are not implemented yet.
+ * something" goes to Explore; Friends opens its real roster/request interface. The mounted Talk consumer owns current reads and commands.
  */
-export function EmptyTalkScreen() {
+export function EmptyTalkScreen({ onNewMessage }: { readonly onNewMessage: () => void }) {
   const router = useRouter();
   return (
     <ScreenFrame tone="paper" title="Talk" bodyOffset={dimension.stateOffsetPhone.talk}>
       <StateBlock
         illustration={<TwoBubbles />}
         title="No conversations yet"
-        body="Conversations aren’t available yet. You can manage friends by handle or invitation link."
+        body="Choose a current friend in Talk to start a conversation. You can also manage friends by handle or invitation link."
         actionLayout="stretch"
         actions={[
+          { label: 'New message', variant: 'primary', onPress: onNewMessage },
           {
             label: 'Share something',
-            variant: 'primary',
+            variant: 'default',
             role: 'link',
             href: '/explore',
             onPress: () => router.navigate('/explore'),

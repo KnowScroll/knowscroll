@@ -1,7 +1,12 @@
-import { useCallback, type ReactNode, type Ref } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode, type Ref } from 'react';
 import type { AccountScope, ReelRecorder } from '@knowscroll/client-core';
 import type { ReelDocument } from '@knowscroll/contracts';
 import { Banner, ReelPlayer, type ReelPositionHandle } from '@knowscroll/ui';
+
+function forwardPosition(ref: Ref<ReelPositionHandle> | undefined, handle: ReelPositionHandle | null) {
+  if (typeof ref === 'function') ref(handle);
+  else if (ref) ref.current = handle;
+}
 
 /** Grants remain in memory and renew against this same activated exposure. */
 export function ActivatedReelView({
@@ -17,7 +22,11 @@ export function ActivatedReelView({
   retainedGrant,
   renderStage,
   stageMaxHeight,
+  shareResumeRevision,
+  consumeShareResume,
 }: {
+  readonly shareResumeRevision?: number;
+  readonly consumeShareResume?: () => boolean;
   readonly scope: AccountScope;
   readonly exposureId: string;
   readonly document: ReelDocument;
@@ -35,6 +44,21 @@ export function ActivatedReelView({
     set(grant: { path: string; expiresAt: string }): void;
   };
 }) {
+  const localPosition = useRef<ReelPositionHandle | null>(null);
+  const seenResume = useRef(shareResumeRevision ?? 0);
+  const setPosition = useCallback(
+    (handle: ReelPositionHandle | null) => {
+      localPosition.current = handle;
+      forwardPosition(positionRef, handle);
+    },
+    [positionRef],
+  );
+  useEffect(() => {
+    const revision = shareResumeRevision ?? 0;
+    if (revision === seenResume.current) return;
+    seenResume.current = revision;
+    if (active && scope.active && consumeShareResume?.()) localPosition.current?.resumeIntent?.();
+  }, [shareResumeRevision, active, scope, consumeShareResume]);
   const source = useCallback(async () => {
     if (!scope.active || (retainedGrant && !retainedGrant.active())) throw new Error('encounter_ended');
     const retained = retainedGrant?.get();
@@ -63,7 +87,7 @@ export function ActivatedReelView({
         initialPositionMs={initialPositionMs}
         initialMuted={initialMuted}
         onMutedChange={onMutedChange}
-        positionRef={positionRef}
+        positionRef={setPosition}
         onSample={sample}
         onDiscontinuity={discontinuity}
         registerEnd={registerEnd}

@@ -49,6 +49,9 @@ export interface ReelPositionHandle {
   capture(): ReelLocalPosition | null;
   /** Park immediately without emitting a sample or granting future playback intent. */
   pause(): void;
+  /** One deliberate same-source close may resume a previously playing parked SDK source.
+   * Refuses unavailable/replaced/hidden/inactive sources; never queues future autoplay. */
+  resumeIntent?(): boolean;
 }
 type PlaybackStatus = 'loading' | 'ready' | 'buffering' | 'error';
 function playbackStatus(status: VideoPlayer['status'], playing: boolean): PlaybackStatus {
@@ -142,6 +145,7 @@ export function ReelPlayer({
     isCurrent: () => boolean;
   } | null>(null);
 
+  const parkedSource = useRef<typeof installedSource.current>(null);
   useLayoutEffect(() => {
     ended.current = false;
     return () => {
@@ -169,10 +173,41 @@ export function ReelPlayer({
       pause: () => {
         if (ended.current) return;
         const interrupted = playbackIntent.current;
+        parkedSource.current =
+          interrupted && player.playing && installedSource.current?.restored ? installedSource.current : null;
         playbackIntent.current = false;
         pausePlayback(player);
         setPlaying(false);
         if (interrupted) onDiscontinuity();
+      },
+      resumeIntent: () => {
+        const parked = parkedSource.current;
+        parkedSource.current = null;
+        if (
+          ended.current ||
+          !parked ||
+          parked !== installedSource.current ||
+          !parked.isCurrent() ||
+          !parked.committed ||
+          !parked.restored ||
+          replacing.current ||
+          needsRefresh.current ||
+          !hasSource.current ||
+          !activeRef.current ||
+          !visible.current ||
+          player.status !== 'readyToPlay'
+        )
+          return false;
+        try {
+          playbackIntent.current = true;
+          player.play();
+          return true;
+        } catch {
+          playbackIntent.current = false;
+          pausePlayback(player);
+          onDiscontinuity();
+          return false;
+        }
       },
     };
     const clear = () => setPositionRef(positionRef, null);
@@ -212,6 +247,7 @@ export function ReelPlayer({
         if (ended.current) return;
         visible.current = value;
         if (!value) {
+          parkedSource.current = null;
           playbackIntent.current = false;
           pausePlayback(player);
           onDiscontinuity();
@@ -235,6 +271,7 @@ export function ReelPlayer({
     const stop = () => {
       if (disposed) return;
       disposed = true;
+      parkedSource.current = null;
       playbackIntent.current = false;
       if (timer) clearTimeout(timer);
       onDiscontinuity();

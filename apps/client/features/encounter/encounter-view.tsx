@@ -96,6 +96,8 @@ export function EncounterView({
         initialPositionMs={entry.position?.kind === 'reel' ? entry.position.positionMs : entry.restored ? 0 : undefined}
         initialMuted={entry.muted ?? (entry.position?.kind === 'reel' ? entry.position.muted : false)}
         onMutedChange={onMutedChange}
+        shareResumeRevision={state.shareResumeRevision}
+        consumeShareResume={() => session.consumeShareResume(entry)}
       />
       <View testID="encounter-reel-caption" style={styles.caption}>
         <Text variant="title" color={content.paper}>

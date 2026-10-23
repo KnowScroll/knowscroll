@@ -1,5 +1,5 @@
-import { EmptyTalkScreen } from '../../features/conversations/empty-talk-screen';
+import { ConversationsScreen } from '../../features/conversations/conversations-screen';
 
 export default function Conversations() {
-  return <EmptyTalkScreen />;
+  return <ConversationsScreen />;
 }

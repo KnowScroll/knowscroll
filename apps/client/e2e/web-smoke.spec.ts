@@ -93,7 +93,10 @@ test.describe('links (B1)', () => {
     await expect(page).toHaveURL(/\/explore$/);
 
     await open(page, '/conversations');
-    await expect(page.getByRole('link', { name: 'Share something' })).toHaveAttribute('href', '/explore');
+    await expect(page.getByText('We can’t reach your account. Try again when connected.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Try again', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Go to Explore' })).toHaveAttribute('href', '/explore');
+    await expect(page.getByText('No conversations yet')).toHaveCount(0);
 
     await open(page, '/universe');
     await expect(page.getByRole('link', { name: 'Go to Explore' })).toHaveAttribute('href', '/explore');
@@ -152,4 +155,20 @@ test('the developer gallery is not in the production export', async ({ page }) =
   await expect(page.getByText("This page isn't here")).toBeVisible();
   await expect(page.getByTestId('ks-component-gallery')).toHaveCount(0);
   await expect(page).toHaveTitle('Page not found · KnowScroll');
+});
+
+test('Talk with a signed-out session offers an actual sign-in anchor and no fabricated empty inbox', async ({
+  page,
+}) => {
+  await page.route('**/auth/session', (route) =>
+    route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
+  );
+  await open(page, '/conversations');
+  await expect(page.getByText('Sign in to talk with your friends.')).toBeVisible();
+  const signIn = page.getByRole('link', { name: 'Sign in', exact: true });
+  await expect(signIn).toHaveAttribute('href', '/welcome');
+  await expect(page.getByRole('button', { name: 'New message' })).toHaveCount(0);
+  await expect(page.getByText('No conversations yet')).toHaveCount(0);
+  await signIn.click();
+  await expect(page).toHaveURL(/\/welcome$/);
 });

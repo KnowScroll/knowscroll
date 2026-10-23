@@ -972,3 +972,126 @@ describe('explicit Reel sound controls', () => {
     await nextApp.unmount();
   });
 });
+
+describe('one-use same-source share-close intent', () => {
+  function fixture() {
+    const callbacks = new Map<string, (payload: unknown) => void>();
+    const sdk = {
+      currentTime: 7,
+      playing: false,
+      status: 'readyToPlay',
+      playbackRate: 1,
+      muted: false,
+      play: jest.fn(() => {
+        sdk.playing = true;
+      }),
+      pause: jest.fn(() => {
+        sdk.playing = false;
+      }),
+      replaceAsync: jest.fn(() => Promise.resolve()),
+      addListener: (name: string, callback: (payload: unknown) => void) => {
+        callbacks.set(name, callback);
+        return { remove: () => callbacks.delete(name) };
+      },
+    };
+    jest.mocked(useVideoPlayer).mockReturnValue(sdk as unknown as VideoPlayer);
+    let stop: (() => void) | undefined;
+    const position = createRef<ReelPositionHandle>();
+    const props: ReelPlayerProps = {
+      title: 'Share-close fixture',
+      durationMs: 30000,
+      active: true,
+      positionRef: position,
+      loadSource: () =>
+        Promise.resolve({
+          source: { uri: 'https://fixture.invalid/media/share-close' },
+          expiresAt: new Date(Date.now() + 120000).toISOString(),
+        }),
+      onSample: jest.fn(),
+      onDiscontinuity: jest.fn(),
+      registerEnd: (end) => {
+        stop = end;
+        return () => undefined;
+      },
+    };
+    return { sdk, props, position, callbacks, end: () => stop?.() };
+  }
+  it('resumes only a previously playing parked ready source once, preserving position and sound', async () => {
+    const f = fixture();
+    const view = await renderOn(<ReelPlayer {...f.props} initialMuted />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    expect(f.position.current?.capture()).toMatchObject({ playing: true, muted: true });
+    await act(() => f.position.current?.pause());
+    await view.rerender(<ReelPlayer {...f.props} initialMuted active={false} />);
+    await view.rerender(<ReelPlayer {...f.props} initialMuted active />);
+    const before = f.sdk.play.mock.calls.length;
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(true);
+    });
+    expect(f.sdk.play).toHaveBeenCalledTimes(before + 1);
+    expect(f.sdk.muted).toBe(true);
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    await view.unmount();
+  });
+  it('refuses paused/history, inactive, failed readiness and ended scope without leaving future intent', async () => {
+    const f = fixture();
+    const view = await renderOn(<ReelPlayer {...f.props} initialPositionMs={7000} />);
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    await act(() => f.position.current?.pause());
+    await view.rerender(<ReelPlayer {...f.props} active={false} />);
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    await view.rerender(<ReelPlayer {...f.props} active />);
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    await act(() => f.position.current?.pause());
+    f.sdk.status = 'error';
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    f.sdk.status = 'readyToPlay';
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    await act(() => f.position.current?.pause());
+    const stale = f.position.current;
+    await act(() => f.end());
+    await act(() => {
+      expect(stale?.resumeIntent?.()).toBe(false);
+    });
+    expect(f.position.current).toBeNull();
+    await view.unmount();
+  });
+  it('refuses a parked intent after the actual source was replaced', async () => {
+    const f = fixture();
+    const view = await renderOn(<ReelPlayer {...f.props} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    await act(() => f.position.current?.pause());
+    await view.rerender(
+      <ReelPlayer
+        {...f.props}
+        loadSource={() =>
+          Promise.resolve({
+            source: { uri: 'https://fixture.invalid/media/replacement' },
+            expiresAt: new Date(Date.now() + 120000).toISOString(),
+          })
+        }
+      />,
+    );
+    const before = f.sdk.play.mock.calls.length;
+    await act(() => {
+      expect(f.position.current?.resumeIntent?.()).toBe(false);
+    });
+    expect(f.sdk.play).toHaveBeenCalledTimes(before);
+    await view.unmount();
+  });
+});

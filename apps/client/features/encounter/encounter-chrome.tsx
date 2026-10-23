@@ -4,7 +4,6 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import {
   AccountButton,
   ActionStrip,
-  Banner,
   Button,
   FormatSwitch,
   IconButton,
@@ -17,6 +16,7 @@ import { RequestNotice, RequestPanel } from '../requests/request-panel';
 import { EncounterOverlay } from './encounter-overlay';
 import { ContinuationControls } from './continuation-controls';
 import { KeepWriteStatus } from '../saved/keep-detail';
+import { SharePanel } from '../sharing/share-panel';
 
 export function EncounterChrome({
   state,
@@ -98,11 +98,15 @@ export function EncounterActions({
         <Text variant="meta">Checking saved membership before removal…</Text>
       ) : null}
       <ActionStrip
-        available={['like', 'save', 'ask']}
+        available={['like', 'save', 'share', 'ask']}
         liked={entry.context.actions.liked}
         saved={entry.context.actions.saved}
         saving={state.actionPending}
         onAction={(action) => {
+          if (action === 'share') {
+            session.openShare();
+            return;
+          }
           if (action === 'ask') {
             session.openRequest();
             return;
@@ -166,13 +170,21 @@ export function EncounterMenu({
   if (!state.overlay || !state.entry) return null;
   return (
     <EncounterOverlay
-      label={state.overlayOwner === 'request' ? 'Ask for something' : 'Your path'}
-      presentation={state.overlayOwner === 'request' ? 'sheet' : 'full'}
+      label={
+        state.overlayOwner === 'share' ? 'Share' : state.overlayOwner === 'request' ? 'Ask for something' : 'Your path'
+      }
+      presentation={state.overlayOwner === 'request' || state.overlayOwner === 'share' ? 'sheet' : 'full'}
       onClose={() => {
         session.back();
       }}
     >
-      {state.overlayOwner === 'request' ? (
+      {state.overlayOwner === 'share' ? (
+        <SharePanel
+          target={{ assetId: state.entry.offer.assetId, assetRevision: state.entry.offer.assetRevision }}
+          title={state.entry.offer.metadata.title}
+          onClose={() => session.setOverlay(false)}
+        />
+      ) : state.overlayOwner === 'request' ? (
         <RequestPanel session={session.requests} onClose={() => session.setOverlay(false)} />
       ) : (
         <View style={styles.overlay}>
@@ -219,7 +231,7 @@ export function EncounterMenu({
                   onPress={() => session.openRequest(format)}
                 />
               ))}
-            <Banner kind="info" lead="Share isn't available yet." message="Requests stay private to your account." />
+            <Button label="Share this encounter" onPress={() => session.setOverlay(true, 'share')} />
           </ScrollView>
         </View>
       )}
