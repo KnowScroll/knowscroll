@@ -1,6 +1,7 @@
 import type { EncounterSnapshot } from './types.js';
 import type { ComposerSnapshot, Features } from './types.js';
-import { COMPOSER_POLICY, overlap, tokens } from './policy.js';
+import { semanticFitOf } from './jev.js';
+import { COMPOSER_POLICY, overlap, refKey, tokens } from './policy.js';
 export function similarity(a: EncounterSnapshot, b: EncounterSnapshot): number {
   if (a.explanationUnitId === b.explanationUnitId) return 1;
   return (
@@ -11,6 +12,16 @@ export function similarity(a: EncounterSnapshot, b: EncounterSnapshot): number {
       )) /
     2
   );
+}
+/** A stored Jev assessment when this candidate has one; otherwise the deterministic lexical baseline. */
+function semanticFit(snapshot: ComposerSnapshot, candidate: EncounterSnapshot): number {
+  const assessed = snapshot.semanticAssessments?.entries.find((entry) => refKey(entry) === refKey(candidate));
+  return assessed
+    ? semanticFitOf(assessed)
+    : overlap(
+        tokens(snapshot.intent.text),
+        tokens(`${candidate.metadata.title} ${candidate.metadata.summary} ${candidate.facets.join(' ')}`),
+      );
 }
 export function features(snapshot: ComposerSnapshot, candidate: ComposerSnapshot['candidates'][number]): Features {
   const c = candidate.encounter;
@@ -75,10 +86,7 @@ export function features(snapshot: ComposerSnapshot, candidate: ComposerSnapshot
       return f === undefined ? 0.5 : (1 + f.qualified) / (2 + f.measured);
     }),
     novelty,
-    semanticFit: overlap(
-      tokens(snapshot.intent.text),
-      tokens(`${c.metadata.title} ${c.metadata.summary} ${c.facets.join(' ')}`),
-    ),
+    semanticFit: semanticFit(snapshot, c),
     continuity: candidate.continuity?.strength ?? 0.5,
     recentRepetition: repetition,
   };

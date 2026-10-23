@@ -51,6 +51,12 @@ export function validateSnapshot(s: ComposerSnapshot): void {
     new Set(s.explorationPool.map(refKey)).size !== s.explorationPool.length
   )
     fail();
+  if (s.semanticAssessments) {
+    const candidateKeys = new Set(s.candidates.map((c) => refKey(c.encounter)));
+    const assessed = s.semanticAssessments.entries.map(refKey);
+    // An assessment of an unknown candidate would be an input the replay cannot explain.
+    if (new Set(assessed).size !== assessed.length || assessed.some((key) => !candidateKeys.has(key))) fail();
+  }
   for (const c of s.candidates) {
     if (
       !validRef(c.encounter) ||
@@ -149,6 +155,9 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
     if (s.intent.exactTarget && refKey(c.encounter) !== refKey(s.intent.exactTarget)) exclusions.push('exact_target');
     if (s.mode === 'variant' && c.encounter.explanationUnitId !== s.intent.explanationUnitId)
       exclusions.push('explanation');
+    // A subject move never offers the explanation the person is already on, in either format.
+    if (s.mode === 'vertical' && c.encounter.explanationUnitId === s.intent.explanationUnitId)
+      exclusions.push('current_explanation');
     if (
       s.intent.requiredTopicIds?.some(
         (id) => !c.encounter.topics.some((t) => t.topicId === id && t.role !== 'incidental'),

@@ -1,5 +1,12 @@
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
-import type { ComposerDecision, ComposerSnapshot, PreparedEvidenceInput } from '../domain/types.js';
+import type { BufferKey, BufferedSelection, PreparedBuffer } from '../domain/buffer.js';
+import type {
+  ComposerDecision,
+  ComposerSnapshot,
+  EncounterRef,
+  PreparedEvidenceInput,
+  SemanticAssessments,
+} from '../domain/types.js';
 export type ComposeEncounter = (snapshot: ComposerSnapshot) => ComposerDecision;
 /** Implemented by Personal Context compatibility read; missing topic history stays explicit and neutral. */
 export type ReadPreparedEvidenceInput = (
@@ -35,3 +42,52 @@ export type PruneComposerDecisions = (scope: PersonalScopeTx, limit: number) => 
 export interface ComposerOperatorAccess {
   readonly isOperator: (authority: PersonalAuthority) => boolean;
 }
+
+/**
+ * What Experience tells the buffer worker about an activated offer. Experience owns sessions,
+ * offers and activations; Composer reads them only through this port.
+ */
+export interface BufferSourceFacts {
+  readonly intentRevision: number;
+  /** The session's declared client capabilities, as stored. */
+  readonly capabilities: unknown;
+  /** The exact content the offer presented. */
+  readonly source: EncounterRef;
+  /** A region-scoped offer's next move inherits an immutable region constraint and is never buffered. */
+  readonly regionScoped: boolean;
+}
+/** `undefined` unless the offer was really activated in this session at this exposure. */
+export type ReadBufferSource = (
+  scope: PersonalScopeTx,
+  query: { readonly sessionId: string; readonly offerId: string; readonly exposureId: string },
+) => Promise<BufferSourceFacts | undefined>;
+/** The subset of `assetIds` the person has hidden (at most 100 per call). */
+export type ReadHiddenAssets = (scope: PersonalScopeTx, assetIds: readonly string[]) => Promise<readonly string[]>;
+
+/** The stored buffer for exactly this key, expired or not; the caller applies the lifetimes. */
+export type ReadComposerBuffer = (scope: PersonalScopeTx, key: BufferKey) => Promise<PreparedBuffer | undefined>;
+export interface StoreComposerBuffer {
+  (
+    scope: PersonalScopeTx,
+    buffer: {
+      readonly key: BufferKey;
+      readonly decisionId: string;
+      readonly selection: readonly BufferedSelection[];
+      readonly preparedAt: Date;
+      readonly expiresAt: Date;
+      readonly assessments?: SemanticAssessments;
+    },
+  ): Promise<void>;
+}
+/**
+ * Ends a buffer. `served`: the navigation that used it committed its own offers, which now
+ * reference the decision, so only the buffer row goes. `discarded`: nothing used it, so its
+ * decision goes too.
+ */
+export type ReleaseComposerBuffer = (
+  scope: PersonalScopeTx,
+  decisionId: string,
+  how: 'served' | 'discarded',
+) => Promise<void>;
+/** Enqueues, in the caller's transaction, the job that prepares the buffer for this key. */
+export type RequestBufferPreparation = (scope: PersonalScopeTx, key: BufferKey) => Promise<void>;
