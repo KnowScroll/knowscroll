@@ -452,6 +452,11 @@ export interface AttemptLedger<S = PersonalScopeTx> {
    * the attempt settled; a failure is logged and never changes the attempt's outcome.
    */
   readonly recordRejectedAnswer?: (answer: RejectedAnswer) => Promise<void>;
+  /**
+   * The kept text of a refused answer, if it was kept whole (not cut at the bound) and has not
+   * expired: what a role that asks for it gets to revise in its one repair. Production ledger only.
+   */
+  readonly readRejectedAnswerText?: (attempt: AttemptRef) => Promise<string | undefined>;
   /** Usage that arrived for an attempt already written off: recorded on its receipt only. */
   readonly recordLateUsage: (attemptId: string, usage: ReportedUsage) => Promise<void>;
   /** The protected request bytes of an attempt, if still kept (not expired or erased). Harness-only. */

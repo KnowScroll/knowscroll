@@ -44,6 +44,19 @@ export function makeRejectedAnswerStore(db: Kysely<Database>) {
         .execute();
     },
 
+    /** The kept text of an answer that was stored whole and has not expired. */
+    async readText(attempt: { readonly scopeId: string; readonly attemptId: string }): Promise<string | undefined> {
+      const row = await db
+        .selectFrom('reasoning.production_rejected_answers')
+        .select('answer_text')
+        .where('scope_id', '=', attempt.scopeId)
+        .where('attempt_id', '=', attempt.attemptId)
+        .where('truncated', '=', false)
+        .where('expires_at', '>', sql<Date>`now()`)
+        .executeTakeFirst();
+      return row?.answer_text;
+    },
+
     /** Deletes up to `limit` expired rows; returns how many. */
     async purgeExpired(limit: number): Promise<number> {
       const result = await sql`

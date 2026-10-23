@@ -39,7 +39,7 @@ const FORMAT_BLOCKS: Readonly<Record<WriterFormat, readonly AuthoredBlockType[]>
 
 const FORMAT_GUIDANCE: Readonly<Record<WriterFormat, string>> = {
   comparison:
-    'Include one comparison block with two columns of two to four points each. Contrast the mechanisms or distinctions of the brief faithfully, and say in the paragraphs or the closing callout where the comparison stops being accurate.',
+    'Include one comparison block with two columns and two to four rows. Contrast the mechanisms or distinctions of the brief faithfully, and say in the paragraphs or the closing callout where the comparison stops being accurate.',
   diagram:
     'Include one diagram block, the interactive centre of the Scroll: four to eight nodes and two to four frames. Each frame is a different state of the mechanism, with a description of one or two sentences and the nodes and edges that matter in that state highlighted. The states must explain the mechanism, not just restyle it.',
   simulation:
@@ -244,6 +244,7 @@ export function writerRole(input: {
     // Thinking tokens count against this ceiling, besides about 4,000 tokens of JSON.
     maxOutputTokens: 16_000,
     effort: 'medium',
+    repairWithPreviousAnswer: true,
     instructions: writerInstructions(input.format),
     outputSchema: AuthoredScroll.superRefine((authored, ctx) => {
       const outcome = compileGeneratedScroll(authored, input.provenance, input.passages, input.format);

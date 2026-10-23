@@ -28,11 +28,7 @@ import {
   type ScrollDocument,
   type SimulationParam,
 } from './index.js';
-import {
-  compileDraft,
-  draftFromDocument,
-  validateDraft,
-} from './producer/index.js';
+import { compileDraft, draftFromDocument, validateDraft } from './producer/index.js';
 import { normaliseDraftInput } from './producer/normalise.js';
 import { make, seal } from './test-support/arbitraries.js';
 import { fixture } from './test-support/fixtures.js';

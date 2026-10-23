@@ -93,7 +93,10 @@ describe('compileAuthored: plain text in, canonical document out', () => {
     if (outcome.kind !== 'compiled') throw new Error(JSON.stringify(outcome));
     const blocks = outcome.document.sections[0]?.blocks ?? [];
     expect(blocks.map((block) => block.type)).toEqual(['paragraph', 'paragraph', 'list', 'callout']);
-    expect(blocks[0]).toMatchObject({ data: { spans: [{ text: expect.stringContaining('quiet quay') }] } });
+    const first = blocks[0];
+    expect(first?.type === 'paragraph' && first.data.spans.map((span) => span.text)).toEqual([
+      'A small pump at a quiet quay does a steady job without anyone watching it closely.',
+    ]);
     const bound = outcome.internalProvenance.bindings.filter((binding) => binding.kind === 'block');
     expect(bound.map((binding) => [binding.claimId, 'blockId' in binding ? binding.blockId : ''])).toEqual(
       expect.arrayContaining([
@@ -142,6 +145,37 @@ describe('compileAuthored: plain text in, canonical document out', () => {
     if (fine.kind !== 'compiled') throw new Error(JSON.stringify(fine));
     expect(fine.document.sections.map((section) => section.heading)).toEqual([null, 'Second part', 'Third part']);
     expect(fine.document.sections.map((section) => section.blocks.length)).toEqual([1, 1, 1]);
+  });
+
+  it('turns the rows of a comparison into columns of points, and refuses a ragged row at the block', () => {
+    const comparison = (rows: string[][]): Block => ({
+      type: 'comparison',
+      cites: ['e4'],
+      title: 'Two intakes',
+      columns: ['High', 'Low'],
+      rows,
+    });
+    const ok = compile(
+      scroll([
+        comparison([
+          ['Deep water', 'Shallow water'],
+          ['Full basin', 'Nearly empty basin'],
+        ]),
+      ]),
+    );
+    if (ok.kind !== 'compiled') throw new Error(JSON.stringify(ok));
+    expect(ok.document.sections[0]?.blocks.at(-1)).toMatchObject({
+      type: 'comparison',
+      data: {
+        columns: [
+          { label: 'High', points: [[{ text: 'Deep water' }], [{ text: 'Full basin' }]] },
+          { label: 'Low', points: [[{ text: 'Shallow water' }], [{ text: 'Nearly empty basin' }]] },
+        ],
+      },
+    });
+    expect(refusal(compile(scroll([comparison([['Deep water', 'Shallow water', 'Mud']])])))?.issues).toEqual([
+      { code: 'table_shape', path: 'blocks.3' },
+    ]);
   });
 
   it('refuses a heading that no block follows, at the heading', () => {
@@ -354,10 +388,8 @@ describe('compileAuthored: the interactive blocks', () => {
         type: 'comparison',
         cites: ['e4'],
         title: 'Two intakes',
-        columns: [
-          { label: 'High', points: ['Deep water'] },
-          { label: 'Low', points: ['Shallow water'] },
-        ],
+        columns: ['High', 'Low'],
+        rows: [['Deep water', 'Shallow water']],
       },
     ],
     [

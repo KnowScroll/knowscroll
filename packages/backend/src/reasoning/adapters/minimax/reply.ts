@@ -37,9 +37,7 @@ export function parseUsage(value: unknown): ReportedUsage {
     inputTokens: input === null ? null : input + (cacheWrite ?? 0),
     outputTokens: count(usage['output_tokens']),
     reasoningTokens:
-      count(usage['reasoning_tokens']) ??
-      count(details?.['thinking_tokens']) ??
-      count(details?.['reasoning_tokens']),
+      count(usage['reasoning_tokens']) ?? count(details?.['thinking_tokens']) ?? count(details?.['reasoning_tokens']),
     cachedTokens: count(usage['cache_read_input_tokens']),
   };
 }

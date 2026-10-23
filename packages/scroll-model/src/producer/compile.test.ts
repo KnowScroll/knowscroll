@@ -6,10 +6,8 @@ import {
   numericTokens,
   REASON_CODES,
   simulationNumbers,
-  utf8ByteLength,
   validateDocument,
   walkBlocks,
-  type ReasonCode,
   type ScrollDocument,
 } from '../index.js';
 import { addressedTexts } from '../internal/honesty.js';

@@ -239,6 +239,7 @@ export function makeProductionAttemptLedger(db: Kysely<Database>): AttemptLedger
     },
 
     recordRejectedAnswer: (answer) => rejectedAnswers.record(answer),
+    readRejectedAnswerText: (attempt) => rejectedAnswers.readText(attempt),
 
     async recordLateUsage(attemptId, usage) {
       await withTransaction(db, 'attempt-ledger', (trx) =>

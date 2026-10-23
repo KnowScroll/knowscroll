@@ -9,7 +9,7 @@ import { AUTHORED_DIAGRAM_LAYOUTS, AUTHORED_NODE_KINDS, type AuthoredBlockType }
  * recipe, never evidence and never publishable content.
  */
 const REFERENCE: Readonly<Record<AuthoredBlockType, string>> = {
-  heading: `heading: {"type":"heading","text":"Starts a new section"} (up to ${F.headingChars} characters; no cites; every heading is followed by at least one block)`,
+  heading: `heading: {"type":"heading","text":"Starts a new section"} (a short title of a few words, up to ${F.headingChars} characters, never a sentence of prose; no cites; every heading is followed by at least one block of its own)`,
 
   paragraph: `paragraph: {"type":"paragraph","cites":["e2"],"text":"Your own prose, up to ${F.paragraphChars} characters."}`,
 
@@ -17,13 +17,13 @@ const REFERENCE: Readonly<Record<AuthoredBlockType, string>> = {
 
   callout: `callout: {"type":"callout","cites":["e3"],"kind":"limit","title":"Where this picture stops","text":"Up to ${F.calloutChars} characters."} (kind: ${CALLOUT_KINDS.join(', ')}; "limit" says what the explanation cannot do; title is optional, up to ${F.calloutTitleChars} characters)`,
 
-  comparison: `comparison: {"type":"comparison","cites":["e2","e4"],"title":"Two ways to move water","columns":[{"label":"Pump","points":["Needs power","Lifts water uphill"]},{"label":"Gravity","points":["Needs a slope","Costs nothing to run"]}]} (2 to ${F.comparisonColumns} columns of 1 to ${F.comparisonPoints} points, each up to ${F.comparisonPointChars} characters)`,
+  comparison: `comparison: {"type":"comparison","cites":["e2","e4"],"title":"Two ways to move water","columns":["Pump","Gravity"],"rows":[["Needs power","Needs a slope"],["Lifts water uphill","Costs nothing to run"]]} (2 to ${F.comparisonColumns} columns; 1 to ${F.comparisonPoints} rows, one point of contrast each, with exactly one cell per column, up to ${F.comparisonPointChars} characters)`,
 
   timeline: `timeline: {"type":"timeline","cites":["e3"],"title":"How the canal grew","events":[{"when":"Early years","title":"A short ditch is dug","detail":"Optional sentence."},{"when":"Later","title":"Locks are added"}]} (2 to ${F.timelineEvents} events in time order; "when" up to 32 characters, title up to 80)`,
 
   sequence: `sequence: {"type":"sequence","cites":["e2","e3"],"title":"Passing through a lock","steps":[{"title":"Enter","text":"The boat drifts into the chamber."},{"title":"Rise","text":"Water fills the chamber and lifts the boat."}]} (2 to ${F.sequenceSteps} steps, the reader moves through them one at a time; step text up to ${F.stepChars} characters)`,
 
-  diagram: `diagram: {"type":"diagram","cites":["e2"],"title":"A canal lock","instruction":"Pick a stage","layout":"flow-lr","interaction":"toggle","nodes":[{"id":"upper","label":"Upper pool"},{"id":"chamber","label":"Chamber","kind":"process"},{"id":"lower","label":"Lower pool"}],"edges":[{"id":"fill","from":"upper","to":"chamber","label":"Water in"},{"id":"drain","from":"chamber","to":"lower","label":"Water out","dashed":true}],"frames":[{"label":"Filling","description":"Water flows in until the levels match.","highlight":["fill","upper"]},{"label":"Draining","description":"Water leaves toward the lower pool.","highlight":["drain"],"hide":["fill"]}]}
+  diagram: `diagram: {"type":"diagram","cites":["e2"],"title":"A canal lock","instruction":"Pick a stage","layout":"flow-lr","interaction":"toggle","nodes":[{"id":"upper","label":"Upper pool"},{"id":"chamber","label":"Chamber","kind":"process"},{"id":"lower","label":"Lower pool"}],"edges":[{"id":"fill","from":"upper","to":"chamber","label":"Water in"},{"id":"drain","from":"chamber","to":"lower","label":"Water out","dashed":true}],"frames":[{"highlight":["fill","upper"],"label":"Filling","description":"Water flows in until the levels match."},{"highlight":["drain"],"hide":["fill"],"label":"Draining","description":"Water leaves toward the lower pool."}]}
   nodes: 2 to ${L.diagramNodes}, labels up to ${F.diagramLabelChars} characters, optional kind (${AUTHORED_NODE_KINDS.join(', ')}). edges: up to ${L.diagramEdges}, from and to name node ids. layout: ${AUTHORED_DIAGRAM_LAYOUTS.join(', ')} (code places the nodes; never give coordinates). interaction: toggle (one button per frame) or steps (Previous and Next).
   frames: 2 to ${L.diagramFrames} authored states, each a label (up to 40 characters) and a description of 10 to ${F.frameDescriptionChars} characters; highlight and hide list node or edge ids. The states must explain the mechanism, not just change decoration.`,
 

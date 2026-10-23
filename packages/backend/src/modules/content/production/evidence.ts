@@ -73,7 +73,7 @@ function passagesOf(text: string): readonly { readonly start: number; readonly e
     }
   }
   const groups: { start: number; end: number }[] = [];
-  for (let from = 0; from < sentences.length; ) {
+  for (let from = 0; from < sentences.length;) {
     const after = next.get(from);
     const first = sentences[from];
     const last = after === undefined ? undefined : sentences[after - 1];

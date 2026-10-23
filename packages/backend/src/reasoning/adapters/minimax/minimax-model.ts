@@ -14,7 +14,12 @@ export const MINIMAX_MESSAGES_URL = 'https://api.minimax.io/anthropic/v1/message
 /** The token-plan quota preflight (an observation, not a reservation). */
 export const MINIMAX_QUOTA_URL = 'https://www.minimax.io/v1/token_plan/remains';
 /** Text models available on the token-plan key (`MiniMax-M3.1-Flash-Preview` is not). */
-export const MINIMAX_TEXT_MODELS = ['MiniMax-M3.1-Flash', 'MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] as const;
+export const MINIMAX_TEXT_MODELS = [
+  'MiniMax-M3.1-Flash',
+  'MiniMax-M3',
+  'MiniMax-M2.7',
+  'MiniMax-M2.7-highspeed',
+] as const;
 export type MiniMaxModel = (typeof MINIMAX_TEXT_MODELS)[number];
 
 export interface MiniMaxSettings {

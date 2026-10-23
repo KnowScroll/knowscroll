@@ -1,11 +1,27 @@
-# MiniMax output data carriers
+# MiniMax transport
 
-The adapter sends one bounded Anthropic-compatible messages request. Its output tools are data carriers: no executor, tool-result turn, extra request or autonomous loop exists. Thinking stays disabled on M3. `auto` is advisory; a missing tool call refuses rather than retrying transport.
+The adapter sends one bounded Anthropic-compatible messages request per attempt and reads one reply.
+It has no tools, no retries and no second request: the attempt ledger, not the transport, decides
+whether anything is ever sent again.
 
-Historical text, `submit_output` native-object and structural-native requests retain their old parsers and request bytes. The parser is selected from a frozen copy of the exact encoded request before fetch, never from the response or current role configuration.
+- **Models:** `MiniMax-M3.1-Flash` (Scroll writing, D-031), `MiniMax-M3`, `MiniMax-M2.7`,
+  `MiniMax-M2.7-highspeed`. A name outside the list is served by another model without an error, so
+  every reply's `model` must equal the configured one; a mismatch is a conclusive `MODEL_MISMATCH`
+  failure that still records the reported usage.
+- **Thinking:** `MiniMax-M3.1-Flash` is sent `thinking: {type: "adaptive"}`; it refuses `disabled`
+  (HTTP 400, code 2013). The other models are sent `disabled`. A role's `effort` becomes
+  `output_config.effort` for the adaptive model: left at the default, thinking can use the whole
+  token budget (a reply that thinks for 15,000 tokens and never answers was observed), while
+  `medium` uses a few thousand. Thinking tokens count against `max_tokens` and are recorded as
+  reasoning tokens (`output_tokens_details.thinking_tokens`).
+- **Answer:** the joined `text` blocks. `thinking` blocks and a leading `<think>…</think>` are
+  dropped, and only there. A reply cut off while thinking is a truncated answer, not an unreadable one.
+- **Unreadable replies** (not JSON, no text) carry the bounded raw body so production diagnostics can
+  show what arrived; the ledger redacts and bounds it again before storing it.
+- **Quota:** one observation before every attempt (`GET /v1/token_plan/remains`), judged against a
+  floor (`KS_MINIMAX_QUOTA_FLOOR_PERCENT`).
 
-`single-tool-json-string.v1` opts into M3-only `submit_json_output_v1`, exactly one native string property `json` (262144 UTF-16 units maximum). The new harness pairing is `nativeOutputSchema: 'zod-structural-json-string.v1'` with `hp5-tool-json-string`. It derives the role's existing bounded Zod structural input schema before purge, admission or reservation, and deterministically JSON.stringify-serializes that code-owned grammar into the system prompt. The native tool shape itself contains only the string. Grammar conversion failure, incompatible capability or over-size request refuses before a call. Native shape is advisory; the original role parser/refinements remain authoritative.
-
-A reply needs stop_reason tool_use, exactly one nonthinking tool block of that fixed name and exactly one string input key. Truncation remains truncation. The string must parse as one bare finite JSON object within existing depth/size bounds; no fence, patch, scalar, second encoding, XML salvage or individual field coercion is accepted. The original string then passes through the unchanged harness extraction, redaction, structural/semantic validation and stored-output cap. Rejected raw output is never stored. Unknown outcomes retain their existing liability and are never automatically resent/repaired. Only existing one-primary/one-repair policy applies.
-
-This core capability activates no Content role. Writer8/policy10 and claims4 remain unchanged until a separately reviewed consumer update. CI evidence uses labelled fake HTTP and real disposable PostgreSQL; it is not provider acceptance. Native nested-array serialization is a possible boundary to avoid, not a proven diagnosis of earlier private failures. The official API documents tools but does not guarantee strict nested JSON output; the upstream issue's later item-name/prompt interaction is narrower than a general array defect.
+The structured-output carriers that earlier recipes used (`submit_output`, a JSON string inside a
+tool call) are gone. A model that writes a long nested JSON document inside an escaped string loses
+track of quotes and brackets; plain text JSON from a flat, forgiving authoring shape worked
+(`modules/content/production/README.md`).

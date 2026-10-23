@@ -62,6 +62,11 @@ export interface ReasoningRole<T> {
   readonly maxOutputTokens: number;
   /** How hard a model that thinks should think; omitted leaves the provider's default. */
   readonly effort?: ReasoningEffort;
+  /**
+   * The one repair also carries the refused answer, as delimited data to revise. Only nonpersonal
+   * production keeps refused answers, so a personal role never receives it.
+   */
+  readonly repairWithPreviousAnswer?: boolean;
   /** Fewer context items than this is refused before anything is reserved (default 0). */
   readonly minContextItems?: number;
   /** The role's daily budget; defaults to the configured per-role cap. */
@@ -588,7 +593,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
         scope: ports.settings.caps.scope,
         role: role.budget ?? ports.settings.caps.roleDefault,
       };
-      const encode = (feedback?: readonly OutputIssue[]) => {
+      const encode = (feedback?: readonly OutputIssue[], previousAnswer?: string) => {
         const text = buildPrompt({
           roleId: role.id,
           roleVersion: role.version,
@@ -596,6 +601,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
           bundleRef: context.bundleRef,
           items: context.items,
           ...(feedback === undefined ? {} : { feedback }),
+          ...(previousAnswer === undefined ? {} : { previousAnswer }),
         });
         const body = model.encode({
           system: text.system,
@@ -642,7 +648,14 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
 
       // At most one repair: a new attempt, caused by the conclusively complete primary, sending
       // the validator's findings (never the rejected answer itself).
-      const repairBody = encode(primary.issues);
+      const previousAnswer =
+        role.repairWithPreviousAnswer === true
+          ? await ports.ledger.readRejectedAnswerText?.({
+              scopeId: ports.scopeId(run.authority),
+              attemptId: primary.attemptId,
+            })
+          : undefined;
+      const repairBody = encode(primary.issues, previousAnswer) ?? encode(primary.issues);
       if (repairBody === undefined) return invalid;
       const repair = outcomeOf(
         role.outputSchema,

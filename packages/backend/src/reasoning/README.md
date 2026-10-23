@@ -76,43 +76,6 @@ retrieved text cannot close its block or pose as instructions. Answers must be e
 object (bare or in one fenced block, nested at most 32 levels) that passes the role's schema
 (`domain/output.ts`).
 
-### Opt-in native output object
-
-`ReasoningRole.outputFormat: 'single-tool-object'` selects a fixed `submit_output` data carrier.
-It grants no action, executor, extra request or model-driven tool loop. This foundation does not
-activate it for any product role. The owning module must change its role version and actual job
-policy when changing instructions/format; old jobs, attempts and protected bytes stay unchanged.
-Omitting the property preserves the exact existing hp2 prompt and wire bytes, including repair.
-
-The opt-in uses separate framing `hp3-tool-object` for primary and repair. Only transports with
-`supportsSingleToolObject: true` admit it; otherwise `output_format_unsupported` refuses before a
-run, attempt, quota observation or spend reservation. The MiniMax implementation enables it only
-for documented `MiniMax-M3`; other text model choices are unchanged. It sends one fixed tool with
-`input_schema: { type: 'object' }` and `tool_choice: { type: 'auto' }`. There is no per-role JSON Schema
-conversion, `response_format`, forced choice, tool execution or second interaction.
-
-MiniMax's [exact Messages reference](https://platform.minimax.io/docs/api-reference/text-chat-anthropic)
-and [OpenAPI ToolChoice schema](https://platform.minimax.io/docs/api-reference/text/api/openapi-chat-anthropic.json)
-support only `auto`. The [compatibility overview](https://platform.minimax.io/docs/api-reference/text-anthropic-api)
-labels tool choice supported generally; it does not establish forced-name support. The model may
-choose text or another invalid shape. This is no promise of schema-constrained decoding or content
-quality. Such an answer is conclusively invalid and can consume only the existing single repair.
-
-The adapter snapshots each exact bounded send body, checks its fixed tool configuration, and derives
-that call's parser mode from those bytes. Unknown tool configurations or unsupported models fail
-before fetch; no ambient mode or response-selected fallback exists. Tool mode accepts exactly one
-`tool_use` with the fixed name, native object input and `tool_use` stop, with no text (including
-empty text), additional tool or unknown block. Thinking blocks are discarded without retention.
-`max_tokens` remains truncated even if the received object is complete. Safe message ID and reported
-usage survive conclusive shape refusals; no tool name, input or raw rejected reply enters issues.
-
-Native input is depth-bounded before canonical JSON serialization (non-finite numeric overflow is
-refused), then character-bounded and passed through the unchanged strict JSON extraction,
-redaction, role Zod/semantic validation and stored-output bound. It is never unescaped, repaired or
-salvaged. The personal and production harness share this path and its same admission, ledger,
-authority, usage, byte-hash/replay and unknown-never-resend rules. Tests are fake-provider fixtures;
-they cannot establish real model selection, a successful generated Scroll or teaching quality.
-
 A module reaches this engine only through `public.ts`: the types above, the injected
 `REASONING_HARNESS` / `RECORDING_REASONING_HARNESS` and the queue declarations. The harness factory, its ports, the attempt ledger
 and the model transport are deliberately not exported there (a boundary probe and the dependency
@@ -120,56 +83,15 @@ rules enforce it), so a module cannot build its own harness with its own ledger 
 ESLint rule keeps global `fetch`, Node's HTTP clients and provider SDKs out of everything but
 `infrastructure/` and `reasoning/adapters/` (`pnpm lint:probe:network` proves it bites).
 
-### Optional advisory native input shape (#232 foundation)
+### Thinking models and the answer carrier
 
-An additive `role.nativeOutputSchema: 'zod-structural.v1'` requires `outputFormat:
-'single-tool-object'` and explicit `supportsNativeOutputSchema` transport capability. It derives
-the structural **input** of the existing role Zod schema using Zod's Draft7 conversion, an empty
-metadata registry, `io: input`, `unrepresentable: throw`, `cycles: throw` and `reused: ref`.
-Input mode matters: the claims selector's transform hydrates an internal ClaimPackage, but the
-model must submit `candidateIds`, never the hydrated output. Conversion executes no transform or
-custom refinement. Registry IDs, descriptions, examples and other annotations are excluded.
-
-The supported subset is `type`, `properties`, `required`, `additionalProperties`, root-local
-`definitions`/`$ref`, `items` (including bounded tuple arrays), `additionalItems`, `anyOf`, `oneOf`,
-`allOf`, scalar `enum`/`const`, `minLength`/`maxLength`, `minItems`/`maxItems`, `minimum`/`maximum`,
-numeric `exclusiveMinimum`/`exclusiveMaximum`, positive `multipleOf` and `pattern`. The root must
-be an object with explicit properties. Boolean child schemas and empty child schemas retain their
-ordinary JSON Schema meaning; unsupported types are never silently replaced by an empty schema.
-All refs must resolve under the same root's definitions; missing/recursive/remote refs, metadata,
-unknown keywords, format/default/content vocabularies, URLs and non-JSON/accessor data refuse.
-Patterns are data; this module never executes them. This subset is our bounded request policy,
-not a claim that MiniMax enforces each constraint.
-
-Bounds: schema 32768 UTF-8 bytes, 4096 JSON nodes, 24 serialized levels, 32 resolved-reference levels,
-256 references/map entries, 64 alternatives/tuple items, 1024 characters/string. The generated dialect
-URL alone is omitted; no remote schema is fetched. Unsupported shape/capability returns fixed
-`output_schema_unsupported` before purge, run admission, reservation, quota or send. An oversized
-complete serialized request returns `request_too_large` at the same boundary. Existing request
-ceilings, including production 100000 bytes, remain authoritative; there is no truncation or cap raise.
-
-This mode uses new `hp4-tool-schema` framing and a distinct fixed tool description with the derived
-`input_schema`. The tool remains `submit_output`, choice remains `auto`, and the strict native reply
-parser is unchanged. The adapter revalidates the bounded schema in each frozen request before
-fetch. Schema bytes participate in exact request hashes, protected storage and the existing
-byte-based token reservation. The absent opt-in preserves historical hp2/hp3 prompt and wire bytes,
-including repair; old unknown tool configurations do not become valid under the old description.
-
-[MiniMax's Messages reference](https://platform.minimax.io/docs/api-reference/text-chat-anthropic)
-and [Tool/ToolChoice OpenAPI](https://platform.minimax.io/docs/api-reference/text/api/openapi-chat-anthropic.json)
-declare JSON Schema tool inputs and only `auto` choice. They do not establish constrained decoding,
-strict schema enforcement or semantic truth. [Zod input conversion](https://zod.dev/json-schema#io)
-provides structural guidance only: custom refinements, semantic grouping, source/copy checks,
-compiler/admission, min4 and copy9 remain in the unchanged actual validators. Invalid native
-answers stay invalid, failed raw drafts stay null, and only the existing one repair is possible.
-No executor, follow-up tool result, provider retry or extra model turn is introduced.
-
-No Content role or job policy opts in in this foundation. A separate consumer PR must bump actual
-role/prompt and policy identity, review full primary/repair request sizes and preserve old runs and
-request bytes. Nothing here authorises another paid call, resets a ledger/brake, reopens v6, or
-establishes a generated Scroll/runtime result. Tests are source and fake-HTTP/real-PostgreSQL CI
-fixtures only, including actual Content descriptors and fixed authored context; all suites run in
-GitHub Actions, never locally.
+The answer carrier is plain text: one JSON object, bare or in one fenced block. A role may set
+`effort` (`low`, `medium`, `high`) for a model that thinks adaptively; the adapter sends it as
+`output_config.effort`, and a model that does not think ignores it. Thinking tokens count against
+`maxOutputTokens`, so a role's ceiling must leave room for them. A reply cut off while thinking
+is `OUTPUT_TRUNCATED`. There is no tool carrier, no forced tool choice and no structural schema
+sent to the provider: the role's Zod schema (with its refinements) and the module's checks are the
+only contract, and a refusal reaches the single repair as fixed, path-located findings.
 
 ## Nonpersonal Scroll production (#232 foundation)
 
@@ -206,6 +128,7 @@ Production storage is separate (`0013_reasoning_production_scope`):
 | `production_runs` | `(scope_id, id)`, root FK, admitted generation and monotonic run fence | Audit retained; no automatic run retention job yet |
 | `production_attempts` | `(scope_id, id)`, composite production run FK; same state/dispatch/write-off checks | Audit retained, including unknown liabilities |
 | `production_requests` | `(scope_id, attempt_id)`, composite production attempt FK, exact hash-checked bytes; `nonpersonal_production` | Same configured request expiry/purge and database backup policy as personal bytes |
+| `production_rejected_answers` (0045) | `(scope_id, attempt_id)`, composite production attempt FK; redacted answer text, findings | 30 days, purged with the expired requests |
 
 These tables have **no identity/universe foreign key and no personal erasure entry**. Personal erasure
 cannot own, retain or delete global supply. The existing minimal `usage_receipts` table is shared:
@@ -215,6 +138,17 @@ settlement + receipt commit atomically even after the root is disabled/replaced.
 revocation is accounted but never returned as applicable output. Sweep, purge, unknown-list and
 write-off include both personal and production tables, independent of production enablement.
 Unknown/write-off never authorises another send, and late usage only updates the kept receipt.
+
+### Refused answers of production attempts (migration 0045)
+
+A refused answer of a **nonpersonal production** attempt is kept in `production_rejected_answers`
+so a failing writer can be diagnosed from evidence: the harness verdict, the validator's own
+findings (the same fixed `{path, code, detail}` items the repair request carried), and the answer
+text redacted by `redactProviderText` and cut at 64 KiB (an unreadable reply keeps its bounded raw
+body instead). One row per attempt, kept 30 days; the protected-request purge deletes expired
+rows. Only the production ledger implements `recordRejectedAnswer`, so a personal ledger keeps no
+answer text. A failure to record is logged (`reasoning.rejected_answer_not_recorded`) and never
+changes the attempt's outcome. The operator lists and shows them (`reasoning rejected`).
 
 ### Failure/concurrency brake policy `role-failure-brake.v1`
 
@@ -399,18 +333,24 @@ permission to repeat a paid call: the handler calls `propose`, which consults th
 written_off`; records the reason and `cli:<name>`; never resends; does not prove the provider
 stopped; does not refund the reservation), `reasoning unknown [--limit n]` (what awaits
 reconciliation: IDs, provider, model, role, code, time — no context), `reasoning sweep-dispatched
-[--older-than-seconds n]` (the sweep on demand, default 900) and `reasoning purge-expired`.
+[--older-than-seconds n]` (the sweep on demand, default 900), `reasoning purge-expired`,
+`reasoning rejected [--limit n]` (refused production answers, newest first, without their text) and
+`reasoning rejected --attempt <uuid>` (one with its text and findings).
 Results are one JSON line on stdout, diagnostics on stderr; exit 0 done, 2 refused or not
 applicable, 1 failure. This is the worker tree's `dist/operator.js`; the API tree has its own
 (`issue-sign-in`). How to run it on a server: `docs/v2/operations/environments.md`.
 
 ## Providers (`adapters/`)
 
-- `minimax/`: the MiniMax token-plan transport (Anthropic-compatible `…/anthropic/v1/messages`,
-  `MiniMax-M3` default). One `fetch` per attempt, no SDK, no retries, no redirects, one deadline
-  over the whole exchange, bounded request and response. `thinking` is disabled in the request and
-  a leading `<think>…</think>` is stripped from the **answer** only. Mapping: 200 → answer or an
-  `unreadable` marker; 4xx/429/500/503/529 → conclusive failure; 502/504, a timeout, a reset or an
+- `minimax/`: the MiniMax token-plan transport (Anthropic-compatible `…/anthropic/v1/messages`;
+  `MiniMax-M3.1-Flash`, `MiniMax-M3`, `MiniMax-M2.7`, `MiniMax-M2.7-highspeed`). One `fetch` per
+  attempt, no SDK, no retries, no redirects, one deadline over the whole exchange, bounded request
+  and response. `MiniMax-M3.1-Flash` is sent `thinking: adaptive` (it refuses `disabled`), the
+  others `disabled`; `thinking` blocks and a leading `<think>…</think>` are dropped from the
+  **answer** only, and thinking tokens are recorded as reasoning tokens. The reply's `model` must
+  equal the configured model: an unknown name is silently served by another model, so a mismatch
+  is a conclusive `MODEL_MISMATCH` failure that still charges the reported usage. Mapping: 200 →
+  answer or an `unreadable` marker (which carries the bounded raw body for diagnostics); 4xx/429/500/503/529 → conclusive failure; 502/504, a timeout, a reset or an
   interrupted read after the request may have left → `unknown`; refused/DNS/TLS before sending, an
   oversized request, or an abort before the request left → a conclusive failure the ledger records
   as `failed` with a `NOT_CONNECTED_*` / `REQUEST_TOO_LARGE` / `ABORTED_BEFORE_DISPATCH` code (it

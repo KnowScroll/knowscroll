@@ -304,12 +304,13 @@ function convertBlock(block: Exclude<AuthoredBlock, { type: 'heading' }>, path: 
       };
     case 'comparison': {
       const title = fit(block.title, 100);
-      const columns = block.columns.map((column) => ({
-        label: fit(column.label, 60),
-        points: column.points.map(spans),
+      if (block.rows.some((row) => row.length !== block.columns.length)) issues.push({ code: 'table_shape', path });
+      const columns = block.columns.map((label, index) => ({
+        label: fit(label, 60),
+        points: block.rows.flatMap((row) => (row[index] === undefined ? [] : [spans(row[index])])),
       }));
-      const summary = block.columns
-        .map((column) => `${oneLine(column.label)}: ${column.points.map(oneLine).join('; ')}`)
+      const summary = columns
+        .map((column) => `${column.label}: ${column.points.map((point) => point[0]?.text ?? '').join('; ')}`)
         .join(' ');
       return { type: 'comparison', ...envelope(title, `${title}. ${summary}`, 'comparison'), data: { title, columns } };
     }

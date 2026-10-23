@@ -462,6 +462,11 @@ const reasoningVariables = z.object({
   KS_REASONING_REQUEST_RETENTION_HOURS: positiveInteger(48, 720),
 });
 
+/** Scroll writing uses `MiniMax-M3.1-Flash` unless the operator names another model (D-031). */
+const scrollProductionReasoningVariables = reasoningVariables.extend({
+  KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3.1-Flash'),
+});
+
 /**
  * Reasoning variables of the worker (blueprint §15; providers-and-secrets.md). `MINIMAX_API_KEY`
  * is required, and must be a token-plan key (`sk-cp-…`), only when `KS_REASONING_PROVIDER` is
@@ -787,7 +792,7 @@ export function readScrollProductionOperatorConfig(env: Environment): ScrollProd
       }),
       pick(env, ['KS_SCOPE_LOCK_TIMEOUT_MS', 'KS_SCROLL_PRODUCTION_GENERATION']),
     ),
-    checkEnvironment(reasoningVariables, pick(env, Object.keys(reasoningVariables.shape))),
+    checkEnvironment(scrollProductionReasoningVariables, pick(env, Object.keys(reasoningVariables.shape))),
   );
   crossChecks([
     [

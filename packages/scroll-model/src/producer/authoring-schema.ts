@@ -52,15 +52,13 @@ const comparison = z.object({
   type: z.literal('comparison'),
   cites,
   title: short(100),
-  columns: z
-    .array(
-      z.object({
-        label: short(60),
-        points: z.array(text(1, FIELD_LIMITS.comparisonPointChars)).min(1).max(FIELD_LIMITS.comparisonPoints),
-      }),
-    )
-    .min(2)
-    .max(FIELD_LIMITS.comparisonColumns),
+  /** Column labels, left to right. */
+  columns: z.array(short(60)).min(2).max(FIELD_LIMITS.comparisonColumns),
+  /** One row per point of contrast, each with one cell per column. */
+  rows: z
+    .array(z.array(text(1, FIELD_LIMITS.comparisonPointChars)).min(2).max(FIELD_LIMITS.comparisonColumns))
+    .min(1)
+    .max(FIELD_LIMITS.comparisonPoints),
 });
 
 const timeline = z.object({

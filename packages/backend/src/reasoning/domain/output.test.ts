@@ -87,7 +87,9 @@ describe('safe structural JSON refusal diagnostics (CI fixture)', () => {
 
   it('tells the model where the text stopped being JSON, in fixed words and a number', () => {
     const detail = (text: string) => issueForExtraction(reason, text).detail ?? '';
-    expect(detail('{"a":[{"b":1}]}]}')).toContain('extra text follows the object near character 15, usually one closing');
+    expect(detail('{"a":[{"b":1}]}]}')).toContain(
+      'extra text follows the object near character 15, usually one closing',
+    );
     expect(detail('{"a":[1 2]}')).toContain('a comma, colon or closing bracket is missing near character 8');
     expect(detail('{"a":')).toContain('the text ends before every bracket is closed');
   });
