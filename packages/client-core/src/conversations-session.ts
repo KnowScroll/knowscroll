@@ -371,7 +371,15 @@ export function createConversationsSession(options: {
             originalController = commandController;
           commandController = undefined;
           pending = undefined;
-          state = { ...state, command: { status: 'accepted', operation: 'send', commandId: id } };
+          // Rebuild observable copies without publishing: abort listeners must see the purged
+          // maps, while the original HTTP body still holds its admission and mutation slot.
+          state = freezeSocial({
+            ...state,
+            command: { status: 'accepted', operation: 'send', commandId: id },
+            windows: [...windows.values()].map((w) => w.view),
+            drafts: [...drafts.values()].map(({ conversation, body }) => ({ conversation, body })),
+            mutationBlocked: owner.busy(),
+          });
           p.input = undefined;
           originalController?.abort();
           // Abort may synchronously end this owner. Obsolete send continuations are already

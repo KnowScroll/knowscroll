@@ -3,7 +3,7 @@ import { problemDetails } from '@knowscroll/contracts';
 import { createAccountScope, memoryStore, type AccountScope } from './account-scope';
 import { createConversationsSession } from './conversations-session';
 import { createContentSharesSession } from './content-shares-session';
-import { SOCIAL_LIMITS, socialOwnerFor } from './conversations-types';
+import { SOCIAL_LIMITS, socialOwnerFor, type ConversationsState } from './conversations-types';
 // Authored strict HTTP fixtures. No real memberships, messages, delivery or presence claims.
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const account = { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'chat@fixture.test' },
@@ -884,4 +884,150 @@ describe('scope-lifetime Conversations controller (authored HTTP fixtures)', () 
     expect(h.calls).toHaveLength(count);
     h.scope.end();
   });
+});
+
+// Actual scope/api abort callbacks are synchronous. Record first, then assert outside the callback
+// so listener isolation cannot conceal a failed assertion or a later reentrant publication repair.
+describe('accepted recovery observable state before original HTTP abort (authored fixtures)', () => {
+  it.each(['sent', 'edited'] as const)(
+    'purges the old ready window and rebuilds the %s draft before abort, keeping the body admission and shared lane held',
+    async (draftKind) => {
+      const held = deferred<unknown>();
+      let signal: AbortSignal | undefined,
+        abortState: ConversationsState | undefined,
+        abortBusy: boolean | undefined,
+        abortBudget: boolean | undefined;
+      const target = { assetId: id(70), assetRevision: 1 },
+        edited = 'REVISED_PRIVATE_DRAFT';
+      const h = fixture((path, input, request) => {
+        if (path.endsWith('/conversations/send')) {
+          signal = request.signal;
+          request.signal.addEventListener(
+            'abort',
+            () => {
+              // Observe before retry/start can publish a repaired snapshot from the maps.
+              abortState = h.session.getState();
+              abortBusy = owner.busy();
+              abortBudget = owner.retain(probe, { text: 'x'.repeat(remainingBytes) });
+              owner.drop(probe);
+              void h.session.retryCommand();
+              void h.session.start(peer.personId);
+              void shares.create({ target, audience: { kind: 'public_metadata' } });
+            },
+            { once: true },
+          );
+          return held.promise;
+        }
+        if (path.endsWith('/content-shares/create'))
+          return {
+            acceptance: {
+              version: 'content-share.v1',
+              scope: scopeValue,
+              commandId: input.commandId,
+              outcome: 'accepted',
+              replayed: false,
+              recordedAt: '2026-10-23T00:00:00.000Z',
+              operation: 'content-share.create',
+              shareId: id(71),
+              target: input.target,
+              audience: input.audience,
+              expiresAt: '2026-10-24T00:00:00.000Z',
+            },
+            delivery: { status: 'available', token: `kssh_${'z'.repeat(43)}` },
+          };
+        return response(path, input);
+      });
+      const owner = socialOwnerFor(h.scope),
+        probe = {},
+        remainingBytes =
+          SOCIAL_LIMITS.bodyBytes -
+          new TextEncoder().encode('PRIVATE_MESSAGE_CANARY').length -
+          (draftKind === 'edited' ? new TextEncoder().encode(edited).length : 0),
+        shares = createContentSharesSession({ scope: h.scope, newCommandId: () => id(72) });
+      await opened(h);
+      h.session.setDraft(ref(), { kind: 'text', text: 'FIRST_PRIVATE_BODY' });
+      const pending = h.session.send(ref());
+      await expect.poll(() => !!signal).toBe(true);
+      const original = h.calls.find((call) => call.path.endsWith('/conversations/send'))!.body;
+      if (draftKind === 'edited') h.session.setDraft(ref(), { kind: 'text', text: edited });
+      const premature: ConversationsState[] = [];
+      const stopState = h.session.subscribe(() => {
+        const state = h.session.getState();
+        if (state.command.status === 'accepted' && !signal!.aborted) premature.push(state);
+      });
+      const releases: { aborted: boolean; admitted: boolean; busy: boolean; state: ConversationsState }[] = [];
+      const stopOwner = owner.subscribe(() => {
+        if (!owner.busy()) {
+          releases.push({
+            aborted: signal!.aborted,
+            admitted: owner.retain(probe, { text: 'x'.repeat(remainingBytes) }),
+            busy: owner.busy(),
+            state: h.session.getState(),
+          });
+          owner.drop(probe);
+        }
+      });
+      await h.session.recoverOwnSend(ref());
+      stopState();
+      stopOwner();
+      expect(abortState?.command).toEqual({ status: 'accepted', operation: 'send', commandId: original.commandId });
+      expect(abortState?.windows).toEqual([
+        {
+          conversation: ref(),
+          status: 'refresh_required',
+          latestMessageSequence: 1,
+          messages: [],
+          historyAvailable: false,
+          catchUp: 'refresh_required',
+        },
+      ]);
+      expect(abortState?.drafts).toEqual(
+        draftKind === 'edited' ? [{ conversation: ref(), body: { kind: 'text', text: edited } }] : [],
+      );
+      expect(abortState?.mutationBlocked).toBe(true);
+      expect(abortBusy).toBe(true);
+      expect(abortBudget).toBe(false);
+      expect(Object.isFrozen(abortState)).toBe(true);
+      expect(Object.isFrozen(abortState?.windows[0])).toBe(true);
+      expect(Object.isFrozen(abortState?.drafts)).toBe(true);
+      expect(JSON.stringify([abortState?.windows, abortState?.drafts, abortState?.command])).not.toContain(
+        'FIRST_PRIVATE_BODY',
+      );
+      expect(JSON.stringify(abortState?.windows)).not.toContain('PRIVATE_MESSAGE_CANARY');
+      expect(premature).toEqual([]);
+      expect(releases).toHaveLength(1);
+      expect(releases[0]).toMatchObject({ aborted: true, admitted: true, busy: false });
+      expect(releases[0]!.state.windows).toEqual(abortState?.windows);
+      expect(releases[0]!.state.drafts).toEqual(abortState?.drafts);
+      expect(shares.getState().failure).toBe('busy');
+      expect(h.calls.filter((call) => call.path.endsWith('/content-shares/create'))).toHaveLength(0);
+      expect(h.calls.filter((call) => call.path.endsWith('/pairs/read'))).toHaveLength(0);
+      expect(h.calls.filter((call) => call.path.endsWith('/conversations/send'))).toHaveLength(1);
+      await shares.create({ target, audience: { kind: 'public_metadata' } });
+      const sharedCommand = shares.getState().command;
+      expect(sharedCommand).toMatchObject({ status: 'accepted', operation: 'create', commandId: id(72) });
+      expect(h.calls.filter((call) => call.path.endsWith('/content-shares/create'))).toHaveLength(1);
+      held.open(
+        draftKind === 'sent'
+          ? response('/v1/social/conversations/send', original)
+          : new Response(JSON.stringify(problemDetails('FORBIDDEN')), {
+              status: 403,
+              headers: { 'content-type': 'application/problem+json' },
+            }),
+      );
+      await pending;
+      expect(shares.getState().command).toEqual(sharedCommand);
+      expect(h.session.getState().drafts).toEqual(abortState?.drafts);
+      expect(owner.busy()).toBe(false);
+      h.scope.end();
+      expect(h.session.getState()).toMatchObject({
+        status: 'ended',
+        windows: [],
+        drafts: [],
+        command: { status: 'idle' },
+      });
+      expect(shares.getState()).toMatchObject({ status: 'ended', tokenAvailable: false });
+      assertNoPersistence(h.scope, h.store.keys());
+    },
+  );
 });
