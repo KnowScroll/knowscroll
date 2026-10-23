@@ -450,3 +450,42 @@ describe('what a person does on the map', () => {
     h.scope.end();
   });
 });
+
+describe('device memory and routes', () => {
+  it('does not overwrite the remembered camera before the first map has restored it, so a long absence still shows', async () => {
+    const h = universeHarness();
+    const first = createUniverseViewSession(h.scope);
+    first.setForeground(true);
+    await ready(first);
+    first.focus(fixtureId(12));
+    first.setForeground(false);
+    const stored = h.scope.storage.get('universe.view.v1');
+    // A view that leaves before its map arrives must leave the stored memory exactly as it was.
+    const gate = new Promise<void>(() => undefined);
+    h.gate(gate);
+    const hasty = createUniverseViewSession(h.scope);
+    hasty.setForeground(true);
+    hasty.setForeground(false);
+    hasty.setLately(false);
+    expect(h.scope.storage.get('universe.view.v1')).toBe(stored);
+    h.scope.end();
+  });
+
+  it('follows a route from either end, and from the system that holds both', async () => {
+    const h = universeHarness(),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    s.focus(fixtureId(10));
+    expect(s.travel(fixtureId(8000))).toBe(true);
+    expect(s.getState().focusId).toBe(fixtureId(13));
+    expect(s.travel(fixtureId(8000))).toBe(true);
+    expect(s.getState().focusId).toBe(fixtureId(12));
+    expect(s.travel(fixtureId(999))).toBe(false);
+    s.up();
+    s.up();
+    s.focus(fixtureId(14));
+    expect(s.travel(fixtureId(8000))).toBe(false);
+    h.scope.end();
+  });
+});

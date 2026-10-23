@@ -3,7 +3,7 @@ import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderWidth, content, dimension, layer, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, IconButton, Scrim, Text } from '@knowscroll/ui';
-import { outlineRows, type OutlineRow, type UniverseIndex } from './universe-layout';
+import { outlineRows, placeTrail, type OutlineRow, type UniverseIndex } from './universe-layout';
 import type { UniverseViewSession, UniverseViewState } from './universe-session';
 
 const ROW_HEIGHT = 52;
@@ -39,34 +39,51 @@ export function OutlineList({
   const renderRow = ({ item }: { item: OutlineRow }) => {
     const { place, depth } = item;
     const isCurrent = place.objectId === state.focusId;
+    const trail = placeTrail(index, place);
+    const name = [
+      place.label,
+      trail.length
+        ? `${KIND_WORD[place.kind].toLowerCase()} in ${trail.join(', ')}`
+        : KIND_WORD[place.kind].toLowerCase(),
+      place.truthStatus === 'hypothetical' ? 'hypothetical' : undefined,
+    ]
+      .filter(Boolean)
+      .join(', ');
     return (
-      <Pressable
-        testID={`universe-outline-${place.objectId}`}
-        accessibilityRole="button"
-        accessibilityLabel={`${place.label}, ${KIND_WORD[place.kind].toLowerCase()}${place.truthStatus === 'hypothetical' ? ', hypothetical' : ''}`}
-        accessibilityState={{ selected: isCurrent }}
-        onPress={() => {
-          session.focus(place.objectId);
-          onChoose?.();
-        }}
-        style={[
-          styles.row,
-          { paddingLeft: spacing[3] + depth * spacing[5] },
-          ancestors.has(place.objectId) ? styles.ancestor : null,
-          isCurrent ? styles.current : null,
-        ]}
-      >
-        <Text variant={depth === 0 ? 'title' : 'bodyS'} style={depth === 0 ? styles.systemName : null}>
-          {place.label}
-        </Text>
-        <Text variant="label" color={content.ink2}>
-          {KIND_WORD[place.kind]}
-        </Text>
-      </Pressable>
+      <View role="listitem">
+        <Pressable
+          testID={`universe-outline-${place.objectId}`}
+          accessibilityRole="button"
+          accessibilityLabel={name}
+          accessibilityState={{ selected: isCurrent }}
+          onPress={() => {
+            session.focus(place.objectId);
+            onChoose?.();
+          }}
+          style={[
+            styles.row,
+            { paddingLeft: spacing[3] + depth * spacing[5] },
+            ancestors.has(place.objectId) ? styles.ancestor : null,
+            isCurrent ? styles.current : null,
+          ]}
+        >
+          <Text
+            variant={depth === 0 ? 'title' : 'bodyS'}
+            style={depth === 0 ? styles.systemName : null}
+            {...(depth < 2 ? { heading: (depth + 2) as 2 | 3 } : {})}
+          >
+            {place.label}
+          </Text>
+          <Text variant="label" color={content.ink2}>
+            {KIND_WORD[place.kind]}
+          </Text>
+        </Pressable>
+      </View>
     );
   };
   return (
     <FlatList
+      role="list"
       accessibilityLabel="Places in your universe"
       ref={list}
       data={rows}

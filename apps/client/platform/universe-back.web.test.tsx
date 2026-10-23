@@ -74,3 +74,37 @@ it('Back closes the panel before restoring a camera and unregisters; history car
   expect(listeners.size).toBe(0);
   push.mockRestore();
 });
+
+it('Escape closes a selected-system card as well as a panel', () => {
+  const listeners = new Set<() => void>();
+  let state = { overlay: null as string | null, selectedId: 'private-fixture-id' as string | null };
+  const back = jest.fn(() => {
+    state = { ...state, selectedId: null };
+    listeners.forEach((listener) => listener());
+    return true;
+  });
+  const session = {
+    back,
+    getState: () => state,
+    canBack: () => Boolean(state.overlay || state.selectedId),
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+  function Host() {
+    // The adapter only reads `overlay` and `selectedId`; the rest of the session is not used here.
+    useUniverseBack(session as unknown as Parameters<typeof useUniverseBack>[0], true);
+    return null;
+  }
+  const root = createRoot();
+  act(() => root.render(<Host />));
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+  expect(back).toHaveBeenCalledTimes(1);
+  expect(state.selectedId).toBeNull();
+  act(() => root.unmount());
+});

@@ -66,14 +66,14 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
   await page.goto('/universe');
   await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'CI system 0', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'CI planet 2', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'CI system 0', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click();
   await page.getByRole('button', { name: 'List view', exact: true }).click();
-  await page.getByRole('button', { name: 'CI region 4, region', exact: true }).click();
+  await page.getByRole('button', { name: 'CI region 4, region in CI planet 2, CI system 0', exact: true }).click();
   await expect(page.getByText('Encounters from this region aren’t available yet.')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('universe-region-card')).toHaveCount(0);
@@ -241,7 +241,7 @@ test('canonical region card opens displayed A through actual activation, then Ba
   });
   await page.goto('/universe');
   // From 1024 px the outline sits beside the map, always open (D02).
-  await page.getByRole('button', { name: 'CI region 4, region', exact: true }).click();
+  await page.getByRole('button', { name: 'CI region 4, region in CI planet 2, CI system 0', exact: true }).click();
   const pin = page.getByRole('button', { name: 'CI region 4, a region', exact: true });
   const map = page.getByTestId('universe-map');
   await map.focus();
@@ -396,7 +396,7 @@ test('durable formation waits for an exact current claim after a lost reply, pre
   await expect(page.getByTestId('universe-map')).toBeFocused();
   await page.getByRole('link', { name: 'Talk', exact: true }).click();
   await page.getByRole('link', { name: 'Universe', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'CI planet 2', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(calls.filter((c) => c.path.endsWith('/formation/claim'))).toHaveLength(2);
   expect(calls.filter((c) => c.path.endsWith('/formation/acknowledge'))).toHaveLength(1);

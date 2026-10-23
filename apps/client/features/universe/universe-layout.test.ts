@@ -7,6 +7,7 @@ import {
   overviewScale,
   placeDust,
   placeLabels,
+  placeTrail,
   unitsFromId,
   viewFor,
   ORBIT_BANDS,
@@ -66,6 +67,12 @@ describe('Universe layout', () => {
     // Far is left of the star (anchor diff (-900, 0)).
     expect(far.position.x).toBeCloseTo(-ORBIT_BANDS[2].rx, 5);
     expect(composition.bands).toEqual([0, 2]);
+  });
+
+  it('names the places that contain a place, nearest first', () => {
+    expect(placeTrail(index, regions[0]!)).toEqual(['Near', 'Alpha']);
+    expect(placeTrail(index, planets[0]!)).toEqual(['Alpha']);
+    expect(placeTrail(index, system)).toEqual([]);
   });
 
   it('keeps a planet where it was when another arrives, whatever the input order', () => {

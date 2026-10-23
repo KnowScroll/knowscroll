@@ -7,7 +7,8 @@ import { SceneReturnLocatorSchema, type SceneReturnLocator } from '@knowscroll/s
  */
 export type UniverseFrame = SceneReturnLocator['frame'];
 export const INITIAL_FRAME: UniverseFrame = { x: 0, y: 0, scale: 1 };
-export const DRAW_LIMITS = { bodies: 64, routes: 64, labels: 32, cache: 128, history: 32 } as const;
+/** Silhouettes kept and Back steps kept. */
+export const DRAW_LIMITS = { cache: 128, history: 32 } as const;
 const finite = (n: number, fallback: number) => (Number.isFinite(n) ? n : fallback);
 export function boundedFrame(f: UniverseFrame): UniverseFrame {
   return {

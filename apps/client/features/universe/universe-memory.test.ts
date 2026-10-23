@@ -1,5 +1,5 @@
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
-import { ABSENCE_MS, freshMemory, isAbsent, loadUniverseMemory, saveUniverseMemory } from './universe-memory';
+import { ABSENCE_MS, isAbsent, loadUniverseMemory, saveUniverseMemory, type UniverseMemory } from './universe-memory';
 import { fixtureAccount, fixtureId } from './universe.fixture';
 
 function scopeWith(store = memoryStore()) {
@@ -57,7 +57,14 @@ describe('what the Universe remembers on this device', () => {
 
   it('calls the person absent after three days and never before there is a memory', () => {
     expect(isAbsent(undefined, 1e12)).toBe(false);
-    expect(isAbsent(freshMemory(0), ABSENCE_MS - 1)).toBe(false);
-    expect(isAbsent(freshMemory(0), ABSENCE_MS)).toBe(true);
+    const memory: UniverseMemory = {
+      focusId: null,
+      frame: { x: 0, y: 0, scale: 1 },
+      lately: false,
+      lastPlace: undefined,
+      seenAt: 0,
+    };
+    expect(isAbsent(memory, ABSENCE_MS - 1)).toBe(false);
+    expect(isAbsent(memory, ABSENCE_MS)).toBe(true);
   });
 });

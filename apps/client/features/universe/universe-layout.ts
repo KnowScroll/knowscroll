@@ -50,6 +50,18 @@ export function indexUniverse(descriptors: readonly SceneDescriptor[], routes: r
   };
 }
 
+/** The places that contain a place, nearest first: a region's planet, then its system. */
+export function placeTrail(index: UniverseIndex, place: SceneDescriptor): readonly string[] {
+  const trail: string[] = [];
+  for (
+    let parent = index.byId.get(place.parentId);
+    parent && trail.length < 3;
+    parent = index.byId.get(parent.parentId)
+  )
+    trail.push(parent.label);
+  return trail;
+}
+
 /** Which of the three screens a focused place opens: the whole map, a system (U02) or a planet (U03). */
 export type UniverseView =
   | { readonly kind: 'universe' }
@@ -102,7 +114,13 @@ export interface SystemComposition {
   /** Half-width and half-height of everything drawn, in composition units. */
   readonly extent: Size;
   /** The route lines between planets of this system, by planet id. */
-  readonly routes: readonly { readonly id: string; readonly from: Vec; readonly to: Vec }[];
+  readonly routes: readonly {
+    readonly id: string;
+    readonly fromId: string;
+    readonly toId: string;
+    readonly from: Vec;
+    readonly to: Vec;
+  }[];
 }
 
 /**
@@ -129,7 +147,7 @@ export function composeSystem(index: UniverseIndex, system: SceneDescriptor): Sy
   const routes = index.routes.flatMap((route) => {
     const from = positions.get(route.fromObjectId),
       to = positions.get(route.toObjectId);
-    return from && to ? [{ id: route.id, from, to }] : [];
+    return from && to ? [{ id: route.id, fromId: route.fromObjectId, toId: route.toObjectId, from, to }] : [];
   });
   return { star, planets, bands, extent: { width: outer.rx + 34, height: outer.ry + 58 }, routes };
 }

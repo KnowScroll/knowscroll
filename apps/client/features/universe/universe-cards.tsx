@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, IconButton, Text } from '@knowscroll/ui';
@@ -117,11 +117,6 @@ export function RegionCard({
           <View style={styles.actions}>
             <Button label="Open" variant="ink" onPress={open} />
             <Button label="Close" variant="ghost" onPress={() => session.back()} />
-            <Pressable accessibilityRole="link" onPress={open} style={styles.link}>
-              <Text variant="uiS" color={content.accentDeep} style={styles.underline}>
-                {`More in ${place.label}`}
-              </Text>
-            </Pressable>
           </View>
         </>
       ) : (
@@ -175,6 +170,4 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { flex: 1 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing[2], marginTop: spacing[2] },
-  link: { minHeight: 48, justifyContent: 'center', paddingHorizontal: spacing[2] },
-  underline: { textDecorationLine: 'underline' },
 });

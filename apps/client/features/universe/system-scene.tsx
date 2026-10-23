@@ -103,6 +103,22 @@ export function SystemScene({
           const planet = composition.planets.find((p) => p.descriptor.objectId === label.id)!.descriptor;
           return <MapLabel key={label.id} label={label} text={planet.label} calm={state.lately && isQuiet(planet)} />;
         })}
+        {composition.routes.map((route) => {
+          const from = at(route.from),
+            to = at(route.to);
+          const middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 + 14 * unit };
+          const named = (id: string) => index.byId.get(id)?.label ?? '';
+          return (
+            <BodyTarget
+              key={route.id}
+              testID={`universe-route-${route.id}`}
+              x={middle.x}
+              y={middle.y}
+              label={`Route from ${named(route.fromId)} to ${named(route.toId)}`}
+              onPress={() => session.travel(route.id)}
+            />
+          );
+        })}
         {composition.planets.map(({ descriptor, position }) => {
           const point = at(position);
           return (

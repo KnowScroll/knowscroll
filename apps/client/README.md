@@ -210,10 +210,21 @@ and native request journeys remain coordinator-owned acceptance work.
 
 ## Universe (#238)
 
-**Status:** implemented and CI-verified for the source below; runtime-verified on a local stack
-with real PostgreSQL, API and worker and formed worlds from the CI fixture model (not on dev).
-Not built: the friend's universe (U06, no backend), room stations, sky regions that merge quiet
-systems (U08 far zoom), and a persistent native store (the camera lives in memory on native).
+Each capability is marked **planned**, **implemented** (in source, covered by CI) or **runtime-verified**
+(driven in a browser against a local PostgreSQL, API and worker with worlds formed through the real
+Geography and Scenes path and the CI fixture model; not on dev).
+
+| Capability                                                                                   | Status                           |
+| -------------------------------------------------------------------------------------------- | -------------------------------- |
+| Overview with levels of detail, system, planet and region views, region card and Open/return | runtime-verified                 |
+| Dust cues and their note                                                                     | runtime-verified                 |
+| Lately lens, search, list view, simple drawing                                               | runtime-verified                 |
+| Camera, lens and ship memory; after-absence framing; `?focus=last`                           | runtime-verified (web)           |
+| Formation story (U05), all five beats                                                        | runtime-verified                 |
+| Routes between planets (a target on each, "Route to ..." from a planet)                      | implemented                      |
+| Desktop outline panel (D02)                                                                  | runtime-verified                 |
+| Native persistence of the camera (memory only today)                                         | planned                          |
+| Friend's universe (U06), room stations, sky regions that merge quiet systems (U08)           | planned (no backend or data yet) |
 
 `/universe` follows artboards U01 to U08 and D02. The map fills the screen; the header and chips
 float over it.
@@ -227,7 +238,11 @@ float over it.
   persisted anchors have from the star. A planet is drawn from the scene-core silhouette (family and
   palette from the scene, seed turns the land). Regions are pins on the land; choosing one lowers
   the camera and opens its card with one encounter. Open goes through the real encounter engine and
-  Back returns to the same view with the card closed.
+  Back returns to the same view with the card closed. The card offers Open and Close only: there is
+  no read yet for more encounters from a region.
+- **Routes.** Only the Cartographer's routes (between planets of one system) are drawn: a dashed
+  line with a 48 px target named "Route from A to B" in the system view, and a "Route to B" chip
+  on a planet. No line is drawn between regions.
 - **Dust (U01 "Emerging").** `POST /v1/universe/emerging/read` gives opaque cues. They are drawn,
   never labelled, never a destination; a tap explains them in one sentence.
 - **Lately, search, list.** Lately dims quiet places and sorts recent ones first (activity, never

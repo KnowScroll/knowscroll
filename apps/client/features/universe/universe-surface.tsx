@@ -80,6 +80,20 @@ export function UniverseSurface({
       </View>
     ) : null;
 
+  // Routes the Cartographer drew between planets of one system, from the planet they touch.
+  const planetRoutes =
+    view.kind === 'planet' && !view.selectedRegion
+      ? index.routes.flatMap((route) => {
+          const otherId =
+            route.fromObjectId === view.planet.objectId
+              ? route.toObjectId
+              : route.toObjectId === view.planet.objectId
+                ? route.fromObjectId
+                : undefined;
+          const other = otherId ? index.byId.get(otherId) : undefined;
+          return other ? [{ route, other }] : [];
+        })
+      : [];
   const chips =
     !card && !searching ? (
       <View style={styles.chips}>
@@ -92,6 +106,15 @@ export function UniverseSurface({
             onPress={() => session.focusLast()}
           />
         ) : null}
+        {planetRoutes.map(({ route, other }) => (
+          <SpaceChip
+            key={route.id}
+            testID={`universe-route-${route.id}`}
+            label={`Route to ${other.label}`}
+            trailingIcon="forward"
+            onPress={() => session.travel(route.id)}
+          />
+        ))}
         {!wide && places.length > 0 ? (
           <SpaceChip
             testID="universe-list"

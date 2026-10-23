@@ -1,5 +1,4 @@
 import Svg, { Path, Rect } from 'react-native-svg';
-import { content } from '@knowscroll/design-tokens';
 import type { SceneDescriptor } from '@knowscroll/scene-core';
 import { LandmarkGlyph, PlanetGlyph, RegionPin, ShipGlyph, silhouettePath, type LandmarkKind } from './universe-bodies';
 import { BODY_COLOURS } from './universe-palette';
@@ -48,9 +47,6 @@ export function PlanetScene({
     y: centre.y + offset.y * radius,
   });
   const pinSize = Math.min(15, 11 + (zoom - 1) * 3);
-  const route = [...regions]
-    .sort((a, b) => a.offset.x - b.offset.x || a.offset.y - b.offset.y)
-    .map(({ offset }) => pinAt(offset));
   // Decoration from the planet's own seed, so the same person sees the same landmark on every device.
   const [kindUnit, regionUnit] = unitsFromId(planet.seed);
   const landmarkKind: LandmarkKind = kindUnit < 0.5 ? 'lighthouse' : 'harbour';
@@ -79,17 +75,6 @@ export function PlanetScene({
           low={state.detail === 'low'}
           terminator={!selectedRegion}
         />
-        {route.length > 1 ? (
-          <Path
-            d={`M ${route.map((point) => `${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' L ')}`}
-            fill="none"
-            stroke={content.paper}
-            strokeWidth={2}
-            strokeDasharray="3 5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ) : null}
         {landmarkRegion ? (
           <LandmarkGlyph
             x={pinAt(landmarkRegion.offset).x + pinSize * 1.7}

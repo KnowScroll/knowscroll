@@ -1,6 +1,6 @@
 import type { AccountScope } from '@knowscroll/client-core';
 import type { SceneKind } from '@knowscroll/scene-core';
-import { boundedFrame, INITIAL_FRAME, type UniverseFrame } from './universe-camera';
+import { boundedFrame, type UniverseFrame } from './universe-camera';
 
 /** The place the ship is parked at: the last system, planet or region the person flew to. */
 export interface LastPlace {
@@ -77,11 +77,3 @@ export function saveUniverseMemory(scope: AccountScope, memory: UniverseMemory):
 
 export const isAbsent = (memory: UniverseMemory | undefined, now: number) =>
   memory !== undefined && now - memory.seenAt >= ABSENCE_MS;
-
-export const freshMemory = (now: number): UniverseMemory => ({
-  focusId: null,
-  frame: { ...INITIAL_FRAME },
-  lately: false,
-  lastPlace: undefined,
-  seenAt: now,
-});
