@@ -1,0 +1,113 @@
+{
+  "id": "5b150d05-49a5-493e-bcd1-8b5ff503921c",
+  "authoredBy": "claude (agent k240, #240)",
+  "approval": {
+    "ref": "D-030 delegated",
+    "approvedBy": "coordinator (delegated by owner, D-030)",
+    "approvedAt": "2026-10-24"
+  },
+  "recipe": "exoplanet-transit",
+  "brief": {
+    "version": 1,
+    "worldId": "knowscroll-exoplanet-transit",
+    "narration": [
+      {
+        "text": "A distant star shines with a steady light.",
+        "claimIds": ["c1"]
+      },
+      {
+        "text": "Its planet is far too small and dim to see directly.",
+        "claimIds": ["c1"]
+      },
+      {
+        "text": "When the planet passes in front, it blocks a little starlight.",
+        "claimIds": ["c2"]
+      },
+      {
+        "text": "The star dims, just slightly, for a short while.",
+        "claimIds": ["c2"]
+      },
+      {
+        "text": "A larger planet blocks more light and makes a deeper dip.",
+        "claimIds": ["c3"]
+      },
+      {
+        "text": "The dip comes back each time the planet circles its star.",
+        "claimIds": ["c3"]
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "role": "main"
+      },
+      {
+        "id": "c2",
+        "role": "main"
+      },
+      {
+        "id": "c3",
+        "role": "supporting"
+      }
+    ],
+    "claimSources": [
+      {
+        "claimId": "c1",
+        "assetId": "f625ad99-e71c-4bc0-980e-4636455d8b02",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c2",
+        "assetId": "f625ad99-e71c-4bc0-980e-4636455d8b02",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c3",
+        "assetId": "f625ad99-e71c-4bc0-980e-4636455d8b02",
+        "assetRevision": 1
+      }
+    ],
+    "criteria": {
+      "mustShow": [
+        {
+          "id": "show-bright-star",
+          "text": "a single bright white star shining steadily in black space",
+          "type": "presence",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-small-planet",
+          "text": "a small dark round planet silhouetted against the bright glowing face of a star",
+          "type": "presence",
+          "claimId": "c2"
+        },
+        {
+          "id": "show-large-planet",
+          "text": "a large dark round planet silhouetted across a wide part of the bright glowing face of a star",
+          "type": "presence",
+          "claimId": "c3"
+        }
+      ],
+      "mustNotShow": [
+        {
+          "id": "never-person",
+          "text": "a recognisable real-world public figure",
+          "type": "presence"
+        },
+        {
+          "id": "never-text",
+          "text": "written words or labels",
+          "type": "presence"
+        }
+      ],
+      "depictionPolicyVersion": "policy-3"
+    },
+    "style": {
+      "id": "style-knowscroll-space",
+      "version": 1,
+      "text": "realistic deep-space photography, high contrast, natural starlight, steady camera"
+    },
+    "title": "A shadow in starlight",
+    "summary": "How a planet too small to see can be found by the tiny, repeating dip it makes in its star's light."
+  }
+}
