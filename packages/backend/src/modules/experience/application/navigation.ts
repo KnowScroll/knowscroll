@@ -4,7 +4,7 @@ import {
   type ExposureContextResponse,
   type NavigationOutcome,
 } from '@knowscroll/contracts';
-import type { BufferedSelection, ComposerDecision } from '../../composer/public.js';
+import { bufferIsServable, type BufferedSelection, type ComposerDecision } from '../../composer/public.js';
 import type { EncounterSnapshot } from '../../content/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { originalRecordingGeneration, recordingRequest, type CommandKey } from './ports.js';
@@ -136,12 +136,37 @@ async function commitNavigation(
 ): Promise<NavigationResult | Drift> {
   const stale = await recheckPreparation(p, scope, context);
   if (stale) return stale;
+  const vanished = await recheckBuffer(p, scope, context);
+  if (vanished) return vanished;
   const regionLock = await lockRegionSelection(p, scope, context);
   if (regionLock) return regionLock.kind === 'drift' ? discardBuffer(p, scope, context) : regionLock;
   const selected = await selectStillEligible(p, scope, context);
   if (!selected) return discardBuffer(p, scope, context);
   const offers = await buildOffers(p, scope, context, selected);
   return writeOutcome(p, scope, context, offers);
+}
+
+/**
+ * The buffer transaction 1 chose must still be this person's, unreplaced and within its life. The
+ * worker may have replaced it, or it may have expired, since the lock was released.
+ */
+async function recheckBuffer(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  { prepared }: CommitContext,
+): Promise<Drift | undefined> {
+  const { source } = prepared;
+  if (prepared.ranking.kind !== 'buffered' || !p.buffers || !source) return undefined;
+  const current = await p.buffers.read(scope, {
+    sessionId: prepared.session.id,
+    intentRevision: prepared.session.intentRevision - 1,
+    source,
+  });
+  // Gone or replaced: not ours to delete, and the rerank finds whatever is current.
+  if (current?.decisionId !== prepared.decisionId) return { kind: 'drift' };
+  if (bufferIsServable(current, p.now())) return undefined;
+  await p.buffers.release(scope, prepared.decisionId, 'discarded');
+  return { kind: 'drift' };
 }
 
 /** A drifted buffer is never served: it goes, with its decision, and the rerank ranks for itself. */

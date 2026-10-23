@@ -2,7 +2,12 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PreparedBuffer } from '../domain/buffer.js';
-import type { ReadComposerBuffer, ReleaseComposerBuffer, StoreComposerBuffer } from '../application/ports.js';
+import type {
+  PurgeExpiredComposerBuffer,
+  ReadComposerBuffer,
+  ReleaseComposerBuffer,
+  StoreComposerBuffer,
+} from '../application/ports.js';
 
 const MODE = 'vertical';
 
@@ -101,9 +106,26 @@ const releaseComposerBuffer: ReleaseComposerBuffer = async (scope, decisionId, h
     );
 };
 
+const purgeExpiredComposerBuffer: PurgeExpiredComposerBuffer = async (scope, now) => {
+  const { universeId } = scope.authority;
+  const db = transactionOf(scope);
+  const at = now.toISOString();
+  const gone = await sql<{
+    decision_id: string;
+  }>`delete from composer.buffers where universe_id=${universeId}::uuid and mode=${MODE} and expires_at<=${at}::timestamptz
+    and (assessments is null or (assessments->>'expiresAt')::timestamptz<=${at}::timestamptz) returning decision_id`.execute(
+    db,
+  );
+  for (const row of gone.rows)
+    await sql`delete from composer.decisions where universe_id=${universeId}::uuid and id=${row.decision_id}::uuid`.execute(
+      db,
+    );
+};
+
 /** The `composer.buffers` store. The API reads and releases; the worker stores; tests may seed. */
 export const composerBufferStore = {
   read: readComposerBuffer,
   store: storeComposerBuffer,
   release: releaseComposerBuffer,
+  purgeExpired: purgeExpiredComposerBuffer,
 } as const;

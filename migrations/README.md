@@ -101,7 +101,11 @@ from this source correction.
 0045 adds `composer.buffers`: one worker-prepared next-move buffer per person and mode, pointing at an
 ordinary Composer decision, with optional stored Jev assessments. The new personal store and the job
 payload store `pgboss/composer.prepare-buffer` change the fresh-recording registry, so its digest becomes
-`d7942e43bb8211f37dfd08b4dfb6ac2e1b2543229a257f9c5ba850df135a1d10`. The same migration moves the two
-places that repeat the digest (the witness table's CHECK and the birth trigger) to the new value. 0044
-has not reached a shared database, so no witness is invalidated. Any later personal store repeats this
-step until the registry manifest is simplified.
+`d7942e43bb8211f37dfd08b4dfb6ac2e1b2543229a257f9c5ba850df135a1d10`. The same migration moves the places
+that repeat the digest (the witness table's CHECK and the birth trigger) to the new value and re-stamps
+every existing witness. Schema 44 is live on dev, and the application reads a witness with any other
+digest as an unavailable lifecycle, so without the re-stamp every existing account would fail its next
+recording-aware command until it ran Clear. Re-stamping is truthful: the new stores are empty for every
+existing universe. The witness guard trigger refuses all updates, so it is disabled for that one statement.
+Deploy the new binary with the migration: a process still holding the old digest sees the lifecycle as
+unavailable. Any later personal store repeats this step until the registry manifest is simplified.

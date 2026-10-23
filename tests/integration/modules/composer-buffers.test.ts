@@ -16,6 +16,7 @@ import {
   composerBufferStore,
   composerBufferWorkerProviders,
   composerProviders,
+  makeComposerStore,
 } from '@knowscroll/backend/modules/composer/nest-providers';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
@@ -459,6 +460,85 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       expect([next.offer, ...next.bufferedOffers].map((o) => o.assetId)).not.toContain(hidden.assetId);
       expect(await bufferOf(person.universeId)).toBeUndefined();
     });
+  });
+
+  it('a buffer replaced or removed between the two transactions falls back to a rerank, not an error', async () => {
+    const person = await seedPerson(database.db);
+    const { open, from } = await openAndActivate(person);
+    await run(workerFor(), (await jobsFor(person.universeId))[0]!);
+    const buffer = (await bufferOf(person.universeId))!;
+    let scopeCalls = 0;
+    const racing = await scrollUseCases(database, {
+      buffers: true,
+      wrapScope: (inner) => async (authority, work) => {
+        scopeCalls += 1;
+        // The second scope entry of a navigation is its committing transaction: the worker (or a
+        // discard) has just replaced the buffer the first one chose.
+        if (scopeCalls === 2) {
+          await sql`delete from composer.buffers where universe_id=${person.universeId}::uuid`.execute(database.db);
+          await sql`delete from composer.decisions where id=${buffer.decision_id}::uuid`.execute(database.db);
+        }
+        return inner(authority, work);
+      },
+    });
+    try {
+      const next = ready(
+        await racing.navigate(person.authority, {
+          commandId: randomUUID(),
+          sessionId: open.sessionId,
+          expectedIntentRevision: open.intentRevision,
+          from,
+          intent: { mode: 'vertical', direction: 'next' },
+        }),
+      );
+      expect(scopeCalls).toBeGreaterThanOrEqual(4);
+      expect(next.decisionId).not.toBe(buffer.decision_id);
+      expect(next.offer.explanationUnitId).not.toBe(open.offer.explanationUnitId);
+    } finally {
+      await racing.close();
+    }
+  });
+
+  it('a navigation deletes the buffer it finds past its life, unless its assessments are still valid', async () => {
+    const person = await seedPerson(database.db);
+    const { open, from } = await openAndActivate(person);
+    await run(workerFor(), (await jobsFor(person.universeId))[0]!);
+    const buffer = (await bufferOf(person.universeId))!;
+    await expireBuffer(person.universeId);
+    ready(await nextSubject(person, open, from));
+    expect(await bufferOf(person.universeId)).toBeUndefined();
+    expect(await decisionPayload(buffer.decision_id)).toBeUndefined();
+
+    // With assessments still valid the row stays: the ranking reuses them and a later preparation too.
+    const assessed = await seedPerson(database.db);
+    const started = await openAndActivate(assessed);
+    const jevWorker = workerFor({ model: jevModel(scores(() => [0.8, 0.8, 0.2])) });
+    await run(jevWorker, (await jobsFor(assessed.universeId))[0]!);
+    await expireBuffer(assessed.universeId);
+    ready(await nextSubject(assessed, started.open, started.from));
+    expect((await bufferOf(assessed.universeId))?.assessments).not.toBeNull();
+  });
+
+  it('pruning deletes an expired buffer before its decision and never trips over a live one', async () => {
+    const person = await seedPerson(database.db);
+    await openAndActivate(person);
+    await run(workerFor(), (await jobsFor(person.universeId))[0]!);
+    const buffer = (await bufferOf(person.universeId))!;
+    const store = makeComposerStore({ isOperator: () => true });
+    // The decision is logically expired (30 days) while the buffer is still live: it must be kept.
+    await sql`update composer.decisions set recorded_at=now()-interval '40 days', expires_at=now()-interval '10 days' where id=${buffer.decision_id}::uuid`.execute(
+      database.db,
+    );
+    expect(await withScope()(person.authority, (scope) => store.pruneComposerDecisions(scope, 100))).toMatchObject({
+      kind: 'entered',
+    });
+    expect(await bufferOf(person.universeId)).toBeDefined();
+    expect(await decisionPayload(buffer.decision_id)).toBeDefined();
+
+    await expireBuffer(person.universeId);
+    await withScope()(person.authority, (scope) => store.pruneComposerDecisions(scope, 100));
+    expect(await bufferOf(person.universeId)).toBeUndefined();
+    expect(await decisionPayload(buffer.decision_id)).toBeUndefined();
   });
 
   it('Clear and full erasure remove the buffer, its decision and the queued job', async () => {

@@ -77,11 +77,16 @@ describe('Composer v0 pure policy (labelled CI input fixtures)', () => {
     const alone = composeEncounter({ ...snapshot, candidates: snapshot.candidates.slice(0, 2) });
     expect(alone.outcome).toBe('exhausted');
   });
-  it('uses a stored Jev assessment as SemanticFit for that candidate only; absence falls back to the baseline', () => {
-    const s = fixture(2);
+  it('uses a stored Jev assessment as SemanticFit; unassessed candidates are neutral, not penalised by lexical overlap', () => {
+    const s = fixture(3);
     const assessed = s.candidates[0]!.encounter;
+    // Intent text that overlaps every candidate lexically, so the baseline is far from 0.5.
+    const intent = { ...s.intent, text: 'Fixture facet' };
+    const baseline = composeEncounter({ ...s, intent });
+    expect(baseline.evaluations[1]?.features.semanticFit).not.toBe(0.5);
     const decision = composeEncounter({
       ...s,
+      intent,
       semanticAssessments: {
         roleVersion: 'jev.1/hp2',
         model: 'fixture-model',
@@ -93,6 +98,7 @@ describe('Composer v0 pure policy (labelled CI input fixtures)', () => {
     // 0.4*1 + 0.4*0.5 + 0.2*(1-0.5) = 0.7
     expect(decision.evaluations[0]?.features.semanticFit).toBeCloseTo(0.7);
     expect(decision.evaluations[1]?.features.semanticFit).toBe(0.5);
+    expect(decision.evaluations[2]?.features.semanticFit).toBe(0.5);
     expect(decision.input.semanticAssessments?.model).toBe('fixture-model');
   });
   it('refuses assessments of an unknown or repeated candidate', () => {

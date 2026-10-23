@@ -65,8 +65,8 @@ export interface JevCriteria {
   readonly redundancy: number;
 }
 /**
- * Stored optional semantic assessments for part of a shortlist. A candidate without an entry
- * uses the deterministic lexical baseline: absence is never a negative judgement.
+ * Stored optional semantic assessments for part of a shortlist. A candidate without an entry is
+ * neutral (SemanticFit 0.5): absence is never a negative judgement.
  */
 export interface SemanticAssessments {
   readonly roleVersion: string;

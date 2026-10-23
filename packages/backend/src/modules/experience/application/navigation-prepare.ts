@@ -202,6 +202,8 @@ async function storedBuffer(
 ): Promise<{ buffer?: PreparedBuffer; assessments?: SemanticAssessments }> {
   if (!p.buffers || !start.existing || !('intent' in command) || command.intent.mode !== 'vertical') return {};
   if (region.kind === 'region') return {};
+  // A cache nobody can use again is deleted by the navigation that finds it, so it does not linger.
+  await p.buffers.purgeExpired(scope, start.now);
   const buffer = await p.buffers.read(scope, {
     sessionId: command.sessionId,
     intentRevision: start.existing.intentRevision,

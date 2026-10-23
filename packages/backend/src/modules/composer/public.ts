@@ -28,6 +28,7 @@ export type {
   ReadHiddenAssets,
   ReadComposerBuffer,
   ReleaseComposerBuffer,
+  PurgeExpiredComposerBuffer,
   RequestBufferPreparation,
   DecisionBinding,
   PersistComposerDecision,
@@ -45,5 +46,6 @@ export const READ_BUFFER_SOURCE = Symbol('composer.readBufferSource');
 export const READ_HIDDEN_ASSETS = Symbol('composer.readHiddenAssets');
 export const READ_COMPOSER_BUFFER = Symbol('composer.readBuffer');
 export const RELEASE_COMPOSER_BUFFER = Symbol('composer.releaseBuffer');
+export const PURGE_EXPIRED_COMPOSER_BUFFER = Symbol('composer.purgeExpiredBuffer');
 export const REQUEST_BUFFER_PREPARATION = Symbol('composer.requestBufferPreparation');
 export const PREPARE_COMPOSER_BUFFER = Symbol('composer.prepareBuffer');

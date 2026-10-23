@@ -13,15 +13,23 @@ export function similarity(a: EncounterSnapshot, b: EncounterSnapshot): number {
     2
   );
 }
-/** A stored Jev assessment when this candidate has one; otherwise the deterministic lexical baseline. */
+/** SemanticFit of a candidate nobody assessed while others were: neutral, as for any missing measurement. */
+const UNASSESSED_SEMANTIC_FIT = 0.5;
+
+/**
+ * Where Jev assessed part of a shortlist, an assessed candidate scores its combined criteria and every
+ * other candidate is neutral (0.5), so the lexical overlap, which sits on a much lower scale, never
+ * ranks an unassessed candidate below an assessed one by itself. With no assessment in play all
+ * candidates use the deterministic lexical baseline.
+ */
 function semanticFit(snapshot: ComposerSnapshot, candidate: EncounterSnapshot): number {
-  const assessed = snapshot.semanticAssessments?.entries.find((entry) => refKey(entry) === refKey(candidate));
-  return assessed
-    ? semanticFitOf(assessed)
-    : overlap(
-        tokens(snapshot.intent.text),
-        tokens(`${candidate.metadata.title} ${candidate.metadata.summary} ${candidate.facets.join(' ')}`),
-      );
+  if (!snapshot.semanticAssessments)
+    return overlap(
+      tokens(snapshot.intent.text),
+      tokens(`${candidate.metadata.title} ${candidate.metadata.summary} ${candidate.facets.join(' ')}`),
+    );
+  const assessed = snapshot.semanticAssessments.entries.find((entry) => refKey(entry) === refKey(candidate));
+  return assessed ? semanticFitOf(assessed) : UNASSESSED_SEMANTIC_FIT;
 }
 export function features(snapshot: ComposerSnapshot, candidate: ComposerSnapshot['candidates'][number]): Features {
   const c = candidate.encounter;

@@ -30,6 +30,7 @@ import type {
   ComposeEncounter,
   PersistComposerDecision,
   ReadComposerBuffer,
+  PurgeExpiredComposerBuffer,
   ReadPreparedEvidenceInput,
   ReleaseComposerBuffer,
   RequestBufferPreparation,
@@ -139,6 +140,7 @@ export interface NavigationPorts extends CommandPorts {
   readonly buffers?: {
     readonly read: ReadComposerBuffer;
     readonly release: ReleaseComposerBuffer;
+    readonly purgeExpired: PurgeExpiredComposerBuffer;
     readonly requestPreparation: RequestBufferPreparation;
   };
   readonly insertExposure: (scope: PersonalScopeTx, exposure: NewExposure) => Promise<void>;

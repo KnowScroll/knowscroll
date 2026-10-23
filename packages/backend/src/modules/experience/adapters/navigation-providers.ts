@@ -26,11 +26,13 @@ import { makeRegionEncounters } from '../application/region-encounter.js';
 import {
   COMPOSE_ENCOUNTER,
   PERSIST_COMPOSER_DECISION,
+  PURGE_EXPIRED_COMPOSER_BUFFER,
   READ_COMPOSER_BUFFER,
   RELEASE_COMPOSER_BUFFER,
   REQUEST_BUFFER_PREPARATION,
   type ComposeEncounter,
   type PersistComposerDecision,
+  type PurgeExpiredComposerBuffer,
   type ReadComposerBuffer,
   type ReadPreparedEvidenceInput,
   type ReleaseComposerBuffer,
@@ -103,7 +105,9 @@ export function navigationProviders(
           ? [READ_OWN_REGION_CONSTRAINT, READ_REGION_ENCOUNTER_CANDIDATES, LOCK_REGION_ENCOUNTER_CANDIDATES]
           : []),
         ...(options.recordingEffects ? [options.recordingEffects] : []),
-        ...(options.buffers ? [READ_COMPOSER_BUFFER, RELEASE_COMPOSER_BUFFER, REQUEST_BUFFER_PREPARATION] : []),
+        ...(options.buffers
+          ? [READ_COMPOSER_BUFFER, RELEASE_COMPOSER_BUFFER, PURGE_EXPIRED_COMPOSER_BUFFER, REQUEST_BUFFER_PREPARATION]
+          : []),
       ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
@@ -131,7 +135,8 @@ export function navigationProviders(
           ? {
               read: optional[bufferOffset] as ReadComposerBuffer,
               release: optional[bufferOffset + 1] as ReleaseComposerBuffer,
-              requestPreparation: optional[bufferOffset + 2] as RequestBufferPreparation,
+              purgeExpired: optional[bufferOffset + 2] as PurgeExpiredComposerBuffer,
+              requestPreparation: optional[bufferOffset + 3] as RequestBufferPreparation,
             }
           : undefined;
         return {

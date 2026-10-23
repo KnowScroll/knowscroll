@@ -89,5 +89,10 @@ export type ReleaseComposerBuffer = (
   decisionId: string,
   how: 'served' | 'discarded',
 ) => Promise<void>;
+/**
+ * Deletes the person's buffer and its decision once nothing in it can be used again: it is past its
+ * life and carries no still-valid assessment. Called by the navigation that would otherwise read it.
+ */
+export type PurgeExpiredComposerBuffer = (scope: PersonalScopeTx, now: Date) => Promise<void>;
 /** Enqueues, in the caller's transaction, the job that prepares the buffer for this key. */
 export type RequestBufferPreparation = (scope: PersonalScopeTx, key: BufferKey) => Promise<void>;

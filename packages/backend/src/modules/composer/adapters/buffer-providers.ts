@@ -28,6 +28,7 @@ import {
   PREPARE_COMPOSER_BUFFER,
   READ_BUFFER_SOURCE,
   READ_COMPOSER_BUFFER,
+  PURGE_EXPIRED_COMPOSER_BUFFER,
   READ_HIDDEN_ASSETS,
   RELEASE_COMPOSER_BUFFER,
   REQUEST_BUFFER_PREPARATION,
@@ -39,6 +40,7 @@ export function composerBufferProviders(t: { readonly enqueueJob: symbol }) {
   return [
     { provide: READ_COMPOSER_BUFFER, useValue: composerBufferStore.read },
     { provide: RELEASE_COMPOSER_BUFFER, useValue: composerBufferStore.release },
+    { provide: PURGE_EXPIRED_COMPOSER_BUFFER, useValue: composerBufferStore.purgeExpired },
     {
       provide: REQUEST_BUFFER_PREPARATION,
       inject: [t.enqueueJob],
