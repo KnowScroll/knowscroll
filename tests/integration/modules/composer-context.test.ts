@@ -7,7 +7,8 @@ import { READ_PREPARED_ACTIVITY } from '@knowscroll/backend/modules/evidence';
 import { activityProviders } from '@knowscroll/backend/modules/evidence/nest-providers';
 import { navigationProviders, NAVIGATION_PORTS } from '@knowscroll/backend/modules/experience/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { seedPerson, type FixturePerson } from '../support/fixtures.js';
+import type { FixturePerson } from '../support/fixtures.js';
+import { recordingPerson, clearRecordingPerson } from '../support/recording-person.js';
 import { scrollUseCases, starterSource, textCapabilities } from '../support/scroll.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 import { buildFromProviders } from '../support/providers.js';
@@ -17,7 +18,7 @@ describe('navigation consumes the PC snapshot (real PostgreSQL, authored CI fixt
   const fixtures: { assetId: string; revision: number; unit: string; topic: string }[] = [];
   beforeAll(async () => {
     database = await createTestDatabase<Database>('composer_context');
-    c = await scrollUseCases(database);
+    c = await scrollUseCases(database, { recording: true });
     for (const name of ['positive', 'zero', 'missing']) {
       const src = starterSource() as { assetId: string; publication: { explanationUnitId: string } };
       src.assetId = randomUUID();
@@ -79,7 +80,11 @@ describe('navigation consumes the PC snapshot (real PostgreSQL, authored CI fixt
     expect(await c.projectScrollReading(payload)).toMatchObject({ kind: 'applied', qualification: 'qualified' });
     expect(await c.projectActivity(payload)).toMatchObject({ kind: 'applied' });
     const unmeasured = await openActive(c, p, zero);
-    expect(await c.projectActivity({ ...payload, exposureId: unmeasured.exposureId })).toMatchObject({
+    const unknownPayload = { ...payload, exposureId: unmeasured.exposureId };
+    expect(await c.projectActivity(unknownPayload)).toMatchObject({ kind: 'skipped', reason: 'no_current_source' });
+    await c.ingestObservations(p.authority, { instrumentationVersion: 1, events: [event(unmeasured, dwell([0, 1]))] });
+    expect(await c.projectScrollReading(unknownPayload)).toMatchObject({ kind: 'applied', qualification: 'unknown' });
+    expect(await c.projectActivity(unknownPayload)).toMatchObject({
       kind: 'applied',
     });
   }
@@ -93,7 +98,7 @@ describe('navigation consumes the PC snapshot (real PostgreSQL, authored CI fixt
     ).revision;
   }
   it('persists actual normal-navigation PC policy/watermarks, qualified activity and available-zero versus missing-neutral scoring', async () => {
-    const p = await seedPerson(database.db);
+    const p = await recordingPerson(database);
     await seedActualContext(p);
     const state = await database.db
       .selectFrom('personal_context.state')
@@ -156,7 +161,7 @@ describe('navigation consumes the PC snapshot (real PostgreSQL, authored CI fixt
     expect(input.established?.units).toHaveLength(3);
   });
   it('prepares under the existing scope without changing revisions and rejects an old epoch before preparing or committing a decision', async () => {
-    const p = await seedPerson(database.db);
+    const p = await recordingPerson(database);
     await seedActualContext(p);
     const before = await scopeRevision(p);
     const state = await database.db
@@ -178,11 +183,7 @@ describe('navigation consumes the PC snapshot (real PostgreSQL, authored CI fixt
     expect(
       await database.db.selectFrom('composer.decisions').select('id').where('universe_id', '=', p.universeId).execute(),
     ).toHaveLength(0);
-    await database.db
-      .updateTable('identity.universes')
-      .set({ privacy_epoch: 2 })
-      .where('id', '=', p.universeId)
-      .execute();
+    await clearRecordingPerson(database, c.boss, p);
     let entered = false;
     expect(
       await withScope(p.authority, (s) => {

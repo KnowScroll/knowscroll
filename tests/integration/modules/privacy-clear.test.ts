@@ -61,6 +61,7 @@ import { clearReasoning, makeAttemptLedger } from '@knowscroll/backend/reasoning
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedAsset, seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { gate } from '../support/fixture-model.js';
+import { recordingPerson } from '../support/recording-person.js';
 
 /** CI fixture: a run descriptor and a reservation written straight through the ledger port. */
 function fixtureRunDescriptor(id: string) {
@@ -641,11 +642,11 @@ describe('durable selective Clear', () => {
     ).toBeDefined();
   });
   it('selectively clears meaningful fixtures in every exploration store and every historical Scene version while preserving another universe', async () => {
-    const erased = await seedPerson(database.db);
-    const kept = await seedPerson(database.db);
+    const erased = await recordingPerson(database);
+    const kept = await recordingPerson(database);
     const asset = await seedAsset(database.db);
-    const useCases = await experienceUseCases(database);
-    const scroll = await scrollUseCases(database);
+    const useCases = await experienceUseCases(database, { recording: true });
+    const scroll = await scrollUseCases(database, { recording: true });
     const starter = await admitStarter(scroll.importScroll);
     // Explicit CI attribution fixture for exercising personal topic-row erasure; no runtime taxonomy inference.
     await database.db
@@ -896,7 +897,23 @@ describe('durable selective Clear', () => {
           privacyEpoch: 1,
           exposureId: activated.outcome.exposureId,
         }),
-      ).toMatchObject({ kind: 'applied' });
+      ).toMatchObject({ kind: 'skipped', reason: 'already_applied' });
+
+      // Erasure-only historical coexistence rows copied from actual accepted descriptors.
+      // Modern writers never read these as channel certificates or inherit their raw history.
+      await sql`insert into experience.encounter_lineage(universe_id,privacy_epoch,exposure_id,asset_id,asset_revision,kind,explanation_unit_id,facets,activated_at)
+        select universe_id,privacy_epoch,exposure_id,asset_id,asset_revision,kind,explanation_unit_id,
+          array(select jsonb_array_elements_text(attribution_payload->'facets')),first_eligible_activation_at
+        from experience.recording_segments where universe_id=${person.universeId}::uuid and recording_generation=1
+        on conflict do nothing`.execute(database.db);
+      await sql`insert into experience.encounter_activity_inputs(universe_id,privacy_epoch,exposure_id,liked,saved,horizontal,returned,action_revision,navigation_revision)
+        select universe_id,privacy_epoch,exposure_id,coalesce(liked_override,false),coalesce(saved_override,false),horizontal,returned,action_revision,navigation_revision
+        from experience.recording_segment_inputs where universe_id=${person.universeId}::uuid and recording_generation=1
+        on conflict do nothing`.execute(database.db);
+      await sql`insert into experience.navigation_transitions(universe_id,privacy_epoch,target_exposure_id,offer_id,session_id,mode,horizontal,returned,policy_version)
+        values(${person.universeId}::uuid,1,${activated.outcome.exposureId}::uuid,${o.offer.offerId}::uuid,${o.sessionId}::uuid,'return',false,false,'activity.v0')`.execute(
+        database.db,
+      );
 
       const saved = await useCases.applyAction(person.authority, {
         commandId: randomUUID(),
@@ -1149,15 +1166,9 @@ describe('durable selective Clear', () => {
         erased: await personalRowCounts(erased.universeId),
         kept: await personalRowCounts(kept.universeId),
       };
-      const legacyCounts = Object.fromEntries(
-        Object.entries(before.erased).filter(
-          ([name]) =>
-            name !== 'identity.recording_lifecycle_witnesses' && name !== 'experience.recording_channel_certificates',
-        ),
-      );
-      expect(Object.values(legacyCounts).every((count) => count > 0)).toBe(true);
-      expect(before.erased['identity.recording_lifecycle_witnesses']).toBe(0);
-      expect(before.erased['experience.recording_channel_certificates']).toBe(0);
+      expect(Object.values(before.erased).every((count) => count > 0)).toBe(true);
+      expect(before.erased['identity.recording_lifecycle_witnesses']).toBe(1);
+      expect(before.erased['experience.recording_channel_certificates']).toBeGreaterThan(0);
       const command = body();
       await cases().start(authority(erased), command);
       await cases().process(job(erased, command.commandId));

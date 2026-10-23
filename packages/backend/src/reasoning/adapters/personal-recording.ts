@@ -125,11 +125,24 @@ export function makePersonalReasoningAccess(p: {
   return {
     async enter(authority, descriptor, purpose, work) {
       try {
-        return await p.withScope(authority, async (scope) => {
+        const entered = await p.withScope(authority, async (scope) => {
           const own = await p.fenceOwn(scope);
           if (own.kind !== 'active') throw new PersonalReasoningRefused('scope_refused');
+          // Account binding precedes classification. A wrong actor/purpose never gains even
+          // necessary cancellation authority from a later generation refusal.
+          if (
+            purpose &&
+            (!same(purpose.accountId, own.owner.accountId) ||
+              !same(purpose.universeId, scope.authority.universeId) ||
+              purpose.privacyEpoch !== scope.authority.privacyEpoch)
+          )
+            throw new PersonalReasoningRefused('scope_refused');
           const gate = await p.fenceRecording(scope, purpose?.recordingGeneration);
-          if (gate.kind !== 'recording') throw new PersonalReasoningRefused('scope_refused');
+          if (gate.kind !== 'recording')
+            throw new PersonalReasoningRefused(
+              'scope_refused',
+              gate.kind === 'paused' || gate.kind === 'stale' || gate.kind === 'generation_required',
+            );
           entries.set(scope, { scope: gate.scope, accountId: own.owner.accountId });
           try {
             await check(scope, descriptor, purpose);
@@ -138,9 +151,21 @@ export function makePersonalReasoningAccess(p: {
             entries.delete(scope);
           }
         });
+        // Root refusal runs before the own gate. Only server-owned accounting can classify
+        // actual epoch/status/barrier revocation here; account actors remain unproved/held.
+        if (
+          entered.kind === 'refused' &&
+          authority.actor.kind === 'system' &&
+          (entered.refusal.kind === 'epoch_changed' || entered.refusal.kind === 'universe_suspended')
+        )
+          return { ...entered, refusal: { ...entered.refusal, accountingRevoked: true as const } };
+        return entered;
       } catch (error) {
         if (!(error instanceof PersonalReasoningRefused)) throw error;
-        return { kind: 'refused', refusal: { kind: error.reason } };
+        return {
+          kind: 'refused',
+          refusal: { kind: error.reason, ...(error.accountingRevoked ? { accountingRevoked: true as const } : {}) },
+        };
       }
     },
     check,

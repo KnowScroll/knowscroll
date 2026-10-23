@@ -790,3 +790,45 @@ wiring. Existing assertions remain; the dispatch/erasure fixture now targets act
 instead of an obsolete transaction-entry count. All suites run only in hosted Actions. Root must
 compose frozen DDL, actual role proofs, positive graph, PC availability/composite-witness consumers
 and all growth writers before any recording control or runtime acceptance.
+
+### Revoked undispatched reservation cancellation (#381 hosted correction)
+
+The personal wrapper may invoke `releaseUndispatchedPersonal` only after actual gates establish
+true revocation; a generic protected-read refusal is insufficient. This optional capability belongs to the actual personal PostgreSQL
+ledger; the production ledger and production execution engine are unchanged. Absence means
+necessary accounting is unavailable: the public result remains refused and the reservation held.
+It is never a successful no-op, fake settlement, or permission to resend.
+
+The short ledger-owned transaction locks the exact original run, at most nine raw attempt rows
+(eight plus overflow sentinel) in run/step index order, then the selected receipt. It compares
+original epoch, complete descriptor/proof and planned request fingerprints in SQL without
+selecting context, output, issues or request bytes. Only the latest valid logical-step reservation
+can stop; earlier sequences must be not_sent. Any dispatched/unknown row, dispatch identity or
+timestamp, missing/mismatched held receipt, malformed sequence, overflow or unproved binding
+leaves accounting unchanged. A reserved→not_sent AUTHORITY_REFUSED transition and exact held→released
+receipt commit together. Dispatch CAS locks the same attempt and requires reserved: cancellation
+winning prevents dispatch; dispatch winning prevents release. No root/account/generation is
+adopted and no personal capability, new attempt, model request or semantic effect is issued.
+Existing settlement, Clear, late usage, request expiry, caps and failure brakes retain authority.
+
+A settled answer can still encounter a busy/revoked protected read. The response reveals no
+private attempt/output identity after revocation. Under a busy root it fails closed; the exact
+SUCCEEDED attempt and settled usage receipt survive for the same-business replay after a fresh
+valid gate. Hosted fixtures verify one send, exact financial rows, finally-released fixture locks,
+missing capability and negative cancellation proofs. These are authored CI cases, not local suite
+execution, provider evidence or runtime acceptance.
+
+The private `accountingRevoked` fact never reaches ProposeOutcome. After the one actual active
+own-account gate, only known original-generation/on refusal qualifies; purpose/account mismatch,
+owner/claim/header/hash denial, busy, unavailable and malformed dependency do not. Before an own
+gate can run, only trusted server SYSTEM authority may classify actual root epoch/status/barrier
+revocation. An account actor's old-epoch root refusal remains unproved and held, because the root
+checks epoch before ownership; it cannot infer another account's authority. No extra root/own
+probe, Identity SQL copy or generation adoption is introduced.
+
+Both initial lookup cancellation and the existing authority-refused pre-dispatch/admission
+settlement branches use this same classified capability. Other settlements (quota, conclusive
+provider results, unknown, late usage) remain unchanged. A stale claim A cannot cancel current
+claim C's still-reserved identical request. Actual owner fixtures use the real Planner request,
+store, current PC snapshot, hashes, both owner checkers and durable recovery markers; the fixture
+role remains a financial protocol probe and never applies a personal proposal.

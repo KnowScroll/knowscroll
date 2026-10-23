@@ -26,6 +26,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedAsset, seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource, textCapabilities } from '../support/scroll.js';
 import { gate } from '../support/fixture-model.js';
+import { recordingPerson } from '../support/recording-person.js';
 
 const command = (entry: KeepEntryRef): RemoveKeepEntry => ({
   version: 'keep-remove.v1',
@@ -129,22 +130,22 @@ describe('exact Saved membership removal (real scoped PG/pg-boss)', () => {
     expect(first.kind).toBe('ok');
     return { ...f, input, first };
   }
-  async function activatedSaved() {
-    const person = await seedPerson(database.db),
+  async function activatedSaved(cases: typeof c = c, born?: FixturePerson) {
+    const person = born ?? (await seedPerson(database.db)),
       source = starterSource();
     source['assetId'] = randomUUID();
     source['publication'] = { ...(source['publication'] as object), explanationUnitId: `ci-remove-${randomUUID()}` };
-    const imported = await c.importScroll(source);
+    const imported = await cases.importScroll(source);
     if (imported.kind !== 'imported') throw new Error('Canonical fixture import');
     const ref = { assetId: imported.assetId, assetRevision: imported.revision };
-    const opened = await c.navigate(person.authority, {
+    const opened = await cases.navigate(person.authority, {
       commandId: randomUUID(),
       target: { kind: 'return', ...ref },
       capabilities: textCapabilities,
     });
     if (opened.kind !== 'accepted' || opened.outcome.status !== 'ready') throw new Error('Expected admitted return');
     const o: Extract<NavigationOutcome, { status: 'ready' }> = opened.outcome;
-    const activated = await c.activateOffer(person.authority, {
+    const activated = await cases.activateOffer(person.authority, {
       commandId: randomUUID(),
       target: {
         kind: 'offer',
@@ -158,9 +159,9 @@ describe('exact Saved membership removal (real scoped PG/pg-boss)', () => {
       job = { v: 1 as const, universeId: person.universeId, privacyEpoch: 1, exposureId };
     for (const kind of ['like', 'save'] as const)
       expect(
-        await c.applyEncounterAction(person.authority, { commandId: randomUUID(), kind, target: ref, exposureId }),
+        await cases.applyEncounterAction(person.authority, { commandId: randomUUID(), kind, target: ref, exposureId }),
       ).toMatchObject({ kind: 'applied' });
-    await c.projectActivity(job);
+    await cases.projectActivity(job);
     const found = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(person.authority, (s) =>
       keepStore.membership(s, ref.assetId),
     );
@@ -572,27 +573,40 @@ describe('exact Saved membership removal (real scoped PG/pg-boss)', () => {
     expect(await state(f.person)).toEqual(before);
   });
   it('keeps the actual credited Unsave correction and unrelated Like without creating fresh consumption', async () => {
-    const { person, entry, exposureId, job } = await activatedSaved();
-    const before = await state(person);
-    expect(await remove()(person.authority, command(entry))).toMatchObject({ kind: 'ok' });
-    const input = await database.db
-      .selectFrom('experience.encounter_activity_inputs')
-      .selectAll()
-      .where('universe_id', '=', person.universeId)
-      .where('exposure_id', '=', exposureId)
-      .executeTakeFirstOrThrow();
-    expect(input).toMatchObject({ saved: false, liked: true });
-    await c.projectActivity(job);
-    const activity = await database.db
-      .selectFrom('evidence.activity_revisions')
-      .select('channels')
-      .where('universe_id', '=', person.universeId)
-      .where('exposure_id', '=', exposureId)
-      .orderBy('revision', 'desc')
-      .executeTakeFirstOrThrow();
-    expect(activity.channels).toMatchObject({ q: null, B: false, L: true });
-    const after = await state(person);
-    expect(after['observations']).toBe(before['observations']);
-    expect(after['exposures']).toBe(before['exposures']);
+    const modern = await scrollUseCases(database, { recording: true });
+    try {
+      const { person, entry, exposureId, job } = await activatedSaved(modern, await recordingPerson(database));
+      const before = await state(person);
+      expect(
+        await keepRemovalUseCase({
+          withScope: makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 }),
+          fenceOwn: accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount,
+          lifecycle: accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).readRecordingLifecycle,
+          enqueue: makeEnqueueJob(modern.boss),
+          recordingEffects: modern.recordingEffects,
+        })(person.authority, command(entry)),
+      ).toMatchObject({ kind: 'ok' });
+      const input = await database.db
+        .selectFrom('experience.recording_segment_inputs')
+        .select(['saved_override as saved', 'liked_override as liked'])
+        .where('universe_id', '=', person.universeId)
+        .where('exposure_id', '=', exposureId)
+        .executeTakeFirstOrThrow();
+      expect(input).toMatchObject({ saved: false, liked: true });
+      await modern.projectActivity(job);
+      const activity = await database.db
+        .selectFrom('evidence.activity_revisions')
+        .select('channels')
+        .where('universe_id', '=', person.universeId)
+        .where('exposure_id', '=', exposureId)
+        .orderBy('revision', 'desc')
+        .executeTakeFirstOrThrow();
+      expect(activity.channels).toMatchObject({ q: null, B: false, L: true });
+      const after = await state(person);
+      expect(after['observations']).toBe(before['observations']);
+      expect(after['exposures']).toBe(before['exposures']);
+    } finally {
+      await modern.close();
+    }
   });
 });

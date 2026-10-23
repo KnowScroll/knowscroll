@@ -223,7 +223,7 @@ export interface PersonalHarnessAccess {
     work: (scope: PersonalScopeTx) => Promise<T>,
   ): Promise<
     | { readonly kind: 'entered'; readonly value: T }
-    | { readonly kind: 'refused'; readonly refusal: { readonly kind: string } }
+    | { readonly kind: 'refused'; readonly refusal: { readonly kind: string; readonly accountingRevoked?: true } }
   >;
   check(
     scope: PersonalScopeTx,
@@ -271,6 +271,7 @@ export interface PersonalHarnessAccess {
 export class PersonalReasoningRefused extends Error {
   constructor(
     readonly reason: 'scope_refused' | 'run_mismatch' | 'run_closed' | 'output_ineligible' | 'request_mismatch',
+    readonly accountingRevoked = false,
   ) {
     super('PERSONAL_REASONING_AUTHORITY_REFUSED');
   }
@@ -397,6 +398,18 @@ export interface AttemptLedger<S = PersonalScopeTx> {
     to: AttemptState,
     details?: SettlementDetails,
   ) => Promise<boolean>;
+  /** Personal-only necessary cancellation after protected access refuses. No private rows escape.
+   * Optional on the shared production ledger: absent capability leaves the liability held.
+   * Locks exact run → bounded raw attempts → matching held receipt; refuses any dispatch proof.
+   */
+  readonly releaseUndispatchedPersonal?: (input: {
+    readonly scopeId: string;
+    readonly privacyEpoch: number;
+    readonly run: RunDescriptor;
+    readonly step: 'primary' | 'repair';
+    readonly requestHash: string;
+    readonly attemptId?: string;
+  }) => Promise<'released' | 'unavailable'>;
   /** Usage that arrived for an attempt already written off: recorded on its receipt only. */
   readonly recordLateUsage: (attemptId: string, usage: ReportedUsage) => Promise<void>;
   /** The protected request bytes of an attempt, if still kept (not expired or erased). Harness-only. */
