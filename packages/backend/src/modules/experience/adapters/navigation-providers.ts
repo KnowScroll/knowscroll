@@ -26,9 +26,15 @@ import { makeRegionEncounters } from '../application/region-encounter.js';
 import {
   COMPOSE_ENCOUNTER,
   PERSIST_COMPOSER_DECISION,
+  READ_COMPOSER_BUFFER,
+  RELEASE_COMPOSER_BUFFER,
+  REQUEST_BUFFER_PREPARATION,
   type ComposeEncounter,
   type PersistComposerDecision,
+  type ReadComposerBuffer,
   type ReadPreparedEvidenceInput,
+  type ReleaseComposerBuffer,
+  type RequestBufferPreparation,
 } from '../../composer/public.js';
 import { projectEncounterActivityQueue } from '../../evidence/public.js';
 import { READ_COMPOSER_CONTEXT } from '../../personal-context/public.js';
@@ -70,7 +76,12 @@ export const ACTIVATE_OFFER = Symbol('experience.activateOffer');
 export const READ_EXPOSURE_CONTEXT = Symbol('experience.readExposureContext');
 export function navigationProviders(
   t: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol },
-  options: { readonly region?: boolean; readonly recordingEffects?: symbol } = {},
+  options: {
+    readonly region?: boolean;
+    readonly recordingEffects?: symbol;
+    /** Serve worker-prepared buffers and request the next one on activation (needs `composerBufferProviders`). */
+    readonly buffers?: boolean;
+  } = {},
 ) {
   return [
     {
@@ -92,6 +103,7 @@ export function navigationProviders(
           ? [READ_OWN_REGION_CONSTRAINT, READ_REGION_ENCOUNTER_CANDIDATES, LOCK_REGION_ENCOUNTER_CANDIDATES]
           : []),
         ...(options.recordingEffects ? [options.recordingEffects] : []),
+        ...(options.buffers ? [READ_COMPOSER_BUFFER, RELEASE_COMPOSER_BUFFER, REQUEST_BUFFER_PREPARATION] : []),
       ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
@@ -114,6 +126,14 @@ export function navigationProviders(
         const effects = options.recordingEffects
           ? requireRecordingEffects(optional[options.region ? 3 : 0] as ExperienceRecordingEffects | undefined)
           : undefined;
+        const bufferOffset = (options.region ? 3 : 0) + (options.recordingEffects ? 1 : 0);
+        const buffers = options.buffers
+          ? {
+              read: optional[bufferOffset] as ReadComposerBuffer,
+              release: optional[bufferOffset + 1] as ReleaseComposerBuffer,
+              requestPreparation: optional[bufferOffset + 2] as RequestBufferPreparation,
+            }
+          : undefined;
         return {
           withPersonalScope: withExperienceScope(withPersonalScope, fenceOwn),
           recording: recordingCommandHooks(readAttribution, lifecycle, effects),
@@ -134,6 +154,7 @@ export function navigationProviders(
           readPrepared,
           compose,
           persistDecision,
+          ...(buffers ? { buffers } : {}),
           readDiscoveryCandidates,
           readExactEncounter,
           readContinuations,

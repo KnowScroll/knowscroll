@@ -55,6 +55,66 @@ function withEvidence(s: ComposerSnapshot): ComposerSnapshot {
   };
 }
 describe('Composer v0 pure policy (labelled CI input fixtures)', () => {
+  it('a subject move never offers the explanation the person is on, in any format', () => {
+    const s = fixture(4);
+    const current = s.candidates[0]!.encounter;
+    const twin = {
+      ...s.candidates[1]!,
+      encounter: { ...s.candidates[1]!.encounter, explanationUnitId: current.explanationUnitId },
+    };
+    const snapshot: ComposerSnapshot = {
+      ...s,
+      candidates: [s.candidates[0]!, twin, ...s.candidates.slice(2)],
+      source: ref(current),
+      intent: { ...s.intent, explanationUnitId: current.explanationUnitId },
+    };
+    const decision = composeEncounter(snapshot);
+    expect(
+      decision.evaluations.filter((e) => e.exclusions.includes('current_explanation')).map((e) => e.assetId),
+    ).toEqual([current.assetId, twin.encounter.assetId]);
+    expect(decision.selection.map((x) => x.assetId)).not.toContain(current.assetId);
+    expect(decision.selection.map((x) => x.assetId)).not.toContain(twin.encounter.assetId);
+    const alone = composeEncounter({ ...snapshot, candidates: snapshot.candidates.slice(0, 2) });
+    expect(alone.outcome).toBe('exhausted');
+  });
+  it('uses a stored Jev assessment as SemanticFit for that candidate only; absence falls back to the baseline', () => {
+    const s = fixture(2);
+    const assessed = s.candidates[0]!.encounter;
+    const decision = composeEncounter({
+      ...s,
+      semanticAssessments: {
+        roleVersion: 'jev.1/hp2',
+        model: 'fixture-model',
+        assessedAt: '2026-10-20T12:00:00Z',
+        expiresAt: '2026-10-20T12:30:00Z',
+        entries: [{ ...ref(assessed), relevance: 1, appropriateness: 0.5, redundancy: 0.5 }],
+      },
+    });
+    // 0.4*1 + 0.4*0.5 + 0.2*(1-0.5) = 0.7
+    expect(decision.evaluations[0]?.features.semanticFit).toBeCloseTo(0.7);
+    expect(decision.evaluations[1]?.features.semanticFit).toBe(0.5);
+    expect(decision.input.semanticAssessments?.model).toBe('fixture-model');
+  });
+  it('refuses assessments of an unknown or repeated candidate', () => {
+    const s = fixture(2);
+    const entry = { relevance: 0.5, appropriateness: 0.5, redundancy: 0.5 };
+    const assessments = (entries: readonly (typeof entry & { assetId: string; assetRevision: number })[]) => ({
+      ...s,
+      semanticAssessments: {
+        roleVersion: 'jev.1/hp2',
+        model: 'fixture-model',
+        assessedAt: '2026-10-20T12:00:00Z',
+        expiresAt: '2026-10-20T12:30:00Z',
+        entries,
+      },
+    });
+    expect(() => composeEncounter(assessments([{ ...entry, assetId: 'unknown', assetRevision: 1 }]))).toThrow(
+      'COMPOSER_SNAPSHOT_INVALID',
+    );
+    const known = { ...entry, assetId: 'asset-0', assetRevision: 1 };
+    expect(() => composeEncounter(assessments([known, known]))).toThrow('COMPOSER_SNAPSHOT_INVALID');
+    expect(() => composeEncounter(assessments([{ ...known, relevance: 1.5 }]))).toThrow('COMPOSER_SNAPSHOT_INVALID');
+  });
   it('uses the exact vertical and horizontal equations', () => {
     const f = {
       intent: 0.8,
