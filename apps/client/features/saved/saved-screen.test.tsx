@@ -95,7 +95,7 @@ it('pages past the old hundred-item ceiling with scoped server places and no mor
     expect(screen.getAllByTestId('saved-encounter-card')).toHaveLength(20);
     expect(screen.queryByText('Saved fixture 21')).toBeNull();
     release();
-    await waitFor(() => expect(screen.getAllByText('Saved place: 1:05 · opens paused')).toHaveLength(20));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Paused at 1:05/ })).toHaveLength(20));
     for (let start = 20; start < 160; start += 20) {
       await fireEvent.press(screen.getByRole('button', { name: 'Next 20 saved encounters' }));
       await screen.findByText(`Saved fixture ${start + 1}`);

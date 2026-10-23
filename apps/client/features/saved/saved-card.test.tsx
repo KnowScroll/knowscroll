@@ -33,12 +33,13 @@ function card(
     </DisplayProvider>,
   );
 }
+const available = { ...item, availability: 'available' as const, currentAssetRevision: undefined };
 describe('Saved immutable revision choices', () => {
   it('makes corrected original and updated versions deliberate separate choices and keeps the private playhead', async () => {
     const open = jest.fn();
     await card(item, open);
-    expect(screen.getByText('On this device: 0:12 · opens paused')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: 'Open original saved version' }));
+    // The card is one button named by title, format and place; a corrected item says so first.
+    await fireEvent.press(screen.getByRole('button', { name: 'Corrected CI fixture. Reel. Revised since you kept it' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Open updated version' }));
     expect(open.mock.calls).toEqual([[2], [3]]);
     expect(item.assetRevision).toBe(2);
@@ -57,7 +58,7 @@ describe('Saved immutable revision choices', () => {
     expect(open).not.toHaveBeenCalled();
   });
   it('does not display a replacement membership B playhead for paged card A', async () => {
-    await card(item, jest.fn(), jest.fn(), {
+    await card(available, jest.fn(), jest.fn(), {
       status: 'ready',
       write: 'idle',
       snapshot: {
@@ -73,8 +74,8 @@ describe('Saved immutable revision choices', () => {
         place: { status: 'set', placeRevision: 1, position: { kind: 'reel', positionMs: 65432 } },
       },
     });
-    expect(screen.queryByText('Saved place: 1:05 · opens paused')).toBeNull();
-    expect(screen.queryByText(/On this device/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Paused at 1:05/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Corrected CI fixture. Reel. Not started' })).toBeOnTheScreen();
   });
   it('uses a current server place instead of a legacy local value, and labels read failure honestly', async () => {
     const place: KeepPlaceState = {
@@ -89,12 +90,11 @@ describe('Saved immutable revision choices', () => {
         place: { status: 'set', placeRevision: 1, position: { kind: 'reel', positionMs: 65432 } },
       },
     };
-    const view = await card(item, jest.fn(), jest.fn(), place);
-    expect(screen.getByText('Saved place: 1:05 · opens paused')).toBeOnTheScreen();
-    expect(screen.queryByText(/On this device/)).toBeNull();
+    const view = await card(available, jest.fn(), jest.fn(), place);
+    expect(screen.getByRole('button', { name: 'Corrected CI fixture. Reel. Paused at 1:05' })).toBeOnTheScreen();
     await view.unmount();
-    await card(item, jest.fn(), jest.fn(), { ...place, status: 'unavailable', reason: 'network' });
-    expect(screen.getByText("Saved place couldn't be checked. Open details to retry.")).toBeOnTheScreen();
-    expect(screen.queryByText(/Saved place: 1:05/)).toBeNull();
+    await card(available, jest.fn(), jest.fn(), { ...place, status: 'unavailable', reason: 'network' });
+    expect(screen.getByRole('button', { name: "Corrected CI fixture. Reel. Couldn't check your place" })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /Paused at 1:05/ })).toBeNull();
   });
 });

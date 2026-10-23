@@ -29,6 +29,7 @@ import { SCROLL_CAPABILITIES } from '../scroll/capabilities';
 import { useKeepSurface } from '../saved/use-keep-surface';
 import { KeepWriteStatus } from '../saved/keep-detail';
 import { readResume, writeResume } from '../encounter/encounter-history';
+import { RemovalNotice } from '../saved/removal-notice';
 import { savedRemovalFor } from '../saved/saved-query';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { useEncounterMetrics } from '../encounter/encounter-metrics';
@@ -226,35 +227,22 @@ function ReadyReel({
     >
       {(playback) => (
         <>
-          <View style={[styles.top, { top: metrics.top, left: metrics.side, right: metrics.side }]} pointerEvents="box-none">
+          <View
+            style={[styles.top, { top: metrics.top, left: metrics.side, right: metrics.side }]}
+            pointerEvents="box-none"
+          >
             <View style={styles.topRow} pointerEvents="box-none">
               <IconButton icon="back" label="Back" variant="onMedia" onPress={goBack} />
               <View style={styles.spacer} pointerEvents="none" />
               {document.fixture ? <Tag label="Fixture video" variant="onDark" /> : null}
-              <FormatSwitch selected="reel" availability={{ scroll: 'unavailable' }} showIcons onSelect={() => undefined} />
+              <FormatSwitch
+                selected="reel"
+                availability={{ scroll: 'unavailable' }}
+                showIcons
+                onSelect={() => undefined}
+              />
             </View>
-            {removalState.status === 'grace' ? (
-              <Banner
-                kind="info"
-                lead="Removing from Keep."
-                message="It goes in five seconds."
-                action={{ label: 'Undo removal', onPress: () => removal.undo() }}
-              />
-            ) : null}
-            {removalState.status === 'preparing' || removalState.status === 'sending' ? (
-              <Banner kind="reconnecting" lead="Removing from Keep." message="One moment." />
-            ) : null}
-            {removalState.status === 'unknown' ? (
-              <Banner
-                kind="error"
-                lead="Removal wasn't confirmed."
-                message="It may still be in Keep."
-                action={{ label: 'Retry removal', onPress: () => removal.retry() }}
-              />
-            ) : null}
-            {removalState.status === 'unavailable' ? (
-              <Banner kind="error" lead="Couldn't remove it." message="Check Keep before trying again." />
-            ) : null}
+            <RemovalNotice removal={removalState} undo={() => removal.undo()} retry={() => removal.retry()} />
             {saveFailed ? <Banner kind="info" lead="Couldn't save." message="Try Save again." /> : null}
             {kept.state.place.write === 'unknown' || kept.state.place.write === 'conflict' ? (
               <KeepWriteStatus
@@ -275,7 +263,10 @@ function ReadyReel({
               }}
             />
           </View>
-          <View style={[styles.title, { bottom: metrics.bottom + 64, left: spacing[5], right: spacing[5] }]} pointerEvents="none">
+          <View
+            style={[styles.title, { bottom: metrics.bottom + 64, left: spacing[5], right: spacing[5] }]}
+            pointerEvents="none"
+          >
             <Text variant="heading" heading={1} color={content.paper}>
               {document.title}
             </Text>

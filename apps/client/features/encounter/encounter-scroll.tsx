@@ -44,9 +44,15 @@ export function ScrollEncounter({
   const playable = foreground && !state.overlay && state.phase === 'active';
   const [underway, setUnderway] = useState(false);
   const firstBlockId = entry.scroll.document.sections[0]?.blocks[0]?.id;
+  const lastBlockId = entry.scroll.document.sections.at(-1)?.blocks.at(-1)?.id;
   const onPositionChange = useCallback(
-    (position: ScrollLocalPosition) => setUnderway(position.blockId !== firstBlockId || position.offsetWithinBlock > OPENING_OFFSET),
-    [firstBlockId],
+    (position: ScrollLocalPosition) =>
+      // Underway: past the opening, which holds its own action row, and short of the end card, which holds another.
+      setUnderway(
+        (position.blockId !== firstBlockId || position.offsetWithinBlock > OPENING_OFFSET) &&
+          position.blockId !== lastBlockId,
+      ),
+    [firstBlockId, lastBlockId],
   );
   useLayoutEffect(() => {
     if (!playable) return;

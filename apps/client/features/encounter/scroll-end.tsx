@@ -62,7 +62,9 @@ export function ScrollEnd({
           <Text variant="ui" heading={2}>
             Continue this idea
           </Text>
-          {seriesNext.status === 'ready' ? <ContinueRow state={seriesNext} session={session} disabled={disabled} /> : null}
+          {seriesNext.status === 'ready' ? (
+            <ContinueRow state={seriesNext} session={session} disabled={disabled} />
+          ) : null}
           {related.status === 'ready' ? <ContinueRow state={related} session={session} disabled={disabled} /> : null}
         </View>
       ) : null}

@@ -60,7 +60,7 @@ export function EncounterStateScreen({
       ]
     : [];
   const phase = calm ? 'calm' : state.phase;
-  if (phase === 'calm')
+  if (phase === 'calm' || phase === 'exhausted')
     return (
       <StateFrame>
         <StateBlock

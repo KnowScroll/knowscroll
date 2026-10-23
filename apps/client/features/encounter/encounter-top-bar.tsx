@@ -36,8 +36,15 @@ export function EncounterTopBar({
     <View style={styles.bar} pointerEvents="box-none">
       {onMedia ? null : <IconButton icon="back" label="Back" variant="paper" onPress={back} />}
       <View style={styles.spacer} pointerEvents="none" />
-      {onMedia && entry.kind === 'reel' && entry.document.fixture ? <Tag label="Fixture video" variant="onDark" /> : null}
-      <IconButton icon="more" label="More options" variant={onMedia ? 'onMedia' : 'paper'} onPress={() => session.setOverlay(true)} />
+      {onMedia && entry.kind === 'reel' && entry.document.fixture ? (
+        <Tag label="Fixture video" variant="onDark" />
+      ) : null}
+      <IconButton
+        icon="more"
+        label="More options"
+        variant={onMedia ? 'onMedia' : 'paper'}
+        onPress={() => session.setOverlay(true)}
+      />
       <FormatSwitch
         selected={entry.kind}
         availability={formatAvailability(entry)}

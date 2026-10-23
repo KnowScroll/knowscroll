@@ -3,13 +3,14 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import { spacing } from '@knowscroll/design-tokens';
-import { Button, ErrorState, Skeleton, StateBlock, Text } from '@knowscroll/ui';
+import { Button, ErrorState, Skeleton, StateBlock } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
 import { readResume } from '../encounter/encounter-history';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
 import { ScreenFrame } from '../shell/screen-frame';
-import { EmptyKeepScreen } from './empty-keep-screen';
+import { EmptyKeepScreen, KeepTile } from './empty-keep-screen';
+import { RemovalNotice } from './removal-notice';
 import { KeptSavedCard } from './saved-card';
 import { KeepDetail } from './keep-detail';
 import type { AvailableKeep } from './keep-place-bridge';
@@ -44,36 +45,38 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
     router.navigate('/explore');
   };
   const visible = page.page?.items ?? [];
+  const firstVisit = filter === 'all' && !page.canPrevious && !page.olderDiscarded;
   return (
-    <ScreenFrame tone="paper" title="Keep" bodyOffset={spacing[7]}>
+    <ScreenFrame tone="paper" title={selected ? undefined : 'Keep'} pageTitle="Keep" bodyOffset={spacing[7]}>
       <View style={styles.body}>
-        <View role="group" accessibilityLabel="Filter saved encounters" style={styles.filters}>
-          {(['all', 'reel', 'scroll'] as const).map((kind) => (
-            <Button
-              key={kind}
-              label={kind === 'all' ? 'All' : kind === 'reel' ? 'Reels' : 'Scrolls'}
-              size="sm"
-              variant={filter === kind ? 'primary' : 'ghost'}
-              toggled={filter === kind}
-              onPress={() => {
-                pages.refresh(kind);
-              }}
-            />
-          ))}
-        </View>
+        {selected ? null : (
+          <View role="group" accessibilityLabel="Filter saved encounters" style={styles.filters}>
+            {(['all', 'reel', 'scroll'] as const).map((kind) => (
+              <Button
+                key={kind}
+                label={kind === 'all' ? 'All' : kind === 'reel' ? 'Reels' : 'Scrolls'}
+                size="sm"
+                variant={filter === kind ? 'ink' : 'ghost'}
+                toggled={filter === kind}
+                onPress={() => {
+                  pages.refresh(kind);
+                }}
+              />
+            ))}
+          </View>
+        )}
         {page.status === 'loading' ? <Skeleton rows={3} label="Loading kept encounters" /> : null}
         {page.status === 'unavailable' ? (
           <ErrorState
-            title="Refresh Keep"
-            body="This page couldn't be checked. Refresh to start with the latest saved encounters."
+            title="Couldn't load Keep"
+            body="Your saved encounters are safe. Try again in a moment."
             onRetry={() => pages.refresh()}
           />
         ) : null}
-        <Button label="Refresh Keep" variant="ghost" onPress={() => pages.refresh()} />
         {openFailed ? (
           <StateBlock
-            title="Your current move needs attention"
-            body="Return to Explore to retry or review the current move before opening another encounter."
+            title="Finish your current move first"
+            body="Go back to Explore, then open this from Keep again."
             actions={[
               {
                 label: 'Return to Explore',
@@ -87,52 +90,37 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
         ) : null}
         {page.status === 'ready' && visible.length === 0 ? (
           <StateBlock
+            illustration={firstVisit ? <KeepTile /> : undefined}
             title={
               page.page?.continuation.status === 'more'
-                ? 'More saved encounters to check'
-                : filter === 'all' && !page.canPrevious && !page.olderDiscarded
+                ? 'More to check'
+                : firstVisit
                   ? 'Nothing kept yet'
-                  : 'No saved encounters on this page'
+                  : 'Nothing on this page'
             }
             body={
               page.page?.continuation.status === 'more'
-                ? 'Continue to check the next part of this filter.'
-                : 'Try another filter or refresh Keep. You can also save an encounter from Explore.'
+                ? 'Continue to look through the rest.'
+                : firstVisit
+                  ? 'Tap Save on any Reel or Scroll and it lands here, with your place kept.'
+                  : 'Try another filter, or go back to the newest.'
+            }
+            actions={
+              firstVisit
+                ? [
+                    {
+                      label: 'Go to Explore',
+                      variant: 'primary',
+                      role: 'link',
+                      href: '/explore',
+                      onPress: () => router.navigate('/explore'),
+                    },
+                  ]
+                : []
             }
           />
         ) : null}
-        {removalState.status === 'grace' ? (
-          <View style={styles.body}>
-            <Text variant="bodyS">Removal starts in five seconds. Undo keeps this encounter in Keep.</Text>
-            <Button
-              label="Undo removal"
-              onPress={() => {
-                removal.undo();
-              }}
-            />
-          </View>
-        ) : null}
-        {removalState.status === 'preparing' ? <Text variant="meta">Checking this saved encounter…</Text> : null}
-        {removalState.status === 'sending' ? <Text variant="meta">Removing this saved encounter…</Text> : null}
-        {removalState.status === 'unknown' ? (
-          <View style={styles.body}>
-            <Text variant="bodyS">
-              Removal wasn't confirmed. Retry checks the same removal. Undo is no longer available.
-            </Text>
-            <Button
-              label="Retry removal"
-              onPress={() => {
-                removal.retry();
-              }}
-            />
-          </View>
-        ) : null}
-        {removalState.status === 'confirmed' ? (
-          <Text variant="meta">Removal confirmed. The latest Keep list is shown when refreshed.</Text>
-        ) : null}
-        {removalState.status === 'unavailable' ? (
-          <Text variant="bodyS">This removal couldn't be completed. Refresh Keep before choosing again.</Text>
-        ) : null}
+        <RemovalNotice removal={removalState} undo={() => removal.undo()} retry={() => removal.retry()} />
         {selected ? (
           <KeepDetail
             key={`${selected.assetId}:${String(selected.assetRevision)}`}
@@ -163,14 +151,15 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
           : null}
         {!selected && page.status === 'ready' ? (
           <View role="group" accessibilityLabel="Keep pages" style={styles.filters}>
-            <Button
-              label="Previous 20 saved encounters"
-              variant="ghost"
-              disabled={!page.canPrevious}
-              onPress={() => {
-                pages.previous();
-              }}
-            />
+            {page.canPrevious ? (
+              <Button
+                label="Previous 20 saved encounters"
+                variant="ghost"
+                onPress={() => {
+                  pages.previous();
+                }}
+              />
+            ) : null}
             {page.page?.continuation.status === 'more' ? (
               <Button
                 label={visible.length === 0 ? 'Continue' : 'Next 20 saved encounters'}
@@ -179,15 +168,12 @@ export function SignedInSaved({ scope }: { readonly scope: AccountScope }) {
                   pages.next();
                 }}
               />
-            ) : (
-              <Text variant="meta">End of this traversal. Keep is a live list; refresh for changes.</Text>
-            )}
+            ) : null}
             {!page.canPrevious && page.olderDiscarded ? (
-              <Text variant="meta">This is the oldest retained page. Refresh Keep to return to the beginning.</Text>
+              <Button label="Back to the newest" variant="ghost" onPress={() => pages.refresh()} />
             ) : null}
           </View>
         ) : null}
-        <Text variant="meta">Content requests aren't available here yet.</Text>
       </View>
     </ScreenFrame>
   );

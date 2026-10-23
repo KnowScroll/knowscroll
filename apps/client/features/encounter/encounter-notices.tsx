@@ -2,6 +2,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { borderStyle as borderStyleTokens, borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Icon, PendingStripe, Text } from '@knowscroll/ui';
+import { RemovalNotice } from '../saved/removal-notice';
 import type { EncounterEntry } from './encounter-history';
 import type { EncounterSession, EncounterState } from './encounter-session';
 
@@ -76,28 +77,7 @@ function ActionNotices({ entry, state, session }: Props) {
   const keep = state.keepPlace;
   return (
     <>
-      {removal?.status === 'grace' ? (
-        <Banner
-          kind="info"
-          lead="Removing from Keep."
-          message="It goes in five seconds."
-          action={{ label: 'Undo removal', onPress: () => session.undoRemoval() }}
-        />
-      ) : null}
-      {removal?.status === 'preparing' || removal?.status === 'sending' ? (
-        <Banner kind="reconnecting" lead="Removing from Keep." message="One moment." />
-      ) : null}
-      {removal?.status === 'unknown' ? (
-        <Banner
-          kind="error"
-          lead="Removal wasn't confirmed."
-          message="It may still be in Keep."
-          action={{ label: 'Retry removal', onPress: () => session.retryRemoval() }}
-        />
-      ) : null}
-      {removal?.status === 'unavailable' ? (
-        <Banner kind="error" lead="Couldn't remove it." message="Check Keep before trying again." />
-      ) : null}
+      <RemovalNotice removal={removal} undo={() => session.undoRemoval()} retry={() => session.retryRemoval()} />
       {state.actionFailed ? (
         <Banner
           kind="error"
@@ -129,7 +109,6 @@ function ActionNotices({ entry, state, session }: Props) {
     </>
   );
 }
-
 
 /** Notices float above the tab bar, never over the actions or the title. */
 export function EncounterNotices(props: Props) {

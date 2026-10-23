@@ -15,7 +15,8 @@ function visitedRows(state: EncounterState): readonly EncounterEntry[] {
 
 function ThreadRow({ entry }: { readonly entry: EncounterEntry }) {
   const relation = entry.offer.relation;
-  const label = relation.kind === 'series_step' ? `Part ${String(relation.part)}` : entry.kind === 'reel' ? 'Reel' : 'Scroll';
+  const label =
+    relation.kind === 'series_step' ? `Part ${String(relation.part)}` : entry.kind === 'reel' ? 'Reel' : 'Scroll';
   return (
     <View style={styles.thread}>
       <Tag label={label} variant={relation.kind === 'series_step' ? 'part' : 'neutral'} />
@@ -66,7 +67,9 @@ export function EncounterEnding({
               <Text variant="displayL" heading={1}>
                 We'll bring you back here
               </Text>
-              <Text variant="body">{series ? `Part ${String(series.part)}, end — ` : ''}“{entry.offer.metadata.title}”.</Text>
+              <Text variant="body">
+                {series ? `Part ${String(series.part)}, end — ` : ''}“{entry.offer.metadata.title}”.
+              </Text>
               <Text variant="bodyS" color={content.ink2}>
                 It's in Keep whenever you want it. Next time you open Explore you'll get something new; this thread
                 waits until you choose it. Nothing expires.

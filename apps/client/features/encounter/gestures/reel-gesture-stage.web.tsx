@@ -13,7 +13,7 @@ export function ReelGestureStage({
   const start = useRef({ x: 0, y: 0, pointerId: -1 });
   return (
     <div
-      style={{ display: 'flex', flex: 1, minHeight: 0, touchAction: 'none' }}
+      style={{ display: 'flex', flex: 1, minHeight: 0, touchAction: 'none', userSelect: 'none' }}
       data-testid="reel-navigation-stage"
       tabIndex={0}
       role="group"

@@ -117,7 +117,10 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
       : content.paper;
   return (
     <View
-      style={[styles.ground, { backgroundColor: ground, paddingLeft: railed ? 0 : insets.left, paddingRight: insets.right }]}
+      style={[
+        styles.ground,
+        { backgroundColor: ground, paddingLeft: railed ? 0 : insets.left, paddingRight: insets.right },
+      ]}
       testID="encounter-explore"
     >
       {showSurface ? (
@@ -145,7 +148,12 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
       ) : state.phase === 'exhausted' && entry && !calm ? (
         <EncounterEnding entry={entry} state={state} session={session} onDone={() => setCalmedEntry(entry)} />
       ) : (
-        <EncounterStateScreen state={state} session={session} calm={calm} onLeaveCalm={() => setCalmedEntry(undefined)} />
+        <EncounterStateScreen
+          state={state}
+          session={session}
+          calm={calm}
+          onLeaveCalm={() => setCalmedEntry(undefined)}
+        />
       )}
       <EncounterSheets state={state} session={session} />
     </View>

@@ -2,14 +2,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, type ReactNode } from 'r
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import { content, spacing } from '@knowscroll/design-tokens';
-import {
-  EdgeTab,
-  ReelProgress,
-  Tag,
-  Text,
-  type ReelPlaybackView,
-  type ReelPositionHandle,
-} from '@knowscroll/ui';
+import { EdgeTab, ReelProgress, Tag, Text, type ReelPlaybackView, type ReelPositionHandle } from '@knowscroll/ui';
 import { ActivatedReelView } from '../reel/activated-reel-view';
 import { useReelPageStage } from '../reel/reel-page';
 import { continuationIntent, continuationLabel, continuationName } from './continuation-intent';
@@ -90,7 +83,10 @@ function ReelChrome({
   const titleBottom = progressBottom + 44 + spacing[3];
   return (
     <>
-      <View style={[styles.top, { top: metrics.top, left: metrics.side, right: metrics.side }]} pointerEvents="box-none">
+      <View
+        style={[styles.top, { top: metrics.top, left: metrics.side, right: metrics.side }]}
+        pointerEvents="box-none"
+      >
         <EncounterTopBar entry={entry} session={session} surface="media" back={back} />
         <View style={styles.notices} pointerEvents="box-none">
           <EncounterNotices entry={entry} state={state} session={session} />

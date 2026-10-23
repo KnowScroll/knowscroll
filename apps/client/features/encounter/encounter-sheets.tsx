@@ -3,15 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  borderWidth,
-  content,
-  dimension,
-  layout,
-  opacity,
-  radius,
-  spacing,
-} from '@knowscroll/design-tokens';
+import { borderWidth, content, dimension, layout, opacity, radius, spacing } from '@knowscroll/design-tokens';
 import { IconButton, Icon, Tag, Text, type IconName } from '@knowscroll/ui';
 import { appApiOrigin } from '../../platform/api';
 import { RequestPanel } from '../requests/request-panel';

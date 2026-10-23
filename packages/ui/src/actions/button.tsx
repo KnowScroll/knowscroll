@@ -25,7 +25,8 @@ import { Text } from '../text/text';
  * Authored variants (Components.html): primary, default, ink, ghost, space. Drawn in the frames
  * and named here: danger (D05), continue (continuation only, D-006 b).
  */
-export type ButtonVariant = 'primary' | 'default' | 'ink' | 'ghost' | 'space' | 'danger' | 'continue';
+export type ButtonVariant =
+  'primary' | 'default' | 'ink' | 'ghost' | 'space' | 'spacePrimary' | 'spaceGhost' | 'danger' | 'continue';
 export type ButtonSize = 'md' | 'sm';
 
 interface VariantStyle {
@@ -51,6 +52,22 @@ const variants: Record<ButtonVariant, VariantStyle> = {
     background: space.control,
     foreground: space.onControl,
     border: space.control,
+    shadow: false,
+    focus: 'onDark',
+  },
+  /** The one primary action on the spatial ground (A01 "Continue with email"): cobalt, no offset shadow. */
+  spacePrimary: {
+    background: content.accent,
+    foreground: content.onAccent,
+    border: content.accent,
+    shadow: false,
+    focus: 'onDark',
+  },
+  /** The quiet second choice on the spatial ground (A01 "I have a sign-in link"). */
+  spaceGhost: {
+    background: 'transparent',
+    foreground: space.label,
+    border: space.label,
     shadow: false,
     focus: 'onDark',
   },

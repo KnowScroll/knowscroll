@@ -328,6 +328,12 @@ const styles = StyleSheet.create({
   bar: { minHeight: 48, justifyContent: 'center', alignItems: 'flex-start' },
   state: { paddingTop: spacing[9], alignItems: 'center' },
   article: { flex: 1, backgroundColor: content.paper },
-  top: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], paddingHorizontal: layout.gutter, paddingBottom: spacing[2] },
+  top: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    paddingHorizontal: layout.gutter,
+    paddingBottom: spacing[2],
+  },
   spacer: { flex: 1 },
 });
