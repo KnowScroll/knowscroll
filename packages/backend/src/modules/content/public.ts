@@ -123,6 +123,34 @@ export function isReadingInteractionAllowed(blockType: string, interactionKind: 
   return declared[blockType]?.includes(interactionKind) === true;
 }
 
+/**
+ * Scroll production as shared worker jobs (D-037): the queue and its job, and the two reads
+ * Quartermaster makes. A request is commissioned by choosing a library recipe by code and sending its
+ * job in the request's own transaction; the shared run's standing is read without any lock.
+ */
+export {
+  produceScrollQueue,
+  produceScrollJob,
+  produceScrollJobId,
+  ProduceScrollJobSchema,
+  type ProduceScrollJob,
+} from './production/events.js';
+export type { RunScrollProduction, ScrollProductionJobOutcome, ProduceScroll } from './production/job.js';
+export { libraryRecipes, planLibraryProduction } from './domain/library/serving.js';
+export type {
+  CatalogueBrief,
+  LibraryProductionPlan,
+  LibraryRecipeStatus,
+  ScrollProductionState,
+  ScrollRecipeChoice,
+} from './domain/library/serving.js';
+/** Chooses the library recipe a missing-supply request commissions; read inside the caller's personal transaction. */
+export type ChooseScrollRecipe = (scope: PersonalScopeTx, brief: CatalogueBrief) => Promise<ScrollRecipeChoice>;
+export const CHOOSE_SCROLL_RECIPE = Symbol('content.chooseScrollRecipe');
+/** Where one recipe's production stands; `stopped` for a key the plan does not hold. */
+export type ReadScrollProduction = (scope: PersonalScopeTx, recipe: string) => Promise<ScrollProductionState>;
+export const READ_SCROLL_PRODUCTION = Symbol('content.readScrollProduction');
+
 /** Code-selected production topics and predictable model-request ceiling; no research is exported. */
 export { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from './production/topics.js';
 export type { ScrollTopic } from './production/topics.js';
@@ -145,6 +173,7 @@ import type {
   ContinuityAdmission,
 } from './domain/discovery.js';
 import type { AdmissionTx } from './application/ports.js';
+import type { CatalogueBrief, ScrollProductionState, ScrollRecipeChoice } from './domain/library/serving.js';
 export type ReadDiscoveryCandidates = (
   scope: PersonalScopeTx,
   query: EncounterQuery,

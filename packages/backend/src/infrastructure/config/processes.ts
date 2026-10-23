@@ -87,6 +87,8 @@ export interface ApiConfig extends ReleaseIdentity {
   /** How long a socket subscription's authorisation may be reused before it is rechecked. */
   readonly socketAuthorisationCacheMs: number;
   readonly identity: IdentitySettings;
+  /** Shared Scroll productions that people's requests may start per UTC day; 0 turns Create off. */
+  readonly supplyCreateDailyCap: number;
 }
 
 /** The operator sign-in command (`dist/operator.js`), refused unless enabled outside live. */
@@ -133,6 +135,10 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly cartographerEnabled: boolean;
   /** Jev's optional semantic assessment in the Composer buffer job; default off, on for dev. */
   readonly jevEnabled: boolean;
+  /** Shared Scroll productions that the Planner's demand may start per UTC day; 0 turns Create off. */
+  readonly supplyCreateDailyCap: number;
+  /** The production scope generation the `content.produce-scroll` consumer works under. */
+  readonly scrollProductionGeneration: number;
   readonly database: DatabaseSettings;
   readonly shutdownGraceMs: number;
   /** Personal-scope lock wait; always shorter than the statement timeout. */
@@ -182,6 +188,17 @@ export interface WorkerOperatorConfig {
 export interface MigrateConfig {
   readonly world: string;
   readonly database: DatabaseSettings;
+}
+
+/**
+ * `KS_SUPPLY_CREATE_DAILY_CAP`: how many shared Scroll productions Quartermaster's Create may start
+ * per UTC day (each is one writer call and at most one repair). 0 turns Create off, so a request for
+ * missing supply closes honestly. Default 20 in `local`, 0 in every other world (D-037).
+ */
+const supplyCreateCapVariable = z.coerce.number().int().min(0).max(500).optional();
+
+function supplyCreateDailyCap(configured: number | undefined, world: string): number {
+  return configured ?? (world === 'local' ? 20 : 0);
 }
 
 const databaseVariables = {
@@ -235,6 +252,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SCOPE_LOCK_TIMEOUT_MS: positiveInteger(5_000, 60_000),
       KS_AUTH_ADAPTER: z.enum(['session', 'test-bearer']).default('session'),
       KS_SOCKET_AUTH_CACHE_MS: z.coerce.number().int().min(0).max(30_000).default(30_000),
+      KS_SUPPLY_CREATE_DAILY_CAP: supplyCreateCapVariable,
     }),
     pick(env, [
       'DATABASE_URL',
@@ -248,6 +266,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SCOPE_LOCK_TIMEOUT_MS',
       'KS_AUTH_ADAPTER',
       'KS_SOCKET_AUTH_CACHE_MS',
+      'KS_SUPPLY_CREATE_DAILY_CAP',
     ]),
   );
   const [release, parsed, identity] = combineChecks(
@@ -280,6 +299,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     authAdapter: parsed.KS_AUTH_ADAPTER,
     socketAuthorisationCacheMs: parsed.KS_SOCKET_AUTH_CACHE_MS,
     identity,
+    supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
     ...(parsed.KS_MEDIA_ROOT === undefined ? {} : { mediaRoot: parsed.KS_MEDIA_ROOT }),
   };
 }
@@ -555,6 +575,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_PLANNER_ENABLED: z.enum(['0', '1']).optional(),
         KS_CARTOGRAPHER_ENABLED: z.enum(['0', '1']).default('0'),
         KS_JEV_ENABLED: z.enum(['0', '1']).default('0'),
+        KS_SUPPLY_CREATE_DAILY_CAP: supplyCreateCapVariable,
+        KS_SCROLL_PRODUCTION_GENERATION: positiveInteger(1, 2_147_483_647),
         KS_CUTROOM_COMMISSIONING_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CUTROOM_RECEIVING_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CUTROOM_RECEIVING_PACKET: z
@@ -599,6 +621,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_PLANNER_ENABLED',
         'KS_CARTOGRAPHER_ENABLED',
         'KS_JEV_ENABLED',
+        'KS_SUPPLY_CREATE_DAILY_CAP',
+        'KS_SCROLL_PRODUCTION_GENERATION',
         'KS_CUTROOM_COMMISSIONING_ENABLED',
         'KS_CUTROOM_RECEIVING_ENABLED',
         'KS_CUTROOM_RECEIVING_PACKET',
@@ -685,6 +709,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     plannerEnabled: (parsed.KS_PLANNER_ENABLED ?? (release.world === 'local' ? '1' : '0')) === '1',
     cartographerEnabled: parsed.KS_CARTOGRAPHER_ENABLED === '1',
     jevEnabled: parsed.KS_JEV_ENABLED === '1',
+    supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
+    scrollProductionGeneration: parsed.KS_SCROLL_PRODUCTION_GENERATION,
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),
     shutdownGraceMs: parsed.KS_SHUTDOWN_GRACE_SECONDS * 1000,
     scopeLockTimeoutMs: parsed.KS_SCOPE_LOCK_TIMEOUT_MS,
