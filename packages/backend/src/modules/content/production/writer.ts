@@ -94,7 +94,7 @@ export function writerInstructions(format: WriterFormat): string {
 /** The format a recipe asks for. A recipe may name its preferred rich block; otherwise interactive means a diagram. */
 export function writerFormatOf(recipe: {
   readonly interactive: boolean;
-  readonly interactiveKind?: WriterFormat;
+  readonly interactiveKind?: WriterFormat | null;
 }): WriterFormat {
   return recipe.interactiveKind ?? (recipe.interactive ? 'diagram' : 'comparison');
 }

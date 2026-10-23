@@ -141,14 +141,14 @@ separate ephemeral access credentials, never content provenance or consumption e
 
 ## Generated Scroll production
 
-The worker's `content produce-scroll --topic seasons|tides|greenhouse [--dry-run] [--resume]`
-uses content-owned claims/writer roles through the explicit nonpersonal harness (0013), never a
-personal universe. Both roles put code checks inside the harness's single repair boundary: at most
-four model requests per topic, with uncertain attempts never resent. Publication closes the writer
-run and stores the immutable admitted revision in the same production-root transaction. Research
-and model waits happen outside it. The same version reruns idempotently; explicit resume continues
-frozen stages after a crash. See [production/README.md](production/README.md) and the
-[operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
+The worker's `content produce-scroll --topic <recipe> [--dry-run] [--resume]` runs one content-owned
+writer call through the explicit nonpersonal harness (0013), never a personal universe: research and
+evidence passages by code, one writer call that cites them, deterministic compilation, and at most
+one repair, so **two model requests per recipe**; uncertain attempts are never resent. Publication
+closes the writer run and stores the immutable admitted revision in the same production-root
+transaction. Research and model waits happen outside it. The same version reruns idempotently;
+explicit resume continues the frozen job after a crash. See [production/README.md](production/README.md)
+and the [operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
 provider/browser evidence are separate requirements; no authored starter is labelled generated.
 ## Admitted discovery and continuity (#234 first backend slice)
 

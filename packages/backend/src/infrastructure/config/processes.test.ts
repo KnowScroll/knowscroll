@@ -426,6 +426,19 @@ describe('process configuration', () => {
     expect(config.database.applicationName).toBe('knowscroll-operator-dev');
   });
 
+  it('writes Scrolls with MiniMax-M3.1-Flash unless the operator names another model', () => {
+    const env = {
+      KS_WORLD: 'local',
+      DATABASE_URL: secretUrl,
+      KS_REASONING_PROVIDER: 'minimax',
+      MINIMAX_API_KEY: 'sk-cp-FIXTUREfixtureFIXTUREfixture0000',
+    };
+    expect(readScrollProductionOperatorConfig(env).reasoning.minimax?.model).toBe('MiniMax-M3.1-Flash');
+    expect(
+      readScrollProductionOperatorConfig({ ...env, KS_MINIMAX_MODEL: 'MiniMax-M3' }).reasoning.minimax?.model,
+    ).toBe('MiniMax-M3');
+  });
+
   it('keeps Scroll production disabled and pins its expected grant generation explicitly', () => {
     const env = { KS_WORLD: 'local', DATABASE_URL: secretUrl };
     const config = readScrollProductionOperatorConfig(env);
