@@ -49,10 +49,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function refused(
-  stage: DraftStage,
-  issues: readonly Issue[],
-): { kind: 'refused'; stage: DraftStage; issues: readonly Issue[] } {
+function refused(stage: DraftStage, issues: readonly Issue[]): Refusal {
   return { kind: 'refused', stage, issues: uniqueIssues(issues) };
 }
 
@@ -366,18 +363,23 @@ function withDisplays(sections: readonly Section[], displays: ReadonlyMap<string
   }));
 }
 
-interface Analysis {
+export interface Analysis {
   readonly draft: ScrollDraft;
   readonly provenance: DraftProvenance;
   readonly sections: Section[];
   readonly bindings: ProvenanceBinding[];
 }
 
-/** Runs every stage; stops at the first stage with findings. */
-function analyse(
-  raw: unknown,
-  provenanceInput: DraftProvenance,
-): Analysis | { kind: 'refused'; stage: DraftStage; issues: readonly Issue[] } {
+export type Refusal = { readonly kind: 'refused'; readonly stage: DraftStage; readonly issues: readonly Issue[] };
+
+/** Turns the assembled document into provenance bindings: anchors the draft wrote, or ones code derived. */
+export type BindingResolver = (document: HonestyDocument) => {
+  readonly bindings: ProvenanceBinding[];
+  readonly issues: readonly Issue[];
+};
+
+/** Parses a raw reply: provenance, envelope and schema stages; then the shared stages with anchored bindings. */
+function analyse(raw: unknown, provenanceInput: DraftProvenance): Analysis | Refusal {
   const provenanceParse = DraftProvenance.safeParse(provenanceInput);
   if (!provenanceParse.success) {
     return refused(
@@ -396,7 +398,14 @@ function analyse(
   const parsed = ScrollDraft.safeParse(normaliseDraftInput(raw));
   if (!parsed.success) return refused('schema', parsed.error.issues.map(issueFromSchema));
   const draft = parsed.data;
+  return analyseDraft(draft, provenance, (document) => resolveBindings(draft, document, provenance));
+}
 
+/**
+ * The stages after the schema: structure, computation, evidence and the brief. Runs every stage
+ * and stops at the first stage with findings. `bind` supplies the bindings.
+ */
+export function analyseDraft(draft: ScrollDraft, provenance: DraftProvenance, bind: BindingResolver): Analysis | Refusal {
   const assembly = assemble(draft);
   const document: HonestyDocument = {
     kicker: provenance.publication.kicker,
@@ -414,7 +423,7 @@ function analyse(
   const sections = withDisplays(assembly.sections, displays);
   const proven: HonestyDocument = { ...document, sections };
 
-  const resolved = resolveBindings(draft, proven, provenance);
+  const resolved = bind(proven);
   const evidence = [
     ...resolved.issues,
     ...honestyIssues(proven, { claims: provenance.claims, bindings: resolved.bindings }),
@@ -450,7 +459,11 @@ export function validateDraft(raw: unknown, provenance: DraftProvenance): DraftO
  */
 export function compileDraft(raw: unknown, provenance: DraftProvenance): CompileOutcome {
   const analysis = analyse(raw, provenance);
-  if ('kind' in analysis) return analysis;
+  return 'kind' in analysis ? analysis : finishCompile(analysis);
+}
+
+/** Builds the consumer document and its internal provenance from a finished analysis, and checks them once more. */
+export function finishCompile(analysis: Analysis): CompileOutcome {
   const { draft, sections, bindings } = analysis;
   const publication = analysis.provenance.publication;
   const unsigned: Omit<ScrollDocument, 'integrity'> = {

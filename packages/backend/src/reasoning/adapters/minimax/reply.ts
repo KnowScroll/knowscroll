@@ -1,8 +1,5 @@
 import type { ReportedUsage } from '../../domain/budgets.js';
 import type { ModelReply, QuotaObservation, StopReason } from '../../application/ports.js';
-import { canonicalJson, type CanonicalJson } from '../../../infrastructure/receipts/canonical.js';
-import { MAX_ANSWER_CHARS, MAX_ANSWER_DEPTH, exceedsDepth } from '../../domain/output.js';
-import { OUTPUT_TOOL_NAME, JSON_STRING_TOOL_NAME, type ReplyFormat } from './output-format.js';
 
 /**
  * Pure parsing of MiniMax responses on the Anthropic-compatible route (providers-and-secrets.md).
@@ -26,9 +23,9 @@ function record(value: unknown): Readonly<Record<string, unknown>> | undefined {
 
 /**
  * Usage as MiniMax reports it on this route (Anthropic field names). Input counts new input plus
- * cache writes; cache reads are reported separately as cached tokens; reasoning tokens only when a
- * reasoning count is reported (thinking is disabled, so usually not). Missing or malformed counts
- * are `null` (never estimated).
+ * cache writes; cache reads are reported separately as cached tokens; reasoning tokens are the
+ * reported `thinking_tokens` (adaptive thinking models) or `reasoning_tokens`. Thinking tokens are
+ * part of `output_tokens`. Missing or malformed counts are `null` (never estimated).
  */
 export function parseUsage(value: unknown): ReportedUsage {
   const usage = record(value);
@@ -39,7 +36,10 @@ export function parseUsage(value: unknown): ReportedUsage {
   return {
     inputTokens: input === null ? null : input + (cacheWrite ?? 0),
     outputTokens: count(usage['output_tokens']),
-    reasoningTokens: count(usage['reasoning_tokens']) ?? count(details?.['reasoning_tokens']),
+    reasoningTokens:
+      count(usage['reasoning_tokens']) ??
+      count(details?.['thinking_tokens']) ??
+      count(details?.['reasoning_tokens']),
     cachedTokens: count(usage['cache_read_input_tokens']),
   };
 }
@@ -58,6 +58,9 @@ export function stripThinkingFraming(
   if (end < 0) return { ok: false };
   return { ok: true, text: text.slice(end + '</think>'.length) };
 }
+
+/** Most of an unreadable reply body kept for production diagnostics (the ledger redacts and bounds it again). */
+const MAX_RAW_BODY_CHARS = 65_536;
 
 const remoteIdPattern = /^[A-Za-z0-9_.:-]{1,128}$/;
 
@@ -108,20 +111,28 @@ export function providerErrorCode(value: unknown): string | undefined {
   return undefined;
 }
 
-/** Outcome of reading a 200 response body. `rejected` carries a provider error code. */
+/**
+ * Outcome of reading a 200 response body. `rejected` is a conclusive refusal: a provider error code,
+ * or `MODEL_MISMATCH` (with the usage that was charged).
+ */
 export type ParsedReply =
-  { readonly kind: 'reply'; readonly reply: ModelReply } | { readonly kind: 'rejected'; readonly code: string };
+  | { readonly kind: 'reply'; readonly reply: ModelReply }
+  | { readonly kind: 'rejected'; readonly code: string; readonly usage?: ReportedUsage };
 
 /**
- * Interprets a 200 response body (already bounded), using this call's request-selected format.
- * The opt-in requires one fixed data tool with native object input, then bounds and serializes it
- * for the unchanged harness validator. The default preserves historical joined text
- * blocks with thinking blocks dropped and a leading `<think>` block stripped, the stop reason,
- * usage and a safe remote ID. A body that is not a JSON object, or has no text, is an
- * `unreadable` answer (the provider did answer; nothing usable arrived). An error object in a
- * 200 body is a conclusive rejection.
+ * Interprets a 200 response body: joined `text` blocks (thinking blocks are dropped and a leading
+ * `<think>` block stripped), the stop reason, usage and a safe remote ID. A body that is not a JSON
+ * object, or has no text, is an `unreadable` answer (the provider did answer; nothing usable
+ * arrived). An error object in a 200 body is a conclusive rejection. So is an answer whose `model`
+ * differs from `expectedModel`: the route silently serves an unknown model name with another model
+ * (D-031), and its answer is not what the attempt recorded.
  */
-export function parseMessagesReply(text: string, format: ReplyFormat = 'text'): ParsedReply {
+export function parseMessagesReply(text: string, expectedModel: string): ParsedReply {
+  const rawBody = text.slice(0, MAX_RAW_BODY_CHARS);
+  const unreadable = (code: string, usage = parseUsage(undefined), withId: object = {}): ParsedReply => ({
+    kind: 'reply',
+    reply: { ...withId, usage, answer: { kind: 'unreadable', code, detail: rawBody } },
+  });
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -136,102 +147,24 @@ export function parseMessagesReply(text: string, format: ReplyFormat = 'text'): 
   const baseStatus = record(body['base_resp'])?.['status_code'];
   if (body['type'] === 'error' || (typeof baseStatus === 'number' && baseStatus !== 0))
     return { kind: 'rejected', code: `PROVIDER_ERROR_${providerErrorCode(body) ?? 'UNSPECIFIED'}` };
+  if (body['model'] !== expectedModel) return { kind: 'rejected', code: 'MODEL_MISMATCH', usage };
   const content = Array.isArray(body['content']) ? (body['content'] as unknown[]) : [];
-  if (format === 'single-tool-json-string.v1') {
-    const failed = (code: string): ParsedReply => ({
-      kind: 'reply',
-      reply: { ...withId, usage, answer: { kind: 'unreadable', code } },
-    });
-    if (body['stop_reason'] === 'max_tokens')
-      return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'text', text: '', stop: 'max_tokens' } } };
-    if (body['stop_reason'] !== 'tool_use') return failed('REPLY_TOOL_STOP_INVALID');
-    let input: Readonly<Record<string, unknown>> | undefined;
-    for (const value of content) {
-      const block = record(value);
-      if (block?.['type'] === 'thinking') continue;
-      if (block?.['type'] !== 'tool_use' || block['name'] !== JSON_STRING_TOOL_NAME || input !== undefined)
-        return failed('REPLY_TOOL_SHAPE_INVALID');
-      input = record(block['input']);
-      if (input === undefined) return failed('REPLY_TOOL_INPUT_INVALID');
-    }
-    if (input === undefined) return failed('REPLY_TOOL_MISSING');
-    if (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'json') || typeof input['json'] !== 'string')
-      return failed('REPLY_TOOL_INPUT_INVALID');
-    const answer = input['json'];
-    if (answer.length > MAX_ANSWER_CHARS) return failed('OUTPUT_TOO_LARGE');
-    let parsed: unknown;
-    try {
-      // Strict bare JSON only. No fences, field coercion, second decoding or repair here.
-      parsed = JSON.parse(answer);
-    } catch {
-      return failed('REPLY_TOOL_JSON_INVALID');
-    }
-    if (record(parsed) === undefined) return failed('REPLY_TOOL_JSON_INVALID');
-    const values: unknown[] = [parsed];
-    for (let value = values.pop(); value !== undefined; value = values.pop()) {
-      if (typeof value === 'number' && !Number.isFinite(value)) return failed('REPLY_TOOL_JSON_INVALID');
-      if (typeof value === 'object' && value !== null) for (const child of Object.values(value)) values.push(child);
-    }
-    if (exceedsDepth(parsed, MAX_ANSWER_DEPTH)) return failed('OUTPUT_TOO_DEEP');
-    // The unchanged harness still extracts, redacts, validates, semantically checks and bounds storage.
-    return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'text', text: answer, stop: 'end' } } };
-  }
-  if (format === 'single-tool-object') {
-    const failed = (code: string): ParsedReply => ({
-      kind: 'reply',
-      reply: { ...withId, usage, answer: { kind: 'unreadable', code } },
-    });
-    // Preserve the harness's truncation classification even if the cut-off tool input looks valid.
-    if (body['stop_reason'] === 'max_tokens')
-      return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'text', text: '', stop: 'max_tokens' } } };
-    if (body['stop_reason'] !== 'tool_use') return failed('REPLY_TOOL_STOP_INVALID');
-    let input: Readonly<Record<string, unknown>> | undefined;
-    for (const value of content) {
-      const block = record(value);
-      if (block?.['type'] === 'thinking') continue;
-      if (block?.['type'] !== 'tool_use' || block['name'] !== OUTPUT_TOOL_NAME || input !== undefined)
-        return failed('REPLY_TOOL_SHAPE_INVALID');
-      input = record(block['input']);
-      if (input === undefined) return failed('REPLY_TOOL_INPUT_INVALID');
-    }
-    if (input === undefined) return failed('REPLY_TOOL_MISSING');
-    if (exceedsDepth(input, MAX_ANSWER_DEPTH)) return failed('OUTPUT_TOO_DEEP');
-    let answer: string;
-    try {
-      // Native parsed JSON only; canonicalJson additionally refuses non-finite numeric overflow.
-      answer = canonicalJson(input as CanonicalJson);
-    } catch {
-      return failed('REPLY_TOOL_INPUT_INVALID');
-    }
-    if (answer.length > MAX_ANSWER_CHARS) return failed('OUTPUT_TOO_LARGE');
-    return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'text', text: answer, stop: 'end' } } };
-  }
   const texts = content
     .map((block) => record(block))
     .filter((block) => block?.['type'] === 'text' && typeof block['text'] === 'string')
     .map((block) => block?.['text'] as string);
-  if (texts.length === 0)
-    return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'unreadable', code: 'REPLY_NO_TEXT' } } };
+  if (texts.length === 0) {
+    // Thinking tokens count against max_tokens, so a long think can cut the reply off before any text.
+    if (body['stop_reason'] === 'max_tokens')
+      return { kind: 'reply', reply: { ...withId, usage, answer: { kind: 'text', text: '', stop: 'max_tokens' } } };
+    return unreadable('REPLY_NO_TEXT', usage, withId);
+  }
   const stripped = stripThinkingFraming(texts.join(''));
-  if (!stripped.ok)
-    return {
-      kind: 'reply',
-      reply: { ...withId, usage, answer: { kind: 'unreadable', code: 'THINKING_UNTERMINATED' } },
-    };
+  if (!stripped.ok) return unreadable('THINKING_UNTERMINATED', usage, withId);
   return {
     kind: 'reply',
     reply: { ...withId, usage, answer: { kind: 'text', text: stripped.text, stop: stopReason(body['stop_reason']) } },
   };
-
-  function unreadable(code: string): ParsedReply {
-    return {
-      kind: 'reply',
-      reply: {
-        usage: { inputTokens: null, outputTokens: null, reasoningTokens: null, cachedTokens: null },
-        answer: { kind: 'unreadable', code },
-      },
-    };
-  }
 }
 
 /**

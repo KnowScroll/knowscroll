@@ -12,14 +12,7 @@ import {
   type OutputIssue,
   type SafeCustomIssues,
 } from '../domain/output.js';
-import {
-  HARNESS_PROMPT_VERSION,
-  SINGLE_TOOL_PROMPT_VERSION,
-  NATIVE_SCHEMA_PROMPT_VERSION,
-  JSON_STRING_PROMPT_VERSION,
-  buildPrompt,
-} from '../domain/prompt.js';
-import { deriveNativeInputSchema, NATIVE_SCHEMA_MODE, JSON_STRING_SCHEMA_MODE } from '../domain/native-schema.js';
+import { HARNESS_PROMPT_VERSION, buildPrompt } from '../domain/prompt.js';
 import { makeExecuteAttempt, type AttemptResult, type Judgement } from './execute-attempt.js';
 import {
   MAX_STORED_OUTPUT_BYTES,
@@ -29,6 +22,7 @@ import {
   type ExecutionPorts,
   type ModelPort,
   type ModelReply,
+  type ReasoningEffort,
   type RunDescriptor,
 } from './ports.js';
 
@@ -50,15 +44,11 @@ export interface ReasoningRole<T> {
   /** The role's own version (instructions + schema); recorded on every run and attempt. */
   readonly version: string;
   readonly instructions: string;
-  /** The structural contract of an answer. Schema acceptance is not a quality judgement. */
-  readonly outputSchema: z.ZodType<T>;
   /**
-   * Opt-in single native object or versioned JSON string through a fixed data tool. No actions or tool loop.
-   * A format change requires a role version change. Omitted preserves historical text bytes.
+   * The contract of an answer: structure plus any semantic checks the owning module expresses as
+   * refinements. Schema acceptance is not a quality judgement.
    */
-  readonly outputFormat?: 'single-tool-object' | 'single-tool-json-string.v1';
-  /** Structural input derived from outputSchema; each mode requires its exact carrier pair and a new role/policy version. */
-  readonly nativeOutputSchema?: typeof NATIVE_SCHEMA_MODE | typeof JSON_STRING_SCHEMA_MODE;
+  readonly outputSchema: z.ZodType<T>;
   /**
    * Optional static code → hint catalogue for custom issues with `params.safeCode`. Owned by
    * role code, never context/provider/user data. At most 128 codes (lowercase, digits, `_`, 64
@@ -70,6 +60,8 @@ export interface ReasoningRole<T> {
   readonly safeCustomIssues?: SafeCustomIssues;
   /** Output ceiling per attempt (reasoning + answer), 1 … `MAX_ROLE_OUTPUT_TOKENS`. */
   readonly maxOutputTokens: number;
+  /** How hard a model that thinks should think; omitted leaves the provider's default. */
+  readonly effort?: ReasoningEffort;
   /** Fewer context items than this is refused before anything is reserved (default 0). */
   readonly minContextItems?: number;
   /** The role's daily budget; defaults to the configured per-role cap. */
@@ -124,8 +116,6 @@ export interface ProposeInput<T, A = PersonalAuthority> {
 /** Why the harness refused to run (or to hand back) an attempt. */
 export type ProposeRefusal =
   | 'provider_unavailable'
-  | 'output_format_unsupported'
-  | 'output_schema_unsupported'
   | 'role_invalid'
   | 'run_invalid'
   | 'context_invalid'
@@ -230,15 +220,6 @@ function roleProblem<T>(role: ReasoningRole<T>): boolean {
     !versionPattern.test(role.version) ||
     role.instructions.trim() === '' ||
     role.instructions.length > MAX_INSTRUCTION_CHARS ||
-    (role.outputFormat !== undefined &&
-      role.outputFormat !== 'single-tool-object' &&
-      role.outputFormat !== 'single-tool-json-string.v1') ||
-    (role.nativeOutputSchema !== undefined &&
-      !(
-        (role.nativeOutputSchema === NATIVE_SCHEMA_MODE && role.outputFormat === 'single-tool-object') ||
-        (role.nativeOutputSchema === JSON_STRING_SCHEMA_MODE && role.outputFormat === 'single-tool-json-string.v1')
-      )) ||
-    (role.outputFormat === 'single-tool-json-string.v1' && role.nativeOutputSchema !== JSON_STRING_SCHEMA_MODE) ||
     !Number.isInteger(role.maxOutputTokens) ||
     role.maxOutputTokens < 1 ||
     role.maxOutputTokens > MAX_ROLE_OUTPUT_TOKENS ||
@@ -586,28 +567,10 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
       const model: ModelPort | undefined = ports.model;
       if (model === undefined) return refuse('provider_unavailable');
       if (roleProblem(role)) return refuse('role_invalid');
-      if (role.outputFormat === 'single-tool-object' && model.supportsSingleToolObject !== true)
-        return refuse('output_format_unsupported');
-      if (role.outputFormat === 'single-tool-json-string.v1' && model.supportsSingleToolJsonString !== true)
-        return refuse('output_format_unsupported');
-      if (role.nativeOutputSchema !== undefined && model.supportsNativeOutputSchema !== true)
-        return refuse('output_schema_unsupported');
-      const outputJsonSchema =
-        role.nativeOutputSchema === undefined ? undefined : deriveNativeInputSchema(role.outputSchema);
-      if (role.nativeOutputSchema !== undefined && outputJsonSchema === undefined)
-        return refuse('output_schema_unsupported');
       if (runProblem(run)) return refuse('run_invalid');
       if (contextProblem(context)) return refuse('context_invalid');
       if (context.items.length < (role.minContextItems ?? 0)) return refuse('context_insufficient');
-      if (role.nativeOutputSchema === undefined) await maybePurge();
-      const promptVersion =
-        role.nativeOutputSchema === JSON_STRING_SCHEMA_MODE
-          ? JSON_STRING_PROMPT_VERSION
-          : role.nativeOutputSchema !== undefined
-            ? NATIVE_SCHEMA_PROMPT_VERSION
-            : role.outputFormat === undefined
-              ? HARNESS_PROMPT_VERSION
-              : SINGLE_TOOL_PROMPT_VERSION;
+      await maybePurge();
       const descriptor: RunDescriptor = {
         id: run.id,
         ownerModule: run.ownerModule,
@@ -632,19 +595,13 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
           instructions: role.instructions,
           bundleRef: context.bundleRef,
           items: context.items,
-          ...(role.outputFormat === undefined ? {} : { outputFormat: role.outputFormat }),
-          ...(role.nativeOutputSchema === undefined ? {} : { nativeOutputSchema: role.nativeOutputSchema }),
-          ...(role.nativeOutputSchema === JSON_STRING_SCHEMA_MODE ? { innerJsonSchema: outputJsonSchema } : {}),
           ...(feedback === undefined ? {} : { feedback }),
         });
         const body = model.encode({
           system: text.system,
           user: text.user,
           maxOutputTokens: role.maxOutputTokens,
-          ...(role.outputFormat === undefined ? {} : { outputFormat: role.outputFormat }),
-          ...(outputJsonSchema === undefined || role.nativeOutputSchema === JSON_STRING_SCHEMA_MODE
-            ? {}
-            : { outputJsonSchema }),
+          ...(role.effort === undefined ? {} : { effort: role.effort }),
         });
         return body.length > ports.settings.maxRequestBytes ? undefined : body;
       };
@@ -657,7 +614,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
           step,
           roleId: role.id,
           roleVersion: role.version,
-          promptVersion,
+          promptVersion: HARNESS_PROMPT_VERSION,
           body,
           requestHash,
           maxOutputTokens: role.maxOutputTokens,
@@ -670,7 +627,6 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
 
       const primaryBody = encode();
       if (primaryBody === undefined) return refuse('request_too_large');
-      if (role.nativeOutputSchema !== undefined) await maybePurge();
       const primary = outcomeOf(
         role.outputSchema,
         await executeAttempt(model, plan(primaryBody, 'primary'), judge, signal),

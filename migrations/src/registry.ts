@@ -65,4 +65,8 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
     name: '0044_recording_fresh_lifecycle',
     sha256: '372cf62ca7dde4500d1ba73bd199d91a709acb11ba979c5ddb0328fb852e099c',
   },
+  {
+    name: '0045_scroll_writer_diagnostics',
+    sha256: '988c55b6a2dbcc36e4db35525b36aa7288955bb930b6927280cde659d3321f47',
+  },
 ];

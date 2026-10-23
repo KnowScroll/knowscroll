@@ -52,6 +52,8 @@ const PUBLISH_CODES: ReadonlySet<ReasonCode> = new Set<ReasonCode>([
 
 /** The stage a reason code belongs to (structure unless listed otherwise). */
 export function stageOf(code: ReasonCode): DraftStage {
+  if (code === 'authoring_reference_unknown') return 'structure';
+  if (code.startsWith('authoring_')) return 'evidence';
   if (code.startsWith('schema_') || SCHEMA_CODES.has(code)) return 'schema';
   if (code.startsWith('sim_')) return 'computation';
   if (code.startsWith('binding_') || EVIDENCE_CODES.has(code)) return 'evidence';
@@ -172,6 +174,11 @@ export const REPAIR_HINTS: Readonly<Record<ReasonCode, string>> = {
   media_not_offered: 'Use only offered media.',
   copied_passage: 'Rewrite this in your own words: 9 or more words match the material.',
   provenance_mismatch: 'Internal provenance does not match the compiled document.',
+  authoring_reference_unknown: 'Name only nodes and edges that exist in this diagram, by their id or label.',
+  authoring_cite_unknown: 'Cite only the offered passage handles, such as e1 or e7.',
+  authoring_too_few_cites: 'Ground the explanation in more of the offered passages: cite at least four different ones.',
+  authoring_number_not_in_evidence:
+    'Use a number only if it appears in a passage this block cites; otherwise say it in words.',
   reading_length_out_of_brief: 'Adjust the length to the brief’s reading time.',
 };
 

@@ -9,7 +9,6 @@ import type {
 import type { AttemptState } from '../domain/attempts.js';
 import type { BudgetCap, BudgetUsage, ReportedUsage } from '../domain/budgets.js';
 import type { OutputIssue } from '../domain/output.js';
-import type { NativeInputSchema } from '../domain/native-schema.js';
 
 /**
  * A request as the harness frames it: system text (preamble + role instructions), user text
@@ -20,28 +19,29 @@ export interface ModelRequest {
   readonly system: string;
   readonly user: string;
   readonly maxOutputTokens: number;
-  /** Opt-in output-data carrier, never a tool executor or an autonomous interaction. */
-  readonly outputFormat?: 'single-tool-object' | 'single-tool-json-string.v1';
-  /** Derived structural input only; opt-in and bounded before admission. */
-  readonly outputJsonSchema?: NativeInputSchema;
+  /** How hard a model that thinks should think; models that do not think ignore it. */
+  readonly effort?: ReasoningEffort;
 }
+
+/** The thinking effort a role asks for. Thinking tokens count against the role's output ceiling. */
+export type ReasoningEffort = 'low' | 'medium' | 'high';
 
 /** How a provider ended its answer. `max_tokens` means it was cut off. */
 export type StopReason = 'end' | 'max_tokens' | 'other';
 
 /**
  * A conclusive provider answer. `answer` is the answer text with provider framing (thinking blocks,
- * a leading `<think>…</think>`) already removed by the adapter, or the bounded canonical JSON of
- * one native output-data object for an explicitly opted-in request. An `unreadable` marker means the
- * provider answered but the reply could not be read (too large, not JSON, wrong output shape). Usage counts
- * are what the provider reported; `null` means not reported.
+ * a leading `<think>…</think>`) already removed by the adapter. An `unreadable` marker means the
+ * provider answered but the reply could not be read (too large, not JSON, no text); its optional
+ * `detail` is the bounded raw reply body, kept only for nonpersonal production diagnostics. Usage
+ * counts are what the provider reported; `null` means not reported.
  */
 export interface ModelReply {
   readonly remoteId?: string;
   readonly usage: ReportedUsage;
   readonly answer:
     | { readonly kind: 'text'; readonly text: string; readonly stop: StopReason }
-    | { readonly kind: 'unreadable'; readonly code: string };
+    | { readonly kind: 'unreadable'; readonly code: string; readonly detail?: string };
 }
 
 /**
@@ -100,10 +100,6 @@ export class ModelOutcomeUnknownError extends Error {
 export interface ModelPort {
   readonly provider: string;
   readonly model: string;
-  /** Explicit transport capability; absent means existing text output only. */
-  readonly supportsSingleToolObject?: boolean;
-  readonly supportsSingleToolJsonString?: boolean;
-  readonly supportsNativeOutputSchema?: boolean;
   encode(request: ModelRequest): Uint8Array;
   observeQuota(signal: AbortSignal): Promise<QuotaObservation>;
   send(body: Uint8Array, signal: AbortSignal): Promise<ModelReply>;
@@ -336,6 +332,46 @@ export interface AttemptRef {
   readonly attemptId: string;
 }
 
+/**
+ * A refused answer of a nonpersonal production attempt, kept for diagnosis. `text` is what the
+ * provider returned (or the bounded raw reply body when the reply was unreadable); the ledger
+ * redacts and bounds it before storing. `issues` are the validator's own findings.
+ */
+export interface RejectedAnswer {
+  readonly attempt: AttemptRef;
+  readonly reason: string;
+  readonly issues: readonly OutputIssue[];
+  readonly text: string;
+}
+
+/** One kept refused answer as the operator `show` command prints it. */
+export interface RejectedAnswerRecord {
+  readonly attemptId: string;
+  readonly runId: string;
+  readonly step: string;
+  readonly roleId: string | null;
+  readonly roleVersion: string | null;
+  readonly model: string;
+  readonly reason: string;
+  readonly issues: readonly OutputIssue[];
+  readonly answerText: string;
+  readonly answerChars: number;
+  readonly truncated: boolean;
+  readonly recordedAt: Date;
+  readonly expiresAt: Date;
+}
+
+/** A kept refused answer without its text, as the operator `list` command prints it. */
+export type RejectedAnswerSummary = Omit<RejectedAnswerRecord, 'answerText' | 'issues'> & {
+  readonly issueCount: number;
+};
+
+/** Operator reads of the kept refused answers (nonpersonal production only). */
+export interface RejectedAnswerReader {
+  readonly list: (limit: number) => Promise<readonly RejectedAnswerSummary[]>;
+  readonly read: (attemptId: string) => Promise<RejectedAnswerRecord | undefined>;
+}
+
 /** An attempt awaiting reconciliation or write-off, as an operator sees it (no personal context). */
 export interface UnknownAttempt {
   readonly attemptId: string;
@@ -410,6 +446,12 @@ export interface AttemptLedger<S = PersonalScopeTx> {
     readonly requestHash: string;
     readonly attemptId?: string;
   }) => Promise<'released' | 'unavailable'>;
+  /**
+   * Keeps a refused answer for diagnosis. Implemented by the nonpersonal production ledger only:
+   * a personal ledger leaves it undefined, so no personal answer text is ever kept. Called after
+   * the attempt settled; a failure is logged and never changes the attempt's outcome.
+   */
+  readonly recordRejectedAnswer?: (answer: RejectedAnswer) => Promise<void>;
   /** Usage that arrived for an attempt already written off: recorded on its receipt only. */
   readonly recordLateUsage: (attemptId: string, usage: ReportedUsage) => Promise<void>;
   /** The protected request bytes of an attempt, if still kept (not expired or erased). Harness-only. */

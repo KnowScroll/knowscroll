@@ -140,7 +140,7 @@ export interface WorkerConfig extends ReleaseIdentity {
 }
 
 /** Text models the MiniMax token-plan key serves (`MiniMax-M3.1-Flash-Preview` is not one). */
-export const MINIMAX_MODELS = ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] as const;
+export const MINIMAX_MODELS = ['MiniMax-M3.1-Flash', 'MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] as const;
 
 /** Daily caps of one budget dimension. */
 export interface ReasoningCap {

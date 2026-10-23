@@ -8,15 +8,13 @@ import {
   type QuotaObservation,
 } from '../../application/ports.js';
 import { judgeQuota, parseMessagesReply, providerErrorCode } from './reply.js';
-import { OUTPUT_TOOL, JSON_STRING_TOOL, SCHEMA_OUTPUT_TOOL_DESCRIPTION, requestReplyFormat } from './output-format.js';
-import { isNativeInputSchema } from '../../domain/native-schema.js';
 
 /** The fixed Anthropic-compatible messages route of the token plan (no endpoint override). */
 export const MINIMAX_MESSAGES_URL = 'https://api.minimax.io/anthropic/v1/messages';
 /** The token-plan quota preflight (an observation, not a reservation). */
 export const MINIMAX_QUOTA_URL = 'https://www.minimax.io/v1/token_plan/remains';
 /** Text models available on the token-plan key (`MiniMax-M3.1-Flash-Preview` is not). */
-export const MINIMAX_TEXT_MODELS = ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] as const;
+export const MINIMAX_TEXT_MODELS = ['MiniMax-M3.1-Flash', 'MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] as const;
 export type MiniMaxModel = (typeof MINIMAX_TEXT_MODELS)[number];
 
 export interface MiniMaxSettings {
@@ -113,21 +111,25 @@ function deadline(signal: AbortSignal, timeoutMs: number) {
   };
 }
 
+/** `MiniMax-M3.1-Flash` thinks before it answers, adaptively, and refuses `thinking: disabled` (HTTP 400, code 2013). */
+const thinksAdaptively = (model: MiniMaxModel): boolean => model === 'MiniMax-M3.1-Flash';
+
 /**
  * The MiniMax transport behind `ModelPort` (blueprint §15; providers-and-secrets.md).
  *
- * - `encode`: canonical JSON (sorted keys) of `{model, max_tokens, system, messages, thinking:
- *   {type: "disabled"}}` — thinking is disabled on this route; any `<think>` framing that still
- *   arrives is stripped from the answer here, and only here.
- *   Opt-in M3 requests add one fixed output-data tool and documented `auto` choice; they grant
- *   no action and make no extra call. Only those exact request bytes select native-object parsing.
+ * - `encode`: canonical JSON (sorted keys) of `{model, max_tokens, system, messages, thinking}`,
+ *   plus `output_config.effort` for a model that thinks adaptively (without it thinking can use the
+ *   whole token budget). Thinking tokens count against `max_tokens`. Thinking content (a
+ *   `thinking` block, or `<think>` framing at the start of the text) is dropped from the answer in
+ *   `reply.ts`, and only there.
  * - `send`: exactly one `fetch` (no SDK, no retries, `redirect: "manual"`), one deadline over the
- *   whole exchange, a bounded body read. Mapping: 200 → answer (or `unreadable`); 3xx/4xx/429/500/
- *   503/529 → `ModelRejectedError` (conclusive); 502/504 → `ModelOutcomeUnknownError` (a gateway
- *   cannot say whether the provider processed it); connection refused/DNS/TLS before sending →
- *   `ModelNotSentError`; a timeout, reset or interrupted read after the request may have left →
- *   `ModelOutcomeUnknownError`. Error bodies are read (bounded) only for a sanitised error type;
- *   messages, headers and URLs from the provider are never kept.
+ *   whole exchange, a bounded body read. Mapping: 200 → answer (or `unreadable`; an answer whose
+ *   `model` is not the configured model is a conclusive `MODEL_MISMATCH` rejection); 3xx/4xx/429/
+ *   500/503/529 → `ModelRejectedError` (conclusive); 502/504 → `ModelOutcomeUnknownError` (a
+ *   gateway cannot say whether the provider processed it); connection refused/DNS/TLS before
+ *   sending → `ModelNotSentError`; a timeout, reset or interrupted read after the request may have
+ *   left → `ModelOutcomeUnknownError`. Error bodies are read (bounded) only for a sanitised error
+ *   type; messages, headers and URLs from the provider are never kept.
  * - `observeQuota`: one bounded GET of the token-plan quota, judged by `judgeQuota`; never throws.
  *
  * The key is sent only in headers. Nothing here logs.
@@ -140,47 +142,17 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
   return {
     provider: 'minimax',
     model: settings.model,
-    supportsSingleToolObject: settings.model === 'MiniMax-M3',
-    supportsSingleToolJsonString: settings.model === 'MiniMax-M3',
-    supportsNativeOutputSchema: settings.model === 'MiniMax-M3',
-
     encode(request) {
-      if (
-        request.outputFormat !== undefined &&
-        ((request.outputFormat !== 'single-tool-object' && request.outputFormat !== 'single-tool-json-string.v1') ||
-          settings.model !== 'MiniMax-M3')
-      )
-        throw new ModelNotSentError('OUTPUT_FORMAT_UNSUPPORTED');
-      if (
-        request.outputJsonSchema !== undefined &&
-        (request.outputFormat !== 'single-tool-object' ||
-          settings.model !== 'MiniMax-M3' ||
-          !isNativeInputSchema(request.outputJsonSchema))
-      )
-        throw new ModelNotSentError('OUTPUT_SCHEMA_UNSUPPORTED');
       return encoder.encode(
         canonicalJson({
           model: settings.model,
           max_tokens: request.maxOutputTokens,
           system: request.system,
           messages: [{ role: 'user', content: [{ type: 'text', text: request.user }] }],
-          thinking: { type: 'disabled' },
-          ...(request.outputFormat === undefined
-            ? {}
-            : {
-                tools: [
-                  request.outputFormat === 'single-tool-json-string.v1'
-                    ? JSON_STRING_TOOL
-                    : request.outputJsonSchema === undefined
-                      ? OUTPUT_TOOL
-                      : {
-                          name: OUTPUT_TOOL.name,
-                          description: SCHEMA_OUTPUT_TOOL_DESCRIPTION,
-                          input_schema: request.outputJsonSchema,
-                        },
-                ],
-                tool_choice: { type: 'auto' },
-              }),
+          thinking: { type: thinksAdaptively(settings.model) ? 'adaptive' : 'disabled' },
+          ...(thinksAdaptively(settings.model) && request.effort !== undefined
+            ? { output_config: { effort: request.effort } }
+            : {}),
         }),
       );
     },
@@ -231,11 +203,8 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
     async send(body, signal): Promise<ModelReply> {
       if (body.byteLength > settings.maxRequestBytes) throw new ModelNotSentError('REQUEST_TOO_LARGE');
       if (signal.aborted) throw new ModelNotSentError('ABORTED_BEFORE_DISPATCH');
-      // Snapshot once: mode selection and fetch see the same bytes even if the caller mutates its array.
+      // Snapshot once: fetch sees the same bytes even if the caller mutates its array.
       const frozenBody = new Uint8Array(body);
-      const replyFormat = requestReplyFormat(decoder.decode(frozenBody));
-      if (replyFormat === undefined || (replyFormat !== 'text' && settings.model !== 'MiniMax-M3'))
-        throw new ModelNotSentError('OUTPUT_FORMAT_UNSUPPORTED');
       const limit = deadline(signal, settings.requestTimeoutMs);
       const uncertain = (fallback: string) =>
         new ModelOutcomeUnknownError(
@@ -291,8 +260,8 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
             };
           throw uncertain('BODY_READ_INTERRUPTED');
         }
-        const parsed = parseMessagesReply(decoder.decode(bytes), replyFormat);
-        if (parsed.kind === 'rejected') throw new ModelRejectedError(parsed.code);
+        const parsed = parseMessagesReply(decoder.decode(bytes), settings.model);
+        if (parsed.kind === 'rejected') throw new ModelRejectedError(parsed.code, parsed.usage);
         return parsed.reply;
       } finally {
         limit.dispose();

@@ -161,8 +161,6 @@ function snapshot<T>(input: PersonalRecordingProposeInput<T>): PersonalRecording
     'maxOutputTokens',
     'minContextItems',
     'budget',
-    'outputFormat',
-    'nativeOutputSchema',
     'safeCustomIssues',
   ]);
   const authority = data(run?.authority, ['universeId', 'privacyEpoch', 'actor']);

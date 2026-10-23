@@ -45,13 +45,15 @@ import { produceScrollUseCase } from '@knowscroll/backend/modules/content/nest-p
  *   reasoning unknown [--limit <n>]                        attempts awaiting reconciliation
  *   reasoning sweep-dispatched [--older-than-seconds <n>]  attempts a crash left dispatched -> unknown
  *   reasoning purge-expired                                delete expired protected requests
+ *   reasoning rejected [--limit <n>]                       refused answers of Scroll production, newest first
+ *   reasoning rejected --attempt <uuid>                    one refused answer with its text and findings
  *
  * Exit status: 0 done, 2 refused or not applicable (bad usage, not unknown, missing), 1 failure.
  * MiniMax offers no request lookup: an `unknown` attempt is never resent; a write-off records the
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js cutroom import-corpus | cutroom commission (trusted configured root packet required) | operator.js content produce-scroll --topic seasons|tides|greenhouse|greenhouse-radiation|greenhouse-balance|greenhouse-limits [--dry-run] [--resume] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired';
+  'usage: operator.js cutroom import-corpus | cutroom commission (trusted configured root packet required) | operator.js content produce-scroll --topic seasons|tides|greenhouse|greenhouse-radiation|greenhouse-balance|greenhouse-limits [--dry-run] [--resume] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -305,7 +307,11 @@ async function main(): Promise<number> {
   }
   const known =
     area === 'reasoning' &&
-    (command === 'write-off' || command === 'unknown' || command === 'sweep-dispatched' || command === 'purge-expired');
+    (command === 'write-off' ||
+      command === 'unknown' ||
+      command === 'sweep-dispatched' ||
+      command === 'purge-expired' ||
+      command === 'rejected');
   if (!known || args.positionals.length !== 2) {
     print({ result: 'usage', usage });
     return 2;
@@ -366,6 +372,20 @@ async function main(): Promise<number> {
       }
       case 'purge-expired': {
         print({ command: 'reasoning purge-expired', result: 'purged', count: await operator.purgeExpired() });
+        return 0;
+      }
+      case 'rejected': {
+        if (args.values.attempt !== undefined) {
+          const shown = await operator.showRejectedAnswer(args.values.attempt);
+          print({ command: 'reasoning rejected', ...shown });
+          return shown.kind === 'found' ? 0 : 2;
+        }
+        const limit = args.values.limit === undefined ? 20 : Number(args.values.limit);
+        if (!Number.isInteger(limit) || limit < 1) {
+          print({ result: 'usage', usage });
+          return 2;
+        }
+        print({ command: 'reasoning rejected', result: 'listed', answers: await operator.listRejectedAnswers(limit) });
         return 0;
       }
     }

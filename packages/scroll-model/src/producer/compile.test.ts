@@ -1,7 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
-  AUTHORED_BLOCK_TYPES,
   canonicalJson,
   fallbackTextOf,
   numericTokens,
@@ -19,8 +18,6 @@ import { sentenceRanges } from '../text.js';
 import { scrollDocument } from '../test-support/arbitraries.js';
 import { fixture } from '../test-support/fixtures.js';
 import {
-  blockCatalogueText,
-  CATALOGUE_MAX_BYTES,
   compileDraft,
   draftFromDocument,
   normaliseDraftInput,
@@ -474,51 +471,7 @@ function evidenceFor(document: ScrollDocument): { provenance: DraftProvenance; b
   };
 }
 
-describe('the producer contract for the writer prompt', () => {
-  it('describes every authored block type within 8 KB and never offers fallback as a type', () => {
-    const text = blockCatalogueText();
-    expect(utf8ByteLength(text)).toBeLessThanOrEqual(CATALOGUE_MAX_BYTES);
-    for (const type of AUTHORED_BLOCK_TYPES) expect(text).toMatch(new RegExp(`^(?:  )?${type} \\{`, 'mu'));
-    expect(text).not.toMatch(/^fallback \{/mu);
-    expect(text).toContain('no expressions');
-    expect(text).not.toMatch(/expr@/u);
-  });
-
-  it('separates the rules code checks from guidance code does not check', () => {
-    const text = blockCatalogueText();
-    const [checked = '', guidance = ''] = text.split('GUIDANCE (not checked by code');
-    expect(checked).toContain('CHECKED BY CODE');
-    expect(guidance).not.toBe('');
-    // Rules that only a reviewer can judge are never presented as checked.
-    for (const advice of ['Name no source', 'Explain, do not summarise', 'Use an interactive block only']) {
-      expect(guidance).toContain(advice);
-      expect(checked).not.toContain(advice);
-    }
-    // Each rule listed as checked is enforced by a reason code that exists and has a repair hint.
-    const enforced: Array<[RegExp, ReasonCode[]]> = [
-      [/Never 9 or more consecutive words/u, ['copied_passage']],
-      [/No web addresses in any text/u, ['text_mentions_web_address', 'schema_unrecognized_keys', 'too_many_blocks']],
-      [/Every number \(digits/u, ['number_unbound', 'numeric_block_unbound', 'binding_anchor_crosses_sentence']],
-      [
-        /illustrative:false binds every number/u,
-        ['simulation_number_unbound', 'constant_unbound', 'simulation_unbound'],
-      ],
-      [/Never write "fallback" blocks/u, ['fallback_reserved', 'schema_unrecognized_keys']],
-    ];
-    const rules = checked.split('\n').filter((line) => /^\d\. /u.test(line));
-    expect(rules).toHaveLength(enforced.length);
-    for (const [pattern, codes] of enforced) {
-      expect(
-        rules.some((rule) => pattern.test(rule)),
-        String(pattern),
-      ).toBe(true);
-      for (const code of codes) {
-        expect(REASON_CODES).toContain(code);
-        expect(REPAIR_HINTS[code].length).toBeGreaterThan(0);
-      }
-    }
-  });
-
+describe('the producer contract', () => {
   it('exports a JSON Schema of the draft for constrained decoding', () => {
     const schema = scrollDraftJsonSchema();
     expect(schema['type']).toBe('object');

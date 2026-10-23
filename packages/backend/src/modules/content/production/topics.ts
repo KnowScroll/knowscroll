@@ -1,6 +1,7 @@
-/** Reviewed production recipe, including role prompt changes; new versions never resume old jobs. */
-export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v13';
-export const REQUEST_BOUND_PER_TOPIC = 4;
+/** The current production recipe. A topic has one job per version; a new recipe is a new version. */
+export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v14';
+/** One writer call and at most one repair. */
+export const REQUEST_BOUND_PER_TOPIC = 2;
 export const TOPICS = {
   seasons: {
     explanationUnitId: 'legacy-cutroom-seasons-v5',

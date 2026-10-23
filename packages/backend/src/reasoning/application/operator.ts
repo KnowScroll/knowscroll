@@ -1,5 +1,12 @@
 import type { LogEvent } from '../../infrastructure/observability/index.js';
-import type { AttemptLedger, UnknownAttempt, WriteOffResult } from './ports.js';
+import type {
+  AttemptLedger,
+  RejectedAnswerReader,
+  RejectedAnswerRecord,
+  RejectedAnswerSummary,
+  UnknownAttempt,
+  WriteOffResult,
+} from './ports.js';
 
 /** Longest write-off reason kept on the attempt. */
 export const MAX_WRITE_OFF_REASON_CHARS = 500;
@@ -18,7 +25,11 @@ export type WriteOffRequestResult = WriteOffResult | { readonly kind: 'invalid_r
  * records unresolved liability with its reason; it never resends, never proves that remote work
  * stopped, never frees the reservation charged to the budget, and never authorises a late answer.
  */
-export function makeReasoningOperator(ports: { readonly ledger: AttemptLedger; readonly logEvent: LogEvent }) {
+export function makeReasoningOperator(ports: {
+  readonly ledger: AttemptLedger;
+  readonly rejectedAnswers: RejectedAnswerReader;
+  readonly logEvent: LogEvent;
+}) {
   return {
     /**
      * `unknown → written_off` for one attempt. Inputs: the attempt ID (UUID), a printable reason
@@ -62,6 +73,22 @@ export function makeReasoningOperator(ports: { readonly ledger: AttemptLedger; r
         total += batch;
       if (total > 0) ports.logEvent('reasoning.dispatched_swept', { count: total });
       return total;
+    },
+    /** Refused answers of nonpersonal production attempts, newest first, without their text. */
+    listRejectedAnswers(limit: number): Promise<readonly RejectedAnswerSummary[]> {
+      return ports.rejectedAnswers.list(limit);
+    },
+    /** One refused answer with its text and the validator's findings, or `invalid_request` / `missing`. */
+    async showRejectedAnswer(
+      attemptId: string,
+    ): Promise<
+      | { readonly kind: 'found'; readonly record: RejectedAnswerRecord }
+      | { readonly kind: 'missing' }
+      | { readonly kind: 'invalid_request'; readonly problem: string }
+    > {
+      if (!uuidPattern.test(attemptId)) return { kind: 'invalid_request', problem: 'attempt_not_a_uuid' };
+      const record = await ports.rejectedAnswers.read(attemptId);
+      return record === undefined ? { kind: 'missing' } : { kind: 'found', record };
     },
     /** Deletes expired protected request bytes now (the harness also does this periodically). */
     async purgeExpired(): Promise<number> {
