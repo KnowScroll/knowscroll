@@ -18,13 +18,12 @@ import { personalRecordingReasoningHarnessFor } from '@knowscroll/backend/reason
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureHarness, fixtureSettings, silent, attemptsOf, signal } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
-import { coverage } from '../support/observations.js';
 import { geographyWorld, topic, facet, otherFacet, type GeographyWorld } from '../support/geography-world.js';
 
 /** Authored CI sources/maps/model proposals only. No source approval, provider or real formation claim. */
 describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtures)', () => {
   let world: GeographyWorld;
-  let database: GeographyWorld['database'], c: GeographyWorld['c'], base: GeographyWorld['base'];
+  let database: GeographyWorld['database'], base: GeographyWorld['base'];
   let request: GeographyWorld['request'], read: GeographyWorld['read'], deltas: GeographyWorld['deltas'];
   let publish: GeographyWorld['publish'], scope: GeographyWorld['scope'];
   let fixture: GeographyWorld['fixture'], observe: GeographyWorld['observe'], coherent: GeographyWorld['coherent'];
@@ -33,7 +32,7 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
   let scopeApply: GeographyWorld['scopeApply'], manualApply: GeographyWorld['manualApply'];
   beforeAll(async () => {
     world = await geographyWorld('geography');
-    ({ database, c, base, request, read, deltas, publish, scope } = world);
+    ({ database, base, request, read, deltas, publish, scope } = world);
     ({ fixture, observe, coherent, state, context, job, formation, runner, snapshot } = world);
     ({ scopeApply, manualApply } = world);
   });

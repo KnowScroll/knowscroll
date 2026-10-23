@@ -79,8 +79,12 @@ export const topic = 'earth.seasons',
  */
 export async function geographyWorld(name: string) {
   const database = await createTestDatabase<Database>(name);
-  let material!: MaterialGeographyChange;
-  const c = await scrollUseCases(database, { recording: true, activityMaterialChange: (s, x) => material(s, x) });
+  // The Scroll use cases need the material-change hook that the providers below build.
+  const hooks: { material?: MaterialGeographyChange } = {};
+  const c = await scrollUseCases(database, {
+    recording: true,
+    activityMaterialChange: (s, x) => hooks.material!(s, x),
+  });
   const approvals = new Map<string, string>();
   const scope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
   const SCOPE = Symbol('scope'),
@@ -106,7 +110,7 @@ export async function geographyWorld(name: string) {
     return value as T;
   };
   const base = get<GeographyPorts>(GEOGRAPHY_PORTS);
-  material = get<MaterialGeographyChange>(GEOGRAPHY_MATERIAL_CHANGE);
+  hooks.material = get<MaterialGeographyChange>(GEOGRAPHY_MATERIAL_CHANGE);
   const request = get<RequestCartography>(REQUEST_CARTOGRAPHY),
     read = get<ReadOwnGeography>(READ_OWN_GEOGRAPHY),
     deltas = get<ReadOwnDeltas>(READ_OWN_DELTAS),
