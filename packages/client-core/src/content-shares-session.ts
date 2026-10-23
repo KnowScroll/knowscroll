@@ -38,7 +38,8 @@ export function createContentSharesSession(options: {
     owner = socialOwnerFor(scope),
     http = createContentSharesHttp(scope),
     slot = {},
-    budget = {},
+    ownBudget = {},
+    resolvedBudget = {},
     pendingBudget = {};
   let state = freezeSocial(empty()),
     ended = false,
@@ -64,14 +65,16 @@ export function createContentSharesSession(options: {
   }
   function cancelReads() {
     serial++;
-    controller?.abort();
+    const previous = controller,
+      waiting = queued;
     controller = undefined;
-    if (currentRead) currentRead.input = undefined;
-    if (queued) {
-      queued.input = undefined;
-      queued.done();
-    }
     queued = undefined;
+    if (currentRead) currentRead.input = undefined;
+    if (waiting) {
+      waiting.input = undefined;
+      waiting.done();
+    }
+    previous?.abort();
   }
   function purge() {
     if (ended) return;
@@ -83,7 +86,8 @@ export function createContentSharesSession(options: {
     if (pending) pending.input = undefined;
     pending = undefined;
     token = undefined;
-    owner.drop(budget);
+    owner.drop(ownBudget);
+    owner.drop(resolvedBudget);
     owner.drop(pendingBudget);
     state = freezeSocial({ ...empty(), status: 'ended' });
   }
@@ -143,14 +147,14 @@ export function createContentSharesSession(options: {
           owner.release(slot);
           if (!current()) return;
         }
-        if (!owner.retain(budget, { own, resolved: state.resolved })) {
+        if (!owner.retain(ownBudget, own)) {
           fail('capacity');
           return;
         }
         publish({ own: { status: 'ready', data: own }, failure: undefined });
       } else {
         const resolved = b as ShareOutput<'resolve'>;
-        if (!owner.retain(budget, { own: state.own, resolved })) {
+        if (!owner.retain(resolvedBudget, resolved)) {
           fail('capacity');
           return;
         }
@@ -163,7 +167,8 @@ export function createContentSharesSession(options: {
         const reason = socialFailure(e).reason;
         if (reason === 'authority') {
           token = undefined;
-          owner.drop(budget);
+          owner.drop(ownBudget);
+          owner.drop(resolvedBudget);
           publish({
             own: { status: 'unavailable', reason },
             resolved: { status: 'unavailable', reason },
@@ -195,9 +200,21 @@ export function createContentSharesSession(options: {
       return Promise.resolve();
     }
     const mine = ++serial;
-    controller?.abort();
-    if (!live() || mine !== serial) return Promise.resolve();
-    publish({ [operation === 'own' ? 'own' : 'resolved']: { status: 'loading' } });
+    const previous = controller,
+      waiting = queued;
+    controller = undefined;
+    queued = undefined;
+    if (currentRead) currentRead.input = undefined;
+    if (waiting) {
+      waiting.input = undefined;
+      waiting.done();
+    }
+    // Remove the selected current authority and its body admission before either publication
+    // or abort callbacks. The opposite current lane keeps its independent budget admission.
+    owner.drop(operation === 'own' ? ownBudget : resolvedBudget);
+    state = { ...state, [operation === 'own' ? 'own' : 'resolved']: { status: 'loading' } };
+    publish();
+    previous?.abort();
     if (!live() || mine !== serial) return Promise.resolve();
     return new Promise((done) => {
       void dispatch({ operation, input: prepared, done } as Read, mine);
@@ -239,7 +256,8 @@ export function createContentSharesSession(options: {
       } else token = undefined;
       pending = undefined;
       owner.drop(pendingBudget);
-      owner.drop(budget);
+      owner.drop(ownBudget);
+      owner.drop(resolvedBudget);
       state = {
         ...state,
         own: { status: 'idle' },
@@ -255,7 +273,8 @@ export function createContentSharesSession(options: {
       p.ambiguous ||= error.ambiguous;
       if (error.reason === 'authority') {
         token = undefined;
-        owner.drop(budget);
+        owner.drop(ownBudget);
+        owner.drop(resolvedBudget);
         state = {
           ...state,
           own: { status: 'unavailable', reason: 'authority' },

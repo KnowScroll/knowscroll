@@ -96,7 +96,9 @@ export function createConversationsSession(options: {
     drafts = new Map<string, { conversation: DirectConversationRef; body: ConversationDraft; budget: object }>(),
     listeners = new Set<() => void>();
   const queryKey = scope.queryKey('conversations-trigger', ++nextOwner);
-  let observer: QueryObserver<number> | undefined,
+  type FocusOwner = { key: readonly (string | number)[]; observer?: QueryObserver<number> };
+  let focusOwner: FocusOwner | undefined,
+    focusGeneration = 0,
     completion = 0;
   const live = () => !ended && owner.live();
   function publish(patch: Partial<ConversationsState> = {}) {
@@ -124,26 +126,35 @@ export function createConversationsSession(options: {
     drafts.delete(key);
   }
   function stopReads() {
+    // Detach old work before callbacks: reentry may already install a different read.
     serial++;
-    controller?.abort();
+    const previous = controller,
+      waiting = queued;
     controller = undefined;
-    queued?.done();
     queued = undefined;
+    waiting?.done();
+    previous?.abort();
   }
-  const stopObserver = () => {
+  const stopObserver = (previous: FocusOwner | undefined) => {
+    if (!previous) return;
+    if (focusOwner === previous) focusOwner = undefined;
+    const observer = previous.observer;
+    previous.observer = undefined;
     observer?.destroy();
-    observer = undefined;
-    void scope.queryClient.cancelQueries({ queryKey });
-    scope.queryClient.removeQueries({ queryKey });
+    // Exact generation key: cleanup cannot cancel a reentrantly installed newer owner.
+    void scope.queryClient.cancelQueries({ queryKey: previous.key, exact: true });
+    scope.queryClient.removeQueries({ queryKey: previous.key, exact: true });
   };
   function end() {
     if (ended) return;
     ended = true;
+    const previousFocus = focusOwner;
+    focusOwner = undefined;
     stopReads();
     commandSerial++;
     commandController?.abort();
     commandController = undefined;
-    stopObserver();
+    stopObserver(previousFocus);
     if (pending) pending.input = undefined;
     pending = undefined;
     windows.clear();
@@ -312,7 +323,6 @@ export function createConversationsSession(options: {
         return;
       }
       if (!ref || !key) return;
-      const w = windows.get(key);
       if (job.kind === 'recovery') {
         const p = pending;
         if (!p?.input || p.operation !== 'send' || !sameConversation(p.input.conversation, ref) || !owner.knows(ref))
@@ -365,7 +375,7 @@ export function createConversationsSession(options: {
         publish({ recovery: { status: 'ready', data: b } });
         return;
       }
-      if (!w) return;
+      if (!windows.has(key)) return;
       if (job.kind === 'snapshot') {
         const b = await http.call(
           'read',
@@ -373,6 +383,8 @@ export function createConversationsSession(options: {
           abort.signal,
         );
         if (!current()) return;
+        const w = windows.get(key);
+        if (!w) return;
         if (b.status === 'unavailable') {
           unavailable('unavailable', ref);
           return;
@@ -401,7 +413,7 @@ export function createConversationsSession(options: {
         publish({ failure: undefined });
         return;
       }
-      if (!job.cursor || w.view.status !== 'ready') return;
+      if (!job.cursor || windows.get(key)?.view.status !== 'ready') return;
       if (job.kind === 'history') {
         const b = await http.call(
           'history',
@@ -415,6 +427,8 @@ export function createConversationsSession(options: {
           abort.signal,
         );
         if (!current()) return;
+        const w = windows.get(key);
+        if (!w || w.view.status !== 'ready') return;
         if (b.status !== 'ready') {
           unavailable(b.status === 'unavailable' ? 'unavailable' : 'refresh_required', ref);
           return;
@@ -441,6 +455,8 @@ export function createConversationsSession(options: {
         abort.signal,
       );
       if (!current()) return;
+      const w = windows.get(key);
+      if (!w || w.view.status !== 'ready') return;
       if (b.status !== 'ready') {
         unavailable(b.status === 'unavailable' ? 'unavailable' : 'refresh_required', ref);
         return;
@@ -746,23 +762,30 @@ export function createConversationsSession(options: {
     focus(active) {
       if (!live() || active === state.focused) return;
       if (!active) {
-        publish({ focused: false });
-        if (!live()) return;
-        stopObserver();
+        const previous = focusOwner;
+        focusOwner = undefined;
+        // Invalidate focused authority BEFORE any subscriber, observer or abort callback.
+        state = { ...state, focused: false };
         stopReads();
+        stopObserver(previous);
+        if (live()) publish();
         return;
       }
+      const currentOwner: FocusOwner = { key: [...queryKey, ++focusGeneration] };
+      focusOwner = currentOwner;
+      const current = () => live() && state.focused && focusOwner === currentOwner;
       state = { ...state, focused: true };
       const selected = activeKey ? windows.get(activeKey)?.view.conversation : undefined;
-      // Focus/resync revalidates current authority. Purge prior server bodies synchronously,
-      // before even the metadata-triggered HTTP starts. Drafts remain private and disabled.
+      // Focus/resync revalidates authority before any HTTP or abort callback. No private
+      // Window is captured by this continuation: only a locator and a generation owner.
       const initial = selected ? read('snapshot', selected) : Promise.resolve();
       if (!selected) publish();
-      if (!live()) return;
+      if (!current()) return;
       let first = true;
-      observer = new QueryObserver<number>(scope.queryClient, {
-        queryKey,
+      const observer = new QueryObserver<number>(scope.queryClient, {
+        queryKey: currentOwner.key,
         queryFn: async () => {
+          if (!current()) return ++completion;
           if (first) {
             first = false;
             await initial;
@@ -770,7 +793,9 @@ export function createConversationsSession(options: {
             const ref = activeKey ? windows.get(activeKey)?.view.conversation : undefined;
             if (ref) await read('snapshot', ref);
           }
-          if (live()) await session.refreshInbox();
+          if (!current()) return ++completion;
+          await session.refreshInbox();
+          if (!current()) return ++completion;
           return ++completion;
         },
         retry: false,
@@ -779,9 +804,15 @@ export function createConversationsSession(options: {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
       });
+      currentOwner.observer = observer;
+      if (!current()) {
+        stopObserver(currentOwner);
+        return;
+      }
       observer.subscribe(() => {
-        /* Metadata-only completion trigger. */
+        /* Numeric completion only. */
       });
+      if (!current()) stopObserver(currentOwner);
     },
     async refreshInbox() {
       inboxCursor = undefined;
@@ -792,18 +823,18 @@ export function createConversationsSession(options: {
       if (!live() || !inboxCursor || state.inbox.status !== 'ready') return;
       await read('inbox', undefined, inboxCursor);
     },
-    async open(input) {
+    open(input) {
       const ref = refOf(input);
       if (!live() || !ref || !owner.knows(ref)) {
         fail('refresh_required');
-        return;
+        return Promise.resolve();
       }
       const key = conversationKey(ref);
       let w = windows.get(key);
       if (!w) {
         if (windows.size >= SOCIAL_LIMITS.windows) {
           fail('capacity');
-          return;
+          return Promise.resolve();
         }
         w = {
           budget: {},
@@ -824,7 +855,7 @@ export function createConversationsSession(options: {
       owner.drop(w.budget);
       windows.set(key, { ...w, view: { ...w.view, status: 'loading', peer: undefined, own: undefined, messages: [] } });
       publish();
-      await read('snapshot', ref);
+      return read('snapshot', ref);
     },
     async refreshConversation(ref) {
       const key = refOf(ref);
@@ -833,15 +864,15 @@ export function createConversationsSession(options: {
         await session.open(key);
       } else fail('refresh_required');
     },
-    async history(ref) {
+    history(ref) {
       const r = refOf(ref),
-        w = r ? ready(r) : undefined;
-      if (r && w?.history) await read('history', r, w.history);
+        cursor = r ? ready(r)?.history : undefined;
+      return r && cursor ? read('history', r, cursor) : Promise.resolve();
     },
-    async catchUp(ref) {
+    catchUp(ref) {
       const r = refOf(ref),
-        w = r ? ready(r) : undefined;
-      if (r && w?.changes) await read('changes', r, w.changes);
+        cursor = r ? ready(r)?.changes : undefined;
+      return r && cursor ? read('changes', r, cursor) : Promise.resolve();
     },
     setDraft(input, value) {
       const ref = refOf(input);
@@ -917,24 +948,30 @@ export function createConversationsSession(options: {
       stopReads();
       publish({ command: { status: 'pending', operation: 'start', commandId } });
       try {
-        const pair = await createFriendsHttp(scope).call('pair', { version: 'sharing.v1', peerPersonId }, abort.signal);
-        if (!live() || mine !== commandSerial || abort.signal.aborted) return;
-        if (
-          pair.status !== 'available' ||
-          pair.pair.state !== 'friends' ||
-          !sameSocialId(pair.pair.peer.personId, peerPersonId)
-        )
-          throw new SocialHttpError('unavailable', false);
-        pending = {
-          operation: 'start',
-          input: http.prepare('start', {
-            version: 'direct-conversation.v1',
-            commandId,
-            peerPersonId,
-            expectedPairRevision: pair.pair.pairRevision,
-          }),
-          ambiguous: false,
-        };
+        {
+          const pair = await createFriendsHttp(scope).call(
+            'pair',
+            { version: 'sharing.v1', peerPersonId },
+            abort.signal,
+          );
+          if (!live() || mine !== commandSerial || abort.signal.aborted) return;
+          if (
+            pair.status !== 'available' ||
+            pair.pair.state !== 'friends' ||
+            !sameSocialId(pair.pair.peer.personId, peerPersonId)
+          )
+            throw new SocialHttpError('unavailable', false);
+          pending = {
+            operation: 'start',
+            input: http.prepare('start', {
+              version: 'direct-conversation.v1',
+              commandId,
+              peerPersonId,
+              expectedPairRevision: pair.pair.pairRevision,
+            }),
+            ambiguous: false,
+          };
+        }
         state = { ...state, command: { status: 'idle' } };
         await sendPending(false);
       } catch {

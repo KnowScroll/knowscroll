@@ -225,6 +225,152 @@ describe('scope-lifetime Conversations controller (authored HTTP fixtures)', () 
     expect(h.calls.some((c) => c.path.endsWith('/send'))).toBe(false);
     expect(h.scope.queryClient.getQueryCache().getAll()).toEqual([]);
   });
+  it('invalidates focused continuation on blur even when the HTTP adapter ignores abort', async () => {
+    const held = deferred<unknown>();
+    let hold = false;
+    const h = fixture((path, input) =>
+      hold && path.endsWith('/conversations/read') ? held.promise : response(path, input),
+    );
+    await opened(h);
+    hold = true;
+    const before = h.calls.length;
+    h.session.focus(true);
+    await expect.poll(() => h.calls.length).toBe(before + 1);
+    const original = h.calls.at(-1)!.body;
+    h.session.focus(false);
+    expect(h.session.getState().focused).toBe(false);
+    expect(h.scope.queryClient.getQueryCache().getAll()).toEqual([]);
+    held.open(response('/v1/social/conversations/read', original));
+    await expect.poll(() => h.scope.queryClient.isFetching()).toBe(0);
+    // One event-loop yield drains only the already-issued promise/JSON continuations.
+    await new Promise<void>((done) => setImmediate(done));
+    expect(h.calls).toHaveLength(before + 1);
+    expect(windowOf(h)).toMatchObject({ status: 'loading', messages: [] });
+    expect(h.scope.queryClient.getQueryCache().getAll()).toEqual([]);
+    h.scope.end();
+  });
+  it('cannot recreate an observer or dispatch HTTP after a reentrant first-publication blur', async () => {
+    const h = fixture();
+    await opened(h);
+    const before = h.calls.length;
+    let blurred = false;
+    h.session.subscribe(() => {
+      if (!blurred && h.session.getState().focused) {
+        blurred = true;
+        h.session.focus(false);
+      }
+    });
+    h.session.focus(true);
+    await Promise.resolve();
+    expect(blurred).toBe(true);
+    expect(h.session.getState().focused).toBe(false);
+    expect(h.calls).toHaveLength(before);
+    expect(h.scope.queryClient.getQueryCache().getAll()).toEqual([]);
+    h.scope.end();
+  });
+  it.each(['history', 'changes'] as const)(
+    'does not revive an old %s page after snapshot replacement and scope purge',
+    async (lane) => {
+      const held = deferred<unknown>();
+      let holding = false;
+      const h = fixture((path, input) => {
+        if (holding && path.endsWith('/' + lane)) return held.promise;
+        const b = response(path, input) as Record<string, unknown>;
+        if (path.endsWith('/conversations/read'))
+          return {
+            ...b,
+            latestMessageSequence: 2,
+            messages: [message(2)],
+            history: { kind: 'more', cursor: cursor('kch1', 1) },
+          };
+        return b;
+      });
+      await opened(h);
+      holding = true;
+      const waiting = lane === 'history' ? h.session.history(ref()) : h.session.catchUp(ref());
+      await expect.poll(() => h.calls.at(-1)!.path).toBe('/v1/social/conversations/' + lane);
+      const original = h.calls.at(-1)!.body;
+      const replacement = h.session.refreshConversation(ref());
+      expect(windowOf(h)).toMatchObject({ status: 'loading', messages: [] });
+      h.scope.end();
+      held.open(
+        lane === 'changes'
+          ? {
+              ...(response('/v1/social/conversations/changes', original) as object),
+              fromChangeSequence: 2,
+              throughChangeSequence: 2,
+            }
+          : {
+              version: 'direct-conversation.v1',
+              scope: scopeValue,
+              readId: original.readId,
+              status: 'ready',
+              conversation: ref(),
+              limit: 50,
+              requestCursor: original.cursor,
+              messages: [message(1, 'LATE_PRIVATE_PAGE')],
+              continuation: { kind: 'end' },
+            },
+      );
+      await waiting;
+      await replacement;
+      expect(h.session.getState()).toMatchObject({ status: 'ended', windows: [], drafts: [] });
+      expect(h.calls.filter((c) => c.path.endsWith('/conversations/read'))).toHaveLength(1);
+      expect(JSON.stringify(h.session.getState())).not.toContain('LATE_PRIVATE_PAGE');
+      assertNoPersistence(h.scope, h.store.keys());
+    },
+  );
+  it.each(['history', 'changes'] as const)(
+    'reacquires only the replacement window after an obsolete %s settles',
+    async (lane) => {
+      const held = deferred<unknown>();
+      let holding = false;
+      const h = fixture((path, input) => {
+        if (holding && path.endsWith('/' + lane)) return held.promise;
+        const b = response(path, input) as Record<string, unknown>;
+        return path.endsWith('/conversations/read')
+          ? {
+              ...b,
+              latestMessageSequence: 2,
+              messages: [message(2, 'CURRENT_WINDOW')],
+              history: { kind: 'more', cursor: cursor('kch1', 1) },
+            }
+          : b;
+      });
+      await opened(h);
+      holding = true;
+      const waiting = lane === 'history' ? h.session.history(ref()) : h.session.catchUp(ref());
+      await expect.poll(() => h.calls.at(-1)!.path).toBe('/v1/social/conversations/' + lane);
+      const original = h.calls.at(-1)!.body;
+      const replacement = h.session.refreshConversation(ref());
+      expect(windowOf(h)).toMatchObject({ status: 'loading', messages: [] });
+      held.open(
+        lane === 'changes'
+          ? {
+              ...(response('/v1/social/conversations/changes', original) as object),
+              fromChangeSequence: 2,
+              throughChangeSequence: 2,
+            }
+          : {
+              version: 'direct-conversation.v1',
+              scope: scopeValue,
+              readId: original.readId,
+              status: 'ready',
+              conversation: ref(),
+              limit: 50,
+              requestCursor: original.cursor,
+              messages: [message(1, 'OBSOLETE_PAGE')],
+              continuation: { kind: 'end' },
+            },
+      );
+      await waiting;
+      await replacement;
+      expect(windowOf(h)).toMatchObject({ status: 'ready', messages: [message(2, 'CURRENT_WINDOW')] });
+      expect(JSON.stringify(h.session.getState())).not.toContain('OBSOLETE_PAGE');
+      expect(h.calls.filter((c) => c.path.endsWith('/conversations/read'))).toHaveLength(2);
+      h.scope.end();
+    },
+  );
   it('pins one unknown original command globally; later refusal cannot prove non-send; recovery is body-free and never a bubble', async () => {
     let sends = 0;
     const h = fixture((path, input) => {

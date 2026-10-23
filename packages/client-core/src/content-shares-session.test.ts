@@ -3,6 +3,7 @@ import { problemDetails } from '@knowscroll/contracts';
 import { createAccountScope, memoryStore, type AccountScope } from './account-scope';
 import { createContentSharesSession } from './content-shares-session';
 import { createConversationsSession } from './conversations-session';
+import { SOCIAL_LIMITS, socialOwnerFor } from './conversations-types';
 // Authored private API fixtures. No real share, link delivery, membership or content grant.
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const account = { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'share@fixture.test' },
@@ -63,7 +64,7 @@ function reply(path: string, x: Record<string, unknown>): unknown {
   if (path.endsWith('/resolve')) return { version, readId: x.readId, status: 'public_metadata', content };
   throw new Error('UNEXPECTED_FIXTURE_REQUEST');
 }
-function fixture(handler: (path: string, input: Record<string, unknown>) => unknown = reply) {
+function fixture(handler: (path: string, input: Record<string, unknown>, request: Request) => unknown = reply) {
   let next = 100;
   const calls: { path: string; body: Record<string, unknown>; url: string }[] = [],
     store = memoryStore();
@@ -76,7 +77,7 @@ function fixture(handler: (path: string, input: Record<string, unknown>) => unkn
       const path = new URL(request.url).pathname,
         body = (await request.json()) as Record<string, unknown>;
       calls.push({ path, body, url: request.url });
-      const value = await handler(path, body);
+      const value = await handler(path, body, request);
       return value instanceof Response
         ? value
         : new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } });
@@ -112,6 +113,100 @@ describe('private ContentShares scope owner (authored fixtures)', () => {
     expect(h.calls.every((c) => !c.url.includes(token))).toBe(true);
     noPersistence(h.scope, h.store.keys());
     h.scope.end();
+  });
+  it('purges own authority before publication and abort reentry while preserving the other ready lane', async () => {
+    const held = deferred<unknown>();
+    let hold = false,
+      aborted = false;
+    let abortOwn: unknown, publishedOwn: unknown;
+    const h = fixture((path, input, request) => {
+      if (hold && path.endsWith('/resolve')) {
+        request.signal.addEventListener(
+          'abort',
+          () => {
+            aborted = true;
+            abortOwn = h.session.getState().own;
+            void h.session.revoke(id(6));
+          },
+          { once: true },
+        );
+        return held.promise;
+      }
+      return reply(path, input);
+    });
+    await h.session.readOwn({ kind: 'share', shareId: id(6) });
+    await h.session.resolve(token);
+    const currentCard = h.session.getState().resolved;
+    hold = true;
+    const old = h.session.resolve(token);
+    await expect.poll(() => h.calls.filter((c) => c.path.endsWith('/resolve')).length).toBe(2);
+    h.session.subscribe(() => {
+      if (h.session.getState().own.status === 'loading' && publishedOwn === undefined) {
+        publishedOwn = h.session.getState().own;
+        void h.session.revoke(id(6));
+      }
+    });
+    const next = h.session.readOwn({ kind: 'share', shareId: id(6) });
+    expect(publishedOwn).toEqual({ status: 'loading' });
+    expect(aborted).toBe(true);
+    expect(abortOwn).toEqual({ status: 'loading' });
+    expect(h.calls.some((c) => c.path.endsWith('/revoke'))).toBe(false);
+    // The resolve refresh owns its loading state; no old card is resurrected by abort.
+    expect(currentCard.status).toBe('ready');
+    expect(h.session.getState().resolved.status).toBe('loading');
+    held.open(reply('/v1/content-shares/resolve', h.calls.at(-1)!.body));
+    await old;
+    await next;
+    expect(h.session.getState().own.status).toBe('ready');
+    expect(h.session.getState().resolved.status).toBe('loading');
+    noPersistence(h.scope, h.store.keys());
+    h.scope.end();
+  });
+  it('keeps the opposite ready card during own recheck and fences reentrant scope end before dispatch', async () => {
+    const h = fixture();
+    await h.session.resolve(token);
+    const card = h.session.getState().resolved;
+    let observed: unknown;
+    const before = h.calls.length;
+    h.session.subscribe(() => {
+      if (h.session.getState().own.status === 'loading') {
+        observed = h.session.getState().resolved;
+        h.scope.end();
+      }
+    });
+    await h.session.readOwn({ kind: 'share', shareId: id(6) });
+    expect(observed).toEqual(card);
+    expect(h.calls).toHaveLength(before);
+    expect(h.session.getState()).toMatchObject({
+      status: 'ended',
+      own: { status: 'idle' },
+      resolved: { status: 'idle' },
+    });
+    noPersistence(h.scope, h.store.keys());
+  });
+  it('keeps opposite-lane preview bytes admitted until that lane is purged, then releases the actual shared budget', async () => {
+    const h = fixture(),
+      owner = socialOwnerFor(h.scope),
+      probe = {};
+    await h.session.resolve(token);
+    await h.session.readOwn({ kind: 'share', shareId: id(6) });
+    expect(h.session.getState().resolved.status).toBe('ready');
+    // Direct owner-budget probe only: not a wire payload, message or simulated server proof.
+    expect(owner.retain(probe, { text: 'x'.repeat(SOCIAL_LIMITS.bodyBytes) })).toBe(false);
+    let admitted: boolean | undefined;
+    h.session.subscribe(() => {
+      if (h.session.getState().resolved.status === 'loading' && admitted === undefined) {
+        admitted = owner.retain(probe, { text: 'x'.repeat(SOCIAL_LIMITS.bodyBytes) });
+        owner.drop(probe);
+      }
+    });
+    await h.session.resolve(token);
+    expect(admitted).toBe(true);
+    expect(owner.retain(probe, { text: 'x'.repeat(SOCIAL_LIMITS.bodyBytes) })).toBe(false);
+    h.scope.end();
+    expect(owner.live()).toBe(false);
+    expect(owner.retain(probe, { text: 'after end' })).toBe(false);
+    expect(h.session.getState()).toMatchObject({ status: 'ended', resolved: { status: 'idle' } });
   });
   it('keeps one original unknown command across controllers and later 4xx; status unavailable cannot prove not sent', async () => {
     let sent = 0,
