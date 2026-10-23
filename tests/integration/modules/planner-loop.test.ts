@@ -22,9 +22,12 @@ import {
   type FrozenContext,
 } from '@knowscroll/backend/modules/planner/nest-providers';
 import { geographyStore, makeCheckGeographyRecordingRun } from '@knowscroll/backend/modules/geography/nest-providers';
-import { personalRecordingReasoningHarnessFor } from '@knowscroll/backend/reasoning/nest-providers';
+import {
+  personalRecordingReasoningHarnessFor,
+  reasoningOperatorFor,
+} from '@knowscroll/backend/reasoning/nest-providers';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { fixtureHarness, fixtureModel, fixtureSettings, silent, signal } from '../support/fixture-model.js';
+import { attemptsOf, fixtureHarness, fixtureModel, fixtureSettings, silent, signal } from '../support/fixture-model.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import type { FixturePerson } from '../support/fixtures.js';
 import { buildFromProviders } from '../support/providers.js';
@@ -46,6 +49,7 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
   let database: TestDatabase<Database>, c: Awaited<ReturnType<typeof scrollUseCases>>;
   let failMaterialEnqueue = false;
   let ports: PlannerPorts;
+  let plannerEnabled = true;
   // Each test sets the authored reply it expects the Planner role to receive.
   let reply: () => Promise<FixtureScenario> = () => Promise.reject(new Error('CI fixture reply not set'));
   const model = fixtureModel(() => reply(), { label: 'planner-loop-authored-ci-fixture' });
@@ -140,7 +144,7 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
       capabilities: { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] },
       harness,
       recordDemand: realRecordPlannedDemand(database, c.boss),
-      enabled: () => true,
+      enabled: () => plannerEnabled,
       hash: (x) => requestHash('personal-planner.v0', x as Parameters<typeof requestHash>[1]),
       newId: randomUUID,
       now: () => new Date(),
@@ -166,15 +170,31 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
   const plannerState = (p: FixturePerson) =>
     database.db.selectFrom('planner.state').selectAll().where('universe_id', '=', p.universeId).executeTakeFirst();
 
+  /** The job the run's current wake names: one per wake, whichever earlier jobs the run has had. */
   async function queuedJob(p: FixturePerson) {
     const state = await plannerState(p);
+    const run = await database.db
+      .selectFrom('planner.runs')
+      .select('normal_wake_id')
+      .where('universe_id', '=', p.universeId)
+      .where('id', '=', state!.active_run_id!)
+      .executeTakeFirstOrThrow();
     const queued = await database.pool.query<{ data: unknown }>(
-      "select data from pgboss.job where name='planner.run' and data->>'runId'=$1",
-      [state!.active_run_id],
+      "select data from pgboss.job where name='planner.run' and id=$1",
+      [run.normal_wake_id],
     );
     expect(queued.rows).toHaveLength(1);
     return PlannerJobSchema.parse(queued.rows[0]!.data);
   }
+
+  /** What pg-boss records when a delivery finishes, so the run may be woken again. */
+  const finishDelivery = (runId: string) =>
+    database.pool.query("update pgboss.job set state='completed' where name='planner.run' and data->>'runId'=$1", [
+      runId,
+    ]);
+
+  const runRow = (runId: string) =>
+    database.db.selectFrom('planner.runs').selectAll().where('id', '=', runId).executeTakeFirstOrThrow();
 
   async function frozenContext(p: FixturePerson): Promise<FrozenContext> {
     const state = await plannerState(p);
@@ -340,6 +360,102 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
     expect(decision.input.candidates.map((x) => x.encounter.assetId)).toContain(planned.assetId);
     // Reading the plan wrote no evidence either.
     expect(await evidenceRows(p)).toEqual(evidenceBefore);
+  });
+
+  it('requeues a run that was blocked while the Planner was off, so the next evidence yields a plan', async () => {
+    const p = await recordingPerson(database);
+    const callsBefore = model.calls.length;
+    plannerEnabled = false;
+    try {
+      expect(await c.projectActivity(await qualify(p, assets.watched!))).toMatchObject({ kind: 'applied' });
+      const blockedId = (await plannerState(p))!.active_run_id!;
+      expect(await makeRunPlanner(ports)(await queuedJob(p), signal())).toMatchObject({
+        value: { kind: 'blocked_disabled' },
+      });
+      expect(await runRow(blockedId)).toMatchObject({ status: 'blocked', outcome: 'blocked_disabled' });
+      expect(model.calls).toHaveLength(callsBefore);
+    } finally {
+      plannerEnabled = true;
+    }
+    // New evidence while the old run is blocked: the same run goes back in the queue with a new wake.
+    const blockedId = (await plannerState(p))!.active_run_id!;
+    expect(await c.projectActivity(await qualify(p, assets.first!))).toMatchObject({ kind: 'applied' });
+    expect((await plannerState(p))!.active_run_id).toBe(blockedId);
+    expect(await runRow(blockedId)).toMatchObject({ status: 'queued' });
+    reply = async () => ({ kind: 'success', text: JSON.stringify(proposal(await frozenContext(p), assets.second!)) });
+    expect(await makeRunPlanner(ports)(await queuedJob(p), signal())).toMatchObject({ value: { kind: 'accepted' } });
+    expect(
+      await database.db
+        .selectFrom('planner.revisions')
+        .select('revision')
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(1);
+  });
+
+  it('retires an unknown run once its attempt is settled or old, never resends it, and then plans again', async () => {
+    const p = await recordingPerson(database);
+    const modelCalls = () => model.calls.length;
+    reply = async () => ({ kind: 'timeout_after_dispatch' });
+    expect(await c.projectActivity(await qualify(p, assets.watched!))).toMatchObject({ kind: 'applied' });
+    const unknownId = (await plannerState(p))!.active_run_id!;
+    const before = modelCalls();
+    expect(await makeRunPlanner(ports)(await queuedJob(p), signal())).toMatchObject({ value: { kind: 'unknown' } });
+    expect(modelCalls()).toBe(before + 1);
+    await finishDelivery(unknownId);
+
+    // Evidence arrives while the attempt is unresolved and young: the run is woken and waits.
+    expect(await c.projectActivity(await qualify(p, assets.first!))).toMatchObject({ kind: 'applied' });
+    expect(await makeRunPlanner(ports)(await queuedJob(p), signal())).toMatchObject({
+      value: { kind: 'awaiting_explicit_resume' },
+    });
+    expect((await plannerState(p))!.active_run_id).toBe(unknownId);
+    await finishDelivery(unknownId);
+
+    // Once the operator has written the attempt off, the next evidence retires the run and a successor plans.
+    const attempt = await database.db
+      .selectFrom('reasoning.external_attempts')
+      .select('id')
+      .where('universe_id', '=', p.universeId)
+      .executeTakeFirstOrThrow();
+    const operator = reasoningOperatorFor(database.db, silent);
+    expect(await operator.writeOff(attempt.id, 'CI: provider never answered', 'cli:ci')).toMatchObject({
+      kind: 'written_off',
+    });
+    expect(await c.projectActivity(await qualify(p, assets.second!))).toMatchObject({ kind: 'applied' });
+    expect(await makeRunPlanner(ports)(await queuedJob(p), signal())).toMatchObject({
+      value: { kind: 'unknown_settled' },
+    });
+    expect(await runRow(unknownId)).toMatchObject({ status: 'stale', outcome: 'unknown_settled' });
+    const successorId = (await plannerState(p))!.active_run_id!;
+    expect(successorId).not.toBe(unknownId);
+    reply = async () => ({ kind: 'success', text: JSON.stringify(proposal(await frozenContext(p), assets.second!)) });
+    expect(await makeRunPlanner(ports)(await queuedJob(p), signal())).toMatchObject({ value: { kind: 'accepted' } });
+    // The unknown attempt was never resent: one attempt for the old run, one for its successor.
+    expect((await attemptsOf(database.db, p.universeId)).map((a) => a.state).sort()).toEqual([
+      'succeeded',
+      'written_off',
+    ]);
+  });
+
+  it('retires an unresolved unknown run after two hours without resending it', async () => {
+    const p = await recordingPerson(database);
+    reply = async () => ({ kind: 'timeout_after_dispatch' });
+    expect(await c.projectActivity(await qualify(p, assets.watched!))).toMatchObject({ kind: 'applied' });
+    const unknownId = (await plannerState(p))!.active_run_id!;
+    expect(await makeRunPlanner(ports)(await queuedJob(p), signal())).toMatchObject({ value: { kind: 'unknown' } });
+    await finishDelivery(unknownId);
+    await database.pool.query("update planner.runs set created_at = now() - interval '3 hours' where id=$1", [
+      unknownId,
+    ]);
+    expect(await c.projectActivity(await qualify(p, assets.first!))).toMatchObject({ kind: 'applied' });
+    expect(await makeRunPlanner(ports)(await queuedJob(p), signal())).toMatchObject({
+      value: { kind: 'unknown_expired' },
+    });
+    expect(await runRow(unknownId)).toMatchObject({ status: 'stale', outcome: 'unknown_expired' });
+    expect((await plannerState(p))!.active_run_id).not.toBe(unknownId);
+    // The abandoned attempt stays in the ledger as an unresolved liability.
+    expect((await attemptsOf(database.db, p.universeId)).map((a) => a.state)).toEqual(['unknown']);
   });
 
   it('a stale delivery after a privacy Clear is refused, and Clear removes plans and planned demand', async () => {

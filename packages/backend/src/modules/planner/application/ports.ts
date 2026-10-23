@@ -75,6 +75,7 @@ export interface PlannerRun {
 export type PlannerRunHeader = Omit<PlannerRun, 'context'> & {
   readonly hasContext: boolean;
   readonly hasRecordingMetadata: boolean;
+  readonly createdAt: string;
 };
 export interface PlannerAccountingHeader {
   readonly claimId?: string;
@@ -96,7 +97,8 @@ export interface PlannerStore {
   readonly clearActiveRun: (scope: PersonalScopeTx, id: string) => Promise<void>;
   readonly consumeNormalWake: (scope: PersonalScopeTx, id: string, wakeId: string) => Promise<boolean>;
   readonly accountingHeader: (scope: PersonalScopeTx, id: string) => Promise<PlannerAccountingHeader | undefined>;
-  readonly retire: (scope: PersonalScopeTx, id: string) => Promise<boolean>;
+  /** Ends a run nothing will resume. `outcome` says why; the default is a revoked recording generation. */
+  readonly retire: (scope: PersonalScopeTx, id: string, outcome?: string) => Promise<boolean>;
   readonly state: (scope: PersonalScopeTx) => Promise<PlannerState>;
   readonly writeState: (scope: PersonalScopeTx, state: PlannerState) => Promise<void>;
   readonly stateHeader: (scope: PersonalScopeTx) => Promise<Omit<PlannerState, 'intent'>>;

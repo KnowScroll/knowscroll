@@ -96,10 +96,10 @@ export const plannerStore: PlannerStore = {
         }
       : undefined;
   },
-  async retire(scope, id) {
+  async retire(scope, id, outcome = 'recording_revoked') {
     const { db, u, e } = identity(scope);
     const result =
-      await sql`update planner.runs set status='stale',outcome='recording_revoked',claim_id=null,claim_until=null,normal_wake_id=null,claim_wake_claim_id=null,updated_at=now()
+      await sql`update planner.runs set status='stale',outcome=${outcome},claim_id=null,claim_until=null,normal_wake_id=null,claim_wake_claim_id=null,updated_at=now()
    where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and status in('queued','prepared','unknown','blocked') returning id`.execute(
         db,
       );
@@ -138,6 +138,7 @@ export const plannerStore: PlannerStore = {
           status: PlannerRun['status'];
           claim_id: string | null;
           claim_until: Date | null;
+          created_at: Date;
           has_context: boolean;
           outcome: string | null;
           recording_account_id: string | null;
@@ -147,7 +148,7 @@ export const plannerStore: PlannerStore = {
           claim_wake_claim_id: string | null;
         }
       >`
-   select id,revision,status,claim_id,claim_until,context is not null as has_context,outcome,recording_account_id,recording_generation as generation,recording_origin_kind as origin_kind,recording_origin_command_id as origin_command_id,recording_origin_source_revision as origin_source_revision,recording_context_sha256,recording_model_context_sha256,normal_wake_id,claim_wake_claim_id
+   select id,revision,status,created_at,claim_id,claim_until,context is not null as has_context,outcome,recording_account_id,recording_generation as generation,recording_origin_kind as origin_kind,recording_origin_command_id as origin_command_id,recording_origin_source_revision as origin_source_revision,recording_context_sha256,recording_model_context_sha256,normal_wake_id,claim_wake_claim_id
    from planner.runs where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid`.execute(db)
     ).rows[0];
     if (!row) return undefined;
@@ -157,6 +158,7 @@ export const plannerStore: PlannerStore = {
       id: row.id,
       revision: row.revision,
       status: row.status,
+      createdAt: row.created_at.toISOString(),
       hasContext: row.has_context,
       hasRecordingMetadata: [
         row.recording_account_id,

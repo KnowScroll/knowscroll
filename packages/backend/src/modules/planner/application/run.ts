@@ -26,7 +26,7 @@ import type {
 } from './ports.js';
 import { encounteredUnits, prepareContext } from './context.js';
 import { recordMissingSupplyDemand } from './demand.js';
-import { ensureRun } from './request.js';
+import { ensureRun, withoutClaim } from './request.js';
 import { PlannerJobSchema, type PlannerJob } from '../events.js';
 import { plannerContextItems, plannerContextHashes, plannerRole } from './role.js';
 
@@ -258,10 +258,61 @@ type ClaimedRun = PlannerRun & {
   readonly claimUntil: string;
 };
 
-/** The run as it is once nobody holds it: no claim and no pending wake. */
-function withoutClaim<T extends PlannerRunHeader | PlannerRun>(run: T) {
-  const { normalWakeId: _wake, claimWakeClaimId: _claimWake, claimId: _claim, claimUntil: _until, ...released } = run;
-  return released;
+/** An `unknown` run is retired once its attempt is settled, or after this long without a settlement. */
+export const UNKNOWN_RUN_RETIRES_AFTER_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * An `unknown` run (a request may have been sent) must not end a person's Planner for good, and must
+ * never lead to a second send of the same attempt. New evidence wakes the run; this step then
+ * retires it, and starts a successor with a new business run, when
+ * - the Reasoning ledger says every attempt of the run is settled (answered, reconciled or written
+ *   off), or no attempt is retained; or
+ * - the run is older than `UNKNOWN_RUN_RETIRES_AFTER_MS`. The attempt stays in the ledger as an
+ *   unresolved liability for the operator and the sweeps; only the Planner stops waiting for it.
+ * Otherwise nothing changes and the run waits for an explicit resume or a later wake.
+ */
+async function retireSettledUnknown(p: PlannerPorts, authority: Authority, payload: PlannerJob, original: number) {
+  if (payload.v !== 2 || !payload.wakeId || payload.expectedClaimId || payload.kind === 'retire') return undefined;
+  return p.withPersonalScope(authority, async (scope) => {
+    const header = await p.store.header(scope, payload.runId);
+    if (
+      !header?.recording ||
+      header.status !== 'unknown' ||
+      header.claimId ||
+      header.normalWakeId !== payload.wakeId ||
+      header.recording.source.generation !== original ||
+      (await p.store.stateHeader(scope)).activeRunId !== header.id
+    )
+      return undefined;
+    const recording = header.recording;
+    const accounting = await p.harness.readPersonalRunAccounting(scope, header.id, (gated, own) =>
+      Promise.resolve(
+        own.universeId === gated.authority.universeId &&
+          own.privacyEpoch === gated.authority.privacyEpoch &&
+          own.accountId === recording.accountId
+          ? ({
+              ownerModule: 'planner',
+              purpose: 'personal-planner',
+              accountId: own.accountId,
+              privacyEpoch: gated.authority.privacyEpoch,
+              recordingGeneration: original,
+            } as const)
+          : ('unavailable' as const),
+      ),
+    );
+    const settled =
+      accounting.kind === 'not_found' || (accounting.kind === 'accounted' && accounting.disposition === 'conclusive');
+    const old = p.now().getTime() - Date.parse(header.createdAt) > UNKNOWN_RUN_RETIRES_AFTER_MS;
+    if (!settled && !(old && accounting.kind === 'accounted')) return undefined;
+    const gate = await p.fenceRecording(scope, original);
+    if (gate.kind !== 'recording') return undefined;
+    if (!(await p.store.retire(scope, header.id, settled ? 'unknown_settled' : 'unknown_expired'))) return undefined;
+    const { activeRunId: _active, ...idle } = await p.store.state(scope);
+    await p.store.writeState(scope, idle);
+    if (idle.desiredRevision > header.revision && idle.desiredSource?.generation === gate.scope.generation)
+      await ensureRun(p, gate.scope, idle);
+    return { kind: settled ? 'unknown_settled' : 'unknown_expired' } as const;
+  });
 }
 
 /**
@@ -473,6 +524,9 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
     if (retired.kind !== 'entered') return retired;
     if (retired.value !== undefined) return { kind: 'entered', value: retired.value };
     if (payload.kind === 'retire') throw new Error('PLANNER_RETIREMENT_COLLECTION_FORBIDDEN');
+    const unknown = await retireSettledUnknown(p, authority, payload, original);
+    if (unknown?.kind === 'refused') return unknown;
+    if (unknown?.kind === 'entered' && unknown.value !== undefined) return { kind: 'entered', value: unknown.value };
     const claim = await claimRun(p, authority, payload, original);
     if (claim.kind !== 'entered' || claim.value.kind !== 'prepared') return claim;
     const run = claim.value.run,

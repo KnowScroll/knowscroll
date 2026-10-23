@@ -677,7 +677,17 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       kind: 'entered',
       value: { kind: 'unknown' },
     });
+    // New evidence wakes the unknown run once. Its attempt is unresolved and young, so nothing changes.
     await request(p.authority, { commandId: randomUUID() });
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
+      kind: 'entered',
+      value: { kind: 'awaiting_explicit_resume' },
+    });
+    // The delivered wake is finished, as pg-boss would record, so an explicit resume may queue the run.
+    await database.pool.query(
+      "update pgboss.job set state='completed' where name='planner.run' and data->>'runId'=$1",
+      [s.active_run_id],
+    );
     await request(p.authority, { commandId: randomUUID(), resumeRunId: s.active_run_id! });
     expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
       kind: 'entered',
