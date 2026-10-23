@@ -81,6 +81,26 @@ export function OutlineList({
   );
 }
 
+/** The renderer's low-detail switch (U03 "Low detail"): flat silhouette and a plain list, same layout. */
+export function DrawingToggle({
+  session,
+  state,
+}: {
+  readonly session: UniverseViewSession;
+  readonly state: UniverseViewState;
+}) {
+  const simple = state.detail === 'low';
+  return (
+    <Button
+      label="Simple drawing"
+      size="sm"
+      variant={simple ? 'ink' : 'default'}
+      toggled={simple}
+      onPress={() => session.configure({ detail: simple ? 'full' : 'low', reducedMotion: state.reducedMotion })}
+    />
+  );
+}
+
 /**
  * U02 / U08 "List view" as a sheet on phones: the same outline, with the Lately lens on top. Back
  * belongs to the Universe (hardware Back, Escape and browser Back all close it through the
@@ -137,6 +157,12 @@ export function UniverseListSheet({
               onPress={() => session.setLately(!state.lately)}
             />
           </View>
+          <View style={styles.drawing}>
+            <Text variant="bodyS" color={content.ink2} style={styles.lensText}>
+              A flat drawing for slow devices. Every place stays where it is.
+            </Text>
+            <DrawingToggle session={session} state={state} />
+          </View>
           <View style={styles.sheetList}>
             <OutlineList session={session} state={state} index={index} />
           </View>
@@ -175,6 +201,7 @@ const styles = StyleSheet.create({
   sheetTitle: { flex: 1 },
   list: { flexGrow: 0 },
   sheetList: { maxHeight: 420 },
+  drawing: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], justifyContent: 'space-between' },
   lens: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], justifyContent: 'space-between' },
   lensText: { flex: 1 },
   row: {

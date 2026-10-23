@@ -11,7 +11,15 @@ import {
   STAR_RADIUS,
   type LabelRequest,
 } from './universe-layout';
-import { BodyTarget, labelWidth, LABEL_HEIGHT, MapLabel, SceneLayer, type SceneProps } from './scene-parts';
+import {
+  BodyTarget,
+  safeGeometry,
+  labelWidth,
+  LABEL_HEIGHT,
+  MapLabel,
+  SceneLayer,
+  type SceneProps,
+} from './scene-parts';
 
 /**
  * U02: one system, organised by its star. Planets sit on orbits in the direction their persisted
@@ -71,7 +79,7 @@ export function SystemScene({
         })}
         <StarGlyph cx={centre.x} cy={centre.y} r={STAR_RADIUS * unit} calm={state.lately && isQuiet(system)} />
         {composition.planets.map(({ descriptor, position }) => {
-          const geometry = session.geometry(descriptor);
+          const geometry = safeGeometry(session, descriptor);
           const point = at(position);
           return geometry ? (
             <PlanetGlyph

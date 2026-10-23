@@ -18,15 +18,15 @@ The owner's implementation request of 2026-10-19 authorises building the bluepri
 
 Tag `legacy/v1-final` → `106c4701` marks the last v1 revision on `dev`. The integration branch removes the v1 apps, packages, tests, scripts, docs, ADRs and agent instructions so future sessions cannot mistake them for current rules. Retained, because v2 needs them:
 
-| Kept | Why |
-|---|---|
-| `.claude/settings.json`, `.claude/hooks/refuse-main-update.mjs` | Enforces "agents never update main" (strengthened, D-012) |
-| `ops/vps/**` | The live VPS provisioning and `ks` deploy tool; v2 extends it (S1.5) |
-| `ops/pool/migrations/` (was `packages/db/pool-migrations/`) | Schema of the live `knowscroll_pool` spend database (CF-30) |
-| `packages/backend/src/modules/content/adapters/cutroom/wire-v1/` (was `packages/contracts/src/cutroom-v1/`) | Byte-for-byte vendored Cutroom wire schema pinned to `94ee04a1` (CF-61) |
-| `packages/design-tokens/fonts/` | Bricolage Grotesque, Instrument Sans, DM Mono with their OFL licences |
-| `content/**` | Frozen v1 data: editorial and model-written Scrolls, approved reel scripts bound to paid history (D-005) |
-| `scripts/promote.sh`, `.github/workflows/deploy.yml` | Promotion and the v1 deploy path; deploy is replaced for v2 in S1.5 |
+| Kept                                                                                                        | Why                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `.claude/settings.json`, `.claude/hooks/refuse-main-update.mjs`                                             | Enforces "agents never update main" (strengthened, D-012)                                                |
+| `ops/vps/**`                                                                                                | The live VPS provisioning and `ks` deploy tool; v2 extends it (S1.5)                                     |
+| `ops/pool/migrations/` (was `packages/db/pool-migrations/`)                                                 | Schema of the live `knowscroll_pool` spend database (CF-30)                                              |
+| `packages/backend/src/modules/content/adapters/cutroom/wire-v1/` (was `packages/contracts/src/cutroom-v1/`) | Byte-for-byte vendored Cutroom wire schema pinned to `94ee04a1` (CF-61)                                  |
+| `packages/design-tokens/fonts/`                                                                             | Bricolage Grotesque, Instrument Sans, DM Mono with their OFL licences                                    |
+| `content/**`                                                                                                | Frozen v1 data: editorial and model-written Scrolls, approved reel scripts bound to paid history (D-005) |
+| `scripts/promote.sh`, `.github/workflows/deploy.yml`                                                        | Promotion and the v1 deploy path; deploy is replaced for v2 in S1.5                                      |
 
 ## D-004 · 2026-10-19 · Where v2 runs
 
@@ -44,27 +44,27 @@ Reason: the owner asked for promotion to dev then stage; separate `v2dev`/`v2sta
 
 ## D-006 · 2026-10-19 · Design conflicts resolved (v2.1 export vs blueprint and product rules)
 
-| # | Conflict | Resolution |
-|---|---|---|
-| a | "Speculative" label drawn in two styles beside "Hypothetical" | Status labels are only **Hypothetical** and **Corrected/Updated**. Speculative premises are expressed in the Hypothetical card's assumption text. |
-| b | Reel and Scroll not drawn as equals (yellow on Reel card, louder "Open Scroll" on D01, Scroll actions on the opposite side) | One action set (Like, Save, Share, Ask, Reel/Scroll switch, ⋯) in the same placement for both. Yellow means continuation only. No extra Open-Scroll button. |
-| c | Four tabs (Explore, Universe, Talk, Keep) vs blueprint's "recommend three" | Four tabs adopted: the blueprint left final placement to mockup review. Account is reachable from the avatar in every tab header, not only Keep/Universe. |
-| d | Route `/s/:id` for Scrolls collides with `/s/:token` share previews | `/s/[token]` = share preview. Content: `/reel/[assetId]`, `/scroll/[assetId]` (with `#block` anchors and `?t=` for Reel time). Threads `/threads/[id]`, explorations `/x/[id]/[node]`, universe `/universe?cam=`. |
-| e | Presence shown by default (D03) | Availability is opt-in; default is unknown/hidden. |
-| f | "Ravi asked" on a preparing part | Allowed: contribution history (blueprint §17). Never playback/seen/current position of another person. |
-| g | Snippet block settings shared by default (H03, E09 personal values) | Settings travel only when explicitly included; personal input values default to excluded; the card states whether settings are included. |
-| h | Revoked share landing names the sender | It names nobody; it says the link is no longer available. |
-| i | What-if summary "computed locally" | A server draft command returns bounded suggestions; it starts no production. |
-| j | "Finished" in the E05 trail | Neutral "Visited" (the caller's own history), never a completion grade. |
-| k | N01 contradicts itself on Share pausing the Reel | The share sheet pauses playback while open and restores the prior play state when dismissed. Overlays never enter Back history. |
-| l | Operator page assumes Grafana + Loki/Tempo/Alloy | Implement over Tier 0 (journald, `ops` SQL views, read-only Grafana on PostgreSQL, `pnpm journey <id>`). Panels with no Tier 0 source are shown as unavailable, not faked. |
-| m | Planet sizes in D02 look meaningful | Size comes from the visual family/template only; it never encodes consumption. |
-| n | Five controls under 44 px; focus ring invisible on cobalt media; "Talk •" as accessible name | Touch targets ≥ 44 px; focus ring uses the yellow/cream token on dark/cobalt surfaces; unread state is a separate accessible description. |
-| o | Rooms have no owning tab | Room stations open from the Universe; joined rooms are also listed in Talk. |
-| p | ~15 unnamed colour values and unnamed 12/13/14 px type roles in use | Normalised into named tokens in `packages/design-tokens`; the token set, not individual artboards, is the source. |
-| q | Storyboard privacy copy ("delete conversations you started", "complete only when every copy is cleared") | Use P02's copy and the blueprint §19 policy. |
-| r | Room "Scroll version" placed in the episode navigator | Format switching uses the Reel/Scroll switch everywhere. |
-| s | Suggested and made branches look alike in C04 | Suggested branches use the dashed/"Suggested" treatment and carry no episode number. |
+| #   | Conflict                                                                                                                    | Resolution                                                                                                                                                                                                        |
+| --- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a   | "Speculative" label drawn in two styles beside "Hypothetical"                                                               | Status labels are only **Hypothetical** and **Corrected/Updated**. Speculative premises are expressed in the Hypothetical card's assumption text.                                                                 |
+| b   | Reel and Scroll not drawn as equals (yellow on Reel card, louder "Open Scroll" on D01, Scroll actions on the opposite side) | One action set (Like, Save, Share, Ask, Reel/Scroll switch, ⋯) in the same placement for both. Yellow means continuation only. No extra Open-Scroll button.                                                       |
+| c   | Four tabs (Explore, Universe, Talk, Keep) vs blueprint's "recommend three"                                                  | Four tabs adopted: the blueprint left final placement to mockup review. Account is reachable from the avatar in every tab header, not only Keep/Universe.                                                         |
+| d   | Route `/s/:id` for Scrolls collides with `/s/:token` share previews                                                         | `/s/[token]` = share preview. Content: `/reel/[assetId]`, `/scroll/[assetId]` (with `#block` anchors and `?t=` for Reel time). Threads `/threads/[id]`, explorations `/x/[id]/[node]`, universe `/universe?cam=`. |
+| e   | Presence shown by default (D03)                                                                                             | Availability is opt-in; default is unknown/hidden.                                                                                                                                                                |
+| f   | "Ravi asked" on a preparing part                                                                                            | Allowed: contribution history (blueprint §17). Never playback/seen/current position of another person.                                                                                                            |
+| g   | Snippet block settings shared by default (H03, E09 personal values)                                                         | Settings travel only when explicitly included; personal input values default to excluded; the card states whether settings are included.                                                                          |
+| h   | Revoked share landing names the sender                                                                                      | It names nobody; it says the link is no longer available.                                                                                                                                                         |
+| i   | What-if summary "computed locally"                                                                                          | A server draft command returns bounded suggestions; it starts no production.                                                                                                                                      |
+| j   | "Finished" in the E05 trail                                                                                                 | Neutral "Visited" (the caller's own history), never a completion grade.                                                                                                                                           |
+| k   | N01 contradicts itself on Share pausing the Reel                                                                            | The share sheet pauses playback while open and restores the prior play state when dismissed. Overlays never enter Back history.                                                                                   |
+| l   | Operator page assumes Grafana + Loki/Tempo/Alloy                                                                            | Implement over Tier 0 (journald, `ops` SQL views, read-only Grafana on PostgreSQL, `pnpm journey <id>`). Panels with no Tier 0 source are shown as unavailable, not faked.                                        |
+| m   | Planet sizes in D02 look meaningful                                                                                         | Size comes from the visual family/template only; it never encodes consumption.                                                                                                                                    |
+| n   | Five controls under 44 px; focus ring invisible on cobalt media; "Talk •" as accessible name                                | Touch targets ≥ 44 px; focus ring uses the yellow/cream token on dark/cobalt surfaces; unread state is a separate accessible description.                                                                         |
+| o   | Rooms have no owning tab                                                                                                    | Room stations open from the Universe; joined rooms are also listed in Talk.                                                                                                                                       |
+| p   | ~15 unnamed colour values and unnamed 12/13/14 px type roles in use                                                         | Normalised into named tokens in `packages/design-tokens`; the token set, not individual artboards, is the source.                                                                                                 |
+| q   | Storyboard privacy copy ("delete conversations you started", "complete only when every copy is cleared")                    | Use P02's copy and the blueprint §19 policy.                                                                                                                                                                      |
+| r   | Room "Scroll version" placed in the episode navigator                                                                       | Format switching uses the Reel/Scroll switch everywhere.                                                                                                                                                          |
+| s   | Suggested and made branches look alike in C04                                                                               | Suggested branches use the dashed/"Suggested" treatment and carry no episode number.                                                                                                                              |
 
 States the export does not draw (loading, corrected Scroll, Scroll as a thread item, revoked invitation, blocked conversation, etc.) are designed from the existing tokens and components and listed in the coverage matrix on the tracker.
 
@@ -124,7 +124,7 @@ Blueprint §5 lists "command receipts" under Experience, but every module's comm
 - `personal_commands` keyed `(universe_id, command_id)`, read and written only inside the locked personal scope; the request hash covers the operation and the canonical validated request (keys in code-point order; non-plain data refused) including the revisions it relied on.
 - A replay returns the stored outcome only when the receipt's privacy epoch equals the caller's and its `outcome_version` is the one the caller reads. A receipt from before a privacy reset is never replayed; the caller is already at the current epoch, so it answers `COMMAND_KEY_REUSED` (mint a new ID) rather than a reload-and-retry problem that would loop. Outcome versions: a release that writes version N also reads N-1; a receipt written by a newer release (rolling deploy) answers a retryable 503 and is never re-applied; one in a retired older shape answers `COMMAND_KEY_REUSED`.
 - `shared_commands` keyed by scope kind and ID, actor, operation and command ID, usable only through a `SharedScopeTx`, which `enterSharedRoot` hands out at most once per personal scope after the personal root is locked (blueprint §19 lock order).
-- **Refusals.** Retryable refusals (lock busy, stale epoch, missing or stale asset) write no receipt and are evaluated again on retry. A future command with a *terminal* refusal (for example, sending to a room the person has left) must either store the refusal as its outcome or require the client to mint a new command ID; each such command states which.
+- **Refusals.** Retryable refusals (lock busy, stale epoch, missing or stale asset) write no receipt and are evaluated again on retry. A future command with a _terminal_ refusal (for example, sending to a room the person has left) must either store the refusal as its outcome or require the client to mint a new command ID; each such command states which.
 
 ## D-017 · 2026-10-19 · Diagnostics carry no free text (S1.2 #225)
 
@@ -170,18 +170,15 @@ What remained after the necessary workarounds was a session table and token hash
 
 Consequences: `KS_AUTH_ADAPTER` defaults to `session` (`none` is gone; `test-bearer` stays a CI fixture, and it too must send the scope claim). Production refuses to start unless `KS_MAIL_SENDER=agentmail` is fully configured; the v2 API unit reads `/etc/knowscroll/secrets/shared/agentmail.env` and the v2 settings gain `KS_MAIL_SENDER=agentmail`, `KS_ALLOW_OPERATOR_SIGN_IN=1` and `KS_OPERATOR_SIGN_IN_PATTERN` (Ansible `roles/worlds_v2`; apply before deploying a revision with S1.3). The v2 programs run as their own users `ks2-<world>` with `/etc/knowscroll` invisible to them, and the v2 web app gets a Content-Security-Policy and `X-Frame-Options: DENY` from Caddy (both applied by Ansible). No signing secret is needed. Open for the owner before live (re-review N2): valid addresses still spend the domain and world budgets, so a few dozen client addresses can switch sign-in off for a domain or the world; the options are in the identity README ("Before live"). OAuth does not apply until a third-party provider is added ("other sign-in options" stays a placeholder); when one is, revisit this entry rather than growing the first-party code into an OAuth server.
 
-
 ## D-023 · 2026-10-20 · Owner: continuation through remaining phases
 
 The owner's Codex continuation request authorises continuing the existing v2 programme through all remaining implementation phases, connected real-service journeys and verified dev/stage delivery. The earlier inferred pause before Phase 3 is superseded; report after each phase and continue the next unblocked phase. Main/production, total paid budgets, individual Reel-script approval, destructive actions and unavailable credentials retain their explicit owner controls. No PIO or Software Factory workflow is reinstated.
 
 Use the existing tracker #222, branches and implementation work. The Codex coordinator integrates, reviews, merges and deploys; bounded Sol agents own named issues/worktrees. Historical Claude agent IDs and attribution settings are not current assignments or controls.
 
-
 ## D-024 · 2026-10-20 · Owner: bounded additional MiniMax allowance for Scroll production
 
 For #232 the owner explicitly approved up to 24 additional MiniMax model requests total: 12 development and 12 dev generation. Every admitted attempt/repair must be recorded, uncertainty consumes the allocation until reconciliation, and a new agent/session does not reset it. The historical harness six-call grant is exhausted and separate. Coordinator shared ledger: SSD `knowscroll-dev/v2/agents/coordinator/provider-allowance-232.json`; harness database attempts remain the execution authority. This does not change D-018's separate Cutroom budget or per-script approvals.
-
 
 ## D-025 · 2026-10-20 · Coordinator: navigation lineage and mutable encounter context
 
@@ -210,16 +207,13 @@ except newly reserved discriminators (`target` for activation, `status` for open
 Interim consumers refuse unsupported new commands before any effect. Shared contracts land and
 pass independent review/Actions before feature consumers.
 
-
 ## D-026 · 2026-10-20 · Coordinator: initial layered2D Universe renderer
 
 Use the existing react-native-svg dependency for the initial layered2D Universe renderer, with ordinary accessible RN/Web controls and lists. The [source/design study](discovery/scene-renderer-study.md) evaluates committed U01–U08/D02, blueprint§13/§18 and current scene-core/Scroll runtime evidence; U07 explicitly permits layered SVG without3D. This is an initial implementation choice, not populated-scene or physical-device performance acceptance. Keep descriptor/formation/identity independent of rendering and revisit from actual scene/device evidence if needed.
 
 The server persists meaning-selected family/template, opaque personal seed, generator version and anchors; rendering never rerolls identity from sibling order or activity. Full/low/reduced-motion keep the same semantic targets and framing. No arbitrary model SVG/scripts/URLs, placeholder growth, evidence-from-map-visits or client-invented region offers. Exact scoped camera return, supported Composer Open and durable per-account shown/skipped transition acknowledgement remain explicit acceptance work; origin IDs or client memory alone do not establish cross-device once-only presentation.
 
-
 Initial finite scene convention (coordinator refinement2026-10-20, clarified2026-10-21): the established Earth system and its star retain distinct object kinds, and both use the existing terraced.v1 family/template fields. Star names an object kind and renderer semantic, not a fourth SceneFamily; the earlier phrase “star family” was ambiguous. Seasons uses terraced.v1, Tides archipelago.v1, and Greenhouse ridged.v1. Regions inherit their canonical parent's selected family. These are cosmetic rendering conventions, not scientific classifications, formation evidence or new meaning authority. Persist family/template, seed, generator and anchors before variation; unsupported/ambiguous meaning labels fail closed and alias resolution remains Geography-owned. The initial projector does not bootstrap nonempty historical worlds: empty worlds remain empty, and any later bootstrap requires an explicit reviewed maintenance path.
-
 
 ## D-027 · 2026-10-20 · Coordinator: public social view revisions do not expose private transitions
 
@@ -230,7 +224,6 @@ Sharing contracts distinguish caller-visible view revisions from internal pair/a
 In response to the concrete #232 request to add ten dev MiniMax calls (24 → 34 total, development12 + dev22), the owner answered “yes you can increase as you like.” The coordinator applies the reviewed bounded34 ceiling now; this permission permits further necessary #232 increases with an explicit bounded ledger entry before any calls, rather than an unrecorded or session-based reset. All21 previous calls remain counted (development11/dev10); reservations and unknowns remain zero. The old24 ledger is preserved byte-for-byte on the SSD, and every prior allocation/attempt is unchanged.
 
 The immediate plan remains three new greenhouse Scroll jobs, at least two interactive, maximum four calls per job including repairs, unchanged token caps and stable roles/generation/brakes. Only the two Scroll roles’ request ceilings may rise as needed, to at most12 each under this reviewed plan. Current-day runtime counters are separate from cumulative programme allowance: UTC rollover does not erase historical calls or liabilities. Deployment, exact source/operation review and launch preflights remain required. This grants no Planner/Cartographer/Quartermaster calls, Cutroom spend or Reel-script approval.
-
 
 **Recorded bounded extension, 21Oct15:59UTC:** after30 settled requests (development11/dev19), the coordinator applied43 total =development12+dev31 under this existing owner authority. The +9 dev ceiling leaves at most12 future dev calls for three separately reviewed max4 jobs, including two interactive recipes. Ledger7abd9961 preserves all12 prior allocations/authorizations; zero reserved/unknown, no new calls. Daily22/per-role12, token caps, brakes and generation1 stay unchanged. Prior98c500/34 remains retained. Each job still requires its own deployment/preservation, fresh baseline, reservation, independent concrete review, one-use launch and terminal settlement.
 
@@ -328,3 +321,17 @@ Reading now forms places on a running system (#237). A local drive with a real s
 - **Dust is a read, not a place.** `POST /v1/universe/emerging/read` returns one opaque, unlabelled cue per catalogue system that Personal Context holds a qualified unit for and that is not established yet. It has no label, topic or count, a stable ID derived from the universe, epoch and system, and no store of its own, so Clear removes it with the evidence. The Universe client draws it; no scene object is created.
 - **A heavy reader degrades, never stops.** Trusted coverage is read in batches of 100 probes, split when a batch reaches the trusted read's own bound (it refuses past 128 KiB of output, which real certificates reach within a few dozen Scrolls). When the supports do not fit one frozen context (100 supports, about 360 KB), `compactSupports` keeps the newest support per facet of every planet, then further distinct units up to a planet's need, then the newest rest. That changes no place the rules form and no activity they set; past the budget the oldest support goes first. Candidate discovery refuses only past 1000 raw references.
 - **Limits.** A run applies at most 32 operations; the rest is due at the next run. Only Scroll coverage is trusted facet support, so a Reel-only reader gets dust but no system until Reel coverage exists; a Reel and its Scroll twin share one explanation unit and count once. Labels are the catalogue's, never a personal rewrite.
+
+## D-039 · 2026-10-24 · Universe screens: how the map is drawn from persisted anchors (#238)
+
+The Universe follows U01 to U08 and D02 with real scene data. Choices where the blueprint and the artboards leave room:
+
+- **Anchors are a lattice, not a drawing.** The projector gives every object the nearest free slot on a 300-unit lattice, so siblings crowd onto whichever side of their parent was free. The client therefore uses anchors only for what they say reliably: a system's place on the map, and a planet's direction and distance from its star (distance picks one of three orbits, direction the spot on it). Two planets never share a spot because two objects never share a slot.
+- **Region pins ignore anchors.** The first region takes a spot from its own seed; each later one takes the free spot farthest from those placed, in creation order (IDs are UUIDv7). A placed region never moves when another arrives.
+- **One camera model.** A frame is relative to how the current view first draws itself: pan in screen pixels, zoom about the centre. A fresh frame always shows the whole view on any screen size.
+- **Level of detail by size on screen.** Far (below 0.2 px per composition unit): star and name. Mid: orbits and planet dots. Near: planets. The same 48 px targets exist at every level. Far away a first tap selects a system and shows its card; closer in a tap enters it.
+- **Palette from the scene.** The projector's palette picks the colour set (sage: teal with green land, cobalt: pale strata, ochre: amber dunes); the family picks the silhouette. This is cosmetic and says nothing about reading. Calm (quiet and Lately on) pulls colours 35 % toward grey and removes glows.
+- **Memory per device.** Camera, Lately and the ship's place persist in the account scope's storage, never sent anywhere. After three days away the camera starts framed on everything and a "Return to ..." chip appears. `?focus=last` flies to the ship's place.
+- **The avatar stays (D-006 c).** The map's root header keeps the account avatar beside the title. U01 and U08 draw search and Lately in that row, which has no room for the avatar at 390 px, so they sit on a second row under the title. System and planet views have a Back pill instead and no avatar, as on other tabs' detail screens. On desktop the rail carries it.
+- **List view is the outline by system.** The artboards group by topic family, which the client has no data for. The sheet on phones adds no history entry of its own; from 1024 px the outline is a permanent panel.
+- **Not built:** the friend's universe (U06; there is no visit backend), room stations (the scene has no room objects), and named sky regions that merge quiet systems at far zoom (U08; no family data). A native persistent store waits for the platform work.

@@ -4,7 +4,15 @@ import type { SceneDescriptor } from '@knowscroll/scene-core';
 import { LandmarkGlyph, PlanetGlyph, RegionPin, ShipGlyph, silhouettePath, type LandmarkKind } from './universe-bodies';
 import { BODY_COLOURS } from './universe-palette';
 import { composeRegions, isQuiet, placeLabels, unitsFromId, type LabelRequest } from './universe-layout';
-import { BodyTarget, labelWidth, MapLabel, PILL_HEIGHT, SceneLayer, type SceneProps } from './scene-parts';
+import {
+  BodyTarget,
+  safeGeometry,
+  labelWidth,
+  MapLabel,
+  PILL_HEIGHT,
+  SceneLayer,
+  type SceneProps,
+} from './scene-parts';
 
 /** How far the camera drops toward the land when a region is chosen (U03 "Region focus"). */
 const REGION_ZOOM = 2.2;
@@ -21,7 +29,7 @@ export function PlanetScene({
   planet,
   selectedRegion,
 }: SceneProps & { readonly planet: SceneDescriptor; readonly selectedRegion: SceneDescriptor | undefined }) {
-  const geometry = session.geometry(planet);
+  const geometry = safeGeometry(session, planet);
   const regions = composeRegions(index, planet);
   if (!geometry) return null;
   const baseRadius = Math.min(size.width * 0.39, size.height * 0.3);
@@ -100,7 +108,7 @@ export function PlanetScene({
         ))}
         {parked ? <ShipGlyph x={pinAt(parked.offset).x + 30} y={pinAt(parked.offset).y - 26} /> : null}
         {state.lastPlace?.id === planet.objectId ? (
-          <ShipGlyph x={centre.x - radius * 0.95} y={centre.y + radius * 0.92} />
+          <ShipGlyph x={centre.x - radius * 1.02} y={centre.y + radius * 0.74} />
         ) : null}
       </Svg>
       <SceneLayer>
@@ -151,7 +159,7 @@ export function FlatPlanet({
   readonly width: number;
   readonly selectedRegion: SceneDescriptor | undefined;
 }) {
-  const geometry = session.geometry(planet, true);
+  const geometry = safeGeometry(session, planet, true);
   if (!geometry) return null;
   const height = Math.round(width * 0.56);
   const radius = height * 0.42;

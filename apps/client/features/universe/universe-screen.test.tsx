@@ -249,3 +249,18 @@ it('a missing formation service shows an honest unavailable state without a birt
   expect(screen.queryByText('New-place views aren’t available right now.')).toBeNull();
   await v.unmount();
 });
+
+it('the simple drawing keeps every region reachable as a plain list', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  const v = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
+  await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
+  await fireEvent.press(screen.getByRole('togglebutton', { name: 'Simple drawing' }));
+  await waitFor(() => expect(screen.getByText('Low detail')).toBeOnTheScreen());
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'CI region 4' }).length).toBeGreaterThan(0));
+  await act(() => h.scope.end());
+  await v.unmount();
+});

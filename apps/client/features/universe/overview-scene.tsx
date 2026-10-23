@@ -20,7 +20,18 @@ import {
   type LabelRequest,
   type Vec,
 } from './universe-layout';
-import { BodyTarget, labelWidth, LABEL_HEIGHT, MapLabel, SceneLayer, type SceneProps } from './scene-parts';
+import {
+  BodyTarget,
+  safeGeometry,
+  labelWidth,
+  LABEL_HEIGHT,
+  MapLabel,
+  SceneLayer,
+  type SceneProps,
+} from './scene-parts';
+
+const OVERVIEW_TOP = 176;
+const OVERVIEW_BOTTOM = 160;
 
 /** How much of a system the overview draws, from its size on screen (U08 label levels). */
 export type DetailLevel = 'far' | 'mid' | 'near';
@@ -36,12 +47,14 @@ export const detailLevel = (unit: number): DetailLevel => (unit < 0.2 ? 'far' : 
 export function OverviewScene({ session, state, index, size, onDust }: SceneProps) {
   const { systems } = index;
   const bounds = useMemo(() => worldBounds(systems), [systems]);
-  const scale = overviewScale(systems, size) * state.frame.scale;
+  // The header and the chips and tab bar take the top and bottom of the screen; systems fit between them.
+  const room = { width: size.width, height: Math.max(240, size.height - OVERVIEW_TOP - OVERVIEW_BOTTOM) };
+  const scale = overviewScale(systems, room) * state.frame.scale;
   const unit = clusterUnit(scale);
   const level = detailLevel(unit);
   const toScreen = (point: Vec): Vec => ({
     x: size.width / 2 + (point.x - bounds.center.x) * scale - state.frame.x,
-    y: size.height * 0.47 + (point.y - bounds.center.y) * scale - state.frame.y,
+    y: OVERVIEW_TOP + room.height / 2 + (point.y - bounds.center.y) * scale - state.frame.y,
   });
   const onScreen = (point: Vec) =>
     point.x > -140 && point.x < size.width + 140 && point.y > -140 && point.y < size.height + 140;
@@ -213,7 +226,7 @@ function ClusterDrawing({
         : composition.planets.map(({ descriptor, position: offset }) => {
             const at = { x: position.x + offset.x * unit, y: position.y + offset.y * unit };
             const planetCalm = lately && isQuiet(descriptor);
-            const geometry = level === 'near' ? session.geometry(descriptor) : undefined;
+            const geometry = level === 'near' ? safeGeometry(session, descriptor) : undefined;
             return geometry ? (
               <PlanetGlyph
                 key={descriptor.objectId}

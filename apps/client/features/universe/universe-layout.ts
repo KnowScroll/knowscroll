@@ -77,16 +77,16 @@ const LATTICE = 300;
 
 /** Orbit ellipses of a system, in composition units (one unit is one pixel at zoom 1). */
 export const ORBIT_BANDS = [
-  { rx: 96, ry: 52 },
-  { rx: 146, ry: 74 },
-  { rx: 196, ry: 96 },
+  { rx: 112, ry: 62 },
+  { rx: 158, ry: 88 },
+  { rx: 204, ry: 112 },
 ] as const;
 export type OrbitBand = 0 | 1 | 2;
 /** The outermost orbit a system uses; the one it is as wide as. */
 export const outerOrbit = (bands: readonly OrbitBand[]) => ORBIT_BANDS[bands.at(-1) ?? 0];
 /** Radii of a star and a planet in composition units. */
-export const STAR_RADIUS = 24;
-export const PLANET_RADIUS = 19;
+export const STAR_RADIUS = 22;
+export const PLANET_RADIUS = 17;
 
 export interface PlacedPlanet {
   readonly descriptor: SceneDescriptor;
@@ -115,7 +115,10 @@ export function composeSystem(index: UniverseIndex, system: SceneDescriptor): Sy
   const origin = (star ?? system).anchor;
   const planets = (index.planets.get(system.objectId) ?? []).map((descriptor): PlacedPlanet => {
     const relative = difference(descriptor.anchor, origin);
-    const band = Math.min(2, Math.max(0, Math.round(length(relative) / LATTICE) - 1)) as OrbitBand;
+    const distance = length(relative);
+    // One lattice step is the inner orbit, up to two steps the middle one, beyond that the outer.
+    // Planets in a line (300, 600, 900 from the star) therefore never share an orbit and a spot.
+    const band: OrbitBand = distance < LATTICE * 1.2 ? 0 : distance < LATTICE * 2.4 ? 1 : 2;
     const angle = Math.atan2(relative.y, relative.x);
     const { rx, ry } = ORBIT_BANDS[band];
     return { descriptor, band, position: { x: Math.cos(angle) * rx, y: Math.sin(angle) * ry } };
@@ -128,7 +131,7 @@ export function composeSystem(index: UniverseIndex, system: SceneDescriptor): Sy
       to = positions.get(route.toObjectId);
     return from && to ? [{ id: route.id, from, to }] : [];
   });
-  return { star, planets, bands, extent: { width: outer.rx + 36, height: outer.ry + 60 }, routes };
+  return { star, planets, bands, extent: { width: outer.rx + 34, height: outer.ry + 58 }, routes };
 }
 
 /** Where a region pin sits on its planet's disc, as a fraction of the disc radius from its centre. */

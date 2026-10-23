@@ -7,11 +7,12 @@ import { UniverseBackdrop } from './universe-backdrop';
 import { RegionCard, SystemCard } from './universe-cards';
 import { UniverseHeader } from './universe-header';
 import { isQuiet, viewFor, type UniverseIndex } from './universe-layout';
-import { OutlineList, UniverseListSheet } from './universe-outline';
+import { DrawingToggle, OutlineList, UniverseListSheet } from './universe-outline';
 import { UniverseSearchPanel } from './universe-search-panel';
 import { SpaceChip } from './space-chip';
 import { UniverseStage } from './universe-stage';
 import { FlatPlanet } from './planet-scene';
+import { safeGeometry } from './scene-parts';
 import type { UniverseViewSession, UniverseViewState } from './universe-session';
 
 /**
@@ -33,9 +34,11 @@ export function UniverseSurface({
 }) {
   const { breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
-  const desktop = breakpoint === 'desktop';
+  // From 1024 px the outline sits beside the map, once there is anything to list (D02).
+  const wide = breakpoint === 'desktop';
   const view = viewFor(index, state.focusId);
   const places = session.places();
+  const panel = wide && places.length > 0;
   const focused = places.find((place) => place.id === state.focusId);
   const selectedSystem = state.selectedId ? places.find((place) => place.id === state.selectedId) : undefined;
   const regionCard = state.overlay === 'place' && focused?.kind === 'region' ? focused : undefined;
@@ -43,7 +46,8 @@ export function UniverseSurface({
   const [dustNote, setDustNote] = useState(false);
   const searching = state.overlay === 'search';
   const openSearch = () => session.showOverlay('search');
-  const simple = state.detail === 'low' && view.kind === 'planet';
+  // A planet whose drawing cannot be built falls back to the flat drawing and the plain list.
+  const simple = view.kind === 'planet' && (state.detail === 'low' || !safeGeometry(session, view.planet));
 
   const card: ReactNode = regionCard ? (
     <RegionCard session={session} state={state} place={regionCard} />
@@ -52,7 +56,7 @@ export function UniverseSurface({
   ) : dustNote && view.kind === 'universe' && state.dust.cues.length > 0 ? (
     <DustNote onClose={() => setDustNote(false)} />
   ) : null;
-  const bottomInset = desktop ? spacing[5] : layout.tabBarSlot + insets.bottom;
+  const bottomInset = wide ? spacing[5] : layout.tabBarSlot + insets.bottom;
 
   const header = searching ? (
     <UniverseSearchPanel session={session} />
@@ -88,7 +92,7 @@ export function UniverseSurface({
             onPress={() => session.focusLast()}
           />
         ) : null}
-        {!desktop && places.length > 0 ? (
+        {!wide && places.length > 0 ? (
           <SpaceChip
             testID="universe-list"
             icon="list"
@@ -126,10 +130,10 @@ export function UniverseSurface({
         {view.kind === 'system' && state.lately && isDormant(index, view.system.objectId) ? (
           <DormantNote session={session} index={index} systemId={view.system.objectId} />
         ) : null}
-        {desktop ? null : card}
+        {panel ? null : card}
         {chips}
       </View>
-      {desktop ? (
+      {wide ? (
         <View pointerEvents="box-none" style={styles.zoomControls}>
           <IconButton
             icon="plus"
@@ -145,24 +149,29 @@ export function UniverseSurface({
           />
         </View>
       ) : null}
-      {desktop ? <KeyHints /> : null}
+      {wide ? <KeyHints /> : null}
     </View>
   );
 
-  if (desktop)
+  if (wide)
     return (
       <View style={styles.ground} testID="universe-screen">
         <View style={styles.desktopRow}>
           {stage}
-          <View style={styles.panel}>
-            <Text variant="label" color={content.ink2} style={styles.panelEyebrow}>
-              Outline · List view
-            </Text>
-            <View style={styles.panelList}>
-              <OutlineList session={session} state={state} index={index} />
+          {panel ? (
+            <View style={styles.panel}>
+              <Text variant="label" color={content.ink2} style={styles.panelEyebrow}>
+                Outline · List view
+              </Text>
+              <View style={styles.panelTools}>
+                <DrawingToggle session={session} state={state} />
+              </View>
+              <View style={styles.panelList}>
+                <OutlineList session={session} state={state} index={index} />
+              </View>
+              {card ? <View style={styles.panelCard}>{card}</View> : null}
             </View>
-            {card ? <View style={styles.panelCard}>{card}</View> : null}
-          </View>
+          ) : null}
         </View>
       </View>
     );
@@ -252,6 +261,14 @@ function SimplePlanet({
   const drawWidth = Math.min(width - spacing[12], 420);
   return (
     <View style={styles.simple}>
+      <View style={styles.simpleTitle}>
+        <Text variant="displayL" heading={1} color={space.label} style={styles.captionTitle}>
+          {view.planet.label}
+        </Text>
+        <Text variant="label" color={space.label2}>
+          {`A planet in ${index.byId.get(view.planet.parentId)?.label ?? 'your universe'}`}
+        </Text>
+      </View>
       <View style={{ width: drawWidth, alignSelf: 'center' }}>
         <FlatPlanet
           session={session}
@@ -318,7 +335,9 @@ const styles = StyleSheet.create({
   },
   panelEyebrow: { paddingHorizontal: spacing[2] },
   panelList: { flex: 1 },
+  panelTools: { paddingHorizontal: spacing[2], alignItems: 'flex-start' },
   panelCard: { paddingBottom: spacing[4] },
-  simple: { flex: 1, paddingTop: 140, gap: spacing[4] },
+  simple: { flex: 1, paddingTop: 132, gap: spacing[4] },
+  simpleTitle: { paddingHorizontal: spacing[5], gap: 2 },
   simpleList: { paddingHorizontal: spacing[5], gap: spacing[2], alignItems: 'flex-start' },
 });

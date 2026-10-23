@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { content, highlightRing, space, target } from '@knowscroll/design-tokens';
 import { Text, useFocusRing } from '@knowscroll/ui';
+import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
 import type { UniverseIndex, Size, PlacedLabel } from './universe-layout';
 import type { UniverseViewSession, UniverseViewState } from './universe-session';
 
@@ -13,6 +14,22 @@ export interface SceneProps {
   readonly size: Size;
   /** A tap on a dust cue: the screen explains it; it is not a place and goes nowhere. */
   readonly onDust?: () => void;
+}
+
+/**
+ * A place's silhouette, or `undefined` when it cannot be built. A descriptor that fails the drawing
+ * rules must not take the screen down: its target and its row in the list stay, only the drawing goes.
+ */
+export function safeGeometry(
+  session: UniverseViewSession,
+  descriptor: SceneDescriptor,
+  low = false,
+): SceneGeometry | undefined {
+  try {
+    return session.geometry(descriptor, low);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Width of a map label in 13 px semibold, estimated because text cannot be measured before it is drawn. */

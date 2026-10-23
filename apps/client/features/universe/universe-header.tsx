@@ -1,6 +1,8 @@
 import { StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { space, spacing } from '@knowscroll/design-tokens';
-import { IconButton, Tag, Text } from '@knowscroll/ui';
+import { AccountButton, IconButton, Tag, Text, useDisplay } from '@knowscroll/ui';
+import { useAccountInitial } from '../../providers/account-scope';
 import { SpaceChip } from './space-chip';
 import type { UniverseView } from './universe-layout';
 import type { UniverseViewSession, UniverseViewState } from './universe-session';
@@ -23,6 +25,11 @@ export function UniverseHeader({
   readonly hasPlaces: boolean;
   readonly onSearch: () => void;
 }) {
+  const router = useRouter();
+  const initial = useAccountInitial();
+  const { breakpoint } = useDisplay();
+  // From 1024 px the rail carries the avatar (D-006 c).
+  const accountInHeader = breakpoint !== 'desktop';
   const lens = (
     <SpaceChip
       testID="universe-lately"
@@ -40,23 +47,31 @@ export function UniverseHeader({
           <Text variant="heading" heading={1} color={space.label} style={styles.title}>
             Your universe
           </Text>
-          {hasPlaces ? (
-            <View style={styles.actions}>
-              <IconButton
-                icon="search"
-                label="Search your universe"
-                variant="onSpace"
-                onPress={onSearch}
-                testID="universe-search"
-              />
-              {lens}
-            </View>
+          {accountInHeader ? (
+            <AccountButton
+              onPress={() => router.navigate('/account')}
+              href="/account"
+              surface="dark"
+              {...(initial === undefined ? {} : { initial })}
+            />
           ) : null}
         </View>
         {state.absent ? (
           <Text variant="body" color={space.label2} style={styles.subtitle}>
             Everything is where you left it.
           </Text>
+        ) : null}
+        {hasPlaces ? (
+          <View style={styles.actions}>
+            <IconButton
+              icon="search"
+              label="Search your universe"
+              variant="onSpace"
+              onPress={onSearch}
+              testID="universe-search"
+            />
+            {lens}
+          </View>
         ) : null}
       </View>
     );
