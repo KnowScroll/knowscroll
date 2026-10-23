@@ -1,0 +1,283 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>V01 Responsive and accessibility variants</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.ib44{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:0;background:rgba(255,251,240,.94);color:#111111;padding:0;cursor:pointer}
+.tnav a{width:60px;min-height:60px;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:600;color:rgba(255,251,240,.78);text-decoration:none}
+.tnav a[aria-current="page"]{background:#2C46E8;color:#FFFBF0}
+.dev{border-radius:28px;overflow:hidden;position:relative;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="V01-Responsive"><div data-dc-tpl="3" style="width: 2640px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 16px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 20px; min-height: 72px;">
+    <span data-dc-tpl="5" class="mono" style="font-size: 14px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); padding: 8px 12px; border-radius: 8px;">V01</span>
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800; line-height: 1;">Responsive &amp; accessibility variants</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 16px; color: rgb(74, 70, 61); max-width: 1200px;">Same components, re-composed per size. Nothing truncates at larger text; every motion has a reduced form; every swipe has a button and a key.</p>
+    </div>
+    <span data-dc-tpl="9" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="10" style="display: flex; gap: 32px; align-items: flex-start;">
+
+    
+    <figure data-dc-tpl="11" style="margin: 0px; display: flex; flex-direction: column; gap: 8px; width: 320px;">
+      <figcaption data-dc-tpl="12" class="cap"><b data-dc-tpl="13">Compact · 320×690</b><span data-dc-tpl="14">E01 Part 1</span></figcaption>
+      <div data-dc-tpl="15" class="phone" style="width: 320px; height: 690px; border-radius: 36px; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        <svg data-dc-tpl="16" aria-hidden="true" width="320" height="690" viewBox="0 0 320 690" style="position: absolute; inset: 0px;">
+          <circle data-dc-tpl="17" cx="160" cy="270" r="130" fill="#3A55F0"></circle>
+          <g data-dc-tpl="18" stroke="#FFE44D" stroke-linecap="round" fill="none"><path data-dc-tpl="19" d="M172 296 C 140 270, 116 240, 96 220" stroke-width="6"></path><path data-dc-tpl="20" d="M180 294 C 200 262, 214 246, 226 226" stroke-width="2"></path></g>
+          <g data-dc-tpl="21" font-family="Instrument Sans, sans-serif" font-size="13" font-weight="600">
+            <rect data-dc-tpl="22" x="52" y="202" width="84" height="30" rx="15" fill="#FFFBF0"></rect><text data-dc-tpl="23" x="94" y="222" text-anchor="middle" fill="#111111">animal</text>
+            <rect data-dc-tpl="24" x="200" y="208" width="70" height="30" rx="15" fill="#FFFBF0" opacity=".7"></rect><text data-dc-tpl="25" x="235" y="228" text-anchor="middle" fill="#111111">street</text>
+            <rect data-dc-tpl="26" x="150" y="286" width="48" height="32" rx="16" fill="#FFE44D" stroke="#111111" stroke-width="2"></rect><text data-dc-tpl="27" x="174" y="307" text-anchor="middle" fill="#111111" font-size="15" font-weight="700">it</text>
+          </g>
+        </svg>
+        <div data-dc-tpl="28" style="position: absolute; left: 12px; right: 12px; top: 48px; display: flex; align-items: center; justify-content: space-between;">
+          <span data-dc-tpl="29" class="tag" style="border-color: rgb(255, 251, 240);">ML</span>
+          <div data-dc-tpl="30" class="seg" role="group" aria-label="Format of this explanation"><button data-dc-tpl="31" type="button" aria-pressed="true" style="padding: 0px 12px;">Reel</button><button data-dc-tpl="32" type="button" aria-pressed="false" style="padding: 0px 12px;">Scroll</button></div>
+        </div>
+        <div data-dc-tpl="33" style="position: absolute; left: 14px; right: 66px; top: 370px; background: rgba(17, 17, 17, 0.82); border-radius: 10px; padding: 8px 10px; font-size: 14px; line-height: 1.4; font-weight: 500;">“It” looks around and decides <b data-dc-tpl="34" style="color: rgb(255, 228, 77);">animal</b> matters most.</div>
+        <div data-dc-tpl="35" style="position: absolute; right: 10px; top: 186px; display: flex; flex-direction: column; gap: 10px;">
+          <button data-dc-tpl="36" class="ib44" type="button" aria-label="Like"><svg data-dc-tpl="37" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path data-dc-tpl="38" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button>
+          <button data-dc-tpl="39" class="ib44" type="button" aria-label="Save"><svg data-dc-tpl="40" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="41" d="M6 3h12v18l-6-4-6 4z"></path></svg></button>
+          <button data-dc-tpl="42" class="ib44" type="button" aria-label="Share"><svg data-dc-tpl="43" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="44" d="M4 12v7h16v-7"></path><path data-dc-tpl="45" d="M12 3v12"></path><path data-dc-tpl="46" d="M7 8l5-5 5 5"></path></svg></button>
+          <button data-dc-tpl="47" class="ib44" type="button" aria-label="Ask about this"><svg data-dc-tpl="48" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="49" d="M4 5h16v11H9l-5 4z"></path></svg></button>
+        </div>
+        <a data-dc-tpl="50" href="E05-Continue.html" aria-label="Continue this idea: Part 2" style="position: absolute; right: 0px; top: 444px; width: 64px; height: 64px; background: rgb(255, 228, 77); color: rgb(17, 17, 17); border-width: 2px 0px 2px 2px; border-top-style: solid; border-bottom-style: solid; border-left-style: solid; border-top-color: rgb(17, 17, 17); border-bottom-color: rgb(17, 17, 17); border-left-color: rgb(17, 17, 17); border-image: initial; border-right-style: initial; border-right-color: initial; border-radius: 16px 0px 0px 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-decoration: none;"><span data-dc-tpl="51" class="mono" style="font-size: 9px;">Part 2</span><svg data-dc-tpl="52" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="53" d="M5 12h14"></path><path data-dc-tpl="54" d="M13 6l6 6-6 6"></path></svg></a>
+        <div data-dc-tpl="55" style="position: absolute; left: 14px; width: 226px; top: 446px; display: flex; flex-direction: column; gap: 6px;">
+          <span data-dc-tpl="56" class="tag part" style="align-self: flex-start;">Part 1 of 3</span>
+          <h2 data-dc-tpl="57" class="disp" style="margin: 0px; font-size: 24px; line-height: 26px; font-weight: 800;">Attention, explained with a crowded sentence</h2>
+        </div>
+        <div data-dc-tpl="58" style="position: absolute; left: 14px; right: 14px; top: 566px; height: 4px; border-radius: 4px; background: rgba(255, 251, 240, 0.35);"><i data-dc-tpl="59" style="display: block; width: 62%; height: 4px; border-radius: 4px; background: rgb(255, 251, 240);"></i></div>
+        <nav data-dc-tpl="60" aria-label="Primary" style="position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 4px; padding: 5px; border-radius: 24px; background: rgb(17, 17, 17);">
+          <button data-dc-tpl="61" type="button" aria-label="Explore" aria-current="page" style="width: 56px; height: 48px; border: 0px; border-radius: 18px; background: rgb(44, 70, 232); color: rgb(255, 251, 240); display: flex; align-items: center; justify-content: center;"><svg data-dc-tpl="62" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="63" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="64" d="M8 3l4 4 4-4"></path></svg></button>
+          <button data-dc-tpl="65" type="button" aria-label="Universe" style="width: 56px; height: 48px; border: 0px; border-radius: 18px; background: transparent; color: rgba(255, 251, 240, 0.78); display: flex; align-items: center; justify-content: center;"><svg data-dc-tpl="66" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="67" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="68" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg></button>
+          <button data-dc-tpl="69" type="button" aria-label="Talk" style="width: 56px; height: 48px; border: 0px; border-radius: 18px; background: transparent; color: rgba(255, 251, 240, 0.78); display: flex; align-items: center; justify-content: center;"><svg data-dc-tpl="70" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="71" d="M4 5h16v11H9l-5 4z"></path></svg></button>
+          <button data-dc-tpl="72" type="button" aria-label="Keep" style="width: 56px; height: 48px; border: 0px; border-radius: 18px; background: transparent; color: rgba(255, 251, 240, 0.78); display: flex; align-items: center; justify-content: center;"><svg data-dc-tpl="73" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="74" d="M6 3h12v18l-6-4-6 4z"></path></svg></button>
+        </nav>
+      </div>
+      <p data-dc-tpl="75" style="margin: 4px 0px 0px; font-size: 13px; line-height: 1.45; color: rgb(74, 70, 61);">Rail 44px, labels move to accessible names. Nav icon-only. Captions keep two lines; title 24px.</p>
+    </figure>
+
+    
+    <figure data-dc-tpl="76" style="margin: 0px; display: flex; flex-direction: column; gap: 8px; width: 834px;">
+      <figcaption data-dc-tpl="77" class="cap"><b data-dc-tpl="78">Tablet portrait · 834×1112</b><span data-dc-tpl="79">E02 Scroll with thread column and nav rail</span></figcaption>
+      <div data-dc-tpl="80" class="dev" style="width: 834px; height: 1112px; background: rgb(255, 251, 240); color: rgb(17, 17, 17); display: flex;">
+        <nav data-dc-tpl="81" class="tnav" aria-label="Primary" style="width: 76px; background: rgb(17, 17, 17); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 0px;">
+          <a data-dc-tpl="82" href="E01-Reel.html" aria-current="page"><svg data-dc-tpl="83" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="84" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="85" d="M8 3l4 4 4-4"></path></svg>Explore</a>
+          <a data-dc-tpl="86" href="U01-Universe.html"><svg data-dc-tpl="87" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="88" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="89" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>Universe</a>
+          <a data-dc-tpl="90" href="C01-Inbox.html"><svg data-dc-tpl="91" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="92" d="M4 5h16v11H9l-5 4z"></path></svg>Talk</a>
+          <a data-dc-tpl="93" href="S01-Saved.html"><svg data-dc-tpl="94" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="95" d="M6 3h12v18l-6-4-6 4z"></path></svg>Keep</a>
+        </nav>
+        <article data-dc-tpl="96" style="flex: 1 1 0%; padding: 40px 28px 0px 36px; display: flex; flex-direction: column; gap: 18px; min-width: 0px;">
+          <div data-dc-tpl="97" style="display: flex; align-items: center; gap: 12px;">
+            <button data-dc-tpl="98" class="ibtn" type="button" aria-label="Back"><svg data-dc-tpl="99" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="100" d="M15 5l-7 7 7 7"></path></svg></button>
+            <div data-dc-tpl="101" class="seg" role="group" aria-label="Format of this explanation"><button data-dc-tpl="102" type="button" aria-pressed="false">Reel</button><button data-dc-tpl="103" type="button" aria-pressed="true">Scroll</button></div>
+          </div>
+          <span data-dc-tpl="104" class="tag" style="align-self: flex-start;">Machine learning · Scroll · 6 min</span>
+          <h2 data-dc-tpl="105" class="disp" style="margin: 0px; font-size: 52px; line-height: 54px; font-weight: 800; max-width: 500px;">Attention, slowly</h2>
+          <p data-dc-tpl="106" style="margin: 0px; font-size: 20px; line-height: 30px; color: rgb(74, 70, 61); max-width: 500px;">How a model decides which words matter — and why longer text costs so much more.</p>
+          <div data-dc-tpl="107" style="display: flex; gap: 8px; padding: 6px; border: 2px solid rgb(17, 17, 17); border-radius: 999px; align-self: flex-start;">
+            <button data-dc-tpl="108" class="ibtn" type="button" aria-label="Like" style="border: 0px;"><svg data-dc-tpl="109" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path data-dc-tpl="110" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button>
+            <button data-dc-tpl="111" class="ibtn" type="button" aria-label="Save" style="border: 0px;"><svg data-dc-tpl="112" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="113" d="M6 3h12v18l-6-4-6 4z"></path></svg></button>
+            <button data-dc-tpl="114" class="ibtn" type="button" aria-label="Share" style="border: 0px;"><svg data-dc-tpl="115" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="116" d="M4 12v7h16v-7"></path><path data-dc-tpl="117" d="M12 3v12"></path><path data-dc-tpl="118" d="M7 8l5-5 5 5"></path></svg></button>
+            <button data-dc-tpl="119" class="ibtn" type="button" aria-label="Ask" style="border: 0px;"><svg data-dc-tpl="120" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="121" d="M4 5h16v11H9l-5 4z"></path></svg></button>
+          </div>
+          <h3 data-dc-tpl="122" class="disp" style="margin: 10px 0px 0px; font-size: 26px; font-weight: 800;">A sentence is a crowd</h3>
+          <p data-dc-tpl="123" style="margin: 0px; font-size: 18px; line-height: 28px; max-width: 500px;">Read “the animal didn’t cross the street because it was too tired.” You know “it” means the animal. A model gets there by letting every word look at every other word and decide how much each one matters.</p>
+          <h3 data-dc-tpl="124" class="disp" style="margin: 6px 0px 0px; font-size: 26px; font-weight: 800;">Scores become weights</h3>
+          <p data-dc-tpl="125" style="margin: 0px; font-size: 18px; line-height: 28px; max-width: 500px;">Each pair of words gets a score. The scores are turned into weights that add up to one, and each word becomes a weighted blend of the others.</p>
+          <div data-dc-tpl="126" style="max-width: 500px; border: 2px solid rgb(17, 17, 17); border-radius: 18px; padding: 16px; background: rgb(244, 237, 216); display: flex; flex-direction: column; gap: 10px; box-shadow: rgb(44, 70, 232) 6px 6px 0px;">
+            <span data-dc-tpl="127" class="mono" style="color: rgb(74, 70, 61);">Diagram · drag a word</span>
+            <svg data-dc-tpl="128" role="img" aria-label="Grid of attention weights: the word it attends most strongly to animal" width="100%" height="150" viewBox="0 0 460 150"><g data-dc-tpl="129" fill="#2C46E8"><rect data-dc-tpl="130" x="10" y="10" width="40" height="40" opacity=".9"></rect><rect data-dc-tpl="131" x="54" y="10" width="40" height="40" opacity=".2"></rect><rect data-dc-tpl="132" x="98" y="10" width="40" height="40" opacity=".35"></rect><rect data-dc-tpl="133" x="10" y="54" width="40" height="40" opacity=".25"></rect><rect data-dc-tpl="134" x="54" y="54" width="40" height="40" opacity=".8"></rect><rect data-dc-tpl="135" x="98" y="54" width="40" height="40" opacity=".15"></rect><rect data-dc-tpl="136" x="10" y="98" width="40" height="40" opacity=".85"></rect><rect data-dc-tpl="137" x="54" y="98" width="40" height="40" opacity=".1"></rect><rect data-dc-tpl="138" x="98" y="98" width="40" height="40" opacity=".3"></rect></g><text data-dc-tpl="139" x="170" y="62" font-family="Instrument Sans, sans-serif" font-size="15" fill="#111111">“it” → animal (strong)</text><text data-dc-tpl="140" x="170" y="88" font-family="Instrument Sans, sans-serif" font-size="15" fill="#111111">“it” → street (weak)</text></svg>
+          </div>
+        </article>
+        <aside data-dc-tpl="141" aria-label="This thread" style="width: 212px; flex: 0 0 auto; border-left: 2px solid rgb(17, 17, 17); padding: 40px 14px; display: flex; flex-direction: column; gap: 10px; background: rgb(255, 251, 240);">
+          <span data-dc-tpl="142" class="mono" style="color: rgb(74, 70, 61);">This thread</span>
+          <a data-dc-tpl="143" href="E01-Reel.html" style="display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 14px; border: 2px solid rgb(17, 17, 17); background: rgb(17, 17, 17); color: rgb(255, 251, 240); text-decoration: none; font-size: 14px; font-weight: 600;"><span data-dc-tpl="144" class="tag part" style="align-self: flex-start;">Part 1</span>Same as this Scroll</a>
+          <a data-dc-tpl="145" href="E05-Continue.html" style="display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 14px; border: 2px solid rgb(17, 17, 17); background: rgb(255, 228, 77); color: rgb(17, 17, 17); text-decoration: none; font-size: 14px; font-weight: 600;"><span data-dc-tpl="146" class="tag" style="align-self: flex-start;">Part 2</span>Translating one sentence</a>
+          <a data-dc-tpl="147" href="E05-Continue.html" style="display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 14px; border: 2px dashed rgb(17, 17, 17); color: rgb(17, 17, 17); text-decoration: none; font-size: 14px; font-weight: 600;"><span data-dc-tpl="148" class="tag" style="align-self: flex-start; border-style: dashed;">Related</span>A spotlight with a budget</a>
+        </aside>
+      </div>
+      <p data-dc-tpl="149" style="margin: 4px 0px 0px; font-size: 13px; line-height: 1.45; color: rgb(74, 70, 61);">600–1023px: nav becomes a rail; thread becomes a column. Text column ≤ 34em (500px here; 680px on desktop).</p>
+    </figure>
+
+    
+    <div data-dc-tpl="150" style="display: flex; flex-direction: column; gap: 20px; width: 844px;">
+      <figure data-dc-tpl="151" style="margin: 0px; display: flex; flex-direction: column; gap: 8px;">
+        <figcaption data-dc-tpl="152" class="cap"><b data-dc-tpl="153">Landscape phone · 844×390</b><span data-dc-tpl="154">Reel; rail right, captions under video</span></figcaption>
+        <div data-dc-tpl="155" class="dev" style="width: 844px; height: 390px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); display: flex;">
+          <div data-dc-tpl="156" style="width: 600px; display: flex; flex-direction: column; position: relative;">
+            <div data-dc-tpl="157" style="height: 300px; background: rgb(44, 70, 232); position: relative;">
+              <svg data-dc-tpl="158" aria-hidden="true" width="600" height="300" viewBox="0 0 600 300" style="position: absolute; inset: 0px;"><circle data-dc-tpl="159" cx="300" cy="150" r="120" fill="#3A55F0"></circle><path data-dc-tpl="160" d="M314 170 C 270 140, 230 110, 200 96" stroke="#FFE44D" stroke-width="6" fill="none" stroke-linecap="round"></path><rect data-dc-tpl="161" x="150" y="80" width="90" height="32" rx="16" fill="#FFFBF0"></rect><text data-dc-tpl="162" x="195" y="101" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="14" font-weight="600" fill="#111111">animal</text><rect data-dc-tpl="163" x="290" y="160" width="50" height="34" rx="17" fill="#FFE44D" stroke="#111111" stroke-width="2"></rect><text data-dc-tpl="164" x="315" y="182" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="16" font-weight="700" fill="#111111">it</text></svg>
+              <button data-dc-tpl="165" type="button" aria-label="Menu" style="position: absolute; left: 14px; top: 14px; width: 44px; height: 44px; border-radius: 999px; border: 0px; background: rgba(255, 251, 240, 0.94); color: rgb(17, 17, 17); display: flex; align-items: center; justify-content: center;"><svg data-dc-tpl="166" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="167" d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+              <div data-dc-tpl="168" class="seg" role="group" aria-label="Format of this explanation" style="position: absolute; right: 14px; top: 14px;"><button data-dc-tpl="169" type="button" aria-pressed="true">Reel</button><button data-dc-tpl="170" type="button" aria-pressed="false">Scroll</button></div>
+              <span data-dc-tpl="171" class="tag part" style="position: absolute; left: 14px; bottom: 14px;">Part 1 of 3</span>
+            </div>
+            <div data-dc-tpl="172" style="flex: 1 1 0%; padding: 10px 16px; font-size: 15px; line-height: 1.4; display: flex; align-items: center;">“It” looks around the sentence and decides that <b data-dc-tpl="173" style="color: rgb(255, 228, 77); margin-left: 4px;">animal</b>&nbsp;matters most.</div>
+          </div>
+          <div data-dc-tpl="174" style="flex: 1 1 0%; padding: 14px; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid rgba(255, 251, 240, 0.2);">
+            <b data-dc-tpl="175" class="disp" style="font-size: 18px; line-height: 1.15;">Attention, explained with a crowded sentence</b>
+            <div data-dc-tpl="176" style="display: grid; grid-template-columns: repeat(4, minmax(0px, 1fr)); gap: 6px;">
+              <div data-dc-tpl="177" class="ra"><button data-dc-tpl="178" class="ib44" type="button" aria-label="Like"><svg data-dc-tpl="179" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path data-dc-tpl="180" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button><span data-dc-tpl="181">Like</span></div>
+              <div data-dc-tpl="182" class="ra"><button data-dc-tpl="183" class="ib44" type="button" aria-label="Save"><svg data-dc-tpl="184" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="185" d="M6 3h12v18l-6-4-6 4z"></path></svg></button><span data-dc-tpl="186">Save</span></div>
+              <div data-dc-tpl="187" class="ra"><button data-dc-tpl="188" class="ib44" type="button" aria-label="Share"><svg data-dc-tpl="189" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="190" d="M4 12v7h16v-7"></path><path data-dc-tpl="191" d="M12 3v12"></path><path data-dc-tpl="192" d="M7 8l5-5 5 5"></path></svg></button><span data-dc-tpl="193">Share</span></div>
+              <div data-dc-tpl="194" class="ra"><button data-dc-tpl="195" class="ib44" type="button" aria-label="Ask"><svg data-dc-tpl="196" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="197" d="M4 5h16v11H9l-5 4z"></path></svg></button><span data-dc-tpl="198">Ask</span></div>
+            </div>
+            <a data-dc-tpl="199" href="E05-Continue.html" class="btn sm" style="background: rgb(255, 228, 77); margin-top: auto;">Part 2 →</a>
+            <button data-dc-tpl="200" class="btn sm ghost" type="button" style="color: rgb(255, 251, 240); border-color: rgba(255, 251, 240, 0.6);">Next subject ↓</button>
+          </div>
+        </div>
+      </figure>
+      <figure data-dc-tpl="201" style="margin: 0px; display: flex; flex-direction: column; gap: 8px;">
+        <figcaption data-dc-tpl="202" class="cap"><b data-dc-tpl="203">Reduced motion · U05 final still</b><span data-dc-tpl="204">Shown instead of the 2.4s formation</span></figcaption>
+        <div data-dc-tpl="205" class="dev" style="width: 844px; height: 560px; background: rgb(4, 10, 23); color: rgb(255, 251, 240); display: flex;">
+          <div data-dc-tpl="206" style="width: 480px; position: relative;">
+            <svg data-dc-tpl="207" aria-hidden="true" width="480" height="560" viewBox="0 0 480 560" style="position: absolute; inset: 0px;">
+              <g data-dc-tpl="208" fill="#FFFBF0"><circle data-dc-tpl="209" cx="40" cy="60" r="1" opacity=".55"></circle><circle data-dc-tpl="210" cx="200" cy="40" r="1.2" opacity=".5"></circle><circle data-dc-tpl="211" cx="420" cy="90" r="1" opacity=".55"></circle><circle data-dc-tpl="212" cx="80" cy="460" r=".9" opacity=".5"></circle><circle data-dc-tpl="213" cx="400" cy="500" r="1.1" opacity=".5"></circle></g>
+              <ellipse data-dc-tpl="214" cx="240" cy="280" rx="190" ry="70" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+              <circle data-dc-tpl="215" cx="240" cy="280" r="40" fill="#FFE9A8" opacity=".14"></circle>
+              <circle data-dc-tpl="216" cx="240" cy="280" r="20" fill="#FFE9A8"></circle>
+              <circle data-dc-tpl="217" cx="100" cy="240" r="42" fill="#2BC4B4"></circle>
+              <path data-dc-tpl="218" d="M72 230l16-14 24 4 8 18-14 14-22-4z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2"></path>
+              <path data-dc-tpl="219" d="M100 290 V 308" stroke="#FFFBF0" stroke-opacity=".5"></path>
+            </svg>
+            <span data-dc-tpl="220" style="position: absolute; left: 40px; top: 316px; width: 120px; text-align: center; font-size: 14px; font-weight: 600;">Attention</span>
+            <div data-dc-tpl="221" style="position: absolute; left: 24px; right: 24px; bottom: 28px; padding: 14px 16px; border-radius: 16px; background: rgb(11, 26, 46); border: 1px solid rgba(255, 251, 240, 0.22); display: flex; align-items: center; gap: 12px;">
+              <span data-dc-tpl="222" style="font-size: 16px; font-weight: 600; flex: 1 1 0%;">A new place: Attention</span>
+              <a data-dc-tpl="223" class="btn sp sm" href="U03-Planet.html">Visit</a>
+            </div>
+          </div>
+          <div data-dc-tpl="224" style="flex: 1 1 0%; background: rgb(255, 251, 240); color: rgb(17, 17, 17); padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+            <span data-dc-tpl="225" class="mono" style="color: rgb(74, 70, 61);">Reduced-motion rules</span>
+            <ul data-dc-tpl="226" style="margin: 0px; padding-left: 18px; display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.45;">
+              <li data-dc-tpl="227">Subject and thread moves crossfade (160ms) instead of sliding.</li>
+              <li data-dc-tpl="228">Camera moves between system, planet and region become cuts with a 200ms fade.</li>
+              <li data-dc-tpl="229">No star twinkle, orbit drift or glow pulse.</li>
+              <li data-dc-tpl="230">Formation shows its final still with a one-line caption; no dust animation.</li>
+              <li data-dc-tpl="231">Follows the system setting; can also be set in Accessibility &amp; playback.</li>
+            </ul>
+          </div>
+        </div>
+      </figure>
+    </div>
+
+    
+    <figure data-dc-tpl="232" style="margin: 0px; display: flex; flex-direction: column; gap: 8px; width: 390px;">
+      <figcaption data-dc-tpl="233" class="cap"><b data-dc-tpl="234">Larger text · 200%</b><span data-dc-tpl="235">E02 Scroll opening</span></figcaption>
+      <div data-dc-tpl="236" class="phone">
+        <div data-dc-tpl="237" style="position: absolute; left: 20px; right: 20px; top: 56px; display: flex; flex-direction: column; gap: 16px;">
+          <div data-dc-tpl="238" style="display: flex; align-items: center; gap: 10px;">
+            <button data-dc-tpl="239" class="ibtn" type="button" aria-label="Back"><svg data-dc-tpl="240" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="241" d="M15 5l-7 7 7 7"></path></svg></button>
+            <div data-dc-tpl="242" class="seg" role="group" aria-label="Format of this explanation"><button data-dc-tpl="243" type="button" aria-pressed="false" style="font-size: 18px; min-height: 44px;">Reel</button><button data-dc-tpl="244" type="button" aria-pressed="true" style="font-size: 18px; min-height: 44px;">Scroll</button></div>
+          </div>
+          <span data-dc-tpl="245" style="font-size: 18px; font-weight: 600; color: rgb(74, 70, 61);">Machine learning · Scroll</span>
+          <h2 data-dc-tpl="246" class="disp" style="margin: 0px; font-size: 44px; line-height: 48px; font-weight: 800;">Attention, slowly: how a model decides what matters</h2>
+          <div data-dc-tpl="247" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 10px;">
+            <button data-dc-tpl="248" class="btn" type="button" style="font-size: 20px; min-height: 56px; box-shadow: none;">Like</button>
+            <button data-dc-tpl="249" class="btn" type="button" style="font-size: 20px; min-height: 56px; box-shadow: none;">Save</button>
+            <button data-dc-tpl="250" class="btn" type="button" style="font-size: 20px; min-height: 56px; box-shadow: none;">Share</button>
+            <button data-dc-tpl="251" class="btn" type="button" style="font-size: 20px; min-height: 56px; box-shadow: none;">Ask</button>
+          </div>
+          <p data-dc-tpl="252" style="margin: 0px; font-size: 26px; line-height: 38px;">Read “the animal didn’t cross the street because it was too tired.” You know “it” means the animal.</p>
+        </div>
+      </div>
+      <p data-dc-tpl="253" style="margin: 4px 0px 0px; font-size: 13px; line-height: 1.45; color: rgb(74, 70, 61);">Labels switch to sentence-case Instrument 600; action strip becomes a 2×2 grid; title wraps, never truncates.</p>
+    </figure>
+  </div>
+
+  <section data-dc-tpl="254" class="notes">
+    <div data-dc-tpl="255" class="note"><h3 data-dc-tpl="256">Breakpoints &amp; layout rules</h3><p data-dc-tpl="257"><b data-dc-tpl="258">≤360</b> compact: icon-only nav, 44px rail. <b data-dc-tpl="259">361–599</b> phone: floating pill nav. <b data-dc-tpl="260">600–1023</b> tablet: nav rail + one side panel (thread, outline or conversation). <b data-dc-tpl="261">≥1024</b> desktop: rail + content + side panel, one active player.</p></div>
+    <div data-dc-tpl="262" class="note"><h3 data-dc-tpl="263">Keyboard &amp; screen reader</h3><p data-dc-tpl="264">Every swipe has a key and a visible button (↑↓ subject, ←→ thread, Space play). Focus order: top bar → content → actions → thread → nav. Landmarks: nav, main, aside. Universe always has the list view outline.</p></div>
+    <div data-dc-tpl="265" class="note"><h3 data-dc-tpl="266">Platform differences</h3><p data-dc-tpl="267"><b data-dc-tpl="268">RN native:</b> system share sheet, back edge = Back (one step through your own history, N01), haptics on Save. <b data-dc-tpl="269">RN Web:</b> Web Share with copy-link fallback, text selection in Scrolls, browser history entries, hover tooltips for icon buttons.</p></div>
+  </section></div></div></div>
+
+
+
+</body></html>

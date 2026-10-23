@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foundations — tokens</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFBF0}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.sw{display:flex;flex-direction:column;border:1.5px solid #111;border-radius:14px;overflow:hidden;background:#FFFBF0}
+.sw i{display:block;height:84px}
+.sw div{padding:10px 12px;display:flex;flex-direction:column;gap:3px;font-size:13px;line-height:1.35}
+.sw code{font-family:'DM Mono',ui-monospace,monospace;font-size:12px}
+.sws{display:flex;flex-direction:column;border:1px solid rgba(255,251,240,.22);border-radius:14px;overflow:hidden;background:#0B1A2E;color:#FFFBF0}
+.sws i{display:block;height:84px}
+.sws div{padding:10px 12px;display:flex;flex-direction:column;gap:3px;font-size:13px;line-height:1.35}
+.sws code{font-family:'DM Mono',ui-monospace,monospace;font-size:12px}
+.tr{display:grid;grid-template-columns:220px minmax(0,1fr) 260px;gap:24px;align-items:baseline;padding:14px 0;border-bottom:1px solid #D9D1BC}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{text-align:left;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;padding:8px 10px;border-bottom:2px solid #111}
+.tbl td{padding:9px 10px;border-bottom:1px solid #D9D1BC;vertical-align:top;line-height:1.4}
+</style>
+</helmet>
+<div style="width: 1440px; height: 2100px; background: #FFFBF0; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif; padding: 72px 96px; display: flex; flex-direction: column; gap: 56px">
+
+  <header style="display: flex; align-items: flex-end; gap: 24px">
+    <h1 class="disp" style="margin: 0; font-size: 72px; font-weight: 800; line-height: .95">Foundations</h1>
+    <p style="margin: 0 0 8px; font-size: 17px; color: #4A463D; max-width: 640px; line-height: 1.45">Semantic tokens with two registers. Content screens use <b>content.*</b>; the universe uses <b>space.*</b>. A component never mixes raw hexes from both.</p>
+    <span class="mono" style="margin-left: auto; margin-bottom: 10px; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <section style="display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; align-items: baseline; gap: 14px"><span class="mono" style="color: #4A463D">Color · content register</span><span style="font-size: 14px; color: #4A463D">Reel, Scroll, Talk, Keep, settings and all ordinary controls</span></div>
+    <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 14px">
+      <div class="sw"><i style="background: #FFFBF0; border-bottom: 1.5px solid #111"></i><div><code>content.paper</code><b>#FFFBF0</b><span>Ground</span></div></div>
+      <div class="sw"><i style="background: #F4EDD8"></i><div><code>content.paper-2</code><b>#F4EDD8</b><span>Sunken, input</span></div></div>
+      <div class="sw"><i style="background: #111111"></i><div><code>content.ink</code><b>#111111</b><span>Text, 2px outline · 18.6:1</span></div></div>
+      <div class="sw"><i style="background: #4A463D"></i><div><code>content.ink-2</code><b>#4A463D</b><span>Secondary · 9.4:1</span></div></div>
+      <div class="sw"><i style="background: #2C46E8"></i><div><code>content.accent</code><b>#2C46E8</b><span>Primary action · cream on it 6.2:1</span></div></div>
+      <div class="sw"><i style="background: #FFE44D"></i><div><code>content.continue</code><b>#FFE44D</b><span>Horizontal / Part cue · ink on it</span></div></div>
+      <div class="sw"><i style="background: #14C79B"></i><div><code>content.fresh</code><b>#14C79B</b><span>Ready / sent · ink on it</span></div></div>
+      <div class="sw"><i style="background: #0B7A5F"></i><div><code>content.fresh-ink</code><b>#0B7A5F</b><span>Teal as text · 5.2:1</span></div></div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 14px">
+      <div class="sw"><i style="background: #E6EAFF; border-bottom: 2px dashed #2C46E8"></i><div><code>content.hypo</code><b>#E6EAFF / #1B2FB8</b><span>Hypothetical · dashed edge</span></div></div>
+      <div class="sw"><i style="background: #FFE9DE"></i><div><code>content.corrected</code><b>#FFE9DE / #8A2C07</b><span>Corrected / revised</span></div></div>
+      <div class="sw"><i style="background: #B23A0B"></i><div><code>content.danger</code><b>#B23A0B</b><span>Failed, destructive · 6.0:1</span></div></div>
+      <div class="sw"><i style="background: #D9D1BC"></i><div><code>content.rule</code><b>#D9D1BC</b><span>Hairline divider (decor only)</span></div></div>
+      <div class="sw"><i style="background: #111111"></i><div><code>content.nav</code><b>#111111</b><span>Floating nav pill</span></div></div>
+      <div class="sw"><i style="background: #FFF4C2"></i><div><code>content.highlight</code><b>#FFF4C2</b><span>Restored anchor flash</span></div></div>
+      <div class="sw"><i style="background: #E8E2D2"></i><div><code>canvas.board</code><b>#E8E2D2</b><span>Design canvas only</span></div></div>
+      <div class="sw"><i style="background: repeating-linear-gradient(135deg,#FFFBF0 0 6px,#F4EDD8 6px 12px)"></i><div><code>content.pending</code><b>stripe</b><span>Preparing skeleton</span></div></div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 18px; background: #040A17; color: #FFFBF0; padding: 36px; border-radius: 24px">
+    <div style="display: flex; align-items: baseline; gap: 14px"><span class="mono" style="color: rgba(255,251,240,.72)">Color · spatial register</span><span style="font-size: 14px; color: rgba(255,251,240,.72)">Unified from web #050B19/#0B1630 and Cosmos #03101A/#061A27</span></div>
+    <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 14px">
+      <div class="sws"><i style="background: #040A17; border-bottom: 1px solid rgba(255,251,240,.22)"></i><div><code>space.0</code><b>#040A17</b><span>Ground</span></div></div>
+      <div class="sws"><i style="background: #0B1A2E"></i><div><code>space.1</code><b>#0B1A2E</b><span>Raised panel</span></div></div>
+      <div class="sws"><i style="background: #14273F"></i><div><code>space.2</code><b>#14273F</b><span>Pressed / selected</span></div></div>
+      <div class="sws"><i style="background: #FFFBF0"></i><div><code>space.control</code><b>#FFFBF0</b><span>Cream floating controls</span></div></div>
+      <div class="sws"><i style="background: rgba(255,251,240,.72)"></i><div><code>space.label-2</code><b>cream 72%</b><span>Secondary label · 9.8:1</span></div></div>
+      <div class="sws"><i style="background: rgba(255,251,240,.18)"></i><div><code>space.orbit</code><b>cream 18%</b><span>Orbit hairline · decor</span></div></div>
+      <div class="sws"><i style="background: #FFE9A8"></i><div><code>space.star</code><b>#FFE9A8</b><span>Organising star core</span></div></div>
+      <div class="sws"><i style="background: #FFE44D"></i><div><code>space.focus</code><b>#FFE44D</b><span>Focus ring / ship trail</span></div></div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px">
+      <div style="display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: #0B1A2E">
+        <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="24" fill="#2BC4B4"></circle><path d="M14 22l10-8 14 3 4 11-9 9-13-3z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.5"></path></svg>
+        <div style="display: flex; flex-direction: column; gap: 3px; font-size: 13px"><code style="font-family: 'DM Mono', monospace">family.learning-machines</code><b>Teal ocean · angular green land</b><span style="color: rgba(255,251,240,.72)">e.g. Machine learning</span></div>
+      </div>
+      <div style="display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: #0B1A2E">
+        <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="24" fill="#6E86FF"></circle><path d="M8 30h40M12 20h32M12 40h32" stroke="#C9D3FF" stroke-width="3"></path></svg>
+        <div style="display: flex; flex-direction: column; gap: 3px; font-size: 13px"><code style="font-family: 'DM Mono', monospace">family.systems</code><b>Cobalt · banded strata</b><span style="color: rgba(255,251,240,.72)">e.g. Backend systems</span></div>
+      </div>
+      <div style="display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: #0B1A2E">
+        <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="24" fill="#F2B84B"></circle><path d="M10 34l8-6 8 4 8-8 12 6" fill="none" stroke="#8A5A10" stroke-width="3"></path></svg>
+        <div style="display: flex; flex-direction: column; gap: 3px; font-size: 13px"><code style="font-family: 'DM Mono', monospace">family.past</code><b>Amber · ridged dunes</b><span style="color: rgba(255,251,240,.72)">e.g. Predictive history</span></div>
+      </div>
+      <div style="display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: #0B1A2E">
+        <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="24" fill="#FF8A5B"></circle><circle cx="20" cy="22" r="5" fill="#FFD2BE"></circle><circle cx="34" cy="34" r="7" fill="#FFD2BE"></circle></svg>
+        <div style="display: flex; flex-direction: column; gap: 3px; font-size: 13px"><code style="font-family: 'DM Mono', monospace">family.play</code><b>Coral · round islands</b><span style="color: rgba(255,251,240,.72)">e.g. Football, games</span></div>
+      </div>
+      <div style="display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: #0B1A2E">
+        <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="24" fill="#E7E1CF"></circle><path d="M14 16l6 10-8 8M38 14l-4 12 10 6" fill="none" stroke="#7D7563" stroke-width="3"></path></svg>
+        <div style="display: flex; flex-direction: column; gap: 3px; font-size: 13px"><code style="font-family: 'DM Mono', monospace">family.worlds</code><b>Bone · fault lines</b><span style="color: rgba(255,251,240,.72)">e.g. Astronomy, physics</span></div>
+      </div>
+    </div>
+    <p style="margin: 0; font-size: 14px; line-height: 1.5; color: rgba(255,251,240,.8)">Family = hue + surface pattern (two cues, never hue alone). Personal variation = land silhouette seed, orbit order, ring tilt and routes. Planet size never encodes amount watched. Dormant: saturation −35%, no twinkle, orbit at 10% — the body stays where it was.</p>
+  </section>
+
+  <section style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 48px">
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <span class="mono" style="color: #4A463D">Typography · phone sizes (desktop +15%)</span>
+      <div class="tr"><span class="mono">display.xl · Bricolage 800 · 44/46 · −2%</span><span class="disp" style="font-size: 44px; line-height: 46px; font-weight: 800">Why models forget</span><span style="font-size: 13px; color: #4A463D">Scroll title, one per screen</span></div>
+      <div class="tr"><span class="mono">display.l · Bricolage 800 · 32/36</span><span class="disp" style="font-size: 32px; line-height: 36px; font-weight: 800">Batching, slowly</span><span style="font-size: 13px; color: #4A463D">Reel title, sheet title</span></div>
+      <div class="tr"><span class="mono">title · Bricolage 700 · 22/28</span><span class="disp" style="font-size: 22px; line-height: 28px; font-weight: 700">Inference &amp; serving</span><span style="font-size: 13px; color: #4A463D">Section, card, planet name</span></div>
+      <div class="tr"><span class="mono">body · Instrument 400 · 18/28</span><span style="font-size: 18px; line-height: 28px">A model reads every word against every other word, so doubling the text roughly quadruples the work.</span><span style="font-size: 13px; color: #4A463D">Article prose · measure 30–34em</span></div>
+      <div class="tr"><span class="mono">body.s · Instrument 500 · 15/22</span><span style="font-size: 15px; line-height: 22px; font-weight: 500">Ravi shared a Reel · 2 min</span><span style="font-size: 13px; color: #4A463D">UI copy, messages, captions</span></div>
+      <div class="tr"><span class="mono">label · DM Mono 500 · 11/14 · +6% caps</span><span class="mono" style="font-size: 11px; font-weight: 500">Part 2 of 3 · Hypothetical</span><span style="font-size: 13px; color: #4A463D">Labels only — never sentences</span></div>
+      <p style="margin: 10px 0 0; font-size: 14px; line-height: 1.5; color: #4A463D">Larger text: body scales to 26px at 200% before layouts reflow to one column; labels move to Instrument 600 sentence-case above 150% so caps don't become a wall.</p>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 20px">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span class="mono" style="color: #4A463D">Spacing (4-base) · radii · targets</span>
+        <div style="display: flex; gap: 10px; align-items: flex-end">
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: center"><i style="display: block; width: 4px; height: 4px; background: #2C46E8"></i><span class="mono">4</span></div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: center"><i style="display: block; width: 8px; height: 8px; background: #2C46E8"></i><span class="mono">8</span></div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: center"><i style="display: block; width: 12px; height: 12px; background: #2C46E8"></i><span class="mono">12</span></div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: center"><i style="display: block; width: 16px; height: 16px; background: #2C46E8"></i><span class="mono">16</span></div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: center"><i style="display: block; width: 20px; height: 20px; background: #2C46E8"></i><span class="mono">20</span></div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: center"><i style="display: block; width: 24px; height: 24px; background: #2C46E8"></i><span class="mono">24</span></div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: center"><i style="display: block; width: 32px; height: 32px; background: #2C46E8"></i><span class="mono">32</span></div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: center"><i style="display: block; width: 48px; height: 48px; background: #2C46E8"></i><span class="mono">48</span></div>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
+          <span style="width: 64px; height: 44px; border: 2px solid #111; border-radius: 6px; display: flex; align-items: center; justify-content: center" class="mono">6</span>
+          <span style="width: 64px; height: 44px; border: 2px solid #111; border-radius: 14px; display: flex; align-items: center; justify-content: center" class="mono">14</span>
+          <span style="width: 64px; height: 44px; border: 2px solid #111; border-radius: 20px; display: flex; align-items: center; justify-content: center" class="mono">20</span>
+          <span style="width: 64px; height: 44px; border: 2px solid #111; border-radius: 28px 28px 0 0; display: flex; align-items: center; justify-content: center" class="mono">28</span>
+          <span style="width: 64px; height: 44px; border: 2px solid #111; border-radius: 999px; display: flex; align-items: center; justify-content: center" class="mono">pill</span>
+          <span style="font-size: 13px; color: #4A463D">tag · card · panel · sheet · control</span>
+        </div>
+        <p style="margin: 0; font-size: 14px; line-height: 1.5">Touch target <b>48</b> logical px (floor 44). Phone gutter 20. Content measure ≤ 34em. Safe-area: content starts below the platform status bar — no drawn status bars.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span class="mono" style="color: #4A463D">Elevation</span>
+        <div style="display: flex; gap: 18px; align-items: center">
+          <span style="width: 96px; height: 60px; border: 2px solid #111; border-radius: 14px; background: #FFFBF0; box-shadow: 3px 3px 0 #111"></span>
+          <span style="width: 96px; height: 60px; border: 2px solid #111; border-radius: 14px; background: #FFFBF0; box-shadow: 6px 6px 0 #2C46E8"></span>
+          <span style="width: 96px; height: 60px; border-radius: 14px; background: #0B1A2E; box-shadow: 0 0 0 1px rgba(255,251,240,.22), 0 16px 32px -12px #000"></span>
+          <span style="font-size: 13px; color: #4A463D; line-height: 1.4">press 3px ink · hero 6px cobalt · space panel hairline + soft drop</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px">
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <span class="mono" style="color: #4A463D">Motion</span>
+      <table class="tbl">
+        <thead><tr><th>Token</th><th>Use</th><th>Default</th><th>Reduced motion</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">motion.press</td><td>Button / chip press</td><td>120ms, offset shadow → 0</td><td>Same (no travel)</td></tr>
+          <tr><td class="mono">motion.sheet</td><td>Sheets, popovers</td><td>240ms ease-out, rise 24px</td><td>140ms fade</td></tr>
+          <tr><td class="mono">motion.subject</td><td>Vertical subject change</td><td>320ms, page slides up</td><td>160ms crossfade</td></tr>
+          <tr><td class="mono">motion.thread</td><td>Horizontal continuation</td><td>360ms, yellow rail leads</td><td>160ms crossfade + rail label</td></tr>
+          <tr><td class="mono">motion.camera</td><td>System → planet → region</td><td>600–900ms dolly, ship travels</td><td>Cut with 200ms fade</td></tr>
+          <tr><td class="mono">motion.form</td><td>Formation (U05)</td><td>2.4s once per transition ID; skippable</td><td>Final still + one-line caption</td></tr>
+          <tr><td class="mono">motion.ambient</td><td>Twinkle, orbit drift</td><td>Very slow, ≤ 1 cycle/20s</td><td>Off</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <span class="mono" style="color: #4A463D">Annotation vocabulary used on every sheet</span>
+      <table class="tbl">
+        <thead><tr><th>Mark</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">CMD name</td><td>Durable command with stable request ID (save, send, choose branch). Server receipt is authoritative.</td></tr>
+          <tr><td class="mono">OBS name</td><td>Observation summarised by the shared recorder (visible interval, block coverage). Never counts as a command.</td></tr>
+          <tr><td class="mono">Gesture</td><td>Which layer owns the pointer: article, component, thread, platform back.</td></tr>
+          <tr><td class="mono">Restore</td><td>What is reinstated on return: anchor, playhead, branch node, camera.</td></tr>
+          <tr><td class="mono">Platform</td><td>RN native vs React Native Web differences (back, text selection, share, keys).</td></tr>
+        </tbody>
+      </table>
+      <p style="margin: 6px 0 0; font-size: 14px; line-height: 1.5; color: #4A463D">Status is never colour alone: every state pairs a glyph and a word (✓ Sent, ↻ Retry, ⌁ Offline, ⧗ Preparing).</p>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2100}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>P01 Account and settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.top{position:absolute;left:0;right:0;top:56px;padding:0 16px;display:flex;align-items:center;gap:12px}
+.body{position:absolute;left:20px;right:20px;top:124px;display:flex;flex-direction:column;gap:0}
+.lrow{display:flex;align-items:center;gap:12px;min-height:58px;padding:6px 0;border-bottom:1px solid #D9D1BC;color:#111111;text-decoration:none}
+.who{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.who b{font-size:15px}
+.who span{font-size:13px;color:#4A463D;line-height:1.35}
+.sw{width:56px;height:32px;border-radius:999px;border:2px solid #111111;position:relative;padding:0;cursor:pointer;flex:none}
+.sw i{position:absolute;top:3px;width:22px;height:22px;border-radius:999px}
+.sw[aria-checked="true"]{background:#2C46E8}
+.sw[aria-checked="true"] i{right:3px;background:#FFFBF0}
+.sw[aria-checked="false"]{background:#F4EDD8}
+.sw[aria-checked="false"] i{left:3px;background:#111111}
+.sec{margin:16px 0 4px;color:#4A463D}
+</style>
+</helmet>
+<div style="width: 1330px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">P01</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Account &amp; settings</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 760px">Reached from your avatar. Sessions, comfort settings and notifications — no streaks, no “you missed” nudges.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 ACCOUNT -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Account</b><span>Identity, sessions, settings index</span></figcaption>
+      <div class="phone">
+        <div class="top">
+          <a class="ibtn" href="S01-Saved.dc.html" aria-label="Back to Keep"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+          <h2 class="disp" style="margin: 0; font-size: 28px; font-weight: 800">You</h2>
+        </div>
+        <div class="body">
+          <div style="display: flex; align-items: center; gap: 14px; padding: 14px; border: 2px solid #111111; border-radius: 16px; box-shadow: 6px 6px 0 #2C46E8">
+            <span style="width: 56px; height: 56px; border-radius: 999px; background: #FFE44D; border: 2px solid #111111; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 22px" class="disp">A</span>
+            <div class="who"><b style="font-size: 18px">Asha</b><span>@asha.k · asha@example.com</span></div>
+            <button class="btn sm ghost" type="button">Edit</button>
+          </div>
+          <span class="mono sec">Sessions</span>
+          <div class="lrow"><div class="who"><b>This phone</b><span>Signed in now</span></div><span class="tag">Current</span></div>
+          <div class="lrow"><div class="who"><b>Browser on a laptop</b><span>Last used 2 days ago</span></div><button class="btn sm ghost" type="button">Sign out</button></div>
+          <span class="mono sec">Settings</span>
+          <a class="lrow" href="F01-Friends.dc.html"><div class="who"><b>Friends &amp; visibility</b><span>Who can visit your universe</span></div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a>
+          <a class="lrow" href="F01-Friends.dc.html"><div class="who"><b>Activity status</b><span>Shown as “Recently active” · never what you watch</span></div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a>
+          <a class="lrow" href="P02-Privacy.dc.html"><div class="who"><b>Privacy &amp; history</b><span>Recording, export, clear exploration, delete</span></div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a>
+          <a class="lrow" href="P01-Account.dc.html"><div class="who"><b>Notifications</b></div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a>
+          <a class="lrow" href="P01-Account.dc.html"><div class="who"><b>Accessibility &amp; playback</b></div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a>
+          <button class="btn ghost" type="button" style="margin-top: 6px; align-self: flex-start">Sign out</button>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="keep" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 2 ACCESSIBILITY -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Accessibility &amp; playback</b><span>Mirrors OS settings by default</span></figcaption>
+      <div class="phone">
+        <div class="top">
+          <a class="ibtn" href="P01-Account.dc.html" aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+          <h2 class="disp" style="margin: 0; font-size: 24px; font-weight: 800; line-height: 1.05">Accessibility<br>&amp; playback</h2>
+        </div>
+        <div class="body" style="top: 136px">
+          <div class="lrow"><label for="a-rm" class="who"><b>Reduce motion</b><span>Following your device · formation shows the final state</span></label><button id="a-rm" class="sw" type="button" role="switch" aria-checked="true" aria-label="Reduce motion"><i></i></button></div>
+          <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-bottom: 1px solid #D9D1BC">
+            <b style="font-size: 15px">Text size</b>
+            <div style="display: flex; align-items: center; gap: 10px">
+              <button class="ibtn" type="button" aria-label="Smaller text"><span style="font-size: 14px; font-weight: 700">A</span></button>
+              <div style="flex: 1; padding: 10px 12px; border: 2px solid #111111; border-radius: 12px; background: #F4EDD8; font-size: 22px; line-height: 1.35">Attention, slowly</div>
+              <button class="ibtn" type="button" aria-label="Larger text"><span style="font-size: 22px; font-weight: 700">A</span></button>
+            </div>
+            <span style="font-size: 13px; color: #4A463D">Uses your device size; up to 200% before layouts stack.</span>
+          </div>
+          <div class="lrow"><label for="a-cc" class="who"><b>Captions on by default</b></label><button id="a-cc" class="sw" type="button" role="switch" aria-checked="true" aria-label="Captions on by default"><i></i></button></div>
+          <div class="lrow"><label for="a-snd" class="who"><b>Autoplay with sound</b><span>Off: Reels start muted after a detour</span></label><button id="a-snd" class="sw" type="button" role="switch" aria-checked="false" aria-label="Autoplay with sound"><i></i></button></div>
+          <div class="lrow"><label for="a-hap" class="who"><b>Haptics</b></label><button id="a-hap" class="sw" type="button" role="switch" aria-checked="true" aria-label="Haptics"><i></i></button></div>
+          <div class="lrow"><label for="a-list" class="who"><b>Use list view for the universe</b><span>An outline of systems, planets and regions</span></label><button id="a-list" class="sw" type="button" role="switch" aria-checked="false" aria-label="Use list view for the universe"><i></i></button></div>
+          <div class="lrow"><label for="a-hc" class="who"><b>High-contrast labels in space</b><span>Solid cream label plates</span></label><button id="a-hc" class="sw" type="button" role="switch" aria-checked="false" aria-label="High-contrast labels in space"><i></i></button></div>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 3 NOTIFICATIONS -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Notifications</b><span>Only things you asked for or people said</span></figcaption>
+      <div class="phone">
+        <div class="top">
+          <a class="ibtn" href="P01-Account.dc.html" aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+          <h2 class="disp" style="margin: 0; font-size: 28px; font-weight: 800">Notifications</h2>
+        </div>
+        <div class="body">
+          <div class="lrow"><label for="n-ready" class="who"><b>Ready requests</b><span>A Scroll or Reel you asked for is ready</span></label><button id="n-ready" class="sw" type="button" role="switch" aria-checked="true" aria-label="Ready requests"><i></i></button></div>
+          <div class="lrow"><label for="n-msg" class="who"><b>Messages</b><span>From people in your conversations</span></label><button id="n-msg" class="sw" type="button" role="switch" aria-checked="true" aria-label="Messages"><i></i></button></div>
+          <div class="lrow"><label for="n-exp" class="who"><b>Exploration activity</b><span>A branch you chose is ready, or someone joins</span></label><button id="n-exp" class="sw" type="button" role="switch" aria-checked="true" aria-label="Exploration activity"><i></i></button></div>
+          <div class="lrow"><label for="n-room" class="who"><b>Room mentions</b><span>Only when someone replies to you</span></label><button id="n-room" class="sw" type="button" role="switch" aria-checked="false" aria-label="Room mentions"><i></i></button></div>
+          <span class="mono sec">Quiet hours</span>
+          <div class="lrow"><label for="n-quiet" class="who"><b>22:00 – 08:00</b><span>Held until morning, delivered once</span></label><button id="n-quiet" class="sw" type="button" role="switch" aria-checked="true" aria-label="Quiet hours"><i></i></button></div>
+          <div class="banner" style="margin-top: 20px; background: #F4EDD8; border-color: #F4EDD8">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+            <span>We never send streak or “you missed” reminders.</span>
+          </div>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p><span class="ev">/settings</span>, <span class="ev">/settings/accessibility</span>, <span class="ev">/settings/notifications</span>. Opened from the avatar on Keep and Universe headers; deep-linked from a notification’s “Manage”.</p></div>
+    <div class="note"><h3>Actions</h3><p><b>Primary:</b> change a setting (applies immediately). <b>Secondary:</b> edit profile, sign out a session, sign out here, jump to Friends or Privacy (P02).</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>loading (rows skeleton) · saving (switch disabled, spinner glyph) · saved · failed (switch reverts + banner “Couldn’t save · Retry”) · offline (switches read-only, explained). Signing out a session asks once.</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">CMD settings.set{key, value} · session.revoke{sessionId} · auth.sign_out · notifications.set{channel} · quiet_hours.set</p></div>
+    <div class="note"><h3>Restore</h3><p>Settings sync per account across devices. Reduce motion and text size mirror the OS until changed here. Returning to a tab restores its own place; settings never reset reading or playback positions.</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>Every switch has role=switch and its row label. Text-size preview is live. Native: notification permission prompt only after a switch is turned on; web: browser permission, with a plain fallback if denied.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1330,"height":1480}}'>class Component extends DCLogic { renderVals() { return {}; } }</script>
+</body>
+</html>

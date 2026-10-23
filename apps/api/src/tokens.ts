@@ -1,0 +1,15 @@
+/** Injection tokens of the API composition root. Ports are injected by token, never by class. */
+export const API_CONFIG = Symbol('ApiConfig');
+export const DATABASE = Symbol('Database');
+export const LOG_EVENT = Symbol('LogEvent');
+export const WITH_PERSONAL_SCOPE = Symbol('WithPersonalScope');
+export const ENQUEUE_JOB = Symbol('EnqueueJob');
+/** Producer instance used only by fixed, same-transaction infrastructure adapters. */
+export const PG_BOSS = Symbol('PgBoss');
+export const CALLERS = Symbol('AuthenticatedCallers');
+/** `() => RelayState`: the LISTEN relay's current state, for `/health`. */
+export const RELAY_STATE = Symbol('RelayState');
+/** The identity module's sign-in use cases, built once by the composition root. */
+export const IDENTITY_USE_CASES = Symbol('IdentityUseCases');
+/** The in-process limits of the unauthenticated sign-in routes. */
+export const AUTH_LIMITERS = Symbol('AuthLimiters');

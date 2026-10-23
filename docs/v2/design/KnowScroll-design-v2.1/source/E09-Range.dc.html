@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>E09 Content range</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.rail{position:absolute;right:12px;display:flex;flex-direction:column;gap:14px}
+.edge{position:absolute;right:0;top:584px;width:76px;min-height:76px;background:#FFE44D;color:#111111;border:2px solid #111111;border-right:0;border-radius:18px 0 0 18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-decoration:none}
+.prog{position:absolute;left:20px;right:20px;top:712px;display:flex;align-items:center;gap:10px}
+.bar{flex:1;height:4px;border-radius:4px;background:rgba(255,251,240,.35);position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:#FFFBF0}
+.ed{margin:0;font-family:'Instrument Sans',system-ui,sans-serif;font-size:18px;line-height:28px;color:#111111}
+.wcard{border:2px solid #111111;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;background:#FFFBF0}
+.wbar{height:8px;border-radius:6px;background:#F4EDD8;position:relative;overflow:hidden}
+.wbar i{position:absolute;left:0;top:0;bottom:0;background:#2C46E8;border-radius:6px}
+</style>
+</helmet>
+<div style="width: 1752px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">E09</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Content range</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 1000px">Same controls, different characters. The rail, the Reel/Scroll switch, the edge tab and the nav never move; the content inside brings its own palette, imagery, rhythm and motion.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 HISTORY REEL -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>History Reel</b><span>Illustrated scene + narration captions</span></figcaption>
+      <div class="phone" style="background: #C9822B; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <rect x="0" y="0" width="390" height="430" fill="#C9822B"></rect>
+          <rect x="0" y="0" width="390" height="200" fill="#B87022"></rect>
+          <circle cx="292" cy="300" r="46" fill="#F3C969"></circle>
+          <g fill="#7A5A44" opacity=".55"><circle cx="96" cy="180" r="34"></circle><circle cx="120" cy="140" r="28"></circle><circle cx="86" cy="110" r="22"></circle><circle cx="108" cy="78" r="16"></circle></g>
+          <path d="M0 330 L 40 300 L 70 312 L 70 268 L 84 268 L 84 252 L 118 252 L 118 268 L 132 268 L 132 300 L 168 318 L 190 360 L 0 360 Z" fill="#3A2416"></path>
+          <g fill="#FF8A3D"><rect x="90" y="262" width="6" height="8"></rect><rect x="106" y="262" width="6" height="8"></rect><path d="M98 252 q 6 -14 2 -26 q 10 10 6 26 z"></path></g>
+          <rect x="0" y="360" width="390" height="70" fill="#8C5A2B"></rect>
+          <rect x="0" y="430" width="390" height="414" fill="#5A3A1E"></rect>
+          <g stroke="#C9822B" stroke-width="2" stroke-linecap="round" opacity=".55"><path d="M20 452 h40 M90 470 h56 M200 456 h70 M300 478 h60 M40 500 h80 M180 494 h40"></path></g>
+          <g fill="#1E120A">
+            <path d="M190 412 h70 l -10 14 h -50 z"></path><path d="M224 412 v -46 l 24 40 z"></path><rect x="223" y="362" width="3" height="50"></rect>
+            <path d="M270 404 h50 l -8 10 h -34 z"></path><path d="M296 404 v -34 l 18 30 z"></path><rect x="295" y="366" width="2.5" height="38"></rect>
+            <path d="M330 398 h34 l -6 8 h -22 z"></path><path d="M347 398 v -24 l 12 20 z"></path>
+          </g>
+        </svg>
+        <div style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; align-items: center; justify-content: space-between">
+          <span class="tag" style="border-color: #FFFBF0">Predictive history</span>
+          <div class="seg" role="group" aria-label="Format of this explanation"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false">Scroll</button></div>
+        </div>
+        <div style="position: absolute; left: 20px; right: 84px; top: 470px; background: rgba(30,18,10,.86); color: #FFFBF0; border-radius: 12px; padding: 10px 12px; font-size: 16px; line-height: 1.45; font-weight: 500; font-style: italic">Within about fifty years, palaces from Greece to the Levant fell — and the writing that ran them went quiet.</div>
+        <div class="rail" style="top: 232px">
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Like"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button><span>Like</span></div>
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Save"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg></button><span>Save</span></div>
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Share"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7h16v-7"></path><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path></svg></button><span>Share</span></div>
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Ask about this"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path><path d="M10 9.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9"></path></svg></button><span>Ask</span></div>
+        </div>
+        <a class="edge" href="E05-Continue.dc.html" aria-label="Continue: Part 2, the drought theory">
+          <span class="mono" style="font-size: 10px">Part 2</span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+        </a>
+        <div style="position: absolute; left: 20px; width: 270px; top: 578px; display: flex; flex-direction: column; gap: 8px">
+          <span class="tag part" style="align-self: flex-start">Part 1 of 3</span>
+          <h2 class="disp" style="margin: 0; font-size: 28px; line-height: 30px; font-weight: 800">Why the Bronze Age collapsed all at once</h2>
+        </div>
+        <div class="prog"><div class="bar"><i style="width: 24%"></i></div><span class="mono">0:14 / 0:58</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 2 EDITORIAL SCROLL -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Editorial Scroll</b><span>Long prose, drop cap, illustrated figure</span></figcaption>
+      <div class="phone">
+        <div aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 0; height: 4px; background: #F4EDD8"><i style="display: block; width: 22%; height: 4px; background: #111111"></i></div>
+        <div style="position: absolute; left: 12px; right: 16px; top: 52px; display: flex; align-items: center; justify-content: space-between">
+          <button class="ibtn" type="button" aria-label="Back" style="border: 0; background: transparent"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+          <div class="seg" role="group" aria-label="Format of this explanation"><button type="button" aria-pressed="false">Reel</button><button type="button" aria-pressed="true">Scroll</button></div>
+        </div>
+        <article style="position: absolute; left: 24px; right: 24px; top: 116px; display: flex; flex-direction: column; gap: 14px">
+          <span class="mono" style="color: #4A463D">Essay · History of the sea</span>
+          <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-size: 34px; line-height: 36px; font-weight: 700; letter-spacing: -.02em">How Polynesian navigators read the ocean</h2>
+          <p class="ed"><span aria-hidden="true" style="float: left; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-size: 66px; line-height: 54px; font-weight: 800; padding: 4px 8px 0 0; color: #2C46E8">F</span><span style="position: absolute; left: -9999px">F</span>or centuries, navigators crossed vast stretches of open Pacific without instruments. They read the sky and the sea as one continuous map.</p>
+          <p class="ed">At night, a navigator held a course by the rising and setting points of known stars, moving on to the next star of the path as each climbed too high to steer by.</p>
+          <figure style="margin: 2px 0 0; display: flex; flex-direction: column; gap: 6px">
+            <svg role="img" aria-label="Illustration: long ocean swells bending around a small island while a canoe sails past." width="342" height="150" viewBox="0 0 342 150" style="border-radius: 14px; background: #DCEBEF">
+              <g fill="none" stroke="#2C46E8" stroke-width="2" stroke-linecap="round" opacity=".7"><path d="M-10 30 C 80 20, 160 20, 352 34"></path><path d="M-10 58 C 90 50, 130 40, 172 52 C 210 62, 260 62, 352 60"></path><path d="M-10 92 C 80 92, 120 110, 172 104 C 220 98, 280 84, 352 90"></path><path d="M-10 124 C 100 122, 220 130, 352 120"></path></g>
+              <ellipse cx="172" cy="76" rx="26" ry="14" fill="#5BCB72" stroke="#111111" stroke-width="2"></ellipse>
+              <path d="M164 70 l4 -16 l4 16" fill="none" stroke="#111111" stroke-width="2"></path>
+              <path d="M240 110 h44 l -6 7 h -32 z" fill="#111111"></path><path d="M262 110 v -30 l 16 26 z" fill="#FFE44D" stroke="#111111" stroke-width="1.5"></path>
+            </svg>
+            <figcaption style="font-size: 13px; line-height: 1.4; color: #4A463D">Swells bend around an island. A navigator in the hull could feel the change.</figcaption>
+          </figure>
+          <p class="ed">By day, the swell itself was a compass. Long ocean swells keep their direction for days, and islands bend and reflect them in patterns a trained navigator could feel.</p>
+        </article>
+      </div>
+    </figure>
+
+    <!-- 3 FOOTBALL REEL -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Football Reel</b><span>Movement trails + kinetic captions</span></figcaption>
+      <div class="phone" style="background: #2C7546; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#2F7D4A"><rect x="0" y="0" width="390" height="70"></rect><rect x="0" y="140" width="390" height="70"></rect><rect x="0" y="280" width="390" height="70"></rect><rect x="0" y="420" width="390" height="70"></rect><rect x="0" y="560" width="390" height="70"></rect><rect x="0" y="700" width="390" height="70"></rect></g>
+          <g fill="none" stroke="#FFFBF0" stroke-width="2.5" opacity=".75"><rect x="24" y="120" width="342" height="560"></rect><path d="M24 120 h342"></path><rect x="105" y="560" width="180" height="120"></rect><rect x="155" y="640" width="80" height="40"></rect><path d="M140 560 a 55 55 0 0 1 110 0"></path></g>
+          <path d="M195 470 C 196 540, 195 590, 195 628" fill="none" stroke="#FFFBF0" stroke-width="2.5" stroke-dasharray="6 6"></path>
+          <circle cx="195" cy="636" r="6" fill="#FFFBF0" stroke="#111111" stroke-width="2"></circle>
+          <g fill="#FFFBF0" stroke="#111111" stroke-width="2"><circle cx="195" cy="650" r="11"></circle><circle cx="96" cy="560" r="11"></circle><circle cx="294" cy="556" r="11"></circle><circle cx="195" cy="462" r="11"></circle></g>
+          <g fill="#FFE44D" opacity=".3"><circle cx="150" cy="420" r="11"></circle><circle cx="250" cy="416" r="11"></circle><circle cx="196" cy="370" r="11"></circle></g>
+          <g fill="#FFE44D" opacity=".6"><circle cx="138" cy="470" r="11"></circle><circle cx="262" cy="466" r="11"></circle><circle cx="196" cy="420" r="11"></circle></g>
+          <g fill="#FFE44D" stroke="#111111" stroke-width="2"><circle cx="122" cy="522" r="12"></circle><circle cx="276" cy="518" r="12"></circle><circle cx="196" cy="474" r="12" opacity="0"></circle></g>
+          <g fill="none" stroke="#FFE44D" stroke-width="3" stroke-linecap="round"><path d="M126 534 L 104 552"></path><path d="M272 530 L 288 548"></path></g>
+          <g fill="#FFE44D"><path d="M98 560 l 2 -12 l 10 6 z"></path><path d="M294 556 l -10 -4 l 8 -8 z"></path></g>
+        </svg>
+        <div style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; align-items: center; justify-content: space-between">
+          <span class="tag" style="border-color: #FFFBF0">Football</span>
+          <div class="seg" role="group" aria-label="Format of this explanation"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false">Scroll</button></div>
+        </div>
+        <div style="position: absolute; left: 20px; right: 84px; top: 128px; display: flex; flex-direction: column; gap: 2px; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 30px; line-height: 32px; letter-spacing: -.01em">
+          <span style="color: rgba(255,251,240,.6)">The moment the pass</span>
+          <span><span style="background: #FFE44D; color: #111111; padding: 0 6px; border-radius: 4px">goes back</span> to the</span>
+          <span>keeper…</span>
+        </div>
+        <div class="rail" style="top: 232px">
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Like"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button><span>Like</span></div>
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Save"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg></button><span>Save</span></div>
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Share"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7h16v-7"></path><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path></svg></button><span>Share</span></div>
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Ask about this"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path><path d="M10 9.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9"></path></svg></button><span>Ask</span></div>
+        </div>
+        <a class="edge" href="E05-Continue.dc.html" aria-label="Related: how teams beat the press" style="background: #FFFBF0; border-style: dashed">
+          <span class="mono" style="font-size: 10px">Related</span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3 3" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+        </a>
+        <div style="position: absolute; left: 20px; width: 270px; top: 600px; display: flex; flex-direction: column; gap: 8px">
+          <h2 class="disp" style="margin: 0; font-size: 28px; line-height: 30px; font-weight: 800; text-shadow: 0 1px 0 rgba(17,17,17,.35)">Why the high press works</h2>
+        </div>
+        <div class="prog"><div class="bar"><i style="width: 19%"></i></div><span class="mono">0:09 / 0:47</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 4 INTERACTIVE COMPARISON SCROLL -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Comparison Scroll</b><span>The interactive block is the experience</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; left: 12px; right: 16px; top: 52px; display: flex; align-items: center; justify-content: space-between">
+          <button class="ibtn" type="button" aria-label="Back" style="border: 0; background: transparent"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+          <span class="tag">Astronomy</span>
+          <div class="seg" role="group" aria-label="Format of this explanation"><button type="button" aria-pressed="false">Reel</button><button type="button" aria-pressed="true">Scroll</button></div>
+        </div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 118px; display: flex; flex-direction: column; gap: 12px">
+          <h2 class="disp" style="margin: 0; font-size: 30px; line-height: 32px; font-weight: 800">How heavy would you be on other worlds?</h2>
+          <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #4A463D">Put in your weight and see what a bathroom scale would read.</p>
+          <div style="border: 2px solid #111111; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 12px; box-shadow: 6px 6px 0 #2C46E8; background: #FFFBF0">
+            <div style="display: flex; align-items: center; gap: 10px">
+              <label for="e09-w" style="font-size: 15px; font-weight: 600; flex: 1">Your weight on Earth</label>
+              <button class="ibtn" type="button" aria-label="Less"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+              <input id="e09-w" type="text" inputmode="numeric" value="60 kg" style="width: 76px; min-height: 48px; border: 2px solid #111111; border-radius: 12px; text-align: center; font: 700 17px 'Instrument Sans', sans-serif; background: #FFF4C2">
+              <button class="ibtn" type="button" aria-label="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+              <div class="wcard"><span style="display: flex; align-items: center; gap: 8px"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#E7E1CF" stroke="#111111" stroke-width="1.5"></circle></svg><b style="font-size: 14px">Moon</b><span class="mono" style="margin-left: auto; color: #4A463D">0.17×</span></span><b class="disp" style="font-size: 26px">10 kg</b><div class="wbar"><i style="width: 7%"></i></div></div>
+              <div class="wcard"><span style="display: flex; align-items: center; gap: 8px"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#FF8A5B" stroke="#111111" stroke-width="1.5"></circle></svg><b style="font-size: 14px">Mars</b><span class="mono" style="margin-left: auto; color: #4A463D">0.38×</span></span><b class="disp" style="font-size: 26px">23 kg</b><div class="wbar"><i style="width: 15%"></i></div></div>
+              <div class="wcard" style="background: #F4EDD8"><span style="display: flex; align-items: center; gap: 8px"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#2BC4B4" stroke="#111111" stroke-width="1.5"></circle></svg><b style="font-size: 14px">Earth</b><span class="mono" style="margin-left: auto; color: #4A463D">1×</span></span><b class="disp" style="font-size: 26px">60 kg</b><div class="wbar"><i style="width: 40%"></i></div></div>
+              <div class="wcard"><span style="display: flex; align-items: center; gap: 8px"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#F2B84B" stroke="#111111" stroke-width="1.5"></circle></svg><b style="font-size: 14px">Jupiter</b><span class="mono" style="margin-left: auto; color: #4A463D">2.53×</span></span><b class="disp" style="font-size: 26px">152 kg</b><div class="wbar"><i style="width: 100%"></i></div></div>
+            </div>
+            <span style="font-size: 13px; color: #4A463D; line-height: 1.4">Jupiter has no ground to stand on; this is at its cloud tops.</span>
+          </div>
+          <p style="margin: 0; font-size: 16px; line-height: 1.55">What changes is surface gravity — how hard each world pulls on you. You’re made of the same stuff everywhere; the scale just feels a different pull.</p>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p>Same routes as every encounter: <span class="ev">/e/:id</span> (Reel), <span class="ev">/s/:id</span> (Scroll). Content character comes from the asset (illustration, palette, caption style, block set), never from a different screen template or chrome.</p></div>
+    <div class="note"><h3>Actions</h3><p>Fixed everywhere: rail order Like · Save · Share · Ask; Reel/Scroll switch top-right; right-edge tab with → (Part solid yellow, Related dashed cream); nav pill at the bottom. Editorial Scrolls hide the nav while reading, like E02.</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>Narrated Reels: captions follow narration, italic for voice-over. Kinetic captions: one highlighted chunk at a time. Editorial: drop cap + figure with caption. Comparison: input, stepper, result cards. All share E01/E02 loading, offline, corrected and unavailable states.</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">OBS reel.visible_interval · reel.captions_toggled<br>OBS scroll.block_coverage · scroll.block_interaction{block: weight-compare}<br>CMD encounter.save · thread.continue{series|related} · format.switch</p></div>
+    <div class="note"><h3>Restore</h3><p>Reels: playhead. Editorial Scroll: anchor paragraph. Comparison Scroll: block state (the weight you entered) stored per article revision + block ID; it reappears when you return and in any shared snippet that includes the configuration.</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>Captions on narration and kinetic text are real text, not burned in. Football motion has a reduced-motion still with numbered arrows. Figures carry alt text. Weight input has a label, numeric keyboard on native, stepper buttons and announced results.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1752,"height":1480}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

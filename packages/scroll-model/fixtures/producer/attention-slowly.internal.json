@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "scroll-provenance.v1",
+  "assetId": "fixture-attention-slowly",
+  "revision": 1,
+  "documentSha256": "e6450771696ecfa412c3b1a47ca98a0324b4e83c2d3a1e46c1897c6811b5f3f1",
+  "claims": [
+    {
+      "claimId": "clm-attn-pairwise",
+      "statement": "In self-attention every token is compared with every other token in the sequence.",
+      "quote": "FIXTURE PLACEHOLDER: each position attends to all positions.",
+      "sourceId": "src-fixture-attention",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-attn-quadratic",
+      "statement": "The cost of self-attention grows with the square of the sequence length.",
+      "quote": "FIXTURE PLACEHOLDER: per-layer cost is quadratic in length.",
+      "sourceId": "src-fixture-attention",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-attn-softmax",
+      "statement": "Attention scores in a row are normalised so the weights sum to one.",
+      "quote": "FIXTURE PLACEHOLDER: a softmax gives the weights.",
+      "sourceId": "src-fixture-attention",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-attn-coref",
+      "statement": "Attention can link a pronoun to the noun it refers to.",
+      "quote": "FIXTURE PLACEHOLDER: some heads resolve anaphora.",
+      "sourceId": "src-fixture-attention",
+      "truthState": "synthesis"
+    }
+  ],
+  "sources": [
+    {
+      "sourceId": "src-fixture-attention",
+      "title": "Fixture source (not a real document)",
+      "url": "https://fixture.invalid/src-fixture-attention",
+      "snapshotSha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
+      "retrievedAt": "2026-10-19T00:00:00Z"
+    }
+  ],
+  "bindings": [
+    {
+      "kind": "passage",
+      "claimId": "clm-attn-pairwise",
+      "blockId": "crowd-p2",
+      "field": "text",
+      "start": 71,
+      "end": 107
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-attn-coref",
+      "blockId": "it-diagram"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-attn-quadratic",
+      "blockId": "squared-p1",
+      "field": "text",
+      "start": 39,
+      "end": 62
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-attn-pairwise",
+      "blockId": "grid-chart"
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-attn-quadratic",
+      "blockId": "length-sim"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-attn-softmax",
+      "blockId": "weights-p1",
+      "field": "text",
+      "start": 34,
+      "end": 60
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-attn-pairwise",
+      "blockId": "grid-chart",
+      "field": "data.caption",
+      "start": 0,
+      "end": 29
+    }
+  ],
+  "checks": [
+    {
+      "name": "envelope",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "schema",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "structure",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "computation",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "evidence",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "brief",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "publish",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    }
+  ],
+  "production": {
+    "kind": "fixture",
+    "label": "scroll-model fixture: authored example for tests, not product content"
+  }
+}

@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>U01 Universe overview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.utitle{position:absolute;left:20px;top:58px;display:flex;flex-direction:column;gap:2px}
+.pillsp{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:0;background:#FFFBF0;color:#111111;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none}
+.pillgh{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid rgba(255,251,240,.6);background:transparent;color:#FFFBF0;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none}
+.hit{position:absolute;width:48px;height:48px;border-radius:999px;border:0;background:transparent;cursor:pointer;padding:0}
+</style>
+</helmet>
+<div style="width: 1752px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">U01</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Universe overview</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 980px">A calm, spacious map of what you have actually explored. Systems are broad topics, stars organise them; nothing is counted, scored or lost after time away.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 EMPTY -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Empty · first visit</b><span>Background only; no promises</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <circle cx="195" cy="360" r="210" fill="#0B1A2E" opacity=".55"></circle>
+          <circle cx="195" cy="360" r="120" fill="#14273F" opacity=".35"></circle>
+          <g fill="#FFFBF0"><circle cx="24" cy="120" r="1" opacity=".55"></circle><circle cx="88" cy="70" r=".8" opacity=".4"></circle><circle cx="140" cy="160" r="1.2" opacity=".6"></circle><circle cx="230" cy="96" r=".9" opacity=".45"></circle><circle cx="300" cy="140" r="1" opacity=".5"></circle><circle cx="362" cy="84" r="1.3" opacity=".6"></circle><circle cx="60" cy="230" r=".8" opacity=".35"></circle><circle cx="350" cy="250" r=".9" opacity=".4"></circle><circle cx="18" cy="420" r="1.1" opacity=".5"></circle><circle cx="372" cy="430" r=".8" opacity=".35"></circle><circle cx="90" cy="520" r="1" opacity=".45"></circle><circle cx="250" cy="610" r=".8" opacity=".35"></circle><circle cx="40" cy="660" r="1.2" opacity=".55"></circle><circle cx="330" cy="690" r="1" opacity=".45"></circle><circle cx="180" cy="720" r=".8" opacity=".3"></circle><circle cx="120" cy="300" r=".7" opacity=".3"></circle><circle cx="270" cy="230" r="1.4" opacity=".7"></circle><circle cx="200" cy="560" r=".9" opacity=".4"></circle></g>
+        </svg>
+        <div class="utitle"><span class="disp" style="font-size: 26px; font-weight: 800">Your universe</span></div>
+        <div style="position: absolute; left: 36px; right: 36px; top: 300px; display: flex; flex-direction: column; gap: 16px; align-items: center; text-align: center">
+          <h2 class="disp" style="margin: 0; font-size: 30px; line-height: 34px; font-weight: 800">Your universe starts quiet.</h2>
+          <p style="margin: 0; font-size: 17px; line-height: 1.5; color: rgba(255,251,240,.8)">It takes shape from what you watch and read.</p>
+          <a class="pillsp" href="E01-Reel.dc.html" style="margin-top: 8px; min-height: 48px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3"></rect><path d="M8 3l4 4 4-4"></path></svg>Go to Explore</a>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 2 EMERGING -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Emerging</b><span>Dust + protostar; tapped</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#FFFBF0"><circle cx="24" cy="120" r="1" opacity=".55"></circle><circle cx="88" cy="70" r=".8" opacity=".4"></circle><circle cx="140" cy="160" r="1.2" opacity=".6"></circle><circle cx="230" cy="96" r=".9" opacity=".45"></circle><circle cx="300" cy="140" r="1" opacity=".5"></circle><circle cx="362" cy="84" r="1.3" opacity=".6"></circle><circle cx="60" cy="230" r=".8" opacity=".35"></circle><circle cx="350" cy="250" r=".9" opacity=".4"></circle><circle cx="18" cy="420" r="1.1" opacity=".5"></circle><circle cx="372" cy="430" r=".8" opacity=".35"></circle><circle cx="90" cy="520" r="1" opacity=".45"></circle><circle cx="250" cy="610" r=".8" opacity=".35"></circle><circle cx="40" cy="660" r="1.2" opacity=".55"></circle><circle cx="330" cy="690" r="1" opacity=".45"></circle><circle cx="270" cy="230" r="1.4" opacity=".7"></circle></g>
+          <circle cx="170" cy="380" r="74" fill="#2BC4B4" opacity=".07"></circle>
+          <circle cx="170" cy="380" r="42" fill="#2BC4B4" opacity=".07"></circle>
+          <g fill="#FFFBF0"><circle cx="138" cy="366" r="2" opacity=".75"></circle><circle cx="152" cy="352" r="1.4" opacity=".55"></circle><circle cx="190" cy="372" r="2.2" opacity=".7"></circle><circle cx="176" cy="398" r="1.5" opacity=".5"></circle><circle cx="148" cy="402" r="1.2" opacity=".45"></circle><circle cx="206" cy="356" r="1" opacity=".4"></circle><circle cx="122" cy="384" r="1.1" opacity=".4"></circle><circle cx="198" cy="408" r="1.3" opacity=".45"></circle><circle cx="164" cy="342" r="1" opacity=".4"></circle></g>
+          <circle cx="170" cy="380" r="11" fill="#FFE9A8" opacity=".22"></circle>
+          <circle cx="170" cy="380" r="3.2" fill="#FFE9A8"></circle>
+          <circle cx="170" cy="380" r="62" fill="none" stroke="#FFFBF0" stroke-opacity=".55" stroke-width="1.5" stroke-dasharray="3 6"></circle>
+        </svg>
+        <div class="utitle"><span class="disp" style="font-size: 26px; font-weight: 800">Your universe</span></div>
+        <button class="hit" type="button" aria-label="A gathering of recent explorations" aria-expanded="true" style="left: 146px; top: 356px"></button>
+        <div style="position: absolute; left: 92px; right: 40px; top: 462px; background: #FFFBF0; color: #111111; border-radius: 16px; padding: 14px 16px; display: flex; gap: 10px; align-items: flex-start; box-shadow: 0 16px 32px -12px #000">
+          <p style="margin: 0; font-size: 15px; line-height: 1.45; flex: 1">Recent explorations are gathering here.</p>
+          <button class="ibtn" type="button" aria-label="Close note" style="width: 44px; height: 44px; border: 0; background: #F4EDD8"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 3 ESTABLISHED -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Established</b><span>Two systems, dust, a room station</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#FFFBF0"><circle cx="24" cy="120" r="1" opacity=".55"></circle><circle cx="88" cy="160" r=".8" opacity=".4"></circle><circle cx="140" cy="200" r="1.2" opacity=".6"></circle><circle cx="230" cy="150" r=".9" opacity=".45"></circle><circle cx="362" cy="124" r="1.3" opacity=".6"></circle><circle cx="60" cy="250" r=".8" opacity=".35"></circle><circle cx="18" cy="440" r="1.1" opacity=".5"></circle><circle cx="372" cy="470" r=".8" opacity=".35"></circle><circle cx="90" cy="540" r="1" opacity=".45"></circle><circle cx="40" cy="660" r="1.2" opacity=".55"></circle><circle cx="180" cy="700" r=".8" opacity=".3"></circle><circle cx="270" cy="250" r="1.4" opacity=".7"></circle><circle cx="140" cy="620" r=".9" opacity=".4"></circle></g>
+          <g fill="#F2B84B"><circle cx="300" cy="186" r="1.6" opacity=".6"></circle><circle cx="314" cy="176" r="1.1" opacity=".45"></circle><circle cx="322" cy="194" r="1.4" opacity=".5"></circle><circle cx="292" cy="200" r="1" opacity=".35"></circle><circle cx="334" cy="182" r=".9" opacity=".35"></circle></g>
+          <circle cx="314" cy="188" r="26" fill="#F2B84B" opacity=".06"></circle>
+          <path d="M175 382 Q 200 440 230 474 M246 488 Q 280 520 296 552" fill="none" stroke="#FFFBF0" stroke-opacity=".35" stroke-width="1.2" stroke-dasharray="2 6" stroke-linecap="round"></path>
+          <ellipse cx="175" cy="330" rx="135" ry="50" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <ellipse cx="175" cy="330" rx="82" ry="30" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <circle cx="175" cy="330" r="42" fill="#FFE9A8" opacity=".07"></circle>
+          <circle cx="175" cy="330" r="26" fill="#FFE9A8" opacity=".14"></circle>
+          <circle cx="175" cy="330" r="14" fill="#FFE9A8"></circle>
+          <g fill="#FFFBF0"><circle cx="206" cy="276" r="1.4" opacity=".55"></circle><circle cx="216" cy="282" r="1" opacity=".4"></circle><circle cx="198" cy="284" r="1.1" opacity=".45"></circle></g>
+          <circle cx="52" cy="309" r="13" fill="#2BC4B4"></circle>
+          <path d="M43 302l7-6 10 2 3 8-6 6-10-2z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.2"></path>
+          <circle cx="250" cy="342" r="15" fill="#2BC4B4"></circle>
+          <path d="M240 336l8-7 11 3 2 9-8 6-11-3z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.2"></path>
+          <path d="M252 351l5-3 4 3-3 4z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1"></path>
+          <g font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle">
+            <text x="52" y="338" font-size="13">Attention</text>
+            <text x="252" y="373" font-size="13">Inference &amp; serving</text>
+            <text x="175" y="404" font-size="15" font-weight="700">Machine learning</text>
+          </g>
+          <text x="175" y="420" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing=".8" fill="#FFFBF0" fill-opacity=".72">A SYSTEM</text>
+          <g transform="translate(232 468)"><rect x="-10" y="-5" width="20" height="10" rx="3" fill="none" stroke="#FFFBF0" stroke-width="1.6"></rect><path d="M-19 0h9M10 0h9" stroke="#FFFBF0" stroke-width="1.6"></path><rect x="-24" y="-4" width="5" height="8" fill="#FFFBF0"></rect><rect x="19" y="-4" width="5" height="8" fill="#FFFBF0"></rect><circle cx="0" cy="0" r="2" fill="#FFE44D"></circle></g>
+          <text x="232" y="494" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="13" font-weight="600" fill="#FFFBF0">Model serving room</text>
+          <ellipse cx="300" cy="566" rx="52" ry="18" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <circle cx="300" cy="566" r="18" fill="#FFE9A8" opacity=".12"></circle>
+          <circle cx="300" cy="566" r="8" fill="#FFE9A8"></circle>
+          <circle cx="349" cy="562" r="9" fill="#6E86FF"></circle>
+          <path d="M341 560h16M342 565h14" stroke="#C9D3FF" stroke-width="1.6"></path>
+          <text x="349" y="587" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="13" font-weight="600" fill="#FFFBF0">Queues</text>
+          <text x="290" y="612" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="15" font-weight="700" fill="#FFFBF0">Backend systems</text>
+          <text x="290" y="628" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing=".8" fill="#FFFBF0" fill-opacity=".72">A SYSTEM</text>
+        </svg>
+        <div class="utitle"><span class="disp" style="font-size: 26px; font-weight: 800">Your universe</span></div>
+        <button class="pillsp" type="button" aria-pressed="true" style="position: absolute; right: 16px; top: 56px"><i style="display: inline-block; width: 8px; height: 8px; border-radius: 9px; background: #14C79B"></i>Lately</button>
+        <button class="hit" type="button" aria-label="Machine learning, a system" style="left: 151px; top: 306px"></button>
+        <button class="hit" type="button" aria-label="Backend systems, a system" style="left: 276px; top: 542px"></button>
+        <button class="hit" type="button" aria-label="Model serving room, a room station" style="left: 208px; top: 444px"></button>
+        <a class="pillgh" href="U02-System.dc.html" style="position: absolute; left: 16px; top: 676px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path></svg>List view</a>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 4 RETURNING -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Returning after absence</b><span>Calm, intact, ship at last place</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#FFFBF0"><circle cx="24" cy="120" r="1" opacity=".45"></circle><circle cx="88" cy="160" r=".8" opacity=".3"></circle><circle cx="140" cy="200" r="1.2" opacity=".5"></circle><circle cx="230" cy="150" r=".9" opacity=".35"></circle><circle cx="362" cy="124" r="1.3" opacity=".5"></circle><circle cx="60" cy="250" r=".8" opacity=".3"></circle><circle cx="18" cy="440" r="1.1" opacity=".4"></circle><circle cx="372" cy="470" r=".8" opacity=".3"></circle><circle cx="90" cy="540" r="1" opacity=".35"></circle><circle cx="40" cy="660" r="1.2" opacity=".45"></circle><circle cx="270" cy="250" r="1.4" opacity=".55"></circle></g>
+          <g fill="#C9A866"><circle cx="300" cy="186" r="1.4" opacity=".45"></circle><circle cx="314" cy="176" r="1" opacity=".35"></circle><circle cx="322" cy="194" r="1.2" opacity=".4"></circle></g>
+          <ellipse cx="175" cy="330" rx="135" ry="50" fill="none" stroke="#FFFBF0" stroke-opacity=".14" stroke-width="1.2"></ellipse>
+          <ellipse cx="175" cy="330" rx="82" ry="30" fill="none" stroke="#FFFBF0" stroke-opacity=".14" stroke-width="1.2"></ellipse>
+          <circle cx="175" cy="330" r="22" fill="#FFE9A8" opacity=".08"></circle>
+          <circle cx="175" cy="330" r="14" fill="#F2E3B5"></circle>
+          <circle cx="52" cy="309" r="13" fill="#2BC4B4"></circle>
+          <path d="M43 302l7-6 10 2 3 8-6 6-10-2z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.2"></path>
+          <circle cx="52" cy="309" r="21" fill="none" stroke="#FFE44D" stroke-opacity=".7" stroke-width="1.5"></circle>
+          <path d="M66 248 Q 80 270 64 290" fill="none" stroke="#FFE44D" stroke-width="1.6" stroke-dasharray="2 5" stroke-linecap="round"></path>
+          <path d="M62 236l14 4-9 11z" fill="#FFFBF0"></path>
+          <circle cx="250" cy="342" r="15" fill="#3E9D97"></circle>
+          <path d="M240 336l8-7 11 3 2 9-8 6-11-3z" fill="#5E8F68" stroke="#0E3B2E" stroke-width="1.2"></path>
+          <g font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle">
+            <text x="52" y="342" font-size="13">Attention</text>
+            <text x="252" y="373" font-size="13">Inference &amp; serving</text>
+            <text x="175" y="404" font-size="15" font-weight="700">Machine learning</text>
+          </g>
+          <g transform="translate(232 468)" opacity=".75"><rect x="-10" y="-5" width="20" height="10" rx="3" fill="none" stroke="#FFFBF0" stroke-width="1.6"></rect><path d="M-19 0h9M10 0h9" stroke="#FFFBF0" stroke-width="1.6"></path><rect x="-24" y="-4" width="5" height="8" fill="#FFFBF0"></rect><rect x="19" y="-4" width="5" height="8" fill="#FFFBF0"></rect></g>
+          <text x="232" y="494" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="13" font-weight="600" fill="#FFFBF0" fill-opacity=".8">Model serving room</text>
+          <ellipse cx="300" cy="566" rx="52" ry="18" fill="none" stroke="#FFFBF0" stroke-opacity=".1" stroke-width="1.2"></ellipse>
+          <circle cx="300" cy="566" r="8" fill="#BFB28E"></circle>
+          <circle cx="349" cy="562" r="9" fill="#5A6690"></circle>
+          <path d="M341 560h16M342 565h14" stroke="#9AA3C2" stroke-width="1.6"></path>
+          <text x="349" y="587" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="13" font-weight="600" fill="#FFFBF0" fill-opacity=".8">Queues</text>
+          <text x="290" y="612" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="15" font-weight="700" fill="#FFFBF0" fill-opacity=".8">Backend systems</text>
+        </svg>
+        <div class="utitle"><span class="disp" style="font-size: 26px; font-weight: 800">Your universe</span><span style="font-size: 15px; color: rgba(255,251,240,.8)">Everything is where you left it.</span></div>
+        <button class="pillgh" type="button" aria-pressed="false" style="position: absolute; right: 16px; top: 56px">Lately</button>
+        <a class="pillsp" href="U03-Planet.dc.html" style="position: absolute; left: 16px; top: 668px; min-height: 48px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"></path></svg>Return to Attention</a>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p><span class="ev">/universe</span> tab root. Optional <span class="ev">?focus=last</span> after absence puts the ship at the last place. Opens from Explore breadcrumb, Keep item “Open in Universe”, or a region link.</p></div>
+    <div class="note"><h3>Actions</h3><p><b>Primary:</b> tap a system to fly in (U02). <b>Secondary:</b> Lately lens (recent activity glow on/off), List view (accessible outline), room station → R01, Return to last place. Pinch/scroll zooms; drag pans.</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>empty · emerging (dust/protostar, unlabelled) · established · returning (calm, intact) · stale scene refresh (old scene stays, quietly redraws) · low-detail fallback (U03-3). Dust note is a small cream popover, never a dialog.</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">OBS universe.open · universe.select{system} · universe.lens{lately} · universe.return<br>No CMD here except navigation. Map visits are never content evidence and never grow a world.</p></div>
+    <div class="note"><h3>Restore</h3><p>Camera {center, zoom} and Lately lens persist per device. After absence the camera starts framed on everything, ship at last region visited. Formation transitions not yet seen play once, then show final state (U05).</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>Each body has a 48px hit button with name + kind (“Machine learning, a system”). Tab order: title, Lately, systems by reading order, List view, nav. Reduced motion stops twinkle and drift. Web: arrow keys pan, +/− zoom; native: pinch.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1752,"height":1480}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

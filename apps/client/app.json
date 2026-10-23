@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "KnowScroll",
+    "slug": "knowscroll",
+    "scheme": "knowscroll",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "./plugins/font-scale-config-changes.js",
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "updates": {
+      "enabled": false
+    },
+    "ios": {
+      "bundleIdentifier": "com.knowscroll.client"
+    },
+    "android": {
+      "package": "com.knowscroll.client"
+    }
+  }
+}

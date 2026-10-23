@@ -1,0 +1,281 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>F01–F02 Friends and sharing settings</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.top{position:absolute;left:0;right:0;top:56px;padding:0 16px;display:flex;align-items:center;gap:12px}
+.body{position:absolute;left:20px;right:20px;top:124px;display:flex;flex-direction:column;gap:12px}
+.lrow{display:flex;align-items:center;gap:12px;min-height:64px;padding:8px 0;border-bottom:1px solid #D9D1BC}
+.av{width:44px;height:44px;border-radius:999px;border:2px solid #111111;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:none}
+.who{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.who b{font-size:16px}
+.who span{font-size:13px;color:#4A463D}
+.sw{width:56px;height:32px;border-radius:999px;border:2px solid #111111;position:relative;padding:0;cursor:pointer;flex:none}
+.sw i{position:absolute;top:3px;width:22px;height:22px;border-radius:999px}
+.sw[aria-checked="true"]{background:#2C46E8}
+.sw[aria-checked="true"] i{right:3px;background:#FFFBF0}
+.sw[aria-checked="false"]{background:#F4EDD8}
+.sw[aria-checked="false"] i{left:3px;background:#111111}
+.radio{display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 14px;border:2px solid #111111;border-radius:14px;background:#FFFBF0;font-size:15px;cursor:pointer}
+.radio input{width:20px;height:20px;accent-color:#2C46E8;margin:0}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="F01-Friends"><div data-dc-tpl="3" style="width: 1752px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px;">
+    <span data-dc-tpl="5" class="mono" style="font-size: 14px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); padding: 8px 12px; border-radius: 8px;">F01–F02</span>
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800; line-height: 1;">Friends &amp; sharing settings</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 16px; color: rgb(74, 70, 61); max-width: 980px;">Friends come from handles and invite links you choose — never an address-book upload. Visibility is per system, and revocation is spelled out honestly.</p>
+    </div>
+    <span data-dc-tpl="9" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="10" style="display: flex; gap: 32px; align-items: flex-start;">
+
+    
+    <figure data-dc-tpl="11" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="12" class="cap"><b data-dc-tpl="13">F01 · Friends</b><span data-dc-tpl="14">Friend, pending invite, blocked collapsed</span></figcaption>
+      <div data-dc-tpl="15" class="phone">
+        <div data-dc-tpl="16" class="top">
+          <a data-dc-tpl="17" class="ibtn" href="P01-Account.html" aria-label="Back to account"><svg data-dc-tpl="18" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="19" d="M15 5l-7 7 7 7"></path></svg></a>
+          <h2 data-dc-tpl="20" class="disp" style="margin: 0px; font-size: 28px; font-weight: 800;">Friends</h2>
+        </div>
+        <div data-dc-tpl="21" class="body">
+          <button data-dc-tpl="22" class="btn pri" type="button" style="align-self: stretch;"><svg data-dc-tpl="23" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="24" d="M12 5v14M5 12h14"></path></svg>Add a friend</button>
+          <span data-dc-tpl="25" class="mono" style="color: rgb(74, 70, 61); margin-top: 8px;">Friends</span>
+          <div data-dc-tpl="26" class="lrow">
+            <span data-dc-tpl="27" class="av" style="background: rgb(255, 228, 77);">R</span>
+            <div data-dc-tpl="28" class="who"><b data-dc-tpl="29">Ravi</b><span data-dc-tpl="30" style="display: inline-flex; align-items: center; gap: 6px;"><i data-dc-tpl="31" aria-hidden="true" style="width: 8px; height: 8px; border-radius: 9px; background: rgb(20, 199, 155); display: inline-block;"></i>Online · can visit what you share</span></div>
+            <button data-dc-tpl="32" class="ibtn" type="button" aria-label="Options for Ravi" style="border: 0px;"><svg data-dc-tpl="33" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle data-dc-tpl="34" cx="5" cy="12" r="2"></circle><circle data-dc-tpl="35" cx="12" cy="12" r="2"></circle><circle data-dc-tpl="36" cx="19" cy="12" r="2"></circle></svg></button>
+          </div>
+          <span data-dc-tpl="37" class="mono" style="color: rgb(74, 70, 61); margin-top: 8px;">Waiting</span>
+          <div data-dc-tpl="38" class="lrow">
+            <span data-dc-tpl="39" class="av" style="background: rgb(244, 237, 216); border-style: dashed;">M</span>
+            <div data-dc-tpl="40" class="who"><b data-dc-tpl="41">Meera</b><span data-dc-tpl="42">@meera.s · invite sent</span></div>
+            <span data-dc-tpl="43" class="tag"><svg data-dc-tpl="44" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle data-dc-tpl="45" cx="12" cy="12" r="9"></circle><path data-dc-tpl="46" d="M12 7v5l3 2"></path></svg>Pending</span>
+          </div>
+          <button data-dc-tpl="47" type="button" aria-expanded="false" style="display: flex; align-items: center; justify-content: space-between; min-height: 56px; margin-top: 8px; border-width: 0px 0px 1px; border-top-style: initial; border-right-style: initial; border-left-style: initial; border-top-color: initial; border-right-color: initial; border-left-color: initial; border-image: initial; border-bottom-style: solid; border-bottom-color: rgb(217, 209, 188); background: transparent; padding: 0px; cursor: pointer; text-align: left;">
+            <span data-dc-tpl="48" style="display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="49" style="font-size: 15px;">Blocked</b><span data-dc-tpl="50" style="font-size: 13px; color: rgb(74, 70, 61);">People who can’t message or find you</span></span>
+            <svg data-dc-tpl="51" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="52" d="M5 9l7 7 7-7"></path></svg>
+          </button>
+          <a data-dc-tpl="53" href="F01-Friends.html" style="display: flex; align-items: center; justify-content: space-between; min-height: 56px; border-bottom: 1px solid rgb(217, 209, 188); color: rgb(17, 17, 17); text-decoration: none;">
+            <span data-dc-tpl="54" style="display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="55" style="font-size: 15px;">Who can visit your universe</b><span data-dc-tpl="56" style="font-size: 13px; color: rgb(74, 70, 61);">Friends I choose · Ravi</span></span>
+            <svg data-dc-tpl="57" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="58" d="M9 5l7 7-7 7"></path></svg>
+          </a>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="59" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="60" class="cap"><b data-dc-tpl="61">F01 · Add a friend</b><span data-dc-tpl="62">Handle or invite link; no contacts upload</span></figcaption>
+      <div data-dc-tpl="63" class="phone">
+        <div data-dc-tpl="64" class="top">
+          <button data-dc-tpl="65" class="ibtn" type="button" aria-label="Close"><svg data-dc-tpl="66" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="67" d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <h2 data-dc-tpl="68" class="disp" style="margin: 0px; font-size: 28px; font-weight: 800;">Add a friend</h2>
+        </div>
+        <div data-dc-tpl="69" class="body" style="gap: 16px;">
+          <label data-dc-tpl="70" style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600;">Their handle
+            <input data-dc-tpl="71" type="text" value="@ravi.m" style="min-height: 52px; border: 2px solid rgb(17, 17, 17); border-radius: 12px; padding: 0px 14px; font: 17px &quot;Instrument Sans&quot;, sans-serif; background: rgb(255, 251, 240);">
+          </label>
+          <div data-dc-tpl="72" style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 2px solid rgb(17, 17, 17); border-radius: 14px;">
+            <span data-dc-tpl="73" class="av" style="background: rgb(255, 228, 77);">R</span>
+            <div data-dc-tpl="74" class="who"><b data-dc-tpl="75">Ravi</b><span data-dc-tpl="76">@ravi.m</span></div>
+            <button data-dc-tpl="77" class="btn pri sm" type="button">Send invite</button>
+          </div>
+          <div data-dc-tpl="78" style="display: flex; align-items: center; gap: 10px; color: rgb(74, 70, 61);"><i data-dc-tpl="79" style="flex: 1 1 0%; height: 1px; background: rgb(217, 209, 188);"></i><span data-dc-tpl="80" class="mono">or</span><i data-dc-tpl="81" style="flex: 1 1 0%; height: 1px; background: rgb(217, 209, 188);"></i></div>
+          <div data-dc-tpl="82" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 16px; background: rgb(244, 237, 216);">
+            <b data-dc-tpl="83" style="font-size: 16px;">Share your invite link</b>
+            <span data-dc-tpl="84" style="font-size: 14px; line-height: 1.45; color: rgb(74, 70, 61);">Anyone with this link can ask to be your friend. You still accept each request.</span>
+            <div data-dc-tpl="85" style="display: flex; gap: 10px;">
+              <button data-dc-tpl="86" class="btn sm" type="button"><svg data-dc-tpl="87" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="88" d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path data-dc-tpl="89" d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path></svg>Copy link</button>
+              <button data-dc-tpl="90" class="btn sm ghost" type="button">More apps…</button>
+            </div>
+          </div>
+          <div data-dc-tpl="91" class="banner" style="background: rgb(255, 251, 240);">
+            <svg data-dc-tpl="92" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="flex: 0 0 auto;"><rect data-dc-tpl="93" x="5" y="11" width="14" height="10" rx="2"></rect><path data-dc-tpl="94" d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+            <span data-dc-tpl="95">We never upload your contacts. People find you only by your handle or a link you share.</span>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="96" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="97" class="cap"><b data-dc-tpl="98">F01 · Requests &amp; blocks</b><span data-dc-tpl="99">Incoming, blocked, revoked link</span></figcaption>
+      <div data-dc-tpl="100" class="phone">
+        <div data-dc-tpl="101" class="top">
+          <a data-dc-tpl="102" class="ibtn" href="P01-Account.html" aria-label="Back"><svg data-dc-tpl="103" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="104" d="M15 5l-7 7 7 7"></path></svg></a>
+          <h2 data-dc-tpl="105" class="disp" style="margin: 0px; font-size: 28px; font-weight: 800;">Friends</h2>
+        </div>
+        <div data-dc-tpl="106" class="body">
+          <span data-dc-tpl="107" class="mono" style="color: rgb(74, 70, 61);">Asking to be your friend</span>
+          <div data-dc-tpl="108" style="display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 2px solid rgb(17, 17, 17); border-radius: 16px; box-shadow: rgb(17, 17, 17) 3px 3px 0px;">
+            <div data-dc-tpl="109" style="display: flex; align-items: center; gap: 12px;">
+              <span data-dc-tpl="110" class="av" style="background: rgb(20, 199, 155);">M</span>
+              <div data-dc-tpl="111" class="who"><b data-dc-tpl="112">Meera</b><span data-dc-tpl="113">@meera.s · used your invite link</span></div>
+            </div>
+            <div data-dc-tpl="114" style="display: flex; gap: 10px;">
+              <button data-dc-tpl="115" class="btn pri sm" type="button" style="flex: 1 1 0%;">Accept</button>
+              <button data-dc-tpl="116" class="btn sm ghost" type="button" style="flex: 1 1 0%;">Decline</button>
+            </div>
+          </div>
+          <span data-dc-tpl="117" class="mono" style="color: rgb(74, 70, 61); margin-top: 10px;">Blocked</span>
+          <div data-dc-tpl="118" class="lrow">
+            <span data-dc-tpl="119" class="av" style="background: rgb(244, 237, 216);">K</span>
+            <div data-dc-tpl="120" class="who"><b data-dc-tpl="121">@kiran.dev</b><span data-dc-tpl="122">Can’t message, invite or visit you</span></div>
+            <button data-dc-tpl="123" class="btn sm ghost" type="button">Unblock</button>
+          </div>
+          <span data-dc-tpl="124" class="mono" style="color: rgb(74, 70, 61); margin-top: 10px;">Your invite link</span>
+          <div data-dc-tpl="125" class="banner" style="background: rgb(244, 237, 216);">
+            <svg data-dc-tpl="126" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: 0 0 auto;"><path data-dc-tpl="127" d="M6 6l12 12M18 6L6 18"></path></svg>
+            <div data-dc-tpl="128" style="display: flex; flex-direction: column; gap: 8px;"><b data-dc-tpl="129">This invite link was turned off</b><span data-dc-tpl="130">People who open it now see “This link no longer works.” Requests already accepted are unchanged.</span>
+              <button data-dc-tpl="131" class="btn sm" type="button" style="align-self: flex-start;">Make a new link</button></div>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="132" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="133" class="cap"><b data-dc-tpl="134">F02 · Visibility</b><span data-dc-tpl="135">Who can visit; per-system sharing; activity status</span></figcaption>
+      <div data-dc-tpl="136" class="phone">
+        <div data-dc-tpl="137" class="top">
+          <a data-dc-tpl="138" class="ibtn" href="F01-Friends.html" aria-label="Back to friends"><svg data-dc-tpl="139" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="140" d="M15 5l-7 7 7 7"></path></svg></a>
+          <h2 data-dc-tpl="141" class="disp" style="margin: 0px; font-size: 26px; font-weight: 800; line-height: 1.05;">Who can visit<br data-dc-tpl="142">your universe</h2>
+        </div>
+        <div data-dc-tpl="143" class="body" style="top: 140px; gap: 10px;">
+          <fieldset data-dc-tpl="144" style="border: 0px; margin: 0px; padding: 0px; display: flex; flex-direction: column; gap: 8px;">
+            <legend data-dc-tpl="145" class="mono" style="color: rgb(74, 70, 61); margin-bottom: 8px;">Visitors</legend>
+            <label data-dc-tpl="146" class="radio" style="min-height: 48px;"><input data-dc-tpl="147" type="radio" name="vis"><span data-dc-tpl="148">Nobody</span></label>
+            <label data-dc-tpl="149" class="radio" style="min-height: 48px; background: rgb(230, 234, 255); border-color: rgb(44, 70, 232);"><input data-dc-tpl="150" type="radio" name="vis" checked=""><span data-dc-tpl="151" style="display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="152">Friends I choose</b><span data-dc-tpl="153" style="font-size: 13px; color: rgb(74, 70, 61);">Ravi</span></span></label>
+            <label data-dc-tpl="154" class="radio" style="min-height: 48px;"><input data-dc-tpl="155" type="radio" name="vis"><span data-dc-tpl="156">All friends</span></label>
+          </fieldset>
+          <span data-dc-tpl="157" class="mono" style="color: rgb(74, 70, 61); margin-top: 4px;">What they can see</span>
+          <div data-dc-tpl="158" class="lrow" style="min-height: 48px;">
+            <label data-dc-tpl="159" for="f-ml" class="who"><b data-dc-tpl="160" style="font-size: 15px;">Machine learning</b><span data-dc-tpl="161">Shared</span></label>
+            <button data-dc-tpl="162" id="f-ml" class="sw" type="button" role="switch" aria-checked="true" aria-label="Share Machine learning"><i data-dc-tpl="163"></i></button>
+          </div>
+          <div data-dc-tpl="164" class="lrow" style="min-height: 48px;">
+            <label data-dc-tpl="165" for="f-be" class="who"><b data-dc-tpl="166" style="font-size: 15px;">Backend systems</b><span data-dc-tpl="167">Shared</span></label>
+            <button data-dc-tpl="168" id="f-be" class="sw" type="button" role="switch" aria-checked="true" aria-label="Share Backend systems"><i data-dc-tpl="169"></i></button>
+          </div>
+          <div data-dc-tpl="170" class="lrow" style="min-height: 48px;">
+            <label data-dc-tpl="171" for="f-pa" class="who"><b data-dc-tpl="172" style="font-size: 15px;">Past</b><span data-dc-tpl="173">Private · not shown to visitors</span></label>
+            <button data-dc-tpl="174" id="f-pa" class="sw" type="button" role="switch" aria-checked="false" aria-label="Share Past"><i data-dc-tpl="175"></i></button>
+          </div>
+          <div data-dc-tpl="176" class="lrow" style="min-height: 48px;">
+            <label data-dc-tpl="177" for="f-rm" class="who"><b data-dc-tpl="178" style="font-size: 15px;">Rooms you join</b><span data-dc-tpl="179">Can appear on your map</span></label>
+            <button data-dc-tpl="180" id="f-rm" class="sw" type="button" role="switch" aria-checked="true" aria-label="Show rooms on map"><i data-dc-tpl="181"></i></button>
+          </div>
+          <div data-dc-tpl="182" role="radiogroup" aria-label="Activity status" style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
+            <span data-dc-tpl="183" class="mono" style="color: rgb(74, 70, 61);">Activity status</span>
+            <div data-dc-tpl="184" class="seg" style="align-self: stretch; justify-content: space-between;">
+              <button data-dc-tpl="185" type="button" role="radio" aria-checked="false" aria-pressed="false" style="flex: 1 1 0%; justify-content: center; min-height: 40px;"><i data-dc-tpl="186" aria-hidden="true" style="width: 8px; height: 8px; border-radius: 9px; background: rgb(20, 199, 155); display: inline-block;"></i>Online</button>
+              <button data-dc-tpl="187" type="button" role="radio" aria-checked="true" aria-pressed="true" style="flex: 1.4 1 0%; justify-content: center; min-height: 40px;">Recently active</button>
+              <button data-dc-tpl="188" type="button" role="radio" aria-checked="false" aria-pressed="false" style="flex: 1 1 0%; justify-content: center; min-height: 40px;">Don’t show</button>
+            </div>
+            <span data-dc-tpl="189" style="font-size: 13px; color: rgb(74, 70, 61);">Never shows what you’re watching.</span>
+          </div>
+          <a data-dc-tpl="190" class="btn sm" href="U06-Friend.html" style="margin-top: 2px;"><svg data-dc-tpl="191" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="192" d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle data-dc-tpl="193" cx="12" cy="12" r="3"></circle></svg>Preview what Ravi sees</a>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section data-dc-tpl="194" class="notes">
+    <div data-dc-tpl="195" class="note"><h3 data-dc-tpl="196">Route &amp; origin</h3><p data-dc-tpl="197"><span data-dc-tpl="198" class="ev">/friends</span>, <span data-dc-tpl="199" class="ev">/friends/add</span>, <span data-dc-tpl="200" class="ev">/settings/visibility</span>. Reached from Account (P01), the share sheet’s “Add a friend”, and an invite link landing (<span data-dc-tpl="201" class="ev">/share/:token</span> → request).</p></div>
+    <div data-dc-tpl="202" class="note"><h3 data-dc-tpl="203">Actions</h3><p data-dc-tpl="204"><b data-dc-tpl="205">Primary:</b> Add a friend, Accept. <b data-dc-tpl="206">Secondary:</b> copy invite link, decline, block/unblock, turn a link off, choose visitors, share or hide each system, preview as a friend.</p></div>
+    <div data-dc-tpl="207" class="note"><h3 data-dc-tpl="208">States &amp; overlays</h3><p data-dc-tpl="209">empty (no friends: invite card) · pending sent · incoming request · accepted · declined (silent to sender) · blocked · link revoked · visibility saving / saved / failed-retry. Hidden systems are simply absent for visitors — any haze is generic decoration, never sized or placed to match them. Activity status: Online · Recently active only · Don’t show.</p></div>
+    <div data-dc-tpl="210" class="note"><h3 data-dc-tpl="211">Commands · observations</h3><p data-dc-tpl="212" class="ev">CMD friend.invite{handle|link} · friend.accept · friend.decline · friend.block · friend.unblock · invite_link.revoke · visibility.set{scope, systemId?} · presence.set{online|recent|hidden}<br data-dc-tpl="213">OBS invite_link.copied<br data-dc-tpl="214">Presence never carries what someone is watching.</p></div>
+    <div data-dc-tpl="215" class="note"><h3 data-dc-tpl="216">Restore</h3><p data-dc-tpl="217">Revoking or narrowing visibility applies to every <b data-dc-tpl="218">future</b> read immediately. We say plainly: screenshots and anything already seen can’t be clawed back. Scroll position in long lists restores on back.</p></div>
+    <div data-dc-tpl="219" class="note"><h3 data-dc-tpl="220">Accessibility &amp; platform</h3><p data-dc-tpl="221">Switches use role=switch with the system name; radio rows are a labelled fieldset. Native: “More apps…” opens the OS share sheet; web: Web Share where available, else copy. Handle field is keyboard-submit.</p></div>
+  </section></div></div></div>
+
+
+
+</body></html>

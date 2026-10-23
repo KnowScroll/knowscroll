@@ -1,8 +1,0 @@
-
-com.knowscroll.mobile.SignOutJourneyTest:.
-
-Time: 6.151
-
-OK (1 test)
-
-

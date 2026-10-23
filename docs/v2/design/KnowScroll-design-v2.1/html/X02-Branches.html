@@ -1,0 +1,222 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>X02 Branch cards in the conversation</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.thead{position:absolute;left:0;right:0;top:44px;height:64px;padding:0 12px;display:flex;align-items:center;gap:10px;background:#FFFBF0}
+.epbar{position:absolute;left:0;right:0;top:108px;padding:6px 12px 10px;display:flex;gap:6px;border-bottom:2px solid #111111;background:#FFFBF0}
+.ep{min-width:52px;min-height:44px;padding:0 10px;border-radius:12px;border:2px solid #111111;background:#FFFBF0;display:inline-flex;align-items:center;justify-content:center;gap:5px;font:600 13px 'Instrument Sans',sans-serif;color:#111111;cursor:pointer;white-space:nowrap}
+.ep.cur{background:#111111;color:#FFFBF0}
+.ep.up{border-color:#8F887A;color:#4A463D}
+.thread{position:absolute;left:0;right:0;top:170px;bottom:84px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;background:#F4EDD8;overflow:hidden}
+.bub{max-width:270px;padding:9px 13px;border-radius:18px;font-size:15px;line-height:1.4}
+.bub.them{background:#FFFBF0;border:2px solid #111111;border-bottom-left-radius:6px}
+.bub.me{background:#2C46E8;color:#FFFBF0;border-bottom-right-radius:6px}
+.who{font-size:12px;font-weight:600}
+.brc{border:2px dashed #2C46E8;background:#E6EAFF;border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;color:#111111}
+.pvc{border:2px solid #111111;background:#FFFBF0;border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;box-shadow:4px 4px 0 #111111;color:#111111}
+.comp{position:absolute;left:0;right:0;bottom:0;height:84px;padding:12px 12px 22px;display:flex;gap:8px;align-items:center;border-top:2px solid #111111;background:#FFFBF0}
+.comp input{flex:1;min-width:0;min-height:48px;border:2px solid #111111;border-radius:999px;padding:0 16px;font:16px 'Instrument Sans',sans-serif;background:#FFFBF0}
+.tag.spec{background:#FFF4C2;border-color:#8A5A10;color:#6B4508}
+.go{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-weight:700;font-size:15px;text-decoration:none;align-self:flex-start}
+.sysl{align-self:center;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#4A463D;padding:6px 12px;border-radius:999px;background:#FFFBF0;border:1.5px solid #D9D1BC;text-align:center}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="X02-Branches"><div data-dc-tpl="3" style="width: 1330px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px;">
+    <span data-dc-tpl="5" class="mono" style="font-size: 14px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); padding: 8px 12px; border-radius: 8px;">X02</span>
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800; line-height: 1;">Branch cards in the conversation</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 16px; color: rgb(74, 70, 61); max-width: 780px;">A chosen idea becomes a card in the same chat. What-if cards are dashed cobalt with a branch mark; perspective cards are solid with their own title. Neither is numbered as a part.</p>
+    </div>
+    <span data-dc-tpl="9" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="10" style="display: flex; gap: 32px; align-items: flex-start;">
+
+    
+    <figure data-dc-tpl="11" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="12" class="cap"><b data-dc-tpl="13">Ready · two kinds</b><span data-dc-tpl="14">Shapes differ, not just colour</span></figcaption>
+      <div data-dc-tpl="15" class="phone">
+        <div data-dc-tpl="16" class="thead">
+          <button data-dc-tpl="17" class="ibtn" type="button" aria-label="Back" style="border: 0px;"><svg data-dc-tpl="18" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="19" d="M15 5l-7 7 7 7"></path></svg></button>
+          <div data-dc-tpl="20" style="display: flex; flex-direction: column; flex: 1 1 0%;"><b data-dc-tpl="21" class="disp" style="font-size: 19px;">Black holes</b><span data-dc-tpl="22" style="font-size: 13px; color: rgb(74, 70, 61);">Asha, Ravi, Meera</span></div>
+        </div>
+        <nav data-dc-tpl="23" class="epbar" aria-label="Episodes"><button data-dc-tpl="24" class="ep" type="button">1 ✓</button><button data-dc-tpl="25" class="ep cur" type="button" aria-current="true">2 · current</button><button data-dc-tpl="26" class="ep up" type="button">3</button><button data-dc-tpl="27" class="ep up" type="button">4</button></nav>
+        <div data-dc-tpl="28" class="thread">
+          <div data-dc-tpl="29" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="30" class="who">Ravi</span><div data-dc-tpl="31" class="bub them">So nothing gets out. Where does it go though?</div></div>
+          <article data-dc-tpl="32" class="brc" aria-label="What-if branch">
+            <div data-dc-tpl="33" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <span data-dc-tpl="34" class="tag hyp"><svg data-dc-tpl="35" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="36" d="M6 3v18"></path><path data-dc-tpl="37" d="M6 14c0-5 12-3 12-9"></path></svg>What if</span>
+              <span data-dc-tpl="38" class="tag spec">Speculative</span>
+            </div>
+            <b data-dc-tpl="39" class="disp" style="font-size: 19px; line-height: 1.15;">What if a black hole were a portal?</b>
+            <span data-dc-tpl="40" style="font-size: 13px; line-height: 1.4; color: rgb(27, 47, 184);">Speculative scenario · not established science. Kept: gravity outside works as usual.</span>
+            <span data-dc-tpl="41" style="font-size: 12px; color: rgb(74, 70, 61);">Started by Asha from the thread</span>
+            <a data-dc-tpl="42" class="go" href="X03-Sequence.html" style="color: rgb(27, 47, 184);">Explore this <svg data-dc-tpl="43" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="44" d="M5 12h14"></path><path data-dc-tpl="45" d="M13 6l6 6-6 6"></path></svg></a>
+          </article>
+          <div data-dc-tpl="46" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="47" class="who">Meera</span><div data-dc-tpl="48" class="bub them">I’d rather know what physicists actually argue about.</div></div>
+          <article data-dc-tpl="49" class="pvc" aria-label="Another perspective">
+            <span data-dc-tpl="50" class="mono" style="display: inline-flex; align-items: center; gap: 6px;"><svg data-dc-tpl="51" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle data-dc-tpl="52" cx="9" cy="12" r="5"></circle><circle data-dc-tpl="53" cx="15" cy="12" r="5"></circle></svg>Another perspective</span>
+            <b data-dc-tpl="54" class="disp" style="font-size: 19px; line-height: 1.15;">Black holes as an information puzzle</b>
+            <span data-dc-tpl="55" style="font-size: 12px; color: rgb(74, 70, 61);">Started by Meera from Ravi’s message</span>
+            <a data-dc-tpl="56" class="go" href="X03-Sequence.html" style="color: rgb(17, 17, 17);">Explore this <svg data-dc-tpl="57" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="58" d="M5 12h14"></path><path data-dc-tpl="59" d="M13 6l6 6-6 6"></path></svg></a>
+          </article>
+        </div>
+        <div data-dc-tpl="60" class="comp"><label data-dc-tpl="61" for="x2-c1" style="position: absolute; left: -9999px;">Message</label><input data-dc-tpl="62" id="x2-c1" type="text" placeholder="Message…"><button data-dc-tpl="63" class="ibtn" type="button" aria-label="Send" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240);"><svg data-dc-tpl="64" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="65" d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="66" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="67" class="cap"><b data-dc-tpl="68">Preparing</b><span data-dc-tpl="69">Explicit status; chat keeps going</span></figcaption>
+      <div data-dc-tpl="70" class="phone">
+        <div data-dc-tpl="71" class="thead">
+          <button data-dc-tpl="72" class="ibtn" type="button" aria-label="Back" style="border: 0px;"><svg data-dc-tpl="73" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="74" d="M15 5l-7 7 7 7"></path></svg></button>
+          <div data-dc-tpl="75" style="display: flex; flex-direction: column; flex: 1 1 0%;"><b data-dc-tpl="76" class="disp" style="font-size: 19px;">Black holes</b><span data-dc-tpl="77" style="font-size: 13px; color: rgb(74, 70, 61);">Asha, Ravi, Meera</span></div>
+        </div>
+        <nav data-dc-tpl="78" class="epbar" aria-label="Episodes"><button data-dc-tpl="79" class="ep" type="button">1 ✓</button><button data-dc-tpl="80" class="ep cur" type="button" aria-current="true">2 · current</button><button data-dc-tpl="81" class="ep up" type="button">3</button><button data-dc-tpl="82" class="ep up" type="button">4</button></nav>
+        <div data-dc-tpl="83" class="thread">
+          <article data-dc-tpl="84" class="brc" aria-label="What-if branch, preparing">
+            <div data-dc-tpl="85" style="display: flex; gap: 8px; align-items: center;"><span data-dc-tpl="86" class="tag hyp">What if</span><span data-dc-tpl="87" class="tag spec">Speculative</span></div>
+            <b data-dc-tpl="88" class="disp" style="font-size: 19px; line-height: 1.15;">What if a black hole were a portal?</b>
+            <span data-dc-tpl="89" role="status" style="display: inline-flex; gap: 8px; align-items: center; min-height: 44px; padding: 0px 14px; border-radius: 999px; border: 2px solid rgb(17, 17, 17); background: repeating-linear-gradient(135deg, rgb(255, 251, 240) 0px, rgb(255, 251, 240) 6px, rgb(244, 237, 216) 6px, rgb(244, 237, 216) 12px); font-size: 14px; font-weight: 600; align-self: flex-start;"><svg data-dc-tpl="90" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="91" d="M12 3a9 9 0 0 1 9 9"></path></svg>Preparing the first Reel</span>
+            <span data-dc-tpl="92" style="font-size: 12px; color: rgb(74, 70, 61);">We’ll post here when it’s ready.</span>
+          </article>
+          <div data-dc-tpl="93" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
+            <span data-dc-tpl="94" class="who">Ravi · replying to the branch</span>
+            <div data-dc-tpl="95" style="border-left: 3px solid rgb(44, 70, 232); padding: 2px 8px; font-size: 12px; color: rgb(27, 47, 184); margin-left: 4px;">What if a black hole were a portal?</div>
+            <div data-dc-tpl="96" class="bub them">Can it explain why people keep saying “wormhole”?</div>
+          </div>
+          <div data-dc-tpl="97" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end;"><span data-dc-tpl="98" class="who">Asha</span><div data-dc-tpl="99" class="bub me">That’s exactly what I want it to sort out.</div></div>
+          <div data-dc-tpl="100" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="101" class="who">Meera</span><div data-dc-tpl="102" class="bub them">Watching Part 3 meanwhile.</div></div>
+        </div>
+        <div data-dc-tpl="103" class="comp"><label data-dc-tpl="104" for="x2-c2" style="position: absolute; left: -9999px;">Message</label><input data-dc-tpl="105" id="x2-c2" type="text" placeholder="Message…"><button data-dc-tpl="106" class="ibtn" type="button" aria-label="Send" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240);"><svg data-dc-tpl="107" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="108" d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="109" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="110" class="cap"><b data-dc-tpl="111">Failed · dismissed</b><span data-dc-tpl="112">Honest, nothing invented</span></figcaption>
+      <div data-dc-tpl="113" class="phone">
+        <div data-dc-tpl="114" class="thead">
+          <button data-dc-tpl="115" class="ibtn" type="button" aria-label="Back" style="border: 0px;"><svg data-dc-tpl="116" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="117" d="M15 5l-7 7 7 7"></path></svg></button>
+          <div data-dc-tpl="118" style="display: flex; flex-direction: column; flex: 1 1 0%;"><b data-dc-tpl="119" class="disp" style="font-size: 19px;">Black holes</b><span data-dc-tpl="120" style="font-size: 13px; color: rgb(74, 70, 61);">Asha, Ravi, Meera</span></div>
+        </div>
+        <nav data-dc-tpl="121" class="epbar" aria-label="Episodes"><button data-dc-tpl="122" class="ep" type="button">1 ✓</button><button data-dc-tpl="123" class="ep cur" type="button" aria-current="true">2 · current</button><button data-dc-tpl="124" class="ep up" type="button">3</button><button data-dc-tpl="125" class="ep up" type="button">4</button></nav>
+        <div data-dc-tpl="126" class="thread">
+          <article data-dc-tpl="127" class="brc" aria-label="What-if branch, failed" style="border-color: rgb(178, 58, 11); background: rgb(255, 251, 240);">
+            <div data-dc-tpl="128" style="display: flex; gap: 8px; align-items: center;"><span data-dc-tpl="129" class="tag hyp">What if</span><span data-dc-tpl="130" class="tag spec">Speculative</span></div>
+            <b data-dc-tpl="131" class="disp" style="font-size: 19px; line-height: 1.15;">What if a black hole were a portal?</b>
+            <span data-dc-tpl="132" style="display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 600; color: rgb(138, 44, 7);"><svg data-dc-tpl="133" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="134" d="M20 12a8 8 0 1 1-2.3-5.7"></path><path data-dc-tpl="135" d="M20 4v5h-5"></path></svg>Couldn’t prepare this branch</span>
+            <div data-dc-tpl="136" style="display: flex; gap: 8px;"><button data-dc-tpl="137" class="btn sm pri" type="button">Try again</button><button data-dc-tpl="138" class="btn sm ghost" type="button">Remove</button></div>
+          </article>
+          <span data-dc-tpl="139" class="sysl">Asha removed a suggestion · nothing was made</span>
+          <div data-dc-tpl="140" style="border: 2px dashed rgb(143, 136, 122); border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; background: transparent;">
+            <span data-dc-tpl="141" class="mono" style="color: rgb(74, 70, 61);">Suggestion · not made</span>
+            <span data-dc-tpl="142" style="font-size: 15px; color: rgb(74, 70, 61);">What if the Sun became a black hole?</span>
+            <button data-dc-tpl="143" class="btn sm ghost" type="button" style="align-self: flex-start;">Make this one instead</button>
+          </div>
+          <div data-dc-tpl="144" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="145" class="who">Ravi</span><div data-dc-tpl="146" class="bub them">No rush, the chat’s still here.</div></div>
+        </div>
+        <div data-dc-tpl="147" class="comp"><label data-dc-tpl="148" for="x2-c3" style="position: absolute; left: -9999px;">Message</label><input data-dc-tpl="149" id="x2-c3" type="text" placeholder="Message…"><button data-dc-tpl="150" class="ibtn" type="button" aria-label="Send" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240);"><svg data-dc-tpl="151" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="152" d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+      </div>
+    </figure>
+  </div>
+
+  <section data-dc-tpl="153" class="notes">
+    <div data-dc-tpl="154" class="note"><h3 data-dc-tpl="155">Route &amp; origin</h3><p data-dc-tpl="156">Cards live in the thread timeline <span data-dc-tpl="157" class="ev">/t/:threadId</span>. “Explore this” opens <span data-dc-tpl="158" class="ev">/t/:threadId/b/:branchId</span> (X03). Same card component inside room threads (R02).</p></div>
+    <div data-dc-tpl="159" class="note"><h3 data-dc-tpl="160">Actions</h3><p data-dc-tpl="161"><b data-dc-tpl="162">Primary:</b> Explore this. <b data-dc-tpl="163">Secondary:</b> reply to the card, Try again (same request), Remove (creator), make a dismissed suggestion. Anyone can open; nobody is moved when someone else does.</p></div>
+    <div data-dc-tpl="164" class="note"><h3 data-dc-tpl="165">States &amp; overlays</h3><p data-dc-tpl="166">proposed · preparing (explicit, no %) · ready · failed (retry/remove) · removed · suggestion not made · speculative label · source content withdrawn (card stays, says the root is unavailable).</p></div>
+    <div data-dc-tpl="167" class="note"><h3 data-dc-tpl="168">Commands · observations</h3><p data-dc-tpl="169" class="ev">CMD branch.create{threadId, kind, assumptions}<br data-dc-tpl="170">CMD branch.retry{sameRequestId} · branch.remove<br data-dc-tpl="171">CMD message.reply{target: branchId}<br data-dc-tpl="172">Receipt branch.ready → card update via socket</p></div>
+    <div data-dc-tpl="173" class="note"><h3 data-dc-tpl="174">Restore</h3><p data-dc-tpl="175">Card status updates in place; it never jumps the chat or steals focus. Returning from a branch lands on the card you opened it from, with the conversation scroll intact.</p></div>
+    <div data-dc-tpl="176" class="note"><h3 data-dc-tpl="177">Accessibility &amp; platform</h3><p data-dc-tpl="178">Each card is an article with a labelled heading; kind and speculative status are spoken words (“What if, speculative”). Preparing is announced politely once. Native and web share the component; desktop shows it in the conversation column (D03).</p></div>
+  </section></div></div></div>
+
+
+
+</body></html>

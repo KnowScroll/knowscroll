@@ -1,0 +1,219 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>Foundations — tokens</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#FFFBF0}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.sw{display:flex;flex-direction:column;border:1.5px solid #111;border-radius:14px;overflow:hidden;background:#FFFBF0}
+.sw i{display:block;height:84px}
+.sw div{padding:10px 12px;display:flex;flex-direction:column;gap:3px;font-size:13px;line-height:1.35}
+.sw code{font-family:'DM Mono',ui-monospace,monospace;font-size:12px}
+.sws{display:flex;flex-direction:column;border:1px solid rgba(255,251,240,.22);border-radius:14px;overflow:hidden;background:#0B1A2E;color:#FFFBF0}
+.sws i{display:block;height:84px}
+.sws div{padding:10px 12px;display:flex;flex-direction:column;gap:3px;font-size:13px;line-height:1.35}
+.sws code{font-family:'DM Mono',ui-monospace,monospace;font-size:12px}
+.tr{display:grid;grid-template-columns:220px minmax(0,1fr) 260px;gap:24px;align-items:baseline;padding:14px 0;border-bottom:1px solid #D9D1BC}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{text-align:left;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;padding:8px 10px;border-bottom:2px solid #111}
+.tbl td{padding:9px 10px;border-bottom:1px solid #D9D1BC;vertical-align:top;line-height:1.4}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="Tokens"><div data-dc-tpl="3" style="width: 1440px; height: 2100px; background: rgb(255, 251, 240); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; padding: 72px 96px; display: flex; flex-direction: column; gap: 56px;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 24px;">
+    <h1 data-dc-tpl="5" class="disp" style="margin: 0px; font-size: 72px; font-weight: 800; line-height: 0.95;">Foundations</h1>
+    <p data-dc-tpl="6" style="margin: 0px 0px 8px; font-size: 17px; color: rgb(74, 70, 61); max-width: 640px; line-height: 1.45;">Semantic tokens with two registers. Content screens use <b data-dc-tpl="7">content.*</b>; the universe uses <b data-dc-tpl="8">space.*</b>. A component never mixes raw hexes from both.</p>
+    <span data-dc-tpl="9" class="mono" style="margin-left: auto; margin-bottom: 10px; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <section data-dc-tpl="10" style="display: flex; flex-direction: column; gap: 18px;">
+    <div data-dc-tpl="11" style="display: flex; align-items: baseline; gap: 14px;"><span data-dc-tpl="12" class="mono" style="color: rgb(74, 70, 61);">Color · content register</span><span data-dc-tpl="13" style="font-size: 14px; color: rgb(74, 70, 61);">Reel, Scroll, Talk, Keep, settings and all ordinary controls</span></div>
+    <div data-dc-tpl="14" style="display: grid; grid-template-columns: repeat(8, minmax(0px, 1fr)); gap: 14px;">
+      <div data-dc-tpl="15" class="sw"><i data-dc-tpl="16" style="background: rgb(255, 251, 240); border-bottom: 1.5px solid rgb(17, 17, 17);"></i><div data-dc-tpl="17"><code data-dc-tpl="18">content.paper</code><b data-dc-tpl="19">#FFFBF0</b><span data-dc-tpl="20">Ground</span></div></div>
+      <div data-dc-tpl="21" class="sw"><i data-dc-tpl="22" style="background: rgb(244, 237, 216);"></i><div data-dc-tpl="23"><code data-dc-tpl="24">content.paper-2</code><b data-dc-tpl="25">#F4EDD8</b><span data-dc-tpl="26">Sunken, input</span></div></div>
+      <div data-dc-tpl="27" class="sw"><i data-dc-tpl="28" style="background: rgb(17, 17, 17);"></i><div data-dc-tpl="29"><code data-dc-tpl="30">content.ink</code><b data-dc-tpl="31">#111111</b><span data-dc-tpl="32">Text, 2px outline · 18.6:1</span></div></div>
+      <div data-dc-tpl="33" class="sw"><i data-dc-tpl="34" style="background: rgb(74, 70, 61);"></i><div data-dc-tpl="35"><code data-dc-tpl="36">content.ink-2</code><b data-dc-tpl="37">#4A463D</b><span data-dc-tpl="38">Secondary · 9.4:1</span></div></div>
+      <div data-dc-tpl="39" class="sw"><i data-dc-tpl="40" style="background: rgb(44, 70, 232);"></i><div data-dc-tpl="41"><code data-dc-tpl="42">content.accent</code><b data-dc-tpl="43">#2C46E8</b><span data-dc-tpl="44">Primary action · cream on it 6.2:1</span></div></div>
+      <div data-dc-tpl="45" class="sw"><i data-dc-tpl="46" style="background: rgb(255, 228, 77);"></i><div data-dc-tpl="47"><code data-dc-tpl="48">content.continue</code><b data-dc-tpl="49">#FFE44D</b><span data-dc-tpl="50">Horizontal / Part cue · ink on it</span></div></div>
+      <div data-dc-tpl="51" class="sw"><i data-dc-tpl="52" style="background: rgb(20, 199, 155);"></i><div data-dc-tpl="53"><code data-dc-tpl="54">content.fresh</code><b data-dc-tpl="55">#14C79B</b><span data-dc-tpl="56">Ready / sent · ink on it</span></div></div>
+      <div data-dc-tpl="57" class="sw"><i data-dc-tpl="58" style="background: rgb(11, 122, 95);"></i><div data-dc-tpl="59"><code data-dc-tpl="60">content.fresh-ink</code><b data-dc-tpl="61">#0B7A5F</b><span data-dc-tpl="62">Teal as text · 5.2:1</span></div></div>
+    </div>
+    <div data-dc-tpl="63" style="display: grid; grid-template-columns: repeat(8, minmax(0px, 1fr)); gap: 14px;">
+      <div data-dc-tpl="64" class="sw"><i data-dc-tpl="65" style="background: rgb(230, 234, 255); border-bottom: 2px dashed rgb(44, 70, 232);"></i><div data-dc-tpl="66"><code data-dc-tpl="67">content.hypo</code><b data-dc-tpl="68">#E6EAFF / #1B2FB8</b><span data-dc-tpl="69">Hypothetical · dashed edge</span></div></div>
+      <div data-dc-tpl="70" class="sw"><i data-dc-tpl="71" style="background: rgb(255, 233, 222);"></i><div data-dc-tpl="72"><code data-dc-tpl="73">content.corrected</code><b data-dc-tpl="74">#FFE9DE / #8A2C07</b><span data-dc-tpl="75">Corrected / revised</span></div></div>
+      <div data-dc-tpl="76" class="sw"><i data-dc-tpl="77" style="background: rgb(178, 58, 11);"></i><div data-dc-tpl="78"><code data-dc-tpl="79">content.danger</code><b data-dc-tpl="80">#B23A0B</b><span data-dc-tpl="81">Failed, destructive · 6.0:1</span></div></div>
+      <div data-dc-tpl="82" class="sw"><i data-dc-tpl="83" style="background: rgb(217, 209, 188);"></i><div data-dc-tpl="84"><code data-dc-tpl="85">content.rule</code><b data-dc-tpl="86">#D9D1BC</b><span data-dc-tpl="87">Hairline divider (decor only)</span></div></div>
+      <div data-dc-tpl="88" class="sw"><i data-dc-tpl="89" style="background: rgb(17, 17, 17);"></i><div data-dc-tpl="90"><code data-dc-tpl="91">content.nav</code><b data-dc-tpl="92">#111111</b><span data-dc-tpl="93">Floating nav pill</span></div></div>
+      <div data-dc-tpl="94" class="sw"><i data-dc-tpl="95" style="background: rgb(255, 244, 194);"></i><div data-dc-tpl="96"><code data-dc-tpl="97">content.highlight</code><b data-dc-tpl="98">#FFF4C2</b><span data-dc-tpl="99">Restored anchor flash</span></div></div>
+      <div data-dc-tpl="100" class="sw"><i data-dc-tpl="101" style="background: rgb(232, 226, 210);"></i><div data-dc-tpl="102"><code data-dc-tpl="103">canvas.board</code><b data-dc-tpl="104">#E8E2D2</b><span data-dc-tpl="105">Design canvas only</span></div></div>
+      <div data-dc-tpl="106" class="sw"><i data-dc-tpl="107" style="background: repeating-linear-gradient(135deg, rgb(255, 251, 240) 0px, rgb(255, 251, 240) 6px, rgb(244, 237, 216) 6px, rgb(244, 237, 216) 12px);"></i><div data-dc-tpl="108"><code data-dc-tpl="109">content.pending</code><b data-dc-tpl="110">stripe</b><span data-dc-tpl="111">Preparing skeleton</span></div></div>
+    </div>
+  </section>
+
+  <section data-dc-tpl="112" style="display: flex; flex-direction: column; gap: 18px; background: rgb(4, 10, 23); color: rgb(255, 251, 240); padding: 36px; border-radius: 24px;">
+    <div data-dc-tpl="113" style="display: flex; align-items: baseline; gap: 14px;"><span data-dc-tpl="114" class="mono" style="color: rgba(255, 251, 240, 0.72);">Color · spatial register</span><span data-dc-tpl="115" style="font-size: 14px; color: rgba(255, 251, 240, 0.72);">Unified from web #050B19/#0B1630 and Cosmos #03101A/#061A27</span></div>
+    <div data-dc-tpl="116" style="display: grid; grid-template-columns: repeat(8, minmax(0px, 1fr)); gap: 14px;">
+      <div data-dc-tpl="117" class="sws"><i data-dc-tpl="118" style="background: rgb(4, 10, 23); border-bottom: 1px solid rgba(255, 251, 240, 0.22);"></i><div data-dc-tpl="119"><code data-dc-tpl="120">space.0</code><b data-dc-tpl="121">#040A17</b><span data-dc-tpl="122">Ground</span></div></div>
+      <div data-dc-tpl="123" class="sws"><i data-dc-tpl="124" style="background: rgb(11, 26, 46);"></i><div data-dc-tpl="125"><code data-dc-tpl="126">space.1</code><b data-dc-tpl="127">#0B1A2E</b><span data-dc-tpl="128">Raised panel</span></div></div>
+      <div data-dc-tpl="129" class="sws"><i data-dc-tpl="130" style="background: rgb(20, 39, 63);"></i><div data-dc-tpl="131"><code data-dc-tpl="132">space.2</code><b data-dc-tpl="133">#14273F</b><span data-dc-tpl="134">Pressed / selected</span></div></div>
+      <div data-dc-tpl="135" class="sws"><i data-dc-tpl="136" style="background: rgb(255, 251, 240);"></i><div data-dc-tpl="137"><code data-dc-tpl="138">space.control</code><b data-dc-tpl="139">#FFFBF0</b><span data-dc-tpl="140">Cream floating controls</span></div></div>
+      <div data-dc-tpl="141" class="sws"><i data-dc-tpl="142" style="background: rgba(255, 251, 240, 0.72);"></i><div data-dc-tpl="143"><code data-dc-tpl="144">space.label-2</code><b data-dc-tpl="145">cream 72%</b><span data-dc-tpl="146">Secondary label · 9.8:1</span></div></div>
+      <div data-dc-tpl="147" class="sws"><i data-dc-tpl="148" style="background: rgba(255, 251, 240, 0.18);"></i><div data-dc-tpl="149"><code data-dc-tpl="150">space.orbit</code><b data-dc-tpl="151">cream 18%</b><span data-dc-tpl="152">Orbit hairline · decor</span></div></div>
+      <div data-dc-tpl="153" class="sws"><i data-dc-tpl="154" style="background: rgb(255, 233, 168);"></i><div data-dc-tpl="155"><code data-dc-tpl="156">space.star</code><b data-dc-tpl="157">#FFE9A8</b><span data-dc-tpl="158">Organising star core</span></div></div>
+      <div data-dc-tpl="159" class="sws"><i data-dc-tpl="160" style="background: rgb(255, 228, 77);"></i><div data-dc-tpl="161"><code data-dc-tpl="162">space.focus</code><b data-dc-tpl="163">#FFE44D</b><span data-dc-tpl="164">Focus ring / ship trail</span></div></div>
+    </div>
+    <div data-dc-tpl="165" style="display: grid; grid-template-columns: repeat(5, minmax(0px, 1fr)); gap: 14px;">
+      <div data-dc-tpl="166" style="display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: rgb(11, 26, 46);">
+        <svg data-dc-tpl="167" width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle data-dc-tpl="168" cx="28" cy="28" r="24" fill="#2BC4B4"></circle><path data-dc-tpl="169" d="M14 22l10-8 14 3 4 11-9 9-13-3z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.5"></path></svg>
+        <div data-dc-tpl="170" style="display: flex; flex-direction: column; gap: 3px; font-size: 13px;"><code data-dc-tpl="171" style="font-family: &quot;DM Mono&quot;, monospace;">family.learning-machines</code><b data-dc-tpl="172">Teal ocean · angular green land</b><span data-dc-tpl="173" style="color: rgba(255, 251, 240, 0.72);">e.g. Machine learning</span></div>
+      </div>
+      <div data-dc-tpl="174" style="display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: rgb(11, 26, 46);">
+        <svg data-dc-tpl="175" width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle data-dc-tpl="176" cx="28" cy="28" r="24" fill="#6E86FF"></circle><path data-dc-tpl="177" d="M8 30h40M12 20h32M12 40h32" stroke="#C9D3FF" stroke-width="3"></path></svg>
+        <div data-dc-tpl="178" style="display: flex; flex-direction: column; gap: 3px; font-size: 13px;"><code data-dc-tpl="179" style="font-family: &quot;DM Mono&quot;, monospace;">family.systems</code><b data-dc-tpl="180">Cobalt · banded strata</b><span data-dc-tpl="181" style="color: rgba(255, 251, 240, 0.72);">e.g. Backend systems</span></div>
+      </div>
+      <div data-dc-tpl="182" style="display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: rgb(11, 26, 46);">
+        <svg data-dc-tpl="183" width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle data-dc-tpl="184" cx="28" cy="28" r="24" fill="#F2B84B"></circle><path data-dc-tpl="185" d="M10 34l8-6 8 4 8-8 12 6" fill="none" stroke="#8A5A10" stroke-width="3"></path></svg>
+        <div data-dc-tpl="186" style="display: flex; flex-direction: column; gap: 3px; font-size: 13px;"><code data-dc-tpl="187" style="font-family: &quot;DM Mono&quot;, monospace;">family.past</code><b data-dc-tpl="188">Amber · ridged dunes</b><span data-dc-tpl="189" style="color: rgba(255, 251, 240, 0.72);">e.g. Predictive history</span></div>
+      </div>
+      <div data-dc-tpl="190" style="display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: rgb(11, 26, 46);">
+        <svg data-dc-tpl="191" width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle data-dc-tpl="192" cx="28" cy="28" r="24" fill="#FF8A5B"></circle><circle data-dc-tpl="193" cx="20" cy="22" r="5" fill="#FFD2BE"></circle><circle data-dc-tpl="194" cx="34" cy="34" r="7" fill="#FFD2BE"></circle></svg>
+        <div data-dc-tpl="195" style="display: flex; flex-direction: column; gap: 3px; font-size: 13px;"><code data-dc-tpl="196" style="font-family: &quot;DM Mono&quot;, monospace;">family.play</code><b data-dc-tpl="197">Coral · round islands</b><span data-dc-tpl="198" style="color: rgba(255, 251, 240, 0.72);">e.g. Football, games</span></div>
+      </div>
+      <div data-dc-tpl="199" style="display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: rgb(11, 26, 46);">
+        <svg data-dc-tpl="200" width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle data-dc-tpl="201" cx="28" cy="28" r="24" fill="#E7E1CF"></circle><path data-dc-tpl="202" d="M14 16l6 10-8 8M38 14l-4 12 10 6" fill="none" stroke="#7D7563" stroke-width="3"></path></svg>
+        <div data-dc-tpl="203" style="display: flex; flex-direction: column; gap: 3px; font-size: 13px;"><code data-dc-tpl="204" style="font-family: &quot;DM Mono&quot;, monospace;">family.worlds</code><b data-dc-tpl="205">Bone · fault lines</b><span data-dc-tpl="206" style="color: rgba(255, 251, 240, 0.72);">e.g. Astronomy, physics</span></div>
+      </div>
+    </div>
+    <p data-dc-tpl="207" style="margin: 0px; font-size: 14px; line-height: 1.5; color: rgba(255, 251, 240, 0.8);">Family = hue + surface pattern (two cues, never hue alone). Personal variation = land silhouette seed, orbit order, ring tilt and routes. Planet size never encodes amount watched. Dormant: saturation −35%, no twinkle, orbit at 10% — the body stays where it was.</p>
+  </section>
+
+  <section data-dc-tpl="208" style="display: grid; grid-template-columns: minmax(0px, 1.25fr) minmax(0px, 1fr); gap: 48px;">
+    <div data-dc-tpl="209" style="display: flex; flex-direction: column; gap: 6px;">
+      <span data-dc-tpl="210" class="mono" style="color: rgb(74, 70, 61);">Typography · phone sizes (desktop +15%)</span>
+      <div data-dc-tpl="211" class="tr"><span data-dc-tpl="212" class="mono">display.xl · Bricolage 800 · 44/46 · −2%</span><span data-dc-tpl="213" class="disp" style="font-size: 44px; line-height: 46px; font-weight: 800;">Why models forget</span><span data-dc-tpl="214" style="font-size: 13px; color: rgb(74, 70, 61);">Scroll title, one per screen</span></div>
+      <div data-dc-tpl="215" class="tr"><span data-dc-tpl="216" class="mono">display.l · Bricolage 800 · 32/36</span><span data-dc-tpl="217" class="disp" style="font-size: 32px; line-height: 36px; font-weight: 800;">Batching, slowly</span><span data-dc-tpl="218" style="font-size: 13px; color: rgb(74, 70, 61);">Reel title, sheet title</span></div>
+      <div data-dc-tpl="219" class="tr"><span data-dc-tpl="220" class="mono">title · Bricolage 700 · 22/28</span><span data-dc-tpl="221" class="disp" style="font-size: 22px; line-height: 28px; font-weight: 700;">Inference &amp; serving</span><span data-dc-tpl="222" style="font-size: 13px; color: rgb(74, 70, 61);">Section, card, planet name</span></div>
+      <div data-dc-tpl="223" class="tr"><span data-dc-tpl="224" class="mono">body · Instrument 400 · 18/28</span><span data-dc-tpl="225" style="font-size: 18px; line-height: 28px;">A model reads every word against every other word, so doubling the text roughly quadruples the work.</span><span data-dc-tpl="226" style="font-size: 13px; color: rgb(74, 70, 61);">Article prose · measure 30–34em</span></div>
+      <div data-dc-tpl="227" class="tr"><span data-dc-tpl="228" class="mono">body.s · Instrument 500 · 15/22</span><span data-dc-tpl="229" style="font-size: 15px; line-height: 22px; font-weight: 500;">Ravi shared a Reel · 2 min</span><span data-dc-tpl="230" style="font-size: 13px; color: rgb(74, 70, 61);">UI copy, messages, captions</span></div>
+      <div data-dc-tpl="231" class="tr"><span data-dc-tpl="232" class="mono">label · DM Mono 500 · 11/14 · +6% caps</span><span data-dc-tpl="233" class="mono" style="font-size: 11px; font-weight: 500;">Part 2 of 3 · Hypothetical</span><span data-dc-tpl="234" style="font-size: 13px; color: rgb(74, 70, 61);">Labels only — never sentences</span></div>
+      <p data-dc-tpl="235" style="margin: 10px 0px 0px; font-size: 14px; line-height: 1.5; color: rgb(74, 70, 61);">Larger text: body scales to 26px at 200% before layouts reflow to one column; labels move to Instrument 600 sentence-case above 150% so caps don't become a wall.</p>
+    </div>
+    <div data-dc-tpl="236" style="display: flex; flex-direction: column; gap: 20px;">
+      <div data-dc-tpl="237" style="display: flex; flex-direction: column; gap: 10px;">
+        <span data-dc-tpl="238" class="mono" style="color: rgb(74, 70, 61);">Spacing (4-base) · radii · targets</span>
+        <div data-dc-tpl="239" style="display: flex; gap: 10px; align-items: flex-end;">
+          <div data-dc-tpl="240" style="display: flex; flex-direction: column; gap: 4px; align-items: center;"><i data-dc-tpl="241" style="display: block; width: 4px; height: 4px; background: rgb(44, 70, 232);"></i><span data-dc-tpl="242" class="mono">4</span></div>
+          <div data-dc-tpl="243" style="display: flex; flex-direction: column; gap: 4px; align-items: center;"><i data-dc-tpl="244" style="display: block; width: 8px; height: 8px; background: rgb(44, 70, 232);"></i><span data-dc-tpl="245" class="mono">8</span></div>
+          <div data-dc-tpl="246" style="display: flex; flex-direction: column; gap: 4px; align-items: center;"><i data-dc-tpl="247" style="display: block; width: 12px; height: 12px; background: rgb(44, 70, 232);"></i><span data-dc-tpl="248" class="mono">12</span></div>
+          <div data-dc-tpl="249" style="display: flex; flex-direction: column; gap: 4px; align-items: center;"><i data-dc-tpl="250" style="display: block; width: 16px; height: 16px; background: rgb(44, 70, 232);"></i><span data-dc-tpl="251" class="mono">16</span></div>
+          <div data-dc-tpl="252" style="display: flex; flex-direction: column; gap: 4px; align-items: center;"><i data-dc-tpl="253" style="display: block; width: 20px; height: 20px; background: rgb(44, 70, 232);"></i><span data-dc-tpl="254" class="mono">20</span></div>
+          <div data-dc-tpl="255" style="display: flex; flex-direction: column; gap: 4px; align-items: center;"><i data-dc-tpl="256" style="display: block; width: 24px; height: 24px; background: rgb(44, 70, 232);"></i><span data-dc-tpl="257" class="mono">24</span></div>
+          <div data-dc-tpl="258" style="display: flex; flex-direction: column; gap: 4px; align-items: center;"><i data-dc-tpl="259" style="display: block; width: 32px; height: 32px; background: rgb(44, 70, 232);"></i><span data-dc-tpl="260" class="mono">32</span></div>
+          <div data-dc-tpl="261" style="display: flex; flex-direction: column; gap: 4px; align-items: center;"><i data-dc-tpl="262" style="display: block; width: 48px; height: 48px; background: rgb(44, 70, 232);"></i><span data-dc-tpl="263" class="mono">48</span></div>
+        </div>
+        <div data-dc-tpl="264" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <span data-dc-tpl="265" class="mono" style="width: 64px; height: 44px; border: 2px solid rgb(17, 17, 17); border-radius: 6px; display: flex; align-items: center; justify-content: center;">6</span>
+          <span data-dc-tpl="266" class="mono" style="width: 64px; height: 44px; border: 2px solid rgb(17, 17, 17); border-radius: 14px; display: flex; align-items: center; justify-content: center;">14</span>
+          <span data-dc-tpl="267" class="mono" style="width: 64px; height: 44px; border: 2px solid rgb(17, 17, 17); border-radius: 20px; display: flex; align-items: center; justify-content: center;">20</span>
+          <span data-dc-tpl="268" class="mono" style="width: 64px; height: 44px; border: 2px solid rgb(17, 17, 17); border-radius: 28px 28px 0px 0px; display: flex; align-items: center; justify-content: center;">28</span>
+          <span data-dc-tpl="269" class="mono" style="width: 64px; height: 44px; border: 2px solid rgb(17, 17, 17); border-radius: 999px; display: flex; align-items: center; justify-content: center;">pill</span>
+          <span data-dc-tpl="270" style="font-size: 13px; color: rgb(74, 70, 61);">tag · card · panel · sheet · control</span>
+        </div>
+        <p data-dc-tpl="271" style="margin: 0px; font-size: 14px; line-height: 1.5;">Touch target <b data-dc-tpl="272">48</b> logical px (floor 44). Phone gutter 20. Content measure ≤ 34em. Safe-area: content starts below the platform status bar — no drawn status bars.</p>
+      </div>
+      <div data-dc-tpl="273" style="display: flex; flex-direction: column; gap: 10px;">
+        <span data-dc-tpl="274" class="mono" style="color: rgb(74, 70, 61);">Elevation</span>
+        <div data-dc-tpl="275" style="display: flex; gap: 18px; align-items: center;">
+          <span data-dc-tpl="276" style="width: 96px; height: 60px; border: 2px solid rgb(17, 17, 17); border-radius: 14px; background: rgb(255, 251, 240); box-shadow: rgb(17, 17, 17) 3px 3px 0px;"></span>
+          <span data-dc-tpl="277" style="width: 96px; height: 60px; border: 2px solid rgb(17, 17, 17); border-radius: 14px; background: rgb(255, 251, 240); box-shadow: rgb(44, 70, 232) 6px 6px 0px;"></span>
+          <span data-dc-tpl="278" style="width: 96px; height: 60px; border-radius: 14px; background: rgb(11, 26, 46); box-shadow: rgba(255, 251, 240, 0.22) 0px 0px 0px 1px, rgb(0, 0, 0) 0px 16px 32px -12px;"></span>
+          <span data-dc-tpl="279" style="font-size: 13px; color: rgb(74, 70, 61); line-height: 1.4;">press 3px ink · hero 6px cobalt · space panel hairline + soft drop</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section data-dc-tpl="280" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 48px;">
+    <div data-dc-tpl="281" style="display: flex; flex-direction: column; gap: 10px;">
+      <span data-dc-tpl="282" class="mono" style="color: rgb(74, 70, 61);">Motion</span>
+      <table data-dc-tpl="283" class="tbl">
+        <thead data-dc-tpl="284"><tr data-dc-tpl="285"><th data-dc-tpl="286">Token</th><th data-dc-tpl="287">Use</th><th data-dc-tpl="288">Default</th><th data-dc-tpl="289">Reduced motion</th></tr></thead>
+        <tbody data-dc-tpl="290">
+          <tr data-dc-tpl="291"><td data-dc-tpl="292" class="mono">motion.press</td><td data-dc-tpl="293">Button / chip press</td><td data-dc-tpl="294">120ms, offset shadow → 0</td><td data-dc-tpl="295">Same (no travel)</td></tr>
+          <tr data-dc-tpl="296"><td data-dc-tpl="297" class="mono">motion.sheet</td><td data-dc-tpl="298">Sheets, popovers</td><td data-dc-tpl="299">240ms ease-out, rise 24px</td><td data-dc-tpl="300">140ms fade</td></tr>
+          <tr data-dc-tpl="301"><td data-dc-tpl="302" class="mono">motion.subject</td><td data-dc-tpl="303">Vertical subject change</td><td data-dc-tpl="304">320ms, page slides up</td><td data-dc-tpl="305">160ms crossfade</td></tr>
+          <tr data-dc-tpl="306"><td data-dc-tpl="307" class="mono">motion.thread</td><td data-dc-tpl="308">Horizontal continuation</td><td data-dc-tpl="309">360ms, yellow rail leads</td><td data-dc-tpl="310">160ms crossfade + rail label</td></tr>
+          <tr data-dc-tpl="311"><td data-dc-tpl="312" class="mono">motion.camera</td><td data-dc-tpl="313">System → planet → region</td><td data-dc-tpl="314">600–900ms dolly, ship travels</td><td data-dc-tpl="315">Cut with 200ms fade</td></tr>
+          <tr data-dc-tpl="316"><td data-dc-tpl="317" class="mono">motion.form</td><td data-dc-tpl="318">Formation (U05)</td><td data-dc-tpl="319">2.4s once per transition ID; skippable</td><td data-dc-tpl="320">Final still + one-line caption</td></tr>
+          <tr data-dc-tpl="321"><td data-dc-tpl="322" class="mono">motion.ambient</td><td data-dc-tpl="323">Twinkle, orbit drift</td><td data-dc-tpl="324">Very slow, ≤ 1 cycle/20s</td><td data-dc-tpl="325">Off</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div data-dc-tpl="326" style="display: flex; flex-direction: column; gap: 10px;">
+      <span data-dc-tpl="327" class="mono" style="color: rgb(74, 70, 61);">Annotation vocabulary used on every sheet</span>
+      <table data-dc-tpl="328" class="tbl">
+        <thead data-dc-tpl="329"><tr data-dc-tpl="330"><th data-dc-tpl="331">Mark</th><th data-dc-tpl="332">Meaning</th></tr></thead>
+        <tbody data-dc-tpl="333">
+          <tr data-dc-tpl="334"><td data-dc-tpl="335" class="mono">CMD name</td><td data-dc-tpl="336">Durable command with stable request ID (save, send, choose branch). Server receipt is authoritative.</td></tr>
+          <tr data-dc-tpl="337"><td data-dc-tpl="338" class="mono">OBS name</td><td data-dc-tpl="339">Observation summarised by the shared recorder (visible interval, block coverage). Never counts as a command.</td></tr>
+          <tr data-dc-tpl="340"><td data-dc-tpl="341" class="mono">Gesture</td><td data-dc-tpl="342">Which layer owns the pointer: article, component, thread, platform back.</td></tr>
+          <tr data-dc-tpl="343"><td data-dc-tpl="344" class="mono">Restore</td><td data-dc-tpl="345">What is reinstated on return: anchor, playhead, branch node, camera.</td></tr>
+          <tr data-dc-tpl="346"><td data-dc-tpl="347" class="mono">Platform</td><td data-dc-tpl="348">RN native vs React Native Web differences (back, text selection, share, keys).</td></tr>
+        </tbody>
+      </table>
+      <p data-dc-tpl="349" style="margin: 6px 0px 0px; font-size: 14px; line-height: 1.5; color: rgb(74, 70, 61);">Status is never colour alone: every state pairs a glyph and a word (✓ Sent, ↻ Retry, ⌁ Offline, ⧗ Preparing).</p>
+    </div>
+  </section></div></div></div>
+
+
+
+</body></html>

@@ -1,0 +1,61 @@
+# KnowScroll v2 worker for world %i — managed by ops/vps/ansible (#228). Runs a verified release's
+# `worker` program as its release.json names it (ks2-run), never source. It listens on no port.
+# Installed, not enabled: `ks deploy` starts ks2-world@%i.target when it deploys a v2 release.
+[Unit]
+Description=KnowScroll v2 worker (%i)
+After=network-online.target postgresql@16-main.service
+Wants=network-online.target
+PartOf=ks2-world@%i.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# Its own user (#226 review m6): not v1's ks-%i, so nothing of v1 is readable to it.
+User=ks2-%i
+Group=ks2-%i
+# Read-only Cutroom artifacts for zero-cost reuse import; the API has no supplementary group.
+SupplementaryGroups=ks-pool
+Slice=ks-%i.slice
+WorkingDirectory=/srv/knowscroll/%i/current
+EnvironmentFile=/etc/knowscroll/%i.v2.env
+EnvironmentFile=/etc/knowscroll/secrets/v2-%i/database.env
+# MINIMAX_API_KEY, the owner's token-plan key, for the reasoning harness (S2.2, D-021): the shared
+# file v1 also reads, copied once from the owner's Mac. Only the worker receives this key; the API
+# unit never does (it makes no model calls).
+EnvironmentFile=/etc/knowscroll/secrets/shared/minimax.env
+EnvironmentFile=/srv/knowscroll/%i/current/.ks/release.env
+Environment=NODE_ENV=production
+Environment=KS_WORLD=%i
+Environment=KS_CUTROOM_ORIGIN=http://127.0.0.1:8797
+Environment=KS_CUTROOM_ARTIFACT_ROOT=/srv/knowscroll/cutroom-pool/artifacts
+# Turns the harness on with MiniMax. Without it the worker's provider is `none` and every model
+# call is refused before anything is reserved.
+Environment=KS_REASONING_PROVIDER=minimax
+ExecStart=/usr/local/lib/knowscroll-ops/ks2-run %i worker
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+MemoryHigh={{ ks_v2_services.worker.memory_high }}
+MemoryMax={{ ks_v2_services.worker.memory_max }}
+
+# Sandbox: read-only system, private /tmp, writes only to this world's v2 media.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+ReadWritePaths=/srv/knowscroll/%i/media-v2
+# Nothing under /etc/knowscroll and nothing of v1's media is visible to the program: systemd reads
+# the EnvironmentFile= lines above before the sandbox applies (#226 review m6).
+InaccessiblePaths=/etc/knowscroll
+InaccessiblePaths=-/srv/knowscroll/%i/media
+
+[Install]
+WantedBy=ks2-world@%i.target

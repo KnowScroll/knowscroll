@@ -1,0 +1,202 @@
+{
+  "schemaVersion": "scroll-provenance.v1",
+  "assetId": "fixture-weight-other-worlds",
+  "revision": 1,
+  "documentSha256": "bfee7eecd3448b94025be9c67ea8a98e30936967cfb796a00dfbe3675e801751",
+  "claims": [
+    {
+      "claimId": "clm-gravity-moon",
+      "statement": "Surface gravity on the Moon is about 0.165 of Earth's.",
+      "quote": "FIXTURE PLACEHOLDER: lunar surface gravity ratio.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-gravity-mars",
+      "statement": "Surface gravity on Mars is about 0.38 of Earth's.",
+      "quote": "FIXTURE PLACEHOLDER: martian surface gravity ratio.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-gravity-jupiter",
+      "statement": "Gravity at Jupiter's cloud tops is about 2.53 times Earth's.",
+      "quote": "FIXTURE PLACEHOLDER: jovian cloud-top gravity ratio.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-weight-range",
+      "statement": "A bathroom scale for people reads body weights from about 20 to 200 kg; 60 kg is a typical adult example.",
+      "quote": "FIXTURE PLACEHOLDER: typical range of a personal scale.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    }
+  ],
+  "sources": [
+    {
+      "sourceId": "src-fixture-gravity",
+      "title": "Fixture source (not a real document)",
+      "url": "https://fixture.invalid/src-fixture-gravity",
+      "snapshotSha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
+      "retrievedAt": "2026-10-19T00:00:00Z"
+    }
+  ],
+  "bindings": [
+    {
+      "kind": "constant",
+      "claimId": "clm-gravity-moon",
+      "blockId": "weight-sim",
+      "constantKey": "gMoon"
+    },
+    {
+      "kind": "constant",
+      "claimId": "clm-gravity-mars",
+      "blockId": "weight-sim",
+      "constantKey": "gMars"
+    },
+    {
+      "kind": "constant",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "weight-sim",
+      "constantKey": "gJupiter"
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-gravity-moon",
+      "blockId": "gravity-chart"
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-gravity-mars",
+      "blockId": "gravity-chart"
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "gravity-chart"
+    },
+    {
+      "kind": "value",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "path": "params.0.min"
+    },
+    {
+      "kind": "value",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "path": "params.0.max"
+    },
+    {
+      "kind": "value",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "path": "params.0.default"
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-weight-range",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "start": 85,
+      "end": 106
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-moon",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "start": 118,
+      "end": 141
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-mars",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "start": 143,
+      "end": 156
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "weight-sim",
+      "field": "fallbackText",
+      "start": 161,
+      "end": 191
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-moon",
+      "blockId": "gravity-chart",
+      "field": "fallbackText",
+      "start": 37,
+      "end": 56
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-mars",
+      "blockId": "gravity-chart",
+      "field": "fallbackText",
+      "start": 58,
+      "end": 73
+    },
+    {
+      "kind": "passage",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "gravity-chart",
+      "field": "fallbackText",
+      "start": 78,
+      "end": 96
+    }
+  ],
+  "checks": [
+    {
+      "name": "envelope",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "schema",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "structure",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "computation",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "evidence",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "brief",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "publish",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    }
+  ],
+  "production": {
+    "kind": "fixture",
+    "label": "scroll-model fixture: authored example for tests, not product content"
+  }
+}

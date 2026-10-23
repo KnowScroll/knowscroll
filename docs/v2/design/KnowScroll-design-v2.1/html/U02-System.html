@@ -1,0 +1,374 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>U02 Topic system</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.pillsp{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:0;background:#FFFBF0;color:#111111;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none}
+.pillgh{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid rgba(255,251,240,.6);background:transparent;color:#FFFBF0;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none}
+.hit{position:absolute;width:48px;height:48px;border-radius:999px;border:0;background:transparent;cursor:pointer;padding:0}
+.sysh{position:absolute;left:20px;top:116px;display:flex;flex-direction:column;gap:2px}
+.lrow{display:flex;align-items:center;justify-content:space-between;min-height:48px;padding:0 14px;border-radius:12px;border:1.5px solid #111111;background:#FFFBF0;color:#111111;font-size:15px;font-weight:600;text-decoration:none;cursor:pointer;width:100%}
+</style><style data-dc-tpl="2">
+body{margin:0}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="U02-System"><div data-dc-tpl="3" style="width: 1752px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px;">
+    <span data-dc-tpl="5" class="mono" style="font-size: 14px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); padding: 8px 12px; border-radius: 8px;">U02</span>
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800; line-height: 1;">Topic system</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 16px; color: rgb(74, 70, 61); max-width: 980px;">Machine learning, organised by its star. Planets are subtopics, a dashed route leads to a neighbouring system, the station is a shared room. The list view replaces the rejected grey Worlds dialog.</p>
+    </div>
+    <span data-dc-tpl="9" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="10" style="display: flex; gap: 32px; align-items: flex-start;">
+
+    
+    <figure data-dc-tpl="11" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="12" class="cap"><b data-dc-tpl="13">Established</b><span data-dc-tpl="14">Star, planets, dust, route, station</span></figcaption>
+      <div data-dc-tpl="15" class="phone sp">
+        <svg data-dc-tpl="16" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <g data-dc-tpl="17" fill="#FFFBF0"><circle data-dc-tpl="18" cx="24" cy="220" r="1" opacity=".5"></circle><circle data-dc-tpl="19" cx="300" cy="200" r="1" opacity=".5"></circle><circle data-dc-tpl="20" cx="362" cy="250" r="1.3" opacity=".6"></circle><circle data-dc-tpl="21" cx="60" cy="560" r=".8" opacity=".35"></circle><circle data-dc-tpl="22" cx="18" cy="470" r="1.1" opacity=".5"></circle><circle data-dc-tpl="23" cx="372" cy="520" r=".8" opacity=".35"></circle><circle data-dc-tpl="24" cx="120" cy="650" r="1" opacity=".45"></circle><circle data-dc-tpl="25" cx="40" cy="700" r="1.2" opacity=".5"></circle><circle data-dc-tpl="26" cx="180" cy="230" r=".9" opacity=".4"></circle><circle data-dc-tpl="27" cx="250" cy="690" r=".8" opacity=".35"></circle></g>
+          <ellipse data-dc-tpl="28" cx="195" cy="400" rx="170" ry="62" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <ellipse data-dc-tpl="29" cx="195" cy="400" rx="110" ry="40" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <circle data-dc-tpl="30" cx="195" cy="400" r="70" fill="#FFE9A8" opacity=".05"></circle>
+          <circle data-dc-tpl="31" cx="195" cy="400" r="48" fill="#FFE9A8" opacity=".1"></circle>
+          <circle data-dc-tpl="32" cx="195" cy="400" r="26" fill="#FFE9A8"></circle>
+          <g data-dc-tpl="33" fill="#FFFBF0"><circle data-dc-tpl="34" cx="296" cy="348" r="1.8" opacity=".6"></circle><circle data-dc-tpl="35" cx="308" cy="356" r="1.2" opacity=".45"></circle><circle data-dc-tpl="36" cx="290" cy="360" r="1.4" opacity=".5"></circle><circle data-dc-tpl="37" cx="314" cy="344" r="1" opacity=".4"></circle><circle data-dc-tpl="38" cx="302" cy="340" r="1" opacity=".35"></circle></g>
+          <circle data-dc-tpl="39" cx="302" cy="351" r="18" fill="#2BC4B4" opacity=".07"></circle>
+          <circle data-dc-tpl="40" cx="50" cy="368" r="24" fill="#2BC4B4"></circle>
+          <path data-dc-tpl="41" d="M34 356l12-10 17 3 5 13-10 10-16-3z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.5"></path>
+          <path data-dc-tpl="42" d="M52 382l7-4 6 3-3 6z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.2"></path>
+          <circle data-dc-tpl="43" cx="50" cy="368" r="24" fill="none" stroke="#FFFBF0" stroke-opacity=".3"></circle>
+          <circle data-dc-tpl="44" cx="290" cy="420" r="28" fill="#2BC4B4"></circle>
+          <path data-dc-tpl="45" d="M270 410l14-12 20 4 6 15-12 11-19-4z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.5"></path>
+          <path data-dc-tpl="46" d="M294 436l9-5 7 4-4 7z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.2"></path>
+          <circle data-dc-tpl="47" cx="290" cy="420" r="28" fill="none" stroke="#FFFBF0" stroke-opacity=".3"></circle>
+          <g data-dc-tpl="48" font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text data-dc-tpl="49" x="52" y="408">Attention</text>
+            <text data-dc-tpl="50" x="290" y="464">Inference &amp; serving</text>
+          </g>
+          <g data-dc-tpl="51" transform="translate(195 566)"><rect data-dc-tpl="52" x="-14" y="-7" width="28" height="14" rx="4" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path data-dc-tpl="53" d="M-26 0h12M14 0h12" stroke="#FFFBF0" stroke-width="2"></path><rect data-dc-tpl="54" x="-33" y="-5" width="7" height="10" fill="#FFFBF0"></rect><rect data-dc-tpl="55" x="26" y="-5" width="7" height="10" fill="#FFFBF0"></rect><circle data-dc-tpl="56" cx="0" cy="0" r="2.6" fill="#FFE44D"></circle></g>
+          <text data-dc-tpl="57" x="195" y="596" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="13" font-weight="600" fill="#FFFBF0">Model serving room</text>
+          <path data-dc-tpl="58" d="M225 572 Q 300 600 390 640" fill="none" stroke="#FFFBF0" stroke-opacity=".4" stroke-width="1.4" stroke-dasharray="2 6" stroke-linecap="round"></path>
+        </svg>
+        <a data-dc-tpl="59" class="pillsp" href="U01-Universe.html" style="position: absolute; left: 16px; top: 56px;"><svg data-dc-tpl="60" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="61" d="M15 5l-7 7 7 7"></path></svg>Universe</a>
+        <button data-dc-tpl="62" class="pillgh" type="button" aria-pressed="false" style="position: absolute; right: 16px; top: 56px;">Lately</button>
+        <div data-dc-tpl="63" class="sysh"><h2 data-dc-tpl="64" class="disp" style="margin: 0px; font-size: 30px; line-height: 34px; font-weight: 800;">Machine learning</h2><span data-dc-tpl="65" class="mono" style="color: rgba(255, 251, 240, 0.72);">A system</span></div>
+        <a data-dc-tpl="66" class="hit" href="U03-Planet.html" aria-label="Attention, a planet" style="left: 26px; top: 344px;"></a>
+        <a data-dc-tpl="67" class="hit" href="U03-Planet.html" aria-label="Inference and serving, a planet" style="left: 266px; top: 396px;"></a>
+        <a data-dc-tpl="68" class="hit" href="R01-Room.html" aria-label="Model serving room, a room station" style="left: 171px; top: 542px;"></a>
+        <a data-dc-tpl="69" class="pillgh" href="U01-Universe.html" style="position: absolute; right: 16px; top: 632px; min-height: 44px;">Backend systems<svg data-dc-tpl="70" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="71" d="M9 5l7 7-7 7"></path></svg></a>
+        <button data-dc-tpl="72" class="pillgh" type="button" style="position: absolute; left: 16px; top: 684px;"><svg data-dc-tpl="73" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="74" d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path></svg>List view</button>
+        <div data-dc-tpl="75" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="76"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(11, 26, 46); box-shadow: rgba(255, 251, 240, 0.22) 0px 0px 0px 1px, rgb(0, 0, 0) 0px 12px 28px -10px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="77" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="78" class="cap"><b data-dc-tpl="79">Forming · scene pending</b><span data-dc-tpl="80">Old scene stays; one slot draws</span></figcaption>
+      <div data-dc-tpl="81" class="phone sp">
+        <svg data-dc-tpl="82" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <g data-dc-tpl="83" fill="#FFFBF0"><circle data-dc-tpl="84" cx="24" cy="220" r="1" opacity=".5"></circle><circle data-dc-tpl="85" cx="300" cy="200" r="1" opacity=".5"></circle><circle data-dc-tpl="86" cx="362" cy="250" r="1.3" opacity=".6"></circle><circle data-dc-tpl="87" cx="60" cy="560" r=".8" opacity=".35"></circle><circle data-dc-tpl="88" cx="18" cy="470" r="1.1" opacity=".5"></circle><circle data-dc-tpl="89" cx="372" cy="520" r=".8" opacity=".35"></circle><circle data-dc-tpl="90" cx="120" cy="650" r="1" opacity=".45"></circle><circle data-dc-tpl="91" cx="40" cy="700" r="1.2" opacity=".5"></circle></g>
+          <ellipse data-dc-tpl="92" cx="195" cy="400" rx="170" ry="62" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <ellipse data-dc-tpl="93" cx="195" cy="400" rx="110" ry="40" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <circle data-dc-tpl="94" cx="195" cy="400" r="48" fill="#FFE9A8" opacity=".1"></circle>
+          <circle data-dc-tpl="95" cx="195" cy="400" r="26" fill="#FFE9A8"></circle>
+          <circle data-dc-tpl="96" cx="50" cy="368" r="24" fill="#2BC4B4"></circle>
+          <path data-dc-tpl="97" d="M34 356l12-10 17 3 5 13-10 10-16-3z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.5"></path>
+          <circle data-dc-tpl="98" cx="290" cy="420" r="28" fill="#2BC4B4"></circle>
+          <path data-dc-tpl="99" d="M270 410l14-12 20 4 6 15-12 11-19-4z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.5"></path>
+          <circle data-dc-tpl="100" cx="302" cy="351" r="20" fill="none" stroke="#FFFBF0" stroke-opacity=".7" stroke-width="1.6" stroke-dasharray="4 5"></circle>
+          <g data-dc-tpl="101" font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" text-anchor="middle" font-size="13">
+            <text data-dc-tpl="102" x="52" y="408">Attention</text>
+            <text data-dc-tpl="103" x="290" y="464">Inference &amp; serving</text>
+          </g>
+          <g data-dc-tpl="104" transform="translate(195 566)"><rect data-dc-tpl="105" x="-14" y="-7" width="28" height="14" rx="4" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path data-dc-tpl="106" d="M-26 0h12M14 0h12" stroke="#FFFBF0" stroke-width="2"></path><rect data-dc-tpl="107" x="-33" y="-5" width="7" height="10" fill="#FFFBF0"></rect><rect data-dc-tpl="108" x="26" y="-5" width="7" height="10" fill="#FFFBF0"></rect></g>
+          <text data-dc-tpl="109" x="195" y="596" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="13" font-weight="600" fill="#FFFBF0">Model serving room</text>
+        </svg>
+        <a data-dc-tpl="110" class="pillsp" href="U01-Universe.html" style="position: absolute; left: 16px; top: 56px;"><svg data-dc-tpl="111" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="112" d="M15 5l-7 7 7 7"></path></svg>Universe</a>
+        <div data-dc-tpl="113" class="sysh"><h2 data-dc-tpl="114" class="disp" style="margin: 0px; font-size: 30px; line-height: 34px; font-weight: 800;">Machine learning</h2><span data-dc-tpl="115" class="mono" style="color: rgba(255, 251, 240, 0.72);">A system</span></div>
+        <span data-dc-tpl="116" role="status" style="position: absolute; left: 262px; top: 282px; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0px 12px; border-radius: 999px; background: rgb(20, 39, 63); border: 1px solid rgba(255, 251, 240, 0.4); font-size: 13px; font-weight: 600;">
+          <svg data-dc-tpl="117" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="118" d="M12 3a9 9 0 0 1 9 9"></path></svg>Drawing…</span>
+        <p data-dc-tpl="119" style="position: absolute; left: 20px; right: 20px; top: 640px; margin: 0px; font-size: 14px; line-height: 1.45; color: rgba(255, 251, 240, 0.8);">Part of this system is still being drawn. Everything else works as usual.</p>
+        <div data-dc-tpl="120" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="121"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(11, 26, 46); box-shadow: rgba(255, 251, 240, 0.22) 0px 0px 0px 1px, rgb(0, 0, 0) 0px 12px 28px -10px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="122" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="123" class="cap"><b data-dc-tpl="124">Calm · dormant</b><span data-dc-tpl="125">Desaturated, no glow, nothing removed</span></figcaption>
+      <div data-dc-tpl="126" class="phone sp">
+        <svg data-dc-tpl="127" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <g data-dc-tpl="128" fill="#FFFBF0"><circle data-dc-tpl="129" cx="24" cy="220" r="1" opacity=".4"></circle><circle data-dc-tpl="130" cx="300" cy="200" r="1" opacity=".4"></circle><circle data-dc-tpl="131" cx="362" cy="250" r="1.3" opacity=".45"></circle><circle data-dc-tpl="132" cx="60" cy="560" r=".8" opacity=".3"></circle><circle data-dc-tpl="133" cx="18" cy="470" r="1.1" opacity=".4"></circle><circle data-dc-tpl="134" cx="372" cy="520" r=".8" opacity=".3"></circle><circle data-dc-tpl="135" cx="120" cy="650" r="1" opacity=".35"></circle></g>
+          <ellipse data-dc-tpl="136" cx="195" cy="400" rx="170" ry="62" fill="none" stroke="#FFFBF0" stroke-opacity=".1" stroke-width="1.2"></ellipse>
+          <ellipse data-dc-tpl="137" cx="195" cy="400" rx="110" ry="40" fill="none" stroke="#FFFBF0" stroke-opacity=".1" stroke-width="1.2"></ellipse>
+          <circle data-dc-tpl="138" cx="195" cy="400" r="26" fill="#D9CBA0"></circle>
+          <circle data-dc-tpl="139" cx="50" cy="368" r="24" fill="#4C8A86"></circle>
+          <path data-dc-tpl="140" d="M34 356l12-10 17 3 5 13-10 10-16-3z" fill="#5E8F68" stroke="#0E3B2E" stroke-width="1.5"></path>
+          <circle data-dc-tpl="141" cx="290" cy="420" r="28" fill="#4C8A86"></circle>
+          <path data-dc-tpl="142" d="M270 410l14-12 20 4 6 15-12 11-19-4z" fill="#5E8F68" stroke="#0E3B2E" stroke-width="1.5"></path>
+          <g data-dc-tpl="143" font-family="Instrument Sans, sans-serif" font-weight="600" fill="#FFFBF0" fill-opacity=".85" text-anchor="middle" font-size="13">
+            <text data-dc-tpl="144" x="52" y="408">Attention</text>
+            <text data-dc-tpl="145" x="290" y="464">Inference &amp; serving</text>
+          </g>
+          <g data-dc-tpl="146" transform="translate(195 566)" opacity=".7"><rect data-dc-tpl="147" x="-14" y="-7" width="28" height="14" rx="4" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path data-dc-tpl="148" d="M-26 0h12M14 0h12" stroke="#FFFBF0" stroke-width="2"></path><rect data-dc-tpl="149" x="-33" y="-5" width="7" height="10" fill="#FFFBF0"></rect><rect data-dc-tpl="150" x="26" y="-5" width="7" height="10" fill="#FFFBF0"></rect></g>
+          <text data-dc-tpl="151" x="195" y="596" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="13" font-weight="600" fill="#FFFBF0" fill-opacity=".85">Model serving room</text>
+        </svg>
+        <a data-dc-tpl="152" class="pillsp" href="U01-Universe.html" style="position: absolute; left: 16px; top: 56px;"><svg data-dc-tpl="153" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="154" d="M15 5l-7 7 7 7"></path></svg>Universe</a>
+        <div data-dc-tpl="155" class="sysh"><h2 data-dc-tpl="156" class="disp" style="margin: 0px; font-size: 30px; line-height: 34px; font-weight: 800;">Machine learning</h2><span data-dc-tpl="157" class="mono" style="color: rgba(255, 251, 240, 0.72);">A system</span></div>
+        <div data-dc-tpl="158" style="position: absolute; left: 20px; right: 20px; top: 626px; display: flex; flex-direction: column; gap: 12px;">
+          <p data-dc-tpl="159" style="margin: 0px; font-size: 16px; line-height: 1.45;">Quiet for a while. Pick up anywhere.</p>
+          <a data-dc-tpl="160" class="pillsp" href="U03-Planet.html" style="align-self: flex-start; min-height: 48px;">Open Attention</a>
+        </div>
+        <div data-dc-tpl="161" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="162"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(11, 26, 46); box-shadow: rgba(255, 251, 240, 0.22) 0px 0px 0px 1px, rgb(0, 0, 0) 0px 12px 28px -10px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="163" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="164" class="cap"><b data-dc-tpl="165">List view</b><span data-dc-tpl="166">Accessible outline; replaces grey dialog</span></figcaption>
+      <div data-dc-tpl="167" class="phone sp">
+        <svg data-dc-tpl="168" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px; opacity: 0.5;">
+          <ellipse data-dc-tpl="169" cx="195" cy="170" rx="150" ry="50" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <circle data-dc-tpl="170" cx="195" cy="170" r="20" fill="#FFE9A8"></circle>
+          <circle data-dc-tpl="171" cx="62" cy="150" r="16" fill="#2BC4B4"></circle>
+          <circle data-dc-tpl="172" cx="306" cy="186" r="18" fill="#2BC4B4"></circle>
+        </svg>
+        <div data-dc-tpl="173" class="msheet" role="dialog" aria-label="Machine learning, list view" style="top: 208px; gap: 12px; padding-bottom: 22px;">
+          <div data-dc-tpl="174" class="grab"></div>
+          <div data-dc-tpl="175" style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+            <div data-dc-tpl="176" style="display: flex; flex-direction: column; gap: 2px;">
+              <span data-dc-tpl="177" class="mono" style="color: rgb(74, 70, 61);">A system · list view</span>
+              <h2 data-dc-tpl="178" class="disp" style="margin: 0px; font-size: 26px; line-height: 30px; font-weight: 800;">Machine learning</h2>
+            </div>
+            <button data-dc-tpl="179" class="ibtn" type="button" aria-label="Close list view"><svg data-dc-tpl="180" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="181" d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          </div>
+          <div data-dc-tpl="182" style="display: flex; flex-direction: column; gap: 8px;">
+            <h3 data-dc-tpl="183" style="margin: 0px; display: flex; align-items: center; gap: 8px; font-size: 13px;"><svg data-dc-tpl="184" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle data-dc-tpl="185" cx="12" cy="12" r="9" fill="#2BC4B4" stroke="#111111" stroke-width="2"></circle></svg><a data-dc-tpl="186" href="U03-Planet.html" style="color: rgb(17, 17, 17); font-family: &quot;Bricolage Grotesque&quot;, sans-serif; font-size: 19px; font-weight: 700; min-height: 32px; display: inline-flex; align-items: center;">Attention</a><span data-dc-tpl="187" class="mono" style="color: rgb(74, 70, 61);">a planet</span></h3>
+            <div data-dc-tpl="188" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 8px;">
+              <a data-dc-tpl="189" class="lrow" href="U04-Region.html">Mechanism<svg data-dc-tpl="190" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="191" d="M9 5l7 7-7 7"></path></svg></a>
+              <a data-dc-tpl="192" class="lrow" href="U04-Region.html">Example<svg data-dc-tpl="193" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="194" d="M9 5l7 7-7 7"></path></svg></a>
+              <a data-dc-tpl="195" class="lrow" href="U04-Region.html">Limits<svg data-dc-tpl="196" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="197" d="M9 5l7 7-7 7"></path></svg></a>
+            </div>
+          </div>
+          <div data-dc-tpl="198" style="display: flex; flex-direction: column; gap: 8px;">
+            <h3 data-dc-tpl="199" style="margin: 0px; display: flex; align-items: center; gap: 8px; font-size: 13px;"><svg data-dc-tpl="200" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle data-dc-tpl="201" cx="12" cy="12" r="9" fill="#2BC4B4" stroke="#111111" stroke-width="2"></circle></svg><a data-dc-tpl="202" href="U03-Planet.html" style="color: rgb(17, 17, 17); font-family: &quot;Bricolage Grotesque&quot;, sans-serif; font-size: 19px; font-weight: 700; min-height: 32px; display: inline-flex; align-items: center;">Inference &amp; serving</a><span data-dc-tpl="203" class="mono" style="color: rgb(74, 70, 61);">a planet</span></h3>
+            <div data-dc-tpl="204" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 8px;">
+              <a data-dc-tpl="205" class="lrow" href="U04-Region.html">Batching<svg data-dc-tpl="206" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="207" d="M9 5l7 7-7 7"></path></svg></a>
+              <a data-dc-tpl="208" class="lrow" href="U04-Region.html">Deployment<svg data-dc-tpl="209" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="210" d="M9 5l7 7-7 7"></path></svg></a>
+              <a data-dc-tpl="211" class="lrow" href="U04-Region.html">Latency<svg data-dc-tpl="212" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="213" d="M9 5l7 7-7 7"></path></svg></a>
+              <a data-dc-tpl="214" class="lrow" href="U04-Region.html">Cost<svg data-dc-tpl="215" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="216" d="M9 5l7 7-7 7"></path></svg></a>
+            </div>
+          </div>
+          <div data-dc-tpl="217" style="display: flex; flex-direction: column; gap: 8px;">
+            <h3 data-dc-tpl="218" class="mono" style="margin: 0px; color: rgb(74, 70, 61);">Rooms</h3>
+            <a data-dc-tpl="219" class="lrow" href="R01-Room.html"><span data-dc-tpl="220" style="display: inline-flex; align-items: center; gap: 10px;"><svg data-dc-tpl="221" width="22" height="14" viewBox="0 0 66 20" aria-hidden="true"><rect data-dc-tpl="222" x="19" y="3" width="28" height="14" rx="4" fill="none" stroke="#111111" stroke-width="2.4"></rect><path data-dc-tpl="223" d="M7 10h12M47 10h12" stroke="#111111" stroke-width="2.4"></path></svg>Model serving room</span><svg data-dc-tpl="224" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="225" d="M9 5l7 7-7 7"></path></svg></a>
+          </div>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section data-dc-tpl="226" class="notes">
+    <div data-dc-tpl="227" class="note"><h3 data-dc-tpl="228">Route &amp; origin</h3><p data-dc-tpl="229"><span data-dc-tpl="230" class="ev">/universe/ml</span> from U01 system tap, a breadcrumb chip on an encounter, or Keep “Open in Universe”. <span data-dc-tpl="231" class="ev">?view=list</span> deep-links the outline.</p></div>
+    <div data-dc-tpl="232" class="note"><h3 data-dc-tpl="233">Actions</h3><p data-dc-tpl="234"><b data-dc-tpl="235">Primary:</b> tap a planet → U03 (camera dolly). <b data-dc-tpl="236">Secondary:</b> station → R01; dashed route → neighbouring system; List view; Lately lens; back pill to Universe. Dust is not tappable as a place.</p></div>
+    <div data-dc-tpl="237" class="note"><h3 data-dc-tpl="238">States &amp; overlays</h3><p data-dc-tpl="239">established · forming (dashed slot + “Drawing…”, no percentage) · calm (−35% saturation, no glow, orbit 10%) · hidden/private boundary (fog, see U06) · list view sheet. Stale scene: keep old, swap when the new revision lands.</p></div>
+    <div data-dc-tpl="240" class="note"><h3 data-dc-tpl="241">Commands · observations</h3><p data-dc-tpl="242" class="ev">OBS universe.select{planet} · universe.route{to} · universe.list_open<br data-dc-tpl="243">Scene revision fetched by id; client never computes eligibility or forms planets itself.</p></div>
+    <div data-dc-tpl="244" class="note"><h3 data-dc-tpl="245">Restore</h3><p data-dc-tpl="246">Camera {system, zoom, rotation}; list view scroll position and expanded planet. Returning from U03 animates back out to this exact framing.</p></div>
+    <div data-dc-tpl="247" class="note"><h3 data-dc-tpl="248">Accessibility &amp; platform</h3><p data-dc-tpl="249">List view is the screen-reader primary: h2 system, h3 planets, 48px rows. Hit targets overlay every body. Esc / native back closes the sheet. Reduced motion: camera cuts with a 200ms fade.</p></div>
+  </section></div></div></div>
+
+
+
+</body></html>

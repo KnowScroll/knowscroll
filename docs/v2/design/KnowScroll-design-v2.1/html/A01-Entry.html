@@ -1,0 +1,278 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>A01–A03 Entry, recovery, first arrival</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.fld{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600}
+.fld input{min-height:48px;border:2px solid #111111;border-radius:12px;padding:0 14px;font:16px 'Instrument Sans',system-ui,sans-serif;background:#FFFBF0;color:#111111}
+</style><style data-dc-tpl="2">
+body{margin:0}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="A01-Entry"><div data-dc-tpl="3" style="width: 2174px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px;">
+    <span data-dc-tpl="5" class="mono" style="font-size: 14px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); padding: 8px 12px; border-radius: 8px;">A01–A03</span>
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800; line-height: 1;">Entry, recovery, first arrival</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 16px; color: rgb(74, 70, 61); max-width: 1100px;">Easy entry with no interest survey. Recovery always promises to bring you back where you were. First arrival goes straight to a Reel with one dismissible hint.</p>
+    </div>
+    <span data-dc-tpl="9" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="10" style="display: flex; gap: 32px; align-items: flex-start;">
+
+    
+    <figure data-dc-tpl="11" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="12" class="cap"><b data-dc-tpl="13">A01 · Sign in</b><span data-dc-tpl="14">Spatial ground, one calm star</span></figcaption>
+      <div data-dc-tpl="15" class="phone sp">
+        <svg data-dc-tpl="16" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <g data-dc-tpl="17" fill="#FFFBF0"><circle data-dc-tpl="18" cx="40" cy="90" r="1" opacity=".5"></circle><circle data-dc-tpl="19" cx="130" cy="150" r="1.2" opacity=".4"></circle><circle data-dc-tpl="20" cx="320" cy="80" r="1" opacity=".6"></circle><circle data-dc-tpl="21" cx="350" cy="230" r=".9" opacity=".4"></circle><circle data-dc-tpl="22" cx="60" cy="300" r="1.1" opacity=".5"></circle><circle data-dc-tpl="23" cx="280" cy="360" r="1" opacity=".35"></circle><circle data-dc-tpl="24" cx="20" cy="470" r=".8" opacity=".4"></circle></g>
+          <ellipse data-dc-tpl="25" cx="250" cy="250" rx="150" ry="46" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <circle data-dc-tpl="26" cx="250" cy="250" r="54" fill="#FFE9A8" opacity=".08"></circle>
+          <circle data-dc-tpl="27" cx="250" cy="250" r="32" fill="#FFE9A8" opacity=".16"></circle>
+          <circle data-dc-tpl="28" cx="250" cy="250" r="16" fill="#FFE9A8"></circle>
+          <g data-dc-tpl="29" fill="#FFFBF0"><circle data-dc-tpl="30" cx="110" cy="210" r="1.8" opacity=".7"></circle><circle data-dc-tpl="31" cx="122" cy="200" r="1.3" opacity=".5"></circle><circle data-dc-tpl="32" cx="98" cy="222" r="1.1" opacity=".45"></circle><circle data-dc-tpl="33" cx="130" cy="218" r="1.5" opacity=".55"></circle></g>
+          <circle data-dc-tpl="34" cx="114" cy="212" r="22" fill="#2BC4B4" opacity=".08"></circle>
+        </svg>
+        <div data-dc-tpl="35" style="position: absolute; left: 28px; right: 28px; top: 360px; display: flex; flex-direction: column; gap: 16px;">
+          <h2 data-dc-tpl="36" class="disp" style="margin: 0px; font-size: 48px; line-height: 1; font-weight: 800; color: rgb(255, 251, 240);">KnowScroll</h2>
+          <p data-dc-tpl="37" style="margin: 0px; font-size: 18px; line-height: 1.45; color: rgba(255, 251, 240, 0.86);">Thoughtful Reels and Scrolls. A universe that grows from what you explore.</p>
+        </div>
+        <div data-dc-tpl="38" style="position: absolute; left: 24px; right: 24px; top: 560px; display: flex; flex-direction: column; gap: 12px;">
+          <a data-dc-tpl="39" class="btn sp" href="#" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240); border-color: rgb(44, 70, 232);">Continue with email</a>
+          <a data-dc-tpl="40" class="btn ghost" href="#" style="color: rgb(255, 251, 240); border-color: rgba(255, 251, 240, 0.7);">I have a sign-in link</a>
+          <button data-dc-tpl="41" class="btn ghost sm" type="button" disabled="" style="color: rgba(255, 251, 240, 0.72); border: 1.5px dashed rgba(255, 251, 240, 0.45);">[Other sign-in options — to decide]</button>
+          <p data-dc-tpl="42" style="margin: 4px 0px 0px; font-size: 13px; line-height: 1.45; color: rgba(255, 251, 240, 0.72); text-align: center;">No questions to answer first. Your universe starts quiet.</p>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="43" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="44" class="cap"><b data-dc-tpl="45">A01 · Link sent</b><span data-dc-tpl="46">Pending; resend and change email</span></figcaption>
+      <div data-dc-tpl="47" class="phone">
+        <button data-dc-tpl="48" class="ibtn" type="button" aria-label="Back" style="position: absolute; left: 16px; top: 56px;"><svg data-dc-tpl="49" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="50" d="M15 5l-7 7 7 7"></path></svg></button>
+        <div data-dc-tpl="51" style="position: absolute; left: 24px; right: 24px; top: 150px; display: flex; flex-direction: column; gap: 18px;">
+          <svg data-dc-tpl="52" width="72" height="72" viewBox="0 0 72 72" aria-hidden="true"><rect data-dc-tpl="53" x="6" y="16" width="60" height="42" rx="8" fill="#FFE44D" stroke="#111111" stroke-width="2.5"></rect><path data-dc-tpl="54" d="M8 20l28 20 28-20" fill="none" stroke="#111111" stroke-width="2.5" stroke-linejoin="round"></path></svg>
+          <h2 data-dc-tpl="55" class="disp" style="margin: 0px; font-size: 36px; line-height: 38px; font-weight: 800;">Check your inbox</h2>
+          <p data-dc-tpl="56" style="margin: 0px; font-size: 17px; line-height: 1.5;">We sent a sign-in link to <b data-dc-tpl="57">asha@example.com</b>. Open it on this device to continue.</p>
+          <div data-dc-tpl="58" class="banner" style="background: rgb(244, 237, 216);">
+            <svg data-dc-tpl="59" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: 0 0 auto;"><circle data-dc-tpl="60" cx="12" cy="12" r="9"></circle><path data-dc-tpl="61" d="M12 7v5l3 2"></path></svg>
+            <span data-dc-tpl="62">The link works once and expires after a short while. If it stops working, ask for a new one.</span>
+          </div>
+        </div>
+        <div data-dc-tpl="63" style="position: absolute; left: 24px; right: 24px; top: 600px; display: flex; flex-direction: column; gap: 12px;">
+          <button data-dc-tpl="64" class="btn" type="button">Resend the link</button>
+          <button data-dc-tpl="65" class="btn ghost" type="button">Use a different email</button>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="66" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="67" class="cap"><b data-dc-tpl="68">A02 · Session expired</b><span data-dc-tpl="69">Destination kept and shown</span></figcaption>
+      <div data-dc-tpl="70" class="phone">
+        <div data-dc-tpl="71" style="position: absolute; left: 24px; right: 24px; top: 120px; display: flex; flex-direction: column; gap: 18px;">
+          <span data-dc-tpl="72" class="tag" style="align-self: flex-start;"><svg data-dc-tpl="73" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><rect data-dc-tpl="74" x="5" y="11" width="14" height="10" rx="2"></rect><path data-dc-tpl="75" d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Signed out</span>
+          <h2 data-dc-tpl="76" class="disp" style="margin: 0px; font-size: 36px; line-height: 38px; font-weight: 800;">You were signed out</h2>
+          <p data-dc-tpl="77" style="margin: 0px; font-size: 17px; line-height: 1.5;">It’s been a while on this device. Sign in again and you’ll return to the Scroll you were reading.</p>
+          <div data-dc-tpl="78" style="border: 2px solid rgb(17, 17, 17); border-radius: 16px; background: rgb(255, 251, 240); box-shadow: rgb(44, 70, 232) 6px 6px 0px; padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+            <span data-dc-tpl="79" class="mono" style="color: rgb(74, 70, 61);">You’ll return to</span>
+            <span data-dc-tpl="80" class="tag" style="align-self: flex-start;">Scroll · 6 min</span>
+            <b data-dc-tpl="81" class="disp" style="font-size: 22px; line-height: 1.15;">Attention, slowly</b>
+            <span data-dc-tpl="82" style="font-size: 14px; color: rgb(74, 70, 61);">At “Why squared?”</span>
+          </div>
+        </div>
+        <div data-dc-tpl="83" style="position: absolute; left: 24px; right: 24px; top: 620px; display: flex; flex-direction: column; gap: 12px;">
+          <button data-dc-tpl="84" class="btn pri" type="button">Sign in again</button>
+          <button data-dc-tpl="85" class="btn ghost" type="button">Not you? Use another email</button>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="86" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="87" class="cap"><b data-dc-tpl="88">A02 · Link failed</b><span data-dc-tpl="89">Expired or already used</span></figcaption>
+      <div data-dc-tpl="90" class="phone">
+        <div data-dc-tpl="91" style="position: absolute; left: 24px; right: 24px; top: 150px; display: flex; flex-direction: column; gap: 18px;">
+          <svg data-dc-tpl="92" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#B23A0B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="93" d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path data-dc-tpl="94" d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path><path data-dc-tpl="95" d="M4 4l16 16"></path></svg>
+          <h2 data-dc-tpl="96" class="disp" style="margin: 0px; font-size: 36px; line-height: 38px; font-weight: 800;">This link didn’t work</h2>
+          <div data-dc-tpl="97" class="banner" style="border-color: rgb(178, 58, 11);">
+            <svg data-dc-tpl="98" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B23A0B" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: 0 0 auto;"><circle data-dc-tpl="99" cx="12" cy="12" r="9"></circle><path data-dc-tpl="100" d="M12 7v6M12 16.5v.1"></path></svg>
+            <span data-dc-tpl="101">It has expired or was already used. Nothing about your account changed.</span>
+          </div>
+          <p data-dc-tpl="102" style="margin: 0px; font-size: 16px; line-height: 1.5; color: rgb(74, 70, 61);">We’ll send a fresh link to asha@example.com.</p>
+        </div>
+        <div data-dc-tpl="103" style="position: absolute; left: 24px; right: 24px; top: 600px; display: flex; flex-direction: column; gap: 12px;">
+          <button data-dc-tpl="104" class="btn pri" type="button">Send a new link</button>
+          <button data-dc-tpl="105" class="btn ghost" type="button">Use a different email</button>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="106" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="107" class="cap"><b data-dc-tpl="108">A03 · First arrival</b><span data-dc-tpl="109">A Reel is already playing; no survey</span></figcaption>
+      <div data-dc-tpl="110" class="phone" style="background: rgb(4, 10, 23); color: rgb(255, 251, 240);">
+        <svg data-dc-tpl="111" aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0px;">
+          <ellipse data-dc-tpl="112" cx="195" cy="330" rx="150" ry="150" fill="none" stroke="#FFFBF0" stroke-opacity=".35" stroke-width="2" stroke-dasharray="6 8"></ellipse>
+          <circle data-dc-tpl="113" cx="195" cy="330" r="34" fill="#FFE9A8"></circle>
+          <circle data-dc-tpl="114" cx="345" cy="330" r="14" fill="#2BC4B4"></circle>
+          <path data-dc-tpl="115" d="M345 330 L 345 270" stroke="#FFE44D" stroke-width="3" stroke-linecap="round"></path>
+          <path data-dc-tpl="116" d="M339 278l6-10 6 10" fill="none" stroke="#FFE44D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path data-dc-tpl="117" d="M345 330 L 285 330" stroke="#FFFBF0" stroke-width="3" stroke-linecap="round"></path>
+          <path data-dc-tpl="118" d="M293 324l-10 6 10 6" fill="none" stroke="#FFFBF0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+        <div data-dc-tpl="119" style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; align-items: center; justify-content: space-between;">
+          <span data-dc-tpl="120" class="tag" style="border-color: rgb(255, 251, 240);">Astronomy</span>
+          <div data-dc-tpl="121" class="seg" role="group" aria-label="Format of this explanation"><button data-dc-tpl="122" type="button" aria-pressed="true">Reel</button><button data-dc-tpl="123" type="button" aria-pressed="false">Scroll</button></div>
+        </div>
+        <div data-dc-tpl="124" role="note" aria-label="How to move around" style="position: absolute; left: 20px; right: 20px; top: 470px; border: 2px solid rgb(17, 17, 17); border-radius: 18px; background: rgb(255, 251, 240); color: rgb(17, 17, 17); padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: rgb(255, 228, 77) 4px 4px 0px;">
+          <div data-dc-tpl="125" style="display: flex; gap: 14px; font-size: 15px; font-weight: 600; line-height: 1.35;">
+            <span data-dc-tpl="126" style="display: flex; gap: 6px; align-items: center;"><svg data-dc-tpl="127" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="128" d="M12 19V5"></path><path data-dc-tpl="129" d="M6 11l6-6 6 6"></path></svg>Swipe up for something new</span>
+          </div>
+          <div data-dc-tpl="130" style="display: flex; gap: 14px; font-size: 15px; font-weight: 600; line-height: 1.35;">
+            <span data-dc-tpl="131" style="display: flex; gap: 6px; align-items: center;"><svg data-dc-tpl="132" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="133" d="M5 12h14"></path><path data-dc-tpl="134" d="M13 6l6 6-6 6"></path></svg>Go deeper with the tab on the right</span>
+          </div>
+          <span data-dc-tpl="135" style="font-size: 13px; color: rgb(74, 70, 61); line-height: 1.4;">Prefer buttons? The ⋯ menu and the yellow edge tab do the same.</span>
+          <button data-dc-tpl="136" class="btn ink sm" type="button" style="align-self: flex-start;">Got it</button>
+        </div>
+        <div data-dc-tpl="137" style="position: absolute; left: 20px; width: 290px; top: 676px; display: flex; flex-direction: column; gap: 6px;">
+          <h2 data-dc-tpl="138" class="disp" style="margin: 0px; font-size: 24px; line-height: 26px; font-weight: 800;">Why does an orbit keep falling?</h2>
+        </div>
+        <div data-dc-tpl="139" class="navslot"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="140"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(17, 17, 17); box-shadow: rgba(17, 17, 17, 0.55) 0px 10px 24px -12px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+      </div>
+    </figure>
+  </div>
+
+  <section data-dc-tpl="141" class="notes">
+    <div data-dc-tpl="142" class="note"><h3 data-dc-tpl="143">Route &amp; origin</h3><p data-dc-tpl="144"><span data-dc-tpl="145" class="ev">/welcome</span> → <span data-dc-tpl="146" class="ev">/signin</span> → <span data-dc-tpl="147" class="ev">/signin/link</span>; expired session or bad link → <span data-dc-tpl="148" class="ev">/recover</span>. A deep link (share, notification) is held as the destination through the whole flow. Guest browsing is not assumed.</p></div>
+    <div data-dc-tpl="149" class="note"><h3 data-dc-tpl="150">Actions</h3><p data-dc-tpl="151"><b data-dc-tpl="152">Primary:</b> Continue with email · Sign in again · Send a new link. <b data-dc-tpl="153">Secondary:</b> I have a link, change email, Got it. Auth method stays open: the placeholder row reserves space without committing to a provider.</p></div>
+    <div data-dc-tpl="154" class="note"><h3 data-dc-tpl="155">States &amp; overlays</h3><p data-dc-tpl="156">signed out · link requested · link sent · redeeming · expired session · link expired/used · offline (send disabled with banner) · first arrival hint (shown once, dismissible). No questionnaire or interest picker at any step.</p></div>
+    <div data-dc-tpl="157" class="note"><h3 data-dc-tpl="158">Commands · observations</h3><p data-dc-tpl="159" class="ev">CMD auth.request_link{email} · auth.redeem_link{token}<br data-dc-tpl="160">OBS onboarding.hint_dismissed · app.first_open</p></div>
+    <div data-dc-tpl="161" class="note"><h3 data-dc-tpl="162">Restore</h3><p data-dc-tpl="163">After sign-in, open the held destination exactly (the Scroll at “Why squared?”). With no destination, first arrival opens Explore on a ready Reel from a non-personal starter set. The universe starts empty.</p></div>
+    <div data-dc-tpl="164" class="note"><h3 data-dc-tpl="165">Accessibility &amp; platform</h3><p data-dc-tpl="166">Focus order: wordmark → primary → secondary. Email field has a label and autofill (web <span data-dc-tpl="167" class="ev">autocomplete=email</span>). Native opens the magic link via universal/app links; web redeems in the same tab. The hint is a real note with a focusable dismiss button.</p></div>
+  </section></div></div></div>
+
+
+
+</body></html>

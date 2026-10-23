@@ -12,3 +12,8 @@ dist/
 artifacts/
 *.log
 .DS_Store
+# v2 workspace
+.expo/
+expo-env.d.ts
+*.tsbuildinfo
+coverage/

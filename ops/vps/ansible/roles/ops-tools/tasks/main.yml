@@ -4,9 +4,10 @@
 - name: Runtime folder for the deploy lock and the disk-critical flag (recreated at boot)
   ansible.builtin.copy:
     dest: /etc/tmpfiles.d/knowscroll.conf
-    mode: "0644"
+    mode: '0644'
     content: |
       d /run/knowscroll 0755 root root -
+      d /run/knowscroll/deploy-admission 0700 root root -
   register: ks_tmpfiles
 
 - name: Create the runtime folder now
@@ -18,19 +19,19 @@
   ansible.builtin.file:
     path: /usr/local/lib/knowscroll-ops
     state: directory
-    mode: "0755"
+    mode: '0755'
 
 - name: The ks tool
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../tool/{{ item }}"
+    src: '{{ playbook_dir }}/../tool/{{ item }}'
     dest: /usr/local/lib/knowscroll-ops/{{ item }}
-    mode: "0644"
-  loop: [ks.ts, plan.ts, system.ts]
+    mode: '0644'
+  loop: [ks.ts, plan.ts, system.ts, tree.ts]
 
 - name: The ks command on the path
   ansible.builtin.copy:
     dest: /usr/local/bin/ks
-    mode: "0755"
+    mode: '0755'
     content: |
       #!/bin/sh
       # KnowScroll server tool (#201) — managed by ops/vps/ansible.
@@ -38,15 +39,15 @@
 
 - name: The deploy keys' SSH gate
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../gate.sh"
+    src: '{{ playbook_dir }}/../gate.sh'
     dest: /usr/local/bin/ks-gate
-    mode: "0755"
+    mode: '0755'
 
 - name: Deploy user (keys only; it can run nothing but the gate)
   ansible.builtin.user:
     name: deploy
     shell: /bin/sh
-    password: "*"
+    password: '*'
     create_home: true
 
 - name: Deploy user's .ssh folder is private
@@ -55,14 +56,14 @@
     state: directory
     owner: deploy
     group: deploy
-    mode: "0700"
+    mode: '0700'
 
 - name: Deploy keys, each pinned to its own world
   ansible.builtin.copy:
     dest: /home/deploy/.ssh/authorized_keys
     owner: deploy
     group: deploy
-    mode: "0600"
+    mode: '0600'
     content: |
       # Managed by ops/vps/ansible (#201). One key per world; the gate refuses any other world.
       {% for world, key in ks_deploy_keys.items() %}
@@ -72,17 +73,17 @@
 - name: The deploy user may run exactly the gated ks commands as root
   ansible.builtin.copy:
     dest: /etc/sudoers.d/knowscroll-deploy
-    mode: "0440"
+    mode: '0440'
     validate: visudo -cf %s
     content: |
       # Managed by ops/vps/ansible (#201). The gate (ks-gate) has already validated the arguments.
-      deploy ALL=(root) NOPASSWD: /usr/local/bin/ks has-release *, /usr/bin/flock --timeout 1800 /run/knowscroll/deploy.lock /usr/local/bin/ks *
+      deploy ALL=(root) NOPASSWD: /usr/local/bin/ks has-release *, /usr/local/bin/ks request-deploy *
 
 - name: Cleanup and disk-guard units
   ansible.builtin.template:
-    src: "{{ item }}.j2"
+    src: '{{ item }}.j2'
     dest: /etc/systemd/system/{{ item }}
-    mode: "0644"
+    mode: '0644'
   loop:
     - ks-cleanup.service
     - ks-cleanup.timer
@@ -95,8 +96,33 @@
 
 - name: Timers run
   ansible.builtin.systemd_service:
-    name: "{{ item }}"
+    name: '{{ item }}'
     state: started
     enabled: true
   loop: [ks-cleanup.timer, ks-disk-guard.timer]
-  ignore_errors: "{{ ansible_check_mode }}"
+  ignore_errors: '{{ ansible_check_mode }}'
+
+- name: Persistent root-private deployment admission history
+  ansible.builtin.file:
+    path: /var/lib/knowscroll/deploy-admission
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Persistent deployment nonce tombstones
+  ansible.builtin.file:
+    path: /var/lib/knowscroll/deploy-admission/nonces
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Independent deployment consumer (installed only, never started here)
+  ansible.builtin.template:
+    src: ks-deploy@.service.j2
+    dest: /etc/systemd/system/ks-deploy@.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload systemd for ops timers

@@ -1,0 +1,33 @@
+{
+  "name": "@knowscroll/integration-tests",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Real-PostgreSQL integration tests: one template-derived database per test file.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:evaluation": "vitest run --project role-evaluation",
+    "test:release": "vitest run --config vitest.release.config.ts"
+  },
+  "devDependencies": {
+    "@knowscroll/backend": "workspace:*",
+    "@knowscroll/contracts": "workspace:*",
+    "@knowscroll/migrations": "workspace:*",
+    "@knowscroll/scroll-model": "workspace:*",
+    "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@orpc/openapi-client": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "eslint": "catalog:",
+    "kysely": "catalog:",
+    "pg": "catalog:",
+    "pg-boss": "catalog:",
+    "socket.io-client": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

@@ -1,16 +1,8 @@
 @AGENTS.md
-@docs/CHECKPOINT.md
+@docs/STATUS.md
 
 ## Compaction and continuity
 
-Read `docs/operations/agent-workflow.md` before coordinating a wave. The coordinator maintains
-`docs/CHECKPOINT.md` after every accepted wave, material decision, failure or handoff; workers
-return bounded receipts and do not compete to edit it. Before deliberate compaction, persist
-the current issue, exact branch/revision, active worker/process IDs, next command, failed
-attempts, evidence limits and unanswered owner decisions. Keep this file and the checkpoint
-small; detailed receipts belong in issues and linked evidence.
+Before compaction or a handoff, make sure `docs/STATUS.md` or #222 records the current phase, the integration and dev revisions, active agents with the worktrees and processes they own, and the next step. Keep this file and the status page short; detail belongs in issues and PRs.
 
-After compaction or resumption, re-read this checkpoint and verify Git/runtime before acting.
-A summary cannot authorize a provider call or turn an old observation into current fact.
-Use `/compact` with instructions to preserve these fields when context is crowded. Automatic
-compaction remains enabled by the harness; this document does not implement a compaction hook.
+After compaction or resumption, re-read `docs/STATUS.md` and verify Git, CI and the deployed revisions before acting.

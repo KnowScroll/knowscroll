@@ -1,0 +1,12 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "customConditions": ["@knowscroll/source", "react-native"],
+    "types": ["jest"]
+  },
+  "include": ["app", "features", "platform", "providers", "theme", "e2e", "assets.d.ts"]
+}

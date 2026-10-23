@@ -1,0 +1,243 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>X01 What if from the conversation</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.thead{position:absolute;left:0;right:0;top:44px;height:64px;padding:0 12px;display:flex;align-items:center;gap:10px;background:#FFFBF0}
+.avs{width:30px;height:30px;border-radius:999px;border:2px solid #111111;display:inline-flex;align-items:center;justify-content:center;font:800 12px 'Bricolage Grotesque',system-ui,sans-serif;flex:none}
+.epbar{position:absolute;left:0;right:0;top:108px;padding:6px 12px 10px;display:flex;gap:6px;border-bottom:2px solid #111111;background:#FFFBF0}
+.ep{min-width:52px;min-height:44px;padding:0 10px;border-radius:12px;border:2px solid #111111;background:#FFFBF0;display:inline-flex;align-items:center;justify-content:center;gap:5px;font:600 13px 'Instrument Sans',sans-serif;color:#111111;cursor:pointer;white-space:nowrap}
+.ep.cur{background:#111111;color:#FFFBF0}
+.ep.up{border-color:#8F887A;color:#4A463D}
+.ep.br{border:2px dashed #2C46E8;background:#E6EAFF;color:#1B2FB8}
+.thread{position:absolute;left:0;right:0;bottom:84px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;background:#F4EDD8;overflow:hidden}
+.bub{max-width:270px;padding:9px 13px;border-radius:18px;font-size:15px;line-height:1.4}
+.bub.them{background:#FFFBF0;border:2px solid #111111;border-bottom-left-radius:6px}
+.bub.me{background:#2C46E8;color:#FFFBF0;border-bottom-right-radius:6px}
+.who{font-size:12px;font-weight:600}
+.snip{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;min-height:56px}
+.brc{border:2px dashed #2C46E8;background:#E6EAFF;border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;color:#111111}
+.comp{position:absolute;left:0;right:0;bottom:0;height:84px;padding:12px 12px 22px;display:flex;gap:8px;align-items:center;border-top:2px solid #111111;background:#FFFBF0}
+.comp input{flex:1;min-width:0;min-height:48px;border:2px solid #111111;border-radius:999px;padding:0 16px;font:16px 'Instrument Sans',sans-serif;background:#FFFBF0}
+.tag.spec{background:#FFF4C2;border-color:#8A5A10;color:#6B4508}
+.mini{display:flex;align-items:center;gap:10px;padding:8px;border-radius:14px;background:#111111;color:#FFFBF0}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-radius:12px;font-size:14px;font-weight:600}
+.sum{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border-radius:999px;font-size:13px;font-weight:600}
+.sum.ch{border:1.5px dashed #2C46E8;background:#FFFBF0;color:#1B2FB8}
+.sum.kp{border:1.5px solid #111111;background:#FFFBF0;color:#111111}
+.prep{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;border-radius:999px;border:2px solid #111111;background:repeating-linear-gradient(135deg,#FFFBF0 0 6px,#F4EDD8 6px 12px);font-size:13px;font-weight:600;align-self:flex-start}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="X01-WhatIf"><div data-dc-tpl="3" style="width: 1330px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px;">
+    <span data-dc-tpl="5" class="mono" style="font-size: 14px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); padding: 8px 12px; border-radius: 8px;">X01</span>
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800; line-height: 1;">What if… from the conversation</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 16px; color: rgb(74, 70, 61); max-width: 800px;">A clear request goes straight through with a short summary you can edit. Only ambiguous or speculative ideas ask you to confirm assumptions first — casual talk shouldn’t feel like configuring a simulation.</p>
+    </div>
+    <span data-dc-tpl="9" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="10" style="display: flex; gap: 32px; align-items: flex-start;">
+
+    
+    <figure data-dc-tpl="11" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="12" class="cap"><b data-dc-tpl="13">Quick path · clear request</b><span data-dc-tpl="14">Summary shown, Explore submits</span></figcaption>
+      <div data-dc-tpl="15" class="phone">
+        <div data-dc-tpl="16" class="thead">
+          <button data-dc-tpl="17" class="ibtn" type="button" aria-label="Back" style="border: 0px;"><svg data-dc-tpl="18" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="19" d="M15 5l-7 7 7 7"></path></svg></button>
+          <div data-dc-tpl="20" style="display: flex; flex-direction: column; flex: 1 1 0%; min-width: 0px;"><b data-dc-tpl="21" class="disp" style="font-size: 19px;">Serving costs</b><span data-dc-tpl="22" style="font-size: 13px; color: rgb(74, 70, 61);">Asha, Ravi</span></div>
+        </div>
+        <div data-dc-tpl="23" style="position: absolute; inset: 0px; background: rgba(17, 17, 17, 0.45);"></div>
+        <div data-dc-tpl="24" class="msheet" role="dialog" aria-label="Start a what-if" style="top: 128px; gap: 12px;">
+          <div data-dc-tpl="25" class="grab"></div>
+          <div data-dc-tpl="26" class="seg" role="group" aria-label="Kind of exploration" style="align-self: stretch;">
+            <button data-dc-tpl="27" type="button" aria-pressed="true" style="flex: 1 1 0%; justify-content: center;"><svg data-dc-tpl="28" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="29" d="M6 3v18"></path><path data-dc-tpl="30" d="M6 14c0-5 12-3 12-9"></path></svg>What if…</button>
+            <button data-dc-tpl="31" type="button" aria-pressed="false" style="flex: 1 1 0%; justify-content: center;"><svg data-dc-tpl="32" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle data-dc-tpl="33" cx="9" cy="12" r="5"></circle><circle data-dc-tpl="34" cx="15" cy="12" r="5"></circle></svg>Another perspective</button>
+          </div>
+          <button data-dc-tpl="35" class="tag" type="button" style="align-self: flex-start; height: 32px; cursor: pointer;">From: the whole thread
+            <svg data-dc-tpl="36" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="37" d="M6 9l6 6 6-6"></path></svg></button>
+          <label data-dc-tpl="38" style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600;">Your idea
+            <textarea data-dc-tpl="39" rows="3" style="border: 2px dashed rgb(44, 70, 232); border-radius: 14px; padding: 12px 14px; font: 16px / 1.4 &quot;Instrument Sans&quot;, sans-serif; background: rgb(230, 234, 255); resize: none;">Show what happens with ten times the traffic, keeping the same model.</textarea>
+          </label>
+          <div data-dc-tpl="40" style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; border: 2px solid rgb(17, 17, 17); background: rgb(255, 251, 240);">
+            <div data-dc-tpl="41" style="display: flex; align-items: center; justify-content: space-between;"><span data-dc-tpl="42" class="mono" style="color: rgb(74, 70, 61);">We’ll explore</span><button data-dc-tpl="43" class="btn ghost sm" type="button" style="min-height: 36px; padding: 0px 8px; border: 0px; color: rgb(27, 47, 184); text-decoration: underline;">Edit</button></div>
+            <div data-dc-tpl="44" style="display: flex; flex-wrap: wrap; gap: 6px;"><span data-dc-tpl="45" class="sum ch">Changed: traffic ×10</span><span data-dc-tpl="46" class="sum kp">Kept: same model</span></div>
+          </div>
+          <a data-dc-tpl="47" class="btn pri" href="X02-Branches.html" style="align-self: stretch;">
+            <svg data-dc-tpl="48" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="49" d="M6 3v18"></path><path data-dc-tpl="50" d="M6 14c0-5 12-3 12-9"></path></svg>Explore</a>
+          <span data-dc-tpl="51" style="font-size: 13px; color: rgb(74, 70, 61); text-align: center;">You can change the assumptions after it starts.</span>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="52" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="53" class="cap"><b data-dc-tpl="54">Quick path · in the thread</b><span data-dc-tpl="55">Branch card preparing; still editable</span></figcaption>
+      <div data-dc-tpl="56" class="phone">
+        <div data-dc-tpl="57" class="thead">
+          <button data-dc-tpl="58" class="ibtn" type="button" aria-label="Back" style="border: 0px;"><svg data-dc-tpl="59" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="60" d="M15 5l-7 7 7 7"></path></svg></button>
+          <div data-dc-tpl="61" style="display: flex; flex-direction: column; flex: 1 1 0%; min-width: 0px;"><b data-dc-tpl="62" class="disp" style="font-size: 19px;">Serving costs</b><span data-dc-tpl="63" style="font-size: 13px; color: rgb(74, 70, 61);">Asha, Ravi</span></div>
+        </div>
+        <nav data-dc-tpl="64" class="epbar" aria-label="Items in this thread">
+          <button data-dc-tpl="65" class="ep cur" type="button" aria-current="true">1 · current</button>
+          <button data-dc-tpl="66" class="ep br" type="button"><svg data-dc-tpl="67" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="68" d="M6 3v18"></path><path data-dc-tpl="69" d="M6 14c0-5 12-3 12-9"></path></svg>Traffic ×10 · Preparing</button>
+        </nav>
+        <div data-dc-tpl="70" class="mini" style="position: absolute; left: 12px; right: 12px; top: 176px;">
+          <span data-dc-tpl="71" aria-hidden="true" style="width: 52px; height: 52px; border-radius: 10px; background: rgb(44, 70, 232); flex: 0 0 auto;"></span>
+          <span data-dc-tpl="72" style="flex: 1 1 0%; display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="73" style="font-size: 14px;">What one answer costs to serve</b><span data-dc-tpl="74" class="mono" style="color: rgba(255, 251, 240, 0.72);">Paused 0:41</span></span>
+          <button data-dc-tpl="75" class="ibtn sp" type="button" aria-label="Expand player"><svg data-dc-tpl="76" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="77" d="M6 15l6-6 6 6"></path></svg></button>
+        </div>
+        <div data-dc-tpl="78" class="thread" style="top: 256px; justify-content: flex-end;">
+          <div data-dc-tpl="79" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="80" class="who">Ravi</span><div data-dc-tpl="81" class="bub them">What would actually break first if traffic jumped?</div></div>
+          <section data-dc-tpl="82" class="brc" aria-label="What-if branch">
+            <div data-dc-tpl="83" style="display: flex; align-items: center; gap: 8px;"><span data-dc-tpl="84" class="tag hyp"><svg data-dc-tpl="85" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="86" d="M6 3v18"></path><path data-dc-tpl="87" d="M6 14c0-5 12-3 12-9"></path></svg>What if</span><span data-dc-tpl="88" style="font-size: 12px; color: rgb(74, 70, 61);">Asked by you</span></div>
+            <b data-dc-tpl="89" class="disp" style="font-size: 19px; line-height: 1.15;">Ten times the traffic, same model</b>
+            <div data-dc-tpl="90" style="display: flex; flex-wrap: wrap; gap: 6px;"><span data-dc-tpl="91" class="sum ch">Changed: traffic ×10</span><span data-dc-tpl="92" class="sum kp">Kept: same model</span></div>
+            <span data-dc-tpl="93" class="prep"><svg data-dc-tpl="94" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="95" d="M12 3a9 9 0 0 1 9 9"></path></svg>Preparing the first Reel</span>
+            <div data-dc-tpl="96" style="display: flex; gap: 8px;">
+              <button data-dc-tpl="97" class="btn sm" type="button" style="box-shadow: none;">Edit assumptions</button>
+              <button data-dc-tpl="98" class="btn sm ghost" type="button" style="border: 0px;">Cancel</button>
+            </div>
+          </section>
+          <div data-dc-tpl="99" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="100" class="who">Ravi</span><div data-dc-tpl="101" class="bub them">Nice — that’s exactly my question.</div></div>
+        </div>
+        <div data-dc-tpl="102" class="comp">
+          <label data-dc-tpl="103" for="x1-c2" style="position: absolute; left: -9999px;">Message the thread</label>
+          <input data-dc-tpl="104" id="x1-c2" type="text" placeholder="Message…">
+          <button data-dc-tpl="105" class="ibtn" type="button" aria-label="Send" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240);"><svg data-dc-tpl="106" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="107" d="M4 12l16-8-6 16-3-7z"></path></svg></button>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="108" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="109" class="cap"><b data-dc-tpl="110">Confirm path · speculative</b><span data-dc-tpl="111">Only for unclear or speculative ideas</span></figcaption>
+      <div data-dc-tpl="112" class="phone">
+        <div data-dc-tpl="113" style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; align-items: center; gap: 10px;">
+          <button data-dc-tpl="114" class="ibtn" type="button" aria-label="Back to your idea" style="border: 0px;"><svg data-dc-tpl="115" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="116" d="M15 5l-7 7 7 7"></path></svg></button>
+          <span data-dc-tpl="117" class="tag hyp"><svg data-dc-tpl="118" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="119" d="M6 3v18"></path><path data-dc-tpl="120" d="M6 14c0-5 12-3 12-9"></path></svg>What if</span>
+          <span data-dc-tpl="121" style="font-size: 13px; color: rgb(74, 70, 61);">Black holes thread</span>
+        </div>
+        <div data-dc-tpl="122" style="position: absolute; left: 20px; right: 20px; top: 120px; display: flex; flex-direction: column; gap: 14px;">
+          <h2 data-dc-tpl="123" class="disp" style="margin: 0px; font-size: 30px; line-height: 32px; font-weight: 800;">What if a black hole were a portal?</h2>
+          <div data-dc-tpl="124" class="banner" style="background: rgb(255, 244, 194); border-color: rgb(138, 90, 16); color: rgb(62, 42, 6);">
+            <svg data-dc-tpl="125" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: 0 0 auto;"><circle data-dc-tpl="126" cx="12" cy="12" r="9"></circle><path data-dc-tpl="127" d="M12 8v5M12 16v.1"></path></svg>
+            <span data-dc-tpl="128"><b data-dc-tpl="129">Speculative scenario · not established science.</b> A quick check first, so the branch compares the idea with what physics actually says.</span>
+          </div>
+          <span data-dc-tpl="130" class="mono" style="color: rgb(27, 47, 184);">Changed</span>
+          <div data-dc-tpl="131" style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <button data-dc-tpl="132" class="chip" type="button" style="border: 2px dashed rgb(44, 70, 232); background: rgb(230, 234, 255); color: rgb(27, 47, 184);">A black hole connects to somewhere else<svg data-dc-tpl="133" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="134" d="M4 20h4L19 9l-4-4L4 16z"></path></svg></button>
+          </div>
+          <span data-dc-tpl="135" class="mono" style="color: rgb(74, 70, 61);">Kept</span>
+          <div data-dc-tpl="136" style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <button data-dc-tpl="137" class="chip" type="button" style="border: 2px solid rgb(17, 17, 17); background: rgb(255, 251, 240);">Gravity outside works as usual<svg data-dc-tpl="138" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="139" d="M6 6l12 12M18 6L6 18"></path></svg></button>
+            <button data-dc-tpl="140" class="chip" type="button" style="border: 2px solid rgb(17, 17, 17); background: rgb(255, 251, 240);">Same black hole as Part 2<svg data-dc-tpl="141" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="142" d="M6 6l12 12M18 6L6 18"></path></svg></button>
+            <button data-dc-tpl="143" class="chip" type="button" style="border: 2px dashed rgb(17, 17, 17); background: transparent;"><svg data-dc-tpl="144" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="145" d="M12 5v14M5 12h14"></path></svg>Add</button>
+          </div>
+          <p data-dc-tpl="146" style="margin: 0px; font-size: 14px; line-height: 1.45; color: rgb(74, 70, 61);">Everyone in this thread will see the branch. Each of you opens it at your own pace.</p>
+          <div data-dc-tpl="147" style="display: flex; gap: 10px; margin-top: 6px;">
+            <a data-dc-tpl="148" class="btn pri" href="X02-Branches.html">Create branch</a>
+            <button data-dc-tpl="149" class="btn ghost" type="button">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section data-dc-tpl="150" class="notes">
+    <div data-dc-tpl="151" class="note"><h3 data-dc-tpl="152">Route &amp; origin</h3><p data-dc-tpl="153">Opened inside a content thread <span data-dc-tpl="154" class="ev">/thread/:threadId</span> or a room thread. Three entry points: the thread’s What if… button, the button on a snippet card, or a message’s ⋯ menu. The source travels as “From: …” and can be changed in the sheet.</p></div>
+    <div data-dc-tpl="155" class="note"><h3 data-dc-tpl="156">Actions</h3><p data-dc-tpl="157"><b data-dc-tpl="158">Rule:</b> a complete request (one clear change + what stays) submits directly from the sheet with an editable one-line summary. Ambiguous, contradictory or speculative ideas go to the confirm step first. Assumptions stay editable on the branch card until content is made.</p></div>
+    <div data-dc-tpl="159" class="note"><h3 data-dc-tpl="160">States &amp; overlays</h3><p data-dc-tpl="161">composer empty · typing · summary forming (shown once the idea is clear) · clear → Explore · unclear → one question or confirm step · speculative label required · branch preparing / ready / failed (X02) · offline (draft kept, Explore disabled with reason).</p></div>
+    <div data-dc-tpl="162" class="note"><h3 data-dc-tpl="163">Commands · observations</h3><p data-dc-tpl="164" class="ev">CMD scenario.ask{threadId, text, assumptions, direct: true}<br data-dc-tpl="165">CMD scenario.clarify{answer} · branch.propose{kind: what_if|perspective}<br data-dc-tpl="166">CMD branch.edit_assumptions · branch.cancel<br data-dc-tpl="167">OBS whatif.composer_opened{source}</p></div>
+    <div data-dc-tpl="168" class="note"><h3 data-dc-tpl="169">Restore</h3><p data-dc-tpl="170">Closing the sheet returns to the same conversation scroll; the collapsed player stays paused where it was. A draft survives leaving the thread. The sheet is an overlay, not a Back entry.</p></div>
+    <div data-dc-tpl="171" class="note"><h3 data-dc-tpl="172">Accessibility &amp; platform</h3><p data-dc-tpl="173">The summary is read as “Changed: traffic times ten. Kept: same model.” Edit is a real button. Speculative status is text, not colour. Web: Enter submits when the summary is shown, Esc closes. Native: message menu from a visible ⋯ as well as long-press.</p></div>
+  </section></div></div></div>
+
+
+
+</body></html>

@@ -46,6 +46,25 @@ ks_cutroom_port: 8797
 ks_cutroom_voice: English_Graceful_Lady
 ks_cutroom_reel_cap: "$0.75"
 
+# v2 (#228, D-004): v2 runs in the existing dev and stage worlds, on the same users, ports, slices
+# and hosts, and replaces v1 in a world when a v2 release is deployed there. Each world listed here
+# gets its own v2 database knowscroll_v2_<world> (role ks2_<world>), media folder media-v2/, env
+# files and the ks2-* units (installed, never enabled here). v1 databases, media and units stay as
+# they are. Live is owner-only and is never listed.
+ks_v2_worlds: [dev, stage]
+# #226 review m2: operator sign-in links (D-007) only for addresses on this domain, which the
+# project owns and which receives no mail, so no real person's account can be opened by one.
+ks_v2_operator_sign_in_pattern: "*@test.knowscroll.space"
+ks_v2_db_conn_limit: 30
+# Per-process memory for the v2 units, inside the world's slice (MemoryMax 1536M above).
+ks_v2_services:
+  api: { memory_high: 600M, memory_max: 800M }
+  worker: { memory_high: 450M, memory_max: 600M }
+
+# Backups (#228, docs/v2/operations/backups.md): nightly pg_dump of every v2 database and the shared
+# pool into /srv/knowscroll/backups, kept 14 days; a weekly restore check of the newest dumps.
+ks_backup_keep_days: 14
+
 # Deploy keys (public halves only; the private halves live in GitHub environment secrets). Each is
 # pinned to one world by the SSH gate (ops/vps/gate.sh).
 ks_deploy_keys:

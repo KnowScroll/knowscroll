@@ -1,0 +1,303 @@
+{
+  "schemaVersion": "scroll-document.v1",
+  "assetId": "fixture-weight-other-worlds",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "fixture-eu-surface-gravity",
+  "template": "poster",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "Astronomy",
+  "title": "How heavy would you be on other worlds?",
+  "dek": "Put in your weight and see what a bathroom scale would read.",
+  "framing": {
+    "kind": "factual"
+  },
+  "sections": [
+    {
+      "id": "scales",
+      "heading": null,
+      "blocks": [
+        {
+          "id": "weight-sim",
+          "type": "simulation",
+          "version": 1,
+          "a11y": {
+            "label": "Your weight on four worlds",
+            "description": "Enter your weight on Earth; four cards show what a scale would read on the Moon, Mars, Earth and Jupiter."
+          },
+          "fallbackText": "Text version: a scale reads your Earth weight times the world’s gravity. Someone who weighs 60 kg on Earth would read about 10 kg on the Moon, 23 kg on Mars and 152 kg at Jupiter’s cloud tops.",
+          "essential": true,
+          "gesture": "none",
+          "data": {
+            "title": "Your weight on other worlds",
+            "params": [
+              {
+                "key": "weightKg",
+                "label": "Your weight on Earth",
+                "unit": "kg",
+                "min": 20,
+                "max": 200,
+                "step": 1,
+                "default": 60,
+                "control": "input",
+                "format": {
+                  "decimals": 0,
+                  "grouping": false,
+                  "approximate": false
+                },
+                "personal": true
+              }
+            ],
+            "constants": [
+              {
+                "key": "gMoon",
+                "label": "Moon gravity compared with Earth",
+                "value": 0.165
+              },
+              {
+                "key": "gMars",
+                "label": "Mars gravity compared with Earth",
+                "value": 0.38
+              },
+              {
+                "key": "gJupiter",
+                "label": "Jupiter gravity compared with Earth",
+                "value": 2.53
+              }
+            ],
+            "outputs": [
+              {
+                "key": "moonKg",
+                "label": "On the Moon",
+                "unit": "kg",
+                "formula": {
+                  "kind": "product",
+                  "factors": ["weightKg", "gMoon"]
+                },
+                "format": {
+                  "decimals": 0,
+                  "grouping": false,
+                  "approximate": false
+                }
+              },
+              {
+                "key": "marsKg",
+                "label": "On Mars",
+                "unit": "kg",
+                "formula": {
+                  "kind": "product",
+                  "factors": ["weightKg", "gMars"]
+                },
+                "format": {
+                  "decimals": 0,
+                  "grouping": false,
+                  "approximate": false
+                }
+              },
+              {
+                "key": "earthKg",
+                "label": "On Earth",
+                "unit": "kg",
+                "formula": {
+                  "kind": "product",
+                  "factors": ["weightKg", 1]
+                },
+                "format": {
+                  "decimals": 0,
+                  "grouping": false,
+                  "approximate": false
+                }
+              },
+              {
+                "key": "jupiterKg",
+                "label": "At Jupiter’s cloud tops",
+                "unit": "kg",
+                "formula": {
+                  "kind": "product",
+                  "factors": ["weightKg", "gJupiter"]
+                },
+                "format": {
+                  "decimals": 0,
+                  "grouping": false,
+                  "approximate": false
+                }
+              }
+            ],
+            "view": {
+              "kind": "cards",
+              "items": [
+                {
+                  "id": "moon",
+                  "label": "Moon",
+                  "output": "moonKg"
+                },
+                {
+                  "id": "mars",
+                  "label": "Mars",
+                  "output": "marsKg"
+                },
+                {
+                  "id": "earth",
+                  "label": "Earth",
+                  "output": "earthKg"
+                },
+                {
+                  "id": "jupiter",
+                  "label": "Jupiter",
+                  "output": "jupiterKg",
+                  "note": "Jupiter has no ground to stand on; this is at its cloud tops."
+                }
+              ]
+            },
+            "modelNote": "Scale reading = your Earth weight × the world’s surface gravity compared with Earth, rounded to the nearest kilogram.",
+            "illustrative": false,
+            "display": {
+              "kind": "cards",
+              "scale": 505.99999999999994
+            }
+          }
+        },
+        {
+          "id": "scales-p1",
+          "type": "paragraph",
+          "version": 1,
+          "a11y": {
+            "label": "Paragraph"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "spans": [
+              {
+                "text": "What changes is "
+              },
+              {
+                "text": "surface gravity",
+                "marks": ["strong"]
+              },
+              {
+                "text": ": how hard each world pulls on you. You are made of the same stuff everywhere; the scale just feels a different pull."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "pull",
+      "heading": "How hard each world pulls",
+      "blocks": [
+        {
+          "id": "gravity-chart",
+          "type": "chart",
+          "version": 1,
+          "a11y": {
+            "label": "Surface gravity compared with Earth"
+          },
+          "fallbackText": "Surface gravity compared with Earth: the Moon about 0.17, Mars about 0.38 and Jupiter about 2.53 at its cloud tops.",
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "title": "How hard each world pulls",
+            "spec": {
+              "kind": "bar",
+              "orientation": "horizontal",
+              "categories": ["Moon", "Mars", "Earth", "Jupiter"],
+              "series": [
+                {
+                  "id": "gravity",
+                  "label": "Gravity compared with Earth",
+                  "values": [0.165, 0.38, 1, 2.53]
+                }
+              ],
+              "valueAxis": {
+                "label": "Surface gravity",
+                "unit": "× Earth",
+                "scale": "linear",
+                "domain": [0, 3]
+              }
+            }
+          }
+        },
+        {
+          "id": "mass-callout",
+          "type": "callout",
+          "version": 1,
+          "a11y": {
+            "label": "Key idea: Weight is not mass"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "kind": "key-idea",
+            "title": "Weight is not mass",
+            "spans": [
+              {
+                "text": "Your mass, how much stuff you are made of, is the same on every world. A scale measures the pull on that mass, so only the reading changes."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "limits",
+      "heading": "What this leaves out",
+      "blocks": [
+        {
+          "id": "limits-callout",
+          "type": "callout",
+          "version": 1,
+          "a11y": {
+            "label": "Limits"
+          },
+          "essential": false,
+          "gesture": "none",
+          "data": {
+            "kind": "limit",
+            "spans": [
+              {
+                "text": "These readings ignore spin, altitude and the fact that you could not stand on Jupiter at all. They compare pulls, not what a trip would feel like."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "corrections": [],
+  "limitsVersion": "scroll-limits.v1",
+  "measures": {
+    "version": "scroll-measures.v1",
+    "readingMinutes": 1,
+    "totalWeight": 206,
+    "blocks": [
+      {
+        "blockId": "weight-sim",
+        "weight": 75
+      },
+      {
+        "blockId": "scales-p1",
+        "weight": 27
+      },
+      {
+        "blockId": "gravity-chart",
+        "weight": 45
+      },
+      {
+        "blockId": "mass-callout",
+        "weight": 32
+      },
+      {
+        "blockId": "limits-callout",
+        "weight": 27
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "bfee7eecd3448b94025be9c67ea8a98e30936967cfb796a00dfbe3675e801751"
+  }
+}

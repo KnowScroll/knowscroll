@@ -1,43 +1,111 @@
+import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { IoAdapter } from '@nestjs/platform-socket.io';
+import { ConfigurationError, readApiConfig, worldForDiagnostics } from '@knowscroll/backend/infrastructure/config';
+import { createBoss, makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
+import { runProcess } from '@knowscroll/backend/infrastructure/lifecycle';
+import { ScopeNoticeRelay, type ScopeNotice, type ScopeNoticeSink } from '@knowscroll/backend/infrastructure/notices';
+import { FrameworkLogAdapter, createEventLog } from '@knowscroll/backend/infrastructure/observability';
+import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { AppModule } from './app.module.js';
+import { apiSecurityHeaders, noStoreForAuth, originGuard, sessionCookieName } from './http/auth-credentials.js';
+import { bodyErrorMiddleware, requireJsonBodies } from './http/problems.js';
+import type { AuthenticatedCallers } from './http/callers.js';
+import { requestContextMiddleware } from './http/request-context.js';
+import { scopeGuard } from './http/scope-guard.js';
+import { ScopeGateway } from './realtime/scope.gateway.js';
+import { CALLERS } from './tokens.js';
+
 /**
- * Entry point of the API process, spawned by scripts and journeys (path is pinned). Development
- * mode starts the app on 127.0.0.1 with the development bootstrap identity, as it always has.
- * Server mode (NODE_ENV=production, #201) starts it on 127.0.0.1 behind Caddy with no development
- * identity, trusting exactly that one proxy hop; readRuntimeConfig refuses anything else and names
- * every problem. SIGINT/SIGTERM close the server, then the database pool, then exit 0.
+ * API process entry point. Start order: validate configuration → database pool → pg-boss
+ * (producer: sends inside our transactions, claims nothing) → Nest application from the
+ * composition root (HTTP + Socket.IO) → LISTEN relay → accept connections. LISTEN is established
+ * before the first subscriber can connect, so no hint is lost between a subscribe and the relay.
+ * Stop reverses it: stop accepting (HTTP and sockets), stop the relay, stop pg-boss, close the pool.
  */
-
-import { pool } from '@knowscroll/db';
-import { buildApp } from './app.ts';
-import { readRuntimeConfig } from './http/runtime-config.ts';
-
-const config = readRuntimeConfig(process.env);
-const app = buildApp(config.developmentToken, {
-  trustProxy: config.trustProxy,
-  ...(config.mode === 'server'
-    ? { health: { world: config.world, commit: config.commit } }
-    : {}),
-});
-await app.listen({ host: '127.0.0.1', port: config.port });
-console.log(
-  JSON.stringify(
-    config.mode === 'server'
-      ? {
-          service: 'api',
-          port: config.port,
-          identity: 'server',
-          world: config.world,
-          commit: config.commit,
-        }
-      : {
-          service: 'api',
-          port: config.port,
-          identity: 'local-development-only',
-        },
-  ),
-);
-for (const signal of ['SIGINT', 'SIGTERM'] as const)
-  process.on(signal, async () => {
-    await app.close();
-    await pool.end();
-    process.exit(0);
+async function main(): Promise<void> {
+  const bootLog = createEventLog({
+    service: 'api',
+    environment: worldForDiagnostics(process.env),
+    revision: 'unknown',
   });
+  let config;
+  try {
+    config = readApiConfig(process.env);
+  } catch (error) {
+    if (error instanceof ConfigurationError) bootLog('config.invalid', { problems: error.problems });
+    else bootLog('process.start_failed', { reasonCode: 'config_failed', error });
+    process.exit(1);
+  }
+  const logEvent = createEventLog({ service: 'api', environment: config.world, revision: config.commit });
+
+  await runProcess({
+    logEvent,
+    shutdownGraceMs: config.shutdownGraceMs,
+    async start() {
+      const database = createDatabase<Database>(config.database, {
+        onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+      });
+      const boss = createBoss(config.database, 'producer', {
+        onError: (error) => logEvent('jobs.error', { error }),
+        onWarning: (reasonCode) => logEvent('jobs.warning', { reasonCode }),
+      });
+      await boss.start();
+      // The relay exists before Nest (its state feeds /health); it starts once the gateway exists.
+      const target: { gateway?: ScopeNoticeSink } = {};
+      const sink: ScopeNoticeSink = {
+        onNotice: (notice: ScopeNotice) => target.gateway?.onNotice(notice),
+        onResync: (reason) => target.gateway?.onResync(reason),
+        onAccessRevoked: (accountId) => target.gateway?.onAccessRevoked(accountId),
+      };
+      const relay = new ScopeNoticeRelay({ database: config.database, sink, logEvent });
+      const app = await NestFactory.create<NestExpressApplication>(
+        AppModule.forRoot({
+          config,
+          db: database.db,
+          boss,
+          enqueueJob: makeEnqueueJob(boss),
+          logEvent,
+          relayState: () => relay.state,
+        }),
+        {
+          bodyParser: false,
+          logger: new FrameworkLogAdapter(logEvent),
+          abortOnError: false,
+        },
+      );
+      app.disable('x-powered-by');
+      app.useWebSocketAdapter(new IoAdapter(app));
+      app.use(apiSecurityHeaders());
+      app.use(requestContextMiddleware(logEvent));
+      app.use(noStoreForAuth());
+      app.use(
+        originGuard({
+          publicOrigin: config.identity.publicOrigin,
+          cookieName: sessionCookieName(config.identity.secureCookies),
+          logEvent,
+        }),
+      );
+      app.use(requireJsonBodies());
+      app.useBodyParser('json', { limit: config.bodyLimitBytes });
+      app.use(bodyErrorMiddleware(logEvent));
+      // Every /v1 route: an authenticated caller whose scope claim matches, before any handler.
+      app.use(scopeGuard({ callers: app.get<AuthenticatedCallers>(CALLERS), logEvent }));
+      await app.init();
+      target.gateway = app.get(ScopeGateway);
+      await relay.start();
+      await app.listen(config.listen.port, config.listen.host);
+      return {
+        async stop() {
+          await app.close();
+          await relay.stop();
+          await boss.stop({ graceful: true, timeout: config.shutdownGraceMs });
+          await database.close();
+        },
+      };
+    },
+  });
+}
+
+await main();

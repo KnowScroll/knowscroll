@@ -1,172 +1,354 @@
+# Required checks for KnowScroll v2. The file name `checks.yml` and the workflow name `checks` are a
+# contract: deploy.yml and scripts/promote.sh wait for a successful `checks.yml` run on the exact
+# commit before deploying or promoting it.
+#
+# Release artifact contract (#228, docs/v2/operations/environments.md): when this workflow builds
+# the v2 release, it builds it for $GITHUB_SHA (`build.mjs --commit "$GITHUB_SHA"`), never a PR head
+# SHA, and uploads it as the artifact `release-$GITHUB_SHA` holding exactly
+# `release-$GITHUB_SHA.tar` and `release-$GITHUB_SHA.tar.sha256` at its root. deploy.yml takes it
+# only from successful runs triggered by a push in this repository.
+#
+# Jobs: `integrity` (main-update hook, vendored design and Cutroom snapshots), `static` (format,
+# lint, typecheck, import boundaries, unused code, migration lint), `backend` (unit tests and
+# real-PostgreSQL integration tests), `build` (production builds, the `pnpm deploy` release
+# trees, generated database types, and those trees booted against PostgreSQL through the S1.2
+# spike journey) and `client` (jest-expo tests and the Expo web
+# export). Never remove, skip or weaken a job to get a green run.
 name: checks
 on: [push, pull_request]
 permissions:
   contents: read
 jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.0
+      - name: Main-update hook refuses what it must and allows what it may
+        run: node --test .claude/hooks/refuse-main-update.test.mjs
+      - name: Server deploy tool decisions (ks plan, release tree and backup script tests)
+        run: node --test ops/vps/tool/plan.test.ts ops/vps/tool/tree.test.ts ops/vps/backup/scripts.test.ts
+      - name: v2.1 design export matches its recorded SHA-256 list
+        working-directory: docs/v2/design/KnowScroll-design-v2.1
+        run: |
+          sha256sum --check --quiet ../KnowScroll-design-v2.1.sha256
+          expected=$(wc -l < ../KnowScroll-design-v2.1.sha256)
+          actual=$(find . -type f | wc -l)
+          test "$expected" -eq "$actual" || { echo "file count $actual != recorded $expected"; exit 1; }
+      - name: Vendored Cutroom wire schema matches its pinned upstream hashes
+        working-directory: packages/backend/src/modules/content/adapters/cutroom/wire-v1
+        run: |
+          node -e '
+            const { createHash } = require("node:crypto");
+            const { readFileSync } = require("node:fs");
+            const manifest = JSON.parse(readFileSync("source.json", "utf8"));
+            let failed = 0;
+            for (const file of manifest.files) {
+              const actual = createHash("sha256").update(readFileSync(file.path)).digest("hex");
+              if (actual !== file.sha256) { console.error(`${file.path}: ${actual} != ${file.sha256}`); failed++; }
+            }
+            if (failed) process.exit(1);
+            console.log(`${manifest.files.length} files match ${manifest.repository}@${manifest.revision}`);
+          '
+
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.0
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Format
+        run: pnpm format:check
+      - name: Lint (typed)
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Import boundaries (dependency-cruiser)
+        run: pnpm boundaries
+      - name: Import boundary rules reject the forbidden probe imports
+        run: pnpm boundaries:probe
+      - name: Workspace imports in production code are declared dependencies
+        run: pnpm boundaries:manifests
+      - name: The unmarked-transaction lint rule rejects every direct form (probe)
+        run: pnpm lint:probe
+      - name: Network clients stay in infrastructure and the reasoning adapters (probe)
+        run: pnpm lint:probe:network
+      - name: Unused files, exports and dependencies (knip)
+        run: pnpm knip
+      - name: Migration hazards (squawk)
+        run: |
+          pnpm --filter @knowscroll/migrations exec squawk --version
+          pnpm --filter @knowscroll/migrations lint:sql
+
   backend:
     runs-on: ubuntu-latest
-    env:
-      KS_DEV_ROOT: /tmp/knowscroll-dev
-      DATABASE_URL: postgresql://knowscroll:test-only-ci-password@127.0.0.1:5432/postgres
     services:
       postgres:
+        # Production major (dependency-matrix.md). Disposable: the job's container is discarded.
         image: postgres:16
         env:
-          POSTGRES_USER: knowscroll
-          POSTGRES_PASSWORD: test-only-ci-password
-        ports: ['5432:5432']
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
         options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      KS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 10.30.3
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22.23.0
-      - run: pnpm install --frozen-lockfile
-      # ubuntu-latest (24.04, image 20260907.300.1) does not ship ffmpeg/ffprobe in its default
-      # software list (confirmed against actions/runner-images' own Ubuntu2404-Readme.md: only
-      # MediaInfo is listed under media tools, no ffmpeg entry). tests/generation-import.test.ts
-      # (#94 verified media import) needs both on PATH.
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - run: pnpm format:check
-      - run: pnpm lint
-      # Unused files, exports and dependencies in the backend scope (knip.json).
-      - run: pnpm knip
-      - run: pnpm typecheck
-      # packages/contracts/http-v1.schema.json is generated; this fails if it was not regenerated.
-      - run: pnpm contracts:check
-      - run: pnpm test
-      - name: Web (apps/web) typecheck
-        run: pnpm typecheck:web
-      - name: Web (apps/web) unit/component tests
-        run: pnpm test:web
-      # #201: the server runs a bundled release with no node_modules. Build one and run it the
-      # way the server does (server mode, fresh database) before anything can deploy it.
-      - name: Build and smoke-test the server release
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Media fixture tooling (no provider calls)
+        # Fail visibly on a stalled package mirror or lock before any test is claimed to run.
+        timeout-minutes: 10
         run: |
-          pnpm build:release --out "$RUNNER_TEMP/release" --commit "$GITHUB_SHA"
-          node scripts/smoke-release.mjs "$RUNNER_TEMP/release/release-$GITHUB_SHA.tar"
-      - name: Verify deterministic fairness policy traces
-        run: pnpm exec tsx scripts/capture-fairness-evidence.ts artifacts/fairness-ci.json
-      - name: Verify durable fairness across disposable PostgreSQL restart
-        run: pnpm exec tsx scripts/fairness/sql-restart.ts artifacts/sql-fairness-restart-ci.json
-      - run: pnpm exec tsx --test scripts/journey-verifier.test.ts
-      - name: Verify isolated HTTP, worker and PostgreSQL journey
-        run: pnpm exec tsx scripts/run-isolated-journey.ts
-      - name: Verify two-session isolation and privacy epoch fences
-        run: pnpm exec tsx scripts/run-isolated-session-journey.ts
-      - name: Verify retryable history clear and universe isolation
-        run: pnpm exec tsx scripts/run-isolated-history-journey.ts
-      - name: Verify reasoning crash and late-usage boundaries
-        run: |
-          pnpm exec tsx scripts/run-isolated-reasoning-journey.ts --receipt artifacts/j004-ci.json
-          pnpm exec tsx scripts/verify-reasoning-journey.ts artifacts/j004-ci.json
-      - name: Verify literal Ask durability over separate HTTP
-        run: pnpm exec tsx scripts/run-isolated-ask-journey.ts artifacts/explicit-ask-ci.json
-      - name: Verify scheduled seven-day private retirement
-        run: pnpm exec tsx scripts/run-isolated-retirement-journey.ts artifacts/reasoning-retirement-ci.json
-      - name: Verify pinned Cutroom client with separate local fixture restarts
-        run: pnpm exec tsx scripts/run-isolated-cutroom-http-journey.ts artifacts/cutroom-http-ci.json
-      - name: Verify interrupted reasoning runtime cleanup
-        run: pnpm exec tsx scripts/verify-reasoning-cleanup.ts
-      - name: Preserve sanitized interruption evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: reasoning-interruption-evidence
-          path: |
-            artifacts/j004-cleanup-*.json
-            artifacts/j004-interrupt-*.json
-          if-no-files-found: ignore
-          retention-days: 7
-  web-journey:
-    # #115: the backend job's typecheck/unit-test steps never exercise the real web client
-    # against a real server, so a backend contract change (ADR-0030's recordingPausedAt, #120)
-    # can break the web surface silently while every other check stays green. This job runs
-    # scripts/run-web-reader-journey.ts -- the real Vite dev server, a real API/worker and a
-    # real Chromium via Playwright, against the same kind of disposable PostgreSQL the backend
-    # job above provisions (same pinned action SHAs, Node and pnpm versions).
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            # The runner's Azure mirror has repeatedly stalled before tests can start.
+            # Keep Ubuntu signature verification and use its official archive over HTTPS.
+            if test -f /etc/apt/apt-mirrors.txt; then
+              printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+            fi
+            sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update --error-on=any
+            sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install --yes --no-install-recommends ffmpeg
+          fi
+          ffmpeg -version
+          ffprobe -version
+      - name: PostgreSQL server version
+        run: psql "$KS_TEST_DATABASE_URL" --no-psqlrc --tuples-only --command 'select version()'
+      # Scroll's unchanged timing assertions must not compete with other test workers on this
+      # runner. Its Vitest config also runs files serially; every Scroll test still runs here.
+      - name: Scroll model unit, property and timing tests (isolated scheduling)
+        run: pnpm --filter @knowscroll/scroll-model test
+      - name: Scene core unit tests (bounded descriptors and deterministic geometry)
+        run: pnpm --filter @knowscroll/scene-core test
+      - name: Unit and property tests (contracts, backend, migrations, api)
+        run: pnpm --filter @knowscroll/contracts --filter @knowscroll/backend --filter @knowscroll/migrations --filter @knowscroll/api test
+      - name: Integration tests (real PostgreSQL, one template-derived database per file)
+        run: pnpm --filter @knowscroll/integration-tests test
+
+  build:
     runs-on: ubuntu-latest
-    # Bounds a hang in cleanup, which the runner's own watchdog no longer covers once it is stopping.
-    timeout-minutes: 30
-    env:
-      KS_DEV_ROOT: /tmp/knowscroll-dev
-      DATABASE_URL: postgresql://knowscroll:test-only-ci-password@127.0.0.1:5432/postgres
-      # Set once at job level so the browser-install step below and the runner's own Playwright
-      # invocation (scripts/run-web-reader-journey.ts, which otherwise falls back to a
-      # KS_DEV_ROOT-relative default only meant for local dev) agree on where Chromium lives.
-      PLAYWRIGHT_BROWSERS_PATH: /tmp/knowscroll-dev/playwright-browsers
     services:
       postgres:
+        # Production major (dependency-matrix.md). Disposable: the job's container is discarded.
         image: postgres:16
         env:
-          POSTGRES_USER: knowscroll
-          POSTGRES_PASSWORD: test-only-ci-password
-        ports: ['5432:5432']
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
         options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      KS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 10.30.3
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22.23.0
-      - run: pnpm install --frozen-lockfile
-      - name: Install Playwright's Chromium (with OS deps)
-        run: pnpm --filter web exec playwright install --with-deps chromium
-      - name: Verify the web-reader journey end to end (#92, #115)
-        run: pnpm exec tsx scripts/run-web-reader-journey.ts
-      - name: Verify the web owner journey (#135 cookie sign-in, privacy, account deletion)
-        run: pnpm exec tsx scripts/run-web-owner-journey.ts
-      - name: Verify the web "What led here" journey (#133 journey G)
-        run: pnpm exec tsx scripts/run-web-why-journey.ts
-      - name: Preserve sanitized receipt and Playwright report on failure
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: web-journey-evidence
-          path: |
-            docs/journeys/evidence/web-reader/last-run-receipt.json
-            docs/journeys/evidence/web-owner/last-run-receipt.json
-            docs/journeys/evidence/web-why/last-run-receipt.json
-            apps/web/artifacts/playwright-report/**
-            apps/web/artifacts/playwright-results.json
-            apps/web/artifacts/playwright-report-owner/**
-            apps/web/artifacts/playwright-results-owner.json
-            apps/web/artifacts/playwright-report-why/**
-            apps/web/artifacts/playwright-results-why.json
-          if-no-files-found: ignore
-          retention-days: 7
-  android:
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Media fixture tooling (no provider calls)
+        # Fail visibly on a stalled package mirror or lock before any test is claimed to run.
+        timeout-minutes: 10
+        run: |
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            # The runner's Azure mirror has repeatedly stalled before tests can start.
+            # Keep Ubuntu signature verification and use its official archive over HTTPS.
+            if test -f /etc/apt/apt-mirrors.txt; then
+              printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+            fi
+            sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update --error-on=any
+            sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install --yes --no-install-recommends ffmpeg
+          fi
+          ffmpeg -version
+          ffprobe -version
+      - name: Build packages, API and worker (nest build)
+        run: pnpm --filter '!@knowscroll/client' --filter '!@knowscroll/integration-tests' build
+      - name: Deploy release trees (pnpm deploy --prod, from the lockfile)
+        run: |
+          release="$RUNNER_TEMP/release"
+          # Injected workspace packages make pnpm deploy install from the shared lockfile (D-014).
+          pnpm --config.inject-workspace-packages=true --filter @knowscroll/api deploy --prod "$release/api"
+          pnpm --config.inject-workspace-packages=true --filter @knowscroll/worker deploy --prod "$release/worker"
+          for path in api/package.json api/dist/main.js api/dist/migrate.js api/node_modules worker/package.json worker/dist/main.js worker/node_modules; do
+            test -e "$release/$path" || { echo "missing $path in the release tree"; exit 1; }
+          done
+          echo "KS_RELEASE_DIR=$release" >> "$GITHUB_ENV"
+      - name: Generated database types match the migrated schema (kysely-codegen --verify)
+        run: |
+          psql "$KS_TEST_DATABASE_URL" --no-psqlrc --quiet --command 'create database knowscroll_types'
+          types_url="postgres://postgres:postgres@localhost:5432/knowscroll_types"
+          (cd "$KS_RELEASE_DIR/api" && KS_WORLD=ci DATABASE_URL="$types_url" node dist/migrate.js)
+          DATABASE_URL="$types_url" pnpm --filter @knowscroll/backend db:types:verify
+      - name: Boot the deployed release against PostgreSQL (health, refusals, spike journey)
+        run: pnpm --filter @knowscroll/integration-tests test:release
+
+  client:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
-        with:
-          packages: platform-tools platforms;android-37.2 build-tools;36.0.0
-          log-accepted-android-sdk-licenses: false
-      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
-      - run: ./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest --no-daemon
-        working-directory: apps/mobile
-      # ADR-0047: the release variant is shrunk and signed on every run, with a throwaway keystore made
-      # here and never kept, so a missing keep rule or a release-only break shows up before the
-      # owner's inputs arrive. The API address can never resolve.
-      - name: Build and verify a release with throwaway inputs
-        working-directory: apps/mobile
+          node-version: 22.23.0
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Unit tests (design tokens, client core)
+        run: pnpm --filter @knowscroll/design-tokens --filter @knowscroll/client-core test
+      - name: UI primitive tests (jest-expo)
+        run: pnpm --filter @knowscroll/ui test
+      - name: Component tests (jest-expo)
+        run: pnpm --filter @knowscroll/client test
+      # The export bundles @knowscroll/contracts and the @knowscroll/scroll-model it re-exports from
+      # their dist/, like every other build (D-012); the trailing `...` builds contracts' own
+      # workspace dependencies first.
+      - name: Build the packages the web export bundles
+        run: pnpm --filter '@knowscroll/contracts...' build
+      - name: Web export (expo export --platform web)
         run: |
-          pass="$(openssl rand -hex 16)"
-          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/throwaway.p12" -storetype PKCS12 -storepass "$pass" \
-            -alias throwaway -keyalg RSA -keysize 2048 -validity 1 -dname "CN=throwaway"
-          KS_RELEASE_STORE_FILE="$RUNNER_TEMP/throwaway.p12" KS_RELEASE_STORE_PASSWORD="$pass" KS_RELEASE_KEY_ALIAS=throwaway \
-            KS_RELEASE_KEY_PASSWORD="$pass" KS_RELEASE_API_BASE=https://api.knowscroll.invalid ./gradlew :app:assembleRelease --no-daemon
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify app/build/outputs/apk/release/app-release.apk
+          pnpm --filter @knowscroll/client build
+          test -f apps/client/dist/index.html
+      # Positive control for the check below: the same marker is in a gallery build, so the
+      # production check cannot pass because the marker was renamed.
+      - name: Gallery export (EXPO_PUBLIC_KS_GALLERY=1) carries the gallery marker
+        run: |
+          pnpm --filter @knowscroll/client build:gallery
+          grep -rlq 'ks-component-gallery' apps/client/dist-gallery
+          grep -rlq 'ks-scroll-gallery' apps/client/dist-gallery
+      - name: The production export carries no developer gallery
+        run: |
+          if grep -rlE 'ks-component-gallery|ks-scroll-gallery|A bridge has one job' apps/client/dist; then
+            echo 'the component gallery is in a production export'; exit 1
+          fi
+          grep -rlq 'BricolageGrotesque' apps/client/dist
+      # The browser is installed here only; nothing installs it on a developer machine.
+      - name: Install Chromium for the web smoke
+        run: pnpm --filter @knowscroll/client exec playwright install --with-deps chromium
+      - name: Web smoke over the exports (keyboard, links, titles, sheet, no gallery in production)
+        run: pnpm --filter @knowscroll/client test:web
+
+  # #228: the release deploy.yml ships (docs/v2/operations/environments.md). Built once, here, for
+  # this exact commit ($GITHUB_SHA), after the build and client jobs passed; checked with the
+  # server's own rules (scripts/release/smoke.mjs uses ops/vps/tool) and booted against this job's
+  # disposable PostgreSQL the way a world's v2 units run it; then uploaded as `release-$GITHUB_SHA`
+  # holding exactly the tar and its .sha256. deploy.yml takes it only from push-triggered runs.
+  release:
+    needs: [build, client]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Production major (dependency-matrix.md). Disposable: the job's container is discarded.
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      KS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.0
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Build packages, API and worker (nest build), as the build job does
+        run: pnpm --filter '!@knowscroll/client' --filter '!@knowscroll/integration-tests' build
+      - name: Web export (expo export --platform web), as the client job does
+        run: |
+          pnpm --filter @knowscroll/client build
+          test -f apps/client/dist/index.html
+      - name: Assemble the release (pnpm deploy trees, web export, release.json, files.sha256, tar)
+        id: release
+        run: |
+          out="$RUNNER_TEMP/release"
+          node scripts/release/build.mjs --out "$out" --commit "$GITHUB_SHA"
+          sum="$out/release-$GITHUB_SHA.tar.sha256"
+          artifact=$(cut -d' ' -f1 "$sum")
+          printf '%s' "$artifact" | grep -Eqx '[0-9a-f]{64}' || { echo "malformed $sum"; exit 1; }
+          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+          echo "bytes=$(stat -c %s "$out/release-$GITHUB_SHA.tar")" >> "$GITHUB_OUTPUT"
+      # The v2 API unit also reads the shared AgentMail file (production refuses to start without
+      # AgentMail configured, S1.3); here a fixture key and inbox stand in for it. Nothing is sent:
+      # the smoke test never asks for a sign-in link.
+      - name: Smoke-test the release as the server runs it (migrate, /health, problems, worker)
+        env:
+          AGENTMAIL_API_KEY: fixture-not-a-key
+          AGENTMAIL_INBOX_ID: fixture@agentmail.invalid
+        run: |
+          psql "$KS_TEST_DATABASE_URL" --no-psqlrc --quiet --command 'create database knowscroll_release_smoke'
+          DATABASE_URL="postgres://postgres:postgres@localhost:5432/knowscroll_release_smoke" \
+            node scripts/release/smoke.mjs "$RUNNER_TEMP/release/release-$GITHUB_SHA.tar" --start --world dev \
+            --pass-env AGENTMAIL_API_KEY --pass-env AGENTMAIL_INBOX_ID \
+            --unauthenticated /auth/session --unauthenticated /v1/saved \
+            --unauthenticated /v1/experience/open --unauthenticated /v1/observations/batch \
+            --unauthenticated /v1/diagnostics/exposures/00000000-0000-4000-8000-000000000000/evidence
+      - name: Upload release-${{ github.sha }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/release/release-${{ github.sha }}.tar
+            ${{ runner.temp }}/release/release-${{ github.sha }}.tar.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Record the release identity
+        env:
+          ARTIFACT: ${{ steps.release.outputs.artifact }}
+          BYTES: ${{ steps.release.outputs.bytes }}
+        run: |
+          {
+            echo "### release-$GITHUB_SHA"
+            echo "- event: \`$GITHUB_EVENT_NAME\` (deploy.yml uses only push runs)"
+            echo "- tar sha256: \`$ARTIFACT\`"
+            echo "- tar size: $BYTES bytes"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "release-$GITHUB_SHA.tar: $BYTES bytes, sha256 $ARTIFACT"

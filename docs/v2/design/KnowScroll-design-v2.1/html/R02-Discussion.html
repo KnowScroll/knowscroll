@@ -1,0 +1,255 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>R02 Room threads and explorations</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.rband{position:absolute;left:0;right:0;top:0;padding:52px 16px 14px;background:#040A17;color:#FFFBF0;display:flex;flex-direction:column;gap:6px}
+.ep{min-width:52px;min-height:44px;padding:0 10px;border-radius:12px;border:2px solid #111111;background:#FFFBF0;display:inline-flex;align-items:center;justify-content:center;gap:5px;font:600 13px 'Instrument Sans',sans-serif;color:#111111;cursor:pointer;white-space:nowrap}
+.ep.cur{background:#111111;color:#FFFBF0}
+.ep.up{border-color:#8F887A;color:#4A463D}
+.thread{position:absolute;left:0;right:0;bottom:84px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;background:#F4EDD8;overflow:hidden}
+.bub{max-width:270px;padding:9px 13px;border-radius:18px;font-size:15px;line-height:1.4}
+.bub.them{background:#FFFBF0;border:2px solid #111111;border-bottom-left-radius:6px}
+.bub.me{background:#2C46E8;color:#FFFBF0;border-bottom-right-radius:6px}
+.bub.ai{background:#FFFBF0;border:2px dotted #111111;border-radius:6px 18px 18px 18px}
+.who{font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px}
+.snip{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;min-height:52px}
+.brc{border:2px dashed #2C46E8;background:#E6EAFF;border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;color:#111111}
+.comp{position:absolute;left:0;right:0;bottom:0;height:84px;padding:12px 12px 22px;display:flex;gap:8px;align-items:center;border-top:2px solid #111111;background:#FFFBF0}
+.comp input{flex:1;min-width:0;min-height:48px;border:2px solid #111111;border-radius:999px;padding:0 16px;font:16px 'Instrument Sans',sans-serif;background:#FFFBF0}
+.go{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-weight:700;font-size:15px;text-decoration:none;align-self:flex-start;color:#1B2FB8}
+.rt{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border:2px solid #111111;border-radius:16px;background:#FFFBF0;text-decoration:none;color:#111111}
+.rt:hover{background:#FFF4C2;color:#111111}
+.sysl{align-self:center;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#4A463D;padding:6px 12px;border-radius:999px;background:#FFFBF0;border:1.5px solid #D9D1BC;text-align:center}
+.av{width:22px;height:22px;border-radius:999px;border:1.5px solid #111111;display:inline-flex;align-items:center;justify-content:center;font:800 10px 'Bricolage Grotesque',sans-serif}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="R02-Discussion"><div data-dc-tpl="3" style="width: 1752px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: rgb(232, 226, 210); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px;">
+    <span data-dc-tpl="5" class="mono" style="font-size: 14px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); padding: 8px 12px; border-radius: 8px;">R02</span>
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 data-dc-tpl="7" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800; line-height: 1;">Room threads &amp; explorations</h1>
+      <p data-dc-tpl="8" style="margin: 0px; font-size: 16px; color: rgb(74, 70, 61); max-width: 1000px;">Same model as private threads, different membership. Each exploration belongs to one room thread, so groups can follow different what-ifs without changing the whole room’s topic. AI may suggest; people decide what gets made.</p>
+    </div>
+    <span data-dc-tpl="9" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="10" style="display: flex; gap: 32px; align-items: flex-start;">
+
+    
+    <figure data-dc-tpl="11" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="12" class="cap"><b data-dc-tpl="13">Room · threads</b><span data-dc-tpl="14">Each thread is a content thread</span></figcaption>
+      <div data-dc-tpl="15" class="phone">
+        <div data-dc-tpl="16" class="rband">
+          <div data-dc-tpl="17" style="display: flex; align-items: center; gap: 10px;">
+            <button data-dc-tpl="18" class="ibtn sp" type="button" aria-label="Back"><svg data-dc-tpl="19" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M15 5l-7 7 7 7"></path></svg></button>
+            <svg data-dc-tpl="21" width="40" height="22" viewBox="0 0 76 40" aria-hidden="true"><rect data-dc-tpl="22" x="22" y="12" width="32" height="16" rx="4" fill="none" stroke="#FFFBF0" stroke-width="2.4"></rect><path data-dc-tpl="23" d="M8 20h14M54 20h14" stroke="#FFFBF0" stroke-width="2.4"></path><circle data-dc-tpl="24" cx="38" cy="20" r="3" fill="#FFE44D"></circle></svg>
+            <b data-dc-tpl="25" class="disp" style="font-size: 21px;">Model serving room</b>
+          </div>
+          <span data-dc-tpl="26" style="font-size: 13px; color: rgba(255, 251, 240, 0.8);">Running models for real people · Moderated · AI inhabitants are labelled</span>
+        </div>
+        <div data-dc-tpl="27" style="position: absolute; left: 14px; right: 14px; top: 154px; display: flex; flex-direction: column; gap: 10px;">
+          <div data-dc-tpl="28" style="display: flex; justify-content: space-between; align-items: center;"><span data-dc-tpl="29" class="mono" style="color: rgb(74, 70, 61);">Threads</span><button data-dc-tpl="30" class="btn sm pri" type="button"><svg data-dc-tpl="31" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="32" d="M12 5v14M5 12h14"></path></svg>Share into room</button></div>
+          <a data-dc-tpl="33" class="rt" href="R02-Discussion.html" style="box-shadow: rgb(17, 17, 17) 4px 4px 0px;">
+            <span data-dc-tpl="34" style="display: flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 600; color: rgb(11, 122, 95);"><svg data-dc-tpl="35" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="36" d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"></path></svg>Pinned by Moderator</span>
+            <span data-dc-tpl="37" style="display: flex; gap: 10px; align-items: center;"><i data-dc-tpl="38" aria-hidden="true" style="width: 44px; height: 44px; border-radius: 8px; background: rgb(44, 70, 232); display: block; flex: 0 0 auto;"></i><span data-dc-tpl="39" style="display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="40" style="font-size: 16px;">What one answer costs to serve</b><span data-dc-tpl="41" style="font-size: 13px; color: rgb(74, 70, 61);">Reel · started by Ravi</span></span></span>
+            <span data-dc-tpl="42" style="display: flex; gap: 6px; align-items: center; font-size: 13px; color: rgb(27, 47, 184); font-weight: 600;"><svg data-dc-tpl="43" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="44" d="M6 3v18"></path><path data-dc-tpl="45" d="M6 14c0-5 12-3 12-9"></path></svg>Exploring: requests increased tenfold</span>
+          </a>
+          <a data-dc-tpl="46" class="rt" href="R02-Discussion.html">
+            <span data-dc-tpl="47" style="display: flex; gap: 10px; align-items: center;"><i data-dc-tpl="48" aria-hidden="true" style="width: 44px; height: 44px; border-radius: 8px; background: rgb(255, 251, 240); border: 2px solid rgb(17, 17, 17); display: block; flex: 0 0 auto;"></i><span data-dc-tpl="49" style="display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="50" style="font-size: 16px;">Offline inference</b><span data-dc-tpl="51" style="font-size: 13px; color: rgb(74, 70, 61);">Scroll · started by Meera</span></span></span>
+            <span data-dc-tpl="52" style="display: flex; gap: 6px; align-items: center; font-size: 13px; color: rgb(27, 47, 184); font-weight: 600;"><svg data-dc-tpl="53" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="54" d="M6 3v18"></path><path data-dc-tpl="55" d="M6 14c0-5 12-3 12-9"></path></svg>Exploring: what if it must run on a phone?</span>
+          </a>
+          <a data-dc-tpl="56" class="rt" href="R02-Discussion.html">
+            <span data-dc-tpl="57" style="display: flex; gap: 10px; align-items: center;"><i data-dc-tpl="58" aria-hidden="true" style="width: 44px; height: 44px; border-radius: 8px; background: rgb(20, 199, 155); display: block; flex: 0 0 auto;"></i><span data-dc-tpl="59" style="display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="60" style="font-size: 16px;">Where should the model run?</b><span data-dc-tpl="61" style="font-size: 13px; color: rgb(74, 70, 61);">Reel · started by Asha</span></span></span>
+            <span data-dc-tpl="62" style="font-size: 13px; color: rgb(74, 70, 61);">Discussion only</span>
+          </a>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="63" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="64" class="cap"><b data-dc-tpl="65">Inside a room thread</b><span data-dc-tpl="66">Moment → AI suggestion → human choice</span></figcaption>
+      <div data-dc-tpl="67" class="phone">
+        <div data-dc-tpl="68" class="rband" style="padding-bottom: 10px;">
+          <div data-dc-tpl="69" style="display: flex; align-items: center; gap: 10px;">
+            <button data-dc-tpl="70" class="ibtn sp" type="button" aria-label="Back to room"><svg data-dc-tpl="71" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="72" d="M15 5l-7 7 7 7"></path></svg></button>
+            <div data-dc-tpl="73" style="display: flex; flex-direction: column;"><b data-dc-tpl="74" style="font-size: 16px;">What one answer costs to serve</b><span data-dc-tpl="75" style="font-size: 12px; color: rgba(255, 251, 240, 0.8);">in Model serving room</span></div>
+          </div>
+          <nav data-dc-tpl="76" aria-label="Thread items" style="display: flex; gap: 6px;"><button data-dc-tpl="77" class="ep cur" type="button" aria-current="true">Reel · current</button><button data-dc-tpl="78" class="ep up" type="button" style="background: transparent; color: rgb(255, 251, 240); border-color: rgba(255, 251, 240, 0.6);">Scroll version</button></nav>
+        </div>
+        <div data-dc-tpl="79" class="thread" style="top: 168px;">
+          <div data-dc-tpl="80" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="81" class="who"><span data-dc-tpl="82" class="av" style="background: rgb(20, 199, 155);">M</span>Meera</span>
+            <div data-dc-tpl="83" class="snip" style="width: 290px;"><i data-dc-tpl="84" aria-hidden="true" style="width: 36px; height: 36px; border-radius: 8px; background: rgb(44, 70, 232); display: block; flex: 0 0 auto;"></i><span data-dc-tpl="85" style="flex: 1 1 0%; display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="86" style="font-size: 14px;">0:12–0:24 · Play</b><span data-dc-tpl="87" style="font-size: 12px; color: rgb(74, 70, 61);">“The bill is the hardware time.”</span></span></div>
+          </div>
+          <div data-dc-tpl="88" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="89" class="who"><span data-dc-tpl="90" class="av" style="background: rgb(255, 228, 77);">R</span>Ravi</span><div data-dc-tpl="91" class="bub them">So more traffic means a bigger bill, linearly?</div></div>
+          <div data-dc-tpl="92" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start;">
+            <span data-dc-tpl="93" class="tag ai">AI · Skeptic</span>
+            <div data-dc-tpl="94" class="bub ai" style="display: flex; flex-direction: column; gap: 8px;">
+              <span data-dc-tpl="95">Not necessarily. Suggestion: what if requests arrive in bursts instead?</span>
+              <span data-dc-tpl="96" style="display: flex; gap: 8px;"><button data-dc-tpl="97" class="btn sm" type="button" style="box-shadow: none; border-color: rgb(44, 70, 232); color: rgb(27, 47, 184); background: rgb(230, 234, 255); border-style: dashed;">Explore this</button><button data-dc-tpl="98" class="btn sm ghost" type="button">Dismiss</button></span>
+            </div>
+          </div>
+          <article data-dc-tpl="99" class="brc" aria-label="What-if branch">
+            <span data-dc-tpl="100" class="tag hyp" style="align-self: flex-start;"><svg data-dc-tpl="101" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="102" d="M6 3v18"></path><path data-dc-tpl="103" d="M6 14c0-5 12-3 12-9"></path></svg>What if</span>
+            <b data-dc-tpl="104" class="disp" style="font-size: 18px; line-height: 1.15;">What if requests increased tenfold?</b>
+            <span data-dc-tpl="105" style="font-size: 13px; color: rgb(27, 47, 184);">Same model and hardware. · Started by Ravi</span>
+            <a data-dc-tpl="106" class="go" href="X03-Sequence.html">Explore this <svg data-dc-tpl="107" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="108" d="M5 12h14"></path><path data-dc-tpl="109" d="M13 6l6 6-6 6"></path></svg></a>
+          </article>
+        </div>
+        <div data-dc-tpl="110" class="comp"><label data-dc-tpl="111" for="r2-c2" style="position: absolute; left: -9999px;">Message the room thread</label><input data-dc-tpl="112" id="r2-c2" type="text" placeholder="Message this thread…"><button data-dc-tpl="113" class="ibtn" type="button" aria-label="Send" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240);"><svg data-dc-tpl="114" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="115" d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="116" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="117" class="cap"><b data-dc-tpl="118">Moderator tools</b><span data-dc-tpl="119">Organise, pin, report still there</span></figcaption>
+      <div data-dc-tpl="120" class="phone">
+        <div data-dc-tpl="121" class="rband" style="padding-bottom: 10px;">
+          <div data-dc-tpl="122" style="display: flex; align-items: center; gap: 10px;">
+            <button data-dc-tpl="123" class="ibtn sp" type="button" aria-label="Back to room"><svg data-dc-tpl="124" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="125" d="M15 5l-7 7 7 7"></path></svg></button>
+            <div data-dc-tpl="126" style="display: flex; flex-direction: column;"><b data-dc-tpl="127" style="font-size: 16px;">What one answer costs to serve</b><span data-dc-tpl="128" style="font-size: 12px; color: rgba(255, 251, 240, 0.8);">You’re moderating this room</span></div>
+          </div>
+        </div>
+        <div data-dc-tpl="129" class="thread" style="top: 120px;">
+          <article data-dc-tpl="130" class="brc" aria-label="What-if branch" style="box-shadow: rgb(255, 228, 77) 0px 0px 0px 3px;">
+            <span data-dc-tpl="131" class="tag hyp" style="align-self: flex-start;">What if</span>
+            <b data-dc-tpl="132" class="disp" style="font-size: 18px; line-height: 1.15;">What if requests increased tenfold?</b>
+            <span data-dc-tpl="133" style="font-size: 13px; color: rgb(27, 47, 184);">Branches: Batching · More instances</span>
+          </article>
+        </div>
+        <div data-dc-tpl="134" style="position: absolute; inset: 0px; background: rgba(17, 17, 17, 0.45);"></div>
+        <div data-dc-tpl="135" class="msheet" role="dialog" aria-label="Moderator actions for this exploration" style="gap: 6px;">
+          <div data-dc-tpl="136" class="grab"></div>
+          <b data-dc-tpl="137" style="font-size: 16px; padding: 4px 0px 8px;">This exploration</b>
+          <button data-dc-tpl="138" class="btn ghost" type="button" style="justify-content: flex-start; border: 0px; padding: 0px 4px;"><svg data-dc-tpl="139" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="140" d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"></path></svg>Pin to the room</button>
+          <button data-dc-tpl="141" class="btn ghost" type="button" style="justify-content: flex-start; border: 0px; padding: 0px 4px;"><svg data-dc-tpl="142" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="143" d="M4 7h16M4 12h10M4 17h6"></path></svg>Move into its own thread</button>
+          <button data-dc-tpl="144" class="btn ghost" type="button" style="justify-content: flex-start; border: 0px; padding: 0px 4px;"><svg data-dc-tpl="145" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="146" d="M5 12.5l4.5 4.5L19 7"></path></svg>Mark as helpful</button>
+          <button data-dc-tpl="147" class="btn ghost" type="button" style="justify-content: flex-start; border: 0px; padding: 0px 4px;"><svg data-dc-tpl="148" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="149" d="M6 6l12 12M18 6L6 18"></path></svg>Close to new branches</button>
+          <button data-dc-tpl="150" class="btn ghost" type="button" style="justify-content: flex-start; border: 0px; padding: 0px 4px; color: rgb(178, 58, 11);"><svg data-dc-tpl="151" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="152" d="M5 21V4h11l-2 4 2 4H5"></path></svg>Report</button>
+          <p data-dc-tpl="153" style="margin: 6px 0px 0px; font-size: 13px; line-height: 1.45; color: rgb(74, 70, 61);">Pinning shows it at the top of the room. It doesn’t change anyone’s universe or position.</p>
+        </div>
+      </div>
+    </figure>
+
+    
+    <figure data-dc-tpl="154" style="margin: 0px; display: flex; flex-direction: column; gap: 10px; width: 390px;">
+      <figcaption data-dc-tpl="155" class="cap"><b data-dc-tpl="156">Retry · removed · quiet</b><span data-dc-tpl="157">AI never fills the silence</span></figcaption>
+      <div data-dc-tpl="158" class="phone">
+        <div data-dc-tpl="159" class="rband" style="padding-bottom: 10px;">
+          <div data-dc-tpl="160" style="display: flex; align-items: center; gap: 10px;">
+            <button data-dc-tpl="161" class="ibtn sp" type="button" aria-label="Back to room"><svg data-dc-tpl="162" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="163" d="M15 5l-7 7 7 7"></path></svg></button>
+            <div data-dc-tpl="164" style="display: flex; flex-direction: column;"><b data-dc-tpl="165" style="font-size: 16px;">Offline inference</b><span data-dc-tpl="166" style="font-size: 12px; color: rgba(255, 251, 240, 0.8);">in Model serving room</span></div>
+          </div>
+        </div>
+        <div data-dc-tpl="167" class="thread" style="top: 120px;">
+          <div data-dc-tpl="168" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="169" class="who"><span data-dc-tpl="170" class="av" style="background: rgb(20, 199, 155);">M</span>Meera</span><div data-dc-tpl="171" class="bub them">Phones would need a much smaller model.</div></div>
+          <div data-dc-tpl="172" style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 2px dashed rgb(143, 136, 122); border-radius: 14px; font-size: 14px; color: rgb(74, 70, 61); align-self: flex-start;"><svg data-dc-tpl="173" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="174" d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"></path></svg>Message removed by the moderator</div>
+          <div data-dc-tpl="175" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;"><div data-dc-tpl="176" class="bub" style="background: rgb(255, 251, 240); border: 2px solid rgb(178, 58, 11);">Does quantising count as a smaller model?</div><button data-dc-tpl="177" class="btn sm ghost" type="button" style="color: rgb(138, 44, 7); border-color: rgb(178, 58, 11);"><svg data-dc-tpl="178" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="179" d="M20 12a8 8 0 1 1-2.3-5.7"></path><path data-dc-tpl="180" d="M20 4v5h-5"></path></svg>Not sent · Retry</button></div>
+          <div data-dc-tpl="181" style="margin-top: 18px; display: flex; flex-direction: column; gap: 8px; align-items: center; text-align: center; padding: 18px; border-radius: 16px; background: rgb(255, 251, 240); border: 1.5px solid rgb(217, 209, 188);">
+            <b data-dc-tpl="182" style="font-size: 16px;">It’s quiet here right now</b>
+            <span data-dc-tpl="183" style="font-size: 14px; line-height: 1.45; color: rgb(74, 70, 61);">AI inhabitants speak when someone invites them. They won’t fill the room on their own.</span>
+            <button data-dc-tpl="184" class="btn sm" type="button">Ask <span data-dc-tpl="185" class="tag ai" style="height: 22px;">AI · Explainer</span></button>
+          </div>
+        </div>
+        <div data-dc-tpl="186" class="comp"><label data-dc-tpl="187" for="r2-c4" style="position: absolute; left: -9999px;">Message</label><input data-dc-tpl="188" id="r2-c4" type="text" placeholder="Message this thread…"><button data-dc-tpl="189" class="ibtn" type="button" aria-label="Send" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240);"><svg data-dc-tpl="190" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="191" d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+      </div>
+    </figure>
+  </div>
+
+  <section data-dc-tpl="192" class="notes">
+    <div data-dc-tpl="193" class="note"><h3 data-dc-tpl="194">Route &amp; origin</h3><p data-dc-tpl="195"><span data-dc-tpl="196" class="ev">/room/:roomId</span> lists room threads; <span data-dc-tpl="197" class="ev">/room/:roomId/t/:threadId</span> opens one. Reached from the station on your map (R01), Talk, or a notification. Same thread component as private threads (C04).</p></div>
+    <div data-dc-tpl="198" class="note"><h3 data-dc-tpl="199">Actions</h3><p data-dc-tpl="200"><b data-dc-tpl="201">Primary:</b> share into the room, discuss, share a moment, ask What if… <b data-dc-tpl="202">Secondary:</b> Explore / Dismiss an AI suggestion, invite an AI inhabitant, report. <b data-dc-tpl="203">Moderator:</b> pin, move to own thread, mark helpful, close to new branches.</p></div>
+    <div data-dc-tpl="204" class="note"><h3 data-dc-tpl="205">States &amp; overlays</h3><p data-dc-tpl="206">room ready · thread empty · AI suggestion pending human choice · dismissed · exploration preparing/ready · send failed → retry same bubble · removed by moderator · reported · access lost · quiet room (honest, no filler).</p></div>
+    <div data-dc-tpl="207" class="note"><h3 data-dc-tpl="208">Commands · observations</h3><p data-dc-tpl="209" class="ev">CMD room.thread.create{roomId, assetRevision}<br data-dc-tpl="210">CMD branch.create{threadId, source: ai_suggestion|message|snippet}<br data-dc-tpl="211">CMD room.pin{threadId|branchId} · moderation.remove · report.abuse<br data-dc-tpl="212">AI suggestions are messages, never commands.</p></div>
+    <div data-dc-tpl="213" class="note"><h3 data-dc-tpl="214">Restore</h3><p data-dc-tpl="215">Each room thread keeps your own playback position and branch node. Leaving to the room list and back restores scroll. Room messages are conversation, not encounter evidence; joining never merges universes.</p></div>
+    <div data-dc-tpl="216" class="note"><h3 data-dc-tpl="217">Accessibility &amp; platform</h3><p data-dc-tpl="218">AI messages carry the spoken label “AI, Skeptic” before content; dotted outline plus square corner, never colour alone. Moderator actions are a labelled dialog. Desktop: room info left, thread centre, optional activity right (D04).</p></div>
+  </section></div></div></div>
+
+
+
+</body></html>

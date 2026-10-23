@@ -1,0 +1,958 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>KnowScroll clickable journeys</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.ph{position:relative;width:390px;height:844px;border-radius:44px;overflow:hidden;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 30px 60px -30px rgba(0,0,0,.55);font-family:'Instrument Sans',system-ui,sans-serif}
+.ph.sp{background:#040A17;color:#FFFBF0}
+.top{position:absolute;left:16px;right:16px;top:56px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rail{position:absolute;right:12px;top:232px;display:flex;flex-direction:column;gap:14px;color:#FFFBF0}
+.edge{position:absolute;right:0;top:584px;width:76px;min-height:76px;background:#FFE44D;color:#111111;border:2px solid #111111;border-right:0;border-radius:18px 0 0 18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;padding:0}
+.edge.rel{background:#FFFBF0;border-style:dashed}
+.ttl{position:absolute;left:20px;width:270px;top:578px;display:flex;flex-direction:column;gap:8px}
+.rt{margin:0;font-size:28px;line-height:30px;font-weight:800}
+.prog{position:absolute;left:20px;right:20px;top:712px;display:flex;align-items:center;gap:10px;color:#FFFBF0}
+.bar{flex:1;height:4px;border-radius:4px;background:rgba(255,251,240,.35);position:relative;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:#FFFBF0;border-radius:4px}
+.cc{position:absolute;left:20px;right:84px;top:476px;background:rgba(17,17,17,.82);color:#FFFBF0;border-radius:12px;padding:10px 12px;font-size:16px;line-height:1.4;font-weight:500}
+.hot{box-shadow:0 0 0 4px #FFE44D,0 0 0 7px #111111 !important}
+.toast{position:absolute;left:16px;right:16px;top:56px;display:flex;gap:12px;align-items:center;padding:10px 10px 10px 16px;border-radius:18px;border:2px solid #111111;background:#FFFBF0;color:#111111;box-shadow:4px 4px 0 #111111;font-size:15px;line-height:1.35}
+.pbody{position:absolute;inset:0;padding:56px 20px 112px;display:flex;flex-direction:column;gap:14px}
+.hdr{display:flex;align-items:center;gap:10px;min-height:48px}
+.card{border:2px solid #111111;border-radius:16px;background:#FFFBF0;overflow:hidden}
+.bub{max-width:270px;padding:10px 14px;border-radius:18px;font-size:15px;line-height:1.4}
+.me{align-self:flex-end;background:#2C46E8;color:#FFFBF0;border-bottom-right-radius:6px}
+.them{align-self:flex-start;background:#FFFBF0;border:2px solid #111111;border-bottom-left-radius:6px}
+.hband{border:2px dashed #2C46E8;background:#E6EAFF;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;color:#111111}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.lab{font:600 13px/16px 'Instrument Sans',system-ui,sans-serif;fill:#FFFBF0}
+.labm{font:500 10px/12px 'DM Mono',ui-monospace,monospace;letter-spacing:.08em;fill:rgba(255,251,240,.72);text-transform:uppercase}
+.stepbtn{display:flex;gap:10px;align-items:flex-start;width:100%;min-height:40px;padding:7px 10px;border-radius:12px;border:0;background:transparent;text-align:left;cursor:pointer;font-size:14px;line-height:1.3}
+.jbtn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;min-height:50px;padding:8px 14px;border-radius:14px;border:2px solid #111111;text-align:left;cursor:pointer}
+.composer{position:absolute;left:16px;right:16px;bottom:24px;display:flex;gap:8px;align-items:center}
+.composer span{flex:1;min-height:48px;border:2px solid #111111;border-radius:999px;background:#FFFBF0;display:flex;align-items:center;padding:0 16px;color:#4A463D;font-size:15px}
+.thd{position:absolute;left:0;right:0;top:44px;padding:12px 16px 10px;border-bottom:2px solid #111111;background:#FFFBF0;display:flex;flex-direction:column;gap:10px}
+.nchips{display:flex;gap:6px;align-items:center}
+.nch{min-width:44px;height:36px;padding:0 10px;border-radius:10px;border:2px solid #111111;background:#FFFBF0;display:inline-flex;align-items:center;justify-content:center;gap:4px;font:600 13px 'Instrument Sans',sans-serif;color:#111111}
+.nch.cur{background:#111111;color:#FFFBF0}
+.nch.up{border-color:#9A9382;color:#4A463D}
+.nch.prep{border-style:dashed;color:#4A463D;background:repeating-linear-gradient(135deg,#FFFBF0 0 5px,#F4EDD8 5px 10px)}
+.nch.br{border-style:dashed;border-color:#2C46E8;background:#E6EAFF;color:#1B2FB8}
+.snip{display:flex;gap:10px;align-items:center;padding:8px;border:2px solid #111111;border-radius:14px;background:#FFFBF0;max-width:290px}
+.snip i{display:block;width:56px;height:56px;border-radius:10px;background:#0B0F1F;flex:none}
+.choice{display:flex;gap:14px;align-items:center;min-height:64px;padding:8px 6px;border:0;border-bottom:1px solid #D9D1BC;background:transparent;text-align:left;cursor:pointer;width:100%}
+.choice b{font-size:16px}
+.choice span{font-size:13px;color:#4A463D}
+.ckrow{display:flex;gap:12px;align-items:center;min-height:60px;border-bottom:1px solid #D9D1BC}
+.av{width:40px;height:40px;border-radius:999px;border:2px solid #111111;display:flex;align-items:center;justify-content:center;font:800 15px 'Bricolage Grotesque',sans-serif;flex:none}
+.box{width:24px;height:24px;border-radius:6px;border:2px solid #111111;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.pres{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#4A463D}
+.pres i{width:7px;height:7px;border-radius:9px;display:inline-block}
+.stack{font-family:'DM Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.5}
+.ecards{display:flex;gap:8px;overflow:hidden;margin-right:-16px}
+.ec{flex:none;width:108px;border:2px solid #111111;border-radius:12px;background:#FFFBF0;overflow:hidden;display:flex;flex-direction:column;text-align:left;padding:0;cursor:pointer;color:#111111}
+.ec .th{height:46px;background:#070A14;display:block}
+.ec .meta{padding:4px 8px 6px;display:flex;flex-direction:column;gap:1px}
+.ec .meta span{font:500 10px 'DM Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.06em;color:#4A463D}
+.ec .meta b{font-size:12.5px;line-height:1.2}
+.ec.now{border-color:#2C46E8;box-shadow:0 0 0 2px #2C46E8}
+.ec.prep{border-style:dashed;background:repeating-linear-gradient(135deg,#FFFBF0 0 5px,#F4EDD8 5px 10px);cursor:default}
+.astrip{display:flex;gap:6px}
+.astrip button{flex:1;min-height:48px;border:2px solid #111111;border-radius:12px;background:#FFFBF0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:600 11px 'Instrument Sans',sans-serif;cursor:pointer;padding:4px 0;color:#111111}
+.mini{display:flex;gap:8px;align-items:center;padding:6px 6px 6px 10px;border:2px solid #111111;border-radius:14px;background:#070A14;color:#FFFBF0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif; padding: 40px; display: flex; gap: 44px; align-items: flex-start">
+
+  <aside style="width: 320px; flex: none; display: flex; flex-direction: column; gap: 12px; height: 920px">
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <span class="mono" style="align-self: flex-start; background: #FFE44D; padding: 5px 9px; border-radius: 6px">Prototype v2 · design data</span>
+      <h1 class="disp" style="margin: 0; font-size: 36px; font-weight: 800; line-height: 1">Clickable journeys</h1>
+      <p style="margin: 0; font-size: 13px; color: #4A463D; line-height: 1.45">Press Play. Click the control ringed in yellow, or use Next. All people and content are authored examples.</p>
+    </div>
+    <nav aria-label="Journeys" style="display: flex; flex-direction: column; gap: 6px">
+      <sc-for list="{{journeys}}" as="jy" hint-placeholder-count="5">
+        <button class="jbtn" type="button" onClick="{{jy.pick}}" aria-pressed="{{jy.pressed}}" style="background: {{jy.bg}}; color: {{jy.fg}}">
+          <span class="mono" style="font-size: 10px">{{jy.num}}</span>
+          <b style="font-size: 14px">{{jy.name}}</b>
+        </button>
+      </sc-for>
+    </nav>
+    <ol aria-label="Steps" style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; overflow: auto">
+      <sc-for list="{{steps}}" as="st" hint-placeholder-count="8">
+        <li><button class="stepbtn" type="button" onClick="{{st.pick}}" aria-current="{{st.current}}" style="background: {{st.bg}}"><span class="mono" style="width: 22px; flex: none; padding-top: 2px">{{st.n}}</span><span>{{st.title}}</span></button></li>
+      </sc-for>
+    </ol>
+  </aside>
+
+  <div style="width: 390px; flex: none; padding-top: 16px">
+
+    <!-- ============ J1 · Asha's encounter path ============ -->
+    <sc-if value="{{scr.reel1}}" hint-placeholder-val="{{ true }}">
+      <div class="ph" style="background: #2C46E8; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <circle cx="195" cy="330" r="168" fill="#3A55F0"></circle>
+          <g stroke="#FFE44D" stroke-linecap="round" fill="none"><path d="M214 362 C 170 330, 140 290, 112 262" stroke-width="7"></path><path d="M224 360 C 250 320, 270 300, 284 272" stroke-width="2"></path><path d="M206 372 C 170 400, 140 410, 110 418" stroke-width="1.5"></path></g>
+          <g font-family="Instrument Sans, sans-serif" font-size="15" font-weight="600">
+            <rect x="62" y="240" width="96" height="34" rx="17" fill="#FFFBF0"></rect><text x="110" y="262" text-anchor="middle" fill="#111111">animal</text>
+            <rect x="248" y="250" width="80" height="34" rx="17" fill="#FFFBF0" opacity=".7"></rect><text x="288" y="272" text-anchor="middle" fill="#111111">street</text>
+            <rect x="60" y="402" width="92" height="34" rx="17" fill="#FFFBF0" opacity=".55"></rect><text x="106" y="424" text-anchor="middle" fill="#111111">tired</text>
+            <rect x="186" y="350" width="56" height="38" rx="19" fill="#FFE44D" stroke="#111111" stroke-width="2"></rect><text x="214" y="374" text-anchor="middle" fill="#111111" font-size="17" font-weight="700">it</text>
+          </g>
+        </svg>
+        <div class="top"><span class="tag" style="border-color: #FFFBF0">Machine learning</span><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false">Scroll</button></div></div>
+        <div class="cc">“It” looks around the sentence and decides that <b style="color: #FFE44D">animal</b> matters most.</div>
+        <div class="rail">
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Like"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button><span>Like</span></div>
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Save"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg></button><span>Save</span></div>
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Share"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7h16v-7"></path><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path></svg></button><span>Share</span></div>
+          <div class="ra"><button class="ibtn sp" type="button" aria-label="Ask"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path><path d="M10 9.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9"></path></svg></button><span>Ask</span></div>
+        </div>
+        <button class="edge rel {{hot}}" type="button" onClick="{{next}}" aria-label="Related explanation: A spotlight with a budget"><span class="mono" style="font-size: 10px">Related</span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3 3" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></button>
+        <div class="ttl"><span class="tag part" style="align-self: flex-start">Part 1 of 3</span><h2 class="disp rt">Attention, explained with a crowded sentence</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 62%"></i></div><span class="mono">0:31 / 0:50</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.related}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #1B2FB8; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <path d="M195 120 L 60 470 L 330 470 Z" fill="#FFE44D" opacity=".22"></path>
+          <circle cx="195" cy="120" r="22" fill="#FFE44D"></circle>
+          <g fill="#FFFBF0"><circle cx="120" cy="440" r="14"></circle><circle cx="180" cy="452" r="14"></circle><circle cx="250" cy="444" r="14"></circle><circle cx="310" cy="430" r="14" opacity=".3"></circle><circle cx="60" cy="420" r="14" opacity=".3"></circle></g>
+        </svg>
+        <div class="top"><button class="btn sm sp {{hot}}" type="button" onClick="{{next}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Part 1 · 0:31</button><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false">Scroll</button></div></div>
+        <div class="cc">A spotlight can only light so many seats. Attention spends a fixed budget across every word.</div>
+        <div class="ttl"><span class="tag" style="align-self: flex-start; border-style: dashed">Related · another angle</span><h2 class="disp rt">A spotlight with a budget</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 24%"></i></div><span class="mono">0:12 / 0:44</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.reelPrep}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #2C46E8; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <circle cx="195" cy="330" r="168" fill="#3A55F0"></circle>
+          <rect x="186" y="350" width="56" height="38" rx="19" fill="#FFE44D" stroke="#111111" stroke-width="2"></rect>
+          <rect x="62" y="240" width="96" height="34" rx="17" fill="#FFFBF0"></rect>
+          <path d="M214 362 C 170 330, 140 290, 112 262" stroke="#FFE44D" stroke-width="7" fill="none" stroke-linecap="round"></path>
+        </svg>
+        <div class="top"><span class="tag" style="border-color: #FFFBF0">Machine learning</span><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false" class="{{hot}}" onClick="{{next}}" style="background: repeating-linear-gradient(135deg,#FFFBF0 0 5px,#F4EDD8 5px 10px)">Scroll · preparing</button></div></div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 120px; display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 999px; border: 2px solid #111111; background: #FFFBF0; color: #111111; font-size: 14px; font-weight: 600">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+          <span style="flex: 1">We’ll let you know when the Scroll is ready</span><span style="text-decoration: underline">Cancel</span>
+        </div>
+        <div class="cc">Resumed at 0:31 · “It” looks around the sentence…</div>
+        <div class="ttl"><span class="tag part" style="align-self: flex-start">Part 1 of 3</span><h2 class="disp rt">Attention, explained with a crowded sentence</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 66%"></i></div><span class="mono">0:33 / 0:50</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.readyToast}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #2C46E8; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0"><circle cx="195" cy="330" r="168" fill="#3A55F0"></circle><rect x="186" y="350" width="56" height="38" rx="19" fill="#FFE44D"></rect></svg>
+        <div class="toast">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+          <span style="flex: 1"><b>Your Scroll is ready</b><br>“Attention, slowly”</span>
+          <button class="btn sm pri {{hot}}" type="button" onClick="{{next}}">Open</button>
+        </div>
+        <div class="ttl"><span class="tag part" style="align-self: flex-start">Part 1 of 3</span><h2 class="disp rt">Attention, explained with a crowded sentence</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 92%"></i></div><span class="mono">0:46 / 0:50</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.scrollDiagram}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div style="position: absolute; left: 0; right: 0; top: 0; height: 4px; background: #F4EDD8"><i style="display: block; height: 4px; width: 58%; background: #2C46E8"></i></div>
+        <div class="top"><button class="ibtn {{hot}}" type="button" aria-label="Back" onClick="{{next}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="false">Reel</button><button type="button" aria-pressed="true">Scroll</button></div></div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 124px; display: flex; flex-direction: column; gap: 14px">
+          <span class="mono" style="color: #4A463D">Attention, slowly · 3</span>
+          <h2 class="disp" style="margin: 0; font-size: 32px; line-height: 36px; font-weight: 800">Why squared?</h2>
+          <p style="margin: 0; font-size: 18px; line-height: 28px">Every word compares itself with every other word. Double the words and the comparisons roughly quadruple.</p>
+          <div style="border: 2px solid #111111; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 6px 6px 0 #2C46E8; background: #FFFBF0">
+            <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 14px; font-weight: 600">Try a longer sentence</span><b style="font-size: 15px">{{lenLabel}} words</b></div>
+            <div style="height: 296px; display: flex; align-items: flex-end; gap: 16px">
+              <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start"><i style="display: block; height: 14px; width: {{sq}}px; background: #111111; border-radius: 4px; max-width: 290px"></i><span class="mono">length</span></div>
+            </div>
+            <div style="position: relative; height: 0">
+              <i style="position: absolute; right: 0; bottom: 38px; width: {{sq}}px; height: {{sq}}px; background: #FFE44D; border: 2px solid #111111; border-radius: 6px"></i>
+            </div>
+            <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Sentence length
+              <input type="range" min="0" max="3" step="1" value="{{lenIdx}}" onChange="{{onLen}}" style="width: 100%; height: 44px; accent-color: #2C46E8">
+            </label>
+            <p style="margin: 0; font-size: 15px; line-height: 1.45"><b>Work grows about {{factor}}×</b> while the text grows {{grow}}×.</p>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.returnReel}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #2C46E8; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0; opacity: .55"><circle cx="195" cy="330" r="168" fill="#3A55F0"></circle><rect x="186" y="350" width="56" height="38" rx="19" fill="#FFE44D"></rect><rect x="62" y="240" width="96" height="34" rx="17" fill="#FFFBF0"></rect></svg>
+        <div class="top"><span class="tag" style="border-color: #FFFBF0">Machine learning</span><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false">Scroll</button></div></div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 120px; padding: 10px 14px; border-radius: 14px; background: #FFF4C2; color: #111111; border: 2px solid #111111; font-size: 14px; font-weight: 600">Paused where you left it · 0:31</div>
+        <button type="button" aria-label="Play" style="position: absolute; left: 155px; top: 276px; width: 80px; height: 80px; border-radius: 999px; border: 2px solid #111111; background: #FFFBF0; color: #111111; display: flex; align-items: center; justify-content: center"><svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"></path></svg></button>
+        <button class="btn sm sp {{hot}}" type="button" onClick="{{next}}" style="position: absolute; left: 105px; top: 480px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg>Next subject</button>
+        <div class="ttl"><span class="tag part" style="align-self: flex-start">Part 1 of 3</span><h2 class="disp rt">Attention, explained with a crowded sentence</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 62%"></i></div><span class="mono">0:31 / 0:50</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.nextSubject}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #2C46E8; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0"><ellipse cx="195" cy="330" rx="160" ry="92" fill="none" stroke="#FFFBF0" stroke-width="3"></ellipse><circle cx="160" cy="330" r="30" fill="#FFE44D"></circle><circle cx="340" cy="300" r="13" fill="#14C79B" stroke="#111111" stroke-width="2"></circle><path d="M340 300 L 310 360" stroke="#FFE44D" stroke-width="3" stroke-dasharray="4 4"></path></svg>
+        <div class="top"><span class="tag" style="border-color: #FFFBF0">Astronomy</span><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false">Scroll</button></div></div>
+        <div class="cc">An orbit is a fall that keeps missing the ground.</div>
+        <button class="btn sm sp {{hot}}" type="button" onClick="{{next}}" style="position: absolute; left: 20px; top: 120px">Later that week · open Universe</button>
+        <div class="ttl"><h2 class="disp rt">Why does an orbit keep falling?</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 10%"></i></div><span class="mono">0:04 / 0:41</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.universeLater}}" hint-placeholder-val="{{ false }}">
+      <div class="ph sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#FFFBF0"><circle cx="30" cy="140" r="1" opacity=".5"></circle><circle cx="120" cy="90" r="1.2" opacity=".6"></circle><circle cx="340" cy="150" r="1" opacity=".5"></circle><circle cx="260" cy="210" r=".8" opacity=".5"></circle><circle cx="60" cy="700" r="1" opacity=".4"></circle><circle cx="360" cy="660" r="1.2" opacity=".5"></circle><circle cx="200" cy="740" r=".8" opacity=".4"></circle></g>
+          <ellipse cx="195" cy="380" rx="120" ry="44" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <circle cx="195" cy="380" r="46" fill="#FFE9A8" opacity=".1"></circle><circle cx="195" cy="380" r="18" fill="#FFE9A8"></circle>
+          <circle cx="92" cy="400" r="22" fill="#2BC4B4"></circle><path d="M78 392l9-8 13 3 4 10-8 8-12-3z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.5"></path>
+          <circle cx="92" cy="400" r="32" fill="none" stroke="#FFE44D" stroke-width="1.5" stroke-dasharray="2 5"></circle>
+          <text x="92" y="450" text-anchor="middle" class="lab">Attention</text>
+          <text x="195" y="318" text-anchor="middle" class="lab" style="font-size: 15px">Machine learning</text>
+          <text x="195" y="334" text-anchor="middle" class="labm">a system</text>
+        </svg>
+        <div style="position: absolute; left: 20px; top: 56px; display: flex; flex-direction: column; gap: 4px"><h2 class="disp" style="margin: 0; font-size: 28px; font-weight: 800">Your universe</h2></div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 560px; padding: 14px 16px; border-radius: 16px; background: #0B1A2E; border: 1px solid rgba(255,251,240,.22); display: flex; flex-direction: column; gap: 6px">
+          <span class="mono" style="color: rgba(255,251,240,.72)">Since you were last here</span>
+          <b style="font-size: 17px">A new place: Attention</b>
+          <span style="font-size: 14px; color: rgba(255,251,240,.8)">It sits in Machine learning, near where you’ve been exploring.</span>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <!-- ============ J2 · Content thread ============ -->
+    <sc-if value="{{scr.shareChoices}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #070A14; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0"><g fill="#FFFBF0" opacity=".5"><circle cx="40" cy="120" r="1"></circle><circle cx="300" cy="90" r="1.2"></circle><circle cx="350" cy="260" r="1"></circle><circle cx="70" cy="420" r="1"></circle></g><ellipse cx="195" cy="260" rx="150" ry="30" fill="none" stroke="#FFB54D" stroke-width="10" opacity=".45"></ellipse><circle cx="195" cy="260" r="72" fill="none" stroke="#FFE9A8" stroke-width="4"></circle><circle cx="195" cy="260" r="62" fill="#000000"></circle><path d="M45 260 A150 30 0 0 0 345 260" stroke="#FFD27A" stroke-width="10" fill="none"></path></svg>
+        <div style="position: absolute; inset: 0; background: rgba(17,17,17,.45)"></div>
+        <div style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFBF0; color: #111111; border-top: 2px solid #111111; border-radius: 28px 28px 0 0; padding: 12px 20px 24px; display: flex; flex-direction: column; gap: 4px">
+          <i style="display: block; width: 44px; height: 5px; border-radius: 9px; background: #111111; opacity: .25; align-self: center; margin-bottom: 8px"></i>
+          <b class="disp" style="font-size: 22px">Share</b>
+          <span style="font-size: 14px; color: #4A463D; margin-bottom: 6px">The edge you can’t come back from · Part 2</span>
+          <button class="choice" type="button"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"></path></svg><span style="display: flex; flex-direction: column; gap: 2px"><b>Send to a conversation</b><span>Ravi, Meera, your rooms</span></span></button>
+          <button class="choice {{hot}}" type="button" onClick="{{next}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2C46E8" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="7" r="2"></circle><path d="M6 7v10"></path><path d="M18 9c0 5-12 3-12 8"></path></svg><span style="display: flex; flex-direction: column; gap: 2px"><b>Explore with friends</b><span>Start a thread around this</span></span></button>
+          <button class="choice" type="button"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 12h16"></path><path d="M8 8v8M16 8v8"></path></svg><span style="display: flex; flex-direction: column; gap: 2px"><b>Share a moment</b><span>From 0:18</span></span></button>
+          <button class="choice" type="button" style="border-bottom: 0"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path></svg><span style="display: flex; flex-direction: column; gap: 2px"><b>Copy link / Share elsewhere</b><span>Other apps</span></span></button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.picker}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="pbody" style="padding-bottom: 24px; gap: 12px">
+          <div class="hdr"><button class="ibtn" type="button" aria-label="Close" style="border: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button><b class="disp" style="font-size: 22px">Explore with friends</b></div>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600">Thread name<span style="min-height: 48px; border: 2px solid #111111; border-radius: 12px; padding: 0 14px; display: flex; align-items: center; font-size: 16px; font-weight: 500">Black holes</span></label>
+          <span style="min-height: 48px; border: 2px solid #111111; border-radius: 999px; padding: 0 16px; display: flex; align-items: center; gap: 10px; color: #4A463D; font-size: 15px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>Search friends</span>
+          <span class="mono" style="color: #4A463D; margin-top: 4px">Recent</span>
+          <div>
+            <div class="ckrow"><span class="av" style="background: #FFE44D">R</span><span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><b style="font-size: 15px">Ravi</b><span class="pres"><i style="background: #0B7A5F"></i>Online</span></span><span class="box" style="background: #2C46E8; border-color: #2C46E8"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFBF0" stroke-width="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span></div>
+            <div class="ckrow"><span class="av" style="background: #14C79B">M</span><span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><b style="font-size: 15px">Meera</b><span class="pres"><i style="background: transparent; border: 1.5px solid #4A463D"></i>Recently active</span></span><span class="box" style="background: #2C46E8; border-color: #2C46E8"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFBF0" stroke-width="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span></div>
+            <div class="ckrow"><span class="av" style="background: #F4EDD8">K</span><span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><b style="font-size: 15px">Kabir</b></span><span class="box"></span></div>
+          </div>
+          <button class="btn pri {{hot}}" type="button" onClick="{{next}}" style="margin-top: auto">Create thread · 2 friends</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.thread}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="thd">
+          <div style="display: flex; align-items: center; gap: 8px"><b class="disp" style="font-size: 20px">Black holes</b><span style="font-size: 13px; color: #4A463D">· Asha, Ravi, Meera</span></div>
+        </div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 100px; height: 176px; border-radius: 18px; overflow: hidden; background: #070A14; border: 2px solid #111111">
+          <svg aria-hidden="true" width="358" height="176" viewBox="0 0 358 176"><ellipse cx="179" cy="88" rx="130" ry="22" fill="none" stroke="#FFB54D" stroke-width="8" opacity=".45"></ellipse><circle cx="179" cy="88" r="50" fill="none" stroke="#FFE9A8" stroke-width="3"></circle><circle cx="179" cy="88" r="42" fill="#000000"></circle><path d="M49 88 A130 22 0 0 0 309 88" stroke="#FFD27A" stroke-width="8" fill="none"></path></svg>
+          <span class="tag part" style="position: absolute; left: 10px; top: 10px">Part 2 · 0:18</span>
+          <button class="ibtn sp" type="button" aria-label="Collapse player (pauses)" style="position: absolute; right: 8px; top: 8px; width: 44px; height: 44px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg></button>
+        </div>
+        <div class="astrip" style="position: absolute; left: 16px; right: 16px; top: 284px">
+          <button type="button" aria-label="Like"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg>Like</button>
+          <button type="button" aria-label="Save"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg>Save</button>
+          <button type="button" aria-label="Share a moment" class="{{hot}}" onClick="{{next}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 12h16"></path><path d="M8 8v8M16 8v8"></path></svg>Moment</button>
+          <button type="button" aria-label="Full screen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>Full screen</button>
+        </div>
+        <div class="ecards" role="group" aria-label="Episodes" style="position: absolute; left: 16px; right: 0; top: 344px">
+          <button class="ec" type="button" aria-label="Part 1, What it is, watched"><svg class="th" width="108" height="46" viewBox="0 0 108 46" aria-hidden="true"><rect width="108" height="46" fill="#070A14"></rect><ellipse cx="54" cy="23" rx="34" ry="6" fill="none" stroke="#FFB54D" stroke-width="3" opacity=".6"></ellipse><circle cx="54" cy="23" r="12" fill="#000000" stroke="#FFE9A8" stroke-width="2"></circle></svg><span class="meta"><span>Part 1 · ✓</span><b>What it is</b></span></button>
+          <button class="ec now" type="button" aria-label="Part 2, The edge, now playing"><svg class="th" width="108" height="46" viewBox="0 0 108 46" aria-hidden="true"><rect width="108" height="46" fill="#0B0F1F"></rect><path d="M0 46 Q 54 4 108 46 Z" fill="#000000"></path><path d="M0 46 Q 54 4 108 46" fill="none" stroke="#FFD27A" stroke-width="3"></path></svg><span class="meta"><span style="color: #1B2FB8">Part 2 · Now</span><b>The edge</b></span></button>
+          <button class="ec" type="button" aria-label="Part 3, Time slows"><svg class="th" width="108" height="46" viewBox="0 0 108 46" aria-hidden="true"><rect width="108" height="46" fill="#14273F"></rect><ellipse cx="54" cy="23" rx="22" ry="14" fill="none" stroke="#FFFBF0" stroke-width="2"></ellipse><path d="M54 23V14M54 23l8 4" stroke="#FFE44D" stroke-width="2.5" stroke-linecap="round"></path></svg><span class="meta"><span>Part 3</span><b>Time slows</b></span></button>
+          <button class="ec" type="button" aria-label="Part 4, Forever?"><svg class="th" width="108" height="46" viewBox="0 0 108 46" aria-hidden="true"><rect width="108" height="46" fill="#1A1030"></rect><circle cx="54" cy="23" r="7" fill="#000000" stroke="#C9B6FF" stroke-width="1.5"></circle><g fill="#FFE9A8"><circle cx="34" cy="14" r="1.5"></circle><circle cx="76" cy="12" r="1.5"></circle><circle cx="72" cy="34" r="1.5"></circle><circle cx="36" cy="33" r="1.5"></circle></g></svg><span class="meta"><span>Part 4</span><b>Forever?</b></span></button>
+        </div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 466px; display: flex; flex-direction: column; gap: 10px">
+          <span style="align-self: center; font-size: 12px; color: #4A463D">You started this thread</span>
+          <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600">Ravi <span class="pres"><i style="background: #0B7A5F"></i>Online</span></span><div class="bub them">That last part surprised me.</div></div>
+          <button class="btn sm" type="button" style="align-self: flex-start; border-style: dashed; border-color: #2C46E8; color: #1B2FB8; background: #E6EAFF; box-shadow: none">What if…</button>
+        </div>
+        <div class="composer"><span>Message the thread</span></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.moment}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="pbody" style="padding-bottom: 24px">
+          <div class="hdr"><button class="ibtn" type="button" aria-label="Close" style="border: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button><b class="disp" style="font-size: 22px">Share a moment</b></div>
+          <div style="height: 190px; border-radius: 18px; overflow: hidden; background: #070A14; border: 2px solid #111111; position: relative">
+            <svg aria-hidden="true" width="346" height="190" viewBox="0 0 346 190"><ellipse cx="173" cy="95" rx="120" ry="22" fill="none" stroke="#FFB54D" stroke-width="8" opacity=".45"></ellipse><circle cx="173" cy="95" r="48" fill="none" stroke="#FFE9A8" stroke-width="3"></circle><circle cx="173" cy="95" r="40" fill="#000000"></circle><path d="M53 95 A120 22 0 0 0 293 95" stroke="#FFD27A" stroke-width="8" fill="none"></path></svg>
+            <span class="tag" style="position: absolute; left: 10px; bottom: 10px; background: #FFFBF0">Part 2 · 00:18</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <div style="position: relative; height: 44px; border-radius: 10px; background: #F4EDD8; border: 2px solid #111111">
+              <span style="position: absolute; left: 35%; width: 25%; top: -2px; bottom: -2px; background: #FFE44D; border: 3px solid #111111; border-radius: 8px"></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 14px"><b>00:18 – 00:31</b><span style="color: #4A463D">Drag the ends to adjust</span></div>
+          </div>
+          <span style="min-height: 48px; border: 2px solid #111111; border-radius: 12px; padding: 0 14px; display: flex; align-items: center; font-size: 16px">Look at this moment:</span>
+          <div style="display: flex; gap: 8px; align-items: center; font-size: 14px"><span style="color: #4A463D">To</span><span class="tag">Black holes thread</span></div>
+          <button class="btn pri {{hot}}" type="button" onClick="{{next}}" style="margin-top: auto">Share moment</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.threadSnippet}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="thd">
+          <div style="display: flex; align-items: center; gap: 8px"><b class="disp" style="font-size: 20px">Black holes</b><span style="font-size: 13px; color: #4A463D">· Asha, Ravi, Meera</span></div>
+          <div class="nchips" role="group" aria-label="Episodes — compact"><span class="nch">1 ✓</span><span class="nch cur">2 · now</span><span class="nch up">3</span><span class="nch up">4</span></div>
+          <div class="mini"><span style="width: 32px; height: 32px; border-radius: 8px; background: #000000; border: 2px solid #FFE9A8; flex: none"></span><span style="font-size: 13px; flex: 1; line-height: 1.25"><b>Part 2 · Paused at 0:18</b><br><span style="color: rgba(255,251,240,.72)">Collapsing pauses</span></span><button class="ibtn sp" type="button" aria-label="Play" style="width: 44px; height: 44px"><svg width="16" height="16" viewBox="0 0 24 24" fill="#111111" aria-hidden="true"><path d="M7 4l13 8-13 8z"></path></svg></button><button class="ibtn sp" type="button" aria-label="Expand player" style="width: 44px; height: 44px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button><button class="ibtn sp" type="button" aria-label="More: Keep listening, Like, Save, Full screen" style="width: 44px; height: 44px"><svg width="16" height="16" viewBox="0 0 24 24" fill="#111111" aria-hidden="true"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg></button></div>
+        </div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 228px; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600">Ravi</span><div class="bub them">That last part surprised me.</div></div>
+          <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end"><div class="bub me">Look at this moment:</div>
+            <div class="snip"><i></i><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><b style="font-size: 14px">Part 2 · 00:18–00:31</b><span style="font-size: 12px; color: #4A463D">The edge you can’t come back from</span></span><span class="tag">Play</span></div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600">Meera</span><div class="bub them">Joining late — starting at Part 1.</div></div>
+          <button class="btn sm {{hot}}" type="button" onClick="{{next}}" style="align-self: flex-start; border-style: dashed; border-color: #2C46E8; color: #1B2FB8; background: #E6EAFF; box-shadow: none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 3v18"></path><path d="M6 14c0-5 12-3 12-9"></path></svg>What if…</button>
+        </div>
+        <div class="composer"><span>Message the thread</span></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.whatifSheet}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div style="position: absolute; inset: 0; background: rgba(17,17,17,.35)"></div>
+        <div style="position: absolute; left: 0; right: 0; bottom: 0; top: 150px; background: #FFFBF0; border-top: 2px solid #111111; border-radius: 28px 28px 0 0; padding: 12px 20px 24px; display: flex; flex-direction: column; gap: 14px">
+          <i style="display: block; width: 44px; height: 5px; border-radius: 9px; background: #111111; opacity: .25; align-self: center"></i>
+          <div class="seg" role="group" aria-label="Kind" style="align-self: flex-start"><button type="button" aria-pressed="true">What if…</button><button type="button" aria-pressed="false">Another perspective</button></div>
+          <span style="min-height: 76px; border: 2px dashed #2C46E8; background: #E6EAFF; border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; color: #111111; font-size: 16px; line-height: 1.4">Show what happens if the Sun were replaced by a black hole of the same mass.</span>
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px"><span class="tag hyp">Changed · Sun → black hole, same mass</span><span class="tag">Kept · Earth’s orbit</span><span style="text-decoration: underline; color: #1B2FB8">Edit</span></div>
+          <button class="btn pri {{hot}}" type="button" onClick="{{next}}" style="align-self: flex-start">Explore <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></button>
+          <span style="font-size: 13px; color: #4A463D; line-height: 1.4">Clear requests go straight in. Speculative or unclear ideas get one extra step to pin down what changes.</span>
+          <span class="mono" style="color: #4A463D">Suggestions</span>
+          <button type="button" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 12px 14px; border: 2px dashed #2C46E8; border-radius: 14px; background: #FFFBF0; text-align: left; cursor: pointer"><span class="tag hyp">Speculative scenario</span><b style="font-size: 15px">What if a black hole were a portal?</b></button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.branchCard}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="thd">
+          <div style="display: flex; align-items: center; gap: 8px"><b class="disp" style="font-size: 20px">Black holes</b><span style="font-size: 13px; color: #4A463D">· Asha, Ravi, Meera</span></div>
+          <div class="nchips"><span class="nch">1 ✓</span><span class="nch cur">2 · now</span><span class="nch up">3</span><span class="nch up">4</span></div>
+        </div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 160px; display: flex; flex-direction: column; gap: 10px">
+          <div class="snip" style="align-self: flex-end"><i></i><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><b style="font-size: 14px">Part 2 · 00:18–00:31</b></span><span class="tag">Play</span></div>
+          <div style="border: 2px dashed #2C46E8; background: #E6EAFF; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; gap: 8px; align-items: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B2FB8" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 3v18"></path><path d="M6 14c0-5 12-3 12-9"></path></svg><span class="tag hyp">What if · Hypothetical</span></div>
+            <b class="disp" style="font-size: 20px; line-height: 1.15">What if the Sun became a black hole of the same mass?</b>
+            <span style="font-size: 14px; line-height: 1.4">Changed: the Sun → a black hole, same mass. Kept: Earth’s orbit. Asked by Asha, from Part 2.</span>
+            <span style="font-size: 13px; font-weight: 600; color: #0B7A5F">First Reel ready</span>
+            <button class="btn sm pri {{hot}}" type="button" onClick="{{next}}" style="align-self: flex-start">Explore this <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600">Ravi</span><div class="bub them">Wait — would we just keep orbiting?</div></div>
+        </div>
+        <div class="composer"><span>Message the thread</span></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.branchOpen}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #070A14; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0"><ellipse cx="195" cy="380" rx="150" ry="56" fill="none" stroke="#FFFBF0" stroke-opacity=".35" stroke-width="1.5"></ellipse><circle cx="195" cy="380" r="6" fill="#000000" stroke="#FFE9A8" stroke-width="2"></circle><circle cx="342" cy="372" r="11" fill="#1B3A6B" stroke="#6E86FF" stroke-width="2"></circle><path d="M330 350 a26 26 0 0 1 26 0" stroke="#6E86FF" stroke-width="2" fill="none" stroke-dasharray="3 4"></path></svg>
+        <div style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; flex-direction: column; gap: 8px">
+          <button class="btn sm sp {{hot}}" type="button" onClick="{{next}}" style="align-self: flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Back to Black holes · Part 2 · 0:18</button>
+          <div class="hband"><span class="tag hyp" style="align-self: flex-start">What if · Hypothetical</span><b style="font-size: 15px">The Sun becomes a black hole · same mass</b></div>
+          <div class="nchips"><span class="nch br">1 · now</span><span class="nch prep">2 · Preparing</span></div>
+        </div>
+        <div class="cc">Earth would keep the same orbit — the pull at our distance wouldn’t change — but the sky would go dark and cold.</div>
+        <div class="ttl"><h2 class="disp rt">Same pull, no sunlight</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 30%"></i></div><span class="mono">0:14 / 0:48</span></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.backOriginal}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="thd">
+          <div style="display: flex; align-items: center; gap: 8px"><b class="disp" style="font-size: 20px">Black holes</b><span style="font-size: 13px; color: #4A463D">· Asha, Ravi, Meera</span></div>
+          <div class="nchips"><span class="nch">1 ✓</span><span class="nch cur">2 · now</span><span class="nch up">3</span><span class="nch up">4</span><span class="nch br" style="font-size: 12px">What if · Sun</span></div>
+        </div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 160px; padding: 10px 14px; border-radius: 14px; background: #FFF4C2; border: 2px solid #111111; font-size: 14px; font-weight: 600">Back at Part 2 · paused at 0:18</div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 222px; display: flex; flex-direction: column; gap: 10px">
+          <div style="border: 2px dashed #2C46E8; background: #E6EAFF; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 6px">
+            <span class="tag hyp" style="align-self: flex-start">What if · Hypothetical</span>
+            <b style="font-size: 16px">What if the Sun became a black hole of the same mass?</b>
+            <span style="font-size: 13px; color: #1B2FB8; font-weight: 600">Opened by you</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600">Meera <span class="pres"><i style="background: #0B7A5F"></i>Online</span></span><div class="bub them">Caught up on Part 1. Is the Sun one worth it?</div></div>
+          <div class="bub me">Yes — we’d keep orbiting, just in the dark.</div>
+        </div>
+        <div class="composer"><span>Message the thread</span><button class="ibtn {{hot}}" type="button" aria-label="Restart journey" onClick="{{restart}}" style="background: #2C46E8; color: #FFFBF0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+      </div>
+    </sc-if>
+
+    <!-- ============ J3 · Spatial ============ -->
+    <sc-if value="{{scr.uni}}" hint-placeholder-val="{{ false }}">
+      <div class="ph sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#FFFBF0"><circle cx="30" cy="140" r="1" opacity=".5"></circle><circle cx="120" cy="110" r="1.2" opacity=".6"></circle><circle cx="340" cy="150" r="1" opacity=".5"></circle><circle cx="260" cy="210" r=".8" opacity=".5"></circle><circle cx="60" cy="740" r="1" opacity=".4"></circle><circle cx="360" cy="700" r="1.2" opacity=".5"></circle><circle cx="200" cy="760" r=".8" opacity=".4"></circle><circle cx="20" cy="460" r="1" opacity=".4"></circle></g>
+          <text x="170" y="270" text-anchor="middle" class="lab" style="font-size: 15px">Machine learning</text><text x="170" y="285" text-anchor="middle" class="labm">a system</text>
+          <ellipse cx="170" cy="330" rx="110" ry="40" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <ellipse cx="170" cy="330" rx="66" ry="24" fill="none" stroke="#FFFBF0" stroke-opacity=".14" stroke-width="1.2"></ellipse>
+          <circle cx="170" cy="330" r="36" fill="#FFE9A8" opacity=".1"></circle><circle cx="170" cy="330" r="15" fill="#FFE9A8"></circle>
+          <circle cx="108" cy="346" r="13" fill="#2BC4B4"></circle><path d="M100 341l6-6 8 2 3 7-5 5-8-2z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.2"></path>
+          <text x="108" y="376" text-anchor="middle" class="lab">Attention</text>
+          <circle cx="272" cy="318" r="17" fill="#2BC4B4"></circle><path d="M260 312l8-7 11 2 4 9-7 7-11-3z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.2"></path>
+          <text x="272" y="352" text-anchor="middle" class="lab">Inference</text>
+          <rect x="212" y="452" width="26" height="12" rx="3" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path d="M200 458h12M238 458h12" stroke="#FFFBF0" stroke-width="2"></path><circle cx="225" cy="458" r="2.5" fill="#FFE44D"></circle>
+          <text x="225" y="484" text-anchor="middle" class="lab">Model serving room</text>
+          <text x="292" y="552" text-anchor="middle" class="lab">Backend systems</text>
+          <ellipse cx="292" cy="590" rx="50" ry="18" fill="none" stroke="#FFFBF0" stroke-opacity=".16" stroke-width="1.2"></ellipse>
+          <circle cx="292" cy="590" r="9" fill="#FFE9A8"></circle>
+          <circle cx="338" cy="596" r="9" fill="#6E86FF"></circle><path d="M330 593h16M331 599h14" stroke="#C9D3FF" stroke-width="1.5"></path>
+          <text x="338" y="622" text-anchor="middle" class="lab">Queues</text>
+          <g fill="#F2B84B"><circle cx="76" cy="610" r="1.6" opacity=".7"></circle><circle cx="86" cy="602" r="1.2" opacity=".5"></circle><circle cx="92" cy="616" r="1.8" opacity=".6"></circle><circle cx="70" cy="622" r="1" opacity=".4"></circle></g>
+        </svg>
+        <div style="position: absolute; left: 20px; right: 20px; top: 56px; display: flex; justify-content: space-between; align-items: center"><h2 class="disp" style="margin: 0; font-size: 28px; font-weight: 800">Your universe</h2><button class="btn sm sp" type="button" aria-pressed="false">Lately</button></div>
+        <button type="button" class="{{hot}}" onClick="{{next}}" aria-label="Open Machine learning system" style="position: absolute; left: 120px; top: 280px; width: 100px; height: 100px; border-radius: 999px; border: 0; background: transparent; cursor: pointer"></button>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.system}}" hint-placeholder-val="{{ false }}">
+      <div class="ph sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#FFFBF0"><circle cx="40" cy="190" r="1" opacity=".5"></circle><circle cx="330" cy="200" r="1.2" opacity=".5"></circle><circle cx="80" cy="690" r="1" opacity=".4"></circle><circle cx="350" cy="740" r="1" opacity=".4"></circle></g>
+          <ellipse cx="195" cy="380" rx="175" ry="66" fill="none" stroke="#FFFBF0" stroke-opacity=".12" stroke-width="1.2"></ellipse>
+          <ellipse cx="195" cy="380" rx="150" ry="56" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <ellipse cx="195" cy="380" rx="95" ry="36" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <circle cx="195" cy="380" r="60" fill="#FFE9A8" opacity=".07"></circle><circle cx="195" cy="380" r="40" fill="#FFE9A8" opacity=".12"></circle><circle cx="195" cy="380" r="24" fill="#FFE9A8"></circle>
+          <circle cx="106" cy="392" r="22" fill="#2BC4B4"></circle><path d="M92 384l10-9 15 3 5 11-9 9-14-3z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.5"></path>
+          <text x="106" y="430" text-anchor="middle" class="lab">Attention</text>
+          <circle cx="331" cy="356" r="28" fill="#2BC4B4"></circle><path d="M312 346l12-11 18 3 6 14-11 11-18-4z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.5"></path><path d="M334 370l8-4 6 3-3 6z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1.5"></path>
+          <text x="331" y="400" text-anchor="middle" class="lab">Inference &amp; serving</text>
+          <g fill="#FFFBF0"><circle cx="40" cy="414" r="1.6" opacity=".6"></circle><circle cx="50" cy="406" r="1.2" opacity=".5"></circle><circle cx="34" cy="424" r="1.4" opacity=".4"></circle><circle cx="56" cy="420" r="1" opacity=".5"></circle></g>
+          <rect x="182" y="514" width="26" height="12" rx="3" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path d="M170 520h12M208 520h12" stroke="#FFFBF0" stroke-width="2"></path><circle cx="195" cy="520" r="2.5" fill="#FFE44D"></circle>
+          <text x="195" y="546" text-anchor="middle" class="lab">Model serving room</text>
+          <path d="M220 560 Q 300 600 390 640" fill="none" stroke="#FFFBF0" stroke-opacity=".4" stroke-dasharray="3 6"></path>
+          <text x="300" y="664" text-anchor="middle" class="labm">to Backend systems</text>
+        </svg>
+        <div style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; align-items: center; gap: 12px"><button class="btn sm sp" type="button" onClick="{{prev}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Universe</button><div style="display: flex; flex-direction: column"><b class="disp" style="font-size: 20px">Machine learning</b><span class="mono" style="color: rgba(255,251,240,.72)">a system</span></div></div>
+        <button type="button" class="{{hot}}" onClick="{{next}}" aria-label="Open Inference and serving" style="position: absolute; left: 296px; top: 322px; width: 70px; height: 70px; border-radius: 999px; border: 0; background: transparent; cursor: pointer"></button>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.planet}}" hint-placeholder-val="{{ false }}">
+      <div class="ph sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <circle cx="195" cy="340" r="176" fill="#2BC4B4" opacity=".08"></circle>
+          <circle cx="195" cy="340" r="160" fill="#1FA9A0"></circle>
+          <path d="M80 300 L 104 262 L 130 220 L 168 214 L 230 200 L 262 222 L 300 250 L 312 296 L 320 340 L 296 380 L 270 420 L 222 436 L 180 440 L 140 424 L 110 400 L 92 352 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="3"></path>
+          <path d="M140 300 L 190 280 L 250 300 L 270 350 L 230 400 L 170 404 L 140 370 Z" fill="#7BD88A" opacity=".6"></path>
+          <path d="M250 450 l30 -14 26 10 -6 26 -30 6z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="3"></path>
+          <path d="M150 276 Q 200 330 262 384" fill="none" stroke="#FFFBF0" stroke-width="2" stroke-dasharray="3 5" opacity=".8"></path>
+          <path d="M195 180 A160 160 0 0 1 355 340 A160 160 0 0 1 195 500 A120 160 0 0 0 195 180 Z" fill="#040A17" opacity=".28"></path>
+          <circle cx="195" cy="340" r="161" fill="none" stroke="#9CF0E6" stroke-opacity=".6" stroke-width="3"></circle>
+          <g stroke="#111111" stroke-width="2"><path d="M130 268 l8 -5 10 0 6 6 0 10 -6 6 -10 0 -6 -6z" fill="#E7F7E9"></path><path d="M222 288 l8 -5 10 0 6 6 0 10 -6 6 -10 0 -6 -6z" fill="#E7F7E9"></path><path d="M160 372 l8 -5 10 0 6 6 0 10 -6 6 -10 0 -6 -6z" fill="#E7F7E9"></path><path d="M250 372 l8 -5 10 0 6 6 0 10 -6 6 -10 0 -6 -6z" fill="#E7F7E9"></path></g>
+          <path d="M330 150 l18 6 -14 12z" fill="#FFFBF0"></path><path d="M300 190 Q 316 170 332 158" fill="none" stroke="#FFE44D" stroke-dasharray="2 5"></path>
+        </svg>
+        <div style="position: absolute; left: 16px; top: 56px"><button class="btn sm sp" type="button" onClick="{{prev}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Machine learning</button></div>
+        <button type="button" class="{{hot}}" onClick="{{next}}" aria-label="Deployment region" style="position: absolute; left: 212px; top: 274px; width: 48px; height: 48px; border-radius: 12px; border: 0; background: transparent; cursor: pointer"></button>
+        <div style="position: absolute; left: 20px; right: 20px; top: 556px; display: flex; flex-direction: column; gap: 6px">
+          <b class="disp" style="font-size: 26px">Inference &amp; serving</b>
+          <span style="font-size: 15px; color: rgba(255,251,240,.8)">Where a trained model meets real requests.</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px"><span class="tag" style="background: transparent; color: #FFFBF0; border-color: rgba(255,251,240,.5)">Batching</span><span class="tag" style="background: #FFFBF0">Deployment</span><span class="tag" style="background: transparent; color: #FFFBF0; border-color: rgba(255,251,240,.5)">Latency</span><span class="tag" style="background: transparent; color: #FFFBF0; border-color: rgba(255,251,240,.5)">Cost</span></div>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.region}}" hint-placeholder-val="{{ false }}">
+      <div class="ph sp" style="background: #1C8F86">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <path d="M-20 260 L 90 120 L 300 90 L 420 200 L 420 560 L 240 640 L 40 600 L -20 480 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="4"></path>
+          <g stroke="#111111" stroke-width="2.5"><path d="M110 250 l10 -7 14 0 9 8 0 14 -9 8 -14 0 -10 -8z" fill="#E7F7E9"></path><path d="M190 300 l12 -8 18 0 11 10 0 18 -11 10 -18 0 -12 -10z" fill="#FFE44D" stroke-width="3"></path><path d="M120 420 l10 -7 14 0 9 8 0 14 -9 8 -14 0 -10 -8z" fill="#E7F7E9"></path><path d="M280 420 l10 -7 14 0 9 8 0 14 -9 8 -14 0 -10 -8z" fill="#E7F7E9"></path></g>
+          <circle cx="210" cy="318" r="34" fill="none" stroke="#FFFBF0" stroke-width="2" stroke-dasharray="3 5"></circle>
+        </svg>
+        <div style="position: absolute; left: 16px; top: 56px; display: flex; gap: 8px"><button class="btn sm sp" type="button" onClick="{{prev}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Inference &amp; serving</button><span class="tag" style="height: 44px; padding: 0 14px; background: #FFFBF0">Deployment</span></div>
+        <div style="position: absolute; left: 16px; right: 16px; bottom: 112px; background: #FFFBF0; color: #111111; border: 2px solid #111111; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+          <span class="mono" style="color: #4A463D">A Reel · in Deployment</span>
+          <b class="disp" style="font-size: 24px; line-height: 1.1">Where should the model run?</b>
+          <span style="font-size: 15px; line-height: 1.4">Close to people, or close to the hardware? The trade in under a minute.</span>
+          <div style="display: flex; gap: 10px; margin-top: 4px"><button class="btn ink {{hot}}" type="button" onClick="{{next}}">Open</button><button class="btn ghost" type="button">Close</button><span style="margin-left: auto; align-self: center; font-size: 14px; text-decoration: underline">More in Deployment</span></div>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.regionReel}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #0B7A5F; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0"><circle cx="110" cy="320" r="44" fill="#FFFBF0" opacity=".9"></circle><rect x="240" y="270" width="90" height="110" rx="10" fill="none" stroke="#FFFBF0" stroke-width="3"></rect><path d="M154 320 H 240" stroke="#FFE44D" stroke-width="4" stroke-dasharray="8 6"></path><g fill="#111111"><circle cx="96" cy="312" r="5"></circle><circle cx="120" cy="312" r="5"></circle></g></svg>
+        <div class="top"><button class="btn sm sp {{hot}}" type="button" onClick="{{next}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>From Deployment</button><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false">Scroll</button></div></div>
+        <div class="cc">Running near people saves travel time. Running near big hardware saves money.</div>
+        <div class="ttl"><h2 class="disp rt">Where should the model run?</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 70%"></i></div><span class="mono">0:35 / 0:50</span></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.regionReturn}}" hint-placeholder-val="{{ false }}">
+      <div class="ph sp" style="background: #1C8F86">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <path d="M-20 260 L 90 120 L 300 90 L 420 200 L 420 560 L 240 640 L 40 600 L -20 480 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="4"></path>
+          <g stroke="#111111" stroke-width="2.5"><path d="M110 250 l10 -7 14 0 9 8 0 14 -9 8 -14 0 -10 -8z" fill="#E7F7E9"></path><path d="M190 300 l12 -8 18 0 11 10 0 18 -11 10 -18 0 -12 -10z" fill="#E7F7E9" stroke-width="3"></path><path d="M120 420 l10 -7 14 0 9 8 0 14 -9 8 -14 0 -10 -8z" fill="#E7F7E9"></path><path d="M280 420 l10 -7 14 0 9 8 0 14 -9 8 -14 0 -10 -8z" fill="#E7F7E9"></path></g>
+          <circle cx="210" cy="318" r="40" fill="none" stroke="#FFE44D" stroke-width="3"></circle>
+          <path d="M252 280 l18 6 -14 12z" fill="#FFFBF0" stroke="#111111" stroke-width="1"></path>
+        </svg>
+        <div style="position: absolute; left: 16px; top: 56px; display: flex; gap: 8px"><button class="btn sm sp" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Inference &amp; serving</button></div>
+        <span class="tag" style="position: absolute; left: 160px; top: 372px; background: #FFE44D">You were here</span>
+        <button class="btn sp {{hot}}" type="button" onClick="{{next}}" style="position: absolute; left: 16px; bottom: 116px">Visit Ravi’s universe</button>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.raviUni}}" hint-placeholder-val="{{ false }}">
+      <div class="ph sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <rect width="390" height="844" fill="#06112A"></rect>
+          <g fill="#FFFBF0"><circle cx="40" cy="190" r="1" opacity=".5"></circle><circle cx="350" cy="230" r="1.2" opacity=".5"></circle><circle cx="80" cy="700" r="1" opacity=".4"></circle><circle cx="280" cy="760" r="1" opacity=".4"></circle></g>
+          <text x="236" y="216" text-anchor="middle" class="lab" style="font-size: 15px">Machine learning</text><text x="236" y="231" text-anchor="middle" class="labm">Ravi’s system</text>
+          <ellipse cx="236" cy="290" rx="120" ry="38" fill="none" stroke="#BFE6FF" stroke-opacity=".22" stroke-width="1.2" transform="rotate(-8 236 290)"></ellipse>
+          <circle cx="236" cy="290" r="32" fill="#CFEFFF" opacity=".1"></circle><circle cx="236" cy="290" r="14" fill="#E8F6FF"></circle>
+          <circle cx="132" cy="306" r="19" fill="#1B6FA8"></circle><path d="M118 300 l6 -8 6 4 -2 8z M132 312 l8 -4 4 6 -6 4z M140 296 l5 -3 3 4 -4 3z" fill="#9FE3E0" stroke="#0E3B5E" stroke-width="1"></path>
+          <text x="132" y="342" text-anchor="middle" class="lab">Inference &amp; serving</text>
+          <circle cx="344" cy="268" r="13" fill="#1B6FA8"></circle><ellipse cx="344" cy="268" rx="22" ry="6" fill="none" stroke="#9FB3C8" stroke-dasharray="2 3"></ellipse>
+          <text x="340" y="300" text-anchor="middle" class="lab">Hardware</text>
+          <rect x="62" y="432" width="26" height="12" rx="3" fill="none" stroke="#FFFBF0" stroke-width="2"></rect><path d="M50 438h12M88 438h12" stroke="#FFFBF0" stroke-width="2"></path><circle cx="75" cy="438" r="2.5" fill="#FFE44D"></circle>
+          <text x="75" y="464" text-anchor="middle" class="lab">Model serving room</text>
+          <text x="250" y="512" text-anchor="middle" class="lab">Football</text>
+          <circle cx="250" cy="550" r="10" fill="#FFE9A8"></circle><ellipse cx="250" cy="550" rx="54" ry="18" fill="none" stroke="#FFFBF0" stroke-opacity=".16"></ellipse>
+          <circle cx="300" cy="556" r="11" fill="#FF8A5B"></circle><circle cx="297" cy="552" r="3" fill="#FFD2BE"></circle>
+          <rect width="390" height="844" fill="none" stroke="#9FB3C8" stroke-opacity=".08" stroke-width="60"></rect>
+        </svg>
+        <div style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 999px; background: #FFFBF0; color: #111111"><span style="flex: 1; font-size: 14px; font-weight: 600">Visiting Ravi · only what he shares</span><button class="btn sm ink" type="button" style="min-height: 40px">Leave</button></div>
+        <div style="position: absolute; left: 16px; right: 16px; bottom: 32px; display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-radius: 14px; background: #0B1A2E; border: 1px solid rgba(255,251,240,.22); font-size: 13px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Some of Ravi’s universe is private.</div>
+        <button type="button" class="{{hot}}" onClick="{{next}}" aria-label="Model serving room — same room as on your map" style="position: absolute; left: 44px; top: 412px; width: 62px; height: 52px; border-radius: 14px; border: 0; background: transparent; cursor: pointer"></button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.room}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div style="position: absolute; left: 0; right: 0; top: 0; height: 168px; background: #040A17; color: #FFFBF0; padding: 56px 20px 0; display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; align-items: center; gap: 10px"><svg width="34" height="20" viewBox="0 0 76 40" aria-hidden="true"><rect x="22" y="12" width="32" height="16" rx="4" fill="none" stroke="#FFFBF0" stroke-width="2.4"></rect><path d="M8 20h14M54 20h14" stroke="#FFFBF0" stroke-width="2.4"></path><circle cx="38" cy="20" r="3" fill="#FFE44D"></circle></svg><b class="disp" style="font-size: 22px">Model serving room</b></div>
+          <span style="font-size: 13px; color: rgba(255,251,240,.8)">Same room as on your map · opened from Ravi’s</span>
+        </div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 184px; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; gap: 8px; align-items: center; font-size: 13px; color: #0B7A5F; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"></path></svg>Pinned thread: What one answer costs to serve</div>
+          <div style="border: 2px dashed #2C46E8; background: #E6EAFF; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 4px"><span class="tag hyp" style="align-self: flex-start">What if</span><b style="font-size: 15px">What if requests increased tenfold?</b><span style="font-size: 13px">Same model and hardware.</span><span style="font-size: 13px; font-weight: 600; color: #1B2FB8">Explore this →</span></div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start"><span class="tag ai">AI · Skeptic</span><div class="bub" style="background: #FFFBF0; border: 2px dotted #111111; border-radius: 6px 18px 18px 18px">Suggestion: what if requests arrive in bursts instead?</div><span style="display: flex; gap: 8px"><span class="tag">Explore this</span><span class="tag">Dismiss</span></span></div>
+        </div>
+        <div class="composer"><span>Reply in this thread</span><button class="ibtn {{hot}}" type="button" aria-label="Restart journey" onClick="{{restart}}" style="background: #2C46E8; color: #FFFBF0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+      </div>
+    </sc-if>
+
+    <!-- ============ J4 · Recovery & privacy ============ -->
+    <sc-if value="{{scr.chatFailed}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="pbody" style="gap: 10px">
+          <div class="hdr"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg><b style="font-size: 17px">Ravi</b></div>
+          <div class="bub them">Did Part 2 load for you?</div>
+          <div class="bub me">Yes — watching now</div>
+          <div style="align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: 6px"><div class="bub" style="background: #FFFBF0; border: 2px solid #B23A0B">The event-horizon bit is the key</div><button class="btn sm ghost {{hot}}" type="button" onClick="{{next}}" style="color: #8A2C07; border-color: #B23A0B"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg>Not sent · Retry</button></div>
+        </div>
+        <div class="composer" style="bottom: 110px"><span>Message Ravi</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="talk" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.chatSent}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="pbody" style="gap: 10px">
+          <div class="hdr"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg><b style="font-size: 17px">Ravi</b></div>
+          <div class="bub them">Did Part 2 load for you?</div>
+          <div class="bub me">Yes — watching now</div>
+          <div style="align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: 4px"><div class="bub me">The event-horizon bit is the key</div><span class="mono" style="color: #0B7A5F">Sent · same message, not a copy</span></div>
+          <button class="btn sm {{hot}}" type="button" onClick="{{next}}" style="align-self: center; margin-top: 20px">Simulate a dropped connection</button>
+        </div>
+        <div class="composer" style="bottom: 110px"><span>Message Ravi</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="talk" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.reconnect}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="pbody" style="gap: 10px">
+          <div class="hdr"><b style="font-size: 17px">Ravi</b></div>
+          <div style="display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 14px; border: 2px solid #111111; background: #F4EDD8; font-size: 14px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 0 1 9 9"></path></svg><span><b>Reconnected.</b> Missing messages added in order.</span></div>
+          <div class="bub me">The event-horizon bit is the key</div>
+          <div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: #4A463D"><i style="flex: 1; height: 1px; background: #D9D1BC"></i><span class="mono">While you were away</span><i style="flex: 1; height: 1px; background: #D9D1BC"></i></div>
+          <div class="bub them">Agreed. Light can’t get out past it…</div>
+          <div class="bub them">…but time near it is the strange part.</div>
+          <button class="btn sm {{hot}}" type="button" onClick="{{next}}" style="align-self: center; margin-top: 16px">Next: open a revoked link</button>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="talk" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.revoked}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div style="position: absolute; left: 0; right: 0; top: 0; height: 104px; border-bottom: 2px solid #111111; display: flex; align-items: flex-end; padding: 0 20px 14px"><b class="disp" style="font-size: 22px">KnowScroll</b></div>
+        <div style="position: absolute; left: 24px; right: 24px; top: 190px; display: flex; flex-direction: column; gap: 16px">
+          <span class="tag" style="align-self: flex-start"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Link ended</span>
+          <h2 class="disp" style="margin: 0; font-size: 34px; line-height: 1.05; font-weight: 800">Asha stopped sharing this link</h2>
+          <p style="margin: 0; font-size: 17px; line-height: 1.5; color: #4A463D">It no longer opens for anyone. Nothing about what it contained is shown here.</p>
+          <button class="btn pri {{hot}}" type="button" onClick="{{next}}" style="align-self: flex-start">Go to KnowScroll</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.paused}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="pbody" style="gap: 14px">
+          <div class="hdr"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg><b class="disp" style="font-size: 24px">Privacy &amp; history</b></div>
+          <div style="display: flex; gap: 10px; align-items: flex-start; padding: 14px; border-radius: 14px; background: #111111; color: #FFFBF0; font-size: 14px; line-height: 1.45"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="M8 5v14M16 5v14"></path></svg><span><b>Recording paused.</b> What you watch now won’t shape your universe. Save, Share and Talk still work. Nothing is filled in later.</span></div>
+          <div style="display: flex; align-items: center; justify-content: space-between; min-height: 64px; border-bottom: 1px solid #D9D1BC"><span style="display: flex; flex-direction: column; gap: 2px"><b style="font-size: 15px">Shape my universe from what I watch</b><span style="font-size: 13px; color: #4A463D">Off</span></span><span style="width: 56px; height: 32px; border-radius: 999px; border: 2px solid #111111; background: #F4EDD8; position: relative"><i style="position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 999px; background: #111111"></i></span></div>
+          <div style="display: flex; flex-direction: column; gap: 2px; min-height: 64px; border-bottom: 1px solid #D9D1BC; justify-content: center"><b style="font-size: 15px">History &amp; export</b><span style="font-size: 13px; color: #4A463D">Download a copy of what we keep</span></div>
+          <button type="button" class="{{hot}}" onClick="{{next}}" style="display: flex; flex-direction: column; gap: 2px; min-height: 64px; border: 0; border-bottom: 1px solid #D9D1BC; background: transparent; text-align: left; padding: 0; cursor: pointer"><b style="font-size: 15px">Clear exploration</b><span style="font-size: 13px; color: #4A463D">Remove your exploration history and universe</span></button>
+          <div style="display: flex; flex-direction: column; gap: 2px; min-height: 64px; justify-content: center"><b style="font-size: 15px; color: #B23A0B">Delete account</b><span style="font-size: 13px; color: #4A463D">Everything, including conversations you started</span></div>
+          <p style="margin: 0; font-size: 13px; line-height: 1.45; color: #4A463D">Messages are stored for your conversations. They aren’t treated as evidence of what you explored.</p>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.resetConfirm}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="pbody" style="gap: 14px">
+          <div class="hdr"><b class="disp" style="font-size: 24px">Clear exploration</b></div>
+          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.45">
+            <span class="mono" style="color: #4A463D">What’s removed</span>
+            <span>Your exploration history.</span>
+            <span>Everything we worked out from it, including your systems, planets and regions.</span>
+            <span class="mono" style="color: #4A463D; margin-top: 6px">What stays</span>
+            <span>Items in Keep.</span>
+            <span>Your conversations, threads and their messages.</span>
+          </div>
+          <label style="display: flex; gap: 12px; align-items: center; min-height: 48px; font-size: 15px; font-weight: 600"><span style="width: 24px; height: 24px; border: 2px solid #111111; border-radius: 6px; background: #111111; display: inline-flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFBF0" stroke-width="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span>I understand this can’t be undone</label>
+          <button class="btn {{hot}}" type="button" onClick="{{next}}" style="background: #B23A0B; color: #FFFBF0; align-self: flex-start">Clear exploration</button>
+          <button class="btn ghost" type="button" style="align-self: flex-start">Cancel</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.resetReceipt}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="pbody" style="gap: 14px">
+          <div class="hdr"><b class="disp" style="font-size: 24px">Receipts</b></div>
+          <div style="border: 2px solid #111111; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 6px; background: repeating-linear-gradient(135deg,#FFFBF0 0 6px,#F4EDD8 6px 12px)">
+            <span style="display: flex; gap: 8px; align-items: center; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 0 1 9 9"></path></svg>Clearing in progress</span>
+            <span style="font-size: 14px; line-height: 1.45">Started today. We’ll mark this complete only when every copy is cleared.</span>
+          </div>
+          <div style="border: 2px solid #111111; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 6px; background: #FFFBF0">
+            <span style="display: flex; gap: 8px; align-items: center; font-weight: 600; color: #8A2C07"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg>If it fails</span>
+            <span style="font-size: 14px; line-height: 1.45">“We couldn’t finish. Nothing has been reported as cleared yet.” with Retry — never a premature “done”.</span>
+          </div>
+          <button class="btn {{hot}}" type="button" onClick="{{restart}}" style="align-self: flex-start">Restart this journey</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============ J5 · Back, step by step ============ -->
+    <sc-if value="{{scr.n1}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #2C46E8; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0"><circle cx="195" cy="330" r="168" fill="#3A55F0"></circle><rect x="186" y="350" width="56" height="38" rx="19" fill="#FFE44D" stroke="#111111" stroke-width="2"></rect><rect x="62" y="240" width="96" height="34" rx="17" fill="#FFFBF0"></rect><path d="M214 362 C 170 330, 140 290, 112 262" stroke="#FFE44D" stroke-width="7" fill="none" stroke-linecap="round"></path></svg>
+        <div class="top"><span class="tag" style="border-color: #FFFBF0">Machine learning</span><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false" class="{{hot}}" onClick="{{next}}">Scroll</button></div></div>
+        <div class="cc">“It” looks around the sentence and decides that <b style="color: #FFE44D">animal</b> matters most.</div>
+        <div class="ttl"><span class="tag part" style="align-self: flex-start">Part 1 of 3</span><h2 class="disp rt">Attention, explained with a crowded sentence</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 62%"></i></div><span class="mono">0:31 / 0:50</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.n2}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="top"><button class="ibtn" type="button" aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="false">Reel</button><button type="button" aria-pressed="true">Scroll</button></div></div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 124px; display: flex; flex-direction: column; gap: 14px">
+          <p style="margin: 0; font-size: 18px; line-height: 28px; color: #4A463D">…which is why a model reading a whole book at once needs so much more work than one reading a paragraph.</p>
+          <div style="border: 2px solid #111111; border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 12px; background: #FFFBF0; box-shadow: 6px 6px 0 #2C46E8; margin-top: 30px">
+            <span class="mono" style="color: #4A463D">End of this Scroll</span>
+            <b class="disp" style="font-size: 26px; line-height: 1.1">Attention, slowly</b>
+            <button class="btn {{hot}}" type="button" onClick="{{next}}" style="background: #FFE44D; justify-content: space-between">Part 2 · Attention at work <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></button>
+            <button class="btn ghost" type="button" style="border-style: dashed">Related · A spotlight with a budget</button>
+            <button class="btn ghost" type="button" style="border: 0">Next subject</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.n3}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #1B2FB8; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0"><g font-family="Instrument Sans, sans-serif" font-size="15" font-weight="600"><rect x="40" y="250" width="110" height="34" rx="17" fill="#FFFBF0"></rect><text x="95" y="272" text-anchor="middle" fill="#111111">the cat</text><rect x="230" y="250" width="120" height="34" rx="17" fill="#FFE44D"></rect><text x="290" y="272" text-anchor="middle" fill="#111111">le chat</text></g><path d="M150 267 H 230" stroke="#FFE44D" stroke-width="5" stroke-linecap="round"></path></svg>
+        <div class="top"><span class="tag" style="border-color: #FFFBF0">Machine learning</span><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false">Scroll</button></div></div>
+        <div class="cc">To translate “chat”, the model looks hardest at “cat”.</div>
+        <div class="rail"><div class="ra"><button class="ibtn sp {{hot}}" type="button" aria-label="Share" onClick="{{next}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7h16v-7"></path><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path></svg></button><span>Share</span></div></div>
+        <div class="ttl"><span class="tag part" style="align-self: flex-start">Part 2 of 3</span><h2 class="disp rt">Attention at work: translating one sentence</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 36%"></i></div><span class="mono">0:18 / 0:50</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.n4}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #1B2FB8; color: #FFFBF0">
+        <div style="position: absolute; inset: 0; background: rgba(17,17,17,.45)"></div>
+        <div style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFBF0; color: #111111; border-top: 2px solid #111111; border-radius: 28px 28px 0 0; padding: 12px 20px 24px; display: flex; flex-direction: column; gap: 4px">
+          <div style="display: flex; align-items: center; justify-content: space-between"><b class="disp" style="font-size: 22px">Share</b><button class="ibtn {{hot}}" type="button" aria-label="Close" onClick="{{next}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+          <span style="font-size: 14px; color: #4A463D; margin-bottom: 6px">Part 2 is paused underneath at 0:18</span>
+          <div class="choice"><b>Send to a conversation</b></div>
+          <div class="choice"><b>Explore with friends</b></div>
+          <div class="choice"><b>Share a moment</b></div>
+          <div class="choice" style="border-bottom: 0"><b>Copy link / Share elsewhere</b></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.n5}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #1B2FB8; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0"><g font-family="Instrument Sans, sans-serif" font-size="15" font-weight="600"><rect x="40" y="250" width="110" height="34" rx="17" fill="#FFFBF0"></rect><text x="95" y="272" text-anchor="middle" fill="#111111">the cat</text><rect x="230" y="250" width="120" height="34" rx="17" fill="#FFE44D"></rect><text x="290" y="272" text-anchor="middle" fill="#111111">le chat</text></g><path d="M150 267 H 230" stroke="#FFE44D" stroke-width="5" stroke-linecap="round"></path></svg>
+        <div class="top"><button class="ibtn sp {{hot}}" type="button" aria-label="Back" onClick="{{next}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false">Scroll</button></div></div>
+        <div class="cc">Playing again from 0:18 — closing Share didn’t move you.</div>
+        <div class="ttl"><span class="tag part" style="align-self: flex-start">Part 2 of 3</span><h2 class="disp rt">Attention at work: translating one sentence</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 38%"></i></div><span class="mono">0:19 / 0:50</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.n6}}" hint-placeholder-val="{{ false }}">
+      <div class="ph">
+        <div class="top"><button class="ibtn {{hot}}" type="button" aria-label="Back" onClick="{{next}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="false">Reel</button><button type="button" aria-pressed="true">Scroll</button></div></div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 124px; display: flex; flex-direction: column; gap: 14px">
+          <span style="align-self: flex-start; padding: 6px 12px; border-radius: 999px; background: #FFF4C2; border: 2px solid #111111; font-size: 13px; font-weight: 600">Back where you were</span>
+          <p style="margin: 0; font-size: 18px; line-height: 28px; color: #4A463D">…which is why a model reading a whole book at once needs so much more work than one reading a paragraph.</p>
+          <div style="border: 2px solid #111111; border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 12px; background: #FFFBF0; box-shadow: 6px 6px 0 #2C46E8">
+            <span class="mono" style="color: #4A463D">End of this Scroll</span>
+            <b class="disp" style="font-size: 26px; line-height: 1.1">Attention, slowly</b>
+            <span class="btn" style="background: #FFE44D; justify-content: space-between">Part 2 · Attention at work <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.n7}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #2C46E8; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0; opacity: .55"><circle cx="195" cy="330" r="168" fill="#3A55F0"></circle><rect x="186" y="350" width="56" height="38" rx="19" fill="#FFE44D"></rect><rect x="62" y="240" width="96" height="34" rx="17" fill="#FFFBF0"></rect></svg>
+        <div class="top"><button class="ibtn sp {{hot}}" type="button" aria-label="Back" onClick="{{next}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false">Scroll</button></div></div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 120px; padding: 10px 14px; border-radius: 14px; background: #FFF4C2; color: #111111; border: 2px solid #111111; font-size: 14px; font-weight: 600">Paused where you left it · 0:31</div>
+        <button type="button" aria-label="Play" style="position: absolute; left: 155px; top: 276px; width: 80px; height: 80px; border-radius: 999px; border: 2px solid #111111; background: #FFFBF0; color: #111111; display: flex; align-items: center; justify-content: center"><svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"></path></svg></button>
+        <div class="ttl"><span class="tag part" style="align-self: flex-start">Part 1 of 3</span><h2 class="disp rt">Attention, explained with a crowded sentence</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 62%"></i></div><span class="mono">0:31 / 0:50</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{scr.n8}}" hint-placeholder-val="{{ false }}">
+      <div class="ph" style="background: #2C46E8; color: #FFFBF0">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0; opacity: .6"><ellipse cx="195" cy="330" rx="160" ry="92" fill="none" stroke="#FFFBF0" stroke-width="3"></ellipse><circle cx="160" cy="330" r="30" fill="#FFE44D"></circle><circle cx="340" cy="300" r="13" fill="#14C79B" stroke="#111111" stroke-width="2"></circle></svg>
+        <div class="top"><span class="tag" style="border-color: #FFFBF0">Astronomy</span><div class="seg" role="group" aria-label="Format"><button type="button" aria-pressed="true">Reel</button><button type="button" aria-pressed="false">Scroll</button></div></div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 120px; padding: 10px 14px; border-radius: 14px; background: #FFF4C2; color: #111111; border: 2px solid #111111; font-size: 14px; font-weight: 600">Your previous subject · paused at 0:12</div>
+        <button class="btn sm sp {{hot}}" type="button" onClick="{{restart}}" style="position: absolute; left: 20px; top: 480px">Restart this journey</button>
+        <div class="ttl"><h2 class="disp rt">Why does an orbit keep falling?</h2></div>
+        <div class="prog"><div class="bar"><i style="width: 29%"></i></div><span class="mono">0:12 / 0:41</span></div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </sc-if>
+  </div>
+
+  <section aria-live="polite" style="flex: 1; min-width: 0; height: 920px; display: flex; flex-direction: column; gap: 16px; padding-top: 16px">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <span class="mono" style="color: #4A463D">{{journeyName}} · step {{stepNo}} of {{stepCount}}</span>
+      <h2 class="disp" style="margin: 0; font-size: 32px; line-height: 1.05; font-weight: 800">{{cur.title}}</h2>
+      <p style="margin: 0; font-size: 16px; line-height: 1.5">{{cur.what}}</p>
+    </div>
+    <sc-if value="{{hasStack}}" hint-placeholder-val="{{ false }}">
+      <div style="border: 2px solid #111111; border-radius: 16px; background: #111111; color: #FFFBF0; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+        <span class="mono" style="color: #FFE44D">Your history stack (Back retraces it)</span>
+        <span class="stack">{{cur.stack}}</span>
+      </div>
+    </sc-if>
+    <div style="border: 2px solid #111111; border-radius: 16px; background: #FFFBF0; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">
+      <span class="mono" style="color: #4A463D">Emitted at this step</span>
+      <sc-for list="{{cur.ev}}" as="e" hint-placeholder-count="2">
+        <code style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; line-height: 1.4">{{e}}</code>
+      </sc-for>
+    </div>
+    <div style="border: 2px solid #111111; border-radius: 16px; background: #FFFBF0; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+      <span class="mono" style="color: #4A463D">Restore · privacy · gesture</span>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5">{{cur.note}}</p>
+    </div>
+    <div style="display: flex; gap: 12px; margin-top: auto">
+      <button class="btn" type="button" onClick="{{prev}}" disabled="{{noPrev}}">Previous step</button>
+      <button class="btn pri" type="button" onClick="{{next}}" disabled="{{noNext}}">Next step</button>
+      <button class="btn ghost" type="button" onClick="{{toggleHints}}" aria-pressed="{{hintsOn}}" style="margin-left: auto">Hotspot rings</button>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  data() {
+    const S0 = 'Orbit Reel @0:12';
+    return [
+      { name: 'Asha’s encounter path', steps: [
+        { scr: 'reel1', title: 'Asha watches an ML Reel', what: 'Part 1 plays. Only visible seconds count; the next Reel, already prefetched, emits nothing until it is on screen.', ev: ['OBS reel.visible_interval {0–31s}', 'OBS app.visibility'], note: 'The dashed Related tab sits on the right and points right: arrows always show the destination.' },
+        { scr: 'related', title: 'She continues horizontally — related, not a sequel', what: 'A spotlight with a budget: a different explanation of the same idea. Part 1 is parked at 0:31.', ev: ['CMD thread.continue {relation: related}', 'OBS reel.visible_interval'], note: 'Part 1’s playhead is kept. The back pill (or Back) returns to it.' },
+        { scr: 'reelPrep', title: 'Back to Part 1 · she asks for the Scroll', what: 'Back restores 0:31. No Scroll exists yet, so tapping Scroll creates a request; the Reel keeps playing.', ev: ['CMD format.request {to: scroll, explanation: attention-mechanism}'], note: 'No percentage, no ETA. Cancel is always available. Reel and Scroll share explanation identity, so reading later won’t double-count.' },
+        { scr: 'readyToast', title: 'The Scroll is ready', what: 'A quiet notice arrives without interrupting playback. Nothing switches on its own.', ev: ['Receipt request.ready (socket notice)'], note: 'If she ignores it, the ready Scroll waits in Keep → Requested.' },
+        { scr: 'scrollDiagram', title: 'She reads and adjusts the diagram', what: 'The block simply says “Try a longer sentence”. Try the slider — the square shows work growing with the square of length.', ev: ['OBS scroll.block_coverage', 'OBS scroll.block_interaction {block: len-slider}'], note: 'Gesture ownership is an engineering rule (the slider keeps its drag until release); it is never written in the interface.' },
+        { scr: 'returnReel', title: 'Back to the exact Reel position', what: 'Back restores Part 1 paused at 0:31, captions as she left them. Nothing autoplays with sound after a real detour.', ev: ['— restoration is client session state; no command'], note: 'The Scroll’s anchor (“Why squared?”) is stored separately for when she returns there.' },
+        { scr: 'nextSubject', title: 'A fresh vertical subject', what: 'A deliberate ↑ (or Next subject) changes subject. Reading momentum never does.', ev: ['CMD subject.next'], note: 'Current intent can change instantly; long-lived geography changes slowly.' },
+        { scr: 'universeLater', title: 'Later: a subtly richer universe', what: 'After more qualified encounters, an Attention planet has formed in her Machine learning system. The copy names a place, never a skill.', ev: ['Receipt geography.delta_applied → scene revision 2', 'OBS universe.open'], note: 'Formation here is design data, not computed evidence.' }
+      ]},
+      { name: 'Black holes: a content thread', steps: [
+        { scr: 'shareChoices', title: 'Share offers four clear choices', what: 'From Part 2 of a Black holes series: Send to a conversation, Explore with friends, Share a moment, Copy link / Share elsewhere.', ev: ['OBS share.sheet_opened'], note: 'Opening the sheet is not sharing. Closing it silently resumes the Reel.' },
+        { scr: 'picker', title: 'Explore with friends', what: 'Search, recent people, checkboxes and optional presence labels (“Online”, “Recently active”). Presence never says what anyone is watching.', ev: ['— selection is local until created'], note: 'Activity status is each person’s choice in settings; Kabir hides his.' },
+        { scr: 'thread', title: 'The thread holds sequence and conversation together', what: 'Episode cards show a thumbnail, part, short title and YOUR marker (✓ watched, Now). Under the player: Like · Save · Moment · Full screen — no hidden gestures needed.', ev: ['CMD thread.create {members: [ravi, meera], root: blackholes-part2}', 'Receipt thread.created'], note: '✓ is a playback marker only — never “complete” or “learned”. Preparing items sit apart and can’t be selected. Tap Moment to share one.' },
+        { scr: 'moment', title: 'Share a moment', what: 'Pick 00:18–00:31 and add a line. The snippet points at the original Reel and range — no new video file.', ev: ['CMD snippet.share {asset: part2@1, start: 18, end: 31}'], note: 'Scroll passages and interactive blocks (with their settings) share the same way.' },
+        { scr: 'threadSnippet', title: 'Chatting: the player collapses and pauses', what: 'Collapsing pauses by default and keeps the playhead (0:18). The navigator switches to compact numbers. Listening while chatting is an explicit choice in ⋯ (audio only).', ev: ['CMD thread.player.collapse → pause', 'OBS reel.visible_interval stops'], note: 'Hidden video is never recorded as visible viewing. Meera joined late and starts at her own Part 1.' },
+        { scr: 'whatifSheet', title: 'A clear what-if goes straight in', what: 'Asha types a complete request. A one-line, editable summary shows what changes and what stays; Explore submits directly — no confirmation screen.', ev: ['— summary computed locally; nothing sent until Explore'], note: 'Speculative or ambiguous ideas (like “a black hole as a portal”) get one extra step to pin down assumptions; see X01.' },
+        { scr: 'branchCard', title: 'A branch card appears in the thread', what: 'Submitted directly, so it is prepared. AI suggestions never launch content on their own.', ev: ['CMD scenario.ask {text, assumptions, direct: true}', 'Receipt request.ready'], note: 'Friends can discuss the branch, edit its assumptions or try another one.' },
+        { scr: 'branchOpen', title: 'Exploring the branch', what: 'The navigator switches to the branch with its own label and parts — it never pretends to be “Part 5”. The return chip shows exactly where you’ll land.', ev: ['CMD branch.open {node: sun-black-hole}', 'OBS reel.visible_interval (Asha)'], note: 'Conditional wording and the Hypothetical label stay visible throughout.' },
+        { scr: 'backOriginal', title: 'Back to the original sequence', what: 'Part 2, paused at 0:18, conversation restored. The branch card now says “Opened by you” — no progress counts.', ev: ['— restoration only'], note: 'Each person’s branch and playhead are their own; the thread is the common ground.' }
+      ]},
+      { name: 'Spatial exploration', steps: [
+        { scr: 'uni', title: 'Asha’s universe', what: 'Systems, planets and a room station — no counts, no scores. Tap Machine learning.', ev: ['OBS universe.open'], note: 'List view offers the same hierarchy as accessible rows.' },
+        { scr: 'system', title: 'Machine learning system', what: 'The organising star sits at the centre; planets are subtopics; dust is still gathering. Tap Inference & serving.', ev: ['OBS universe.select {system: ml}'], note: 'Labels sit on baselines and never cover another body.' },
+        { scr: 'planet', title: 'Inference & serving', what: 'Direct spatial arrival with terrain, light and a coastal route. Tap the Deployment region.', ev: ['OBS universe.select {planet: inference}'], note: 'See U07 for how the same planet differs between Asha, Ravi and Meera.' },
+        { scr: 'region', title: 'Deployment region', what: 'A compact card; Open goes straight to an encounter.', ev: ['OBS universe.select {region: deployment}'], note: 'No sources, badges or counts on the card.' },
+        { scr: 'regionReel', title: 'Encounter from the map', what: 'The breadcrumb chip shows where she came from. Tap it — it behaves exactly like Back.', ev: ['OBS reel.visible_interval'], note: 'The map visit itself is not content evidence; watching is.' },
+        { scr: 'regionReturn', title: 'Exact return', what: 'Same region, same camera, ship parked, “You were here”.', ev: ['OBS universe.return'], note: 'Restored camera: {system: ml, planet: inference, region: deployment, zoom: 3}.' },
+        { scr: 'raviUni', title: 'Visiting Ravi’s universe', what: 'Only what Ravi shares, in his own cooler, glacial style. Private parts are not drawn at all — one generic line says some of it is private.', ev: ['CMD visit.open {handle: ravi.m}'], note: 'No fog shape, size or position can hint at hidden systems.' },
+        { scr: 'room', title: 'The same shared room — with threads', what: 'Entered from a different spot on Ravi’s map. Explorations live inside room threads; an AI suggestion waits for a person to choose “Explore this”.', ev: ['CMD room.open {roomId: model-serving}'], note: 'The moderator pins useful explorations; AI never fills silence or launches content itself.' }
+      ]},
+      { name: 'Recovery & privacy', steps: [
+        { scr: 'chatFailed', title: 'A send fails', what: 'One bubble, clearly marked Not sent.', ev: ['CMD message.send {requestId: r-41}', '— no receipt (connection dropped)'], note: 'The draft is never lost.' },
+        { scr: 'chatSent', title: 'Retry — no duplicate', what: 'Retry reuses request r-41; the same bubble becomes Sent.', ev: ['CMD message.retry {requestId: r-41}', 'Receipt message.committed'], note: 'Server idempotency means a second copy can’t appear even if both attempts arrive.' },
+        { scr: 'reconnect', title: 'Reconnect and catch up', what: 'Missing messages are added in order under a divider.', ev: ['socket reconnect {cursor}', 'Receipts replayed in order'], note: 'Ordering comes from the server cursor, not the device clock.' },
+        { scr: 'revoked', title: 'A revoked share', what: 'Asha stopped sharing; the link resolves to an honest ended state with no content metadata.', ev: ['share.access_decision = revoked'], note: 'Revocation covers future reads; screenshots can’t be clawed back.' },
+        { scr: 'paused', title: 'Recording paused', what: 'Watching continues, but nothing shapes the universe — and no growth is claimed later. Messages are stored for conversations, not used as exploration evidence.', ev: ['CMD privacy.recording.set {on: false}'], note: 'Save, Share and Talk still work while paused.' },
+        { scr: 'resetConfirm', title: 'Clear exploration — one operation', what: 'Removes history, everything derived from it and the universe geography. Keep, conversations and threads stay.', ev: ['— confirmation only'], note: 'No time-range clearing in this version: its consequences for formed worlds aren’t defined.' },
+        { scr: 'resetReceipt', title: 'Honest receipt', what: 'Pending until every store confirms. A failure never reports completion.', ev: ['CMD privacy.clear_exploration', 'Receipt pending → completed | failed'], note: 'The privacy epoch advances, so late work for the old map can’t resurrect it.' }
+      ]},
+      { name: 'Back, step by step', steps: [
+        { scr: 'n1', title: 'Part 1 Reel · she taps Scroll', what: 'Asha came here from an Astronomy Reel. She is at 0:31 in Part 1 and switches format.', ev: ['CMD format.switch {to: scroll}'], note: 'A format switch is a history entry: Back returns to the other format at its position.', stack: S0 + ' › P1 Reel @0:31' },
+        { scr: 'n2', title: 'Part 1 Scroll · reads to the end', what: 'The end card offers Part 2 (yellow, arrow pointing to it), Related and Next subject. Reaching the end never moves her on its own.', ev: ['OBS scroll.block_coverage', 'CMD thread.continue {relation: series}'], note: 'Ending is communicated by the layout and controls, not by an annotation.', stack: S0 + ' › P1 Reel @0:31 › P1 Scroll @end' },
+        { scr: 'n3', title: 'Part 2 Reel · opens Share', what: 'Part 2 plays from the start; at 0:18 she taps Share.', ev: ['OBS share.sheet_opened'], note: 'Share is an overlay, not a history entry.', stack: S0 + ' › P1 Reel @0:31 › P1 Scroll @end › P2 Reel @0:18' },
+        { scr: 'n4', title: 'Share sheet over Part 2', what: 'Part 2 pauses underneath. Back (or Esc, or ×) closes the sheet first.', ev: ['OBS share.sheet_cancelled'], note: 'Stack unchanged: the sheet was never an entry.', stack: S0 + ' › P1 Reel @0:31 › P1 Scroll @end › P2 Reel @0:18  (+ Share overlay)' },
+        { scr: 'n5', title: 'Returned · Part 2 playing from 0:18', what: 'Closing the sheet resumes playback where it was. Now she presses Back.', ev: ['— none'], note: 'Closing an overlay is not a detour, so playback resumes.', stack: S0 + ' › P1 Reel @0:31 › P1 Scroll @end › P2 Reel @0:18' },
+        { scr: 'n6', title: 'Back #1 → Part 1 Scroll, at the end card', what: 'Exactly where she left the Scroll. Part 2 keeps its own position (0:18) if she goes forward again.', ev: ['— history pop'], note: 'Back is her own path, not “previous part” and not “previous subject”.', stack: S0 + ' › P1 Reel @0:31 › P1 Scroll @end' },
+        { scr: 'n7', title: 'Back #2 → Part 1 Reel, paused at 0:31', what: 'Paused, not playing: returning from a real detour never autoplays with sound.', ev: ['— history pop'], note: 'Swiping → here would mean “previous part in the thread” — a different command from Back.', stack: S0 + ' › P1 Reel @0:31' },
+        { scr: 'n8', title: 'Back #3 → the subject before Part 1', what: 'The Astronomy Reel she came from, paused at 0:12. One more Back follows platform convention (leave the app on Android, previous page on the web).', ev: ['— history pop'], note: 'Same rules on every surface: map camera, thread and branch positions restore the same way.', stack: S0 }
+      ]}
+    ];
+  }
+  renderVals() {
+    const st = this.state || {};
+    const j = st.j || 0;
+    const s = st.s || 0;
+    const lenIdx = st.lenIdx == null ? 1 : st.lenIdx;
+    const hintsOn = st.hintsOn !== false;
+    const all = this.data();
+    const jr = all[j];
+    const cur = jr.steps[s];
+    const scr = {};
+    all.forEach((x) => x.steps.forEach((y) => { scr[y.scr] = false; }));
+    scr[cur.scr] = true;
+    const lens = [512, 1024, 2048, 4096];
+    const len = lens[lenIdx];
+    const grow = len / 512;
+    return {
+      scr,
+      cur,
+      hasStack: !!cur.stack,
+      journeyName: jr.name,
+      stepNo: s + 1,
+      stepCount: jr.steps.length,
+      noPrev: s === 0,
+      noNext: s === jr.steps.length - 1,
+      hot: hintsOn ? 'hot' : '',
+      hintsOn: hintsOn ? 'true' : 'false',
+      toggleHints: () => this.setState({ hintsOn: !hintsOn }),
+      journeys: all.map((x, i) => ({
+        num: 'Journey ' + (i + 1),
+        name: x.name,
+        pressed: i === j ? 'true' : 'false',
+        bg: i === j ? '#111111' : '#FFFBF0',
+        fg: i === j ? '#FFFBF0' : '#111111',
+        pick: () => this.setState({ j: i, s: 0 })
+      })),
+      steps: jr.steps.map((y, i) => ({
+        n: String(i + 1).padStart(2, '0'),
+        title: y.title,
+        current: i === s ? 'step' : 'false',
+        bg: i === s ? '#FFE44D' : 'transparent',
+        pick: () => this.setState({ s: i })
+      })),
+      next: (e) => { if (e && e.preventDefault) e.preventDefault(); if (s < jr.steps.length - 1) this.setState({ s: s + 1 }); },
+      prev: () => { if (s > 0) this.setState({ s: s - 1 }); },
+      restart: () => this.setState({ s: 0 }),
+      lenIdx,
+      lenLabel: len.toLocaleString('en-US'),
+      grow,
+      factor: grow * grow,
+      sq: Math.round(36 * grow),
+      onLen: (e) => this.setState({ lenIdx: Number(e.target.value) })
+    };
+  }
+}
+</script>
+</body>
+</html>

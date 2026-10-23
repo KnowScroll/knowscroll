@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>C03 Thread invitation and membership</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.chead{position:absolute;left:0;right:0;top:44px;height:68px;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:2px solid #111111;background:#FFFBF0}
+.crow{display:flex;align-items:center;gap:12px;min-height:72px;padding:10px 20px;text-decoration:none;color:#111111;border-bottom:1px solid #D9D1BC}
+.avc{width:44px;height:44px;border-radius:999px;border:2px solid #111111;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-weight:800;font-size:17px;flex:none}
+.ctx{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.ctx b{font-size:15px}
+.ctx span{font-size:13px;color:#4A463D}
+.pres{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600}
+.pres i{width:8px;height:8px;border-radius:9px;display:inline-block}
+.mrow{display:flex;align-items:center;gap:12px;min-height:60px;border-bottom:1px solid #D9D1BC}
+.sysl{align-self:center;font-size:13px;font-weight:600;color:#4A463D;padding:8px 14px;border-radius:14px;background:#FFFBF0;border:1.5px solid #D9D1BC;text-align:center;line-height:1.4}
+.nc{min-width:52px;min-height:44px;padding:0 10px;border-radius:12px;border:2px solid #111111;background:#FFFBF0;display:inline-flex;align-items:center;justify-content:center;gap:5px;font-weight:700;font-size:14px;color:#111111}
+.sw{width:56px;height:32px;border-radius:999px;border:2px solid #111111;background:#F4EDD8;position:relative;padding:0;cursor:pointer;flex:none}
+.sw i{position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:999px;background:#111111}
+</style>
+</helmet>
+<div style="width: 1330px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">C03</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Thread invitation &amp; membership</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 760px">You can look before you join. Joining is one clear tap on Join thread; Ignore hides it quietly. What’s shared is stated once, plainly.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 RECEIVED -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Received · Ravi’s Talk</b><span>Preview to look · Join to join · Ignore hides</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; left: 20px; right: 16px; top: 56px; display: flex; align-items: center; justify-content: space-between">
+          <h2 class="disp" style="margin: 0; font-size: 36px; font-weight: 800">Talk</h2>
+        </div>
+        <section aria-label="New thread" style="position: absolute; left: 16px; right: 16px; top: 124px; border: 2px solid #111111; border-radius: 20px; background: #FFFBF0; box-shadow: 5px 5px 0 #FFE44D; padding: 14px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; gap: 12px; align-items: center">
+            <span aria-hidden="true" style="width: 52px; height: 52px; border-radius: 12px; background: #07070D; border: 2px solid #111111; display: flex; align-items: center; justify-content: center; flex: none"><svg width="38" height="38" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="none" stroke="#FFC46B" stroke-width="3"></circle><circle cx="20" cy="20" r="9" fill="#000000"></circle></svg></span>
+            <span style="display: flex; flex-direction: column; gap: 2px"><span class="mono" style="color: #4A463D">New thread</span><b style="font-size: 16px; line-height: 1.3">Asha started a thread · Black holes</b><span style="font-size: 13px; color: #4A463D">with you and Meera · 4 Reels</span></span>
+          </div>
+          <div class="sysl" style="align-self: stretch; text-align: left; display: flex; gap: 8px; align-items: flex-start">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="flex: none; margin-top: 2px"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+            <span>Your universe and history aren’t shared. You keep your own place in each Reel.</span>
+          </div>
+          <a href="C04-Thread.dc.html" style="align-self: flex-start; font-size: 14px; font-weight: 600; min-height: 44px; display: inline-flex; align-items: center">Preview the thread</a>
+          <div style="display: flex; gap: 10px">
+            <a class="btn pri" href="C04-Thread.dc.html" style="flex: 1">Join thread</a>
+            <button class="btn ghost" type="button" style="flex: 1">Ignore</button>
+          </div>
+        </section>
+        <nav aria-label="Conversations" style="position: absolute; left: 0; right: 0; top: 452px; display: flex; flex-direction: column; border-top: 1px solid #D9D1BC">
+          <a class="crow" href="C02-Conversation.dc.html"><span class="avc" style="background: #14C79B">A</span><span class="ctx"><b>Asha <span class="pres" style="color: #0B7A5F; margin-left: 4px"><i style="background: #14C79B"></i>Online</span></b><span>You: Did Part 2 load for you?</span></span><span class="mono" style="color: #4A463D">9:41</span></a>
+          <a class="crow" href="C02-Conversation.dc.html"><span class="avc" style="background: #F4EDD8">K</span><span class="ctx"><b>Kabir</b><span>Kabir: see you at the match</span></span><span class="mono" style="color: #4A463D">Sun</span></a>
+        </nav>
+        <div class="navslot"><dc-import name="NavBar" active="talk" tone="paper" unread="{{ true }}" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 2 MEMBERS -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Members sheet</b><span>Presence words only if each person allows</span></figcaption>
+      <div class="phone">
+        <div class="chead">
+          <a class="ibtn" href="C04-Thread.dc.html" aria-label="Back to thread" style="border: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+          <b class="disp" style="font-size: 19px; flex: 1">Black holes</b>
+        </div>
+        <div style="position: absolute; inset: 0; background: rgba(17,17,17,.4)"></div>
+        <div class="msheet" role="dialog" aria-label="People in this thread" style="top: 200px">
+          <div class="grab"></div>
+          <b class="disp" style="font-size: 22px">People in this thread</b>
+          <div style="display: flex; flex-direction: column">
+            <div class="mrow"><span class="avc" style="background: #14C79B">A</span><span class="ctx"><b>Asha</b><span class="pres" style="color: #0B7A5F"><i style="background: #14C79B"></i>Online · started this thread</span></span></div>
+            <div class="mrow"><span class="avc" style="background: #FFE44D">R</span><span class="ctx"><b>Ravi (you)</b><span>Your status: Online · <a href="F01-Friends.dc.html">change</a></span></span></div>
+            <div class="mrow"><span class="avc" style="background: #E6EAFF">M</span><span class="ctx"><b>Meera</b><span class="pres" style="color: #4A463D"><i style="border: 1.5px solid #0B7A5F"></i>Recently active</span></span></div>
+          </div>
+          <p style="margin: 0; font-size: 13px; line-height: 1.45; color: #4A463D">Status says whether someone’s around — never what they’re watching.</p>
+          <button class="btn" type="button" style="align-self: flex-start"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Add people</button>
+          <div style="display: flex; align-items: center; justify-content: space-between; min-height: 56px; border-top: 1px solid #D9D1BC">
+            <label for="c3-mute" style="display: flex; flex-direction: column; gap: 2px"><b style="font-size: 15px">Mute this thread</b><span style="font-size: 13px; color: #4A463D">Still in your Talk list, no alerts</span></label>
+            <button id="c3-mute" class="sw" type="button" role="switch" aria-checked="false" aria-label="Mute this thread"><i></i></button>
+          </div>
+          <button class="btn ghost" type="button" style="align-self: flex-start; color: #B23A0B; border-color: #B23A0B">Leave thread</button>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 3 ENDED / REMOVED / WITHDRAWN -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Ended · left · withdrawn</b><span>Honest lines, no error pages</span></figcaption>
+      <div class="phone">
+        <div class="chead">
+          <a class="ibtn" href="C01-Inbox.dc.html" aria-label="Back to Talk" style="border: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+          <b class="disp" style="font-size: 19px; flex: 1">Black holes</b>
+        </div>
+        <nav aria-label="Episodes in this thread" style="position: absolute; left: 0; right: 0; top: 112px; padding: 8px 10px; display: flex; gap: 6px; border-bottom: 1.5px solid #D9D1BC">
+          <span class="nc">1</span>
+          <span class="nc">2</span>
+          <span class="nc" style="border-style: dashed; color: #4A463D; text-decoration: line-through">3</span>
+          <span class="nc">4</span>
+        </nav>
+        <div style="position: absolute; left: 16px; right: 16px; top: 184px; display: flex; flex-direction: column; gap: 14px">
+          <span class="mono" style="color: #4A463D">Item withdrawn</span>
+          <div class="banner" style="background: #F4EDD8"><span><b>Part 3 is no longer available.</b> It was withdrawn after this thread started. Messages that mention it stay.</span></div>
+          <span class="mono" style="color: #4A463D">Thread ended by Asha</span>
+          <div class="banner"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="flex: none"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg><span><b>Asha ended this thread.</b> You can still read the conversation. Its Reels open from your own Explore or Keep, not from here.</span></div>
+          <span class="mono" style="color: #4A463D">You left</span>
+          <div class="banner"><span><b>You left this thread.</b> To come back, someone in it can add you again.</span></div>
+          <p style="margin: 0; font-size: 13px; line-height: 1.45; color: #4A463D">Anything you watched while you were here still shapes only your own universe.</p>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p>Created by H01 “Explore with friends” or C02 “Start a thread”. Recipients see a card in Talk and an optional notification. Preview opens <span class="ev">/thread/:threadId?preview</span> read-only (no messages sent, no presence shown); Join lands them at Part 1 as a member.</p></div>
+    <div class="note"><h3>Actions</h3><p><b>Primary:</b> Join thread. <b>Secondary:</b> Preview, Ignore, and after joining Mute, Leave, Add people (respects blocks), own status (F02). <b>Product decision (v2.1):</b> joining is one tap on Join; preview first, no separate accept/decline ceremony; Ignore hides it without telling Asha.</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>new · previewing (not a member) · joined · ignored (hidden, can still be found under Hidden) · muted · left · removed · ended by starter · item withdrawn/corrected · blocked person can’t be added (no hint why). People who hide status show no label.</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">CMD thread.join · thread.ignore · thread.mute · thread.leave · thread.add_member{handle} · thread.end · thread.remove_member<br>Presence: coarse state honouring each member’s setting.<br>Membership never merges universes or shares positions.</p></div>
+    <div class="note"><h3>Restore</h3><p>Re-opening returns each person to their own item, playhead and conversation scroll. After ending or removal, a stale link lands on the thread with the ended line — never an error page.</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>The new-thread card is a labelled region with real buttons. Presence is text, not just a dot. Leave is a destructive action with its own confirmation sheet. Native: notification opens the thread; web: the same link.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1330,"height":1480}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

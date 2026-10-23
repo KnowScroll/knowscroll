@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>E03 Interactive block gallery</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.prose{font-size:18px;line-height:28px;margin:0}
+.blk{margin:0;border:2px solid #111111;border-radius:16px;padding:14px;background:#FFFBF0;display:flex;flex-direction:column;gap:12px}
+.own{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:6px;background:#111111;color:#FFFBF0;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.mini{position:absolute;left:16px;right:16px;top:56px;display:flex;align-items:center;gap:10px}
+</style>
+</helmet>
+<div style="width: 1752px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">E03</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Interactive block gallery</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 980px">Approved block types inside “Attention, slowly”. Each block says whether it captures gestures, has a text alternative and keeps its own state per article revision.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 DIAGRAM -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Diagram · draggable</b><span>Component owns the drag</span></figcaption>
+      <div class="phone">
+        <div class="mini">
+          <button class="ibtn" type="button" aria-label="Back to the Reel"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+          <span class="mono" style="color: #4A463D">Attention, slowly</span>
+        </div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 128px; display: flex; flex-direction: column; gap: 14px">
+          <p class="prose" style="padding: 0 4px">Try it: move “it” toward a word and watch where its attention goes.</p>
+          <div class="blk" style="box-shadow: 0 0 0 3px #FFE44D">
+            <div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 15px; font-weight: 600">Drag ‘it’ toward another word</span></div>
+            <svg role="img" aria-label="Interactive diagram. The word 'it' is connected to other words; the thickest line goes to 'animal'." width="318" height="300" viewBox="0 0 318 300">
+              <rect x="0" y="0" width="318" height="300" rx="12" fill="#2C46E8"></rect>
+              <g stroke="#FFE44D" stroke-linecap="round" fill="none"><path d="M170 170 L 76 72" stroke-width="8"></path><path d="M170 170 L 250 74" stroke-width="2"></path><path d="M170 170 L 70 240" stroke-width="3.5"></path><path d="M170 170 L 258 240" stroke-width="1.2"></path></g>
+              <g font-family="Instrument Sans, sans-serif" font-size="14" font-weight="600">
+                <rect x="30" y="54" width="92" height="34" rx="17" fill="#FFFBF0"></rect><text x="76" y="76" text-anchor="middle" fill="#111111">animal</text>
+                <rect x="212" y="56" width="78" height="34" rx="17" fill="#FFFBF0"></rect><text x="251" y="78" text-anchor="middle" fill="#111111">street</text>
+                <rect x="28" y="224" width="84" height="34" rx="17" fill="#FFFBF0"></rect><text x="70" y="246" text-anchor="middle" fill="#111111">tired</text>
+                <rect x="222" y="224" width="74" height="34" rx="17" fill="#FFFBF0"></rect><text x="259" y="246" text-anchor="middle" fill="#111111">cross</text>
+              </g>
+              <circle cx="170" cy="170" r="34" fill="#FFE44D" fill-opacity=".25"></circle>
+              <rect x="140" y="150" width="60" height="40" rx="20" fill="#FFE44D" stroke="#111111" stroke-width="2.5"></rect>
+              <text x="170" y="176" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="18" font-weight="700" fill="#111111">it</text>
+              <g fill="#111111"><circle cx="158" cy="200" r="2"></circle><circle cx="166" cy="200" r="2"></circle><circle cx="174" cy="200" r="2"></circle><circle cx="182" cy="200" r="2"></circle></g>
+            </svg>
+            <div style="display: flex; gap: 10px">
+              <button class="btn sm" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7"></path><path d="M4 4v5h5"></path></svg>Reset</button>
+              <button class="btn sm ghost" type="button">Describe this diagram</button>
+            </div>
+          </div>
+          <p class="prose" style="padding: 0 4px; color: #4A463D">Thicker line, more attention.</p>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 2 COMPARISON + SLIDER -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Comparison + slider</b><span>Slider owns horizontal drag</span></figcaption>
+      <div class="phone">
+        <div class="mini">
+          <button class="ibtn" type="button" aria-label="Back to the Reel"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+          <span class="mono" style="color: #4A463D">Attention, slowly</span>
+        </div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 128px; display: flex; flex-direction: column; gap: 16px">
+          <div class="blk">
+            <span class="mono" style="color: #4A463D">Two ways to read</span>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+              <div style="border: 1.5px solid #111111; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: #F4EDD8">
+                <b style="font-size: 15px">One word at a time</b>
+                <svg aria-hidden="true" width="120" height="28" viewBox="0 0 120 28"><g fill="#111111"><rect x="0" y="8" width="18" height="12" rx="3"></rect><rect x="26" y="8" width="18" height="12" rx="3" opacity=".6"></rect><rect x="52" y="8" width="18" height="12" rx="3" opacity=".35"></rect><rect x="78" y="8" width="18" height="12" rx="3" opacity=".2"></rect></g><path d="M18 14h8M44 14h8M70 14h8" stroke="#111111" stroke-width="2"></path></svg>
+                <span style="font-size: 14px; line-height: 1.4">Early words fade by the time the end arrives.</span>
+              </div>
+              <div style="border: 1.5px solid #111111; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: #FFF4C2">
+                <b style="font-size: 15px">All words at once</b>
+                <svg aria-hidden="true" width="120" height="28" viewBox="0 0 120 28"><g fill="#2C46E8"><rect x="0" y="8" width="18" height="12" rx="3"></rect><rect x="26" y="8" width="18" height="12" rx="3"></rect><rect x="52" y="8" width="18" height="12" rx="3"></rect><rect x="78" y="8" width="18" height="12" rx="3"></rect></g><path d="M9 8 C 30 -4, 60 -4, 87 8" stroke="#111111" stroke-width="1.5" fill="none"></path></svg>
+                <span style="font-size: 14px; line-height: 1.4">Every word can reach every other directly.</span>
+              </div>
+            </div>
+          </div>
+          <div class="blk" style="box-shadow: 0 0 0 3px #FFE44D">
+            <div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 15px; font-weight: 600">Try a longer sentence</span></div>
+            <label for="e03-len" style="font-size: 15px; font-weight: 600">Sentence length</label>
+            <div style="position: relative; height: 48px; display: flex; align-items: center">
+              <div style="position: absolute; left: 0; right: 0; height: 6px; border-radius: 6px; background: #F4EDD8; border: 1.5px solid #111111"></div>
+              <div style="position: absolute; left: 0; width: 100%; height: 6px; border-radius: 6px; background: #2C46E8"></div>
+              <span id="e03-len" role="slider" tabindex="0" aria-valuemin="512" aria-valuemax="4096" aria-valuenow="4096" aria-valuetext="4,096 words, about 64 times the work" aria-label="Sentence length" style="position: absolute; right: -2px; width: 32px; height: 32px; border-radius: 999px; background: #FFE44D; border: 2.5px solid #111111"></span>
+            </div>
+            <div style="display: flex; justify-content: space-between" class="mono"><span>512 words</span><span>4,096 words</span></div>
+            <div style="display: flex; align-items: baseline; gap: 10px; border-top: 1.5px solid #111111; padding-top: 10px">
+              <b class="disp" style="font-size: 40px; line-height: 1">~64×</b>
+              <span style="font-size: 15px; line-height: 1.4">the work of 512 words. Eight times longer, about sixty-four times the work.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 3 DISCLOSURE + CODE -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Disclosure + code</b><span>Code scrolls sideways inside the block</span></figcaption>
+      <div class="phone">
+        <div class="mini">
+          <button class="ibtn" type="button" aria-label="Back to the Reel"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+          <span class="mono" style="color: #4A463D">Attention, slowly</span>
+        </div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 128px; display: flex; flex-direction: column; gap: 16px">
+          <div class="blk" style="padding: 0; overflow: hidden">
+            <button type="button" aria-expanded="true" style="display: flex; justify-content: space-between; align-items: center; min-height: 56px; padding: 0 16px; border: 0; border-bottom: 2px solid #111111; background: #FFE44D; font-weight: 700; font-size: 16px; cursor: pointer; text-align: left">Why squared?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15l7-7 7 7"></path></svg></button>
+            <p style="margin: 0; padding: 14px 16px 16px; font-size: 16px; line-height: 1.5">Each of the n words compares itself with all n words, so the work is n × n. Ten times more words means about a hundred times more comparisons.</p>
+          </div>
+          <div class="blk" style="padding: 0; overflow: hidden; background: #111111; color: #FFFBF0; border-color: #111111">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 6px 6px 14px; border-bottom: 1px solid rgba(255,251,240,.2)">
+              <span class="mono" style="color: rgba(255,251,240,.72)">Python · attention</span>
+              <button class="btn sm" type="button" style="background: #FFFBF0; box-shadow: none; border-color: #FFFBF0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V4H4v12h4"></path></svg>Copy</button>
+            </div>
+            <pre tabindex="0" aria-label="Code example, scrolls horizontally" style="margin: 0; padding: 14px; overflow-x: auto; font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; line-height: 1.6; color: #FFFBF0; white-space: pre"><span style="color: #FFE44D">import</span> numpy <span style="color: #FFE44D">as</span> np
+<span style="color: #FFE44D">def</span> <span style="color: #14C79B">attention</span>(q, k, v):
+    scores = q @ k.T / np.sqrt(k.shape[-1])
+    weights = np.exp(scores - scores.max(-1, keepdims=True))
+    weights /= weights.sum(-1, keepdims=True)
+    <span style="color: #FFE44D">return</span> weights @ v</pre>
+            <div aria-hidden="true" style="height: 4px; margin: 0 14px 12px; background: rgba(255,251,240,.15); border-radius: 4px"><i style="display: block; width: 55%; height: 4px; border-radius: 4px; background: rgba(255,251,240,.6)"></i></div>
+          </div>
+          <p class="prose" style="padding: 0 4px">The <code style="font-family: 'DM Mono', monospace; font-size: 15px; background: #F4EDD8; padding: 1px 5px; border-radius: 4px">q @ k.T</code> line is the n × n grid from before.</p>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 4 ACCESSIBLE ALTERNATIVE -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Text version</b><span>Table + stepper, keyboard focus shown</span></figcaption>
+      <div class="phone">
+        <div class="mini">
+          <button class="ibtn" type="button" aria-label="Back to the Reel"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+          <span class="mono" style="color: #4A463D">Attention, slowly</span>
+        </div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 128px; display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; align-items: center; justify-content: space-between; min-height: 52px; border: 2px solid #111111; border-radius: 14px; padding: 0 12px">
+            <label for="e03-tv" style="font-size: 15px; font-weight: 600">Text version of diagrams</label>
+            <button id="e03-tv" type="button" role="switch" aria-checked="true" aria-label="Text version of diagrams" style="width: 56px; height: 32px; border-radius: 999px; border: 2px solid #111111; background: #2C46E8; position: relative; padding: 0; cursor: pointer"><i style="position: absolute; right: 3px; top: 3px; width: 22px; height: 22px; border-radius: 999px; background: #FFFBF0"></i></button>
+          </div>
+          <div class="blk">
+            <span class="mono" style="color: #4A463D">Where “it” looks</span>
+            <table style="width: 100%; border-collapse: collapse; font-size: 16px">
+              <caption style="text-align: left; font-size: 14px; color: #4A463D; padding-bottom: 6px">Attention from “it” to each word</caption>
+              <thead><tr><th scope="col" style="text-align: left; padding: 8px 4px; border-bottom: 2px solid #111111">Word</th><th scope="col" style="text-align: left; padding: 8px 4px; border-bottom: 2px solid #111111">Attention</th></tr></thead>
+              <tbody>
+                <tr><td style="padding: 8px 4px; border-bottom: 1px solid #D9D1BC"><b>animal</b></td><td style="padding: 8px 4px; border-bottom: 1px solid #D9D1BC">Most</td></tr>
+                <tr><td style="padding: 8px 4px; border-bottom: 1px solid #D9D1BC">tired</td><td style="padding: 8px 4px; border-bottom: 1px solid #D9D1BC">Some</td></tr>
+                <tr><td style="padding: 8px 4px; border-bottom: 1px solid #D9D1BC">street</td><td style="padding: 8px 4px; border-bottom: 1px solid #D9D1BC">Little</td></tr>
+                <tr><td style="padding: 8px 4px">cross</td><td style="padding: 8px 4px">Very little</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="blk">
+            <span class="mono" style="color: #4A463D">Sentence length</span>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px">
+              <button class="ibtn" type="button" aria-label="Shorter"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+              <div role="status" style="display: flex; flex-direction: column; align-items: center"><b class="disp" style="font-size: 26px">4,096 words</b><span style="font-size: 14px; color: #4A463D">about 64× the work of 512</span></div>
+              <button class="ibtn" type="button" aria-label="Longer" style="outline: 3px solid #2C46E8; outline-offset: 3px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p>Blocks live inside <span class="ev">/s/:id</span>; each has an immutable <span class="ev">blockId</span> and a versioned type (diagram.v1, compare.v1, slider.v1, disclosure.v1, code.v1). Parameters are bounded; no arbitrary model HTML or JS ever runs.</p></div>
+    <div class="note"><h3>Actions</h3><p>Drag the word · Reset · Describe · move the slider · expand or collapse · copy code · switch to the text version. Each block declares <b>captures gesture</b> yes/no; the article never steals a gesture a block has claimed.</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>idle · interacting (yellow ring only; no ownership wording in the UI) · expanded/collapsed · copied (button reads “Copied”) · text version · render fallback (E02-4) · revision changed (state reset with notice).</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">OBS scroll.block_interaction{blockId, kind} — deliberate interaction only, summarised; no raw pointer frames<br>OBS scroll.block_coverage{blockId}</p></div>
+    <div class="note"><h3>Restore</h3><p>Block state (slider value, word position, expanded) persists by article revision + blockId and comes back after Share/Ask/back. A new revision needs an explicit compatible migration, otherwise the block resets and says so.</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>Slider: arrow keys change it by one step, Home/End jump to the ends, valuetext is spoken. The diagram has an aria-label and a table alternative. Code is focusable for keyboard scrolling. Tab order follows reading order. Native: the slider uses a gesture handler that wins against vertical scroll only after the horizontal axis is locked.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1752,"height":1480}}'>class Component extends DCLogic { renderVals() { return {}; } }</script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>Operator appendix — logging views</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#F2F2F2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.m{font-family:'DM Mono',ui-monospace,Menlo,monospace}
+.view{background:#FFFFFF;border:1px solid #BDBDBD;border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.view h2{margin:0;font-family:'DM Mono',ui-monospace,monospace;font-size:15px;font-weight:500;letter-spacing:.02em}
+.src{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:#555555}
+.pg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pn{border:1px solid #CFCFCF;border-radius:4px;background:#FAFAFA;padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-height:64px}
+.pn b{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;font-weight:500;color:#333333}
+.pn i{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:12px;color:#757575}
+.spark{height:18px;border-bottom:1px dashed #BDBDBD}
+.note{font-size:12.5px;line-height:1.45;color:#333333;margin:0}
+.chip{display:inline-flex;align-items:center;height:24px;padding:0 8px;border:1px solid #9E9E9E;border-radius:4px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;background:#FFFFFF;color:#222222;white-space:nowrap}
+.step{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid #9E9E9E;border-radius:6px;background:#FFFFFF;min-width:0}
+.step b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;font-weight:500}
+.step span{font-size:12px;color:#555555;line-height:1.35}
+.arrow{font-family:'DM Mono',ui-monospace,monospace;color:#757575;align-self:center}
+.list{display:flex;flex-wrap:wrap;gap:6px}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="Operator"><div data-dc-tpl="3" style="width: 1440px; height: 1500px; padding: 72px 96px; background: rgb(242, 242, 242); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; display: flex; flex-direction: column; gap: 26px;">
+
+  <header data-dc-tpl="4" style="display: flex; flex-direction: column; gap: 10px; padding-bottom: 18px; border-bottom: 2px solid rgb(17, 17, 17);">
+    <div data-dc-tpl="5" style="display: flex; gap: 10px; align-items: center;">
+      <span data-dc-tpl="6" class="mono" style="background: rgb(17, 17, 17); color: rgb(255, 255, 255); padding: 6px 10px; border-radius: 4px;">OPS</span>
+      <span data-dc-tpl="7" class="mono" style="border: 1px solid rgb(17, 17, 17); padding: 5px 9px; border-radius: 4px;">Appendix · not consumer UI</span>
+      <span data-dc-tpl="8" class="mono" style="margin-left: auto; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 4px;">Prototype · design data</span>
+    </div>
+    <h1 data-dc-tpl="9" class="m" style="margin: 0px; font-size: 40px; font-weight: 500; letter-spacing: -0.01em;">Operator appendix — logging views</h1>
+    <p data-dc-tpl="10" style="margin: 0px; font-size: 15px; line-height: 1.5; max-width: 1100px;">Private tooling, never shown in the consumer app. Reuses Grafana + Loki + Tempo + Alloy + a Prometheus-compatible metrics store + a narrow, audited, read-only domain-receipt query. <b data-dc-tpl="11">Proposed, not deployed.</b> Panels below are wireframes: values are placeholders, not measurements. Dashboards and saved queries live in source control under <span data-dc-tpl="12" class="m">ops/observability/</span>.</p>
+  </header>
+
+  <div data-dc-tpl="13" style="display: grid; grid-template-columns: repeat(3, minmax(0px, 1fr)); gap: 20px;">
+
+    <section data-dc-tpl="14" class="view">
+      <h2 data-dc-tpl="15">1 · System overview</h2>
+      <span data-dc-tpl="16" class="src">metrics store · Loki (service/env/severity) · exporter health</span>
+      <div data-dc-tpl="17" class="pg">
+        <div data-dc-tpl="18" class="pn"><b data-dc-tpl="19">service health</b><i data-dc-tpl="20">api · workers · realtime: [up/down]</i></div>
+        <div data-dc-tpl="21" class="pn"><b data-dc-tpl="22">queue wait (age)</b><div data-dc-tpl="23" class="spark"></div><i data-dc-tpl="24">— by queue</i></div>
+        <div data-dc-tpl="25" class="pn"><b data-dc-tpl="26">ingestion / projection lag</b><div data-dc-tpl="27" class="spark"></div><i data-dc-tpl="28">—</i></div>
+        <div data-dc-tpl="29" class="pn"><b data-dc-tpl="30">request latency</b><div data-dc-tpl="31" class="spark"></div><i data-dc-tpl="32">p50 / p95 —</i></div>
+        <div data-dc-tpl="33" class="pn"><b data-dc-tpl="34">provider failure · unknown rate</b><i data-dc-tpl="35">failed — · unknown —</i></div>
+        <div data-dc-tpl="36" class="pn"><b data-dc-tpl="37">media disk · exporter health</b><i data-dc-tpl="38">[value] · collector lag —</i></div>
+      </div>
+      <p data-dc-tpl="39" class="note">Unknown outcomes are their own series, never folded into success or failure.</p>
+    </section>
+
+    <section data-dc-tpl="40" class="view">
+      <h2 data-dc-tpl="41">2 · Journey search</h2>
+      <span data-dc-tpl="42" class="src">Loki structured fields · Tempo trace links · scoped receipt query</span>
+      <div data-dc-tpl="43" style="display: flex; gap: 8px;">
+        <div data-dc-tpl="44" style="flex: 1 1 0%; border: 1px solid rgb(117, 117, 117); border-radius: 4px; height: 36px; display: flex; align-items: center; padding: 0px 10px; font-family: &quot;DM Mono&quot;, monospace; font-size: 12px; color: rgb(117, 117, 117);">operationId | receiptId | encounterId | demandId</div>
+        <div data-dc-tpl="45" style="border: 1px solid rgb(117, 117, 117); border-radius: 4px; height: 36px; display: flex; align-items: center; padding: 0px 10px; font-family: &quot;DM Mono&quot;, monospace; font-size: 12px;">last 24h</div>
+      </div>
+      <div data-dc-tpl="46" style="display: flex; flex-direction: column; gap: 6px;">
+        <div data-dc-tpl="47" class="pn" style="min-height: 0px; flex-direction: row; align-items: center; justify-content: space-between;"><b data-dc-tpl="48">command.admitted</b><i data-dc-tpl="49">— ms</i></div>
+        <div data-dc-tpl="50" class="pn" style="min-height: 0px; flex-direction: row; align-items: center; justify-content: space-between;"><b data-dc-tpl="51">↳ job.attempt (linked by causationId)</b><i data-dc-tpl="52">outcome —</i></div>
+        <div data-dc-tpl="53" class="pn" style="min-height: 0px; flex-direction: row; align-items: center; justify-content: space-between;"><b data-dc-tpl="54">↳ receipt.committed</b><i data-dc-tpl="55">trace ↗</i></div>
+      </div>
+      <p data-dc-tpl="56" class="note">Search by account needs a separate authorised resolution step; handles and emails never appear in logs.</p>
+    </section>
+
+    <section data-dc-tpl="57" class="view">
+      <h2 data-dc-tpl="58">3 · Content production</h2>
+      <span data-dc-tpl="59" class="src">Loki · Tempo · production decision records</span>
+      <div data-dc-tpl="60" class="pg">
+        <div data-dc-tpl="61" class="pn"><b data-dc-tpl="62">supply decision</b><i data-dc-tpl="63">reuse · join · adapt · create</i></div>
+        <div data-dc-tpl="64" class="pn"><b data-dc-tpl="65">where it waited</b><i data-dc-tpl="66">admission → queue → provider → checks</i></div>
+        <div data-dc-tpl="67" class="pn"><b data-dc-tpl="68">provider usage / cost</b><i data-dc-tpl="69">known · estimated · unknown</i></div>
+        <div data-dc-tpl="70" class="pn"><b data-dc-tpl="71">publication checks</b><i data-dc-tpl="72">passed · refused (reasonCode)</i></div>
+      </div>
+      <p data-dc-tpl="73" class="note">One shared job can serve several private requests; the links stay in scoped records, not a user list in logs.</p>
+    </section>
+
+    <section data-dc-tpl="74" class="view">
+      <h2 data-dc-tpl="75">4 · Universe change</h2>
+      <span data-dc-tpl="76" class="src">Cartographer decision records · scene projection</span>
+      <div data-dc-tpl="77" style="display: flex; flex-direction: column; gap: 6px;">
+        <div data-dc-tpl="78" class="pn" style="min-height: 0px;"><b data-dc-tpl="79">evidence revisions (ids)</b><i data-dc-tpl="80">[evidenceRevisionId …]</i></div>
+        <div data-dc-tpl="81" class="pn" style="min-height: 0px;"><b data-dc-tpl="82">proposal operations</b><i data-dc-tpl="83">form_planet · add_region …</i></div>
+        <div data-dc-tpl="84" class="pn" style="min-height: 0px;"><b data-dc-tpl="85">validator reasons</b><i data-dc-tpl="86">applied · stale · refused + reasonCode</i></div>
+        <div data-dc-tpl="87" class="pn" style="min-height: 0px;"><b data-dc-tpl="88">committed delta → scene revision</b><i data-dc-tpl="89">deltaId → sceneRevision · fallback?</i></div>
+      </div>
+      <p data-dc-tpl="90" class="note"><b data-dc-tpl="91">No psychological interpretation panel.</b> This view explains a change, never what a person “is”.</p>
+    </section>
+
+    <section data-dc-tpl="92" class="view">
+      <h2 data-dc-tpl="93">5 · Realtime delivery</h2>
+      <span data-dc-tpl="94" class="src">outbox records · Socket.IO adapter logs · Tempo</span>
+      <div data-dc-tpl="95" class="pg">
+        <div data-dc-tpl="96" class="pn"><b data-dc-tpl="97">message receipt</b><i data-dc-tpl="98">receiptId · committed at</i></div>
+        <div data-dc-tpl="99" class="pn"><b data-dc-tpl="100">outbox publish attempts</b><i data-dc-tpl="101">attempt — · outcome —</i></div>
+        <div data-dc-tpl="102" class="pn"><b data-dc-tpl="103">reconnect catch-up</b><i data-dc-tpl="104">cursor from → to</i></div>
+        <div data-dc-tpl="105" class="pn"><b data-dc-tpl="106">membership refusals</b><i data-dc-tpl="107">reasonCode —</i></div>
+      </div>
+      <p data-dc-tpl="108" class="note">Message bodies are omitted everywhere in this view.</p>
+    </section>
+
+    <section data-dc-tpl="109" class="view">
+      <h2 data-dc-tpl="110">6 · Privacy &amp; diagnostics health</h2>
+      <span data-dc-tpl="111" class="src">privacy receipts · retention jobs · collector stats</span>
+      <div data-dc-tpl="112" class="pg">
+        <div data-dc-tpl="113" class="pn"><b data-dc-tpl="114">scoped erasure completion</b><i data-dc-tpl="115">pending · complete · failed</i></div>
+        <div data-dc-tpl="116" class="pn"><b data-dc-tpl="117">remaining store obligations</b><i data-dc-tpl="118">db · logs · traces · exports · dead-letter</i></div>
+        <div data-dc-tpl="119" class="pn"><b data-dc-tpl="120">retention jobs</b><i data-dc-tpl="121">last run — · outcome —</i></div>
+        <div data-dc-tpl="122" class="pn"><b data-dc-tpl="123">dropped diagnostics · known gaps</b><i data-dc-tpl="124">count — · sampled / expired / erased</i></div>
+      </div>
+      <p data-dc-tpl="125" class="note">Erased data shows as “erased”, never reconstructed from logs.</p>
+    </section>
+  </div>
+
+  <section data-dc-tpl="126" class="view" style="gap: 14px;">
+    <h2 data-dc-tpl="127">Worked example — “Asha requests a Scroll and it never appears”</h2>
+    <div data-dc-tpl="128" style="display: grid; grid-template-columns: minmax(0px, 1fr) 20px minmax(0px, 1fr) 20px minmax(0px, 1fr) 20px minmax(0px, 1fr) 20px minmax(0px, 1.2fr); gap: 6px;">
+      <div data-dc-tpl="129" class="step"><b data-dc-tpl="130">demand.admitted</b><span data-dc-tpl="131">receipt for the format request</span></div><span data-dc-tpl="132" class="arrow">→</span>
+      <div data-dc-tpl="133" class="step"><b data-dc-tpl="134">supply.joined</b><span data-dc-tpl="135">joined an existing compatible job</span></div><span data-dc-tpl="136" class="arrow">→</span>
+      <div data-dc-tpl="137" class="step"><b data-dc-tpl="138">provider.attempt_sent</b><span data-dc-tpl="139">attemptId · tool/model version</span></div><span data-dc-tpl="140" class="arrow">→</span>
+      <div data-dc-tpl="141" class="step"><b data-dc-tpl="142">provider.outcome_unknown</b><span data-dc-tpl="143">timeout; no response recorded</span></div><span data-dc-tpl="144" class="arrow">→</span>
+      <div data-dc-tpl="145" class="step" style="border-style: dashed; border-color: rgb(178, 58, 11);"><b data-dc-tpl="146">no asset.published</b><span data-dc-tpl="147">reconciliation pending — do not blindly re-issue a paid generation</span></div>
+    </div>
+    <p data-dc-tpl="148" class="note">If publication did succeed but the client stayed on “Preparing”, follow the outbox notice → socket reconnect cursor → client cache refresh instead. The investigation never needs Asha’s request text.</p>
+  </section>
+
+  <div data-dc-tpl="149" style="display: grid; grid-template-columns: minmax(0px, 1.5fr) minmax(0px, 1fr) minmax(0px, 1fr); gap: 20px;">
+    <section data-dc-tpl="150" class="view">
+      <h2 data-dc-tpl="151">Safe fields</h2>
+      <div data-dc-tpl="152" class="list">
+        <span data-dc-tpl="153" class="chip">schemaVersion</span><span data-dc-tpl="154" class="chip">event</span><span data-dc-tpl="155" class="chip">severity</span><span data-dc-tpl="156" class="chip">timestamp</span><span data-dc-tpl="157" class="chip">service/module</span><span data-dc-tpl="158" class="chip">environment</span><span data-dc-tpl="159" class="chip">build revision</span><span data-dc-tpl="160" class="chip">outcome</span><span data-dc-tpl="161" class="chip">reasonCode</span><span data-dc-tpl="162" class="chip">operationId</span><span data-dc-tpl="163" class="chip">requestId</span><span data-dc-tpl="164" class="chip">commandId</span><span data-dc-tpl="165" class="chip">causationId</span><span data-dc-tpl="166" class="chip">correlationId</span><span data-dc-tpl="167" class="chip">encounterId</span><span data-dc-tpl="168" class="chip">demandId</span><span data-dc-tpl="169" class="chip">jobId</span><span data-dc-tpl="170" class="chip">attemptId</span><span data-dc-tpl="171" class="chip">proposalId</span><span data-dc-tpl="172" class="chip">deltaId</span><span data-dc-tpl="173" class="chip">receiptId</span><span data-dc-tpl="174" class="chip">contentRevisionId</span><span data-dc-tpl="175" class="chip">traceId/spanId</span><span data-dc-tpl="176" class="chip">policy/model/prompt/tool/schema versions</span><span data-dc-tpl="177" class="chip">durationMs</span>
+      </div>
+      <p data-dc-tpl="178" class="note">Opaque IDs are still personal metadata: their mappings and copies are included in erasure.</p>
+    </section>
+    <section data-dc-tpl="179" class="view" style="border-color: rgb(178, 58, 11);">
+      <h2 data-dc-tpl="180" style="color: rgb(138, 44, 7);">Never logged</h2>
+      <ul data-dc-tpl="181" style="margin: 0px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.4;">
+        <li data-dc-tpl="182">message / chat bodies</li>
+        <li data-dc-tpl="183">request text</li>
+        <li data-dc-tpl="184">prompts and responses</li>
+        <li data-dc-tpl="185">emails, phones, handles</li>
+        <li data-dc-tpl="186">credentials, session tokens</li>
+        <li data-dc-tpl="187">signed URLs</li>
+        <li data-dc-tpl="188">SQL bind values</li>
+        <li data-dc-tpl="189">raw pointer / keystroke data</li>
+      </ul>
+    </section>
+    <section data-dc-tpl="190" class="view">
+      <h2 data-dc-tpl="191">Labels &amp; retention</h2>
+      <p data-dc-tpl="192" class="note"><b data-dc-tpl="193">Loki labels:</b> only <span data-dc-tpl="194" class="m">service</span>, <span data-dc-tpl="195" class="m">environment</span>, <span data-dc-tpl="196" class="m">severity</span>. Every ID is a structured field, never a label.</p>
+      <table data-dc-tpl="197" style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+        <tr data-dc-tpl="198"><td data-dc-tpl="199" style="padding: 5px 0px; border-bottom: 1px solid rgb(221, 221, 221);">debug capture (when enabled)</td><td data-dc-tpl="200" class="m" style="padding: 5px 0px; border-bottom: 1px solid rgb(221, 221, 221); text-align: right;">48h</td></tr>
+        <tr data-dc-tpl="201"><td data-dc-tpl="202" style="padding: 5px 0px; border-bottom: 1px solid rgb(221, 221, 221);">operational logs</td><td data-dc-tpl="203" class="m" style="padding: 5px 0px; border-bottom: 1px solid rgb(221, 221, 221); text-align: right;">14d</td></tr>
+        <tr data-dc-tpl="204"><td data-dc-tpl="205" style="padding: 5px 0px; border-bottom: 1px solid rgb(221, 221, 221);">traces</td><td data-dc-tpl="206" class="m" style="padding: 5px 0px; border-bottom: 1px solid rgb(221, 221, 221); text-align: right;">7d</td></tr>
+        <tr data-dc-tpl="207"><td data-dc-tpl="208" style="padding: 5px 0px;">domain records</td><td data-dc-tpl="209" style="padding: 5px 0px; text-align: right;">product retention policy</td></tr>
+      </table>
+      <p data-dc-tpl="210" class="note">All durations proposed; size against the actual VPS before launch.</p>
+    </section>
+  </div></div></div></div>
+
+
+
+</body></html>

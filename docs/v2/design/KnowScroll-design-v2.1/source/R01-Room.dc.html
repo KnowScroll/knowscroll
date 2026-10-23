@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R01 Cosmic room preview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.rhead{position:absolute;left:0;right:0;top:0;height:236px;background:#040A17;color:#FFFBF0;padding:56px 16px 16px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.prow{display:flex;align-items:center;gap:10px;min-height:44px;font-size:15px}
+</style>
+</helmet>
+<div style="width: 1330px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">R01</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Cosmic room preview</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 760px">A room is a station in your own geography. One room, one identity — but it sits wherever it fits on each person’s map. No activity counts.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 STATION ON MAP -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Station on Asha’s map</b><span>Between ML and Backend</span></figcaption>
+      <div class="phone sp">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0">
+          <g fill="#FFFBF0" opacity=".5"><circle cx="30" cy="120" r="1"></circle><circle cx="120" cy="80" r="1.2"></circle><circle cx="300" cy="140" r="1"></circle><circle cx="360" cy="90" r=".8"></circle><circle cx="60" cy="460" r="1"></circle><circle cx="350" cy="420" r="1.1"></circle><circle cx="200" cy="560" r=".9"></circle></g>
+          <ellipse cx="110" cy="250" rx="96" ry="34" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <ellipse cx="110" cy="250" rx="58" ry="20" fill="none" stroke="#FFFBF0" stroke-opacity=".14" stroke-width="1.2"></ellipse>
+          <circle cx="110" cy="250" r="30" fill="#FFE9A8" opacity=".12"></circle>
+          <circle cx="110" cy="250" r="14" fill="#FFE9A8"></circle>
+          <circle cx="196" cy="232" r="13" fill="#2BC4B4"></circle><path d="M188 228l6-5 8 2 2 6-6 5-8-2z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="1"></path>
+          <circle cx="62" cy="270" r="9" fill="#2BC4B4"></circle>
+          <ellipse cx="300" cy="400" rx="56" ry="20" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+          <circle cx="300" cy="400" r="11" fill="#FFE9A8"></circle>
+          <circle cx="352" cy="394" r="10" fill="#6E86FF"></circle><path d="M344 392h16M345 398h14" stroke="#C9D3FF" stroke-width="1.6"></path>
+          <path d="M140 270 Q 200 320 236 330" fill="none" stroke="#FFFBF0" stroke-opacity=".35" stroke-width="1.4" stroke-dasharray="3 6"></path>
+          <path d="M268 342 Q 290 360 296 384" fill="none" stroke="#FFFBF0" stroke-opacity=".35" stroke-width="1.4" stroke-dasharray="3 6"></path>
+          <circle cx="252" cy="336" r="26" fill="#FFE44D" opacity=".12"></circle>
+          <rect x="238" y="328" width="28" height="15" rx="4" fill="none" stroke="#FFFBF0" stroke-width="2.2"></rect><path d="M226 335.5h12M266 335.5h12" stroke="#FFFBF0" stroke-width="2.2"></path><rect x="219" y="330" width="7" height="11" fill="#FFFBF0"></rect><rect x="278" y="330" width="7" height="11" fill="#FFFBF0"></rect><circle cx="252" cy="335.5" r="2.6" fill="#FFE44D"></circle>
+          <g font-family="Instrument Sans, sans-serif" font-size="13" font-weight="600" fill="#FFFBF0" text-anchor="middle"><text x="110" y="300">Machine learning</text><text x="300" y="440">Backend systems</text><text x="252" y="368">Model serving room</text></g>
+        </svg>
+        <div style="position: absolute; left: 16px; right: 16px; top: 56px; display: flex; align-items: center; justify-content: space-between">
+          <a class="btn sp sm" href="U01-Universe.dc.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Universe</a>
+          <button class="btn sm" type="button" style="background: transparent; color: #FFFBF0; border-color: rgba(255,251,240,.6); box-shadow: none">List view</button>
+        </div>
+        <div role="dialog" aria-label="Model serving room" style="position: absolute; left: 12px; right: 12px; top: 458px; background: #FFFBF0; color: #111111; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span class="mono" style="color: #4A463D">A room · station</span>
+            <button class="ibtn" type="button" aria-label="Close" style="margin-left: auto; width: 44px; height: 44px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          </div>
+          <h2 class="disp" style="margin: 0; font-size: 24px; line-height: 26px; font-weight: 800">Model serving room</h2>
+          <p style="margin: 0; font-size: 15px; line-height: 1.45">A room about running models for real people.</p>
+          <span class="tag" style="align-self: flex-start">Open to friends of members</span>
+          <div style="display: flex; gap: 10px">
+            <a class="btn pri" href="R02-Discussion.dc.html" style="flex: 1">Enter room</a>
+            <button class="btn" type="button" style="flex: 1">Close</button>
+          </div>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="universe" tone="space" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 2 ROOM PREVIEW -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Room preview</b><span>Who’s who, before joining</span></figcaption>
+      <div class="phone">
+        <div class="rhead">
+          <svg aria-hidden="true" width="390" height="236" viewBox="0 0 390 236" style="position: absolute; inset: 0"><g fill="#FFFBF0" opacity=".45"><circle cx="40" cy="40" r="1"></circle><circle cx="200" cy="30" r="1.2"></circle><circle cx="340" cy="70" r="1"></circle><circle cx="300" cy="200" r=".9"></circle></g><circle cx="320" cy="150" r="44" fill="#FFE44D" opacity=".08"></circle><rect x="298" y="140" width="44" height="22" rx="5" fill="none" stroke="#FFFBF0" stroke-width="2.6"></rect><path d="M278 151h20M342 151h20" stroke="#FFFBF0" stroke-width="2.6"></path><rect x="268" y="143" width="10" height="16" fill="#FFFBF0"></rect><rect x="362" y="143" width="10" height="16" fill="#FFFBF0"></rect><circle cx="320" cy="151" r="3.4" fill="#FFE44D"></circle></svg>
+          <a class="btn sp sm" href="R01-Room.dc.html" style="align-self: flex-start; position: relative"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Map</a>
+          <span class="mono" style="color: rgba(255,251,240,.72); position: relative; margin-top: 8px">Cosmic room</span>
+          <h2 class="disp" style="margin: 0; font-size: 32px; line-height: 34px; font-weight: 800; position: relative; max-width: 240px">Model serving room</h2>
+        </div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 252px; display: flex; flex-direction: column; gap: 12px">
+          <p style="margin: 0; font-size: 16px; line-height: 1.5">Running models for real people: batching, scaling, latency and cost. Bring questions, Reels and half-formed ideas.</p>
+          <div style="display: flex; flex-direction: column; gap: 2px; border-top: 1px solid #D9D1BC; padding-top: 8px">
+            <span class="mono" style="color: #4A463D">Who’s here to help</span>
+            <div class="prow"><span class="tag" style="border-color: #0B7A5F; color: #0B7A5F"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"></path></svg>Moderator</span><span>Keeps the discussion on track</span></div>
+            <div class="prow"><span class="tag ai">AI · Explainer</span><span>Answers when asked</span></div>
+            <div class="prow"><span class="tag ai">AI · Skeptic</span><span>Pushes back on claims</span></div>
+            <p style="margin: 0; font-size: 13px; line-height: 1.45; color: #4A463D">AI inhabitants are labelled and never pretend to be people.</p>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 2px solid #111111; border-radius: 14px; background: #F4EDD8">
+            <span class="mono" style="color: #4A463D">Pinned question</span>
+            <b style="font-size: 16px">When does batching stop helping?</b>
+          </div>
+          <details style="font-size: 14px; line-height: 1.5">
+            <summary style="min-height: 44px; display: flex; align-items: center; font-weight: 600; cursor: pointer">Room guidelines</summary>
+            <p style="margin: 0; color: #4A463D">Be kind, cite what you’re unsure about, and keep personal details out.</p>
+          </details>
+        </div>
+        <div style="position: absolute; left: 20px; right: 20px; bottom: 28px; display: flex; flex-direction: column; gap: 6px">
+          <a class="btn pri" href="R02-Discussion.dc.html">Join room</a>
+          <span style="font-size: 12px; text-align: center; color: #4A463D">Joining doesn’t change your universe.</span>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 3 ACCESS REQUIRED / PAUSED -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Access required · paused</b><span>Two honest variants</span></figcaption>
+      <div class="phone">
+        <div class="rhead" style="height: 196px">
+          <a class="btn sp sm" href="R01-Room.dc.html" style="align-self: flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>Map</a>
+          <span class="mono" style="color: rgba(255,251,240,.72); margin-top: 8px">Cosmic room</span>
+          <h2 class="disp" style="margin: 0; font-size: 28px; line-height: 30px; font-weight: 800">Model serving room</h2>
+        </div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 220px; display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 2px solid #111111; border-radius: 16px">
+            <span class="tag" style="align-self: flex-start"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Invite-only</span>
+            <b style="font-size: 18px; line-height: 1.3">This room is invite-only — ask a member</b>
+            <p style="margin: 0; font-size: 14px; line-height: 1.45; color: #4A463D">If a friend is in it, they can send you an invite from the room.</p>
+            <a class="btn sm" href="C01-Inbox.dc.html" style="align-self: flex-start">Message a friend</a>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 2px dashed #111111; border-radius: 16px; background: #F4EDD8">
+            <span class="tag" style="align-self: flex-start; border-color: #0B7A5F; color: #0B7A5F"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M8 5v14M16 5v14"></path></svg>Paused</span>
+            <b style="font-size: 18px; line-height: 1.3">Paused by the moderator</b>
+            <p style="margin: 0; font-size: 14px; line-height: 1.45; color: #4A463D">You can read earlier messages. New messages are off for now.</p>
+            <a class="btn sm" href="R02-Discussion.dc.html" style="align-self: flex-start">Read the room</a>
+          </div>
+          <p style="margin: 0; font-size: 13px; color: #4A463D">The station stays on your map either way.</p>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p>Tap the station in <span class="ev">/universe</span> or <span class="ev">/universe/:system</span> → card → <span class="ev">/room/:roomId</span>. Also reachable from Talk (C01). Same room ID everywhere; only its map placement is personal.</p></div>
+    <div class="note"><h3>Actions</h3><p><b>Primary:</b> Enter / Join room. <b>Secondary:</b> close card, list view, read guidelines, message a friend for an invite, read a paused room.</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>card · preview · open · invite-only · paused · removed from room (“You’re no longer a member”) · room closed · offline (cached preview, Join disabled with reason). No member, active or online counts.</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">CMD room.join{roomId}<br>CMD room.request_invite{roomId}<br>OBS universe.select{stationId} · room.preview_opened<br>Joining or visiting a room is never encounter evidence; it can’t form or grow a world.</p></div>
+    <div class="note"><h3>Restore</h3><p>Back from the preview returns to the map with the same camera and the station card still open. Leaving the room returns you to where you entered it (map or Talk).</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>The station is a 48px button named “Model serving room, a room”. List view lists rooms under their systems. Roles are spoken as text (“AI, Explainer”). On desktop the preview docks as the D02 station card.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1330,"height":1480}}'>class Component extends DCLogic { renderVals() { return {}; } }</script>
+</body>
+</html>

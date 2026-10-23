@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>KnowScroll design v1 — start</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFBF0}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:12px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.col h3{margin:0 0 10px;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:26px;letter-spacing:-.01em}
+.col ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px}
+.col li{font-size:15px;line-height:1.5}
+.cov{width:100%;border-collapse:collapse;font-size:14px}
+.cov th{text-align:left;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;padding:10px 12px;border-bottom:2px solid #111}
+.cov td{padding:10px 12px;border-bottom:1px solid #D9D1BC;vertical-align:top;line-height:1.4}
+.cov tr:hover td{background:#FFF4C2}
+.jl{display:flex;flex-direction:column;gap:10px;padding:22px;border-radius:18px;border:1.5px solid rgba(255,251,240,.28);background:#0B1A2E;color:#FFFBF0;text-decoration:none}
+.jl:hover{border-color:#FFE44D;color:#FFFBF0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 4200px; background: #FFFBF0; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <header style="background: #040A17; color: #FFFBF0; padding: 72px 96px 64px; display: flex; flex-direction: column; gap: 28px; position: relative; overflow: hidden; height: 560px">
+    <svg aria-hidden="true" width="1440" height="560" viewBox="0 0 1440 560" style="position: absolute; inset: 0">
+      <g fill="#FFFBF0" opacity=".55"><circle cx="80" cy="60" r="1"></circle><circle cx="310" cy="120" r="1.2"></circle><circle cx="520" cy="40" r=".8"></circle><circle cx="700" cy="150" r="1"></circle><circle cx="880" cy="70" r="1.3"></circle><circle cx="1040" cy="30" r=".9"></circle><circle cx="1210" cy="110" r="1"></circle><circle cx="1380" cy="60" r="1.2"></circle><circle cx="160" cy="400" r="1"></circle><circle cx="430" cy="500" r=".9"></circle><circle cx="640" cy="440" r="1.1"></circle><circle cx="960" cy="520" r="1"></circle><circle cx="1330" cy="480" r=".8"></circle></g>
+      <ellipse cx="1120" cy="300" rx="250" ry="92" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+      <ellipse cx="1120" cy="300" rx="160" ry="58" fill="none" stroke="#FFFBF0" stroke-opacity=".14" stroke-width="1.2"></ellipse>
+      <circle cx="1120" cy="300" r="60" fill="#FFE9A8" opacity=".12"></circle>
+      <circle cx="1120" cy="300" r="26" fill="#FFE9A8"></circle>
+      <circle cx="1270" cy="252" r="22" fill="#2BC4B4"></circle>
+      <path d="M1258 244l9-7 12 4 3 9-8 7-11-2z" fill="#5BCB72"></path>
+      <circle cx="975" cy="335" r="13" fill="#6E86FF"></circle>
+      <circle cx="1185" cy="352" r="9" fill="#2BC4B4" opacity=".75"></circle>
+    </svg>
+    <div style="display: flex; gap: 12px; align-items: center; position: relative">
+      <span class="mono" style="background: #FFE44D; color: #111111; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+      <span class="mono" style="color: rgba(255,251,240,.72)">v2 · 19 Oct 2026 · Design canvas (editable HTML artboards) — not a Figma file</span>
+    </div>
+    <h1 class="disp" style="margin: 0; font-size: 104px; line-height: .92; font-weight: 800; max-width: 900px; position: relative">KnowScroll<br>product design v2</h1>
+    <p style="margin: 0; font-size: 22px; line-height: 1.45; max-width: 760px; color: rgba(255,251,240,.86); position: relative">Thoughtful Reels and interactive Scrolls that gradually become an explorable personal universe — now with content threads you explore together. Every frame ID, its states, components, desktop and responsive adaptations, and five clickable journeys.</p>
+    <p class="mono" style="margin: 0; color: rgba(255,251,240,.62); position: relative">All people (Asha, Ravi, Meera), content and worlds on this canvas are authored examples, not product activity.</p>
+  </header>
+
+  <section style="padding: 72px 96px 8px; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; align-items: baseline; gap: 16px">
+      <span class="mono" style="color: #4A463D">v2</span>
+      <h2 class="disp" style="margin: 0; font-size: 48px; font-weight: 800">What changed in v2</h2>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+      <div class="col" style="border: 2px solid #111111; border-radius: 20px; padding: 28px; box-shadow: 6px 6px 0 #FFE44D">
+        <span class="mono" style="color: #4A463D">From the review</span>
+        <h3>Five fixes</h3>
+        <ul>
+          <li><b>Individual worlds</b> — the same ML topic for Asha, Ravi and Meera, with different coastlines, terrain, light, landmarks, routes and neighbours (<a href="U07-ThreeWorlds.dc.html">U07</a>); a mature universe with many systems, label levels, search and list (<a href="U08-Mature.dc.html">U08</a>); the planet close-up redrawn (<a href="U03-Planet.dc.html">U03</a>).</li>
+          <li><b>Content range</b> — a history Reel with imagery and narration, an editorial Scroll, a football Reel with movement and captions, an interactive-comparison Scroll (<a href="E09-Range.dc.html">E09</a>).</li>
+          <li><b>One navigation rule</b> — arrows always point to the destination; Back retraces your own path; overlays close first. Worked example with the stack at every step (<a href="N01-Navigation.dc.html">N01</a>, Journey 5).</li>
+          <li><b>No engineering copy in the app</b> — “owns your drag”, “momentum stops here”, “no follow-up questions” replaced by natural invitations (<a href="E03-Blocks.dc.html">E03</a>, <a href="E02-Scroll.dc.html">E02</a>, <a href="E04-Request.dc.html">E04</a>).</li>
+          <li><b>Privacy matches the architecture</b> — one “Clear exploration” operation, no time-range clearing, accurate message wording; friend-visit fog is generic decoration (<a href="P02-Privacy.dc.html">P02</a>, <a href="U06-Friend.dc.html">U06</a>).</li>
+        </ul>
+      </div>
+      <div class="col" style="border: 2px solid #111111; border-radius: 20px; padding: 28px; box-shadow: 6px 6px 0 #2C46E8">
+        <span class="mono" style="color: #4A463D">New sharing model</span>
+        <h3>“Here’s something interesting. Come explore it with me.”</h3>
+        <ul>
+          <li><b>Share</b> offers Send to a conversation · Explore with friends · Share a moment · Copy link (<a href="H01-Share.dc.html">H01</a>).</li>
+          <li><b>Content threads</b> hold the sequence and the conversation together: navigator with your own ✓/current/upcoming/Preparing, collapsible player, chat; works when people arrive at different times (<a href="C04-Thread.dc.html">C04</a>, <a href="C03-Invite.dc.html">C03</a>).</li>
+          <li><b>Snippets</b> make talk specific: a Reel range, a Scroll passage, or an interactive block with its settings (<a href="H03-Moments.dc.html">H03</a>).</li>
+          <li><b>What if… grows out of the conversation</b>: from the thread, a snippet or a message; “What if…” vs “Another perspective”; branch cards; speculative ideas labelled as such; optional branch map (<a href="X01-WhatIf.dc.html">X01–X04</a>).</li>
+          <li><b>Rooms use the same model</b>: explorations live in room threads; moderators pin; AI suggests but people choose (<a href="R02-Discussion.dc.html">R02</a>). Presence (“Online”, “Recently active”) is optional and never shows what someone watches.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col" style="border: 2px solid #111111; border-radius: 20px; padding: 24px 28px; background: #F4EDD8">
+      <span class="mono" style="color: #4A463D">v2.1 refinements · decisions recorded</span>
+      <ul>
+        <li><b>Episode browser</b>: thumbnail cards with part, short title and your own marker; compact numbers only when the player is collapsed; Preparing kept apart and not selectable (<a href="C04-Thread.dc.html">C04</a>, <a href="D03-Desktop-Talk.dc.html">D03</a>).</li>
+        <li><b>Decision · collapse pauses.</b> Collapsing the thread player pauses and keeps the playhead. Listening while chatting is an explicit audio-only choice, never counted as viewing. A visible action strip (Like · Save · Moment · Full screen) and a keyboard-open frame are drawn (<a href="C04-Thread.dc.html">C04</a>).</li>
+        <li><b>Decision · quick what-if.</b> A complete request submits directly with a concise editable summary; only speculative or ambiguous ideas get the assumption step (<a href="X01-WhatIf.dc.html">X01</a>, Journey 2).</li>
+        <li><b>Honest promises</b>: privacy receipts separate “cleared from active systems” (completes) from backup expiry (pending, within [N days]); corrected snippets play a mapped moment only when a compatible mapping exists (<a href="P02-Privacy.dc.html">P02</a>, <a href="H03-Moments.dc.html">H03</a>).</li>
+        <li><b>Decision · joining a thread.</b> Preview first; joining is one explicit tap on “Join thread”; “Ignore” hides it without telling the sender. No separate accept/decline ceremony (<a href="C03-Invite.dc.html">C03</a>).</li>
+        <li><b>Desktop room</b> now uses room threads: room/thread navigation, the selected thread’s encounter and inline branches; the poll moves to a collapsible side panel (<a href="D04-Desktop-Room.dc.html">D04</a>).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section style="padding: 56px 96px 32px; display: flex; flex-direction: column; gap: 28px">
+    <div style="display: flex; align-items: baseline; gap: 16px">
+      <span class="mono" style="color: #4A463D">01</span>
+      <h2 class="disp" style="margin: 0; font-size: 48px; font-weight: 800">Reference audit</h2>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+      <div class="col" style="background: #FFFBF0; border: 2px solid #111111; border-radius: 20px; padding: 28px; box-shadow: 6px 6px 0 #14C79B">
+        <span class="mono" style="color: #0B7A5F">Preserve</span>
+        <h3>What already works</h3>
+        <ul>
+          <li><b>Poster Scroll (01, 06)</b>: cream paper, 2px ink outlines, cobalt offset shadow on the hero card, heavy Bricolage headlines.</li>
+          <li><b>Yellow "Continue this idea" rail (01)</b>: promoted to the single cue for horizontal continuation.</li>
+          <li><b>Spacious universe (02, 03)</b>: one star per system, hairline orbits, lots of negative space.</li>
+          <li><b>Teal globe + angular land + small ship (04, 05)</b>: the ship becomes the "you are here / exact return" marker.</li>
+          <li><b>Cream floating pills</b> as the only controls in space.</li>
+        </ul>
+      </div>
+      <div class="col" style="background: #FFFBF0; border: 2px solid #111111; border-radius: 20px; padding: 28px; box-shadow: 6px 6px 0 #FFE44D">
+        <span class="mono" style="color: #4A463D">Refine</span>
+        <h3>Same identity, better behaved</h3>
+        <ul>
+          <li><b>One space ground</b>: #050B19 / #03101A → <code>space.0 #040A17</code>; #0B1630 / #061A27 → <code>space.1 #0B1A2E</code>.</li>
+          <li><b>Reading</b>: 18/28 ink body, ~62ch measure; DM Mono only for labels.</li>
+          <li><b>Reel ⇄ Scroll</b>: one equal segmented switch, same place on both formats, "same explanation" glyph.</li>
+          <li><b>Labels in space</b>: fixed baseline under each body, leader lines, max two lines, never over another body.</li>
+          <li><b>Nav pill</b>: kept dark with cobalt active; renamed Explore · Universe · Talk · Keep.</li>
+        </ul>
+      </div>
+      <div class="col" style="background: #FFFBF0; border: 2px solid #111111; border-radius: 20px; padding: 28px; box-shadow: 6px 6px 0 #2C46E8">
+        <span class="mono" style="color: #B23A0B">Replace</span>
+        <h3>Deliberately removed</h3>
+        <ul>
+          <li><b>Grey Worlds dialog (08)</b> → selection happens in the map; the list alternative is a cream sheet with hierarchy.</li>
+          <li><b>Overlapping repeated globes (07)</b> → each planet appears once; labels never collide.</li>
+          <li><b>Provenance/debug copy (06, 04)</b>: "Documented", "Why this appeared", fixture notes, "2 sources", "SEEN" — gone from consumer UI.</li>
+          <li><b>Counts (02, 05)</b>: "3 stops", "2 free planets" → no quantities that invite comparison.</li>
+          <li><b>Moons (05)</b> → removed so nothing implies meaning.</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #4A463D; max-width: 1100px">Only two epistemic labels survive in ordinary screens — <b>Hypothetical</b> (what-if content) and <b>Corrected</b> (a revised asset) — because they change what the reader should believe. Everything else about provenance stays internal.</p>
+  </section>
+
+  <section style="padding: 40px 96px 32px; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; align-items: baseline; gap: 16px">
+      <span class="mono" style="color: #4A463D">02</span>
+      <h2 class="disp" style="margin: 0; font-size: 48px; font-weight: 800">Frame coverage index</h2>
+      <span class="mono" style="color: #4A463D; margin-left: auto">Click an artboard name in Play to jump · every frame: mobile primary + states + desktop rule</span>
+    </div>
+    <div style="border: 2px solid #111111; border-radius: 18px; overflow: hidden; background: #FFFBF0">
+      <table class="cov">
+        <thead><tr><th style="width: 110px">IDs</th><th style="width: 250px">Surface</th><th>Variants drawn (mobile 390×844)</th><th style="width: 260px">Desktop / responsive</th><th style="width: 200px">Artboard</th></tr></thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="12">
+            <tr><td><b class="mono" style="font-size: 13px">{{r.id}}</b></td><td>{{r.surface}}</td><td>{{r.variants}}</td><td>{{r.desktop}}</td><td><a href="{{r.file}}">{{r.file}}</a></td></tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section style="margin: 40px 96px 0; padding: 48px; background: #040A17; border-radius: 28px; color: #FFFBF0; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; align-items: baseline; gap: 16px">
+      <span class="mono" style="color: rgba(255,251,240,.62)">03</span>
+      <h2 class="disp" style="margin: 0; font-size: 44px; font-weight: 800">Clickable journeys</h2>
+      <span class="mono" style="color: rgba(255,251,240,.62); margin-left: auto">Open Prototype · press Play</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px">
+      <a class="jl" href="Prototype.dc.html"><span class="mono" style="color: #FFE44D">Journey 1</span><b class="disp" style="font-size: 21px">Asha's encounter path</b><span style="font-size: 14px; line-height: 1.45; color: rgba(255,251,240,.8)">ML Reel → related explanation → request Scroll → try a longer sentence → exact return → fresh subject → a subtly richer universe.</span></a>
+      <a class="jl" href="Prototype.dc.html"><span class="mono" style="color: #FFE44D">Journey 2</span><b class="disp" style="font-size: 21px">Black holes: a content thread</b><span style="font-size: 14px; line-height: 1.45; color: rgba(255,251,240,.8)">Share → Explore with friends → thread → share a moment → What if… → branch card → explore → back to Part 2 at 0:18.</span></a>
+      <a class="jl" href="Prototype.dc.html"><span class="mono" style="color: #FFE44D">Journey 3</span><b class="disp" style="font-size: 21px">Spatial exploration</b><span style="font-size: 14px; line-height: 1.45; color: rgba(255,251,240,.8)">Universe → ML system → Inference planet → Deployment region → encounter → exact camera return → Ravi's world → room thread.</span></a>
+      <a class="jl" href="Prototype.dc.html"><span class="mono" style="color: #FFE44D">Journey 4</span><b class="disp" style="font-size: 21px">Recovery &amp; privacy</b><span style="font-size: 14px; line-height: 1.45; color: rgba(255,251,240,.8)">Failed send → one retry, no duplicate · reconnect catch-up · revoked share · paused recording · Clear exploration with honest receipts.</span></a>
+      <a class="jl" href="Prototype.dc.html"><span class="mono" style="color: #FFE44D">Journey 5</span><b class="disp" style="font-size: 21px">Back, step by step</b><span style="font-size: 14px; line-height: 1.45; color: rgba(255,251,240,.8)">Part 1 → its Scroll → Part 2 → Share → return → Back ×3, with the history stack and restored position at every step.</span></a>
+    </div>
+  </section>
+
+  <section style="padding: 64px 96px 72px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px">
+    <div style="display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; align-items: baseline; gap: 16px"><span class="mono" style="color: #4A463D">04</span><h2 class="disp" style="margin: 0; font-size: 40px; font-weight: 800">Versus the current theme</h2></div>
+      <div style="display: flex; flex-direction: column; gap: 12px; font-size: 16px; line-height: 1.5">
+        <p style="margin: 0"><b>Same two registers</b>, same palette and fonts. The change is discipline: tokens are semantic (content vs spatial roles), not raw hexes per screen.</p>
+        <p style="margin: 0"><b>Content</b> gains a real reading rhythm, one action rail shared by Reel and Scroll, and four distinct relationship cues (Part, Related, Format, What-if) instead of one generic "next".</p>
+        <p style="margin: 0"><b>Space</b> keeps the calm composition but drops counts, moons, duplicate globes and metadata-first sheets. Topic families share a hue and silhouette; each person's terrain, orbit order and routes vary.</p>
+        <p style="margin: 0"><b>Navigation</b> moves from Cable / Atlas / Keep / Ask to Explore / Universe / Talk / Keep. Ask lives on the encounter itself.</p>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; align-items: baseline; gap: 16px"><span class="mono" style="color: #4A463D">05</span><h2 class="disp" style="margin: 0; font-size: 40px; font-weight: 800">Open design decisions</h2></div>
+      <ol style="margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; font-size: 16px; line-height: 1.45">
+        <li><b>Renderer</b>: drawn here as layered 2D (SVG/canvas-feasible). 3D stays optional; semantics don't depend on it.</li>
+        <li><b>Tab labels</b>: "Talk" vs "Conversations"; "Keep" vs "Saved". Four tabs vs three plus a header button.</li>
+        <li><b>Guest browsing</b>: A01 shows signed-out preview of shared content only; persisted guest identity not assumed.</li>
+        <li><b>Auth method</b>: email link drawn as a placeholder; no provider commitment.</li>
+        <li><b>Room placement</b>: station between two systems vs on the orbit of the stronger one.</li>
+        <li><b>Lately lens</b>: whether recent-activity glow is on by default when returning after absence.</li>
+        <li><b>Desktop split</b>: map/conversation beside the encounter — confirm single active playback rule in user testing.</li>
+        <li><b>Family hues</b>: five starter families drawn; how new families get hues needs a rule.</li>
+        <li><b>Snippet settings</b>: whether an interactive-block snippet includes its configuration by default (drawn as an opt-in toggle).</li>
+        <li><b>Presence default</b>: “Recently active” vs off for new accounts; online status is drawn as opt-in.</li>
+        <li><b>Back at a tab root</b>: platform convention vs returning to the previous tab — needs device testing.</li>
+      </ol>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":4200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [
+      { id: 'A01–A03', surface: 'Entry, recovery, first arrival', variants: 'Sign-in · link sent · expired session/recovery · link failed · first arrival (no survey)', desktop: 'Centered 480px card on space ground (V01)', file: 'A01-Entry.dc.html' },
+      { id: 'E01', surface: 'Dimensional TV · Reel', variants: 'Playing · paused + captions · buffering/offline · unavailable/corrected', desktop: 'D01: player + thread rail + optional side panel', file: 'E01-Reel.dc.html' },
+      { id: 'E02', surface: 'Scroll article', variants: 'Opening · mid-read w/ block · end boundary (momentum guard) · render fallback', desktop: 'D01: 680px measure, actions in left rail', file: 'E02-Scroll.dc.html' },
+      { id: 'E03', surface: 'Interactive block gallery', variants: 'Diagram · comparison + slider · disclosure + code · accessible alternative/fallback', desktop: 'Blocks widen to 880px; same gestures', file: 'E03-Blocks.dc.html' },
+      { id: 'E04', surface: 'Topic / content request', variants: 'Composer · accepted/pending · ready · unavailable', desktop: 'Popover anchored to Ask (D01)', file: 'E04-Request.dc.html' },
+      { id: 'E05', surface: 'Horizontal continuation', variants: 'Declared Part 2 · related explanation · thread trail/back · exhausted/corrected', desktop: 'D01 thread rail; ←/→ keys', file: 'E05-Continue.dc.html' },
+      { id: 'E06', surface: 'Format conversion', variants: 'Existing sibling opens · preparing (original keeps playing) · ready notice', desktop: 'Switch in player header', file: 'E06-Format.dc.html' },
+      { id: 'E07', surface: 'Supply waiting & availability', variants: 'Requested/preparing · ready · failed/retry/cancel · honest exhaustion', desktop: 'Shared request chip component', file: 'E07-Supply.dc.html' },
+      { id: 'E08', surface: 'Natural thread ending', variants: 'Ending · return path saved · another topic', desktop: 'Same card, centered', file: 'E08-Ending.dc.html' },
+      { id: 'E09 · v2', surface: 'Content range', variants: 'History Reel (imagery + narration) · editorial Scroll · football Reel (movement + captions) · interactive-comparison Scroll', desktop: 'D01 stage; content keeps its own character', file: 'E09-Range.dc.html' },
+      { id: 'N01 · v2', surface: 'Navigation & Back rules', variants: 'Worked example: Part 1 → Scroll → Part 2 → Share → return → Back ×3, stack per step; rules table', desktop: 'Same rules; keys ↑↓ ←→, browser Back', file: 'N01-Navigation.dc.html' },
+      { id: 'S01–S02', surface: 'Keep library & resume', variants: 'Library · empty · unavailable/corrected item · detail with restored position', desktop: 'Two-column grid + detail pane', file: 'S01-Saved.dc.html' },
+      { id: 'U01', surface: 'Universe overview', variants: 'Empty · emerging · established · returning after absence', desktop: 'D02: map + side list', file: 'U01-Universe.dc.html' },
+      { id: 'U02', surface: 'Topic system', variants: 'Established · forming/pending chunk · calm · accessible list', desktop: 'D02', file: 'U02-System.dc.html' },
+      { id: 'U03', surface: 'Planet close-up', variants: 'Arrival with ship · region focus · low-detail', desktop: 'D02 (planet fills left 2/3)', file: 'U03-Planet.dc.html' },
+      { id: 'U04', surface: 'Regions & topic card', variants: 'Region card · encounter entry · exact return', desktop: 'Card docks right', file: 'U04-Region.dc.html' },
+      { id: 'U05', surface: 'Formation storyboard', variants: 'Dust · gathering · protostar · system · planet + skip / reduced motion', desktop: 'Same sequence, larger stage', file: 'U05-Formation.dc.html' },
+      { id: 'U06', surface: 'Friend universe visit', variants: 'Ravi’s universe (his own style) · his ML system · generic private notice · revoked', desktop: 'D02 visitor bar', file: 'U06-Friend.dc.html' },
+      { id: 'U07 · v2', surface: 'Same ML, three people', variants: 'Asha / Ravi / Meera systems and Inference planets: coastline, terrain, light, landmarks, routes, neighbours', desktop: 'D02 renders the same scene data', file: 'U07-ThreeWorlds.dc.html' },
+      { id: 'U08 · v2', surface: 'Mature universe', variants: 'Far zoom clusters · mid zoom selection · search · grouped list view', desktop: 'D02 with search in the side panel', file: 'U08-Mature.dc.html' },
+      { id: 'H01 · v2', surface: 'Share sheet', variants: 'Four choices · send to conversation · Explore with friends picker · thread created · copied/cancelled/unavailable', desktop: 'Popover (D01)', file: 'H01-Share.dc.html' },
+      { id: 'H02', surface: 'Share landing & invitation', variants: 'Public signed-out · access required · available exact revision · revoked/withdrawn · corrected', desktop: 'Web landing at 1440 (V01)', file: 'H02-Landing.dc.html' },
+      { id: 'H03 · v2', surface: 'Share a moment · snippets', variants: 'Reel range · Scroll passage · block with its settings · snippet cards · open snippet and return', desktop: 'Same flow in the D03 thread', file: 'H03-Moments.dc.html' },
+      { id: 'C01', surface: 'Conversation inbox', variants: 'Inbox with content threads + optional presence · empty · offline/reconnecting', desktop: 'D03 left column', file: 'C01-Inbox.dc.html' },
+      { id: 'C02', surface: 'Conversation detail', variants: '1:1 chat + card · failed → single retry · catch-up in order · block/report + membership lost', desktop: 'D03 centre', file: 'C02-Conversation.dc.html' },
+      { id: 'C03 · v2', surface: 'Thread invitation & membership', variants: 'Arrives in inbox · members & presence sheet · ended/removed/withdrawn', desktop: 'Inline in D03', file: 'C03-Invite.dc.html' },
+      { id: 'C04 · v2', surface: 'Content thread', variants: 'Episode cards + action strip · collapsed (paused) · keep listening (audio only) · keyboard open · card states · arriving later', desktop: 'D03: content beside conversation', file: 'C04-Thread.dc.html' },
+      { id: 'X01 · v2', surface: 'What if… from the conversation', variants: 'Quick path: complete request + editable summary → Explore · branch preparing · confirm path for speculative/ambiguous', desktop: 'D03 right column', file: 'X01-WhatIf.dc.html' },
+      { id: 'X02 · v2', surface: 'Branch cards in the conversation', variants: 'What-if vs perspective cards · preparing · failed/dismissed', desktop: 'D03 conversation', file: 'X02-Branches.dc.html' },
+      { id: 'X03 · v2', surface: 'Exploring a branch', variants: 'Branch navigator + return chip · branch discussion · another assumption · back to original', desktop: 'D03 content column', file: 'X03-Sequence.dc.html' },
+      { id: 'X04 · v2', surface: 'Branch map (optional)', variants: 'Map entry · outline · large map with filters', desktop: 'D03 map button', file: 'X04-History.dc.html' },
+      { id: 'R01', surface: 'Cosmic room preview', variants: 'Station on map · preview · access required', desktop: 'D02 station card', file: 'R01-Room.dc.html' },
+      { id: 'R02 · v2', surface: 'Room threads & explorations', variants: 'Room thread list · exploration in a room thread with AI suggestion · moderator tools · retry/removed/quiet', desktop: 'D04: room threads, encounter, inline branches; poll in side panel', file: 'R02-Discussion.dc.html' },
+      { id: 'R03', surface: 'Optional room activity', variants: 'Poll · optional quiz (room only) · results without scores', desktop: 'D04 side panel', file: 'R03-Activity.dc.html' },
+      { id: 'F01–F02', surface: 'Friends & sharing settings', variants: 'Friends · add by handle/link · pending/blocked/revoked · visibility', desktop: 'D05 pattern', file: 'F01-Friends.dc.html' },
+      { id: 'P01', surface: 'Account & settings', variants: 'Account · accessibility & motion · notifications', desktop: 'D05 pattern', file: 'P01-Account.dc.html' },
+      { id: 'P02', surface: 'Privacy & history', variants: 'Hub · recording paused · export receipts · Clear exploration confirm · clear & delete receipts', desktop: 'D05', file: 'P02-Privacy.dc.html' },
+      { id: 'P03', surface: 'Feedback & report', variants: 'Menu · content error · abuse report · acknowledgement', desktop: 'Popover / dialog', file: 'P03-Report.dc.html' },
+      { id: 'V01', surface: 'Responsive & accessibility', variants: 'Compact 320 · tablet 834 · landscape · larger text · reduced motion', desktop: '—', file: 'V01-Responsive.dc.html' },
+      { id: 'OPS', surface: 'Operator appendix (not consumer UI)', variants: 'Six Grafana views + safe fields', desktop: '—', file: 'Operator.dc.html' }
+    ];
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

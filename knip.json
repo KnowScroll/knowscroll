@@ -1,39 +1,63 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreWorkspaces": ["apps/web"],
-  "ignoreBinaries": ["ffmpeg", "ffprobe", "pg_config", "psql", "journalctl"],
-  "includeEntryExports": true,
   "workspaces": {
     ".": {
-      "entry": [
-        "scripts/**/*.{ts,mjs}",
-        "tests/**/*.test.ts",
-        "ops/**/*.ts"
-      ],
-      "project": ["scripts/**/*.{ts,mjs}", "tests/**/*.ts", "ops/**/*.ts"]
+      "project": ["*.{js,cjs}"],
+      "ignoreBinaries": ["psql", "journalctl"]
     },
     "apps/api": {
-      "entry": ["src/main.ts"],
+      "entry": ["src/main.ts", "src/migrate.ts", "src/operator.ts"],
       "project": ["src/**/*.ts"]
     },
     "apps/worker": {
-      "entry": [
-        "src/main.ts",
-        "src/generation/main.ts",
-        "src/reasoning/maintenance-main.ts",
-        "src/publication/cli.ts"
-      ],
+      "entry": ["src/main.ts", "src/operator.ts"],
       "project": ["src/**/*.ts"]
+    },
+    "apps/client": {
+      "entry": [
+        "app/**/*.tsx",
+        "platform/**/*.web.ts",
+        "e2e/*.spec.ts",
+        "features/encounter/encounter-overlay.web.tsx",
+        "features/encounter/gestures/reel-gesture-stage.web.tsx"
+      ],
+      "project": [
+        "app/**/*.tsx",
+        "features/**/*.{ts,tsx}",
+        "platform/**/*.ts",
+        "providers/**/*.{ts,tsx}",
+        "theme/**/*.ts",
+        "e2e/**/*.{ts,mjs}"
+      ],
+      "ignoreDependencies": ["babel-jest", "expo-clipboard"]
+    },
+    "packages/backend": {
+      "project": ["src/**/*.ts"],
+      "ignore": ["src/modules/content/adapters/cutroom/wire-v1/**"]
     },
     "packages/contracts": {
-      "includeEntryExports": false,
       "project": ["src/**/*.ts"]
     },
-    "packages/core": {
+    "packages/design-tokens": {
       "project": ["src/**/*.ts"]
     },
-    "packages/db": {
+    "packages/ui": {
+      "entry": ["src/**/*.web.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "packages/client-core": {
       "project": ["src/**/*.ts"]
+    },
+    "packages/scene-core": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/scroll-model": {
+      "project": ["src/**/*.ts"]
+    },
+    "migrations": {
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["squawk-cli"]
     }
-  }
+  },
+  "ignoreExportsUsedInFile": true
 }

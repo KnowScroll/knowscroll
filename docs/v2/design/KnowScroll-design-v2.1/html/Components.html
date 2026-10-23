@@ -1,0 +1,530 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>Components and variants</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#FFFBF0}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.btn.dis{opacity:.45;box-shadow:none;cursor:not-allowed}
+.btn.focus{outline:3px solid #2C46E8;outline-offset:3px}
+.btn.press{transform:translate(3px,3px);box-shadow:none}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.panel{display:flex;flex-direction:column;gap:16px;padding:28px;border:2px solid #111111;border-radius:20px;background:#FFFBF0}
+.panel h2{margin:0;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:26px;font-weight:800;letter-spacing:-.01em}
+.lbl{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D}
+.row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px 0 10px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;font-size:14px;font-weight:600}
+.bub{max-width:280px;padding:10px 14px;border-radius:18px;font-size:15px;line-height:1.4}
+</style><style data-dc-tpl="2">
+body{margin:0}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="Components"><div data-dc-tpl="3" style="width: 1440px; height: 4100px; background: rgb(255, 251, 240); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; padding: 72px 96px; display: flex; flex-direction: column; gap: 32px;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: flex-end; gap: 24px;">
+    <h1 data-dc-tpl="5" class="disp" style="margin: 0px; font-size: 72px; font-weight: 800; line-height: 0.95;">Components</h1>
+    <p data-dc-tpl="6" style="margin: 0px 0px 8px; font-size: 17px; color: rgb(74, 70, 61); max-width: 700px; line-height: 1.45;">One library for React Native and React Native Web. Each component lists its variants; state frames reuse these instead of redrawing. <b data-dc-tpl="7">NavBar</b> is a live instance (Tweaks: active tab, tone, unread).</p>
+    <span data-dc-tpl="8" class="mono" style="margin-left: auto; margin-bottom: 10px; background: rgb(255, 228, 77); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+  </header>
+
+  <div data-dc-tpl="9" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 24px;">
+    <section data-dc-tpl="10" class="panel">
+      <h2 data-dc-tpl="11">Button</h2>
+      <span data-dc-tpl="12" class="lbl">Variants · primary / default / ink / ghost / small</span>
+      <div data-dc-tpl="13" class="row">
+        <button data-dc-tpl="14" class="btn pri" type="button">Request Scroll</button>
+        <button data-dc-tpl="15" class="btn" type="button">Save</button>
+        <button data-dc-tpl="16" class="btn ink" type="button">Resume at 0:31</button>
+        <button data-dc-tpl="17" class="btn ghost" type="button">Not now</button>
+        <button data-dc-tpl="18" class="btn sm" type="button">Copy link</button>
+      </div>
+      <span data-dc-tpl="19" class="lbl">States · default / pressed / focus-visible / disabled / busy</span>
+      <div data-dc-tpl="20" class="row">
+        <button data-dc-tpl="21" class="btn pri" type="button">Send</button>
+        <button data-dc-tpl="22" class="btn pri press" type="button">Send</button>
+        <button data-dc-tpl="23" class="btn pri focus" type="button">Send</button>
+        <button data-dc-tpl="24" class="btn pri dis" type="button" disabled="">Send</button>
+        <button data-dc-tpl="25" class="btn pri" type="button" aria-busy="true"><svg data-dc-tpl="26" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="27" d="M12 3a9 9 0 0 1 9 9"></path></svg>Sending</button>
+      </div>
+      <span data-dc-tpl="28" class="lbl">Icon button · paper / on media / on space · 48×48</span>
+      <div data-dc-tpl="29" class="row" style="background: rgb(17, 17, 17); padding: 12px; border-radius: 14px;">
+        <button data-dc-tpl="30" class="ibtn" type="button" aria-label="Back"><svg data-dc-tpl="31" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="32" d="M15 5l-7 7 7 7"></path></svg></button>
+        <button data-dc-tpl="33" class="ibtn sp" type="button" aria-label="Share"><svg data-dc-tpl="34" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="35" d="M4 12v7h16v-7"></path><path data-dc-tpl="36" d="M12 3v12"></path><path data-dc-tpl="37" d="M7 8l5-5 5 5"></path></svg></button>
+        <button data-dc-tpl="38" class="btn sp sm" type="button">Lately</button>
+        <button data-dc-tpl="39" class="btn sm" type="button" style="background: transparent; color: rgb(255, 251, 240); border-color: rgba(255, 251, 240, 0.6); box-shadow: none;">List view</button>
+      </div>
+    </section>
+
+    <section data-dc-tpl="40" class="panel">
+      <h2 data-dc-tpl="41">Tag (non-interactive label)</h2>
+      <span data-dc-tpl="42" class="lbl">Only these labels appear in consumer UI</span>
+      <div data-dc-tpl="43" class="row">
+        <span data-dc-tpl="44" class="tag part">Part 2 of 3</span>
+        <span data-dc-tpl="45" class="tag">Related</span>
+        <span data-dc-tpl="46" class="tag hyp">
+          <svg data-dc-tpl="47" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="48" d="M6 3v18"></path><path data-dc-tpl="49" d="M6 14c0-5 12-3 12-9"></path></svg>Hypothetical</span>
+        <span data-dc-tpl="50" class="tag cor">Corrected · 14 Oct</span>
+        <span data-dc-tpl="51" class="tag ai">AI · Skeptic</span>
+        <span data-dc-tpl="52" class="tag" style="border-color: rgb(11, 122, 95); color: rgb(11, 122, 95);">
+          <svg data-dc-tpl="53" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="54" d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"></path></svg>Moderator</span>
+        <span data-dc-tpl="55" class="tag">
+          <svg data-dc-tpl="56" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><rect data-dc-tpl="57" x="5" y="11" width="14" height="10" rx="2"></rect><path data-dc-tpl="58" d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Only you</span>
+        <span data-dc-tpl="59" class="tag">Shared with Ravi</span>
+      </div>
+      <span data-dc-tpl="60" class="lbl">Never shown</span>
+      <p data-dc-tpl="61" style="margin: 0px; font-size: 14px; line-height: 1.5; color: rgb(74, 70, 61);">Scores, levels, streaks, “you learned”, “documented”, source counts, “seen”, view or member counts, generation percentages.</p>
+      <span data-dc-tpl="62" class="lbl">Segmented · Reel ⇄ Scroll (same explanation)</span>
+      <div data-dc-tpl="63" class="row">
+        <div data-dc-tpl="64" class="seg" role="group" aria-label="Format of this explanation"><button data-dc-tpl="65" type="button" aria-pressed="true"><svg data-dc-tpl="66" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path data-dc-tpl="67" d="M7 4l13 8-13 8z"></path></svg>Reel</button><button data-dc-tpl="68" type="button" aria-pressed="false"><svg data-dc-tpl="69" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="70" d="M5 6h14M5 12h14M5 18h9"></path></svg>Scroll</button></div>
+        <div data-dc-tpl="71" class="seg" role="group" aria-label="Format of this explanation"><button data-dc-tpl="72" type="button" aria-pressed="false">Reel</button><button data-dc-tpl="73" type="button" aria-pressed="true">Scroll</button></div>
+        <div data-dc-tpl="74" class="seg" role="group" aria-label="Format of this explanation"><button data-dc-tpl="75" type="button" aria-pressed="true">Reel</button><button data-dc-tpl="76" type="button" aria-pressed="false" style="background: repeating-linear-gradient(135deg, rgb(255, 251, 240) 0px, rgb(255, 251, 240) 5px, rgb(244, 237, 216) 5px, rgb(244, 237, 216) 10px);">Scroll · preparing</button></div>
+      </div>
+    </section>
+  </div>
+
+  <section data-dc-tpl="77" class="panel">
+    <h2 data-dc-tpl="78">Relationship cues — four moves that must never look alike</h2>
+    <div data-dc-tpl="79" style="display: grid; grid-template-columns: repeat(4, minmax(0px, 1fr)); gap: 18px;">
+      <div data-dc-tpl="80" style="display: flex; flex-direction: column; gap: 12px;">
+        <div data-dc-tpl="81" style="height: 150px; border-radius: 16px; background: rgb(44, 70, 232); position: relative; overflow: hidden;">
+          <span data-dc-tpl="82" style="position: absolute; right: 0px; top: 37px; width: 76px; height: 76px; background: rgb(255, 228, 77); border-width: 2px 0px 2px 2px; border-top-style: solid; border-bottom-style: solid; border-left-style: solid; border-top-color: rgb(17, 17, 17); border-bottom-color: rgb(17, 17, 17); border-left-color: rgb(17, 17, 17); border-image: initial; border-right-style: initial; border-right-color: initial; border-radius: 18px 0px 0px 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;"><span data-dc-tpl="83" class="mono" style="font-size: 10px;">Part 2</span><svg data-dc-tpl="84" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="85" d="M5 12h14"></path><path data-dc-tpl="86" d="M13 6l6 6-6 6"></path></svg></span>
+        </div>
+        <b data-dc-tpl="87" class="disp" style="font-size: 20px;">Series step</b>
+        <span data-dc-tpl="88" style="font-size: 14px; line-height: 1.45;">Solid yellow edge tab, “Part N”. Only for <b data-dc-tpl="89">declared, available</b> sequence positions. Swipe left or tap · arrow shows the destination.</span>
+      </div>
+      <div data-dc-tpl="90" style="display: flex; flex-direction: column; gap: 12px;">
+        <div data-dc-tpl="91" style="height: 150px; border-radius: 16px; background: rgb(44, 70, 232); position: relative; overflow: hidden;">
+          <span data-dc-tpl="92" style="position: absolute; right: 0px; top: 37px; width: 76px; height: 76px; background: rgb(255, 251, 240); border-width: 2px 0px 2px 2px; border-top-style: dashed; border-bottom-style: dashed; border-left-style: dashed; border-top-color: rgb(17, 17, 17); border-bottom-color: rgb(17, 17, 17); border-left-color: rgb(17, 17, 17); border-image: initial; border-right-style: initial; border-right-color: initial; border-radius: 18px 0px 0px 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;"><span data-dc-tpl="93" class="mono" style="font-size: 10px;">Related</span><svg data-dc-tpl="94" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3 3" aria-hidden="true"><path data-dc-tpl="95" d="M5 12h14"></path><path data-dc-tpl="96" d="M13 6l6 6-6 6"></path></svg></span>
+        </div>
+        <b data-dc-tpl="97" class="disp" style="font-size: 20px;">Related explanation</b>
+        <span data-dc-tpl="98" style="font-size: 14px; line-height: 1.45;">Cream tab, dashed edge, “Related”. Another mechanism, example or angle — <b data-dc-tpl="99">not</b> a sequel. Swipe left or tap · arrow shows the destination.</span>
+      </div>
+      <div data-dc-tpl="100" style="display: flex; flex-direction: column; gap: 12px;">
+        <div data-dc-tpl="101" style="height: 150px; border-radius: 16px; background: rgb(244, 237, 216); display: flex; align-items: center; justify-content: center;">
+          <div data-dc-tpl="102" class="seg" role="group" aria-label="Format"><button data-dc-tpl="103" type="button" aria-pressed="true">Reel</button><button data-dc-tpl="104" type="button" aria-pressed="false">Scroll</button></div>
+        </div>
+        <b data-dc-tpl="105" class="disp" style="font-size: 20px;">Format variant</b>
+        <span data-dc-tpl="106" style="font-size: 14px; line-height: 1.45;">Segmented switch in the top bar. Same explanation, other representation. Tap only — never a swipe, so it can’t be confused with continuation.</span>
+      </div>
+      <div data-dc-tpl="107" style="display: flex; flex-direction: column; gap: 12px;">
+        <div data-dc-tpl="108" style="height: 150px; border-radius: 16px; background: rgb(230, 234, 255); border: 2px dashed rgb(44, 70, 232); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; padding: 16px;">
+          <span data-dc-tpl="109" class="tag hyp">What if</span>
+          <span data-dc-tpl="110" style="font-size: 15px; font-weight: 600; color: rgb(17, 17, 17);">10× requests · same model</span>
+          <span data-dc-tpl="111" style="font-size: 13px; color: rgb(27, 47, 184);">Branch of “What one answer costs”</span>
+        </div>
+        <b data-dc-tpl="112" class="disp" style="font-size: 20px;">What-if branch</b>
+        <span data-dc-tpl="113" style="font-size: 14px; line-height: 1.45;">Dashed cobalt frame + branch glyph + the changed assumption in words. Lives only inside a shared exploration; never in the main feed.</span>
+      </div>
+    </div>
+  </section>
+
+  <div data-dc-tpl="114" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 24px;">
+    <section data-dc-tpl="115" class="panel">
+      <h2 data-dc-tpl="116">Action rail &amp; strip</h2>
+      <span data-dc-tpl="117" class="lbl">Same order everywhere: Like · Save · Share · Ask</span>
+      <div data-dc-tpl="118" style="display: flex; gap: 28px; align-items: flex-start;">
+        <div data-dc-tpl="119" style="display: flex; flex-direction: column; gap: 14px; padding: 14px; background: rgb(44, 70, 232); color: rgb(255, 251, 240); border-radius: 16px;">
+          <div data-dc-tpl="120" class="ra"><button data-dc-tpl="121" class="ibtn sp" type="button" aria-label="Like" aria-pressed="true" style="background: rgb(255, 228, 77);"><svg data-dc-tpl="122" width="22" height="22" viewBox="0 0 24 24" fill="#111111" stroke="#111111" stroke-width="2" aria-hidden="true"><path data-dc-tpl="123" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button><span data-dc-tpl="124">Liked</span></div>
+          <div data-dc-tpl="125" class="ra"><button data-dc-tpl="126" class="ibtn sp" type="button" aria-label="Save"><svg data-dc-tpl="127" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="128" d="M6 3h12v18l-6-4-6 4z"></path></svg></button><span data-dc-tpl="129">Save</span></div>
+          <div data-dc-tpl="130" class="ra"><button data-dc-tpl="131" class="ibtn sp" type="button" aria-label="Share"><svg data-dc-tpl="132" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="133" d="M4 12v7h16v-7"></path><path data-dc-tpl="134" d="M12 3v12"></path><path data-dc-tpl="135" d="M7 8l5-5 5 5"></path></svg></button><span data-dc-tpl="136">Share</span></div>
+          <div data-dc-tpl="137" class="ra"><button data-dc-tpl="138" class="ibtn sp" type="button" aria-label="Ask"><svg data-dc-tpl="139" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="140" d="M4 5h16v11H9l-5 4z"></path><path data-dc-tpl="141" d="M10 9.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9"></path></svg></button><span data-dc-tpl="142">Ask</span></div>
+        </div>
+        <div data-dc-tpl="143" style="display: flex; flex-direction: column; gap: 12px; flex: 1 1 0%;">
+          <span data-dc-tpl="144" class="lbl">Scroll strip (top + end of article; floats up on reverse scroll)</span>
+          <div data-dc-tpl="145" style="display: flex; gap: 8px; padding: 8px; border: 2px solid rgb(17, 17, 17); border-radius: 999px; background: rgb(255, 251, 240); align-self: flex-start;">
+            <button data-dc-tpl="146" class="ibtn" type="button" aria-label="Like" style="border: 0px;"><svg data-dc-tpl="147" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path data-dc-tpl="148" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button>
+            <button data-dc-tpl="149" class="ibtn" type="button" aria-label="Saved" aria-pressed="true" style="border: 0px; background: rgb(255, 228, 77);"><svg data-dc-tpl="150" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="151" d="M6 3h12v18l-6-4-6 4z"></path></svg></button>
+            <button data-dc-tpl="152" class="ibtn" type="button" aria-label="Share" style="border: 0px;"><svg data-dc-tpl="153" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="154" d="M4 12v7h16v-7"></path><path data-dc-tpl="155" d="M12 3v12"></path><path data-dc-tpl="156" d="M7 8l5-5 5 5"></path></svg></button>
+            <button data-dc-tpl="157" class="ibtn" type="button" aria-label="Ask" style="border: 0px;"><svg data-dc-tpl="158" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="159" d="M4 5h16v11H9l-5 4z"></path><path data-dc-tpl="160" d="M10 9.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9"></path></svg></button>
+          </div>
+          <p data-dc-tpl="161" style="margin: 0px; font-size: 14px; line-height: 1.5;">Pressed state = yellow fill + filled glyph + label change (“Saved”). Save is a command with a receipt; if it fails the glyph reverts and a banner offers retry.</p>
+        </div>
+      </div>
+    </section>
+
+    <section data-dc-tpl="162" class="panel">
+      <h2 data-dc-tpl="163">Request chip (supply status)</h2>
+      <span data-dc-tpl="164" class="lbl">Attached to the thing requested · no percentages, no ETAs</span>
+      <div data-dc-tpl="165" style="display: flex; flex-direction: column; gap: 10px;">
+        <span data-dc-tpl="166" class="chip"><svg data-dc-tpl="167" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle data-dc-tpl="168" cx="12" cy="12" r="9"></circle><path data-dc-tpl="169" d="M12 7v5l3 2"></path></svg>Requested · Scroll of this Reel</span>
+        <span data-dc-tpl="170" class="chip" style="background: repeating-linear-gradient(135deg, rgb(255, 251, 240) 0px, rgb(255, 251, 240) 6px, rgb(244, 237, 216) 6px, rgb(244, 237, 216) 12px);"><svg data-dc-tpl="171" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="172" d="M12 3a9 9 0 0 1 9 9"></path></svg>Preparing · we’ll let you know</span>
+        <span data-dc-tpl="173" class="chip" style="background: rgb(20, 199, 155);"><svg data-dc-tpl="174" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="175" d="M5 12.5l4.5 4.5L19 7"></path></svg>Ready · Open Scroll</span>
+        <span data-dc-tpl="176" class="chip" style="border-color: rgb(178, 58, 11); color: rgb(138, 44, 7);"><svg data-dc-tpl="177" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="178" d="M20 12a8 8 0 1 1-2.3-5.7"></path><path data-dc-tpl="179" d="M20 4v5h-5"></path></svg>Couldn’t prepare · Retry</span>
+        <span data-dc-tpl="180" class="chip" style="color: rgb(74, 70, 61); border-style: dashed;"><svg data-dc-tpl="181" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="182" d="M6 6l12 12M18 6L6 18"></path></svg>Cancelled</span>
+      </div>
+    </section>
+  </div>
+
+  <div data-dc-tpl="183" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 24px;">
+    <section data-dc-tpl="184" class="panel">
+      <h2 data-dc-tpl="185">Banner (state messaging)</h2>
+      <div data-dc-tpl="186" class="banner"><svg data-dc-tpl="187" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: 0 0 auto;"><path data-dc-tpl="188" d="M3 3l18 18"></path><path data-dc-tpl="189" d="M7 18H6a4 4 0 0 1-.6-8"></path><path data-dc-tpl="190" d="M10.5 6.2A6 6 0 0 1 18 10a4 4 0 0 1 2 7"></path></svg><span data-dc-tpl="191"><b data-dc-tpl="192">Offline.</b> Your place is kept. Messages you write will send when you reconnect.</span></div>
+      <div data-dc-tpl="193" class="banner" style="background: rgb(244, 237, 216);"><svg data-dc-tpl="194" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" style="flex: 0 0 auto;"><path data-dc-tpl="195" d="M12 3a9 9 0 0 1 9 9"></path></svg><span data-dc-tpl="196"><b data-dc-tpl="197">Reconnecting…</b> Missing messages will appear in order.</span></div>
+      <div data-dc-tpl="198" class="banner" style="background: rgb(255, 233, 222); border-color: rgb(138, 44, 7);"><svg data-dc-tpl="199" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A2C07" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: 0 0 auto;"><path data-dc-tpl="200" d="M4 20h4L19 9l-4-4L4 16z"></path></svg><span data-dc-tpl="201"><b data-dc-tpl="202">Corrected 14 Oct.</b> One claim was revised. What changed</span></div>
+      <div data-dc-tpl="203" class="banner"><svg data-dc-tpl="204" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="flex: 0 0 auto;"><rect data-dc-tpl="205" x="5" y="11" width="14" height="10" rx="2"></rect><path data-dc-tpl="206" d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg><span data-dc-tpl="207"><b data-dc-tpl="208">Access ended.</b> Asha stopped sharing this. Nothing from it is kept on your side.</span></div>
+      <div data-dc-tpl="209" class="banner" style="background: rgb(17, 17, 17); color: rgb(255, 251, 240);"><svg data-dc-tpl="210" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: 0 0 auto;"><path data-dc-tpl="211" d="M8 5v14M16 5v14"></path></svg><span data-dc-tpl="212"><b data-dc-tpl="213">Recording paused.</b> What you watch now won’t shape your universe. Resume</span></div>
+    </section>
+
+    <section data-dc-tpl="214" class="panel">
+      <h2 data-dc-tpl="215">Content card (in chat, share, Keep)</h2>
+      <div data-dc-tpl="216" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 14px;">
+        <div data-dc-tpl="217" style="border: 2px solid rgb(17, 17, 17); border-radius: 16px; overflow: hidden; background: rgb(255, 251, 240);">
+          <div data-dc-tpl="218" style="height: 104px; background: rgb(44, 70, 232); position: relative;"><span data-dc-tpl="219" class="tag part" style="position: absolute; left: 10px; top: 10px;">Reel · 0:50</span></div>
+          <div data-dc-tpl="220" style="padding: 12px; display: flex; flex-direction: column; gap: 6px;"><b data-dc-tpl="221" style="font-size: 15px; line-height: 1.3;">What one answer costs to serve</b><span data-dc-tpl="222" style="font-size: 13px; color: rgb(74, 70, 61);">Machine learning</span></div>
+        </div>
+        <div data-dc-tpl="223" style="border: 2px solid rgb(17, 17, 17); border-radius: 16px; overflow: hidden; background: rgb(255, 251, 240);">
+          <div data-dc-tpl="224" style="height: 104px; background: rgb(255, 251, 240); border-bottom: 2px solid rgb(17, 17, 17); padding: 12px; display: flex; flex-direction: column; gap: 6px;"><span data-dc-tpl="225" class="tag" style="align-self: flex-start;">Scroll · 6 min</span><b data-dc-tpl="226" class="disp" style="font-size: 18px; line-height: 1.1;">Attention, slowly</b></div>
+          <div data-dc-tpl="227" style="padding: 12px; display: flex; flex-direction: column; gap: 6px;"><span data-dc-tpl="228" style="font-size: 13px; color: rgb(74, 70, 61);">Kept at “Why squared?”</span></div>
+        </div>
+        <div data-dc-tpl="229" style="border: 2px dashed rgb(17, 17, 17); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; background: rgb(244, 237, 216);">
+          <span data-dc-tpl="230" class="tag"><svg data-dc-tpl="231" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><rect data-dc-tpl="232" x="5" y="11" width="14" height="10" rx="2"></rect><path data-dc-tpl="233" d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Private</span>
+          <b data-dc-tpl="234" style="font-size: 15px;">Sign in to see what Asha shared</b>
+          <span data-dc-tpl="235" style="font-size: 13px; color: rgb(74, 70, 61);">No title or preview until access is checked.</span>
+        </div>
+        <div data-dc-tpl="236" style="border: 2px solid rgb(17, 17, 17); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; background: rgb(255, 251, 240); opacity: 0.8;">
+          <span data-dc-tpl="237" class="tag">Unavailable</span>
+          <b data-dc-tpl="238" style="font-size: 15px;">This Reel was withdrawn</b>
+          <span data-dc-tpl="239" style="font-size: 13px; color: rgb(74, 70, 61);">The message stays; the content doesn’t.</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div data-dc-tpl="240" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 24px;">
+    <section data-dc-tpl="241" class="panel">
+      <h2 data-dc-tpl="242">Message bubbles</h2>
+      <div data-dc-tpl="243" style="display: flex; flex-direction: column; gap: 10px; background: rgb(244, 237, 216); padding: 16px; border-radius: 16px;">
+        <div data-dc-tpl="244" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="245" style="font-size: 12px; font-weight: 600;">Ravi</span><div data-dc-tpl="246" class="bub" style="background: rgb(255, 251, 240); border: 2px solid rgb(17, 17, 17); border-bottom-left-radius: 6px;">Wait, does batching make each request slower?</div></div>
+        <div data-dc-tpl="247" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end;"><div data-dc-tpl="248" class="bub" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240); border-bottom-right-radius: 6px;">A little — that’s the trade.</div><span data-dc-tpl="249" class="mono" style="color: rgb(74, 70, 61);">Sent</span></div>
+        <div data-dc-tpl="250" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end;"><div data-dc-tpl="251" class="bub" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240); opacity: 0.6; border-bottom-right-radius: 6px;">Let’s ask what happens at 10×</div><span data-dc-tpl="252" class="mono" style="color: rgb(74, 70, 61);">Sending…</span></div>
+        <div data-dc-tpl="253" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end;"><div data-dc-tpl="254" class="bub" style="background: rgb(255, 251, 240); color: rgb(17, 17, 17); border: 2px solid rgb(178, 58, 11); border-bottom-right-radius: 6px;">Let’s ask what happens at 10×</div><button data-dc-tpl="255" class="btn sm ghost" type="button" style="color: rgb(138, 44, 7); border-color: rgb(178, 58, 11); min-height: 44px;">Not sent · Retry</button></div>
+        <div data-dc-tpl="256" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;"><span data-dc-tpl="257" class="tag ai">AI · Skeptic</span><div data-dc-tpl="258" class="bub" style="background: rgb(255, 251, 240); border: 2px dotted rgb(17, 17, 17); border-radius: 6px 18px 18px;">Batching helps throughput, but only if requests arrive close together.</div></div>
+        <div data-dc-tpl="259" style="display: flex; gap: 8px; align-items: center; justify-content: center; font-size: 13px; color: rgb(11, 122, 95); font-weight: 600;"><svg data-dc-tpl="260" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="261" d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"></path></svg>Moderator pinned a question</div>
+      </div>
+      <p data-dc-tpl="262" style="margin: 0px; font-size: 14px; line-height: 1.5;">AI = black “AI · role” tag + dotted outline + square top-left corner. A failed message stays the <b data-dc-tpl="263">same bubble</b>; Retry re-sends the same request ID, so no duplicate can appear.</p>
+    </section>
+
+    <section data-dc-tpl="264" class="panel">
+      <h2 data-dc-tpl="265">Inputs &amp; controls</h2>
+      <label data-dc-tpl="266" style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600;">Email<input data-dc-tpl="267" type="email" value="asha@example.com" style="min-height: 48px; border: 2px solid rgb(17, 17, 17); border-radius: 12px; padding: 0px 14px; font: 16px &quot;Instrument Sans&quot;, sans-serif; background: rgb(255, 251, 240);"></label>
+      <label data-dc-tpl="268" style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600;">What if…<textarea data-dc-tpl="269" rows="2" style="border: 2px dashed rgb(44, 70, 232); border-radius: 12px; padding: 12px 14px; font: 16px / 1.4 &quot;Instrument Sans&quot;, sans-serif; background: rgb(230, 234, 255); resize: none;">requests grow tenfold but the model stays the same?</textarea></label>
+      <div data-dc-tpl="270" style="display: flex; align-items: center; justify-content: space-between; min-height: 56px; border-bottom: 1px solid rgb(217, 209, 188);">
+        <label data-dc-tpl="271" for="c-rm" style="display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="272" style="font-size: 15px;">Reduce motion</b><span data-dc-tpl="273" style="font-size: 13px; color: rgb(74, 70, 61);">Formation shows the final state</span></label>
+        <button data-dc-tpl="274" id="c-rm" type="button" role="switch" aria-checked="true" aria-label="Reduce motion" style="width: 56px; height: 32px; border-radius: 999px; border: 2px solid rgb(17, 17, 17); background: rgb(44, 70, 232); position: relative; padding: 0px; cursor: pointer;"><i data-dc-tpl="275" style="position: absolute; right: 3px; top: 3px; width: 22px; height: 22px; border-radius: 999px; background: rgb(255, 251, 240);"></i></button>
+      </div>
+      <div data-dc-tpl="276" style="display: flex; align-items: center; justify-content: space-between; min-height: 56px; border-bottom: 1px solid rgb(217, 209, 188);">
+        <label data-dc-tpl="277" for="c-rec" style="display: flex; flex-direction: column; gap: 2px;"><b data-dc-tpl="278" style="font-size: 15px;">Shape my universe from what I watch</b><span data-dc-tpl="279" style="font-size: 13px; color: rgb(74, 70, 61);">Off = recording paused</span></label>
+        <button data-dc-tpl="280" id="c-rec" type="button" role="switch" aria-checked="false" aria-label="Recording" style="width: 56px; height: 32px; border-radius: 999px; border: 2px solid rgb(17, 17, 17); background: rgb(244, 237, 216); position: relative; padding: 0px; cursor: pointer;"><i data-dc-tpl="281" style="position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 999px; background: rgb(17, 17, 17);"></i></button>
+      </div>
+      <div data-dc-tpl="282" style="display: flex; flex-direction: column; gap: 8px;">
+        <span data-dc-tpl="283" class="lbl">NavBar instances (component)</span>
+        <div data-dc-tpl="284" style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <div data-dc-tpl="285" style="width: 390px; height: 96px; background: rgb(244, 237, 216); border-radius: 16px;"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="286"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(17, 17, 17); box-shadow: rgba(17, 17, 17, 0.55) 0px 10px 24px -12px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+          <div data-dc-tpl="287" style="width: 390px; height: 96px; background: rgb(4, 10, 23); border-radius: 16px;"><div class="sc-host" data-sc-name="NavBar" data-dc-tpl="288"><div data-dc-tpl="3" style="width: 390px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; color: rgb(255, 251, 240);">
+  <nav data-dc-tpl="4" aria-label="Primary" style="display: flex; gap: 4px; padding: 6px; border-radius: 26px; background: rgb(11, 26, 46); box-shadow: rgba(255, 251, 240, 0.22) 0px 0px 0px 1px, rgb(0, 0, 0) 0px 12px 28px -10px;">
+    
+      <button data-dc-tpl="6" type="button" aria-label="Explore" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        <svg data-dc-tpl="8" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="9" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="10" d="M8 3l4 4 4-4"></path></svg>
+        
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Explore</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Universe" aria-current="page" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: rgb(44, 70, 232); color: rgb(255, 251, 240);">
+        
+        <svg data-dc-tpl="12" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="13" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="14" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>
+        
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Universe</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Talk" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        <svg data-dc-tpl="16" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="17" d="M4 5h16v11H9l-5 4z"></path></svg>
+        
+        <span data-dc-tpl="21"><span class="sc-interp">Talk</span></span>
+      </button>
+    
+      <button data-dc-tpl="6" type="button" aria-label="Keep" aria-current="false" style="width: 74px; height: 56px; border: 0px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px / 1 &quot;Instrument Sans&quot;, system-ui, sans-serif; letter-spacing: 0.01em; cursor: pointer; background: transparent; color: rgba(255, 251, 240, 0.78);">
+        
+        
+        
+        <svg data-dc-tpl="19" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="20" d="M6 3h12v18l-6-4-6 4z"></path></svg>
+        <span data-dc-tpl="21"><span class="sc-interp">Keep</span></span>
+      </button>
+    
+  </nav></div></div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section data-dc-tpl="289" class="panel">
+    <div data-dc-tpl="290" style="display: flex; align-items: baseline; gap: 14px;"><h2 data-dc-tpl="291">Sharing v2 — threads, moments, branches</h2><span data-dc-tpl="292" class="tag part">v2</span></div>
+    <div data-dc-tpl="293" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 28px;">
+      <div data-dc-tpl="294" style="display: flex; flex-direction: column; gap: 12px;">
+        <span data-dc-tpl="295" class="lbl">Episode browser · expanded mode (thumbnail · part · short title · your marker)</span>
+        <div data-dc-tpl="296" style="display: flex; gap: 8px; align-items: stretch;">
+          <button data-dc-tpl="297" type="button" aria-label="Part 1, What it is, watched" style="flex: 0 0 auto; width: 104px; height: 100px; border-radius: 12px; border: 2px solid rgb(17, 17, 17); background: rgb(255, 251, 240); padding: 0px; overflow: hidden; display: flex; flex-direction: column; text-align: left; cursor: pointer; position: relative; color: rgb(17, 17, 17);"><svg data-dc-tpl="298" width="104" height="52" viewBox="0 0 112 52" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="display: block; flex: 0 0 auto;"><rect data-dc-tpl="299" width="112" height="52" fill="#070A14"></rect><ellipse data-dc-tpl="300" cx="56" cy="27" rx="40" ry="7" fill="none" stroke="#FFB54D" stroke-width="4" opacity=".55"></ellipse><circle data-dc-tpl="301" cx="56" cy="27" r="15" fill="#000000" stroke="#FFE9A8" stroke-width="2"></circle><path data-dc-tpl="302" d="M16 27 A40 7 0 0 0 96 27" fill="none" stroke="#FFD27A" stroke-width="4"></path></svg><span data-dc-tpl="303" style="padding: 4px 7px; display: flex; flex-direction: column; gap: 1px;"><span data-dc-tpl="304" class="lbl" style="font-size: 9.5px;">Part 1</span><b data-dc-tpl="305" style="font-size: 12.5px;">What it is</b></span><span data-dc-tpl="306" style="position: absolute; top: 5px; right: 5px; height: 20px; min-width: 20px; border-radius: 999px; background: rgb(255, 251, 240); border: 1.5px solid rgb(17, 17, 17); display: inline-flex; align-items: center; justify-content: center;"><svg data-dc-tpl="307" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" aria-hidden="true"><path data-dc-tpl="308" d="M5 12.5l4.5 4.5L19 7"></path></svg></span></button>
+          <button data-dc-tpl="309" type="button" aria-current="true" aria-label="Part 2, The edge, now playing" style="flex: 0 0 auto; width: 104px; height: 100px; border-radius: 12px; border: 3px solid rgb(17, 17, 17); box-shadow: rgb(44, 70, 232) 3px 3px 0px; background: rgb(255, 251, 240); padding: 0px; overflow: hidden; display: flex; flex-direction: column; text-align: left; cursor: pointer; position: relative; color: rgb(17, 17, 17);"><svg data-dc-tpl="310" width="104" height="52" viewBox="0 0 112 52" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="display: block; flex: 0 0 auto;"><rect data-dc-tpl="311" width="112" height="52" fill="#0B0F1F"></rect><path data-dc-tpl="312" d="M-10 60 Q 56 6 122 60 Z" fill="#000000"></path><path data-dc-tpl="313" d="M-10 60 Q 56 6 122 60" fill="none" stroke="#FFE9A8" stroke-width="2"></path><circle data-dc-tpl="314" cx="62" cy="14" r="3" fill="#14C79B"></circle></svg><span data-dc-tpl="315" style="padding: 4px 7px; display: flex; flex-direction: column; gap: 1px;"><span data-dc-tpl="316" class="lbl" style="font-size: 9.5px;">Part 2</span><b data-dc-tpl="317" style="font-size: 12.5px;">The edge</b></span><span data-dc-tpl="318" style="position: absolute; top: 5px; right: 5px; height: 20px; padding: 0px 6px; border-radius: 999px; background: rgb(255, 228, 77); border: 1.5px solid rgb(17, 17, 17); font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center;">Now</span></button>
+          <button data-dc-tpl="319" type="button" aria-label="Part 3, Time slows" style="flex: 0 0 auto; width: 104px; height: 100px; border-radius: 12px; border: 2px solid rgb(17, 17, 17); background: rgb(255, 251, 240); padding: 0px; overflow: hidden; display: flex; flex-direction: column; text-align: left; cursor: pointer; color: rgb(17, 17, 17);"><svg data-dc-tpl="320" width="104" height="52" viewBox="0 0 112 52" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="display: block; flex: 0 0 auto;"><rect data-dc-tpl="321" width="112" height="52" fill="#141B3D"></rect><g data-dc-tpl="322" fill="none" stroke="#6E86FF" stroke-width="1"><path data-dc-tpl="323" d="M0 14 Q 56 30 112 14"></path><path data-dc-tpl="324" d="M0 26 Q 56 44 112 26"></path><path data-dc-tpl="325" d="M0 38 Q 56 52 112 38"></path></g><ellipse data-dc-tpl="326" cx="56" cy="26" rx="13" ry="10" fill="#FFFBF0"></ellipse><path data-dc-tpl="327" d="M56 26 V 19 M56 26 L 62 29" stroke="#111111" stroke-width="2" stroke-linecap="round"></path></svg><span data-dc-tpl="328" style="padding: 4px 7px; display: flex; flex-direction: column; gap: 1px;"><span data-dc-tpl="329" class="lbl" style="font-size: 9.5px;">Part 3</span><b data-dc-tpl="330" style="font-size: 12.5px;">Time slows</b></span></button>
+          <span data-dc-tpl="331" aria-hidden="true" style="flex: 0 0 auto; border-left: 2px dashed rgb(125, 117, 99); margin: 4px 2px;"></span>
+          <div data-dc-tpl="332" role="status" style="flex: 0 0 auto; width: 104px; height: 100px; border-radius: 12px; border: 2px dashed rgb(125, 117, 99); background: repeating-linear-gradient(135deg, rgb(255, 251, 240) 0px, rgb(255, 251, 240) 6px, rgb(244, 237, 216) 6px, rgb(244, 237, 216) 12px); padding: 10px; display: flex; flex-direction: column; justify-content: center; gap: 4px;"><span data-dc-tpl="333" class="lbl" style="font-size: 9.5px;">Next part</span><b data-dc-tpl="334" style="font-size: 13px;">Preparing</b><span data-dc-tpl="335" style="font-size: 11px; color: rgb(74, 70, 61);">Not playable yet</span></div>
+        </div>
+        <span data-dc-tpl="336" class="lbl" style="margin-top: 6px;">Compact mode · when the player is collapsed</span>
+        <div data-dc-tpl="337" class="row" style="gap: 8px;">
+          <button data-dc-tpl="338" type="button" aria-label="Part 1, you've watched this" style="display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0px 12px; border: 2px solid rgb(17, 17, 17); border-radius: 12px; background: rgb(255, 251, 240); font-weight: 600; font-size: 14px; cursor: pointer;">1<svg data-dc-tpl="339" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="340" d="M5 12.5l4.5 4.5L19 7"></path></svg></button>
+          <button data-dc-tpl="341" type="button" aria-current="true" aria-label="Part 2, current" style="display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0px 12px; border: 2px solid rgb(17, 17, 17); border-radius: 12px; background: rgb(17, 17, 17); color: rgb(255, 251, 240); font-weight: 600; font-size: 14px; cursor: pointer;">2 · now</button>
+          <button data-dc-tpl="342" type="button" aria-label="Part 3" style="display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0px 12px; border: 2px solid rgb(125, 117, 99); border-radius: 12px; background: rgb(255, 251, 240); color: rgb(74, 70, 61); font-weight: 600; font-size: 14px; cursor: pointer;">3</button>
+          <button data-dc-tpl="343" type="button" aria-label="Part 4" style="display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0px 12px; border: 2px solid rgb(125, 117, 99); border-radius: 12px; background: rgb(255, 251, 240); color: rgb(74, 70, 61); font-weight: 600; font-size: 14px; cursor: pointer;">4</button>
+          <span data-dc-tpl="344" role="status" style="display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0px 12px; border: 2px dashed rgb(125, 117, 99); border-radius: 12px; background: repeating-linear-gradient(135deg, rgb(255, 251, 240) 0px, rgb(255, 251, 240) 5px, rgb(244, 237, 216) 5px, rgb(244, 237, 216) 10px); color: rgb(74, 70, 61); font-weight: 600; font-size: 14px;"><svg data-dc-tpl="345" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="346" d="M12 3a9 9 0 0 1 9 9"></path></svg>Preparing</span>
+        </div>
+        <div data-dc-tpl="347" class="row" style="gap: 8px;">
+          <button data-dc-tpl="348" type="button" style="display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0px 12px; border: 2px solid rgb(17, 17, 17); border-radius: 12px; background: rgb(255, 251, 240); font-weight: 600; font-size: 14px; cursor: pointer;"><svg data-dc-tpl="349" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle data-dc-tpl="350" cx="12" cy="12" r="9"></circle><path data-dc-tpl="351" d="M3 12h18"></path></svg>Perspective · An information puzzle</button>
+          <button data-dc-tpl="352" type="button" style="display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0px 12px; border: 2px dashed rgb(44, 70, 232); border-radius: 12px; background: rgb(230, 234, 255); color: rgb(27, 47, 184); font-weight: 600; font-size: 14px; cursor: pointer;"><svg data-dc-tpl="353" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="354" d="M6 3v18"></path><path data-dc-tpl="355" d="M6 14c0-5 12-3 12-9"></path></svg>What if · a portal</button>
+        </div>
+        <p data-dc-tpl="356" style="margin: 0px; font-size: 14px; line-height: 1.5;">✓ is a playback/read-history marker for you — never “complete” or understood. Existing upcoming parts carry no mark but are selectable; things not yet made sit after a divider, dashed, labelled <b data-dc-tpl="357">Preparing</b>, and can’t be played. Only real sequential parts are numbered; perspectives and what-ifs carry their own titles. The expanded row scrolls sideways — the last card is cut off on purpose.</p>
+        <span data-dc-tpl="358" class="lbl" style="margin-top: 6px;">Presence · optional, controllable</span>
+        <div data-dc-tpl="359" class="row" style="gap: 18px; font-size: 14px;">
+          <span data-dc-tpl="360" style="display: inline-flex; align-items: center; gap: 6px;"><i data-dc-tpl="361" aria-hidden="true" style="width: 9px; height: 9px; border-radius: 9px; background: rgb(20, 199, 155); display: inline-block;"></i><b data-dc-tpl="362">Ravi</b> Online</span>
+          <span data-dc-tpl="363" style="display: inline-flex; align-items: center; gap: 6px;"><i data-dc-tpl="364" aria-hidden="true" style="width: 9px; height: 9px; border-radius: 9px; border: 2px solid rgb(11, 122, 95); display: inline-block;"></i><b data-dc-tpl="365">Meera</b> Recently active</span>
+          <span data-dc-tpl="366" style="display: inline-flex; align-items: center; gap: 6px;"><b data-dc-tpl="367">Kiran</b><span data-dc-tpl="368" style="color: rgb(74, 70, 61);">— (hidden)</span></span>
+        </div>
+        <p data-dc-tpl="369" style="margin: 0px; font-size: 13px; line-height: 1.45; color: rgb(74, 70, 61);">Availability only, as dot + word. Never what someone is watching.</p>
+      </div>
+      <div data-dc-tpl="370" style="display: flex; flex-direction: column; gap: 12px;">
+        <span data-dc-tpl="371" class="lbl">Share sheet · four choices</span>
+        <div data-dc-tpl="372" style="display: flex; flex-direction: column; border: 2px solid rgb(17, 17, 17); border-radius: 16px; overflow: hidden;">
+          <button data-dc-tpl="373" type="button" style="display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 14px; border-width: 0px 0px 1px; border-top-style: initial; border-right-style: initial; border-left-style: initial; border-top-color: initial; border-right-color: initial; border-left-color: initial; border-image: initial; border-bottom-style: solid; border-bottom-color: rgb(217, 209, 188); background: rgb(255, 251, 240); text-align: left; cursor: pointer;"><svg data-dc-tpl="374" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="375" d="M4 12l16-8-6 16-3-7z"></path></svg><span data-dc-tpl="376" style="display: flex; flex-direction: column;"><b data-dc-tpl="377" style="font-size: 15px;">Send to a conversation</b><span data-dc-tpl="378" style="font-size: 13px; color: rgb(74, 70, 61);">Share normally into an existing chat</span></span></button>
+          <button data-dc-tpl="379" type="button" style="display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 14px; border-width: 0px 0px 1px; border-top-style: initial; border-right-style: initial; border-left-style: initial; border-top-color: initial; border-right-color: initial; border-left-color: initial; border-image: initial; border-bottom-style: solid; border-bottom-color: rgb(217, 209, 188); background: rgb(255, 228, 77); text-align: left; cursor: pointer;"><svg data-dc-tpl="380" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle data-dc-tpl="381" cx="8" cy="9" r="3"></circle><circle data-dc-tpl="382" cx="16" cy="9" r="3"></circle><path data-dc-tpl="383" d="M3 20c.8-3 2.8-5 5-5s4.2 2 5 5M11 20c.8-3 2.8-5 5-5s4.2 2 5 5"></path></svg><span data-dc-tpl="384" style="display: flex; flex-direction: column;"><b data-dc-tpl="385" style="font-size: 15px;">Explore with friends</b><span data-dc-tpl="386" style="font-size: 13px;">Pick people and start a content thread</span></span></button>
+          <button data-dc-tpl="387" type="button" style="display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 14px; border-width: 0px 0px 1px; border-top-style: initial; border-right-style: initial; border-left-style: initial; border-top-color: initial; border-right-color: initial; border-left-color: initial; border-image: initial; border-bottom-style: solid; border-bottom-color: rgb(217, 209, 188); background: rgb(255, 251, 240); text-align: left; cursor: pointer;"><svg data-dc-tpl="388" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="389" d="M4 12h16"></path><path data-dc-tpl="390" d="M9 8v8M15 8v8"></path></svg><span data-dc-tpl="391" style="display: flex; flex-direction: column;"><b data-dc-tpl="392" style="font-size: 15px;">Share a moment</b><span data-dc-tpl="393" style="font-size: 13px; color: rgb(74, 70, 61);">A time range, passage or block</span></span></button>
+          <button data-dc-tpl="394" type="button" style="display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 14px; border: 0px; background: rgb(255, 251, 240); text-align: left; cursor: pointer;"><svg data-dc-tpl="395" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="396" d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path data-dc-tpl="397" d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path></svg><span data-dc-tpl="398" style="display: flex; flex-direction: column;"><b data-dc-tpl="399" style="font-size: 15px;">Copy link · Share elsewhere</b><span data-dc-tpl="400" style="font-size: 13px; color: rgb(74, 70, 61);">Copied ≠ delivered</span></span></button>
+        </div>
+      </div>
+    </div>
+    <div data-dc-tpl="401" style="display: grid; grid-template-columns: repeat(4, minmax(0px, 1fr)); gap: 14px;">
+      <div data-dc-tpl="402" style="display: flex; flex-direction: column; gap: 6px;"><span data-dc-tpl="403" class="lbl">Snippet · Reel range</span>
+        <div data-dc-tpl="404" style="display: flex; align-items: center; gap: 10px; padding: 8px; border: 2px solid rgb(17, 17, 17); border-radius: 14px; background: rgb(255, 251, 240);">
+          <span data-dc-tpl="405" aria-hidden="true" style="width: 44px; height: 56px; border-radius: 8px; background: rgb(17, 17, 17); flex: 0 0 auto; position: relative;"><i data-dc-tpl="406" style="position: absolute; left: 6px; right: 6px; bottom: 8px; height: 3px; background: rgb(255, 228, 77);"></i></span>
+          <span data-dc-tpl="407" style="display: flex; flex-direction: column; gap: 2px; flex: 1 1 0%;"><b data-dc-tpl="408" style="font-size: 14px;">Part 2 · 00:18–00:31</b><span data-dc-tpl="409" style="font-size: 12px; color: rgb(74, 70, 61);">The edge you can’t come back from</span></span>
+          <button data-dc-tpl="410" class="ibtn" type="button" aria-label="Play this moment" style="width: 44px; height: 44px; background: rgb(44, 70, 232); color: rgb(255, 251, 240);"><svg data-dc-tpl="411" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path data-dc-tpl="412" d="M7 4l13 8-13 8z"></path></svg></button>
+        </div></div>
+      <div data-dc-tpl="413" style="display: flex; flex-direction: column; gap: 6px;"><span data-dc-tpl="414" class="lbl">Snippet · Scroll passage</span>
+        <blockquote data-dc-tpl="415" style="margin: 0px; padding: 10px 12px; border: 2px solid rgb(17, 17, 17); border-radius: 14px; background: rgb(255, 251, 240); display: flex; flex-direction: column; gap: 6px;"><span data-dc-tpl="416" style="font-size: 14px; line-height: 1.45;">“Every word compares itself with every other word.”</span><span data-dc-tpl="417" class="mono" style="color: rgb(74, 70, 61);">Attention, slowly · Why squared?</span></blockquote></div>
+      <div data-dc-tpl="418" style="display: flex; flex-direction: column; gap: 6px;"><span data-dc-tpl="419" class="lbl">Snippet · interactive block + settings</span>
+        <div data-dc-tpl="420" style="padding: 10px 12px; border: 2px solid rgb(17, 17, 17); border-radius: 14px; background: rgb(255, 251, 240); display: flex; flex-direction: column; gap: 8px;"><b data-dc-tpl="421" style="font-size: 14px;">Try the diagram at 4,096 words</b><span data-dc-tpl="422" class="tag" style="align-self: flex-start; background: rgb(255, 228, 77);">Sentence length · 4,096</span><span data-dc-tpl="423" class="mono" style="color: rgb(74, 70, 61);">Attention, slowly · block</span></div></div>
+      <div data-dc-tpl="424" style="display: flex; flex-direction: column; gap: 6px;"><span data-dc-tpl="425" class="lbl">Snippet · corrected source</span>
+        <div data-dc-tpl="426" style="padding: 10px 12px; border: 2px solid rgb(138, 44, 7); border-radius: 14px; background: rgb(255, 251, 240); display: flex; flex-direction: column; gap: 8px;"><span data-dc-tpl="427" class="tag cor" style="align-self: flex-start;">Corrected · 14 Oct</span><b data-dc-tpl="428" style="font-size: 14px;">Why long prompts cost more · 00:04–00:12</b><span data-dc-tpl="429" style="font-size: 12px; color: rgb(74, 70, 61);">Plays the mapped moment if one exists; otherwise “This moment changed · Watch the revised Reel”</span></div></div>
+    </div>
+    <div data-dc-tpl="430" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 14px;">
+      <div data-dc-tpl="431" style="padding: 14px 16px; border: 2px dashed rgb(44, 70, 232); border-radius: 16px; background: rgb(230, 234, 255); display: flex; flex-direction: column; gap: 8px;">
+        <div data-dc-tpl="432" class="row" style="gap: 8px;"><span data-dc-tpl="433" class="tag hyp"><svg data-dc-tpl="434" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="435" d="M6 3v18"></path><path data-dc-tpl="436" d="M6 14c0-5 12-3 12-9"></path></svg>What if</span><span data-dc-tpl="437" class="tag" style="border-style: dashed; border-color: rgb(27, 47, 184); color: rgb(27, 47, 184);">Speculative scenario</span></div>
+        <b data-dc-tpl="438" style="font-size: 17px;">What if a black hole were a portal?</b>
+        <span data-dc-tpl="439" style="font-size: 13px; color: rgb(27, 47, 184);">Not established science — a thought experiment.</span>
+        <button data-dc-tpl="440" class="btn sm pri" type="button" style="align-self: flex-start;">Explore this <svg data-dc-tpl="441" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="442" d="M5 12h14"></path><path data-dc-tpl="443" d="M13 6l6 6-6 6"></path></svg></button>
+      </div>
+      <div data-dc-tpl="444" style="padding: 14px 16px; border: 2px solid rgb(17, 17, 17); border-radius: 16px; background: rgb(255, 251, 240); display: flex; flex-direction: column; gap: 8px;">
+        <span data-dc-tpl="445" class="tag" style="align-self: flex-start;">Another perspective</span>
+        <b data-dc-tpl="446" style="font-size: 17px;">Black holes as an information puzzle</b>
+        <span data-dc-tpl="447" style="font-size: 13px; color: rgb(74, 70, 61);">Same subject, a different explanation — not a changed assumption.</span>
+        <button data-dc-tpl="448" class="btn sm" type="button" style="align-self: flex-start;">Explore this <svg data-dc-tpl="449" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="450" d="M5 12h14"></path><path data-dc-tpl="451" d="M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </div>
+    <div data-dc-tpl="452" style="display: grid; grid-template-columns: repeat(3, minmax(0px, 1fr)); gap: 18px; align-items: start;">
+      <div data-dc-tpl="453" style="display: flex; flex-direction: column; gap: 8px;"><span data-dc-tpl="454" class="lbl">Thread action strip · always visible under the player</span>
+        <div data-dc-tpl="455" role="toolbar" aria-label="Thread actions" style="display: flex; justify-content: space-between; padding: 4px 6px; border: 2px solid rgb(17, 17, 17); border-radius: 16px; background: rgb(255, 251, 240);">
+          <button data-dc-tpl="456" type="button" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 56px; min-height: 52px; border: 0px; background: transparent; font-size: 11px; font-weight: 600; cursor: pointer;"><svg data-dc-tpl="457" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path data-dc-tpl="458" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg>Like</button>
+          <button data-dc-tpl="459" type="button" aria-pressed="true" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 56px; min-height: 52px; border: 0px; background: transparent; font-size: 11px; font-weight: 600; cursor: pointer;"><svg data-dc-tpl="460" width="20" height="20" viewBox="0 0 24 24" fill="#FFE44D" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="461" d="M6 3h12v18l-6-4-6 4z"></path></svg>Saved</button>
+          <button data-dc-tpl="462" type="button" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 56px; min-height: 52px; border: 0px; background: transparent; font-size: 11px; font-weight: 600; cursor: pointer;"><svg data-dc-tpl="463" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="464" d="M4 12h16"></path><path data-dc-tpl="465" d="M8 7v10M16 7v10"></path></svg>Share moment</button>
+          <button data-dc-tpl="466" type="button" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 56px; min-height: 52px; border: 0px; background: transparent; font-size: 11px; font-weight: 600; cursor: pointer;"><svg data-dc-tpl="467" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="468" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>Full screen</button>
+          <button data-dc-tpl="469" type="button" aria-label="More: keep listening, report" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 44px; min-height: 52px; border: 0px; background: transparent; font-size: 11px; font-weight: 600; cursor: pointer;"><svg data-dc-tpl="470" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle data-dc-tpl="471" cx="5" cy="12" r="2"></circle><circle data-dc-tpl="472" cx="12" cy="12" r="2"></circle><circle data-dc-tpl="473" cx="19" cy="12" r="2"></circle></svg>More</button>
+        </div>
+        <span data-dc-tpl="474" style="font-size: 13px; color: rgb(74, 70, 61); line-height: 1.45;">Icon + word, 44px+ targets. ⋯ holds Keep listening and Report.</span>
+      </div>
+      <div data-dc-tpl="475" style="display: flex; flex-direction: column; gap: 8px;"><span data-dc-tpl="476" class="lbl">Mini bar · collapsed = paused (default)</span>
+        <div data-dc-tpl="477" style="display: flex; align-items: center; gap: 8px; height: 60px; padding: 0px 6px 0px 8px; border-radius: 16px; background: rgb(7, 10, 20); color: rgb(255, 251, 240);">
+          <svg data-dc-tpl="478" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" style="flex: 0 0 auto; border-radius: 8px;"><rect data-dc-tpl="479" width="40" height="40" fill="#0B0F1F"></rect><path data-dc-tpl="480" d="M-4 46 Q 20 10 44 46 Z" fill="#000000"></path><path data-dc-tpl="481" d="M-4 46 Q 20 10 44 46" fill="none" stroke="#FFE9A8" stroke-width="2"></path></svg>
+          <span data-dc-tpl="482" style="display: flex; flex-direction: column; gap: 1px; flex: 1 1 0%; min-width: 0px;"><b data-dc-tpl="483" style="font-size: 13px;">Part 2 · The edge</b><span data-dc-tpl="484" style="font-size: 12px; color: rgba(255, 251, 240, 0.78);">Paused at 0:23</span></span>
+          <button data-dc-tpl="485" type="button" aria-label="Play" style="width: 44px; height: 44px; border-radius: 999px; border: 0px; background: rgb(255, 251, 240); color: rgb(17, 17, 17); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg data-dc-tpl="486" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path data-dc-tpl="487" d="M7 4l13 8-13 8z"></path></svg></button>
+          <button data-dc-tpl="488" type="button" aria-label="Expand" style="width: 44px; height: 44px; border-radius: 999px; border: 0px; background: transparent; color: rgb(255, 251, 240); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg data-dc-tpl="489" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="490" d="M6 15l6-6 6 6"></path></svg></button>
+          <button data-dc-tpl="491" type="button" aria-label="More" style="width: 44px; height: 44px; border-radius: 999px; border: 0px; background: transparent; color: rgb(255, 251, 240); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg data-dc-tpl="492" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle data-dc-tpl="493" cx="5" cy="12" r="2"></circle><circle data-dc-tpl="494" cx="12" cy="12" r="2"></circle><circle data-dc-tpl="495" cx="19" cy="12" r="2"></circle></svg></button>
+        </div>
+        <span data-dc-tpl="496" style="font-size: 13px; color: rgb(74, 70, 61); line-height: 1.45;">Collapsing or opening the keyboard pauses and keeps the playhead. Visible-viewing recording stops.</span>
+      </div>
+      <div data-dc-tpl="497" style="display: flex; flex-direction: column; gap: 8px;"><span data-dc-tpl="498" class="lbl">Mini bar · Keep listening (explicit choice)</span>
+        <div data-dc-tpl="499" style="display: flex; align-items: center; gap: 8px; height: 60px; padding: 0px 6px 0px 8px; border-radius: 16px; background: rgb(27, 47, 184); color: rgb(255, 251, 240);">
+          <span data-dc-tpl="500" aria-hidden="true" style="width: 40px; height: 40px; border-radius: 8px; background: rgba(255, 251, 240, 0.16); display: flex; align-items: center; justify-content: center; flex: 0 0 auto;"><svg data-dc-tpl="501" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFBF0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="502" d="M4 9h4l5-4v14l-5-4H4z"></path><path data-dc-tpl="503" d="M17 9a4 4 0 0 1 0 6"></path></svg></span>
+          <span data-dc-tpl="504" style="display: flex; flex-direction: column; gap: 1px; flex: 1 1 0%; min-width: 0px;"><b data-dc-tpl="505" style="font-size: 13px;">Listening · video hidden</b><span data-dc-tpl="506" style="font-size: 12px; color: rgba(255, 251, 240, 0.78);">Part 2 · 0:31</span></span>
+          <button data-dc-tpl="507" type="button" aria-label="Pause" style="width: 44px; height: 44px; border-radius: 999px; border: 0px; background: rgb(255, 251, 240); color: rgb(17, 17, 17); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg data-dc-tpl="508" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="509" d="M8 5v14M16 5v14"></path></svg></button>
+          <button data-dc-tpl="510" type="button" aria-label="Expand" style="width: 44px; height: 44px; border-radius: 999px; border: 0px; background: transparent; color: rgb(255, 251, 240); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg data-dc-tpl="511" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="512" d="M6 15l6-6 6 6"></path></svg></button>
+        </div>
+        <span data-dc-tpl="513" style="font-size: 13px; color: rgb(74, 70, 61); line-height: 1.45;">Audio only. Not counted as watching.</span>
+      </div>
+    </div>
+  </section>
+
+  <section data-dc-tpl="514" class="panel">
+    <h2 data-dc-tpl="515">Navigation rules</h2>
+    <div data-dc-tpl="516" style="display: grid; grid-template-columns: repeat(4, minmax(0px, 1fr)); gap: 14px; font-size: 14px; line-height: 1.45;">
+      <div data-dc-tpl="517" style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1.5px solid rgb(17, 17, 17); border-radius: 14px;"><b data-dc-tpl="518" class="disp" style="font-size: 20px;">↑ ↓ subject</b><span data-dc-tpl="519">Swipe or arrow keys move through the feed. Next and previous subject.</span></div>
+      <div data-dc-tpl="520" style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1.5px solid rgb(17, 17, 17); border-radius: 14px;"><b data-dc-tpl="521" class="disp" style="font-size: 20px;">← → thread</b><span data-dc-tpl="522">Move within the current idea. Every arrow points to its destination: next is on the right.</span></div>
+      <div data-dc-tpl="523" style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1.5px solid rgb(17, 17, 17); border-radius: 14px;"><b data-dc-tpl="524" class="disp" style="font-size: 20px;">Back = your history</b><span data-dc-tpl="525">System back, browser Back and the top-bar chevron retrace your own path one step, restoring position.</span></div>
+      <div data-dc-tpl="526" style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1.5px solid rgb(17, 17, 17); border-radius: 14px;"><b data-dc-tpl="527" class="disp" style="font-size: 20px;">Overlays close first</b><span data-dc-tpl="528">Share, Ask and menus are never history entries. Back or Esc just closes them.</span></div>
+    </div>
+  </section>
+
+  <section data-dc-tpl="529" style="display: flex; flex-direction: column; gap: 18px; background: rgb(4, 10, 23); color: rgb(255, 251, 240); padding: 32px; border-radius: 24px;">
+    <h2 data-dc-tpl="530" class="disp" style="margin: 0px; font-size: 26px; font-weight: 800;">Spatial kit — 2D layered, renderer-agnostic</h2>
+    <div data-dc-tpl="531" style="display: grid; grid-template-columns: repeat(6, minmax(0px, 1fr)); gap: 18px;">
+      <div data-dc-tpl="532" style="display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center;">
+        <svg data-dc-tpl="533" width="120" height="120" viewBox="0 0 120 120" aria-hidden="true"><circle data-dc-tpl="534" cx="60" cy="60" r="44" fill="#FFE9A8" opacity=".08"></circle><circle data-dc-tpl="535" cx="60" cy="60" r="28" fill="#FFE9A8" opacity=".16"></circle><circle data-dc-tpl="536" cx="60" cy="60" r="15" fill="#FFE9A8"></circle></svg>
+        <b data-dc-tpl="537" style="font-size: 14px;">Organising star</b><span data-dc-tpl="538" style="font-size: 12px; color: rgba(255, 251, 240, 0.72);">Core + 2 glow rings. Activity = glow ring opacity, not size.</span>
+      </div>
+      <div data-dc-tpl="539" style="display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center;">
+        <svg data-dc-tpl="540" width="120" height="120" viewBox="0 0 120 120" aria-hidden="true"><circle data-dc-tpl="541" cx="60" cy="60" r="34" fill="#2BC4B4"></circle><path data-dc-tpl="542" d="M36 50l14-12 20 4 6 16-12 12-18-4z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2"></path><path data-dc-tpl="543" d="M66 82l10-6 8 4-4 8z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2"></path><circle data-dc-tpl="544" cx="60" cy="60" r="34" fill="none" stroke="#FFFBF0" stroke-opacity=".3"></circle></svg>
+        <b data-dc-tpl="545" style="font-size: 14px;">Planet · ML family</b><span data-dc-tpl="546" style="font-size: 12px; color: rgba(255, 251, 240, 0.72);">Teal ocean, angular land. Silhouette from a stable personal seed.</span>
+      </div>
+      <div data-dc-tpl="547" style="display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center;">
+        <svg data-dc-tpl="548" width="120" height="120" viewBox="0 0 120 120" aria-hidden="true"><circle data-dc-tpl="549" cx="60" cy="60" r="34" fill="#4C8A86"></circle><path data-dc-tpl="550" d="M36 50l14-12 20 4 6 16-12 12-18-4z" fill="#5E8F68" stroke="#0E3B2E" stroke-width="2"></path></svg>
+        <b data-dc-tpl="551" style="font-size: 14px;">Calm (dormant)</b><span data-dc-tpl="552" style="font-size: 12px; color: rgba(255, 251, 240, 0.72);">−35% saturation, no glow. Same place, intact terrain.</span>
+      </div>
+      <div data-dc-tpl="553" style="display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center;">
+        <svg data-dc-tpl="554" width="120" height="120" viewBox="0 0 120 120" aria-hidden="true"><g data-dc-tpl="555" fill="#FFFBF0"><circle data-dc-tpl="556" cx="48" cy="54" r="2" opacity=".8"></circle><circle data-dc-tpl="557" cx="62" cy="46" r="1.5" opacity=".6"></circle><circle data-dc-tpl="558" cx="70" cy="62" r="2.2" opacity=".7"></circle><circle data-dc-tpl="559" cx="56" cy="70" r="1.4" opacity=".5"></circle><circle data-dc-tpl="560" cx="40" cy="66" r="1.2" opacity=".4"></circle><circle data-dc-tpl="561" cx="78" cy="50" r="1" opacity=".4"></circle></g><circle data-dc-tpl="562" cx="60" cy="58" r="22" fill="#2BC4B4" opacity=".1"></circle></svg>
+        <b data-dc-tpl="563" style="font-size: 14px;">Dust · emerging</b><span data-dc-tpl="564" style="font-size: 12px; color: rgba(255, 251, 240, 0.72);">Unlabelled cue. Never promises a future planet.</span>
+      </div>
+      <div data-dc-tpl="565" style="display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center;">
+        <svg data-dc-tpl="566" width="120" height="120" viewBox="0 0 120 120" aria-hidden="true"><rect data-dc-tpl="567" x="44" y="52" width="32" height="16" rx="4" fill="none" stroke="#FFFBF0" stroke-width="2.4"></rect><path data-dc-tpl="568" d="M30 60h14M76 60h14" stroke="#FFFBF0" stroke-width="2.4"></path><rect data-dc-tpl="569" x="22" y="54" width="8" height="12" fill="#FFFBF0"></rect><rect data-dc-tpl="570" x="90" y="54" width="8" height="12" fill="#FFFBF0"></rect><circle data-dc-tpl="571" cx="60" cy="60" r="3" fill="#FFE44D"></circle></svg>
+        <b data-dc-tpl="572" style="font-size: 14px;">Room station</b><span data-dc-tpl="573" style="font-size: 12px; color: rgba(255, 251, 240, 0.72);">Same room ID, personal placement on each map.</span>
+      </div>
+      <div data-dc-tpl="574" style="display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center;">
+        <svg data-dc-tpl="575" width="120" height="120" viewBox="0 0 120 120" aria-hidden="true"><path data-dc-tpl="576" d="M20 90 Q 50 60 82 46" fill="none" stroke="#FFE44D" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"></path><path data-dc-tpl="577" d="M78 38l18 6-14 12z" fill="#FFFBF0"></path></svg>
+        <b data-dc-tpl="578" style="font-size: 14px;">Ship · you are here</b><span data-dc-tpl="579" style="font-size: 12px; color: rgba(255, 251, 240, 0.72);">Marks camera return point; trail shows the route you took.</span>
+      </div>
+    </div>
+    <div data-dc-tpl="580" style="display: grid; grid-template-columns: repeat(3, minmax(0px, 1fr)); gap: 18px;">
+      <div data-dc-tpl="581" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 16px; background: rgb(11, 26, 46);">
+        <svg data-dc-tpl="582" width="100%" height="110" viewBox="0 0 360 110" aria-hidden="true"><ellipse data-dc-tpl="583" cx="180" cy="55" rx="160" ry="40" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse><circle data-dc-tpl="584" cx="60" cy="38" r="14" fill="#2BC4B4"></circle><path data-dc-tpl="585" d="M60 54 V 74" stroke="#FFFBF0" stroke-opacity=".5"></path><text data-dc-tpl="586" x="60" y="90" text-anchor="middle" fill="#FFFBF0" font-family="Instrument Sans, sans-serif" font-size="13" font-weight="600">Attention</text><circle data-dc-tpl="587" cx="300" cy="74" r="10" fill="#2BC4B4"></circle><text data-dc-tpl="588" x="300" y="104" text-anchor="middle" fill="#FFFBF0" font-family="Instrument Sans, sans-serif" font-size="13" font-weight="600">Inference</text></svg>
+        <b data-dc-tpl="589" style="font-size: 14px;">Label rule</b><span data-dc-tpl="590" style="font-size: 13px; color: rgba(255, 251, 240, 0.8);">Label on a baseline 12px under the body, Instrument 600 13/16 cream. If two labels collide, the farther one gets a leader line. Max 2 lines; never on top of another body.</span>
+      </div>
+      <div data-dc-tpl="591" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 16px; background: rgb(11, 26, 46);">
+        <svg data-dc-tpl="592" width="100%" height="110" viewBox="0 0 360 110" aria-hidden="true"><path data-dc-tpl="593" d="M30 70 L 70 30 L 140 22 L 196 48 L 180 92 L 96 98 Z" fill="#5BCB72" stroke="#0E3B2E" stroke-width="2.5"></path><g data-dc-tpl="594"><path data-dc-tpl="595" d="M92 50 l8 -5 10 0 6 6 0 10 -6 6 -10 0 -6 -6z" fill="#E7F7E9" stroke="#111111" stroke-width="2"></path><circle data-dc-tpl="596" cx="104" cy="56" r="3" fill="#111111"></circle></g><g data-dc-tpl="597"><path data-dc-tpl="598" d="M140 62 l8 -5 10 0 6 6 0 10 -6 6 -10 0 -6 -6z" fill="#FFE44D" stroke="#111111" stroke-width="2.5"></path><circle data-dc-tpl="599" cx="152" cy="68" r="3" fill="#111111"></circle></g><text data-dc-tpl="600" x="230" y="52" fill="#FFFBF0" font-family="Instrument Sans, sans-serif" font-size="13">default</text><text data-dc-tpl="601" x="230" y="76" fill="#FFE44D" font-family="Instrument Sans, sans-serif" font-size="13">selected</text></svg>
+        <b data-dc-tpl="602" style="font-size: 14px;">Region pin</b><span data-dc-tpl="603" style="font-size: 13px; color: rgba(255, 251, 240, 0.8);">Octagon (kept from ref 04). Two states only: default, selected. No “seen/visited” badges. Hit area 48px.</span>
+      </div>
+      <div data-dc-tpl="604" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 16px; background: rgb(11, 26, 46);">
+        <div data-dc-tpl="605" style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button data-dc-tpl="606" class="btn sp sm" type="button"><svg data-dc-tpl="607" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="608" d="M15 5l-7 7 7 7"></path></svg>Universe</button>
+          <button data-dc-tpl="609" class="btn sp sm" type="button" aria-pressed="true"><i data-dc-tpl="610" style="width: 8px; height: 8px; border-radius: 9px; background: rgb(20, 199, 155); display: inline-block;"></i>Lately</button>
+          <button data-dc-tpl="611" class="btn sm" type="button" style="background: transparent; color: rgb(255, 251, 240); border-color: rgba(255, 251, 240, 0.6); box-shadow: none;">List view</button>
+        </div>
+        <b data-dc-tpl="612" style="font-size: 14px;">Floating controls</b><span data-dc-tpl="613" style="font-size: 13px; color: rgba(255, 251, 240, 0.8);">Cream pills only. “List view” opens the accessible outline of every system/planet/region (U02 list).</span>
+      </div>
+    </div>
+  </section></div></div></div>
+
+
+
+</body></html>

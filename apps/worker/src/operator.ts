@@ -1,0 +1,380 @@
+import {
+  makeCommissionPreparation,
+  postgresCommissionReview,
+} from '@knowscroll/backend/modules/content/nest-providers';
+import { makeWithCutroomPreparationScope } from '@knowscroll/backend/reasoning/nest-providers';
+import { makeReelCorpusImporter } from '@knowscroll/backend/modules/content/nest-providers';
+import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
+import { cutroomBFor } from '@knowscroll/backend/reasoning/nest-providers';
+import { lockCommissionBusiness } from '@knowscroll/backend/modules/content/nest-providers';
+import { makeWithCutroomScope } from '@knowscroll/backend/reasoning/nest-providers';
+import { readCutroomSetup } from './cutroom-jobs.js';
+import { assembleCutroom, assembleReceiving } from './jobs.js';
+import { readReceiveSetup } from './cutroom-receive-jobs.js';
+import { makeCutroomReelImporter } from '@knowscroll/backend/modules/content/nest-providers';
+import { userInfo } from 'node:os';
+import { parseArgs } from 'node:util';
+import {
+  ConfigurationError,
+  commitForDiagnostics,
+  readWorkerOperatorConfig,
+  readWorkerConfig,
+  readContentOperatorConfig,
+  readScrollProductionOperatorConfig,
+  readMediaImportConfig,
+  worldForDiagnostics,
+} from '@knowscroll/backend/infrastructure/config';
+import { createEventLog } from '@knowscroll/backend/infrastructure/observability';
+import { createDatabase, makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  reasoningOperatorFor,
+  configuredModelPort,
+  harnessSettings,
+  makeProductionReasoningHarness,
+  postgresProductionHarnessPorts,
+} from '@knowscroll/backend/reasoning/nest-providers';
+import { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from '@knowscroll/backend/modules/content';
+import { produceScrollUseCase } from '@knowscroll/backend/modules/content/nest-providers';
+
+/**
+ * `node dist/operator.js <area> <command> [options]`: operator commands of the worker release,
+ * run from a server shell with the world's environment (`KS_WORLD`, `DATABASE_URL`). Results are
+ * one JSON line on stdout; diagnostics (typed `logEvent` records) go to stderr.
+ *
+ *   reasoning write-off --attempt <uuid> --reason <text>   unknown → written_off, reason and `cli:<name>` recorded
+ *   reasoning unknown [--limit <n>]                        attempts awaiting reconciliation
+ *   reasoning sweep-dispatched [--older-than-seconds <n>]  attempts a crash left dispatched -> unknown
+ *   reasoning purge-expired                                delete expired protected requests
+ *
+ * Exit status: 0 done, 2 refused or not applicable (bad usage, not unknown, missing), 1 failure.
+ * MiniMax offers no request lookup: an `unknown` attempt is never resent; a write-off records the
+ * unresolved liability and its reason, and does not prove that the provider stopped work.
+ */
+const usage =
+  'usage: operator.js cutroom import-corpus | cutroom commission (trusted configured root packet required) | operator.js content produce-scroll --topic seasons|tides|greenhouse|greenhouse-radiation|greenhouse-balance|greenhouse-limits [--dry-run] [--resume] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired';
+
+const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
+
+/**
+ * Who ran the command, for the write-off record: the user behind `sudo` (`SUDO_USER`), else the
+ * login user, as `cli:<name>`; `cli:unknown` when neither is a plain user name (the same rule as
+ * the API tree's operator command).
+ */
+function operatorSource(env: NodeJS.ProcessEnv): string {
+  const candidates = [env['SUDO_USER'], env['USER'], env['LOGNAME']];
+  try {
+    candidates.push(userInfo().username);
+  } catch {
+    // No passwd entry for this uid: the environment's names are all there is.
+  }
+  const name = candidates.find((candidate) => candidate !== undefined && operatorName.test(candidate));
+  return `cli:${name ?? 'unknown'}`;
+}
+
+function print(result: Record<string, unknown>): void {
+  process.stdout.write(`${JSON.stringify(result)}\n`);
+}
+
+async function main(): Promise<number> {
+  const logEvent = createEventLog({
+    service: 'operator',
+    environment: worldForDiagnostics(process.env),
+    revision: commitForDiagnostics(process.env),
+    destination: process.stderr,
+  });
+  let args;
+  try {
+    args = parseArgs({
+      args: process.argv.slice(2),
+      options: {
+        topic: { type: 'string' },
+        'dry-run': { type: 'boolean', default: false },
+        resume: { type: 'boolean', default: false },
+        run: { type: 'string' },
+        script: { type: 'string' },
+        fixture: { type: 'boolean' },
+        attempt: { type: 'string' },
+        reason: { type: 'string' },
+        limit: { type: 'string' },
+        'older-than-seconds': { type: 'string' },
+      },
+      allowPositionals: true,
+      strict: true,
+    });
+  } catch {
+    print({ result: 'usage', usage });
+    return 2;
+  }
+  const [area, command] = args.positionals;
+  if (area === 'cutroom' && command === 'receive' && args.positionals.length === 2) {
+    if (Object.values(args.values).some((value) => value !== undefined && value !== false)) {
+      print({ result: 'usage', usage: 'cutroom receive (configured Root packet only; no flags)' });
+      return 2;
+    }
+    let database: ReturnType<typeof createDatabase<Database>> | undefined;
+    let boss: ReturnType<typeof createBoss> | undefined;
+    try {
+      const config = readWorkerConfig(process.env);
+      if (!config.receiving?.enabled) {
+        print({ result: 'disabled' });
+        return 2;
+      }
+      const setup = await readReceiveSetup(config.receiving, config.world);
+      if (!setup.envelope) {
+        print({ result: 'setup_unavailable' });
+        return 2;
+      }
+      database = createDatabase<Database>(config.database, { onIdleClientError: () => undefined });
+      boss = createBoss(config.database, 'producer', { onError: () => undefined, onWarning: () => undefined });
+      await boss.start();
+      const result = await assembleReceiving(database.db, boss, config, setup).stage(setup.envelope);
+      print({ command: 'cutroom receive', result });
+      return result.kind === 'pending' || result.kind === 'admitted' ? 0 : 2;
+    } catch {
+      print({ result: 'receiving_unavailable' });
+      return 2;
+    } finally {
+      await boss?.stop({ graceful: true, timeout: 5000 });
+      await database?.close();
+    }
+  }
+  if (
+    area === 'cutroom' &&
+    ['commission', 'import-corpus', 'prepare-review', 'purge', 'process-pool', 'follow', 'settle'].includes(
+      command ?? '',
+    ) &&
+    args.positionals.length === 2
+  ) {
+    let database: ReturnType<typeof createDatabase<Database>> | undefined;
+    let boss: ReturnType<typeof createBoss> | undefined;
+    let connected: ReturnType<typeof assembleCutroom> | undefined;
+    try {
+      const config = readWorkerConfig(process.env);
+      if (!config.cutroom.enabled) {
+        print({ result: 'disabled' });
+        return 2;
+      }
+      const setup = await readCutroomSetup(config.cutroom, config.world);
+      database = createDatabase<Database>(config.database, { onIdleClientError: () => undefined });
+      if (command === 'purge') {
+        boss = createBoss(config.database, 'producer', { onError: () => undefined, onWarning: () => undefined });
+        await boss.start();
+        const count = await cutroomBFor(database.db, boss, {
+          enabled: true,
+          withScope: makeWithCutroomScope(database.db, { enabled: true, lockTimeoutMs: 5000 }),
+          lockBusiness: lockCommissionBusiness,
+        }).purge({ worldId: setup.worldId, generation: setup.generation }, 50);
+        print({ command: 'cutroom purge', result: 'expired_bytes_purged', count });
+        return 0;
+      }
+      if (command === 'prepare-review') {
+        const prepared = await makeCommissionPreparation(
+          postgresCommissionReview,
+          makeWithCutroomPreparationScope(database.db, { enabled: true }),
+          { enabled: true, manifests: setup.manifests },
+        ).prepare({ worldId: setup.worldId, generation: setup.generation }, setup.reviewProposal);
+        print({ command: 'cutroom prepare-review', ...prepared });
+        return prepared.kind === 'prepared' ? 0 : 2;
+      }
+      if (command === 'import-corpus') {
+        if (!setup.corpusRecords || !setup.corpusDraft) {
+          print({ result: 'setup_unavailable' });
+          return 2;
+        }
+        const imported = await makeReelCorpusImporter(
+          makeWithCutroomScope(database.db, { enabled: true, lockTimeoutMs: 5000 }),
+          { enabled: true, records: setup.corpusRecords, manifest: setup.manifests[0], draft: setup.corpusDraft },
+        )({ worldId: setup.worldId, generation: setup.generation });
+        print({ command: 'cutroom import-corpus', ...imported });
+        return imported.kind === 'imported' ? 0 : 2;
+      }
+      boss = createBoss(config.database, 'producer', { onError: () => undefined, onWarning: () => undefined });
+      await boss.start();
+      connected = assembleCutroom(database.db, boss, config, setup);
+      if (command !== 'commission') {
+        const method = command === 'process-pool' ? 'pool' : command === 'follow' ? 'follow' : 'settle';
+        const work = method === 'pool' ? setup.poolWork : method === 'follow' ? setup.followWork : setup.settleWork;
+        if (!work) {
+          print({ result: 'setup_unavailable' });
+          return 2;
+        }
+        const result = await connected.useCase[method](work);
+        print({ command: `cutroom ${command}`, mode: 'root_immediate_existing_operation', result });
+        return result === 'held' || result === 'disabled' || result === 'post_unknown' ? 2 : 0;
+      }
+      const result = await connected.useCase.commission(setup.command, setup.reviewPacket);
+      print({ command: 'cutroom commission', ...result });
+      return result.kind === 'pending' ? 0 : 2;
+    } catch {
+      print({ result: 'cutroom_unavailable' });
+      return 2;
+    } finally {
+      await connected?.close();
+      await boss?.stop({ graceful: true, timeout: 5000 });
+      await database?.close();
+    }
+  }
+
+  if (area === 'content' && command === 'produce-scroll' && args.positionals.length === 2) {
+    const topic = parseScrollTopic(args.values.topic);
+    if (topic === undefined) {
+      print({ result: 'topic_refused', requestBound: REQUEST_BOUND_PER_TOPIC });
+      return 2;
+    }
+    try {
+      // Both dry and real paths validate the allowlisted world before touching the database/provider.
+      if (args.values['dry-run']) {
+        readContentOperatorConfig(process.env);
+        print({ command: 'content produce-scroll', outcome: 'dry_run', requestBound: REQUEST_BOUND_PER_TOPIC });
+        return 0;
+      }
+      const contentConfig = readScrollProductionOperatorConfig(process.env);
+      const contentDatabase = createDatabase<Database>(contentConfig.database, {
+        onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+      });
+      const abort = new AbortController();
+      const stop = () => abort.abort();
+      process.once('SIGTERM', stop);
+      process.once('SIGINT', stop);
+      try {
+        const withScope = makeWithProductionScope(contentDatabase.db, {
+          enabled: contentConfig.reasoning.productionEnabled,
+          lockTimeoutMs: contentConfig.scopeLockTimeoutMs,
+        });
+        const model = configuredModelPort(contentConfig.reasoning);
+        const harness = makeProductionReasoningHarness(
+          postgresProductionHarnessPorts({
+            db: contentDatabase.db,
+            withProductionScope: withScope,
+            enabled: contentConfig.reasoning.productionEnabled,
+            model,
+            logEvent,
+            settings: harnessSettings(contentConfig.reasoning, operatorSource(process.env)),
+          }),
+        );
+        const produce = produceScrollUseCase({
+          db: contentDatabase.db,
+          authority: { scopeId: 'scroll-supply', generation: contentConfig.productionGeneration },
+          withScope,
+          harness,
+          model: model?.model ?? 'none',
+        });
+        print({ command: 'content produce-scroll', requestBound: REQUEST_BOUND_PER_TOPIC, outcome: 'starting' });
+        const result = await produce(topic, false, abort.signal, args.values.resume);
+        print({ command: 'content produce-scroll', ...result });
+        return result.outcome === 'published' ? 0 : 2;
+      } finally {
+        process.off('SIGTERM', stop);
+        process.off('SIGINT', stop);
+        await contentDatabase.close();
+      }
+    } catch (error) {
+      if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
+      else logEvent('process.crashed', { reasonCode: 'scroll_production_failed', error });
+      return 1;
+    }
+  }
+  if (area === 'content' && command === 'import-cutroom-reel' && args.positionals.length === 2) {
+    if (!args.values.run || !args.values.script) {
+      print({
+        result: 'usage',
+        usage: 'content import-cutroom-reel --run <uuid> --script <name> [--fixture (ci/local only)]',
+      });
+      return 2;
+    }
+    try {
+      const settings = readMediaImportConfig(process.env);
+      const database = createDatabase<Database>(settings.database, {
+        onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+      });
+      try {
+        const result = await makeCutroomReelImporter(
+          database.db,
+          settings,
+        )({ runId: args.values.run, script: args.values.script, fixture: args.values.fixture });
+        print({ command: 'content import-cutroom-reel', ...result });
+        return result.kind === 'refused' ? 2 : 0;
+      } finally {
+        await database.close();
+      }
+    } catch (error) {
+      if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
+      else logEvent('process.crashed', { reasonCode: 'media_import_failed' });
+      return 1;
+    }
+  }
+  const known =
+    area === 'reasoning' &&
+    (command === 'write-off' || command === 'unknown' || command === 'sweep-dispatched' || command === 'purge-expired');
+  if (!known || args.positionals.length !== 2) {
+    print({ result: 'usage', usage });
+    return 2;
+  }
+  let config;
+  try {
+    config = readWorkerOperatorConfig(process.env);
+  } catch (error) {
+    if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
+    else logEvent('process.start_failed', { reasonCode: 'config_failed', error });
+    return 1;
+  }
+  const database = createDatabase<Database>(config.database, {
+    onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+  });
+  const operator = reasoningOperatorFor(database.db, logEvent);
+  try {
+    switch (command) {
+      case 'write-off': {
+        if (args.values.attempt === undefined || args.values.reason === undefined) {
+          print({ result: 'usage', usage });
+          return 2;
+        }
+        const result = await operator.writeOff(args.values.attempt, args.values.reason, operatorSource(process.env));
+        print({ command: 'reasoning write-off', result: result.kind, ...result });
+        return result.kind === 'written_off' ? 0 : 2;
+      }
+      case 'unknown': {
+        const limit = args.values.limit === undefined ? 50 : Number(args.values.limit);
+        if (!Number.isInteger(limit) || limit < 1) {
+          print({ result: 'usage', usage });
+          return 2;
+        }
+        const attempts = await operator.listUnknown(limit);
+        print({
+          command: 'reasoning unknown',
+          result: 'listed',
+          attempts: attempts.map((attempt) => ({
+            ...attempt,
+            dispatchedAt: attempt.dispatchedAt === null ? null : attempt.dispatchedAt.toISOString(),
+          })),
+        });
+        return 0;
+      }
+      case 'sweep-dispatched': {
+        const olderThan =
+          args.values['older-than-seconds'] === undefined ? 900 : Number(args.values['older-than-seconds']);
+        if (!Number.isInteger(olderThan) || olderThan < 0) {
+          print({ result: 'usage', usage });
+          return 2;
+        }
+        print({
+          command: 'reasoning sweep-dispatched',
+          result: 'swept',
+          count: await operator.sweepStaleDispatched(olderThan),
+        });
+        return 0;
+      }
+      case 'purge-expired': {
+        print({ command: 'reasoning purge-expired', result: 'purged', count: await operator.purgeExpired() });
+        return 0;
+      }
+    }
+  } catch (error) {
+    logEvent('process.crashed', { reasonCode: 'operator_failed', error });
+    return 1;
+  } finally {
+    await database.close();
+  }
+}
+
+process.exitCode = await main();

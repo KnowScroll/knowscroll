@@ -1,0 +1,107 @@
+# Mandatory renderer fixture journey (#230). This lane has no session and proves no generation,
+# consumption recording or server journey. Missing controls fail the flow; none is optional.
+appId: com.knowscroll.client
+name: Scroll renderer gestures and text alternatives
+tags:
+  - gallery
+  - scroll-blocks
+---
+- runFlow: start-app.yaml
+- openLink: knowscroll://gallery-scroll
+- extendedWaitUntil:
+    visible:
+      id: ks-scroll-gallery
+    timeout: 60000
+- assertVisible: Why bridges stay up
+- takeScreenshot: scroll-01-poster
+# Stop when the control is fully visible. Extra centering can scroll the frame caption
+# above the viewport (native run 39497349337); keep the caption assertion below mandatory.
+- scrollUntilVisible:
+    element: Describe this diagram
+    timeout: 90000
+- tapOn:
+    text: Next
+    enabled: true
+- assertVisible: The towers.*The cables pull on the towers.*
+- tapOn: Describe this diagram
+# Expanding the description can move its Hide control below the viewport. Search from
+# the article gutter with the same bounded gesture used below; visibility stays mandatory.
+- repeat:
+    times: 20
+    while:
+      notVisible: Hide description
+    commands:
+      - swipe:
+          start: 4%, 85%
+          end: 4%, 35%
+          duration: 650
+- assertVisible: Hide description
+- takeScreenshot: scroll-02-diagram-description
+
+- openLink: knowscroll://gallery-scroll?doc=experiments
+- extendedWaitUntil:
+    visible: Small experiments you can run
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: slider-length
+    centerElement: true
+    timeout: 90000
+# Starts on the actual native slider. Horizontal ownership must survive through release.
+- swipe:
+    from:
+      id: slider-length
+    direction: RIGHT
+    duration: 1000
+- assertVisible: A 4.00 m string swings once in about 4.0 s.
+- takeScreenshot: scroll-03-native-slider-release
+
+- scrollUntilVisible:
+    element: More Your altitude
+    centerElement: true
+    timeout: 90000
+- tapOn: More Your altitude
+- assertVisible: 250 m
+- assertVisible: 99.2 °C
+- takeScreenshot: scroll-04-personal-number-control
+
+# The centred altitude control is a native EditText. A centre-screen search starts
+# inside that field and leaves the article stationary (run 39466107619 hierarchy:
+# [242,1163][839,1291] includes the 540,1200 start). Read from the article gutter,
+# keeping the target and frame assertions mandatory.
+- repeat:
+    times: 20
+    while:
+      notVisible: Toward Left pier
+    commands:
+      - swipe:
+          start: 4%, 85%
+          end: 4%, 35%
+          duration: 650
+- assertVisible: Toward Left pier
+- tapOn: Toward Left pier
+- assertVisible: Left pier.*With the weight over the left pier.*
+- takeScreenshot: scroll-05-diagram-choice
+
+# The diagram owns two-axis gestures. Maestro's centre-screen scroll starts on that
+# canvas here and correctly drags it instead of moving the article. Scroll from the
+# article gutter, with a bounded search and the same mandatory target assertion.
+- repeat:
+    times: 20
+    while:
+      notVisible: Text version of diagrams
+    commands:
+      - swipe:
+          start: 4%, 35%
+          end: 4%, 85%
+          duration: 650
+- assertVisible: Text version of diagrams
+- tapOn: Text version of diagrams
+- scrollUntilVisible:
+    element: More String length
+    centerElement: true
+    timeout: 90000
+- assertVisible: Swing time.*4.0 s
+- assertNotVisible:
+    id: slider-length
+- takeScreenshot: scroll-06-text-alternative-preserves-value

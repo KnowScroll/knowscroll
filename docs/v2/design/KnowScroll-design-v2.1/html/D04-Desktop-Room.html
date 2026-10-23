@@ -1,0 +1,253 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>D04 Desktop Room</title>
+<style>x-dc{display:none!important}</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.rnav{width:88px;height:900px;background:#111111;color:#FFFBF0;display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:8px;flex:none}
+.rnav button,.rnav a{width:72px;min-height:64px;border:0;border-radius:18px;background:transparent;color:rgba(255,251,240,.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none}
+.rnav [aria-current="page"]{background:#2C46E8;color:#FFFBF0}
+.av{width:32px;height:32px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none;border:1.5px solid #111111}
+.bub{max-width:360px;padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.45}
+.thr{display:flex;flex-direction:column;gap:3px;width:100%;min-height:56px;padding:10px 12px;border:0;border-radius:12px;background:transparent;text-align:left;cursor:pointer;color:#111111}
+.thr b{font-size:14px;line-height:1.3}
+.thr span{font-size:12px;color:#4A463D}
+.ep{display:flex;gap:8px;align-items:center;width:162px;min-height:64px;padding:6px;border:2px solid #111111;border-radius:12px;background:#FFFBF0;text-align:left;cursor:pointer;flex:none;color:#111111}
+.ep i{display:block;width:48px;height:48px;border-radius:8px;flex:none;position:relative;overflow:hidden}
+.ep span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ep b{font-size:12.5px;line-height:1.25}
+.ep em{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#4A463D}
+.act{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:64px;min-height:52px;justify-content:center;border:0;background:transparent;border-radius:12px;font-size:11.5px;font-weight:600;cursor:pointer;color:#111111}
+.act:hover{background:#F4EDD8}
+.opt{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-radius:12px;border:2px solid #111111;background:#FFFBF0;font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;width:100%}
+.tool{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-radius:12px;border:1.5px solid #D9D1BC;background:#FFFBF0;font-size:13.5px;font-weight:600;cursor:pointer;width:100%;text-align:left}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="D04-Desktop-Room"><div data-dc-tpl="3" style="width: 1440px; height: 900px; overflow: hidden; position: relative; display: flex; background: rgb(255, 251, 240); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif;">
+
+  <nav data-dc-tpl="4" class="rnav" aria-label="Primary">
+    <span data-dc-tpl="5" class="disp" style="font-size: 22px; font-weight: 800; color: rgb(255, 228, 77); margin-bottom: 14px;">K</span>
+    <a data-dc-tpl="6" href="D01-Desktop-Explore.html"><svg data-dc-tpl="7" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect data-dc-tpl="8" x="3" y="7" width="18" height="13" rx="3"></rect><path data-dc-tpl="9" d="M8 3l4 4 4-4"></path></svg>Explore</a>
+    <a data-dc-tpl="10" href="D02-Desktop-Universe.html"><svg data-dc-tpl="11" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle data-dc-tpl="12" cx="12" cy="12" r="3.5"></circle><ellipse data-dc-tpl="13" cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"></ellipse></svg>Universe</a>
+    <a data-dc-tpl="14" href="D03-Desktop-Talk.html" aria-current="page"><svg data-dc-tpl="15" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="16" d="M4 5h16v11H9l-5 4z"></path></svg>Talk</a>
+    <a data-dc-tpl="17" href="S01-Saved.html"><svg data-dc-tpl="18" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="19" d="M6 3h12v18l-6-4-6 4z"></path></svg>Keep</a>
+    <a data-dc-tpl="20" href="D05-Desktop-Privacy.html" aria-label="Account" style="margin-top: auto;"><span data-dc-tpl="21" style="width: 40px; height: 40px; border-radius: 999px; background: rgb(255, 228, 77); color: rgb(17, 17, 17); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px;">A</span></a>
+  </nav>
+
+  
+  <aside data-dc-tpl="22" aria-label="Room and its threads" style="width: 280px; flex: 0 0 auto; border-right: 2px solid rgb(17, 17, 17); display: flex; flex-direction: column; background: rgb(255, 251, 240);">
+    <div data-dc-tpl="23" style="height: 150px; background: rgb(4, 10, 23); color: rgb(255, 251, 240); position: relative; padding: 16px 18px; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; flex: 0 0 auto;">
+      <svg data-dc-tpl="24" aria-hidden="true" width="280" height="150" viewBox="0 0 280 150" style="position: absolute; inset: 0px;"><g data-dc-tpl="25" fill="#FFFBF0"><circle data-dc-tpl="26" cx="26" cy="26" r="1" opacity=".6"></circle><circle data-dc-tpl="27" cx="130" cy="18" r="1.2" opacity=".5"></circle><circle data-dc-tpl="28" cx="262" cy="42" r="1" opacity=".6"></circle><circle data-dc-tpl="29" cx="96" cy="60" r=".9" opacity=".5"></circle></g><ellipse data-dc-tpl="30" cx="214" cy="56" rx="70" ry="22" fill="none" stroke="#FFFBF0" stroke-opacity=".18"></ellipse><g data-dc-tpl="31" transform="translate(214 56)"><rect data-dc-tpl="32" x="-16" y="-8" width="32" height="16" rx="4" fill="none" stroke="#FFFBF0" stroke-width="2.4"></rect><path data-dc-tpl="33" d="M-30 0h14M16 0h14" stroke="#FFFBF0" stroke-width="2.4"></path><rect data-dc-tpl="34" x="-38" y="-6" width="8" height="12" fill="#FFFBF0"></rect><rect data-dc-tpl="35" x="30" y="-6" width="8" height="12" fill="#FFFBF0"></rect><circle data-dc-tpl="36" cx="0" cy="0" r="3" fill="#FFE44D"></circle></g></svg>
+      <span data-dc-tpl="37" class="mono" style="color: rgba(255, 251, 240, 0.72); position: relative;">Room · station on your map</span>
+      <h1 data-dc-tpl="38" class="disp" style="margin: 0px; font-size: 24px; font-weight: 800; position: relative;">Model serving room</h1>
+    </div>
+    <div data-dc-tpl="39" style="padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.4; border-bottom: 1px solid rgb(217, 209, 188);">
+      <p data-dc-tpl="40" style="margin: 0px;">Running models for real people — cost, waiting, where they run.</p>
+      <div data-dc-tpl="41" style="display: flex; flex-wrap: wrap; gap: 6px;">
+        <span data-dc-tpl="42" class="tag" style="border-color: rgb(11, 122, 95); color: rgb(11, 122, 95);"><svg data-dc-tpl="43" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="44" d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"></path></svg>Moderator</span>
+        <span data-dc-tpl="45" class="tag ai">AI · Explainer</span>
+        <span data-dc-tpl="46" class="tag ai">AI · Skeptic</span>
+      </div>
+      <span data-dc-tpl="47" style="font-size: 12px; color: rgb(74, 70, 61);">AI inhabitants are always labelled. They suggest; people choose what gets explored.</span>
+    </div>
+    <div data-dc-tpl="48" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 6px;">
+      <span data-dc-tpl="49" class="mono" style="color: rgb(74, 70, 61);">Room threads</span>
+    </div>
+    <nav data-dc-tpl="50" aria-label="Room threads" style="display: flex; flex-direction: column; gap: 4px; padding: 0px 10px;">
+      <button data-dc-tpl="51" class="thr" type="button" aria-current="true" style="background: rgb(255, 228, 77); border: 2px solid rgb(17, 17, 17);">
+        <span data-dc-tpl="52" style="display: flex; gap: 6px; align-items: center; color: rgb(11, 122, 95); font-weight: 600;"><svg data-dc-tpl="53" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="54" d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"></path></svg>Pinned by the moderator</span>
+        <b data-dc-tpl="55">What one answer costs to serve</b>
+        <span data-dc-tpl="56" style="color: rgb(17, 17, 17);">Exploring: requests ×10</span>
+      </button>
+      <button data-dc-tpl="57" class="thr" type="button">
+        <span data-dc-tpl="58" style="display: flex; gap: 6px; align-items: center; color: rgb(11, 122, 95); font-weight: 600;"><svg data-dc-tpl="59" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="60" d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"></path></svg>Pinned</span>
+        <b data-dc-tpl="61">Offline inference · what if it must run on a phone?</b>
+        <span data-dc-tpl="62">A what-if thread</span>
+      </button>
+      <button data-dc-tpl="63" class="thr" type="button">
+        <b data-dc-tpl="64">Batching in practice</b>
+        <span data-dc-tpl="65">Started from a Scroll</span>
+      </button>
+    </nav>
+    <div data-dc-tpl="66" style="padding: 12px 16px; margin-top: auto; border-top: 1px solid rgb(217, 209, 188); display: flex; gap: 8px;">
+      <button data-dc-tpl="67" class="btn sm" type="button" style="flex: 1 1 0%;"><svg data-dc-tpl="68" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="69" d="M12 5v14M5 12h14"></path></svg>New thread</button>
+      <a data-dc-tpl="70" class="btn ghost sm" href="R01-Room.html">Leave</a>
+    </div>
+  </aside>
+
+  
+  <main data-dc-tpl="71" aria-label="Thread: What one answer costs to serve" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column; background: rgb(255, 251, 240);">
+    <header data-dc-tpl="72" style="height: 60px; flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 0px 20px; border-bottom: 2px solid rgb(17, 17, 17);">
+      <b data-dc-tpl="73" class="disp" style="font-size: 20px;">What one answer costs to serve</b>
+      <span data-dc-tpl="74" style="font-size: 13px; color: rgb(74, 70, 61);">· room thread</span>
+      <span data-dc-tpl="75" class="tag hyp" style="margin-left: auto;"><svg data-dc-tpl="76" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="77" d="M6 3v18"></path><path data-dc-tpl="78" d="M6 14c0-5 12-3 12-9"></path></svg>1 what-if open</span>
+      <button data-dc-tpl="79" class="btn ghost sm" type="button">Branch map</button>
+    </header>
+
+    <div data-dc-tpl="80" role="group" aria-label="Episodes — your position" style="height: 92px; flex: 0 0 auto; display: flex; gap: 10px; align-items: center; padding: 0px 20px; border-bottom: 1px solid rgb(217, 209, 188); background: rgb(244, 237, 216); overflow: hidden;">
+      <button data-dc-tpl="81" class="ep" type="button" aria-label="Part 1, Tokens in, tokens out — you watched it">
+        <i data-dc-tpl="82" style="background: rgb(44, 70, 232);"><svg data-dc-tpl="83" aria-hidden="true" width="48" height="48" viewBox="0 0 48 48"><rect data-dc-tpl="84" x="8" y="18" width="12" height="12" rx="2" fill="#FFFBF0"></rect><path data-dc-tpl="85" d="M22 24h6" stroke="#FFE44D" stroke-width="3"></path><rect data-dc-tpl="86" x="30" y="18" width="12" height="12" rx="2" fill="#FFE44D"></rect></svg></i>
+        <span data-dc-tpl="87"><em data-dc-tpl="88">Part 1 · ✓ watched</em><b data-dc-tpl="89">Tokens in, tokens out</b></span>
+      </button>
+      <button data-dc-tpl="90" class="ep" type="button" aria-current="true" aria-label="Part 2, What one answer costs — now playing" style="background: rgb(17, 17, 17); color: rgb(255, 251, 240); border-color: rgb(17, 17, 17);">
+        <i data-dc-tpl="91" style="background: rgb(27, 47, 184);"><svg data-dc-tpl="92" aria-hidden="true" width="48" height="48" viewBox="0 0 48 48"><rect data-dc-tpl="93" x="8" y="12" width="9" height="24" rx="2" fill="#FFFBF0"></rect><rect data-dc-tpl="94" x="20" y="12" width="9" height="24" rx="2" fill="#FFFBF0" opacity=".7"></rect><circle data-dc-tpl="95" cx="37" cy="30" r="6" fill="#FFE44D"></circle></svg></i>
+        <span data-dc-tpl="96"><em data-dc-tpl="97" style="color: rgb(255, 228, 77);">Part 2 · Now</em><b data-dc-tpl="98">What one answer costs</b></span>
+      </button>
+      <button data-dc-tpl="99" class="ep" type="button" aria-label="Part 3, Paying for idle hardware — upcoming" style="border-color: rgb(154, 147, 130);">
+        <i data-dc-tpl="100" style="background: rgb(58, 85, 240); opacity: 0.7;"><svg data-dc-tpl="101" aria-hidden="true" width="48" height="48" viewBox="0 0 48 48"><rect data-dc-tpl="102" x="10" y="12" width="28" height="24" rx="3" fill="none" stroke="#FFFBF0" stroke-width="2.5"></rect><path data-dc-tpl="103" d="M16 30h16" stroke="#FFFBF0" stroke-width="2.5" stroke-dasharray="3 3"></path></svg></i>
+        <span data-dc-tpl="104"><em data-dc-tpl="105">Part 3</em><b data-dc-tpl="106">Paying for idle hardware</b></span>
+      </button>
+      <span data-dc-tpl="107" aria-hidden="true" style="width: 1px; height: 52px; background: rgb(154, 147, 130); flex: 0 0 auto;"></span>
+      <div data-dc-tpl="108" class="ep" role="status" aria-label="Part 4, Preparing — not playable yet" style="border-style: dashed; cursor: default; background: repeating-linear-gradient(135deg, rgb(255, 251, 240) 0px, rgb(255, 251, 240) 6px, rgb(244, 237, 216) 6px, rgb(244, 237, 216) 12px);">
+        <i data-dc-tpl="109" style="background: transparent; border: 2px dashed rgb(154, 147, 130); display: flex; align-items: center; justify-content: center;"><svg data-dc-tpl="110" aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4A463D" stroke-width="2.4" stroke-linecap="round"><path data-dc-tpl="111" d="M12 3a9 9 0 0 1 9 9"></path></svg></i>
+        <span data-dc-tpl="112"><em data-dc-tpl="113">Preparing</em><b data-dc-tpl="114">Where the money goes</b></span>
+      </div>
+    </div>
+
+    <div data-dc-tpl="115" style="flex: 1 1 0%; min-height: 0px; display: flex;">
+      
+      <section data-dc-tpl="116" aria-label="Player" style="width: 312px; flex: 0 0 auto; padding: 16px 0px 16px 20px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="117" style="position: relative; width: 292px; height: 440px; border-radius: 18px; overflow: hidden; background: rgb(44, 70, 232); border: 2px solid rgb(17, 17, 17); color: rgb(255, 251, 240);">
+          <svg data-dc-tpl="118" aria-hidden="true" width="292" height="440" viewBox="0 0 292 440" style="position: absolute; inset: 0px;"><g data-dc-tpl="119" fill="#FFFBF0"><rect data-dc-tpl="120" x="40" y="110" width="56" height="88" rx="8"></rect><rect data-dc-tpl="121" x="118" y="110" width="56" height="88" rx="8" opacity=".7"></rect><rect data-dc-tpl="122" x="196" y="110" width="56" height="88" rx="8" opacity=".45"></rect></g><circle data-dc-tpl="123" cx="222" cy="236" r="22" fill="#FFE44D" stroke="#111111" stroke-width="2"></circle><path data-dc-tpl="124" d="M222 226v20M215 231h10a4 4 0 0 1 0 8h-6a4 4 0 0 0 0 8h10" stroke="#111111" stroke-width="2.2" fill="none"></path></svg>
+          <span data-dc-tpl="125" class="tag part" style="position: absolute; left: 12px; top: 12px;">Part 2</span>
+          <div data-dc-tpl="126" style="position: absolute; left: 12px; right: 12px; top: 262px; background: rgba(17, 17, 17, 0.82); border-radius: 10px; padding: 6px 10px; font-size: 13px; line-height: 1.35;">Every answer is a full pass through the model. The bill is the hardware time.</div>
+          <div data-dc-tpl="127" style="position: absolute; left: 12px; right: 12px; bottom: 14px; display: flex; flex-direction: column; gap: 8px;">
+            <b data-dc-tpl="128" class="disp" style="font-size: 20px; line-height: 1.1;">What one answer costs to serve</b>
+            <div data-dc-tpl="129" style="display: flex; align-items: center; gap: 8px;">
+              <button data-dc-tpl="130" type="button" aria-label="Pause" style="width: 36px; height: 36px; border-radius: 999px; border: 0px; background: rgb(255, 251, 240); color: rgb(17, 17, 17); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg data-dc-tpl="131" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path data-dc-tpl="132" d="M8 5v14M16 5v14"></path></svg></button>
+              <div data-dc-tpl="133" style="flex: 1 1 0%; height: 4px; border-radius: 4px; background: rgba(255, 251, 240, 0.35); position: relative;"><i data-dc-tpl="134" style="position: absolute; left: 0px; top: 0px; bottom: 0px; width: 40%; background: rgb(255, 251, 240); border-radius: 4px;"></i></div>
+              <span data-dc-tpl="135" class="mono" style="font-size: 10px;">0:20 / 0:50</span>
+            </div>
+          </div>
+        </div>
+        <div data-dc-tpl="136" role="toolbar" aria-label="Actions for this Reel" style="width: 292px; display: flex; justify-content: space-between; border: 2px solid rgb(17, 17, 17); border-radius: 16px; padding: 2px 4px;">
+          <button data-dc-tpl="137" class="act" type="button" aria-pressed="false"><svg data-dc-tpl="138" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path data-dc-tpl="139" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg>Like</button>
+          <button data-dc-tpl="140" class="act" type="button" aria-pressed="true"><svg data-dc-tpl="141" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="142" d="M6 3h12v18l-6-4-6 4z"></path></svg>Saved</button>
+          <button data-dc-tpl="143" class="act" type="button"><svg data-dc-tpl="144" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="145" d="M4 12h16"></path><path data-dc-tpl="146" d="M8 8v8M16 8v8"></path></svg>Share moment</button>
+          <button data-dc-tpl="147" class="act" type="button"><svg data-dc-tpl="148" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="149" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>Full screen</button>
+        </div>
+      </section>
+
+      
+      <section data-dc-tpl="150" aria-label="Thread conversation" aria-live="polite" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column;">
+        <div data-dc-tpl="151" style="flex: 1 1 0%; min-height: 0px; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; overflow: hidden;">
+          <div data-dc-tpl="152" style="display: flex; gap: 8px; align-items: flex-start;"><span data-dc-tpl="153" class="av" style="background: rgb(110, 134, 255);">R</span><div data-dc-tpl="154" style="display: flex; flex-direction: column; gap: 4px;"><b data-dc-tpl="155" style="font-size: 12px;">Ravi</b><div data-dc-tpl="156" class="bub" style="background: rgb(255, 251, 240); border: 2px solid rgb(17, 17, 17); border-top-left-radius: 6px;">This is the bit that surprised me:</div>
+            <div data-dc-tpl="157" style="display: flex; gap: 10px; align-items: center; padding: 6px; border: 2px solid rgb(17, 17, 17); border-radius: 12px; background: rgb(255, 251, 240); width: 300px;"><i data-dc-tpl="158" style="display: block; width: 44px; height: 44px; border-radius: 8px; background: rgb(44, 70, 232); flex: 0 0 auto;"></i><span data-dc-tpl="159" style="display: flex; flex-direction: column; gap: 1px; flex: 1 1 0%;"><b data-dc-tpl="160" style="font-size: 13px;">Part 2 · 00:12–00:24</b><span data-dc-tpl="161" style="font-size: 12px; color: rgb(74, 70, 61);">What one answer costs to serve</span></span><button data-dc-tpl="162" class="tag" type="button" style="cursor: pointer; height: 30px;">Play</button></div>
+          </div></div>
+          <div data-dc-tpl="163" style="display: flex; gap: 8px; align-items: flex-start;"><span data-dc-tpl="164" class="av" style="background: rgb(242, 184, 75);">M</span><div data-dc-tpl="165" style="display: flex; flex-direction: column; gap: 4px;"><b data-dc-tpl="166" style="font-size: 12px;">Meera</b><div data-dc-tpl="167" class="bub" style="background: rgb(255, 251, 240); border: 2px solid rgb(17, 17, 17); border-top-left-radius: 6px;">So what happens when it’s ten times as busy?</div></div></div>
+
+          <div data-dc-tpl="168" style="display: flex; gap: 10px; align-items: stretch; padding: 12px 14px; border: 2px dashed rgb(44, 70, 232); background: rgb(230, 234, 255); border-radius: 16px;">
+            <svg data-dc-tpl="169" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B2FB8" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="flex: 0 0 auto; margin-top: 2px;"><path data-dc-tpl="170" d="M6 3v18"></path><path data-dc-tpl="171" d="M6 14c0-5 12-3 12-9"></path></svg>
+            <div data-dc-tpl="172" style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 0%;">
+              <span data-dc-tpl="173" class="tag hyp" style="align-self: flex-start;">What if · asked by Meera</span>
+              <b data-dc-tpl="174" style="font-size: 16px;">What if requests increased tenfold?</b>
+              <span data-dc-tpl="175" style="font-size: 13px;">Same model and hardware.</span>
+              <span data-dc-tpl="176" style="display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 600;"><svg data-dc-tpl="177" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="178" d="M12 3a9 9 0 0 1 9 9"></path></svg>Preparing the first Reel</span>
+            </div>
+            <button data-dc-tpl="179" class="btn sm pri" type="button" style="align-self: center;">Explore this <svg data-dc-tpl="180" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="181" d="M5 12h14"></path><path data-dc-tpl="182" d="M13 6l6 6-6 6"></path></svg></button>
+          </div>
+
+          <div data-dc-tpl="183" style="display: flex; gap: 8px; align-items: flex-start;"><span data-dc-tpl="184" class="av" style="background: rgb(17, 17, 17); color: rgb(255, 251, 240); border-radius: 8px; font-size: 10px;">AI</span><div data-dc-tpl="185" style="display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="186" class="tag ai" style="align-self: flex-start;">AI · Skeptic</span><div data-dc-tpl="187" class="bub" style="background: rgb(255, 251, 240); border: 2px dotted rgb(17, 17, 17); border-radius: 6px 16px 16px;">Suggestion: what if requests arrive in bursts instead? Ten times the average can hide much bigger peaks.</div>
+            <div data-dc-tpl="188" style="display: flex; gap: 8px;"><button data-dc-tpl="189" class="btn sm" type="button" style="min-height: 36px; box-shadow: none;">Explore this</button><button data-dc-tpl="190" class="btn sm ghost" type="button" style="min-height: 36px;">Dismiss</button><span data-dc-tpl="191" style="font-size: 12px; color: rgb(74, 70, 61); align-self: center;">Nothing is made unless someone chooses it.</span></div>
+          </div></div>
+          <div data-dc-tpl="192" style="display: flex; flex-direction: column; gap: 3px; align-items: flex-end;"><div data-dc-tpl="193" class="bub" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240); border-bottom-right-radius: 6px;">Bursts is the better question. I’ll open it after this one.</div></div>
+        </div>
+        <div data-dc-tpl="194" style="display: flex; gap: 10px; align-items: center; padding: 12px 20px; border-top: 2px solid rgb(17, 17, 17); background: rgb(255, 251, 240);">
+          <button data-dc-tpl="195" class="btn sm" type="button" style="border-style: dashed; border-color: rgb(44, 70, 232); color: rgb(27, 47, 184); background: rgb(230, 234, 255); box-shadow: none;"><svg data-dc-tpl="196" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="197" d="M6 3v18"></path><path data-dc-tpl="198" d="M6 14c0-5 12-3 12-9"></path></svg>What if…</button>
+          <label data-dc-tpl="199" for="d4-msg" style="position: absolute; left: -9999px;">Reply in this thread</label>
+          <input data-dc-tpl="200" id="d4-msg" type="text" placeholder="Reply in this thread" style="flex: 1 1 0%; min-width: 0px; min-height: 48px; border: 2px solid rgb(17, 17, 17); border-radius: 999px; padding: 0px 18px; font: 15px &quot;Instrument Sans&quot;, sans-serif; background: rgb(255, 251, 240);">
+          <button data-dc-tpl="201" class="ibtn" type="button" aria-label="Send" style="background: rgb(44, 70, 232); color: rgb(255, 251, 240);"><svg data-dc-tpl="202" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="203" d="M4 12l16-8-6 16-3-7z"></path></svg></button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  
+  <aside data-dc-tpl="204" aria-label="Room extras" style="width: 260px; flex: 0 0 auto; border-left: 2px solid rgb(17, 17, 17); background: rgb(244, 237, 216); padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+    <div data-dc-tpl="205" style="display: flex; align-items: center; justify-content: space-between;">
+      <span data-dc-tpl="206" class="mono" style="color: rgb(74, 70, 61);">Room extras</span>
+      <button data-dc-tpl="207" class="ibtn" type="button" aria-label="Collapse room extras" aria-expanded="true" style="width: 40px; height: 40px; border-width: 1.5px;"><svg data-dc-tpl="208" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="209" d="M9 5l7 7-7 7"></path></svg></button>
+    </div>
+    <section data-dc-tpl="210" aria-label="Room poll" style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1.5px solid rgb(17, 17, 17); border-radius: 14px; background: rgb(255, 251, 240);">
+      <span data-dc-tpl="211" class="tag" style="align-self: flex-start;">Optional · poll</span>
+      <b data-dc-tpl="212" style="font-size: 15px; line-height: 1.3;">At 10× requests, what would you try first?</b>
+      <button data-dc-tpl="213" class="opt" type="button" aria-pressed="false"><span data-dc-tpl="214" style="width: 16px; height: 16px; border-radius: 999px; border: 2px solid rgb(17, 17, 17); flex: 0 0 auto;"></span>Batch requests</button>
+      <button data-dc-tpl="215" class="opt" type="button" aria-pressed="false"><span data-dc-tpl="216" style="width: 16px; height: 16px; border-radius: 999px; border: 2px solid rgb(17, 17, 17); flex: 0 0 auto;"></span>More instances</button>
+      <button data-dc-tpl="217" class="opt" type="button" aria-pressed="false"><span data-dc-tpl="218" style="width: 16px; height: 16px; border-radius: 999px; border: 2px solid rgb(17, 17, 17); flex: 0 0 auto;"></span>Shorter answers</button>
+      <span data-dc-tpl="219" style="font-size: 12px; line-height: 1.4; color: rgb(74, 70, 61);">Skipping it changes nothing for you.</span>
+      <a data-dc-tpl="220" href="R03-Activity.html" style="font-size: 13px; font-weight: 600;">All room activities</a>
+    </section>
+    <section data-dc-tpl="221" aria-label="Moderator tools" style="display: flex; flex-direction: column; gap: 8px;">
+      <span data-dc-tpl="222" style="display: flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 600; color: rgb(11, 122, 95);"><svg data-dc-tpl="223" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="224" d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"></path></svg>Moderator tools</span>
+      <button data-dc-tpl="225" class="tool" type="button"><svg data-dc-tpl="226" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="227" d="M12 17v5M8 3h8l-1 6 3 4H6l3-4z"></path></svg>Pin exploration</button>
+      <button data-dc-tpl="228" class="tool" type="button"><svg data-dc-tpl="229" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path data-dc-tpl="230" d="M4 6h16M4 12h10M4 18h6"></path></svg>Organise threads</button>
+      <span data-dc-tpl="231" style="font-size: 12px; line-height: 1.4; color: rgb(74, 70, 61);">Shown only to moderators.</span>
+    </section>
+  </aside>
+
+  <span data-dc-tpl="232" class="mono" style="position: absolute; right: 16px; bottom: 14px; background: rgb(255, 228, 77); padding: 5px 9px; border-radius: 6px;">Prototype · design data</span></div></div></div>
+
+
+
+</body></html>

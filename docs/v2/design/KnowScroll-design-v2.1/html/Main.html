@@ -1,0 +1,316 @@
+<!DOCTYPE html><html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>KnowScroll design v1 — start</title>
+<style>x-dc{display:none!important}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com" data-dc-tpl="1"><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet" data-dc-tpl="2"><style data-dc-tpl="3">
+body{margin:0;background:#FFFBF0}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:12px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.col h3{margin:0 0 10px;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:26px;letter-spacing:-.01em}
+.col ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px}
+.col li{font-size:15px;line-height:1.5}
+.cov{width:100%;border-collapse:collapse;font-size:14px}
+.cov th{text-align:left;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;padding:10px 12px;border-bottom:2px solid #111}
+.cov td{padding:10px 12px;border-bottom:1px solid #D9D1BC;vertical-align:top;line-height:1.4}
+.cov tr:hover td{background:#FFF4C2}
+.jl{display:flex;flex-direction:column;gap:10px;padding:22px;border-radius:18px;border:1.5px solid rgba(255,251,240,.28);background:#0B1A2E;color:#FFFBF0;text-decoration:none}
+.jl:hover{border-color:#FFE44D;color:#FFFBF0}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="Main"><div data-dc-tpl="4" style="width: 1440px; height: 4200px; background: rgb(255, 251, 240); color: rgb(17, 17, 17); font-family: &quot;Instrument Sans&quot;, system-ui, sans-serif; display: flex; flex-direction: column;">
+
+  <header data-dc-tpl="5" style="background: rgb(4, 10, 23); color: rgb(255, 251, 240); padding: 72px 96px 64px; display: flex; flex-direction: column; gap: 28px; position: relative; overflow: hidden; height: 560px;">
+    <svg data-dc-tpl="6" aria-hidden="true" width="1440" height="560" viewBox="0 0 1440 560" style="position: absolute; inset: 0px;">
+      <g data-dc-tpl="7" fill="#FFFBF0" opacity=".55"><circle data-dc-tpl="8" cx="80" cy="60" r="1"></circle><circle data-dc-tpl="9" cx="310" cy="120" r="1.2"></circle><circle data-dc-tpl="10" cx="520" cy="40" r=".8"></circle><circle data-dc-tpl="11" cx="700" cy="150" r="1"></circle><circle data-dc-tpl="12" cx="880" cy="70" r="1.3"></circle><circle data-dc-tpl="13" cx="1040" cy="30" r=".9"></circle><circle data-dc-tpl="14" cx="1210" cy="110" r="1"></circle><circle data-dc-tpl="15" cx="1380" cy="60" r="1.2"></circle><circle data-dc-tpl="16" cx="160" cy="400" r="1"></circle><circle data-dc-tpl="17" cx="430" cy="500" r=".9"></circle><circle data-dc-tpl="18" cx="640" cy="440" r="1.1"></circle><circle data-dc-tpl="19" cx="960" cy="520" r="1"></circle><circle data-dc-tpl="20" cx="1330" cy="480" r=".8"></circle></g>
+      <ellipse data-dc-tpl="21" cx="1120" cy="300" rx="250" ry="92" fill="none" stroke="#FFFBF0" stroke-opacity=".18" stroke-width="1.2"></ellipse>
+      <ellipse data-dc-tpl="22" cx="1120" cy="300" rx="160" ry="58" fill="none" stroke="#FFFBF0" stroke-opacity=".14" stroke-width="1.2"></ellipse>
+      <circle data-dc-tpl="23" cx="1120" cy="300" r="60" fill="#FFE9A8" opacity=".12"></circle>
+      <circle data-dc-tpl="24" cx="1120" cy="300" r="26" fill="#FFE9A8"></circle>
+      <circle data-dc-tpl="25" cx="1270" cy="252" r="22" fill="#2BC4B4"></circle>
+      <path data-dc-tpl="26" d="M1258 244l9-7 12 4 3 9-8 7-11-2z" fill="#5BCB72"></path>
+      <circle data-dc-tpl="27" cx="975" cy="335" r="13" fill="#6E86FF"></circle>
+      <circle data-dc-tpl="28" cx="1185" cy="352" r="9" fill="#2BC4B4" opacity=".75"></circle>
+    </svg>
+    <div data-dc-tpl="29" style="display: flex; gap: 12px; align-items: center; position: relative;">
+      <span data-dc-tpl="30" class="mono" style="background: rgb(255, 228, 77); color: rgb(17, 17, 17); padding: 6px 10px; border-radius: 6px;">Prototype · design data</span>
+      <span data-dc-tpl="31" class="mono" style="color: rgba(255, 251, 240, 0.72);">v2 · 19 Oct 2026 · Design canvas (editable HTML artboards) — not a Figma file</span>
+    </div>
+    <h1 data-dc-tpl="32" class="disp" style="margin: 0px; font-size: 104px; line-height: 0.92; font-weight: 800; max-width: 900px; position: relative;">KnowScroll<br data-dc-tpl="33">product design v2</h1>
+    <p data-dc-tpl="34" style="margin: 0px; font-size: 22px; line-height: 1.45; max-width: 760px; color: rgba(255, 251, 240, 0.86); position: relative;">Thoughtful Reels and interactive Scrolls that gradually become an explorable personal universe — now with content threads you explore together. Every frame ID, its states, components, desktop and responsive adaptations, and five clickable journeys.</p>
+    <p data-dc-tpl="35" class="mono" style="margin: 0px; color: rgba(255, 251, 240, 0.62); position: relative;">All people (Asha, Ravi, Meera), content and worlds on this canvas are authored examples, not product activity.</p>
+  </header>
+
+  <section data-dc-tpl="36" style="padding: 72px 96px 8px; display: flex; flex-direction: column; gap: 24px;">
+    <div data-dc-tpl="37" style="display: flex; align-items: baseline; gap: 16px;">
+      <span data-dc-tpl="38" class="mono" style="color: rgb(74, 70, 61);">v2</span>
+      <h2 data-dc-tpl="39" class="disp" style="margin: 0px; font-size: 48px; font-weight: 800;">What changed in v2</h2>
+    </div>
+    <div data-dc-tpl="40" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 24px;">
+      <div data-dc-tpl="41" class="col" style="border: 2px solid rgb(17, 17, 17); border-radius: 20px; padding: 28px; box-shadow: rgb(255, 228, 77) 6px 6px 0px;">
+        <span data-dc-tpl="42" class="mono" style="color: rgb(74, 70, 61);">From the review</span>
+        <h3 data-dc-tpl="43">Five fixes</h3>
+        <ul data-dc-tpl="44">
+          <li data-dc-tpl="45"><b data-dc-tpl="46">Individual worlds</b> — the same ML topic for Asha, Ravi and Meera, with different coastlines, terrain, light, landmarks, routes and neighbours (<a data-dc-tpl="47" href="U07-ThreeWorlds.html">U07</a>); a mature universe with many systems, label levels, search and list (<a data-dc-tpl="48" href="U08-Mature.html">U08</a>); the planet close-up redrawn (<a data-dc-tpl="49" href="U03-Planet.html">U03</a>).</li>
+          <li data-dc-tpl="50"><b data-dc-tpl="51">Content range</b> — a history Reel with imagery and narration, an editorial Scroll, a football Reel with movement and captions, an interactive-comparison Scroll (<a data-dc-tpl="52" href="E09-Range.html">E09</a>).</li>
+          <li data-dc-tpl="53"><b data-dc-tpl="54">One navigation rule</b> — arrows always point to the destination; Back retraces your own path; overlays close first. Worked example with the stack at every step (<a data-dc-tpl="55" href="N01-Navigation.html">N01</a>, Journey 5).</li>
+          <li data-dc-tpl="56"><b data-dc-tpl="57">No engineering copy in the app</b> — “owns your drag”, “momentum stops here”, “no follow-up questions” replaced by natural invitations (<a data-dc-tpl="58" href="E03-Blocks.html">E03</a>, <a data-dc-tpl="59" href="E02-Scroll.html">E02</a>, <a data-dc-tpl="60" href="E04-Request.html">E04</a>).</li>
+          <li data-dc-tpl="61"><b data-dc-tpl="62">Privacy matches the architecture</b> — one “Clear exploration” operation, no time-range clearing, accurate message wording; friend-visit fog is generic decoration (<a data-dc-tpl="63" href="P02-Privacy.html">P02</a>, <a data-dc-tpl="64" href="U06-Friend.html">U06</a>).</li>
+        </ul>
+      </div>
+      <div data-dc-tpl="65" class="col" style="border: 2px solid rgb(17, 17, 17); border-radius: 20px; padding: 28px; box-shadow: rgb(44, 70, 232) 6px 6px 0px;">
+        <span data-dc-tpl="66" class="mono" style="color: rgb(74, 70, 61);">New sharing model</span>
+        <h3 data-dc-tpl="67">“Here’s something interesting. Come explore it with me.”</h3>
+        <ul data-dc-tpl="68">
+          <li data-dc-tpl="69"><b data-dc-tpl="70">Share</b> offers Send to a conversation · Explore with friends · Share a moment · Copy link (<a data-dc-tpl="71" href="H01-Share.html">H01</a>).</li>
+          <li data-dc-tpl="72"><b data-dc-tpl="73">Content threads</b> hold the sequence and the conversation together: navigator with your own ✓/current/upcoming/Preparing, collapsible player, chat; works when people arrive at different times (<a data-dc-tpl="74" href="C04-Thread.html">C04</a>, <a data-dc-tpl="75" href="C03-Invite.html">C03</a>).</li>
+          <li data-dc-tpl="76"><b data-dc-tpl="77">Snippets</b> make talk specific: a Reel range, a Scroll passage, or an interactive block with its settings (<a data-dc-tpl="78" href="H03-Moments.html">H03</a>).</li>
+          <li data-dc-tpl="79"><b data-dc-tpl="80">What if… grows out of the conversation</b>: from the thread, a snippet or a message; “What if…” vs “Another perspective”; branch cards; speculative ideas labelled as such; optional branch map (<a data-dc-tpl="81" href="X01-WhatIf.html">X01–X04</a>).</li>
+          <li data-dc-tpl="82"><b data-dc-tpl="83">Rooms use the same model</b>: explorations live in room threads; moderators pin; AI suggests but people choose (<a data-dc-tpl="84" href="R02-Discussion.html">R02</a>). Presence (“Online”, “Recently active”) is optional and never shows what someone watches.</li>
+        </ul>
+      </div>
+    </div>
+    <div data-dc-tpl="85" class="col" style="border: 2px solid rgb(17, 17, 17); border-radius: 20px; padding: 24px 28px; background: rgb(244, 237, 216);">
+      <span data-dc-tpl="86" class="mono" style="color: rgb(74, 70, 61);">v2.1 refinements · decisions recorded</span>
+      <ul data-dc-tpl="87">
+        <li data-dc-tpl="88"><b data-dc-tpl="89">Episode browser</b>: thumbnail cards with part, short title and your own marker; compact numbers only when the player is collapsed; Preparing kept apart and not selectable (<a data-dc-tpl="90" href="C04-Thread.html">C04</a>, <a data-dc-tpl="91" href="D03-Desktop-Talk.html">D03</a>).</li>
+        <li data-dc-tpl="92"><b data-dc-tpl="93">Decision · collapse pauses.</b> Collapsing the thread player pauses and keeps the playhead. Listening while chatting is an explicit audio-only choice, never counted as viewing. A visible action strip (Like · Save · Moment · Full screen) and a keyboard-open frame are drawn (<a data-dc-tpl="94" href="C04-Thread.html">C04</a>).</li>
+        <li data-dc-tpl="95"><b data-dc-tpl="96">Decision · quick what-if.</b> A complete request submits directly with a concise editable summary; only speculative or ambiguous ideas get the assumption step (<a data-dc-tpl="97" href="X01-WhatIf.html">X01</a>, Journey 2).</li>
+        <li data-dc-tpl="98"><b data-dc-tpl="99">Honest promises</b>: privacy receipts separate “cleared from active systems” (completes) from backup expiry (pending, within [N days]); corrected snippets play a mapped moment only when a compatible mapping exists (<a data-dc-tpl="100" href="P02-Privacy.html">P02</a>, <a data-dc-tpl="101" href="H03-Moments.html">H03</a>).</li>
+        <li data-dc-tpl="102"><b data-dc-tpl="103">Decision · joining a thread.</b> Preview first; joining is one explicit tap on “Join thread”; “Ignore” hides it without telling the sender. No separate accept/decline ceremony (<a data-dc-tpl="104" href="C03-Invite.html">C03</a>).</li>
+        <li data-dc-tpl="105"><b data-dc-tpl="106">Desktop room</b> now uses room threads: room/thread navigation, the selected thread’s encounter and inline branches; the poll moves to a collapsible side panel (<a data-dc-tpl="107" href="D04-Desktop-Room.html">D04</a>).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section data-dc-tpl="108" style="padding: 56px 96px 32px; display: flex; flex-direction: column; gap: 28px;">
+    <div data-dc-tpl="109" style="display: flex; align-items: baseline; gap: 16px;">
+      <span data-dc-tpl="110" class="mono" style="color: rgb(74, 70, 61);">01</span>
+      <h2 data-dc-tpl="111" class="disp" style="margin: 0px; font-size: 48px; font-weight: 800;">Reference audit</h2>
+    </div>
+    <div data-dc-tpl="112" style="display: grid; grid-template-columns: repeat(3, minmax(0px, 1fr)); gap: 24px;">
+      <div data-dc-tpl="113" class="col" style="background: rgb(255, 251, 240); border: 2px solid rgb(17, 17, 17); border-radius: 20px; padding: 28px; box-shadow: rgb(20, 199, 155) 6px 6px 0px;">
+        <span data-dc-tpl="114" class="mono" style="color: rgb(11, 122, 95);">Preserve</span>
+        <h3 data-dc-tpl="115">What already works</h3>
+        <ul data-dc-tpl="116">
+          <li data-dc-tpl="117"><b data-dc-tpl="118">Poster Scroll (01, 06)</b>: cream paper, 2px ink outlines, cobalt offset shadow on the hero card, heavy Bricolage headlines.</li>
+          <li data-dc-tpl="119"><b data-dc-tpl="120">Yellow "Continue this idea" rail (01)</b>: promoted to the single cue for horizontal continuation.</li>
+          <li data-dc-tpl="121"><b data-dc-tpl="122">Spacious universe (02, 03)</b>: one star per system, hairline orbits, lots of negative space.</li>
+          <li data-dc-tpl="123"><b data-dc-tpl="124">Teal globe + angular land + small ship (04, 05)</b>: the ship becomes the "you are here / exact return" marker.</li>
+          <li data-dc-tpl="125"><b data-dc-tpl="126">Cream floating pills</b> as the only controls in space.</li>
+        </ul>
+      </div>
+      <div data-dc-tpl="127" class="col" style="background: rgb(255, 251, 240); border: 2px solid rgb(17, 17, 17); border-radius: 20px; padding: 28px; box-shadow: rgb(255, 228, 77) 6px 6px 0px;">
+        <span data-dc-tpl="128" class="mono" style="color: rgb(74, 70, 61);">Refine</span>
+        <h3 data-dc-tpl="129">Same identity, better behaved</h3>
+        <ul data-dc-tpl="130">
+          <li data-dc-tpl="131"><b data-dc-tpl="132">One space ground</b>: #050B19 / #03101A → <code data-dc-tpl="133">space.0 #040A17</code>; #0B1630 / #061A27 → <code data-dc-tpl="134">space.1 #0B1A2E</code>.</li>
+          <li data-dc-tpl="135"><b data-dc-tpl="136">Reading</b>: 18/28 ink body, ~62ch measure; DM Mono only for labels.</li>
+          <li data-dc-tpl="137"><b data-dc-tpl="138">Reel ⇄ Scroll</b>: one equal segmented switch, same place on both formats, "same explanation" glyph.</li>
+          <li data-dc-tpl="139"><b data-dc-tpl="140">Labels in space</b>: fixed baseline under each body, leader lines, max two lines, never over another body.</li>
+          <li data-dc-tpl="141"><b data-dc-tpl="142">Nav pill</b>: kept dark with cobalt active; renamed Explore · Universe · Talk · Keep.</li>
+        </ul>
+      </div>
+      <div data-dc-tpl="143" class="col" style="background: rgb(255, 251, 240); border: 2px solid rgb(17, 17, 17); border-radius: 20px; padding: 28px; box-shadow: rgb(44, 70, 232) 6px 6px 0px;">
+        <span data-dc-tpl="144" class="mono" style="color: rgb(178, 58, 11);">Replace</span>
+        <h3 data-dc-tpl="145">Deliberately removed</h3>
+        <ul data-dc-tpl="146">
+          <li data-dc-tpl="147"><b data-dc-tpl="148">Grey Worlds dialog (08)</b> → selection happens in the map; the list alternative is a cream sheet with hierarchy.</li>
+          <li data-dc-tpl="149"><b data-dc-tpl="150">Overlapping repeated globes (07)</b> → each planet appears once; labels never collide.</li>
+          <li data-dc-tpl="151"><b data-dc-tpl="152">Provenance/debug copy (06, 04)</b>: "Documented", "Why this appeared", fixture notes, "2 sources", "SEEN" — gone from consumer UI.</li>
+          <li data-dc-tpl="153"><b data-dc-tpl="154">Counts (02, 05)</b>: "3 stops", "2 free planets" → no quantities that invite comparison.</li>
+          <li data-dc-tpl="155"><b data-dc-tpl="156">Moons (05)</b> → removed so nothing implies meaning.</li>
+        </ul>
+      </div>
+    </div>
+    <p data-dc-tpl="157" style="margin: 0px; font-size: 15px; line-height: 1.5; color: rgb(74, 70, 61); max-width: 1100px;">Only two epistemic labels survive in ordinary screens — <b data-dc-tpl="158">Hypothetical</b> (what-if content) and <b data-dc-tpl="159">Corrected</b> (a revised asset) — because they change what the reader should believe. Everything else about provenance stays internal.</p>
+  </section>
+
+  <section data-dc-tpl="160" style="padding: 40px 96px 32px; display: flex; flex-direction: column; gap: 24px;">
+    <div data-dc-tpl="161" style="display: flex; align-items: baseline; gap: 16px;">
+      <span data-dc-tpl="162" class="mono" style="color: rgb(74, 70, 61);">02</span>
+      <h2 data-dc-tpl="163" class="disp" style="margin: 0px; font-size: 48px; font-weight: 800;">Frame coverage index</h2>
+      <span data-dc-tpl="164" class="mono" style="color: rgb(74, 70, 61); margin-left: auto;">Click an artboard name in Play to jump · every frame: mobile primary + states + desktop rule</span>
+    </div>
+    <div data-dc-tpl="165" style="border: 2px solid rgb(17, 17, 17); border-radius: 18px; overflow: hidden; background: rgb(255, 251, 240);">
+      <table data-dc-tpl="166" class="cov">
+        <thead data-dc-tpl="167"><tr data-dc-tpl="168"><th data-dc-tpl="169" style="width: 110px;">IDs</th><th data-dc-tpl="170" style="width: 250px;">Surface</th><th data-dc-tpl="171">Variants drawn (mobile 390×844)</th><th data-dc-tpl="172" style="width: 260px;">Desktop / responsive</th><th data-dc-tpl="173" style="width: 200px;">Artboard</th></tr></thead>
+        <tbody data-dc-tpl="174">
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">A01–A03</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Entry, recovery, first arrival</span></td><td data-dc-tpl="180"><span class="sc-interp">Sign-in · link sent · expired session/recovery · link failed · first arrival (no survey)</span></td><td data-dc-tpl="181"><span class="sc-interp">Centered 480px card on space ground (V01)</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="A01-Entry.html"><span class="sc-interp">A01-Entry.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">E01</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Dimensional TV · Reel</span></td><td data-dc-tpl="180"><span class="sc-interp">Playing · paused + captions · buffering/offline · unavailable/corrected</span></td><td data-dc-tpl="181"><span class="sc-interp">D01: player + thread rail + optional side panel</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="E01-Reel.html"><span class="sc-interp">E01-Reel.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">E02</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Scroll article</span></td><td data-dc-tpl="180"><span class="sc-interp">Opening · mid-read w/ block · end boundary (momentum guard) · render fallback</span></td><td data-dc-tpl="181"><span class="sc-interp">D01: 680px measure, actions in left rail</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="E02-Scroll.html"><span class="sc-interp">E02-Scroll.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">E03</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Interactive block gallery</span></td><td data-dc-tpl="180"><span class="sc-interp">Diagram · comparison + slider · disclosure + code · accessible alternative/fallback</span></td><td data-dc-tpl="181"><span class="sc-interp">Blocks widen to 880px; same gestures</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="E03-Blocks.html"><span class="sc-interp">E03-Blocks.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">E04</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Topic / content request</span></td><td data-dc-tpl="180"><span class="sc-interp">Composer · accepted/pending · ready · unavailable</span></td><td data-dc-tpl="181"><span class="sc-interp">Popover anchored to Ask (D01)</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="E04-Request.html"><span class="sc-interp">E04-Request.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">E05</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Horizontal continuation</span></td><td data-dc-tpl="180"><span class="sc-interp">Declared Part 2 · related explanation · thread trail/back · exhausted/corrected</span></td><td data-dc-tpl="181"><span class="sc-interp">D01 thread rail; ←/→ keys</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="E05-Continue.html"><span class="sc-interp">E05-Continue.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">E06</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Format conversion</span></td><td data-dc-tpl="180"><span class="sc-interp">Existing sibling opens · preparing (original keeps playing) · ready notice</span></td><td data-dc-tpl="181"><span class="sc-interp">Switch in player header</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="E06-Format.html"><span class="sc-interp">E06-Format.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">E07</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Supply waiting &amp; availability</span></td><td data-dc-tpl="180"><span class="sc-interp">Requested/preparing · ready · failed/retry/cancel · honest exhaustion</span></td><td data-dc-tpl="181"><span class="sc-interp">Shared request chip component</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="E07-Supply.html"><span class="sc-interp">E07-Supply.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">E08</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Natural thread ending</span></td><td data-dc-tpl="180"><span class="sc-interp">Ending · return path saved · another topic</span></td><td data-dc-tpl="181"><span class="sc-interp">Same card, centered</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="E08-Ending.html"><span class="sc-interp">E08-Ending.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">E09 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Content range</span></td><td data-dc-tpl="180"><span class="sc-interp">History Reel (imagery + narration) · editorial Scroll · football Reel (movement + captions) · interactive-comparison Scroll</span></td><td data-dc-tpl="181"><span class="sc-interp">D01 stage; content keeps its own character</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="E09-Range.html"><span class="sc-interp">E09-Range.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">N01 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Navigation &amp; Back rules</span></td><td data-dc-tpl="180"><span class="sc-interp">Worked example: Part 1 → Scroll → Part 2 → Share → return → Back ×3, stack per step; rules table</span></td><td data-dc-tpl="181"><span class="sc-interp">Same rules; keys ↑↓ ←→, browser Back</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="N01-Navigation.html"><span class="sc-interp">N01-Navigation.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">S01–S02</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Keep library &amp; resume</span></td><td data-dc-tpl="180"><span class="sc-interp">Library · empty · unavailable/corrected item · detail with restored position</span></td><td data-dc-tpl="181"><span class="sc-interp">Two-column grid + detail pane</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="S01-Saved.html"><span class="sc-interp">S01-Saved.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">U01</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Universe overview</span></td><td data-dc-tpl="180"><span class="sc-interp">Empty · emerging · established · returning after absence</span></td><td data-dc-tpl="181"><span class="sc-interp">D02: map + side list</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="U01-Universe.html"><span class="sc-interp">U01-Universe.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">U02</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Topic system</span></td><td data-dc-tpl="180"><span class="sc-interp">Established · forming/pending chunk · calm · accessible list</span></td><td data-dc-tpl="181"><span class="sc-interp">D02</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="U02-System.html"><span class="sc-interp">U02-System.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">U03</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Planet close-up</span></td><td data-dc-tpl="180"><span class="sc-interp">Arrival with ship · region focus · low-detail</span></td><td data-dc-tpl="181"><span class="sc-interp">D02 (planet fills left 2/3)</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="U03-Planet.html"><span class="sc-interp">U03-Planet.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">U04</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Regions &amp; topic card</span></td><td data-dc-tpl="180"><span class="sc-interp">Region card · encounter entry · exact return</span></td><td data-dc-tpl="181"><span class="sc-interp">Card docks right</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="U04-Region.html"><span class="sc-interp">U04-Region.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">U05</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Formation storyboard</span></td><td data-dc-tpl="180"><span class="sc-interp">Dust · gathering · protostar · system · planet + skip / reduced motion</span></td><td data-dc-tpl="181"><span class="sc-interp">Same sequence, larger stage</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="U05-Formation.html"><span class="sc-interp">U05-Formation.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">U06</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Friend universe visit</span></td><td data-dc-tpl="180"><span class="sc-interp">Ravi’s universe (his own style) · his ML system · generic private notice · revoked</span></td><td data-dc-tpl="181"><span class="sc-interp">D02 visitor bar</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="U06-Friend.html"><span class="sc-interp">U06-Friend.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">U07 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Same ML, three people</span></td><td data-dc-tpl="180"><span class="sc-interp">Asha / Ravi / Meera systems and Inference planets: coastline, terrain, light, landmarks, routes, neighbours</span></td><td data-dc-tpl="181"><span class="sc-interp">D02 renders the same scene data</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="U07-ThreeWorlds.html"><span class="sc-interp">U07-ThreeWorlds.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">U08 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Mature universe</span></td><td data-dc-tpl="180"><span class="sc-interp">Far zoom clusters · mid zoom selection · search · grouped list view</span></td><td data-dc-tpl="181"><span class="sc-interp">D02 with search in the side panel</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="U08-Mature.html"><span class="sc-interp">U08-Mature.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">H01 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Share sheet</span></td><td data-dc-tpl="180"><span class="sc-interp">Four choices · send to conversation · Explore with friends picker · thread created · copied/cancelled/unavailable</span></td><td data-dc-tpl="181"><span class="sc-interp">Popover (D01)</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="H01-Share.html"><span class="sc-interp">H01-Share.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">H02</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Share landing &amp; invitation</span></td><td data-dc-tpl="180"><span class="sc-interp">Public signed-out · access required · available exact revision · revoked/withdrawn · corrected</span></td><td data-dc-tpl="181"><span class="sc-interp">Web landing at 1440 (V01)</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="H02-Landing.html"><span class="sc-interp">H02-Landing.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">H03 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Share a moment · snippets</span></td><td data-dc-tpl="180"><span class="sc-interp">Reel range · Scroll passage · block with its settings · snippet cards · open snippet and return</span></td><td data-dc-tpl="181"><span class="sc-interp">Same flow in the D03 thread</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="H03-Moments.html"><span class="sc-interp">H03-Moments.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">C01</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Conversation inbox</span></td><td data-dc-tpl="180"><span class="sc-interp">Inbox with content threads + optional presence · empty · offline/reconnecting</span></td><td data-dc-tpl="181"><span class="sc-interp">D03 left column</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="C01-Inbox.html"><span class="sc-interp">C01-Inbox.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">C02</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Conversation detail</span></td><td data-dc-tpl="180"><span class="sc-interp">1:1 chat + card · failed → single retry · catch-up in order · block/report + membership lost</span></td><td data-dc-tpl="181"><span class="sc-interp">D03 centre</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="C02-Conversation.html"><span class="sc-interp">C02-Conversation.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">C03 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Thread invitation &amp; membership</span></td><td data-dc-tpl="180"><span class="sc-interp">Arrives in inbox · members &amp; presence sheet · ended/removed/withdrawn</span></td><td data-dc-tpl="181"><span class="sc-interp">Inline in D03</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="C03-Invite.html"><span class="sc-interp">C03-Invite.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">C04 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Content thread</span></td><td data-dc-tpl="180"><span class="sc-interp">Episode cards + action strip · collapsed (paused) · keep listening (audio only) · keyboard open · card states · arriving later</span></td><td data-dc-tpl="181"><span class="sc-interp">D03: content beside conversation</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="C04-Thread.html"><span class="sc-interp">C04-Thread.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">X01 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">What if… from the conversation</span></td><td data-dc-tpl="180"><span class="sc-interp">Quick path: complete request + editable summary → Explore · branch preparing · confirm path for speculative/ambiguous</span></td><td data-dc-tpl="181"><span class="sc-interp">D03 right column</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="X01-WhatIf.html"><span class="sc-interp">X01-WhatIf.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">X02 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Branch cards in the conversation</span></td><td data-dc-tpl="180"><span class="sc-interp">What-if vs perspective cards · preparing · failed/dismissed</span></td><td data-dc-tpl="181"><span class="sc-interp">D03 conversation</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="X02-Branches.html"><span class="sc-interp">X02-Branches.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">X03 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Exploring a branch</span></td><td data-dc-tpl="180"><span class="sc-interp">Branch navigator + return chip · branch discussion · another assumption · back to original</span></td><td data-dc-tpl="181"><span class="sc-interp">D03 content column</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="X03-Sequence.html"><span class="sc-interp">X03-Sequence.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">X04 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Branch map (optional)</span></td><td data-dc-tpl="180"><span class="sc-interp">Map entry · outline · large map with filters</span></td><td data-dc-tpl="181"><span class="sc-interp">D03 map button</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="X04-History.html"><span class="sc-interp">X04-History.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">R01</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Cosmic room preview</span></td><td data-dc-tpl="180"><span class="sc-interp">Station on map · preview · access required</span></td><td data-dc-tpl="181"><span class="sc-interp">D02 station card</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="R01-Room.html"><span class="sc-interp">R01-Room.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">R02 · v2</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Room threads &amp; explorations</span></td><td data-dc-tpl="180"><span class="sc-interp">Room thread list · exploration in a room thread with AI suggestion · moderator tools · retry/removed/quiet</span></td><td data-dc-tpl="181"><span class="sc-interp">D04: room threads, encounter, inline branches; poll in side panel</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="R02-Discussion.html"><span class="sc-interp">R02-Discussion.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">R03</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Optional room activity</span></td><td data-dc-tpl="180"><span class="sc-interp">Poll · optional quiz (room only) · results without scores</span></td><td data-dc-tpl="181"><span class="sc-interp">D04 side panel</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="R03-Activity.html"><span class="sc-interp">R03-Activity.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">F01–F02</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Friends &amp; sharing settings</span></td><td data-dc-tpl="180"><span class="sc-interp">Friends · add by handle/link · pending/blocked/revoked · visibility</span></td><td data-dc-tpl="181"><span class="sc-interp">D05 pattern</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="F01-Friends.html"><span class="sc-interp">F01-Friends.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">P01</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Account &amp; settings</span></td><td data-dc-tpl="180"><span class="sc-interp">Account · accessibility &amp; motion · notifications</span></td><td data-dc-tpl="181"><span class="sc-interp">D05 pattern</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="P01-Account.html"><span class="sc-interp">P01-Account.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">P02</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Privacy &amp; history</span></td><td data-dc-tpl="180"><span class="sc-interp">Hub · recording paused · export receipts · Clear exploration confirm · clear &amp; delete receipts</span></td><td data-dc-tpl="181"><span class="sc-interp">D05</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="P02-Privacy.html"><span class="sc-interp">P02-Privacy.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">P03</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Feedback &amp; report</span></td><td data-dc-tpl="180"><span class="sc-interp">Menu · content error · abuse report · acknowledgement</span></td><td data-dc-tpl="181"><span class="sc-interp">Popover / dialog</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="P03-Report.html"><span class="sc-interp">P03-Report.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">V01</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Responsive &amp; accessibility</span></td><td data-dc-tpl="180"><span class="sc-interp">Compact 320 · tablet 834 · landscape · larger text · reduced motion</span></td><td data-dc-tpl="181"><span class="sc-interp">—</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="V01-Responsive.html"><span class="sc-interp">V01-Responsive.dc.html</span></a></td></tr>
+          
+            <tr data-dc-tpl="176"><td data-dc-tpl="177"><b data-dc-tpl="178" class="mono" style="font-size: 13px;"><span class="sc-interp">OPS</span></b></td><td data-dc-tpl="179"><span class="sc-interp">Operator appendix (not consumer UI)</span></td><td data-dc-tpl="180"><span class="sc-interp">Six Grafana views + safe fields</span></td><td data-dc-tpl="181"><span class="sc-interp">—</span></td><td data-dc-tpl="182"><a data-dc-tpl="183" href="Operator.html"><span class="sc-interp">Operator.dc.html</span></a></td></tr>
+          
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section data-dc-tpl="184" style="margin: 40px 96px 0px; padding: 48px; background: rgb(4, 10, 23); border-radius: 28px; color: rgb(255, 251, 240); display: flex; flex-direction: column; gap: 24px;">
+    <div data-dc-tpl="185" style="display: flex; align-items: baseline; gap: 16px;">
+      <span data-dc-tpl="186" class="mono" style="color: rgba(255, 251, 240, 0.62);">03</span>
+      <h2 data-dc-tpl="187" class="disp" style="margin: 0px; font-size: 44px; font-weight: 800;">Clickable journeys</h2>
+      <span data-dc-tpl="188" class="mono" style="color: rgba(255, 251, 240, 0.62); margin-left: auto;">Open Prototype · press Play</span>
+    </div>
+    <div data-dc-tpl="189" style="display: grid; grid-template-columns: repeat(5, minmax(0px, 1fr)); gap: 14px;">
+      <a data-dc-tpl="190" class="jl" href="Prototype.html"><span data-dc-tpl="191" class="mono" style="color: rgb(255, 228, 77);">Journey 1</span><b data-dc-tpl="192" class="disp" style="font-size: 21px;">Asha's encounter path</b><span data-dc-tpl="193" style="font-size: 14px; line-height: 1.45; color: rgba(255, 251, 240, 0.8);">ML Reel → related explanation → request Scroll → try a longer sentence → exact return → fresh subject → a subtly richer universe.</span></a>
+      <a data-dc-tpl="194" class="jl" href="Prototype.html"><span data-dc-tpl="195" class="mono" style="color: rgb(255, 228, 77);">Journey 2</span><b data-dc-tpl="196" class="disp" style="font-size: 21px;">Black holes: a content thread</b><span data-dc-tpl="197" style="font-size: 14px; line-height: 1.45; color: rgba(255, 251, 240, 0.8);">Share → Explore with friends → thread → share a moment → What if… → branch card → explore → back to Part 2 at 0:18.</span></a>
+      <a data-dc-tpl="198" class="jl" href="Prototype.html"><span data-dc-tpl="199" class="mono" style="color: rgb(255, 228, 77);">Journey 3</span><b data-dc-tpl="200" class="disp" style="font-size: 21px;">Spatial exploration</b><span data-dc-tpl="201" style="font-size: 14px; line-height: 1.45; color: rgba(255, 251, 240, 0.8);">Universe → ML system → Inference planet → Deployment region → encounter → exact camera return → Ravi's world → room thread.</span></a>
+      <a data-dc-tpl="202" class="jl" href="Prototype.html"><span data-dc-tpl="203" class="mono" style="color: rgb(255, 228, 77);">Journey 4</span><b data-dc-tpl="204" class="disp" style="font-size: 21px;">Recovery &amp; privacy</b><span data-dc-tpl="205" style="font-size: 14px; line-height: 1.45; color: rgba(255, 251, 240, 0.8);">Failed send → one retry, no duplicate · reconnect catch-up · revoked share · paused recording · Clear exploration with honest receipts.</span></a>
+      <a data-dc-tpl="206" class="jl" href="Prototype.html"><span data-dc-tpl="207" class="mono" style="color: rgb(255, 228, 77);">Journey 5</span><b data-dc-tpl="208" class="disp" style="font-size: 21px;">Back, step by step</b><span data-dc-tpl="209" style="font-size: 14px; line-height: 1.45; color: rgba(255, 251, 240, 0.8);">Part 1 → its Scroll → Part 2 → Share → return → Back ×3, with the history stack and restored position at every step.</span></a>
+    </div>
+  </section>
+
+  <section data-dc-tpl="210" style="padding: 64px 96px 72px; display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 48px;">
+    <div data-dc-tpl="211" style="display: flex; flex-direction: column; gap: 18px;">
+      <div data-dc-tpl="212" style="display: flex; align-items: baseline; gap: 16px;"><span data-dc-tpl="213" class="mono" style="color: rgb(74, 70, 61);">04</span><h2 data-dc-tpl="214" class="disp" style="margin: 0px; font-size: 40px; font-weight: 800;">Versus the current theme</h2></div>
+      <div data-dc-tpl="215" style="display: flex; flex-direction: column; gap: 12px; font-size: 16px; line-height: 1.5;">
+        <p data-dc-tpl="216" style="margin: 0px;"><b data-dc-tpl="217">Same two registers</b>, same palette and fonts. The change is discipline: tokens are semantic (content vs spatial roles), not raw hexes per screen.</p>
+        <p data-dc-tpl="218" style="margin: 0px;"><b data-dc-tpl="219">Content</b> gains a real reading rhythm, one action rail shared by Reel and Scroll, and four distinct relationship cues (Part, Related, Format, What-if) instead of one generic "next".</p>
+        <p data-dc-tpl="220" style="margin: 0px;"><b data-dc-tpl="221">Space</b> keeps the calm composition but drops counts, moons, duplicate globes and metadata-first sheets. Topic families share a hue and silhouette; each person's terrain, orbit order and routes vary.</p>
+        <p data-dc-tpl="222" style="margin: 0px;"><b data-dc-tpl="223">Navigation</b> moves from Cable / Atlas / Keep / Ask to Explore / Universe / Talk / Keep. Ask lives on the encounter itself.</p>
+      </div>
+    </div>
+    <div data-dc-tpl="224" style="display: flex; flex-direction: column; gap: 18px;">
+      <div data-dc-tpl="225" style="display: flex; align-items: baseline; gap: 16px;"><span data-dc-tpl="226" class="mono" style="color: rgb(74, 70, 61);">05</span><h2 data-dc-tpl="227" class="disp" style="margin: 0px; font-size: 40px; font-weight: 800;">Open design decisions</h2></div>
+      <ol data-dc-tpl="228" style="margin: 0px; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; font-size: 16px; line-height: 1.45;">
+        <li data-dc-tpl="229"><b data-dc-tpl="230">Renderer</b>: drawn here as layered 2D (SVG/canvas-feasible). 3D stays optional; semantics don't depend on it.</li>
+        <li data-dc-tpl="231"><b data-dc-tpl="232">Tab labels</b>: "Talk" vs "Conversations"; "Keep" vs "Saved". Four tabs vs three plus a header button.</li>
+        <li data-dc-tpl="233"><b data-dc-tpl="234">Guest browsing</b>: A01 shows signed-out preview of shared content only; persisted guest identity not assumed.</li>
+        <li data-dc-tpl="235"><b data-dc-tpl="236">Auth method</b>: email link drawn as a placeholder; no provider commitment.</li>
+        <li data-dc-tpl="237"><b data-dc-tpl="238">Room placement</b>: station between two systems vs on the orbit of the stronger one.</li>
+        <li data-dc-tpl="239"><b data-dc-tpl="240">Lately lens</b>: whether recent-activity glow is on by default when returning after absence.</li>
+        <li data-dc-tpl="241"><b data-dc-tpl="242">Desktop split</b>: map/conversation beside the encounter — confirm single active playback rule in user testing.</li>
+        <li data-dc-tpl="243"><b data-dc-tpl="244">Family hues</b>: five starter families drawn; how new families get hues needs a rule.</li>
+        <li data-dc-tpl="245"><b data-dc-tpl="246">Snippet settings</b>: whether an interactive-block snippet includes its configuration by default (drawn as an opt-in toggle).</li>
+        <li data-dc-tpl="247"><b data-dc-tpl="248">Presence default</b>: “Recently active” vs off for new accounts; online status is drawn as opt-in.</li>
+        <li data-dc-tpl="249"><b data-dc-tpl="250">Back at a tab root</b>: platform convention vs returning to the previous tab — needs device testing.</li>
+      </ol>
+    </div>
+  </section></div></div></div>
+
+
+
+</body></html>

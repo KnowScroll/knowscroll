@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>P03 Feedback and report</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E8E2D2}
+*{box-sizing:border-box}
+a{color:#2C46E8}a:hover{color:#1B2FB8}
+button{font:inherit;color:inherit}
+.mono{font-family:'DM Mono',ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;letter-spacing:-.02em}
+.cap{display:flex;gap:10px;align-items:baseline;min-height:30px}
+.cap b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.cap span{font-size:13px;color:#4A463D;line-height:1.35}
+.phone{width:390px;height:844px;border-radius:44px;overflow:hidden;position:relative;background:#FFFBF0;color:#111111;box-shadow:0 0 0 2px #111111,0 28px 50px -28px rgba(17,17,17,.5);font-family:'Instrument Sans',system-ui,sans-serif}
+.phone.sp{background:#040A17;color:#FFFBF0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-weight:600;font-size:15px;text-decoration:none;box-shadow:3px 3px 0 #111111;cursor:pointer;white-space:nowrap}
+.btn.pri{background:#2C46E8;color:#FFFBF0}
+.btn.ink{background:#111111;color:#FFFBF0;box-shadow:none}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sp{background:#FFFBF0;color:#111111;border-color:#FFFBF0;box-shadow:none}
+.btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+.ibtn{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #111111;background:#FFFBF0;color:#111111;cursor:pointer;padding:0;flex:none}
+.ibtn.sp{border-color:transparent;background:rgba(255,251,240,.94)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #111111;background:#FFFBF0;color:#111111;white-space:nowrap}
+.tag.part{background:#FFE44D}
+.tag.hyp{background:#E6EAFF;border-color:#2C46E8;color:#1B2FB8;border-style:dashed}
+.tag.cor{background:#FFE9DE;border-color:#8A2C07;color:#8A2C07}
+.tag.ai{background:#111111;color:#FFFBF0}
+.tag.sp{background:transparent;border-color:rgba(255,251,240,.55);color:#FFFBF0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;gap:2px}
+.seg button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:#111111;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.ra{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:2px solid #111111;background:#FFFBF0;color:#111111;font-size:14px;line-height:1.4}
+.msheet{position:absolute;left:0;right:0;bottom:0;background:#FFFBF0;color:#111111;border-top:2px solid #111111;border-radius:28px 28px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.grab{width:44px;height:5px;border-radius:9px;background:#111111;opacity:.25;align-self:center}
+.navslot{position:absolute;left:0;bottom:0;width:390px;height:96px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.note{background:#FFFBF0;border:1.5px solid #111111;border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.45}
+.note h3{margin:0 0 6px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#4A463D;font-weight:500}
+.note p{margin:0}
+.ev{font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px}
+.mi{display:flex;align-items:center;gap:14px;min-height:56px;padding:0 4px;border:0;border-bottom:1px solid #D9D1BC;background:transparent;text-align:left;font-size:16px;font-weight:600;cursor:pointer;width:100%}
+.mi span{display:flex;flex-direction:column;gap:2px}
+.mi small{font-size:13px;font-weight:400;color:#4A463D}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border-radius:999px;border:2px solid #111111;background:#FFFBF0;font-size:14px;font-weight:600;cursor:pointer}
+.chip[aria-pressed="true"]{background:#111111;color:#FFFBF0}
+.scrim{position:absolute;inset:0;background:rgba(17,17,17,.5)}
+</style>
+</helmet>
+<div style="width: 1752px; height: 1480px; padding: 48px; display: flex; flex-direction: column; gap: 24px; background: #E8E2D2; color: #111111; font-family: 'Instrument Sans', system-ui, sans-serif">
+
+  <header style="display: flex; align-items: flex-end; gap: 20px; min-height: 96px">
+    <span class="mono" style="font-size: 14px; background: #111111; color: #FFFBF0; padding: 8px 12px; border-radius: 8px">P03</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 class="disp" style="margin: 0; font-size: 44px; font-weight: 800; line-height: 1">Feedback &amp; report</h1>
+      <p style="margin: 0; font-size: 16px; color: #4A463D; max-width: 980px">Preferences take one tap and need no reason. Reports are scoped, anchored to the moment, and acknowledged with a receipt.</p>
+    </div>
+    <span class="mono" style="margin-left: auto; background: #FFE44D; padding: 6px 10px; border-radius: 6px">Prototype · design data</span>
+  </header>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+
+    <!-- 1 MENU -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>⋯ / long-press menu</b><span>On a Reel or Scroll</span></figcaption>
+      <div class="phone" style="background: #2C46E8">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0"><circle cx="195" cy="300" r="168" fill="#3A55F0"></circle><rect x="186" y="320" width="56" height="38" rx="19" fill="#FFE44D"></rect><rect x="62" y="210" width="96" height="34" rx="17" fill="#FFFBF0"></rect></svg>
+        <div class="scrim"></div>
+        <div class="msheet">
+          <div class="grab"></div>
+          <div style="display: flex; flex-direction: column; gap: 2px"><span class="mono" style="color: #4A463D">Reel · Machine learning</span><b class="disp" style="font-size: 20px">Attention, explained with a crowded sentence</b></div>
+          <div style="display: flex; flex-direction: column">
+            <button class="mi" type="button"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M6 6l12 12"></path></svg><span>Not interested<small>Fewer like this one</small></span></button>
+            <button class="mi" type="button"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"></path><path d="M10.6 6.1A10 10 0 0 1 22 12s-1.2 2.2-3.4 4"></path><path d="M6.6 6.6C3.8 8.4 2 12 2 12s4 7 10 7c1.6 0 3-.4 4.3-1"></path></svg><span>Hide this subject for a while<small>Machine learning · you can undo in Keep</small></span></button>
+            <button class="mi" type="button"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"></path><path d="M12 16.5v.1"></path><path d="M10.3 3.9L2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg><span>Report a content error<small>Something here seems wrong</small></span></button>
+            <button class="mi" type="button"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4h11l-2 4 2 4H5"></path></svg><span>Report abuse</span></button>
+            <button class="mi" type="button" style="border-bottom: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path></svg><span>Copy link</span></button>
+          </div>
+          <button class="btn ghost" type="button">Cancel</button>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 2 NOT INTERESTED ACK -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Not interested · acknowledged</b><span>No reason asked; Undo inline</span></figcaption>
+      <div class="phone" style="background: #FFE44D">
+        <svg aria-hidden="true" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0"><rect x="40" y="240" width="310" height="200" rx="24" fill="#FFFBF0" stroke="#111111" stroke-width="2"></rect><path d="M70 400 L 150 300 L 230 360 L 320 270" fill="none" stroke="#2C46E8" stroke-width="6" stroke-linecap="round"></path></svg>
+        <div class="banner" style="position: absolute; left: 16px; right: 16px; top: 56px; background: #111111; color: #FFFBF0; border-color: #111111; align-items: center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+          <span style="flex: 1">Got it — fewer like this.</span>
+          <button class="btn sp sm" type="button">Undo</button>
+        </div>
+        <div style="position: absolute; left: 20px; width: 270px; top: 578px; display: flex; flex-direction: column; gap: 8px">
+          <span class="tag" style="align-self: flex-start">Football</span>
+          <h2 class="disp" style="margin: 0; font-size: 28px; line-height: 30px; font-weight: 800">Why the high press works</h2>
+          <span style="font-size: 13px; color: #111111">Next subject loaded after the hidden Reel</span>
+        </div>
+        <div class="navslot"><dc-import name="NavBar" active="explore" tone="paper" hint-size="390px,96px"></dc-import></div>
+      </div>
+    </figure>
+
+    <!-- 3 CONTENT ERROR -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Content error report</b><span>Anchored at 0:31; note optional</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; left: 0; right: 0; top: 56px; padding: 0 16px; display: flex; align-items: center; gap: 12px">
+          <button class="ibtn" type="button" aria-label="Close"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <h2 class="disp" style="margin: 0; font-size: 26px; font-weight: 800">Report an error</h2>
+        </div>
+        <div style="position: absolute; left: 20px; right: 20px; top: 124px; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; gap: 12px; align-items: center; padding: 10px; border: 2px solid #111111; border-radius: 14px">
+            <span style="width: 56px; height: 72px; border-radius: 10px; background: #2C46E8; flex: none"></span>
+            <div style="display: flex; flex-direction: column; gap: 4px"><b style="font-size: 15px; line-height: 1.3">Attention, explained with a crowded sentence</b><span class="mono" style="color: #4A463D">At 0:31 · change</span></div>
+          </div>
+          <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px">
+            <legend style="font-size: 15px; font-weight: 600; margin-bottom: 10px">What seems wrong?</legend>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <button class="chip" type="button" aria-pressed="true">Something’s wrong</button>
+              <button class="chip" type="button" aria-pressed="false">Out of date</button>
+              <button class="chip" type="button" aria-pressed="false">Misleading</button>
+              <button class="chip" type="button" aria-pressed="false">Other</button>
+            </div>
+          </fieldset>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-weight: 600">Add a note (optional)
+            <textarea rows="3" style="border: 2px solid #111111; border-radius: 12px; padding: 12px 14px; font: 16px/1.4 'Instrument Sans', sans-serif; background: #FFFBF0; resize: none">“it” could also mean the street here?</textarea>
+          </label>
+          <button class="btn pri" type="button">Send report</button>
+          <div class="banner" style="background: #F4EDD8; border-color: #F4EDD8">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+            <span><b>After sending:</b> “Thanks — if we correct it you’ll see a Corrected tag.”</span>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <!-- 4 ABUSE REPORT -->
+    <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px; width: 390px">
+      <figcaption class="cap"><b>Abuse report · received</b><span>Room message; block offered</span></figcaption>
+      <div class="phone">
+        <div style="position: absolute; left: 0; right: 0; top: 56px; padding: 0 16px; display: flex; align-items: center; gap: 12px">
+          <a class="ibtn" href="R02-Discussion.dc.html" aria-label="Back to room"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+          <div style="display: flex; flex-direction: column; gap: 2px"><b class="disp" style="font-size: 20px">Model serving room</b><span style="font-size: 13px; color: #4A463D">Conversation, moderated</span></div>
+        </div>
+        <div style="position: absolute; left: 16px; right: 16px; top: 132px; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start"><span style="font-size: 12px; font-weight: 600">Meera</span><div style="max-width: 280px; padding: 10px 14px; border-radius: 18px; border-bottom-left-radius: 6px; background: #FFFBF0; border: 2px solid #111111; font-size: 15px; line-height: 1.4">Batching only helps if requests arrive close together.</div></div>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start"><span style="font-size: 12px; font-weight: 600">@kiran.dev</span><div style="max-width: 280px; padding: 10px 14px; border-radius: 18px; border-bottom-left-radius: 6px; background: #F4EDD8; border: 2px dashed #4A463D; font-size: 15px; line-height: 1.4; color: #4A463D">Hidden for you · reported</div></div>
+        </div>
+        <div class="scrim" style="top: 330px; background: rgba(17,17,17,.35)"></div>
+        <div class="msheet">
+          <div class="grab"></div>
+          <div style="display: flex; align-items: center; gap: 10px">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0B7A5F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>
+            <b class="disp" style="font-size: 24px">Report received</b>
+          </div>
+          <p style="margin: 0; font-size: 15px; line-height: 1.5">The room’s moderator and our safety team will review it. The message is hidden for you now. You don’t need to do anything else.</p>
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: #F4EDD8">
+            <span class="mono" style="color: #4A463D">Receipt</span>
+            <span style="font-size: 14px">Reason: harassment · message in Model serving room · today 22:11</span>
+          </div>
+          <button class="btn" type="button" style="border-color: #B23A0B; color: #8A2C07"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M6 6l12 12"></path></svg>Also block @kiran.dev</button>
+          <button class="btn ghost" type="button">Done</button>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <section class="notes">
+    <div class="note"><h3>Route &amp; origin</h3><p>Overlay, no route of its own: opened from ⋯ or long-press on Reel/Scroll (E01/E02), a message’s menu (C02, R02), or a friend’s universe (U06). Content error deep links carry <span class="ev">?t=31</span> / block ID.</p></div>
+    <div class="note"><h3>Actions</h3><p><b>Primary:</b> Not interested (one tap, instant). <b>Secondary:</b> hide subject for a while, report error, report abuse, copy link, block. Reasons are optional everywhere except picking an abuse category.</p></div>
+    <div class="note"><h3>States &amp; overlays</h3><p>menu · acknowledged + Undo (timed) · error form → sending → received / failed-retry (same request ID) · abuse form → received receipt · offline: report queued with visible “Will send when online”.</p></div>
+    <div class="note"><h3>Commands · observations</h3><p class="ev">CMD feedback.not_interested{scope: item} · feedback.hide_subject{subjectId, duration} · feedback.undo · report.content_error{revisionId, anchor} · report.abuse{target, category} · friend.block<br>OBS menu.opened</p></div>
+    <div class="note"><h3>Restore</h3><p>Not interested advances to the next subject but keeps the Reel’s place if Undo is tapped. Hide-subject affects the feed only — existing worlds stay as they are. Closing a form returns to the same playhead, paused.</p></div>
+    <div class="note"><h3>Accessibility &amp; platform</h3><p>Long-press always has the visible ⋯ equivalent. Menu items are buttons with two-line labels; chips expose pressed state. Ack banner is announced politely and keeps Undo focusable. Web: menu opens on right-click and Shift+F10.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1752,"height":1480}}'>class Component extends DCLogic { renderVals() { return {}; } }</script>
+</body>
+</html>
