@@ -4,11 +4,11 @@ Writer roles belong to content (blueprint §§11,15); `production/` owns their b
 semantic checks, frozen research and application. `infrastructure/research` owns the public HTTP
 boundary. The shared reasoning engine retains transport, admission and the external attempt ledger.
 
-| Stored table | Role | Main query | Lifetime |
-|---|---|---|---|
-| `content.scroll_production_runs` (0015) | Authoritative, private topic/version job; research pages/passages, accepted claims, code-only outcomes, draft and revision pointer | Unique `(topic, policy_version)`, UUID | Nonpersonal public supply; retained for correction, no account erasure |
-| `content.asset_revisions` / `asset_provenance` | Immutable admitted consumer bytes / internal evidence and generation lineage | Asset + revision | Shared content; no account erasure |
-| `reasoning.production_*` (0013) | Role runs and every possible paid attempt | Stable claims/writer run UUID | Harness retention and liability policy |
+| Stored table                                   | Role                                                                                                                               | Main query                             | Lifetime                                                               |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
+| `content.scroll_production_runs` (0015)        | Authoritative, private topic/version job; research pages/passages, accepted claims, code-only outcomes, draft and revision pointer | Unique `(topic, policy_version)`, UUID | Nonpersonal public supply; retained for correction, no account erasure |
+| `content.asset_revisions` / `asset_provenance` | Immutable admitted consumer bytes / internal evidence and generation lineage                                                       | Asset + revision                       | Shared content; no account erasure                                     |
+| `reasoning.production_*` (0013)                | Role runs and every possible paid attempt                                                                                          | Stable claims/writer run UUID          | Harness retention and liability policy                                 |
 
 `makeProduceScroll` reserves a topic/version, retrieves code-selected public pages, freezes original
 plain-text passages with content-derived IDs, asks the claims role, asks the writer, and publishes.
@@ -45,13 +45,13 @@ JSON; v2 makes that distinction explicit and adds one `JSON.stringify`-generated
 example. This is a bounded prompt correction, not evidence that the earlier model copied grammar
 or that the revised prompt will succeed. Parsing, schemas, admission and repair limits are unchanged.
 
-| Identity | v1 | v2 | v3 | v4 | v5 | v6 | v7 | v8 |
-|---|---|---|---|---|---|---|---|---|
-| Job policy / unique topic-version key | `scroll-production.v1` | `scroll-production.v2` | `scroll-production.v3` | `scroll-production.v4` | `scroll-production.v5` | `scroll-production.v6` | `scroll-production.v7` | `scroll-production.v8` |
-| Claims role version | `scroll-production.v1` | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged | Unchanged | `scroll-claims.v3` (native object carrier) | `scroll-claims.v4` (advisory input shape) | Unchanged |
-| Writer role and provenance prompt version | `scroll-production.v1` | `scroll-writer.v2` | `scroll-writer.v2` (unchanged) | `scroll-writer.v3` | `scroll-writer.v4` (semantic repair feedback) | `scroll-writer.v5` (native object + original prose) | `scroll-writer.v6` (advisory input shape) | Unchanged |
-| Research policy / draft DSL | `public-research.v1` / `scroll-draft.v1` | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged |
-| Evidence candidate recipe | None | None | `quote-candidates.v1` | Unchanged | Unchanged | Unchanged | Unchanged | Unchanged |
+| Identity                                  | v1                                       | v2                                                    | v3                                  | v4                     | v5                                            | v6                                                  | v7                                        | v8                     |
+| ----------------------------------------- | ---------------------------------------- | ----------------------------------------------------- | ----------------------------------- | ---------------------- | --------------------------------------------- | --------------------------------------------------- | ----------------------------------------- | ---------------------- |
+| Job policy / unique topic-version key     | `scroll-production.v1`                   | `scroll-production.v2`                                | `scroll-production.v3`              | `scroll-production.v4` | `scroll-production.v5`                        | `scroll-production.v6`                              | `scroll-production.v7`                    | `scroll-production.v8` |
+| Claims role version                       | `scroll-production.v1`                   | `scroll-claims.v1` (unchanged v1 instructions/schema) | `scroll-claims.v2` (selection only) | Unchanged              | Unchanged                                     | `scroll-claims.v3` (native object carrier)          | `scroll-claims.v4` (advisory input shape) | Unchanged              |
+| Writer role and provenance prompt version | `scroll-production.v1`                   | `scroll-writer.v2`                                    | `scroll-writer.v2` (unchanged)      | `scroll-writer.v3`     | `scroll-writer.v4` (semantic repair feedback) | `scroll-writer.v5` (native object + original prose) | `scroll-writer.v6` (advisory input shape) | Unchanged              |
+| Research policy / draft DSL               | `public-research.v1` / `scroll-draft.v1` | Unchanged                                             | Unchanged                           | Unchanged              | Unchanged                                     | Unchanged                                           | Unchanged                                 | Unchanged              |
+| Evidence candidate recipe                 | None                                     | None                                                  | `quote-candidates.v1`               | Unchanged              | Unchanged                                     | Unchanged                                           | Unchanged                                 | Unchanged              |
 
 All four rejected v1/v2/v3 jobs, their stable run IDs and eleven attempts stay untouched. A reviewed v4 invocation
 creates a different job and role runs; it is not a resend or resume of an earlier version. It still
@@ -215,11 +215,11 @@ interaction values remain true, true and false. `TOPICS` now declares explanatio
 interaction explicitly; the producer uses that value for both writer validation and compilation.
 No new recipe inherits a Reel identity, series relationship or semantic coverage map.
 
-| Key / explanation identity | Intended teaching question | Required interaction | Bounded source list |
-|---|---|---|---|
-| `greenhouse-radiation` / `earth-greenhouse-radiation-paths-v1` | Follow reflection, absorption and emission along incoming/outgoing radiation paths | Selectable physical-process diagram frames with accessible text; no time simulation | NASA radiation budget + greenhouse FAQ |
-| `greenhouse-balance` / `earth-greenhouse-system-balance-v1` | Distinguish internal redistribution from energy crossing the whole-system boundary; compare equilibrium and imbalance | Qualitative balance/imbalance diagram states with accessible text; no prediction | NASA energy budget + greenhouse FAQ |
-| `greenhouse-limits` / `earth-greenhouse-analogy-audit-v1` | Audit useful versus misleading blanket inferences and natural versus strengthened context | Comparison or disclosure; no interactive requirement | NASA radiation budget + greenhouse FAQ |
+| Key / explanation identity                                     | Intended teaching question                                                                                            | Required interaction                                                                | Bounded source list                    |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------- |
+| `greenhouse-radiation` / `earth-greenhouse-radiation-paths-v1` | Follow reflection, absorption and emission along incoming/outgoing radiation paths                                    | Selectable physical-process diagram frames with accessible text; no time simulation | NASA radiation budget + greenhouse FAQ |
+| `greenhouse-balance` / `earth-greenhouse-system-balance-v1`    | Distinguish internal redistribution from energy crossing the whole-system boundary; compare equilibrium and imbalance | Qualitative balance/imbalance diagram states with accessible text; no prediction    | NASA energy budget + greenhouse FAQ    |
+| `greenhouse-limits` / `earth-greenhouse-analogy-audit-v1`      | Audit useful versus misleading blanket inferences and natural versus strengthened context                             | Comparison or disclosure; no interactive requirement                                | NASA radiation budget + greenhouse FAQ |
 
 The analogy audit deliberately excludes another complete radiation-path/balance tutorial. It
 still overlaps background ideas in the unchanged broad greenhouse overview: new keys, titles,
@@ -329,7 +329,6 @@ aggregation semantics; cost remains explicitly unverified until reviewed account
 No automatic sum/settlement or new<=75c allowance per child follows. Publication, corpus fingerprint,
 source/framing/rights/media gates, exact-script owner approval, live fal balance and pool reconciliation
 remain separate future requirements. No content/evidence/coverage/encounter is admitted here.
-
 
 ## Bounded writer feedback in v9
 

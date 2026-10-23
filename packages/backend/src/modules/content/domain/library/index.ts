@@ -3,7 +3,7 @@ import { earthRecipes, earthSystem } from './earth.js';
 import { historyRecipes, historySystem } from './history.js';
 import { humanBodyRecipes, humanBodySystem } from './human-body.js';
 import { machineLearningRecipes, machineLearningSystem } from './machine-learning.js';
-import type { LibraryRecipe, LibrarySystem } from './plan.js';
+import type { LibraryRecipe, LibrarySystem, SceneFamilyName } from './plan.js';
 import { spaceRecipes, spaceSystem } from './space.js';
 
 /**
@@ -43,3 +43,18 @@ const declared = {
 export type RecipeKey = keyof typeof declared;
 export const RECIPES: Readonly<Record<RecipeKey, LibraryRecipe>> = declared;
 export const RECIPE_KEYS = Object.keys(RECIPES) as readonly RecipeKey[];
+
+const sceneFamilies = new Map<string, SceneFamilyName>(
+  LIBRARY_SYSTEMS.flatMap((system) => [
+    [system.id, system.sceneFamily] as const,
+    ...system.topics.map((topic) => [topic.id, topic.sceneFamily ?? system.sceneFamily] as const),
+  ]),
+);
+
+/**
+ * The Scene family of a system (and its star) or a planet, by its catalogue id; `undefined` for an
+ * id the plan does not hold. A region has no family of its own: it inherits its planet's.
+ */
+export function sceneFamilyOf(meaningId: string): SceneFamilyName | undefined {
+  return sceneFamilies.get(meaningId);
+}

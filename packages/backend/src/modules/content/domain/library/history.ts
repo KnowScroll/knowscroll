@@ -7,6 +7,7 @@ import type { LibrarySystem, SystemRecipes } from './plan.js';
 export const historySystem = {
   id: 'history',
   meaning: 'How past events and ideas shaped the world, told with their uncertainties.',
+  sceneFamily: 'ridged.v1',
   topics: [
     {
       id: 'history.industrial-revolution',

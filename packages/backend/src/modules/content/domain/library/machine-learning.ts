@@ -4,10 +4,12 @@ import type { LibrarySystem, SystemRecipes } from './plan.js';
 export const machineLearningSystem = {
   id: 'machine-learning',
   meaning: 'How computers learn patterns from data, and how modern language models work.',
+  sceneFamily: 'ridged.v1',
   topics: [
     {
       id: 'machine-learning.attention',
       meaning: 'Attention lets a model weigh which parts of its input matter for each part of its output.',
+      sceneFamily: 'terraced.v1',
       facets: [
         {
           id: 'machine-learning.attention.mechanism',
@@ -44,6 +46,7 @@ export const machineLearningSystem = {
     {
       id: 'machine-learning.training',
       meaning: 'Training adjusts a network’s numbers from data so that its predictions improve.',
+      sceneFamily: 'archipelago.v1',
       facets: [
         {
           id: 'machine-learning.training.optimization',
@@ -62,6 +65,7 @@ export const machineLearningSystem = {
     {
       id: 'machine-learning.efficiency',
       meaning: 'Designs and encodings that keep large models affordable to train and run.',
+      sceneFamily: 'terraced.v1',
       facets: [
         {
           id: 'machine-learning.efficiency.long-inputs',

@@ -4,6 +4,7 @@ import type { LibrarySystem, SystemRecipes } from './plan.js';
 export const earthSystem = {
   id: 'earth',
   meaning: 'Physical processes of Earth and its astronomical setting.',
+  sceneFamily: 'terraced.v1',
   topics: [
     {
       id: 'earth.seasons',
@@ -23,6 +24,7 @@ export const earthSystem = {
     {
       id: 'earth.tides',
       meaning: 'Ocean tides under differential gravitational forcing and local conditions.',
+      sceneFamily: 'archipelago.v1',
       facets: [
         { id: 'earth.tides.forcing', meaning: 'Differential lunar and solar gravity contributes to tidal forcing.' },
         { id: 'earth.tides.alignment', meaning: 'Sun and Moon alignment changes the combined tidal forcing.' },
@@ -32,6 +34,7 @@ export const earthSystem = {
     {
       id: 'earth.greenhouse-effect',
       meaning: 'Atmospheric absorption and emission in Earth radiation balance.',
+      sceneFamily: 'ridged.v1',
       facets: [
         { id: 'earth.greenhouse-effect.radiation', meaning: 'Greenhouse gases absorb and emit infrared radiation.' },
         {

@@ -4,10 +4,12 @@ import type { LibrarySystem, SystemRecipes } from './plan.js';
 export const spaceSystem = {
   id: 'space',
   meaning: 'Stars, planets and black holes, and the methods astronomers use to study them.',
+  sceneFamily: 'archipelago.v1',
   topics: [
     {
       id: 'space.stars',
       meaning: 'How stars shine, how their mass shapes their lives and how they are measured.',
+      sceneFamily: 'terraced.v1',
       facets: [
         {
           id: 'space.stars.fusion',
@@ -41,6 +43,7 @@ export const spaceSystem = {
     {
       id: 'space.black-holes',
       meaning: 'Regions where gravity is so strong that nothing, not even light, can return.',
+      sceneFamily: 'ridged.v1',
       facets: [
         {
           id: 'space.black-holes.formation',

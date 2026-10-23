@@ -8,6 +8,13 @@
 export const INTERACTIVE_KINDS = ['simulation', 'diagram', 'chart', 'comparison', 'timeline', 'sequence'] as const;
 export type InteractiveKind = (typeof INTERACTIVE_KINDS)[number];
 
+/**
+ * The silhouette family the Scene projection draws a system, star or planet with (D-026). It is a
+ * cosmetic convention, not classification. Once an object has been drawn its family never changes,
+ * so edit these for new systems and planets only.
+ */
+export type SceneFamilyName = 'terraced.v1' | 'ridged.v1' | 'archipelago.v1';
+
 /** A kind of angle on a topic (mechanism, example, limitation...), written as a topic-specific id. */
 export interface LibraryFacet {
   readonly id: string;
@@ -18,6 +25,8 @@ export interface LibraryFacet {
 export interface LibraryTopic {
   readonly id: string;
   readonly meaning: string;
+  /** Overrides the system's family for this planet. Its regions inherit it. */
+  readonly sceneFamily?: SceneFamilyName;
   readonly facets: readonly LibraryFacet[];
 }
 
@@ -25,6 +34,8 @@ export interface LibraryTopic {
 export interface LibrarySystem {
   readonly id: string;
   readonly meaning: string;
+  /** The family of the system and its star, and the default for its planets. */
+  readonly sceneFamily: SceneFamilyName;
   readonly topics: readonly LibraryTopic[];
 }
 

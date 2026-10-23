@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { researchUrl } from '../../../../infrastructure/research/public-pages.js';
 import { CONCEPTS, conceptMeaning } from '../concepts.js';
 import { INTERACTIVE_KINDS } from './plan.js';
-import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS } from './index.js';
+import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS, sceneFamilyOf } from './index.js';
 
 const recipes = RECIPE_KEYS.map((key) => ({ key, ...RECIPES[key] }));
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -57,6 +57,24 @@ describe('library plan (code-owned data; fetching is checked by scripts/check-li
         expect(new Set(own.map((recipe) => recipe.facetId)).size, topic.id).toBeGreaterThanOrEqual(2);
       }
     expect(byTopic.size).toBe(LIBRARY_SYSTEMS.flatMap((system) => system.topics).length);
+    expect(byTopic.size).toBe(17);
+    expect(LIBRARY_SYSTEMS).toHaveLength(6);
+  });
+
+  it('gives every system and planet a Scene family, with Earth as it always was', () => {
+    const families = ['terraced.v1', 'ridged.v1', 'archipelago.v1'];
+    for (const system of LIBRARY_SYSTEMS) {
+      expect(families, system.id).toContain(sceneFamilyOf(system.id));
+      for (const topic of system.topics) expect(families, topic.id).toContain(sceneFamilyOf(topic.id));
+    }
+    expect(['earth', 'earth.seasons', 'earth.tides', 'earth.greenhouse-effect'].map(sceneFamilyOf)).toEqual([
+      'terraced.v1',
+      'terraced.v1',
+      'archipelago.v1',
+      'ridged.v1',
+    ]);
+    expect(sceneFamilyOf('earth.seasons.axial-tilt')).toBeUndefined();
+    expect(sceneFamilyOf('astronomy')).toBeUndefined();
   });
 
   it('declares each facet once, with a meaning, under its planet', () => {

@@ -1,6 +1,6 @@
-import { z } from 'zod'
-import { RunEvent } from './events.ts'
-import { ContractVersion } from './version.ts'
+import { z } from 'zod';
+import { RunEvent } from './events.ts';
+import { ContractVersion } from './version.ts';
 
 // Every answer to a submit, a status or an events request, and every way a run can finish.
 
@@ -20,7 +20,7 @@ export const SubmitResponse = z.union([
     reason: z.enum(['version', 'invalid', 'conflict', 'unsupported']),
     detail: z.string(),
   }),
-])
+]);
 
 export const RunStatus = z.strictObject({
   contractVersion: ContractVersion,
@@ -35,7 +35,7 @@ export const RunStatus = z.strictObject({
    * in its row, its result or its events, which do not change (S-162). Absent on every other.
    */
   resumedBy: z.string().min(1).optional(),
-})
+});
 
 export const EventsPage = z
   .strictObject({
@@ -52,25 +52,25 @@ export const EventsPage = z
           code: 'custom',
           path: ['events', i, 'contractVersion'],
           message: 'an event carries a different contractVersion from its page (D-106)',
-        })
+        });
       }
-    })
-  })
+    });
+  });
 
 /** A picture, returned as an absolute path on the engine's machine — never as bytes. */
 export const StillRef = z.strictObject({
   pictureId: z.string().min(1),
   shotId: z.string().min(1),
   path: z.string().min(1),
-})
+});
 
 /** One progressive MP4 with narration and captions, and no sources card (D-056, D-101). */
-export const VideoRef = z.strictObject({ path: z.string().min(1) })
+export const VideoRef = z.strictObject({ path: z.string().min(1) });
 
 export const Degradation = z.strictObject({
   shotId: z.string().min(1),
   reason: z.string().min(1),
-})
+});
 
 /** Every budget answer carries all four figures (D-097, D-100). */
 const budgetFigures = {
@@ -78,7 +78,7 @@ const budgetFigures = {
   estimateCents: z.number().int().nonnegative(),
   ceilingCents: z.number().int().positive(),
   capCents: z.number().int().positive(),
-}
+};
 
 const finished = {
   contractVersion: ContractVersion,
@@ -86,9 +86,9 @@ const finished = {
   requestId: z.string().min(1),
   /** Generation spend only; planning is not generation, so a plan-only run costs 0. */
   costCents: z.number().int().nonnegative(),
-}
+};
 
-const estimateCents = z.number().int().nonnegative()
+const estimateCents = z.number().int().nonnegative();
 
 export const RunResult = z.union([
   z.strictObject({
@@ -136,12 +136,12 @@ export const RunResult = z.union([
   }),
   z.strictObject({ ...finished, status: z.literal('failed'), detail: z.string() }),
   z.strictObject({ ...finished, status: z.literal('cancelled') }),
-])
+]);
 
-export type SubmitResponse = z.infer<typeof SubmitResponse>
-export type RunStatus = z.infer<typeof RunStatus>
-export type EventsPage = z.infer<typeof EventsPage>
-export type StillRef = z.infer<typeof StillRef>
-export type VideoRef = z.infer<typeof VideoRef>
-export type Degradation = z.infer<typeof Degradation>
-export type RunResult = z.infer<typeof RunResult>
+export type SubmitResponse = z.infer<typeof SubmitResponse>;
+export type RunStatus = z.infer<typeof RunStatus>;
+export type EventsPage = z.infer<typeof EventsPage>;
+export type StillRef = z.infer<typeof StillRef>;
+export type VideoRef = z.infer<typeof VideoRef>;
+export type Degradation = z.infer<typeof Degradation>;
+export type RunResult = z.infer<typeof RunResult>;

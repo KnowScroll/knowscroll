@@ -4,10 +4,12 @@ import type { LibrarySystem, SystemRecipes } from './plan.js';
 export const computingSystem = {
   id: 'computing',
   meaning: 'How the web, browsers and everyday algorithms work.',
+  sceneFamily: 'terraced.v1',
   topics: [
     {
       id: 'computing.web-requests',
       meaning: 'What happens between typing an address and seeing a page.',
+      sceneFamily: 'archipelago.v1',
       facets: [
         {
           id: 'computing.web-requests.naming',
@@ -44,6 +46,7 @@ export const computingSystem = {
     {
       id: 'computing.algorithms',
       meaning: 'Ways of solving problems with code, and how their cost grows with the size of the problem.',
+      sceneFamily: 'ridged.v1',
       facets: [
         {
           id: 'computing.algorithms.growth',

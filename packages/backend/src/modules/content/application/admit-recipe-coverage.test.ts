@@ -72,7 +72,8 @@ describe('admitRecipeCoverage (in-memory ports; the SQL adapter is covered in in
     const { ports, heads } = memoryPorts(targetOf(5));
     const first = await admitRecipeCoverage(ports, tx, recipe, ref);
     const again = await admitRecipeCoverage(ports, tx, recipe, ref);
-    expect(again).toEqual(first);
+    expect(first).toMatchObject({ kind: 'admitted', change: 'appended' });
+    expect(again).toEqual({ ...first, change: 'unchanged' });
     expect(heads).toHaveLength(1);
   });
 
@@ -81,7 +82,7 @@ describe('admitRecipeCoverage (in-memory ports; the SQL adapter is covered in in
     await admitRecipeCoverage(ports, tx, recipe, ref);
     const changedCatalogue = { ...ports, catalogue: { ...ports.catalogue, sha256: digest('catalogue-2') } };
     const corrected = await admitRecipeCoverage(changedCatalogue, tx, recipe, ref);
-    expect(corrected.kind === 'admitted' && corrected.head.authority.headRevision).toBe(2);
+    expect(corrected).toMatchObject({ kind: 'admitted', change: 'appended', head: { authority: { headRevision: 2 } } });
     expect(heads.map((head) => head.authority.headRevision)).toEqual([1, 2]);
   });
 

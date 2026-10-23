@@ -7,10 +7,12 @@ import type { LibrarySystem, SystemRecipes } from './plan.js';
 export const humanBodySystem = {
   id: 'human-body',
   meaning: 'How the organs and systems of the human body work.',
+  sceneFamily: 'archipelago.v1',
   topics: [
     {
       id: 'human-body.heart-and-blood',
       meaning: 'The heart and blood vessels move blood, and with it oxygen, around the body.',
+      sceneFamily: 'ridged.v1',
       facets: [
         {
           id: 'human-body.heart-and-blood.pumping',
@@ -47,6 +49,7 @@ export const humanBodySystem = {
     {
       id: 'human-body.immune-system',
       meaning: 'The immune system recognises and responds to threats such as infections.',
+      sceneFamily: 'terraced.v1',
       facets: [
         {
           id: 'human-body.immune-system.innate',
