@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-23 01:04 UTC · **Phase:** RESUMED / third recording failure retained; client correction reviewed; residual backend fixes allocated · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-23 01:20 UTC · **Phase:** RESUMED / finite admission390 integrated; recording residual review and native/client correction continue · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -11,6 +11,18 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Automated suites/release checks run only in GitHub Actions. Local build/lint/typecheck, fresh own SSD schema codegen and manual app inspection are allowed.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
+
+## Current authoritative phase — 2026-10-23 01:20 UTC
+
+Actual integration is now **f0a9a0e5a14fabeadc60ce5130e50f626b4a76cf / schema41**, PR390 squash with exact parent23fa/treefdf3e187. Independently reviewed finite deployment admission source97a82b58 and actualPR3b651f34 passed all six terminal jobs on39881938766/39881944407. Each complete114-log archive binds102 successful step logs, official artifact digest, all19,732 manifest entries/all41SQL/smoke29. Acceptance17de9496 and actual-squash9c85f934 are under active resume root `deploy250-current-base/actions`. Ten reviewed guard blobs were composed on actual23fa without failed recording ancestry. This is source/Actions acceptance only: no host installation, request/intent/window, actual dev push, deployment, provider or owner-data action. Immediate D002 actual-dev mergeback remains mandatory after a future dev PR; current installed guard/all writers/old transactions/preservation and exact artifact pins must be verified before any new finite operation. Dev remains last observed476baec5/schema35/archive8579c51b; stage legacy8982391f, fresh public health01:06 receiptc1c53107.
+
+PR388 e597 remains rejected with both complete failure archives retained; sourcef06 client closurefdc0b0bf is unchanged. Residual backend exact seven-path b8b4431d/treeb0754434/parent e597 froze with six static checks passing and foreign1,577/all44SQL/registry/Reasoning production exact; packet4298913d/manifestd0e69c8f. Different-author HIGH review is active; no acceptance or new push yet. The e597 native gallery39880196267 now has two terminal successful jobs, all three official ZIP digests/member maps and full logs d682cdce; membermap4b4ca88e. This is gallery-only emulator evidence, not native persistence, connected services or generated Scroll acceptance.
+
+Native249 author froze195e0855/tree883effc5 after b4→2de0→195 normal commits: exact six-path end-entry/reconnect/provider derivative, all466 prior matcher ASTs/95 cases retained, six statics pass. Packet47eda1a4/manifest195016cf retains originalb4 full23 reviewb94dd125, unchanged17 other native paths/all foreign/current SQL. Different-author follow-up closure and current-base composition are required; no native restart/library/backup/iOS/power-loss evidence or publication yet.
+
+Conversations UI private7f0e887e/tree82727229 frozen on Root provisional6e4 with23 owned/1,580 foreign exact, types/lint/format/export pass (receipt465fe159). Root source review found P2 SHARE-NATIVE-RESUME: native enabled observer teardown/rebind issues repeated pauses that erase the parked source, and close revision is consumed before current geometry resolves. Original author now owns two additional exact reel-page source/fixture paths (25 total) for finite same-generation geometry/actual composed player proof. No indefinite queued playback, timer/poll, cold/history/background/replacement autoplay or provider refresh. Final HIGH9 core still must close focus/resync snapshot authority purge before I/O. Provisional seven-core/index is not accepted/releasable; no backend/SQL45/NEW registry digest or consumer mounting follows until actual accepted44 and final reviewed client ownership/purge composition.
+
+All five final programme requirements remain OPEN. Existing ledger36 used/0 held/0 unknown and all failed attempts remain unchanged; zero accepted generated Scrolls. Exact PR379 script one order≤75¢ approval remains recorded, not reused as a launch plan or cost proof. No routine permission is needed for remaining authorized source/review/Actions phases.
 
 ## Current authoritative phase — 2026-10-23 01:04 UTC
 
