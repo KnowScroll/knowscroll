@@ -3,11 +3,18 @@ import { sql } from 'kysely';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
+  coverageCatalogue,
+  coverageHeadPorts,
+  makeAdmissionStore,
+  makeReadAdmittedCoverageMapping,
   readAdmittedCoverageMapping,
   readRegionEncounterCandidates,
+  readmitCoverageUseCase,
+  readmitRecipeCoverage,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { observedBindings } from '../../../packages/backend/src/modules/evidence/domain/coverage.js';
 import { SCROLL_QUALIFICATION_POLICY_V0 } from '../../../packages/backend/src/modules/evidence/domain/policy.js';
+import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { TOPICS, type ScrollTopic } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
@@ -218,6 +225,77 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     ]);
   });
 
+  describe('after the plan changes', () => {
+    /** A plan edit as the readers see it: a new digest, and the seasons "limits" facet reworded. */
+    const editedCatalogue = {
+      sha256: 'e'.repeat(64),
+      meaningSha256: (topicId: string, facetId: string) =>
+        facetId === 'earth.seasons.limits' ? 'f'.repeat(64) : coverageCatalogue.meaningSha256(topicId, facetId),
+    };
+    const readEdited = makeReadAdmittedCoverageMapping(editedCatalogue);
+    const recipes = Object.values(RECIPES);
+    const readmitPorts = (catalogue: typeof editedCatalogue | typeof coverageCatalogue) => ({
+      coverage: { ...coverageHeadPorts, catalogue },
+      inAdmission: makeAdmissionStore(database.db).inAdmission,
+      listGeneratedRevisions: async () =>
+        (
+          await database.db
+            .selectFrom('content.asset_revisions')
+            .select(['asset_id', 'revision'])
+            .where('provenance_kind', '=', 'generated')
+            .execute()
+        ).map((row) => ({ assetId: row.asset_id, assetRevision: row.revision })),
+    });
+    const headCount = async () =>
+      (await database.db.selectFrom('content.coverage_revisions').select('revision').execute()).length;
+
+    it('keeps stored coverage readable, drops only the facet whose meaning changed, and re-admission appends', async () => {
+      const recipe = TOPICS.seasons;
+      await publishing('seasons').publish();
+      const person = await seedPerson(database.db);
+      const readFacets = async (read: typeof readAdmittedCoverageMapping) => {
+        const result = await withScope()(person.authority, (scope) =>
+          read(scope, { assetId: recipe.assetId, assetRevision: 1 }),
+        );
+        if (result.kind !== 'entered' || result.value.kind !== 'mapped') throw new Error('mapping not readable');
+        return {
+          facets: result.value.head.mapping.bindings.map((binding) => binding.facetId),
+          headRevision: result.value.head.authority.headRevision,
+        };
+      };
+
+      // The old head is still readable against the edited plan; the reworded facet is unmapped.
+      expect(await readFacets(readEdited)).toEqual({ facets: ['earth.seasons.axial-tilt'], headRevision: 1 });
+
+      // Deciding again against the edited plan appends a corrected head, once.
+      const first = await readmitRecipeCoverage(readmitPorts(editedCatalogue), recipes, { dryRun: false });
+      expect(first).toEqual({ dryRun: false, considered: 1, appended: 1, unchanged: 0, skipped: {} });
+      expect(await headCount()).toBe(2);
+      expect(await readFacets(readEdited)).toEqual({
+        facets: ['earth.seasons.axial-tilt', 'earth.seasons.limits'],
+        headRevision: 2,
+      });
+      const again = await readmitRecipeCoverage(readmitPorts(editedCatalogue), recipes, { dryRun: false });
+      expect(again).toMatchObject({ appended: 0, unchanged: 1 });
+      expect(await headCount()).toBe(2);
+    });
+
+    it('reports what it would do in a dry run and writes nothing', async () => {
+      await publishing('seasons').publish();
+      const dry = await readmitRecipeCoverage(readmitPorts(editedCatalogue), recipes, { dryRun: true });
+      expect(dry).toEqual({ dryRun: true, considered: 1, appended: 1, unchanged: 0, skipped: {} });
+      expect(await headCount()).toBe(1);
+    });
+
+    it('finds generated revisions itself and changes nothing when the plan is unchanged', async () => {
+      await publishing('seasons').publish();
+      await publishing('seasons-limits').publish();
+      const summary = await readmitCoverageUseCase(database.db)({ dryRun: false });
+      expect(summary).toEqual({ dryRun: false, considered: 2, appended: 0, unchanged: 2, skipped: {} });
+      expect(await headCount()).toBe(2);
+    });
+  });
+
   it('publishes without coverage when no body block can be bound, and records why in the job', async () => {
     // Fault injection in the real publication transaction: every claim loses its documented truth
     // state, so no block is eligible. Deliberately corrupt fixture state, never a migration.
@@ -240,5 +318,25 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([]);
     expect(await database.db.selectFrom('content.region_bindings').select('facet_id').execute()).toEqual([]);
     expect(result.attempts).toContainEqual({ role: 'checks', kind: 'published', code: 'coverage_too_few_body_blocks' });
+  });
+
+  it('publishes without a planet or coverage when the lineage cannot be verified, and records why', async () => {
+    // Fault injection in the real publication transaction: the stored production record turns into
+    // a fixture record, which no attribution or coverage may rest on.
+    await sql`create function content.ci_fixture_production() returns trigger language plpgsql as $$
+      begin
+        update content.asset_provenance
+          set provenance=jsonb_set(provenance,'{production}','{"kind":"fixture","label":"CI fixture lineage"}')
+        where asset_id=new.asset_id and revision=new.revision;
+        return new;
+      end $$`.execute(database.db);
+    await sql`create trigger ci_fixture_production after insert on content.asset_provenance for each row execute function content.ci_fixture_production()`.execute(
+      database.db,
+    );
+    const result = await publishing('seasons').publish();
+    expect(result.outcome).toBe('published');
+    expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([]);
+    expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([]);
+    expect(result.attempts).toContainEqual({ role: 'checks', kind: 'published', code: 'attribution_unverified' });
   });
 });

@@ -211,6 +211,14 @@ async function attributeTopic(tx: Transaction<Database>, publication: VerifiedPu
   return true;
 }
 
+/** Adds a code-only receipt to the job so the operator can see why a published Scroll lacks metadata. */
+async function recordGap(tx: Transaction<Database>, jobId: string, code: string): Promise<void> {
+  const receipt = { role: 'checks', kind: 'published', code };
+  await sql`update content.scroll_production_runs set outcomes=outcomes||${JSON.stringify([receipt])}::jsonb where id=${jobId}`.execute(
+    tx,
+  );
+}
+
 /**
  * Admits the recipe's facet coverage for the revision, decided by code (D-033). When the document
  * cannot be bound, the Scroll stays published and readable but unmapped, and the job's outcomes say
@@ -223,17 +231,14 @@ async function admitCoverage(tx: Transaction<Database>, jobId: string, publicati
       assetRevision: publication.revision,
     }),
   );
-  if (outcome.kind === 'admitted') return;
-  const receipt = { role: 'checks', kind: 'published', code: `coverage_${outcome.code}` };
-  await sql`update content.scroll_production_runs set outcomes=outcomes||${JSON.stringify([receipt])}::jsonb where id=${jobId}`.execute(
-    tx,
-  );
+  if (outcome.kind === 'not_admitted') await recordGap(tx, jobId, `coverage_${outcome.code}`);
 }
 
 /**
  * Unexported: attribution and coverage have no generic admission/read/backfill API. Only a newly
  * closed writer in completeWriterPublication below reaches this function, after the exact job is
- * published, and everything it writes shares that transaction.
+ * published, and everything it writes shares that transaction. A Scroll that cannot be attributed
+ * still publishes; the job's outcomes record `attribution_unverified` or `attribution_conflict`.
  */
 async function projectNewPublication(
   tx: Transaction<Database>,
@@ -243,7 +248,8 @@ async function projectNewPublication(
   attempts: readonly ProductionAttemptAccounting[],
 ): Promise<void> {
   const publication = await verifyPublication(tx, jobId, writerRunId, generation, attempts);
-  if (publication === undefined || !(await attributeTopic(tx, publication))) return;
+  if (publication === undefined) return recordGap(tx, jobId, 'attribution_unverified');
+  if (!(await attributeTopic(tx, publication))) return recordGap(tx, jobId, 'attribution_conflict');
   await admitCoverage(tx, jobId, publication);
 }
 

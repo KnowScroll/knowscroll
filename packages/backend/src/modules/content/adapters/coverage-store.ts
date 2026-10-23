@@ -18,7 +18,8 @@ import {
   CoverageAuthoritySchema,
   CoverageMappingSchema,
   CoverageRefSchema,
-  validateCoverageMapping,
+  currentCoverageMapping,
+  type CoverageCatalogue,
   type CoverageRef,
   type CoverageTarget,
 } from '../domain/coverage.js';
@@ -186,17 +187,27 @@ export function coverageAdmissionUseCase(db: Kysely<Database>) {
   );
 }
 
-export const readAdmittedCoverageMapping: ReadAdmittedCoverageMapping = async (scope, input) => {
-  const ref = CoverageRefSchema.parse(input);
-  const trx = transactionOf(scope);
-  const target = await readTarget(trx, ref);
-  if (!target) return { kind: 'unavailable' };
-  const head = await readHead(trx, ref);
-  if (!head) return { kind: 'unmapped' };
-  if (head.status === 'retracted') return { kind: 'retracted', authority: head.authority };
-  validateCoverageMapping(head.mapping, target, coverageCatalogue);
-  return { kind: 'mapped', head };
-};
+/**
+ * Reads one exact revision's current coverage in the caller's personal transaction. Bindings whose
+ * facet meaning no longer matches the catalogue are dropped from the returned mapping (see
+ * `currentCoverageMapping`); the head's authority is unchanged, so locks and certificates still bind
+ * to the stored head. Takes the catalogue so tests can read against an edited plan.
+ */
+export function makeReadAdmittedCoverageMapping(
+  catalogue: Pick<CoverageCatalogue, 'meaningSha256'>,
+): ReadAdmittedCoverageMapping {
+  return async (scope, input) => {
+    const ref = CoverageRefSchema.parse(input);
+    const trx = transactionOf(scope);
+    const target = await readTarget(trx, ref);
+    if (!target) return { kind: 'unavailable' };
+    const head = await readHead(trx, ref);
+    if (!head) return { kind: 'unmapped' };
+    if (head.status === 'retracted') return { kind: 'retracted', authority: head.authority };
+    return { kind: 'mapped', head: { ...head, mapping: currentCoverageMapping(head.mapping, target, catalogue) } };
+  };
+}
+export const readAdmittedCoverageMapping = makeReadAdmittedCoverageMapping(coverageCatalogue);
 
 const Authorities = z.array(CoverageAuthoritySchema).min(1).max(100);
 export const lockCurrentCoverageAuthorities: LockCurrentCoverageAuthorities = async (scope, input) => {

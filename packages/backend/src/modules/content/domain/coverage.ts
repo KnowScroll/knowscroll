@@ -71,12 +71,7 @@ export interface CoverageCatalogue {
   readonly meaningSha256: (topicId: string, facetId: string) => string | undefined;
 }
 
-/** No visibility, qualification or personal state is inferred by this admission validator. */
-export function validateCoverageMapping(
-  map: CoverageMapping,
-  target: CoverageTarget,
-  catalogue: CoverageCatalogue,
-): void {
+function assertTargetIdentity(map: CoverageMapping, target: CoverageTarget): void {
   if (
     map.documentSha256 !== target.documentSha256 ||
     map.provenanceSha256 !== target.provenanceSha256 ||
@@ -84,25 +79,68 @@ export function validateCoverageMapping(
     map.framing !== target.framing ||
     map.framingSha256 !== target.framingSha256 ||
     map.readingFactsVersion !== target.readingFactsVersion ||
-    map.readingFactsSha256 !== target.readingFactsSha256 ||
-    map.catalogueSha256 !== catalogue.sha256
+    map.readingFactsSha256 !== target.readingFactsSha256
   )
     throw new Error('CONTENT_COVERAGE_IDENTITY_MISMATCH');
+}
+
+/** The stored document never changes, so a locator that does not fit it means corrupt data. */
+function assertLocators(binding: CoverageMapping['bindings'][number], target: CoverageTarget): void {
+  if (new Set(binding.requiredBlockIds).size !== binding.requiredBlockIds.length)
+    throw new Error('CONTENT_COVERAGE_BINDING_INVALID');
+  for (const id of binding.requiredBlockIds) {
+    const block = target.blocks.find((entry) => entry.id === id);
+    if (!block || block.nested || !block.truthSupported || !COVERAGE_LOCATOR_TYPES.includes(block.type))
+      throw new Error('CONTENT_COVERAGE_LOCATOR_INVALID');
+  }
+}
+
+/**
+ * Admission check of a mapping decided against the current catalogue. Strict: the catalogue digest,
+ * every binding's meaning and every locator must match. No visibility, qualification or personal
+ * state is inferred.
+ */
+export function validateCoverageMapping(
+  map: CoverageMapping,
+  target: CoverageTarget,
+  catalogue: CoverageCatalogue,
+): void {
+  assertTargetIdentity(map, target);
+  if (map.catalogueSha256 !== catalogue.sha256) throw new Error('CONTENT_COVERAGE_IDENTITY_MISMATCH');
   const bindings = new Set<string>();
   for (const binding of map.bindings) {
     const key = JSON.stringify([binding.topicId, binding.facetId]);
     if (
       bindings.has(key) ||
       !conceptMeaning(binding.topicId, binding.facetId) ||
-      binding.meaningSha256 !== catalogue.meaningSha256(binding.topicId, binding.facetId) ||
-      new Set(binding.requiredBlockIds).size !== binding.requiredBlockIds.length
+      binding.meaningSha256 !== catalogue.meaningSha256(binding.topicId, binding.facetId)
     )
       throw new Error('CONTENT_COVERAGE_BINDING_INVALID');
     bindings.add(key);
-    for (const id of binding.requiredBlockIds) {
-      const block = target.blocks.find((entry) => entry.id === id);
-      if (!block || block.nested || !block.truthSupported || !COVERAGE_LOCATOR_TYPES.includes(block.type))
-        throw new Error('CONTENT_COVERAGE_LOCATOR_INVALID');
-    }
+    assertLocators(binding, target);
   }
+}
+
+/**
+ * Read-time view of a stored mapping. The catalogue digest is not compared, because the plan grows
+ * and every edit changes it. Each binding pins its own facet meaning instead: a binding whose facet
+ * has vanished or changed meaning since admission is dropped, never thrown on, so the mapping stays
+ * readable and that facet is simply unmapped until coverage is admitted again. Target identity and
+ * locators still must match the immutable document: a mismatch there is corrupt data and throws.
+ */
+export function currentCoverageMapping(
+  map: CoverageMapping,
+  target: CoverageTarget,
+  catalogue: Pick<CoverageCatalogue, 'meaningSha256'>,
+): CoverageMapping {
+  assertTargetIdentity(map, target);
+  const seen = new Set<string>();
+  const bindings = map.bindings.filter((binding) => {
+    const key = JSON.stringify([binding.topicId, binding.facetId]);
+    if (seen.has(key)) throw new Error('CONTENT_COVERAGE_BINDING_INVALID');
+    seen.add(key);
+    assertLocators(binding, target);
+    return binding.meaningSha256 === catalogue.meaningSha256(binding.topicId, binding.facetId);
+  });
+  return { ...map, bindings };
 }

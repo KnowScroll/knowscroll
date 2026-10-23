@@ -6,7 +6,7 @@ import type { CoverageHead, CoverageHeadPorts } from './coverage-ports.js';
 import type { AdmissionTx } from './ports.js';
 
 export type RecipeCoverageOutcome =
-  | { readonly kind: 'admitted'; readonly head: CoverageHead }
+  | { readonly kind: 'admitted'; readonly head: CoverageHead; readonly change: 'appended' | 'unchanged' }
   | {
       readonly kind: 'not_admitted';
       readonly code: 'target_unavailable' | Extract<RecipeCoveragePlan, { kind: 'refused' }>['code'];
@@ -39,7 +39,7 @@ export async function admitRecipeCoverage(
   if (plan.kind === 'refused') return { kind: 'not_admitted', code: plan.code };
   const previous = await p.readHead(tx, ref);
   if (previous?.status === 'active' && previous.authority.mappingSha256 === p.hash(plan.mapping))
-    return { kind: 'admitted', head: previous };
+    return { kind: 'admitted', head: previous, change: 'unchanged' };
   const command: CoverageCommand = {
     version: 'content-coverage-command.v1',
     assetId: ref.assetId,
@@ -48,5 +48,6 @@ export async function admitRecipeCoverage(
     semanticReviewReference: `${RECIPE_COVERAGE_RULE}:${recipe.explanationUnitId}`,
     change: { kind: 'admit', mapping: plan.mapping },
   };
-  return { kind: 'admitted', head: await appendCoverageHead(p, tx, command, target, previous) };
+  const head = await appendCoverageHead(p, tx, command, target, previous);
+  return { kind: 'admitted', head, change: head === previous ? 'unchanged' : 'appended' };
 }
