@@ -26,7 +26,15 @@ import type {
   ReadRegionEncounterCandidates,
   LockRegionEncounterCandidates,
 } from '../../content/public.js';
-import type { ComposeEncounter, PersistComposerDecision, ReadPreparedEvidenceInput } from '../../composer/public.js';
+import type {
+  ComposeEncounter,
+  PersistComposerDecision,
+  ReadComposerBuffer,
+  PurgeExpiredComposerBuffer,
+  ReadPreparedEvidenceInput,
+  ReleaseComposerBuffer,
+  RequestBufferPreparation,
+} from '../../composer/public.js';
 import type { CommandPorts, JsonValue, NewExposure } from './ports.js';
 export const OfferRegionConstraintSchema = z.strictObject({
   version: z.literal('offer-region-constraint.v1'),
@@ -125,6 +133,16 @@ export interface NavigationPorts extends CommandPorts {
   readonly readPrepared: ReadPreparedEvidenceInput;
   readonly compose: ComposeEncounter;
   readonly persistDecision: PersistComposerDecision;
+  /**
+   * Worker-prepared vertical buffers (blueprint §9). Absent in compositions without the buffer
+   * job: navigation then ranks for itself, which is always correct.
+   */
+  readonly buffers?: {
+    readonly read: ReadComposerBuffer;
+    readonly release: ReleaseComposerBuffer;
+    readonly purgeExpired: PurgeExpiredComposerBuffer;
+    readonly requestPreparation: RequestBufferPreparation;
+  };
   readonly insertExposure: (scope: PersonalScopeTx, exposure: NewExposure) => Promise<void>;
   readonly markActivated: (scope: PersonalScopeTx, exposureId: string, at: Date) => Promise<void>;
   readonly recordActivation: (

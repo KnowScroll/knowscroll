@@ -133,6 +133,23 @@ export const ComposerSnapshotSchema: z.ZodType<ComposerSnapshot> = z.strictObjec
       hiddenAssetIds: z.array(Id).max(1000),
     })
     .optional(),
+  semanticAssessments: z
+    .strictObject({
+      roleVersion: Id,
+      model: Id,
+      assessedAt: z.iso.datetime(),
+      expiresAt: z.iso.datetime(),
+      entries: z
+        .array(
+          Ref.extend({
+            relevance: z.number().min(0).max(1),
+            appropriateness: z.number().min(0).max(1),
+            redundancy: z.number().min(0).max(1),
+          }),
+        )
+        .max(25),
+    })
+    .optional(),
   watermarks: z.strictObject({
     catalog: z.string().min(1).max(240),
     continuity: z.string().min(1).max(240),

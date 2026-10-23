@@ -93,6 +93,26 @@ removes the private receipt and offer references together. A missing/inconsisten
 is an internal availability refusal, never a silently rebuilt current result.
 
 
+### Navigation steps and worker-prepared buffers (#234)
+
+`application/navigation.ts` is the use case; its steps live in small files: `navigation-prepare.ts`
+(transaction 1: `startOf`, `storedBuffer`, `retrieve*` per mode, `rankingInput`), `navigation-receipt.ts`
+(idempotency key and replay) and `navigation-support.ts` (shared helpers and the region checks).
+Transaction 2 is `commitNavigation`: `recheckPreparation`, `lockRegionSelection`, `selectStillEligible`,
+`buildOffers`, `writeOutcome`. Candidate retrieval and the ranking input are built by Composer's
+`readVerticalCandidates` and `assembleSnapshot`, shared with the buffer worker. The input is serialised
+once, and again only if it must be trimmed to its durable budget.
+
+A vertical move from an activated offer first looks for a Composer buffer prepared for exactly that
+session, intent revision and source offer and exposure. A valid buffer is used instead of retrieving and
+ranking; transaction 2 rechecks each selected offer as for a fresh ranking, deletes the buffer in the same
+transaction when it serves, and deletes it with its decision when the content drifted (then one rerank).
+A fresh activation enqueues `composer.prepare-buffer` in its own transaction (not for a regional offer).
+The ports `buffers` are optional: a composition without them ranks every move itself. Experience also
+answers the buffer worker's read-only questions (`experienceBufferSourceProviders`: the activated offer's
+session facts, and Hide). A subject move (vertical) never offers the explanation unit of the encounter it
+starts from.
+
 ## Personal Context preparation (#235)
 
 Navigation's existing prepared-input capability now requires READ_COMPOSER_CONTEXT from the PC owner.

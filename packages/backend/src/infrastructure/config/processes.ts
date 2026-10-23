@@ -131,6 +131,8 @@ export interface WorkerConfig extends ReleaseIdentity {
   /** Planner execution gate; default off until a separately approved role allowance. */
   readonly plannerEnabled: boolean;
   readonly cartographerEnabled: boolean;
+  /** Jev's optional semantic assessment in the Composer buffer job; default off, on for dev. */
+  readonly jevEnabled: boolean;
   readonly database: DatabaseSettings;
   readonly shutdownGraceMs: number;
   /** Personal-scope lock wait; always shorter than the statement timeout. */
@@ -550,6 +552,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         ...databaseVariables,
         KS_PLANNER_ENABLED: z.enum(['0', '1']).optional(),
         KS_CARTOGRAPHER_ENABLED: z.enum(['0', '1']).default('0'),
+        KS_JEV_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CUTROOM_COMMISSIONING_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CUTROOM_RECEIVING_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CUTROOM_RECEIVING_PACKET: z
@@ -593,6 +596,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
       pick(env, [
         'KS_PLANNER_ENABLED',
         'KS_CARTOGRAPHER_ENABLED',
+        'KS_JEV_ENABLED',
         'KS_CUTROOM_COMMISSIONING_ENABLED',
         'KS_CUTROOM_RECEIVING_ENABLED',
         'KS_CUTROOM_RECEIVING_PACKET',
@@ -678,6 +682,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     },
     plannerEnabled: (parsed.KS_PLANNER_ENABLED ?? (release.world === 'local' ? '1' : '0')) === '1',
     cartographerEnabled: parsed.KS_CARTOGRAPHER_ENABLED === '1',
+    jevEnabled: parsed.KS_JEV_ENABLED === '1',
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),
     shutdownGraceMs: parsed.KS_SHUTDOWN_GRACE_SECONDS * 1000,
     scopeLockTimeoutMs: parsed.KS_SCOPE_LOCK_TIMEOUT_MS,

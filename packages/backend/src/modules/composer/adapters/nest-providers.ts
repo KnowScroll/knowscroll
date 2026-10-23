@@ -16,3 +16,5 @@ export function composerProviders(access: ComposerOperatorAccess) {
   ];
 }
 export { makeComposerStore } from './postgres-store.js';
+export { composerBufferProviders, composerBufferWorkerProviders } from './buffer-providers.js';
+export { composerBufferStore } from './buffer-store.js';

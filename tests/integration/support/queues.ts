@@ -2,6 +2,7 @@ import { projectSceneQueue } from '@knowscroll/backend/modules/scenes';
 import { cartographyQueue, publishDeltaQueue } from '@knowscroll/backend/modules/geography';
 import { resolveSupplyQueue } from '@knowscroll/backend/modules/supply';
 import { plannerQueue } from '@knowscroll/backend/modules/planner';
+import { prepareBufferQueue } from '@knowscroll/backend/modules/composer';
 import { z } from 'zod';
 import { defineQueue, queueRegistry } from '@knowscroll/backend/infrastructure/jobs';
 import {
@@ -51,6 +52,7 @@ export const testQueues = queueRegistry([
   publishDeltaQueue,
   resolveSupplyQueue,
   plannerQueue,
+  prepareBufferQueue,
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
   projectEncounterActivityQueue,

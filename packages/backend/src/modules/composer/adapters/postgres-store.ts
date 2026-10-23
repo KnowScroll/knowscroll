@@ -9,6 +9,7 @@ import {
   type PruneComposerDecisions,
   type ComposerOperatorAccess,
 } from '../public.js';
+import { composerBufferStore } from './buffer-store.js';
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (value !== null && typeof value === 'object')
@@ -90,8 +91,10 @@ export function makeComposerStore(access: ComposerOperatorAccess): {
     },
     async pruneComposerDecisions(scope, limit) {
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new Error('COMPOSER_PRUNE_LIMIT');
+      // Buffers reference decisions: an unusable one goes first, and a live one protects its decision.
+      await composerBufferStore.purgeExpired(scope, new Date());
       const result =
-        await sql`delete from composer.decisions where id in (select d.id from composer.decisions d where d.universe_id=${scope.authority.universeId}::uuid and d.privacy_epoch=${scope.authority.privacyEpoch} and d.expires_at<=now() and not exists(select 1 from experience.offers o where o.universe_id=d.universe_id and o.privacy_epoch=d.privacy_epoch and o.decision_id=d.id) order by d.expires_at,d.id limit ${limit}) returning id`.execute(
+        await sql`delete from composer.decisions where id in (select d.id from composer.decisions d where d.universe_id=${scope.authority.universeId}::uuid and d.privacy_epoch=${scope.authority.privacyEpoch} and d.expires_at<=now() and not exists(select 1 from experience.offers o where o.universe_id=d.universe_id and o.privacy_epoch=d.privacy_epoch and o.decision_id=d.id) and not exists(select 1 from composer.buffers b where b.universe_id=d.universe_id and b.decision_id=d.id) order by d.expires_at,d.id limit ${limit}) returning id`.execute(
           transactionOf(scope),
         );
       return result.rows.length;

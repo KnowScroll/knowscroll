@@ -27,7 +27,7 @@ import {
   READ_SAVED_PAGE,
   EXPERIENCE_RECORDING_EFFECTS,
 } from '@knowscroll/backend/modules/experience';
-import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
+import { composerBufferProviders, composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
 import { READ_SAVED_PAGE_METADATA, type ReadSavedPageMetadata } from '@knowscroll/backend/modules/content';
 import type { WithPersonalScope } from '@knowscroll/backend/modules/identity';
 import { savedCursors } from '../http/saved-cursors.js';
@@ -73,9 +73,10 @@ export const experienceWiring: Provider[] = [
     { recordingEffects: EXPERIENCE_RECORDING_EFFECTS },
   ),
   ...composerProviders({ isOperator: () => false }),
+  ...composerBufferProviders({ enqueueJob: ENQUEUE_JOB }),
   ...navigationProviders(
     { withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB },
-    { region: true, recordingEffects: EXPERIENCE_RECORDING_EFFECTS },
+    { region: true, recordingEffects: EXPERIENCE_RECORDING_EFFECTS, buffers: true },
   ),
 ];
 
