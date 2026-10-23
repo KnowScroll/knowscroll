@@ -1,164 +1,26 @@
 import {
   CreateContentRequestSchema,
   ContentRequestReceiptSchema,
-  ContentRequestStatusSchema,
   CancelContentRequestSchema,
   CancelContentRequestReceiptSchema,
   ReadContentRequestSchema,
 } from '@knowscroll/contracts';
 import type { CreateContentRequest } from '@knowscroll/contracts';
 import { CONCEPTS } from '../../content/public.js';
-import type { EncounterSnapshot } from '../../content/public.js';
-import type { PersonalScopeTx } from '../../identity/public.js';
-import type {
-  CanonicalBrief,
-  SupplyPorts,
-  Demand,
-  Source,
-  CreateRequest,
-  ReadRequest,
-  CancelRequest,
-  ResolveRequest,
-  RecordPlannedDemand,
-} from './ports.js';
+import { commissionSupply } from './commission.js';
+import { briefOf, checkedRevision, inventory, snapshot, sourceOf } from './inventory.js';
+import type { SupplyPorts, Demand, CreateRequest, ReadRequest, CancelRequest, RecordPlannedDemand } from './ports.js';
 
-const sourceOf = (command: CreateContentRequest): Source | undefined =>
-  command.intent.kind === 'variant' ? command.intent.source : command.intent.context;
-const sameRef = (
-  a: { readonly assetId: string; readonly assetRevision: number },
-  b: { readonly assetId: string; readonly assetRevision: number },
-) => a.assetId.toLowerCase() === b.assetId.toLowerCase() && a.assetRevision === b.assetRevision;
-function briefOf(c: CreateContentRequest, source: EncounterSnapshot | undefined): CanonicalBrief | undefined {
-  // The admitted catalogue/production policy currently supports English only. Do not put an
-  // arbitrary bounded language string or a private-use locale into a shared canonical brief.
-  if (c.language !== 'en') return undefined;
-  if (c.intent.kind === 'variant')
-    return source && source.kind !== c.intent.to
-      ? {
-          version: 'supply-brief.v1',
-          rights: 'shared_admitted',
-          language: c.language,
-          format: c.intent.to,
-          subject: {
-            kind: 'variant',
-            explanationUnitId: source.explanationUnitId,
-            source: { assetId: source.assetId, assetRevision: source.assetRevision },
-          },
-        }
-      : undefined;
-  // A contextual ask has additional meaning that this deterministic catalogue matcher cannot admit.
-  if (c.intent.context || c.intent.subject.kind !== 'catalogue') return undefined;
-  const subject = c.intent.subject;
-  const topic = CONCEPTS.find((t) => t.id === subject.topicId);
-  if (!topic || (subject.facetId && !topic.facets.some((f) => f.id === subject.facetId))) return undefined;
-  return {
-    version: 'supply-brief.v1',
-    rights: 'shared_admitted',
-    language: c.language,
-    format: c.intent.format,
-    subject,
-  };
-}
-function matches(brief: CanonicalBrief, candidate: EncounterSnapshot): boolean {
-  if (candidate.metadata.language !== brief.language || (brief.format !== 'either' && candidate.kind !== brief.format))
-    return false;
-  const s = brief.subject;
-  return s.kind === 'variant'
-    ? candidate.explanationUnitId === s.explanationUnitId
-    : candidate.topics.some((t) => t.topicId === s.topicId && t.role === 'primary') &&
-        (!s.facetId || candidate.facets.includes(s.facetId));
-}
-/** One sorted Content lock batch. Private/source data is never submitted as retrieval text. */
-async function inventory(
-  p: SupplyPorts,
-  scope: PersonalScopeTx,
-  c: CreateContentRequest,
-  brief?: CanonicalBrief,
-  skipExplanations: ReadonlySet<string> = new Set(),
-) {
-  const source = sourceOf(c);
-  const sourceSnapshot = source ? await p.readExact(scope, { ...source, capabilities: c.capabilities }) : undefined;
-  const candidates =
-    brief?.subject.kind === 'variant' && sourceSnapshot
-      ? (
-          await Promise.all(
-            sourceSnapshot.siblings.map((ref) => p.readExact(scope, { ...ref, capabilities: c.capabilities })),
-          )
-        ).filter((e): e is EncounterSnapshot => e !== undefined)
-      : brief
-        ? await p.readCandidates(scope, {
-            languages: [brief.language],
-            formats: brief.format === 'either' ? ['reel', 'scroll'] : [brief.format],
-            capabilities: c.capabilities,
-            ...(brief.subject.kind === 'catalogue' ? { topicIds: [brief.subject.topicId] } : {}),
-            limit: 100,
-          })
-        : [];
-  const heads = await p.lockCurrent(scope, {
-    refs: [
-      ...(source ? [source] : []),
-      ...candidates.filter((x) => brief && matches(brief, x) && !skipExplanations.has(x.explanationUnitId)),
-    ],
-    capabilities: c.capabilities,
-  });
-  const sourceHead = source ? heads.find((x) => sameRef(x.ref, source)) : undefined;
-  const ready = heads.find(
-    (x) => x.encounter && brief && matches(brief, x.encounter) && !skipExplanations.has(x.encounter.explanationUnitId),
+/** A free-text ask with no encounter context: the one kind of ask that waits for a catalogue match. */
+function asksFreeText(c: CreateContentRequest): boolean {
+  return (
+    c.language === 'en' &&
+    c.intent.kind === 'topic' &&
+    c.intent.subject.kind === 'text' &&
+    c.intent.context === undefined
   );
-  return { heads, sourceHead, ready };
 }
-function checkedRevision(value: number): number {
-  if (!Number.isSafeInteger(value) || value < 1) throw new Error('SUPPLY_REVISION_INVALID');
-  return value;
-}
-/** Current status is a read-only projection; global Content changes do not create personal hints. */
-async function snapshot(p: SupplyPorts, scope: PersonalScopeTx, d: Demand) {
-  const source = sourceOf(d.command);
-  const heads =
-    d.status === 'ready' || d.status === 'requested' || d.status === 'deferred'
-      ? await p.lockCurrent(scope, {
-          refs: [...(source ? [source] : []), ...(d.content ? [d.content] : [])],
-          capabilities: d.command.capabilities,
-        })
-      : [];
-  const sourceHead = source ? heads.find((x) => sameRef(x.ref, source)) : undefined;
-  const contentHead = d.content ? heads.find((x) => sameRef(x.ref, d.content!)) : undefined;
-  const delta =
-    (sourceHead && d.sourceAvailabilityRevision ? sourceHead.availabilityRevision - d.sourceAvailabilityRevision : 0) +
-    (contentHead && d.contentAvailabilityRevision
-      ? contentHead.availabilityRevision - d.contentAvailabilityRevision
-      : 0);
-  if (delta < 0) throw new Error('SUPPLY_AVAILABILITY_REGRESSED');
-  const requestRevision = checkedRevision(d.requestRevision + delta);
-  const updatedAt = [d.updatedAt, ...heads.map((h) => h.changedAt)].sort().at(-1)!;
-  const base = {
-    version: 'content-request-status.v1' as const,
-    requestId: d.id,
-    privacyEpoch: scope.authority.privacyEpoch,
-    requestRevision,
-    revision: scope.revisionAtEntry,
-    createdAt: d.createdAt,
-    updatedAt,
-  };
-  if (d.status === 'cancelled') return ContentRequestStatusSchema.parse({ ...base, status: 'cancelled' });
-  if (d.status === 'unavailable')
-    return ContentRequestStatusSchema.parse({ ...base, status: 'unavailable', reason: d.reason });
-  if ((source && !sourceHead?.encounter) || (d.status === 'ready' && !contentHead?.encounter))
-    return ContentRequestStatusSchema.parse({ ...base, status: 'unavailable', reason: 'source_unavailable' });
-  if (d.status === 'requested' || d.status === 'deferred')
-    return ContentRequestStatusSchema.parse({ ...base, status: 'preparing', phase: 'requested' });
-  const e = contentHead!.encounter!;
-  return ContentRequestStatusSchema.parse({
-    ...base,
-    status: 'ready',
-    content: {
-      assetId: e.assetId,
-      assetRevision: e.assetRevision,
-      explanationUnitId: e.explanationUnitId,
-      metadata: e.metadata,
-    },
-  });
-}
+
 export function makeCreateRequest(p: SupplyPorts): CreateRequest {
   return async (authority, command) => {
     const c = CreateContentRequestSchema.parse(command);
@@ -208,19 +70,22 @@ export function makeCreateRequest(p: SupplyPorts): CreateRequest {
           contentAvailabilityRevision: current.ready.availabilityRevision,
         };
       else if (brief) {
-        const work = await p.store.joinOrCreate(scope, brief, p.newId());
-        demand = {
-          ...demand,
-          brief,
-          status: 'requested',
-          reason: undefined,
-          workId: work.id,
-          decision: work.joined ? 'join' : 'create',
-        };
-      }
+        const commissioned = await commissionSupply(p, scope, brief);
+        demand =
+          commissioned.kind === 'waiting'
+            ? {
+                ...demand,
+                brief,
+                status: 'requested',
+                reason: undefined,
+                workId: commissioned.workId,
+                decision: commissioned.decision,
+              }
+            : { ...demand, brief, reason: commissioned.reason };
+      } else if (asksFreeText(c)) demand = { ...demand, status: 'matching', decision: 'pending', reason: undefined };
       const revision = await p.advance(scope);
       await p.store.insert(scope, { ...demand, revision });
-      if (demand.status === 'requested') await p.enqueue(scope, id);
+      if (demand.status === 'requested' || demand.status === 'matching') await p.enqueue(scope, id);
       const receipt = ContentRequestReceiptSchema.parse({
         version: 'content-request-receipt.v1',
         commandId: c.commandId,
@@ -288,7 +153,10 @@ export function makeCancelRequest(p: SupplyPorts): CancelRequest {
       // A pending row can already project unavailable after a shared Content withdrawal.
       // Respect that public outcome and freeze its own terminal state, rather than rename it
       // cancelled or allow a later resolver to revive it after this already_closed receipt.
-      if ((d.status === 'requested' || d.status === 'deferred') && current.status === 'unavailable')
+      if (
+        (d.status === 'requested' || d.status === 'deferred' || d.status === 'matching') &&
+        current.status === 'unavailable'
+      )
         await p.store.finish(scope, {
           ...d,
           status: 'unavailable',
@@ -314,62 +182,13 @@ export function makeCancelRequest(p: SupplyPorts): CancelRequest {
     return result.kind === 'entered' ? result.value : { kind: 'refused', reason: 'scope_refused' };
   };
 }
-/** One recipient per transaction. No shared-work lock is held while acquiring any other root. */
-export function makeResolveRequest(p: SupplyPorts): ResolveRequest {
-  return async (job) => {
-    await p.withScope(
-      {
-        universeId: job.universeId,
-        privacyEpoch: job.privacyEpoch,
-        actor: { kind: 'system', purpose: 'supply.resolve' },
-      },
-      async (scope) => {
-        if (!(await p.ownerActive(scope))) return;
-        const d = await p.store.read(scope, job.requestId);
-        if (!d || d.status !== 'requested' || !d.brief) return;
-        const inventoryNow = await inventory(p, scope, d.command, d.brief);
-        const current = await snapshot(p, scope, d);
-        const source = sourceOf(d.command);
-        const validSource =
-          !source ||
-          (inventoryNow.sourceHead?.encounter &&
-            (await p.checkSource(scope, {
-              exposureId: source.exposureId,
-              assetId: source.assetId,
-              assetRevision: source.assetRevision,
-            })));
-        if (!(await p.ownerActive(scope))) return;
-        const revision = await p.advance(scope),
-          now = p.now().toISOString();
-        const ready = validSource ? inventoryNow.ready : undefined;
-        const next: Demand = {
-          ...d,
-          revision,
-          requestRevision: checkedRevision(current.requestRevision + 1),
-          updatedAt: now,
-          status: ready?.encounter ? 'ready' : 'unavailable',
-          reason: ready?.encounter ? undefined : validSource ? 'budget_unavailable' : 'source_unavailable',
-          ...(ready?.encounter
-            ? { content: ready.encounter, contentAvailabilityRevision: ready.availabilityRevision }
-            : {}),
-          ...(inventoryNow.sourceHead
-            ? { sourceAvailabilityRevision: inventoryNow.sourceHead.availabilityRevision }
-            : {}),
-        };
-        await p.store.finish(scope, next);
-        if (d.workId) await p.store.closeWork(scope, d.workId);
-        await p.notify(scope, revision, d.id);
-      },
-    );
-  };
-}
-
 /**
  * The Planner's missing-supply opportunity becomes private demand. The brief is built exactly like
- * a person's catalogue ask, so Reuse and Join/Create-group follow the same deterministic rules.
- * Nothing is queued: a deferred demand stays on its shared group until a production path binds it.
- * No receipt is written (the caller's accepted plan is the idempotency boundary) and no client
- * hint is sent (planned demand is not a request the person made).
+ * a person's catalogue ask, so Reuse and Join/Create follow the same deterministic rules. Where Create
+ * starts or joins production, the demand waits as `deferred` and a resolver job binds it when the
+ * Scroll is admitted. Where nothing can start (the day's cap, Create switched off, or no recipe left),
+ * nothing is stored: a later plan asks again. No receipt is written (the caller's accepted plan is
+ * the idempotency boundary) and no client hint is sent (planned demand is not a request the person made).
  */
 export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
   return async (scope, input) => {
@@ -418,8 +237,10 @@ export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
       });
       return { kind: 'ready', requestId: id };
     }
-    const work = await p.store.joinOrCreate(scope, brief, p.newId());
-    await p.store.insert(scope, { ...demand, workId: work.id, decision: work.joined ? 'join' : 'create' });
-    return { kind: 'deferred', requestId: id, joined: work.joined };
+    const commissioned = await commissionSupply(p, scope, brief);
+    if (commissioned.kind === 'unavailable') return { kind: 'not_commissioned' };
+    await p.store.insert(scope, { ...demand, workId: commissioned.workId, decision: commissioned.decision });
+    await p.enqueue(scope, id);
+    return { kind: 'deferred', requestId: id, joined: commissioned.decision === 'join' };
   };
 }

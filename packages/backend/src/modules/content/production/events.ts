@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { defineQueue } from '../../../infrastructure/jobs/queues.js';
 import { SCROLL_PRODUCTION_VERSION } from './topics.js';
@@ -38,6 +37,7 @@ export const produceScrollQueue = defineQueue({
     deadLetter: true,
   },
   consumer: { localConcurrency: 2, pollingIntervalSeconds: 2 },
+  exclusive: true,
 });
 
 /** The job a sender enqueues for `recipe` under the current recipe version. */
@@ -46,11 +46,10 @@ export function produceScrollJob(recipe: string): ProduceScrollJob {
 }
 
 /**
- * A stable pg-boss job ID per recipe and version, so every sender that asks for the same Scroll
- * reaches one job. (A SHA-256 shaped as a version 4 UUID; the value is an identity, not a secret.)
+ * The key that keeps one production job per recipe and version in flight (the queue is `exclusive`):
+ * every sender that asks for the same Scroll reaches that job while it is queued or running, and a
+ * finished or failed one never blocks a new send, which resumes the same business run.
  */
-export function produceScrollJobId(job: ProduceScrollJob): string {
-  const hex = createHash('sha256').update(`produce-scroll:${job.recipe}:${job.policyVersion}`).digest('hex');
-  const variant = ((Number.parseInt(hex.slice(16, 17), 16) & 0x3) | 0x8).toString(16);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+export function produceScrollSingletonKey(job: ProduceScrollJob): string {
+  return `${job.recipe}:${job.policyVersion}`;
 }

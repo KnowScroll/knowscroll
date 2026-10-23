@@ -80,6 +80,7 @@ import { identitySweepProviders } from '@knowscroll/backend/modules/identity/nes
 import {
   PRODUCTION_REASONING_HARNESS,
   PURGE_EXPIRED_REQUESTS,
+  REASONING_HARNESS,
   SWEEP_DISPATCHED_ATTEMPTS,
   WITH_PRODUCTION_SCOPE,
   purgeExpiredRequestsQueue,
@@ -127,7 +128,13 @@ export const jobWiring: Provider[] = [
       },
   },
   ...identityScopeOwnerProviders(),
-  ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
+  // The worker's resolver matches free-text asks through the personal reasoning harness.
+  ...supplyProviders({
+    withPersonalScope: WITH_PERSONAL_SCOPE,
+    enqueueJob: ENQUEUE_JOB,
+    config: WORKER_CONFIG,
+    harness: REASONING_HARNESS,
+  }),
   ...plannerRequestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...plannerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   ...plannerReadProviders(),
@@ -223,8 +230,8 @@ export const jobWiring: Provider[] = [
       jobConsumer(publishDeltaQueue, async (payload) => {
         await publishDelta(payload);
       }),
-      jobConsumer(resolveSupplyQueue, async (payload) => {
-        await resolveRequest(payload);
+      jobConsumer(resolveSupplyQueue, async (payload, delivery) => {
+        await resolveRequest(payload, delivery);
       }),
       jobConsumer(plannerQueue, async (payload, delivery) => {
         await runPlanner(payload, delivery.signal);

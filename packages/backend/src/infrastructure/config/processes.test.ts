@@ -107,6 +107,30 @@ describe('process configuration', () => {
     expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '501' })).toThrow();
     expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '-1' })).toThrow();
   });
+  it('gives the production scope its own, larger daily caps and leaves the person and global caps alone', () => {
+    const caps = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).reasoning.caps;
+    expect(caps.productionScope).toEqual({ requestsPerDay: 200, tokensPerDay: 3_000_000 });
+    expect(caps.scope).toEqual({ requestsPerDay: 60, tokensPerDay: 600_000 });
+    expect(caps.global).toEqual({ requestsPerDay: 300, tokensPerDay: 3_000_000 });
+    const raised = readWorkerConfig({
+      DATABASE_URL: secretUrl,
+      KS_WORLD: 'local',
+      KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '400',
+      KS_REASONING_PRODUCTION_TOKENS_PER_DAY: '6000000',
+    }).reasoning.caps;
+    expect(raised.productionScope).toEqual({ requestsPerDay: 400, tokensPerDay: 6_000_000 });
+    expect(raised.scope).toEqual(caps.scope);
+    expect(
+      readScrollProductionOperatorConfig({
+        DATABASE_URL: secretUrl,
+        KS_WORLD: 'local',
+        KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '150',
+      }).reasoning.caps.productionScope.requestsPerDay,
+    ).toBe(150);
+    expect(() =>
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '0' }),
+    ).toThrow();
+  });
   it('reads the production generation the Scroll consumer works under', () => {
     expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).scrollProductionGeneration).toBe(1);
     expect(
@@ -375,6 +399,7 @@ describe('process configuration', () => {
       caps: {
         global: { requestsPerDay: 300, tokensPerDay: 3_000_000 },
         scope: { requestsPerDay: 60, tokensPerDay: 600_000 },
+        productionScope: { requestsPerDay: 200, tokensPerDay: 3_000_000 },
         roleDefault: { requestsPerDay: 200, tokensPerDay: 2_000_000 },
       },
       maxRequestBytes: 262_144,

@@ -69,7 +69,7 @@ export type ReadScrollReadingFacts = (
 export const READ_SCROLL_READING_FACTS = Symbol('content.readScrollReadingFacts');
 
 /** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
-export { CONCEPT_CATALOGUE_VERSION, CONCEPTS } from './domain/concepts.js';
+export { CONCEPT_CATALOGUE_VERSION, CONCEPTS, conceptLabel } from './domain/concepts.js';
 /** Which Scene family draws a system, star or planet; defined by the library plan. */
 export { sceneFamilyOf } from './domain/library/index.js';
 export {
@@ -131,7 +131,7 @@ export function isReadingInteractionAllowed(blockType: string, interactionKind: 
 export {
   produceScrollQueue,
   produceScrollJob,
-  produceScrollJobId,
+  produceScrollSingletonKey,
   ProduceScrollJobSchema,
   type ProduceScrollJob,
 } from './production/events.js';
@@ -152,7 +152,7 @@ export type ReadScrollProduction = (scope: PersonalScopeTx, recipe: string) => P
 export const READ_SCROLL_PRODUCTION = Symbol('content.readScrollProduction');
 
 /** Code-selected production topics and predictable model-request ceiling; no research is exported. */
-export { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from './production/topics.js';
+export { parseScrollTopic, REQUEST_BOUND_PER_TOPIC, SCROLL_PRODUCTION_VERSION } from './production/topics.js';
 export type { ScrollTopic } from './production/topics.js';
 export type { ProduceScrollResult } from './production/types.js';
 export {

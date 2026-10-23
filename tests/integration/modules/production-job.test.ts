@@ -4,7 +4,7 @@ import { createBoss, drainConsumers, jobConsumer, startConsumers } from '@knowsc
 import { makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   produceScrollJob,
-  produceScrollJobId,
+  produceScrollSingletonKey,
   produceScrollQueue,
   type ProduceScrollJob,
 } from '@knowscroll/backend/modules/content';
@@ -38,8 +38,8 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     await database.drop();
   });
 
-  function setup(script: () => FixtureScenario) {
-    const fixture = fixtureModel(script, { label: 'production-job-CI-fixture' });
+  function setup(script: () => FixtureScenario, quota?: Parameters<typeof fixtureModel>[1]['quota']) {
+    const fixture = fixtureModel(script, { label: 'production-job-CI-fixture', ...(quota ? { quota } : {}) });
     // No transport is real: the MiniMax stand-in identity lets the publication attribute its model.
     const model = guardedModelPort({ ...fixture, provider: 'minimax', model: 'MiniMax-M3.1-Flash' });
     const withScope = makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
@@ -128,6 +128,25 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     expect(p.fixture.calls).toHaveLength(0);
   });
 
+  it('pauses when the provider quota is spent, sends nothing, and resumes the same job once it allows', async () => {
+    let quotaSpent = true;
+    const p = setup(answer, () => ({
+      verdict: quotaSpent ? 'unavailable' : 'not_applicable',
+      intervalRemainingPercent: null,
+      weeklyRemainingPercent: null,
+    }));
+    const paused = await p.run(produceScrollJob('seasons'), delivery());
+    expect(paused).toMatchObject({ kind: 'finished', result: { outcome: 'paused', codes: ['quota_unavailable'] } });
+    expect(p.fixture.calls).toHaveLength(0);
+    expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'running', job: 'writer' });
+    quotaSpent = false;
+    expect(await p.run(produceScrollJob('seasons'), delivery())).toMatchObject({
+      kind: 'finished',
+      result: { outcome: 'published' },
+    });
+    expect(p.fixture.calls).toHaveLength(1);
+  });
+
   it('resumes the same job after a crash before the writer, without fetching the research again', async () => {
     const p = setup(answer);
     const crash: ProductionReasoningHarness = {
@@ -147,7 +166,7 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     expect(p.fixture.calls).toHaveLength(1);
   });
 
-  it('keeps one job per recipe version however many senders ask, and runs it once through a real queue consumer', async () => {
+  it('keeps one job per recipe version in flight however many senders ask, and runs it once through a real queue consumer', async () => {
     const p = setup(answer);
     const producerBoss = createBoss(database.settings, 'producer', {
       onError: () => undefined,
@@ -162,7 +181,7 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     try {
       const enqueue = makeEnqueueScrollProduction(producerBoss);
       expect(await enqueue('seasons')).toBe('queued');
-      expect(await enqueue('seasons')).toBe('already_exists');
+      expect(await enqueue('seasons')).toBe('already_queued');
       const consumers = [
         jobConsumer(produceScrollQueue, async (job: ProduceScrollJob, deliveryOf) => {
           await p.run(job, deliveryOf);
@@ -170,19 +189,31 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       ];
       await startConsumers(consumerBoss, consumers, silent);
       await expect.poll(async () => (await runRow())?.state, { timeout: 30_000, interval: 250 }).toBe('published');
+      const jobState = async () =>
+        (
+          await sql<{
+            state: string;
+          }>`select state from pgboss.job where name=${produceScrollQueue.name} and singleton_key=${produceScrollSingletonKey(produceScrollJob('seasons'))}`.execute(
+            database.db,
+          )
+        ).rows[0]?.state;
+      await expect.poll(jobState, { timeout: 30_000, interval: 250 }).toBe('completed');
+      // A finished job does not block a new send; the redelivery finds the finished run and sends nothing.
+      expect(await enqueue('seasons')).toBe('queued');
       await expect
         .poll(
           async () =>
             (
-              await sql<{
-                state: string;
-              }>`select state from pgboss.job where name=${produceScrollQueue.name} and id=${produceScrollJobId(produceScrollJob('seasons'))}::uuid`.execute(
+              await sql`select 1 from pgboss.job where name=${produceScrollQueue.name} and state='completed'`.execute(
                 database.db,
               )
-            ).rows[0]?.state,
-          { timeout: 30_000, interval: 250 },
+            ).rows.length,
+          {
+            timeout: 30_000,
+            interval: 250,
+          },
         )
-        .toBe('completed');
+        .toBe(2);
       expect(p.fixture.calls).toHaveLength(1);
       await drainConsumers(consumerBoss, consumers.length, 5_000, silent);
     } finally {

@@ -1530,6 +1530,7 @@ export interface SupplyWork {
   closed_at: Timestamp | null;
   created_at: Generated<Timestamp>;
   id: string;
+  production_recipe: string | null;
 }
 
 export interface DB {

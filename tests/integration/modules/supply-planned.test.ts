@@ -8,7 +8,7 @@ import { seedPerson } from '../support/fixtures.js';
 import { realSupply } from '../support/planned-demand.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
 
-/** Authored CI content and real PostgreSQL: the Planner's entry into Supply, without a provider or a production run. */
+/** Authored CI content and real PostgreSQL: the Planner's entry into Supply, which commissions production jobs but runs none. */
 describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
   let database: TestDatabase<Database>, content: Awaited<ReturnType<typeof scrollUseCases>>;
   let supply: ReturnType<typeof realSupply>;
@@ -17,7 +17,7 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
   beforeAll(async () => {
     database = await createTestDatabase<Database>('supply_planned');
     content = await scrollUseCases(database);
-    supply = realSupply(database, content.boss);
+    supply = realSupply(database, content.boss, { createDailyCap: 10 });
   });
   afterAll(async () => {
     await content.close();
@@ -67,7 +67,26 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
     expect(await rows(person.universeId)).toHaveLength(0);
   });
 
-  it('defers demand with no content to fit on a shared group that a second person joins, with no job and no production', async () => {
+  it('commissions nothing, and stores nothing, when Create is off or has no recipe left', async () => {
+    const off = realSupply(database, content.boss);
+    const person = await seedPerson(database.db);
+    const recordWith = (record: typeof supply.record, input: PlannedDemandInput) =>
+      withScope()(person.authority, (scope) => record(scope, input)).then((result) => {
+        if (result.kind !== 'entered') throw new Error('CI scope refused');
+        return result.value;
+      });
+    expect(await recordWith(off.record, demandInput(['space.exoplanets']))).toEqual({ kind: 'not_commissioned' });
+    // A Reel cannot be produced at all, whatever the cap.
+    expect(await recordWith(supply.record, demandInput(['space.exoplanets'], { format: 'reel' }))).toEqual({
+      kind: 'not_commissioned',
+    });
+    expect(await rows(person.universeId)).toHaveLength(0);
+    expect((await database.pool.query("select id from pgboss.job where name='content.produce-scroll'")).rows).toEqual(
+      [],
+    );
+  });
+
+  it('defers demand with no content to fit on a shared group, starts one production job, and a second person joins it', async () => {
     const first = await seedPerson(database.db),
       second = await seedPerson(database.db);
     const a = await record(first, demandInput(['earth.tides']));
@@ -79,12 +98,24 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
     expect(rowA).toMatchObject({ origin: 'planner', state: 'deferred', decision: 'create', planner_slot: 0 });
     expect(rowB).toMatchObject({ origin: 'planner', state: 'deferred', decision: 'join' });
     expect(rowA!.work_id).toBe(rowB!.work_id);
-    const jobs = await database.pool.query("select id from pgboss.job where name='supply.resolve-request'");
-    expect(jobs.rows).toHaveLength(0);
+    // Create committed the group's one production job with the first plan; each waiter has its own resolver job.
+    const work = await database.db
+      .selectFrom('supply.work')
+      .select('production_recipe')
+      .where('id', '=', rowA!.work_id!)
+      .executeTakeFirstOrThrow();
+    expect(work.production_recipe).toBe('tides');
+    const produced = await database.pool.query("select id from pgboss.job where name='content.produce-scroll'");
+    expect(produced.rows).toHaveLength(1);
+    const resolvers = await database.pool.query(
+      "select data from pgboss.job where name='supply.resolve-request' and data->>'universeId' = any($1)",
+      [[first.universeId, second.universeId]],
+    );
+    expect(resolvers.rows).toHaveLength(2);
     // A deferred demand reads as preparing, and the person can still withdraw it.
     expect(await supply.read(first.authority, { requestId: rowA!.id })).toMatchObject({
       kind: 'ok',
-      value: { status: 'preparing', phase: 'requested' },
+      value: { status: 'preparing', phase: 'preparing' },
     });
     expect(
       await supply.cancel(first.authority, {
@@ -126,8 +157,15 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
       requestId: (first as { requestId: string }).requestId,
     });
     expect(await rows(waiting.universeId)).toHaveLength(1);
-    // A different brief is a different demand; a closed one no longer counts.
-    expect(await record(waiting, demandInput(['earth.tides'], { format: 'reel' }))).toMatchObject({ kind: 'deferred' });
+    // A different brief is a different demand; a closed one no longer counts. Its group chooses the same
+    // recipe, so there is still only one production job for it.
+    const productionJobs = () =>
+      database.pool.query("select id from pgboss.job where name='content.produce-scroll'").then((r) => r.rows.length);
+    const producedBefore = await productionJobs();
+    expect(await record(waiting, demandInput(['earth.tides'], { format: 'either' }))).toMatchObject({
+      kind: 'deferred',
+    });
+    expect(await productionJobs()).toBe(producedBefore);
     expect(await rows(waiting.universeId)).toHaveLength(2);
     const scrollRow = (await rows(waiting.universeId)).find((r) => (r.brief as { format: string }).format === 'scroll');
     await supply.cancel(waiting.authority, {

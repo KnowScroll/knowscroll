@@ -311,6 +311,14 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       signal,
     );
     if (writer.kind === 'refused' && writer.reason === 'run_closed') return replayCurrent(row);
+    // A spent budget or quota stops the run before anything is sent: the job stays open to resume.
+    if (writer.kind === 'budget_exhausted' || writer.kind === 'quota_unavailable')
+      return {
+        outcome: 'paused',
+        requestBound: REQUEST_BOUND_PER_TOPIC,
+        runId: row.id,
+        codes: [writer.kind === 'budget_exhausted' ? `budget_${writer.dimension}_${writer.limit}` : writer.kind],
+      };
     if (writer.kind !== 'proposed')
       return end(
         row,

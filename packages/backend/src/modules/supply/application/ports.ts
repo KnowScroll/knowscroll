@@ -2,6 +2,7 @@ import type {
   CreateContentRequest,
   ContentRequestReceipt,
   ContentRequestStatus,
+  ContentRequestList,
   CancelContentRequest,
   CancelContentRequestReceipt,
 } from '@knowscroll/contracts';
@@ -12,9 +13,11 @@ import type {
   CheckPersonalOwnerActive,
 } from '../../identity/public.js';
 import type {
+  ChooseScrollRecipe,
   EncounterSnapshot,
   ReadDiscoveryCandidates,
   ReadExactEncounter,
+  ReadScrollProduction,
   LockCurrentEncounters,
 } from '../../content/public.js';
 import type { CheckRequestSource } from '../../experience/public.js';
@@ -44,8 +47,11 @@ export type UnavailableReason = Extract<ContentRequestStatus, { status: 'unavail
 export interface Demand {
   readonly id: string;
   readonly command: CreateContentRequest;
-  /** `deferred` is planned demand with no admitted content, waiting on a shared group for a production path. */
-  readonly status: 'requested' | 'ready' | 'unavailable' | 'cancelled' | 'deferred';
+  /**
+   * `matching`: a free-text ask waiting for its catalogue match (no brief or group yet).
+   * `requested`: waiting on a shared group. `deferred`: the same, for demand the Planner asked for.
+   */
+  readonly status: 'requested' | 'ready' | 'unavailable' | 'cancelled' | 'deferred' | 'matching';
   /** Set when the Planner asked on the person's behalf; absent means the person asked. */
   readonly planned?: { readonly runId: string; readonly slot: number };
   readonly requestRevision: number;
@@ -54,23 +60,47 @@ export interface Demand {
   readonly updatedAt: string;
   readonly brief?: CanonicalBrief;
   readonly workId?: string;
-  readonly decision: 'reuse' | 'join' | 'create' | 'refuse';
+  /** `pending` until a `matching` ask has its match. */
+  readonly decision: 'reuse' | 'join' | 'create' | 'refuse' | 'pending';
   readonly reason?: UnavailableReason;
   readonly content?: EncounterSnapshot;
   readonly contentAvailabilityRevision?: number;
   readonly sourceAvailabilityRevision?: number;
 }
+/** A shared matching group as a waiter needs to know it. */
+export interface WorkRecord {
+  readonly id: string;
+  /** The library recipe whose production job this group commissioned; absent when it commissioned nothing. */
+  readonly recipe?: string;
+}
 export interface SupplyStore {
   read(scope: PersonalScopeTx, id: string): Promise<Demand | undefined>;
   insert(scope: PersonalScopeTx, demand: Demand): Promise<void>;
+  /** Ends or advances an open demand: status, revisions, outcome and, for a matched ask, its brief, group and decision. */
   finish(scope: PersonalScopeTx, demand: Demand): Promise<void>;
-  /** Unique active canonical key; holds no personal scope identity or context. */
+  /**
+   * Takes the lock that serialises Create decisions, so the day's count and the group they start agree.
+   * Last in the lock order: after the personal root, the owned demand and Content's locks.
+   */
+  lockCommissioning(scope: PersonalScopeTx): Promise<void>;
+  /** The active shared group of exactly this brief, if one exists. */
+  findActiveWork(scope: PersonalScopeTx, brief: CanonicalBrief): Promise<WorkRecord | undefined>;
+  /**
+   * Unique active canonical key; holds no personal scope identity or context. `recipe` is fixed when the
+   * group is created and ignored when another group already holds the key.
+   */
   joinOrCreate(
     scope: PersonalScopeTx,
     brief: CanonicalBrief,
     id: string,
+    recipe?: string,
   ): Promise<{ readonly id: string; readonly joined: boolean }>;
+  readWork(scope: PersonalScopeTx, id: string): Promise<WorkRecord | undefined>;
+  /** Groups started today (UTC) with a production job: what the daily Create cap counts. */
+  countCommissionedSince(scope: PersonalScopeTx, since: Date): Promise<number>;
   closeWork(scope: PersonalScopeTx, id: string): Promise<void>;
+  /** The person's own asks (not the Planner's), newest first. */
+  listPersonDemands(scope: PersonalScopeTx, limit: number): Promise<readonly Demand[]>;
   /** The person's open planned demand (`deferred` or `ready`) for exactly this canonical brief, if any. */
   findOpenPlanned(
     scope: PersonalScopeTx,
@@ -93,7 +123,17 @@ export type CancelRequest = (
   authority: PersonalAuthority,
   command: CancelContentRequest,
 ) => Promise<Result<CancelContentRequestReceipt>>;
-export type ResolveRequest = (job: ResolveSupplyJob) => Promise<void>;
+/** The person's own recent asks with their current status; read only. */
+export type ListRequests = (authority: PersonalAuthority) => Promise<Result<ContentRequestList>>;
+/** The stop signal of the queue delivery; a free-text match waits on a model and must be abortable. */
+export interface ResolveDelivery {
+  readonly signal: AbortSignal;
+}
+/**
+ * Advances one waiter: matches a free-text ask, waits for the production that serves it, then binds
+ * the admitted content or closes the request honestly (D-037).
+ */
+export type ResolveRequest = (job: ResolveSupplyJob, delivery?: ResolveDelivery) => Promise<void>;
 
 /** One missing-supply opportunity of an accepted Planner plan. */
 export interface PlannedDemandInput {
@@ -113,14 +153,16 @@ export type PlannedDemandOutcome =
   | { readonly kind: 'ready'; readonly requestId: string }
   /** The person already has open planned demand for this brief (an earlier plan asked); nothing is added. */
   | { readonly kind: 'already_recorded'; readonly requestId: string }
-  /** Join or Create-group: waits on the shared matching group. No resolver job and no production run. */
+  /** Join or Create: waits on the shared group, and a resolver job binds it when its production ends. */
   | { readonly kind: 'deferred'; readonly requestId: string; readonly joined: boolean }
+  /** Nothing can produce it now: the day's Create cap is reached, Create is off, or no recipe is left. Nothing is stored. */
+  | { readonly kind: 'not_commissioned' }
   /** Not a code-admitted catalogue brief (topic outside the catalogue, or a language it cannot produce). */
   | { readonly kind: 'unsupported' };
 /**
  * Records the Planner's missing-supply opportunity as private demand inside the caller's personal
- * scope, so it commits atomically with the accepted plan. Applies Reuse then Join/Create-group;
- * the production path that would resolve a deferred demand is a separate capability.
+ * scope, so it commits atomically with the accepted plan. Applies Reuse, then Join or Create: a
+ * Create commits the shared production job with the plan.
  */
 export type RecordPlannedDemand = (scope: PersonalScopeTx, input: PlannedDemandInput) => Promise<PlannedDemandOutcome>;
 export interface SupplyPorts {
@@ -128,6 +170,14 @@ export interface SupplyPorts {
   readonly ownerActive: CheckPersonalOwnerActive;
   readonly store: SupplyStore;
   readonly readCandidates: ReadDiscoveryCandidates;
+  /** Quartermaster's Create: which library recipe a catalogue brief commissions, decided by code. */
+  readonly chooseRecipe: ChooseScrollRecipe;
+  /** Where one recipe's production stands, for a waiter deciding whether to keep waiting. */
+  readonly readProduction: ReadScrollProduction;
+  /** Sends the production job of a recipe in the caller's transaction (idempotent per recipe and version). */
+  readonly enqueueProduction: (scope: PersonalScopeTx, recipe: string) => Promise<void>;
+  /** Shared Scroll productions Create may start per UTC day; 0 turns Create off. */
+  readonly createDailyCap: number;
   readonly lockCurrent: LockCurrentEncounters;
   readonly readExact: ReadExactEncounter;
   readonly checkSource: CheckRequestSource;
@@ -154,7 +204,12 @@ export interface SupplyPorts {
       receipt: ContentRequestReceipt | CancelContentRequestReceipt,
     ): Promise<void>;
   };
-  readonly enqueue: (scope: PersonalScopeTx, requestId: string) => Promise<void>;
+  /** Sends a resolver job for one waiter in the caller's transaction; a `jobId` makes a repeat a no-op. */
+  readonly enqueue: (
+    scope: PersonalScopeTx,
+    requestId: string,
+    options?: { readonly startAfter: Date; readonly jobId: string },
+  ) => Promise<void>;
   readonly advance: (scope: PersonalScopeTx) => Promise<number>;
   readonly notify: (scope: PersonalScopeTx, revision: number, eventId: string) => Promise<void>;
   readonly newId: () => string;

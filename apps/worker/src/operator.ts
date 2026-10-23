@@ -30,8 +30,8 @@ import { createDatabase, makeWithProductionScope, type Database } from '@knowscr
 import {
   reasoningOperatorFor,
   configuredModelPort,
-  harnessSettings,
   makeProductionReasoningHarness,
+  productionHarnessSettings,
   postgresProductionHarnessPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from '@knowscroll/backend/modules/content';
@@ -254,7 +254,7 @@ async function main(): Promise<number> {
             enabled: contentConfig.reasoning.productionEnabled,
             model,
             logEvent,
-            settings: harnessSettings(contentConfig.reasoning, operatorSource(process.env)),
+            settings: productionHarnessSettings(contentConfig.reasoning, operatorSource(process.env)),
           }),
         );
         const produce = produceScrollUseCase({

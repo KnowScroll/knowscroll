@@ -13,7 +13,10 @@ export type ProduceScroll = (
 export type ScrollProductionJobOutcome =
   /** The job is not for this build: another recipe version, or a recipe this code does not hold. */
   | { readonly kind: 'skipped'; readonly reason: 'policy_version' | 'unknown_recipe' }
-  /** The business run is in a terminal state (published, rejected or unknown); the job is done. */
+  /**
+   * The delivery is done: the business run is terminal (published, rejected or unknown), or it paused
+   * because a daily budget or the provider's quota is used up and waits for a later send.
+   */
   | { readonly kind: 'finished'; readonly result: ProduceScrollResult };
 
 /**
@@ -25,8 +28,10 @@ export type ScrollProductionJobOutcome =
  * Authority: the production scope the use case enters itself; a disabled or revoked scope is an
  * error, so the job retries and then dead-letters rather than vanishing. Outcomes `published`,
  * `rejected` and `unknown` are final and complete the delivery: a rejected recipe stays rejected at
- * this version, and an unknown attempt waits for an operator. A job that is still `in_progress` after
- * the call belongs to another running delivery, so this one fails to be tried again later.
+ * this version, and an unknown attempt waits for an operator. `paused` also completes it: nothing was
+ * sent, the run stays open, and the next send for the recipe (an operator's library run, or a person's
+ * request) resumes it once the budget or quota allows. A job that is still `in_progress` after the
+ * call belongs to another running delivery, so this one fails to be tried again later.
  */
 export function makeRunScrollProduction(produce: ProduceScroll) {
   return async function runScrollProduction(

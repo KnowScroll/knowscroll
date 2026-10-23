@@ -16,14 +16,19 @@ import { SUPPLY_PORTS, supplyProviders } from '@knowscroll/backend/modules/suppl
 import type { TestDatabase } from './database.js';
 import { buildFromProviders } from './providers.js';
 
-/** Supply's planned-demand entry and the person-facing status read and cancel, built from the worker's providers. */
-export function realSupply(database: TestDatabase<Database>, boss: PgBoss) {
+/**
+ * Supply's planned-demand entry and the person-facing status read and cancel, built from the worker's
+ * providers. `createDailyCap` is what Create may start per day (default 0: Create is off, like dev's default).
+ */
+export function realSupply(database: TestDatabase<Database>, boss: PgBoss, options: { createDailyCap?: number } = {}) {
   const SCOPE = Symbol('test.supply.scope'),
-    ENQUEUE = Symbol('test.supply.enqueue');
-  const providers = supplyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE });
+    ENQUEUE = Symbol('test.supply.enqueue'),
+    CONFIG = Symbol('test.supply.config');
+  const providers = supplyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE, config: CONFIG });
   const values = new Map<symbol, unknown>([
     [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
     [ENQUEUE, makeEnqueueJob(boss)],
+    [CONFIG, { supplyCreateDailyCap: options.createDailyCap ?? 0 }],
     ...identityScopeOwnerProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...experienceEvidenceReadProviders().map((provider) => [provider.provide, provider.useValue] as const),

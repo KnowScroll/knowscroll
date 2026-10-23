@@ -1,21 +1,23 @@
 import type { PgBoss } from 'pg-boss';
-import { produceScrollJob, produceScrollJobId, produceScrollQueue } from '../production/events.js';
+import { produceScrollJob, produceScrollQueue, produceScrollSingletonKey } from '../production/events.js';
 
-export type EnqueueScrollProduction = (recipe: string, priority?: number) => Promise<'queued' | 'already_exists'>;
+export type EnqueueScrollProduction = (recipe: string, priority?: number) => Promise<'queued' | 'already_queued'>;
 
 /**
  * Sends the production job of one library recipe outside any personal transaction: the operator's
- * way to seed the library through the same queue Quartermaster uses. The job ID is stable per recipe
- * and version, so asking twice reaches one job (`already_exists` while pg-boss still retains it). Operator seeding runs below a person's request
- * (priority 0 against Quartermaster's), so a waiting person is never queued behind a seeding batch.
+ * way to seed the library through the same queue Quartermaster uses. The queue holds one job per
+ * recipe and version while it is queued or running, so asking twice reaches one job
+ * (`already_queued`). Once that job has finished or failed, asking again resumes the same business
+ * run. Operator seeding runs below a person's request (priority 0 against Quartermaster's), so a
+ * waiting person is never queued behind a seeding batch.
  */
 export function makeEnqueueScrollProduction(boss: PgBoss): EnqueueScrollProduction {
   return async (recipe, priority = 0) => {
     const job = produceScrollJob(recipe);
     const id = await boss.send(produceScrollQueue.name, produceScrollQueue.payload.parse(job), {
-      id: produceScrollJobId(job),
+      singletonKey: produceScrollSingletonKey(job),
       priority,
     });
-    return id === null ? 'already_exists' : 'queued';
+    return id === null ? 'already_queued' : 'queued';
   };
 }

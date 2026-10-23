@@ -12,7 +12,11 @@ export interface RoleReceipt {
   readonly outputTokens?: number;
 }
 export interface ProduceScrollResult {
-  readonly outcome: 'dry_run' | 'published' | 'rejected' | 'unknown' | 'in_progress' | 'scope_refused';
+  /**
+   * `paused`: nothing was sent because a daily budget or the provider's quota is used up. The job
+   * stays open and a later run resumes it; it is not a verdict on the recipe.
+   */
+  readonly outcome: 'dry_run' | 'published' | 'rejected' | 'unknown' | 'in_progress' | 'scope_refused' | 'paused';
   readonly requestBound: number;
   readonly runId?: string;
   readonly assetId?: string;

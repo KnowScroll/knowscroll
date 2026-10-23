@@ -171,7 +171,14 @@ export interface ReasoningSettings {
     readonly requestTimeoutMs: number;
     readonly quotaFloorPercent: number;
   };
-  readonly caps: { readonly global: ReasoningCap; readonly scope: ReasoningCap; readonly roleDefault: ReasoningCap };
+  readonly caps: {
+    readonly global: ReasoningCap;
+    /** Per personal scope (one person's universe). */
+    readonly scope: ReasoningCap;
+    /** The nonpersonal production scope (`scroll-supply`), which seeds and extends the library. */
+    readonly productionScope: ReasoningCap;
+    readonly roleDefault: ReasoningCap;
+  };
   readonly maxRequestBytes: number;
   readonly requestRetentionSeconds: number;
 }
@@ -480,6 +487,10 @@ const reasoningVariables = z.object({
   KS_REASONING_GLOBAL_TOKENS_PER_DAY: positiveInteger(3_000_000, 1_000_000_000),
   KS_REASONING_SCOPE_REQUESTS_PER_DAY: positiveInteger(60, 1_000_000),
   KS_REASONING_SCOPE_TOKENS_PER_DAY: positiveInteger(600_000, 1_000_000_000),
+  // The production scope writes the whole library (about 70 writer requests, 1.4M tokens) and every
+  // Create job after it, so it has its own, larger cap. The global and role caps still bound it.
+  KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: positiveInteger(200, 1_000_000),
+  KS_REASONING_PRODUCTION_TOKENS_PER_DAY: positiveInteger(3_000_000, 1_000_000_000),
   KS_REASONING_ROLE_REQUESTS_PER_DAY: positiveInteger(200, 1_000_000),
   KS_REASONING_ROLE_TOKENS_PER_DAY: positiveInteger(2_000_000, 1_000_000_000),
   KS_REASONING_MAX_REQUEST_BYTES: positiveInteger(262_144, 262_144),
@@ -527,6 +538,10 @@ function reasoningSettings(parsed: z.infer<typeof reasoningVariables>): Reasonin
       scope: {
         requestsPerDay: parsed.KS_REASONING_SCOPE_REQUESTS_PER_DAY,
         tokensPerDay: parsed.KS_REASONING_SCOPE_TOKENS_PER_DAY,
+      },
+      productionScope: {
+        requestsPerDay: parsed.KS_REASONING_PRODUCTION_REQUESTS_PER_DAY,
+        tokensPerDay: parsed.KS_REASONING_PRODUCTION_TOKENS_PER_DAY,
       },
       roleDefault: {
         requestsPerDay: parsed.KS_REASONING_ROLE_REQUESTS_PER_DAY,
