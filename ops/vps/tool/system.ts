@@ -16,9 +16,7 @@
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
-import { constants, fstatSync, fsyncSync, readSync, writeSync } from 'node:fs';
-import { Readable } from 'node:stream';
+import { createHash } from 'node:crypto';
 import {
   appendFileSync,
   closeSync,
@@ -42,18 +40,6 @@ import { join } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import {
-  DEPLOY_LIMITS,
-  deployRequestId,
-  parseDeploymentRequest,
-  parseDeploymentIntent,
-  parseDeploymentStatus,
-  deploymentMatches,
-  deploymentWindowLive,
-  type DeploymentRequest,
-  type DeploymentIntent,
-  type DeploymentIdentity,
-  type DeploymentStatus,
-  type DeploymentPhase,
   activationPlan,
   activateAfterSchemaCheck,
   afterFailedDeploy,
@@ -95,7 +81,12 @@ import {
   type World,
   worldUnits,
 } from './plan.ts';
-import { checkTarFile, hashReleaseTree, requireRealFolder, TreeError } from './tree.ts';
+import {
+  checkTarFile,
+  hashReleaseTree,
+  requireRealFolder,
+  TreeError,
+} from './tree.ts';
 
 const ROOT = '/srv/knowscroll';
 const RELEASES = `${ROOT}/releases`;
@@ -111,10 +102,15 @@ const CUTROOM_UNIT = 'ks-cutroom@pool.service';
 const CUTROOM_PNPM = 'pnpm@10.15.1';
 const HEALTH_TIMEOUT_MS = 90_000;
 // Services the disk guard may pause under pressure; absent ones are skipped.
-const PAUSABLE = ['ks-generation@dev.service', 'ks-generation@stage.service', 'ks-cutroom@pool.service'];
+const PAUSABLE = [
+  'ks-generation@dev.service',
+  'ks-generation@stage.service',
+  'ks-cutroom@pool.service',
+];
 // #228: what Ansible (roles/worlds_v2, roles/backups) puts on the server for v2.
 const V2_ENV = (world: World) => `/etc/knowscroll/${world}.v2.env`;
-const V2_SECRET_ENV = (world: World) => `/etc/knowscroll/secrets/v2-${world}/database.env`;
+const V2_SECRET_ENV = (world: World) =>
+  `/etc/knowscroll/secrets/v2-${world}/database.env`;
 const BACKUPS = `${ROOT}/backups`;
 // m10: a v2 migrate's own session limit (the world role keeps its 30 s for everything else).
 const MIGRATE_STATEMENT_TIMEOUT = '15min';
@@ -269,7 +265,7 @@ function slotOf(target: string | null): Slot {
   if (!commit) return null;
   try {
     return { commit, generation: generationOf(join(RELEASES, commit)) };
-  } catch {
+  } catch (error) {
     say({
       event: 'release-generation-unknown',
       commit,
@@ -322,13 +318,12 @@ function writeServerFiles(
   commit: string,
   artifact: string,
   manifest: V2Manifest,
-  artifactBytes: number,
 ): void {
   const programs = join(dir, SERVER_DIR, 'programs');
   mkdirSync(programs, { recursive: true });
   writeFileSync(
     join(dir, SERVER_DIR, 'release.env'),
-    `KS_COMMIT=${commit}\nKS_ARTIFACT_SHA256=${artifact}\nKS_ARTIFACT_BYTES=${String(artifactBytes)}\n`,
+    `KS_COMMIT=${commit}\nKS_ARTIFACT_SHA256=${artifact}\n`,
   );
   for (const name of V2_PROGRAMS) {
     const program = manifest.programs[name];
@@ -352,16 +347,16 @@ function artifactOf(dir: string): string {
 }
 
 /** Saves the tarball on stdin to `file` (root only) and returns its sha256. */
-async function saveStdin(file: string, input: Readable = process.stdin): Promise<string> {
+async function saveStdin(file: string): Promise<string> {
   const hash = createHash('sha256');
   const tee = new Transform({
-    transform(chunk: Buffer, _encoding, next) {
+    transform(chunk, _encoding, next) {
       hash.update(chunk);
       next(null, chunk);
     },
   });
   await pipeline(
-    input,
+    process.stdin,
     tee,
     createWriteStream(file, { flags: 'wx', mode: 0o600 }),
   );
@@ -393,11 +388,11 @@ function normaliseModes(dir: string): void {
 }
 
 /** Receives a release tarball on stdin and verifies it names `commit` and matches its hashes. */
-async function receiveRelease(commit: string, input: Readable = process.stdin): Promise<void> {
+async function receiveRelease(commit: string): Promise<void> {
   if (hasRelease(commit)) {
     say({ event: 'release-already-present', commit });
     // Drain stdin so the sender is not left writing into a closed pipe.
-    for await (const chunk of input) void chunk;
+    spawnSync('cat', [], { stdio: ['inherit', 'ignore', 'inherit'] });
     return;
   }
   const incoming = join(RELEASES, `.incoming-${commit}-${process.pid}`);
@@ -406,7 +401,7 @@ async function receiveRelease(commit: string, input: Readable = process.stdin): 
   try {
     let artifact: string;
     try {
-      artifact = await saveStdin(archive, input);
+      artifact = await saveStdin(archive);
     } catch {
       throw new Refusal('the release tarball could not be received');
     }
@@ -427,7 +422,7 @@ async function receiveRelease(commit: string, input: Readable = process.stdin): 
           throw new Refusal(`${file} does not match its recorded hash`);
     } else {
       const manifest = verifyV2Release(incoming, commit, 'refuse');
-      writeServerFiles(incoming, commit, artifact, manifest, statSync(archive).size);
+      writeServerFiles(incoming, commit, artifact, manifest);
       normaliseModes(join(incoming, SERVER_DIR));
     }
     renameSync(incoming, join(RELEASES, commit));
@@ -638,12 +633,14 @@ function predeployDump(world: World, commit: string): string {
 /** #228: runs a v2 release's own migrate command (from its release.json) as the world's v2 user,
  * with the world's v2 settings and database secret, never seeded. m10: the migrate session gets
  * its own statement timeout through the connection options; the role's 30 s stays for the rest. */
-function migrateV2(world: World, release: string, manifest: V2Manifest, beforeLaunch?: () => void): void {
+function migrateV2(world: World, release: string, manifest: V2Manifest): void {
   const env = worldEnvV2(world);
   const session = { statement_timeout: MIGRATE_STATEMENT_TIMEOUT };
   if (!env.DATABASE_URL)
     throw new Refusal(`${V2_SECRET_ENV(world)} names no DATABASE_URL`);
-  const childEnv = {
+  const result = spawnSync('node', manifest.migrate.exec.slice(1), {
+    cwd: join(release, manifest.migrate.cwd),
+    env: {
       PATH: '/usr/bin:/bin',
       ...env,
       DATABASE_URL: withSessionOptions(env.DATABASE_URL, session),
@@ -653,13 +650,8 @@ function migrateV2(world: World, release: string, manifest: V2Manifest, beforeLa
       ),
       NODE_ENV: 'production',
       KS_WORLD: world,
-    };
-  const user=serviceUser(world,'v2');
-  beforeLaunch?.();
-  const result = spawnSync('node', manifest.migrate.exec.slice(1), {
-    cwd: join(release, manifest.migrate.cwd),
-    env: childEnv,
-    ...user,
+    },
+    ...serviceUser(world, 'v2'),
     stdio: ['ignore', 'inherit', 'inherit'],
     timeout: 20 * 60_000,
   });
@@ -800,23 +792,17 @@ export async function deploy(
   world: string,
   commit: string,
   source: 'stdin' | 'existing',
-  ticket?: object,
 ): Promise<void> {
-  const admitted = ticket === undefined ? undefined : deploymentTickets.get(ticket);
-  if (!admitted || admitted.request.world !== world || admitted.request.commit !== commit ||
-      admitted.request.mode !== (source === 'stdin' ? 'deploy' : 'promote'))
-    throw new Refusal('managed deployment admission required');
-  admitted.check();
   if (existsSync(DISK_FLAG))
     throw new Refusal('the disk is critically full; deploys are paused');
-  const tip = world === 'dev' ? null : branchTip(world);
+  const tip = world === 'dev' ? null : branchTip(world as World);
   const request = validateDeployRequest(world, commit, { tip });
   if (!request.ok) throw new Refusal(request.reason);
   const w = request.world;
   if (!provisioned(w) && !provisionedV2(w))
     throw new Refusal(`${w} is not set up on this server yet`);
 
-  if (source === 'stdin') await receiveRelease(commit, admitted.input);
+  if (source === 'stdin') await receiveRelease(commit);
   else if (!hasRelease(commit))
     throw new Refusal(`no release ${commit} on this server to reuse`);
 
@@ -852,8 +838,6 @@ export async function deploy(
     );
     if (!decision.ok) throw new Refusal(decision.reason);
   }
-  requireDeploymentArtifact(generation, artifact, admitted.intent.artifactSha256);
-  admitted.check();
   say(
     generation === 'v1'
       ? { event: 'deploy-start', world: w, commit, from: commitOf(before.current) }
@@ -876,12 +860,10 @@ export async function deploy(
     if (w !== 'live') runAsWorld(w, release, 'seed');
   } else {
     try {
-      admitted.check();
       dump = prepareV2Deployment({
         quiesce: () => quiesceV2(w),
         dump: () => predeployDump(w, commit),
-        migrate: () => migrateV2(w, release, manifest as V2Manifest, admitted.check),
-        beforeMigrate: () => admitted.admitDdl(),
+        migrate: () => migrateV2(w, release, manifest as V2Manifest),
       });
     } catch {
       // A failed/unknown migrate may still have an in-flight COMMIT. Do not use a transient
@@ -1360,480 +1342,4 @@ export async function status(): Promise<Record<string, unknown>> {
     backups: backupStatus(),
     cutroom: await cutroomStatus(),
   };
-}
-
-// #250: fixed root-private control, never a caller pathname/environment capability.
-const DEPLOY_CONTROL = '/var/lib/knowscroll/deploy-admission';
-const DEPLOY_RUNTIME = '/run/knowscroll/deploy-admission';
-const deploymentTickets = new WeakMap<
-  object,
-  { request: DeploymentRequest; intent: DeploymentIntent; input: Readable; check(this: void): void; admitDdl(this: void): void }
->();
-const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-const monoNow = () => Number(process.hrtime.bigint() / 1_000_000n);
-function fixedRefusal(): never {
-  throw new Refusal('deployment_control_refused');
-}
-
-/** FD-bound primitives are exported for disposable real-filesystem hosted fixtures only.
- * Production callers always use the fixed root-owned directories above. */
-export class DeploymentControl {
-  readonly fd: number;
-  readonly owner: number;
-  constructor(path: string, owner: number) {
-    this.owner = owner;
-    this.fd = openSync(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
-    const st = fstatSync(this.fd);
-    if (st.uid !== owner || (st.mode & 0o077) !== 0) {
-      closeSync(this.fd);
-      fixedRefusal();
-    }
-  }
-  path(leaf: string): string {
-    if (!/^[a-z0-9][a-z0-9.-]{0,100}$/.test(leaf)) fixedRefusal();
-    return `/proc/self/fd/${this.fd}/${leaf}`;
-  }
-  read(leaf: string, max: number): unknown {
-    const fd = openSync(this.path(leaf), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-    try {
-      const st = fstatSync(fd);
-      if (!st.isFile() || st.uid !== this.owner || (st.mode & 0o077) !== 0 || st.size > max) fixedRefusal();
-      const b = Buffer.alloc(max + 1);
-      let used = 0;
-      while (used <= max) {
-        const n = readSync(fd, b, used, b.length - used, null);
-        if (!n) break;
-        used += n;
-      }
-      if (used > max) fixedRefusal();
-      return JSON.parse(b.subarray(0, used).toString('utf8')) as unknown;
-    } finally {
-      closeSync(fd);
-    }
-  }
-  exclusive(leaf: string, value: unknown): void {
-    const bytes = Buffer.from(JSON.stringify(value));
-    if (bytes.length > DEPLOY_LIMITS.intent) fixedRefusal();
-    const fd = openSync(
-      this.path(leaf),
-      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-      0o600,
-    );
-    try {
-      let n = 0;
-      while (n < bytes.length) n += writeSync(fd, bytes, n, bytes.length - n);
-      fsyncSync(fd);
-    } finally {
-      closeSync(fd);
-    }
-    fsyncSync(this.fd);
-  }
-  status(r: DeploymentRequest, phase: DeploymentPhase, reason: string): void {
-    const v = parseDeploymentStatus({ ...r, phase, reason });
-    if (!v) fixedRefusal();
-    const tmp = `status-${randomUUID()}`;
-    this.exclusive(tmp, v);
-    renameSync(this.path(tmp), this.path('status.json'));
-    fsyncSync(this.fd);
-  }
-  consume(r: DeploymentRequest, identity: DeploymentIdentity, utc: number | undefined = undefined, mono: number | undefined = undefined, beforeWrite: () => void = () => {}): DeploymentIntent {
-    const i = parseDeploymentIntent(this.read('intent.json', DEPLOY_LIMITS.intent));
-    if (!i || !deploymentMatches(r, i, identity) || !deploymentWindowLive(i, utc ?? Date.now(), mono ?? monoNow())) fixedRefusal();
-    // Exclusive, durable tombstone is BEFORE any incoming archive write. Never delete/rearm it.
-    beforeWrite();
-    this.exclusive('consumed.json', { requestId: r.requestId, nonce: i.nonce, phase: 'consumed_preparing' });
-    return i;
-  }
-  close(): void {
-    closeSync(this.fd);
-  }
-}
-function requireRoot(): void {
-  if (process.getuid?.() !== 0) fixedRefusal();
-}
-function rootDirectory(path: string): void {
-  // Check ancestors, not resolve-then-open. All are fixed and trusted before opening own FD.
-  let current = '';
-  for (const part of path.split('/').filter(Boolean)) {
-    current += `/${part}`;
-    const fd = openSync(current, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
-    try {
-      const st = fstatSync(fd);
-      if (st.uid !== 0 || (st.mode & 0o022) !== 0) fixedRefusal();
-    } finally {
-      closeSync(fd);
-    }
-  }
-}
-function requestControl(id: string): DeploymentControl {
-  if (!deployRequestId(id)) fixedRefusal();
-  rootDirectory(DEPLOY_CONTROL);
-  rootDirectory(`${DEPLOY_CONTROL}/${id}`);
-  return new DeploymentControl(`${DEPLOY_CONTROL}/${id}`, 0);
-}
-function smallProc(path: string): string {
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-  try {
-    const b = Buffer.alloc(65_537);
-    const n = readSync(fd, b, 0, b.length, 0);
-    if (n > 65_536) fixedRefusal();
-    return b.subarray(0, n).toString();
-  } finally {
-    closeSync(fd);
-  }
-}
-export function processStartTicks(stat: string): string {
-  const end = stat.lastIndexOf(')');
-  const value = stat.slice(end + 2).split(' ')[19];
-  if (end < 1 || !value || !/^[1-9][0-9]{0,19}$/.test(value)) fixedRefusal();
-  return value;
-}
-export function lockIdentity(device: bigint, inode: bigint): { device: string; inode: string } {
-  const major = ((device >> 8n) & 0xfffn) | ((device >> 32n) & ~0xfffn);
-  const minor = (device & 0xffn) | ((device >> 12n) & ~0xffn);
-  return { device: `${major.toString(16)}:${minor.toString(16)}`, inode: inode.toString() };
-}
-export function kernelFlockHeld(locks: string, pid: number, identity: { device: string; inode: string }): boolean {
-  const rows = locks.trim().split('\n');
-  if (rows.length > DEPLOY_LIMITS.proofRows) return false;
-  return rows.some((line) => {
-    const m = /^\d+:\s+FLOCK\s+ADVISORY\s+WRITE\s+(\d+)\s+([0-9a-f]+):([0-9a-f]+):(\d+)\s/.exec(line);
-    return (
-      m &&
-      Number(m[1]) === pid &&
-      `${BigInt(`0x${m[2]}`).toString(16)}:${BigInt(`0x${m[3]}`).toString(16)}` === identity.device &&
-      m[4] === identity.inode
-    );
-  });
-}
-function installedIdentity(id: string, pid: number, held: boolean): DeploymentIdentity {
-  const unit = `ks-deploy@${id}.service`;
-  const reported = execFileSync('/usr/bin/systemctl', ['show', unit, '--property=MainPID', '--value'], {
-    encoding: 'utf8',
-    timeout: 3000,
-  }).trim();
-  if (reported !== String(pid) || statSync(`/proc/${pid}`).uid !== 0) fixedRefusal();
-  const argv = smallProc(`/proc/${pid}/cmdline`).split('\0').filter(Boolean);
-  if (
-    argv.join('\0') !==
-      ['/usr/bin/flock', '--timeout', '1800', DEPLOY_LOCK, '/usr/local/bin/ks', 'managed-deploy', id].join('\0') ||
-    readlinkSync(`/proc/${pid}/exe`) !== '/usr/bin/flock'
-  )
-    fixedRefusal();
-  const cg = smallProc(`/proc/${pid}/cgroup`).trim();
-  if (cg !== `0::/system.slice/${unit}`) fixedRefusal();
-  const fd = openSync(DEPLOY_LOCK, constants.O_RDONLY | constants.O_NOFOLLOW);
-  let lock;
-  try {
-    const st = fstatSync(fd, { bigint: true });
-    if (!st.isFile() || st.uid !== 0n || (st.mode & 0o022n) !== 0n) fixedRefusal();
-    lock = lockIdentity(st.dev, st.ino);
-  } finally {
-    closeSync(fd);
-  }
-  if (held && !kernelFlockHeld(smallProc('/proc/locks'), pid, lock)) fixedRefusal();
-  const tool = createHash('sha256');
-  for (const name of ['ks.ts', 'plan.ts', 'system.ts', 'tree.ts'])
-    tool.update(name + '\0').update(trustedToolBytes(`/usr/local/lib/knowscroll-ops/${name}`));
-  tool.update('gate.sh\0').update(trustedToolBytes('/usr/local/bin/ks-gate'));
-  tool.update('ks-wrapper\0').update(trustedToolBytes('/usr/local/bin/ks'));
-  tool.update('ks2-run\0').update(trustedToolBytes('/usr/local/lib/knowscroll-ops/ks2-run'));
-  return {
-    bootId: smallProc('/proc/sys/kernel/random/boot_id').trim(),
-    unit,
-    pid,
-    startTicks: processStartTicks(smallProc(`/proc/${pid}/stat`)),
-    cgroup: `/system.slice/${unit}`,
-    ...lock,
-    toolSha256: tool.digest('hex'),
-    unitSha256: createHash('sha256').update(trustedToolBytes('/etc/systemd/system/ks-deploy@.service')).digest('hex'),
-  };
-}
-export async function receiveDeploymentFifo(
-  fd: number,
-  out: number,
-  i: DeploymentIntent,
-  live: () => boolean,
-): Promise<void> {
-  const b = Buffer.alloc(65_536);
-  const hash = createHash('sha256');
-  let total = 0;
-  while (true) {
-    if (!live()) fixedRefusal();
-    let n = 0;
-    try {
-      n = readSync(fd, b, 0, b.length, null);
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'EAGAIN') throw e;
-      await pause(25);
-      continue;
-    }
-    if (n === 0) {
-      if (total === 0) {
-        await pause(25);
-        continue;
-      }
-      break;
-    }
-    total += n;
-    if (total > i.artifactBytes) fixedRefusal();
-    hash.update(b.subarray(0, n));
-    let written = 0;
-    while (written < n) written += writeSync(out, b, written, n - written);
-  }
-  if (!live() || total !== i.artifactBytes || hash.digest('hex') !== i.artifactSha256) fixedRefusal();
-  fsyncSync(out);
-}
-/** Root entry only: submitted intent is data, not a caller-created file or path. */
-export function prepareDeploymentIntent(id: string, input: unknown): void {
-  requireRoot();
-  const c = requestControl(id);
-  try {
-    const r = parseDeploymentRequest(c.read('request.json', DEPLOY_LIMITS.request));
-    const i = parseDeploymentIntent(input);
-    if (!r || !i) fixedRefusal();
-    const actual = installedIdentity(id, i.pid, false);
-    if (!deploymentMatches(r, i, actual) || !deploymentWindowLive(i, Date.now(), monoNow())) fixedRefusal();
-    c.exclusive('intent.json', i); // Existing/ambiguous intent cannot be replaced or extended.
-  } finally {
-    c.close();
-  }
-}
-export async function managedDeployment(id: string): Promise<void> {
-  requireRoot();
-  const c = requestControl(id);
-  let archive: number | undefined;
-  let fifo: number | undefined;
-  let r: DeploymentRequest | undefined;
-  let ddl = false;
-  let uncertainConsume = false;
-  try {
-    r = parseDeploymentRequest(c.read('request.json', DEPLOY_LIMITS.request));
-    if (!r || r.requestId !== id) fixedRefusal();
-    if(process.execPath!=='/usr/bin/node'||process.argv[1]!=='/usr/local/lib/knowscroll-ops/ks.ts')fixedRefusal();
-    const actual = installedIdentity(id, process.ppid, true);
-    if (smallProc('/proc/self/cgroup').trim() !== `0::${actual.cgroup}`) fixedRefusal();
-    if(existsSync(DISK_FLAG))fixedRefusal();
-    const i = c.consume(r, actual, undefined, undefined, () => { uncertainConsume = true; });
-    rootDirectory(`${DEPLOY_CONTROL}/nonces`);
-    const nonces = new DeploymentControl(`${DEPLOY_CONTROL}/nonces`, 0);
-    try {
-      nonces.exclusive(i.nonce, { requestId: id, nonce: i.nonce });
-    } finally {
-      nonces.close();
-    }
-    const check = () => {
-      if(process.ppid!==i.pid || processStartTicks(smallProc(`/proc/${i.pid}/stat`))!==i.startTicks ||
-         smallProc('/proc/self/cgroup').trim()!==`0::${i.cgroup}` ||
-         !kernelFlockHeld(smallProc('/proc/locks'),i.pid,{device:i.device,inode:i.inode}))fixedRefusal();
-      // Sample clocks LAST, after metadata reads, immediately before the next admitted phase.
-      if (!deploymentWindowLive(i, Date.now(), monoNow())) fixedRefusal();
-    };
-    c.status(r, 'preparing', 'intent_consumed');
-    uncertainConsume = false;
-    let input: Readable = Readable.from([]);
-    if (r.mode === 'deploy') {
-      rootDirectory(DEPLOY_RUNTIME);
-      check();
-      fifo = openSync(`${DEPLOY_RUNTIME}/${id}.fifo`, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
-      const st = fstatSync(fifo);
-      if (!st.isFIFO() || st.uid !== 0 || (st.mode & 0o077) !== 0) fixedRefusal();
-      check();
-      archive = openSync(
-        c.path('archive.tar'),
-        constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | constants.O_NOFOLLOW,
-        0o600,
-      );
-      await receiveDeploymentFifo(fifo, archive, i, () => deploymentWindowLive(i, Date.now(), monoNow()));
-      // A positional stream does not reopen a mutable pathname.
-      const file = archive;
-      input = Readable.from(
-        (function* () {
-          const b = Buffer.alloc(65_536);
-          let pos = 0;
-          while (true) {
-            const n = readSync(file, b, 0, b.length, pos);
-            if (!n) break;
-            pos += n;
-            yield Buffer.from(b.subarray(0, n));
-          }
-        })(),
-      );
-    } else {
-      const meta = parseEnvFile(readFileSync(join(RELEASES, r.commit, SERVER_DIR, 'release.env'), 'utf8'));
-      if (
-        artifactOf(join(RELEASES, r.commit)) !== i.artifactSha256 ||
-        !/^[1-9][0-9]{0,10}$/.test(meta.KS_ARTIFACT_BYTES ?? '') ||
-        Number(meta.KS_ARTIFACT_BYTES) !== i.artifactBytes
-      )
-        fixedRefusal();
-    }
-    const worldRoot = join(ROOT, r.world);
-    if (
-      checkedDeploymentLink(join(worldRoot, 'current')) !== i.expectedCurrent ||
-      checkedDeploymentLink(join(worldRoot, 'previous')) !== i.expectedPrevious
-    )
-      fixedRefusal();
-    const ticket = {};
-    deploymentTickets.set(ticket, {
-      request: r,
-      intent: i,
-      input,
-      check,
-      admitDdl() {
-        check();
-        ddl = true;
-        c.exclusive('ddl-may-start.json', { requestId: id, nonce: i.nonce, phase: 'ddl_admitted' });
-        c.status(r!, 'ddl_admitted', 'may_start_not_execution_proof');
-        check();
-      },
-    });
-    try {
-      await deploy(r.world, r.commit, r.mode === 'deploy' ? 'stdin' : 'existing', ticket);
-    } finally {
-      deploymentTickets.delete(ticket);
-    }
-    c.status(r, 'succeeded', 'operation_completed');
-    releaseDeploymentPointer(r);
-  } catch {
-    if (r) {
-      c.status(r, ddl || uncertainConsume ? 'failed_or_unknown' : 'refused_pre_ddl', ddl || uncertainConsume ? 'reconciliation_required' : 'admission_refused');
-      if (!ddl && !uncertainConsume) releaseDeploymentPointer(r);
-    }
-    throw new Refusal('managed_deployment_incomplete');
-  } finally {
-    if (fifo !== undefined) closeSync(fifo);
-    if (archive !== undefined) closeSync(archive);
-    // No nonce/DDL record removal, rearm or cross-request cleanup.
-    rmSync(`${DEPLOY_RUNTIME}/${id}.fifo`, { force: true });
-    c.close();
-  }
-}
-export async function requestDeployment(mode: string, world: string, commit: string): Promise<void> {
-  requireRoot();
-  const r = parseDeploymentRequest({ version: 'ks-deploy-request.v1', requestId: randomUUID(), mode, world, commit });
-  if (!r) fixedRefusal();
-  rootDirectory(DEPLOY_CONTROL);
-  rootDirectory(DEPLOY_RUNTIME);
-  const root = new DeploymentControl(DEPLOY_CONTROL, 0);
-  try {
-    root.exclusive(`${r.world}.active`, r);
-  } finally {
-    root.close();
-  }
-  // A crash from here keeps the active pointer blocked for explicit root reconciliation.
-  mkdirSync(`${DEPLOY_CONTROL}/${r.requestId}`, { mode: 0o700 });
-  const c = requestControl(r.requestId);
-  const fifo = `${DEPLOY_RUNTIME}/${r.requestId}.fifo`;
-  const deadline = monoNow() + DEPLOY_LIMITS.lifetime;
-  let fd: number | undefined;
-  const transportTimer = setTimeout(
-    () => process.stdin.destroy(new Refusal('deployment_transport_expired')),
-    DEPLOY_LIMITS.lifetime,
-  );
-  transportTimer.unref();
-  try {
-    c.exclusive('request.json', r);
-    c.status(r, 'waiting', 'no_admission');
-    execFileSync('/usr/bin/mkfifo', ['-m', '600', fifo]);
-    execFileSync('/usr/bin/systemctl', ['start', '--no-block', `ks-deploy@${r.requestId}.service`]);
-    // Output contains only public IDs; unit has no dependency on this stream/process.
-    process.stdout.write(`${JSON.stringify(r)}\n`);
-    if (r.mode === 'deploy') {
-      while (fd === undefined) {
-        if (monoNow() >= deadline) fixedRefusal();
-        try {
-          fd = openSync(fifo, constants.O_WRONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
-        } catch (e) {
-          if ((e as NodeJS.ErrnoException).code !== 'ENXIO') throw e;
-          await pause(100);
-        }
-        const status = parseDeploymentStatus(c.read('status.json', DEPLOY_LIMITS.status));
-        if (!status || status.phase === 'refused_pre_ddl' || status.phase === 'failed_or_unknown') fixedRefusal();
-      }
-      for await (const raw of process.stdin) {
-        const b = Buffer.from(raw as Uint8Array);
-        let n = 0;
-        while (n < b.length) {
-          if (monoNow() >= deadline) fixedRefusal();
-          try {
-            n += writeSync(fd, b, n, b.length - n);
-          } catch (e) {
-            if ((e as NodeJS.ErrnoException).code !== 'EAGAIN') throw e;
-            await pause(25);
-          }
-        }
-      }
-      closeSync(fd);
-      fd = undefined;
-    }
-    while (monoNow() < deadline) {
-      const status = parseDeploymentStatus(c.read('status.json', DEPLOY_LIMITS.status));
-      if (!status) fixedRefusal();
-      if (status.phase === 'succeeded') {
-        process.stdout.write(`${JSON.stringify(status)}\n`);
-        return;
-      }
-      if (status.phase === 'refused_pre_ddl' || status.phase === 'failed_or_unknown') fixedRefusal();
-      await pause(250);
-    }
-    throw new Refusal('deployment_status_unconfirmed_unit_independent');
-  } finally {
-    clearTimeout(transportTimer);
-    if (fd !== undefined) closeSync(fd);
-    c.close();
-  }
-}
-export function deploymentStatus(id: string): DeploymentStatus {
-  requireRoot();
-  const c = requestControl(id);
-  try {
-    const s = parseDeploymentStatus(c.read('status.json', DEPLOY_LIMITS.status));
-    if (!s) fixedRefusal();
-    return s;
-  } finally {
-    c.close();
-  }
-}
-
-function releaseDeploymentPointer(r: DeploymentRequest): void {
-  const root = new DeploymentControl(DEPLOY_CONTROL, 0);
-  try {
-    const selected = parseDeploymentRequest(root.read(`${r.world}.active`, DEPLOY_LIMITS.request));
-    if (!selected || selected.requestId !== r.requestId) fixedRefusal();
-    // Until this unlink succeeds nobody can create another pointer. Exactly one terminal consumer.
-    unlinkSync(root.path(`${r.world}.active`));
-    fsyncSync(root.fd);
-  } finally {
-    root.close();
-  }
-}
-
-function requireDeploymentArtifact(generation: Generation, artifact: string | undefined, expected: string): void {
-  if (generation !== 'v2' || artifact !== expected) fixedRefusal();
-}
-function checkedDeploymentLink(path: string): string | null {
-  let st;
-  try {
-    st = lstatSync(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw error;
-  }
-  if (!st.isSymbolicLink()) fixedRefusal();
-  const target = readlinkSync(path);
-  const commit = commitOf(target);
-  if (commit === null && target !== '/srv/knowscroll/placeholder') fixedRefusal();
-  return commit;
-}
-function trustedToolBytes(path: string): Buffer {
-  rootDirectory(path.slice(0, path.lastIndexOf('/')));
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-  try {
-    const st = fstatSync(fd);
-    if (!st.isFile() || st.uid !== 0 || (st.mode & 0o022) !== 0 || st.size > 2_097_152) fixedRefusal();
-    return readFileSync(fd);
-  } finally {
-    closeSync(fd);
-  }
 }

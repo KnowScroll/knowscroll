@@ -255,3 +255,7 @@ The Codex coordinator was stopped on 2026-10-23 after an audit found the foundat
 ## D-031 · 2026-10-23 · MiniMax model naming
 
 `/v1/models` lists `MiniMax-M3.1-Flash`, `MiniMax-M3`, `MiniMax-M2.7`, `MiniMax-M2.7-highspeed`, `MiniMax-M2.5(-highspeed)`, `MiniMax-M2.1(-highspeed)` and `MiniMax-M2`. A request for an unlisted name such as `MiniMax-M3.1` or `MiniMax-M3.1-Pro` is served by `MiniMax-M3.1-Flash` without an error, so the adapter must check the response's `model` field against the configured model. `MiniMax-M3.1-Flash` returns a `thinking` content block before its text by default; `MiniMax-M3` does not. `MiniMax-M3` is the verified vision model; whether `MiniMax-M3.1-Flash` accepts images is unverified.
+
+## D-036 · 2026-10-24 · Coordinator: deploys stay on the push path; one-use deploy admission reverted
+
+#390 made every dev or stage deploy wait for a root-prepared, one-use intent and a separate `ks-deploy@` service. It was never installed on the server, and it contradicts the owner's flow (AGENTS.md: `dev` deploys on push; `stage` moves by `scripts/promote.sh stage`). Installing it with the next Ansible run would have blocked every deploy. It is reverted. The repository's `ops/vps/tool` now matches what the server runs. The deploy lock, the pre-migrate dump, the exact schema check before activation and the rollback guards stay as they were.
