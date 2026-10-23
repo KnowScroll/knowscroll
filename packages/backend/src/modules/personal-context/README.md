@@ -189,6 +189,11 @@ missing PC structure, even when Evidence carries qualified credit. Same-g correc
 segment; later generations retain the preceding committed effective PC value. Support refcounts
 still represent one exposure/key and one canonical explanation, with no cross-generation raw union.
 
+The strict PC contribution projects only exposure ID, asset ID/revision and activation time from
+the actual Evidence exposure. Runtime exposure objects also carry routing/action facts; spreading
+that object would fail the closed contribution schema. Those facts remain in their original
+owners and input vector, without changing PC qualification, support or contribution hashing.
+
 `recording_segment_heads` retain exact generation source contribution/certificate identity. They
 are separate from the mutable one-exposure `recording_exposure_contributions` and
 `recording_coverage_contributions` caches. Old heads are sealed by the root generation; no toggle

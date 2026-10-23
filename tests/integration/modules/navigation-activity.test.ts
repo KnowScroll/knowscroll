@@ -7,12 +7,13 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import { admitContinuity, makeAdmissionStore } from '@knowscroll/backend/modules/content/nest-providers';
-import { activatedAgo, coverage, dwell, event } from '../support/observations.js';
+import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { type NavigationOutcome } from '@knowscroll/contracts';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson } from '../support/fixtures.js';
 import { recordingPerson } from '../support/recording-person.js';
+import { recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { scrollUseCases, starterSource, textCapabilities } from '../support/scroll.js';
 
 type Cases = Awaited<ReturnType<typeof scrollUseCases>>;
@@ -1041,5 +1042,296 @@ describe('Experience navigation and actual routing activity (real PostgreSQL CI 
       database.db,
     );
     expect(jobs.rows[0]?.n).toBe(0);
+  });
+  it('installs the fresh-schema cross-generation routing indexes with actual-activation predicates', async () => {
+    const indexes = await sql<{ indexname: string; indexdef: string }>`select indexname,indexdef from pg_indexes
+      where schemaname='experience' and tablename='recording_segments'
+      and indexname in('recording_routing_recent','recording_routing_unit','recording_routing_facets') order by indexname`.execute(
+      database.db,
+    );
+    expect(indexes.rows.map((r) => r.indexname)).toEqual([
+      'recording_routing_facets',
+      'recording_routing_recent',
+      'recording_routing_unit',
+    ]);
+    for (const row of indexes.rows) expect(row.indexdef).toContain('WHERE (first_eligible_activation_at IS NOT NULL)');
+    expect(indexes.rows[0]?.indexdef).toContain('USING gin');
+    expect(indexes.rows[0]?.indexdef).toContain("attribution_payload -> 'facets'::text");
+    expect(indexes.rows[0]?.indexdef).toContain('jsonb_path_ops');
+    expect(indexes.rows[1]?.indexdef).toContain(
+      '(universe_id, privacy_epoch, first_eligible_activation_at DESC, exposure_id, recording_generation)',
+    );
+    expect(indexes.rows[2]?.indexdef).toContain(
+      '(universe_id, privacy_epoch, explanation_unit_id, first_eligible_activation_at DESC, exposure_id, recording_generation)',
+    );
+  });
+  it('reads actual recording encounters without qualification, preserves old generations while paused, and excludes correction-only descriptors', async () => {
+    const p = await recordingPerson(database),
+      a = await fixtureAsset(current),
+      facet = `ci.routing.${randomUUID()}`;
+    // Authored Content metadata precedes actual encounter attribution; this is not evidence.
+    await database.db
+      .updateTable('content.discovery_revisions')
+      .set({ facets: [facet] })
+      .where('asset_id', '=', a.assetId)
+      .where('asset_revision', '=', a.assetRevision)
+      .execute();
+    const x = await openActive(current, p, { assetId: a.assetId, revision: a.assetRevision });
+    const query = {
+      evaluatedAt: new Date(Date.now() + 60000).toISOString(),
+      topicIds: [],
+      candidates: [
+        { explanationUnitId: a.unit, facets: [] },
+        { explanationUnitId: `unseen-${randomUUID()}`, facets: [facet] },
+      ],
+      candidateAssetIds: [],
+    };
+    const scoped = makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
+    const read = async () => {
+      const result = await scoped(p.authority, (scope) => current.readPrepared(scope, query));
+      if (result.kind !== 'entered' || !result.value?.established) throw new Error('CI routing scope refused');
+      return { ...result.value, established: result.value.established };
+    };
+    const first = await read();
+    expect(first.recent).toEqual([
+      expect.objectContaining({ exposureId: x.exposureId, explanationUnitId: a.unit, facets: [facet] }),
+    ]);
+    expect(first.established.units).toEqual([
+      { explanationUnitId: a.unit, encountered: true, facets: [] },
+      {
+        explanationUnitId: query.candidates[1]!.explanationUnitId,
+        encountered: false,
+        facets: [{ facetId: facet, encountered: true }],
+      },
+    ]);
+    expect(
+      await database.db
+        .selectFrom('experience.encounter_lineage')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(0);
+    expect(
+      await database.db
+        .selectFrom('evidence.encounter_evidence')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(0);
+    expect(
+      await database.db
+        .selectFrom('personal_context.recording_exposure_contributions')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(0);
+    const target = { assetId: a.assetId, assetRevision: a.assetRevision };
+    expect(
+      await current.applyEncounterAction(p.authority, {
+        commandId: randomUUID(),
+        kind: 'save',
+        target,
+        exposureId: x.exposureId,
+        recordingGeneration: 1,
+      }),
+    ).toMatchObject({ kind: 'applied' });
+    const toggle = async (g: number, on: boolean) => {
+      expect(
+        await recordingPolicyFor(database.db, { lockTimeoutMs: 5000 }).set(p.authority, {
+          version: 'recording-policy.v1',
+          commandId: randomUUID(),
+          expectedPrivacyEpoch: 1,
+          expectedRecordingGeneration: g,
+          on,
+        }),
+      ).toMatchObject({ kind: 'ok' });
+    };
+    await toggle(1, false);
+    expect((await read()).recent).toEqual(first.recent);
+    const paused = await current.openExposure(p.authority, {
+      commandId: randomUUID(),
+      target: { kind: 'scroll', assetId: a.assetId },
+      origin: { kind: 'direct' },
+      capabilities: textCapabilities,
+    });
+    if (paused.kind !== 'opened') throw new Error('CI paused open refused');
+    expect(
+      await current.activateExposure(p.authority, {
+        commandId: randomUUID(),
+        exposureId: paused.outcome.exposureId,
+        recordingGeneration: 2,
+      }),
+    ).toMatchObject({ kind: 'activated' });
+    expect((await read()).recent).toEqual(first.recent);
+    await toggle(2, true);
+    expect(
+      await current.applyEncounterAction(p.authority, {
+        commandId: randomUUID(),
+        kind: 'unsave',
+        target,
+        recordingGeneration: 3,
+      }),
+    ).toMatchObject({ kind: 'applied' });
+    const correction = await database.db
+      .selectFrom('experience.recording_segments')
+      .select(['first_eligible_activation_at', 'first_eligible_activation_command_id'])
+      .where('universe_id', '=', p.universeId)
+      .where('exposure_id', '=', x.exposureId)
+      .where('recording_generation', '=', 3)
+      .executeTakeFirstOrThrow();
+    expect(correction).toEqual({ first_eligible_activation_at: null, first_eligible_activation_command_id: null });
+    expect((await read()).recent).toEqual(first.recent);
+    // A genuinely new eligible activation, not the correction, adds the paused exposure at g3.
+    expect(
+      await current.activateExposure(p.authority, {
+        commandId: randomUUID(),
+        exposureId: paused.outcome.exposureId,
+        recordingGeneration: 3,
+      }),
+    ).toMatchObject({ kind: 'activated' });
+    expect((await read()).recent.map((r) => r.exposureId).sort()).toEqual(
+      [x.exposureId, paused.outcome.exposureId].sort(),
+    );
+    const other = await recordingPerson(database);
+    expect(await scoped(other.authority, (scope) => current.readPrepared(scope, query))).toMatchObject({
+      kind: 'entered',
+      value: {
+        recent: [],
+        established: { units: [{ encountered: false }, { encountered: false, facets: [{ encountered: false }] }] },
+      },
+    });
+    const historical = await read();
+    expect(historical.recent).toHaveLength(2);
+    expect(
+      await scoped(p.authority, (scope) =>
+        current.readPrepared(scope, { ...query, evaluatedAt: new Date(Date.now() + 25 * 3600000).toISOString() }),
+      ),
+    ).toMatchObject({
+      kind: 'entered',
+      value: {
+        recent: [],
+        established: { units: [{ encountered: true }, { encountered: false, facets: [{ encountered: true }] }] },
+      },
+    });
+    expect(
+      await scoped(p.authority, (scope) =>
+        current.readPrepared(scope, { ...query, evaluatedAt: new Date(0).toISOString() }),
+      ),
+    ).toMatchObject({
+      kind: 'entered',
+      value: { recent: [], established: { units: [{ encountered: false }, { encountered: false }] } },
+    });
+  });
+  it('caps the raw recording lane before exposure deduplication without refilling older encounters', async () => {
+    const p = await recordingPerson(database),
+      a = await fixtureAsset(current);
+    const old = await openActive(current, p, { assetId: a.assetId, revision: a.assetRevision });
+    const repeated = await openActive(current, p, { assetId: a.assetId, revision: a.assetRevision });
+    const policy = recordingPolicyFor(database.db, { lockTimeoutMs: 5000 });
+    for (let g = 1; g < 41; g += 2) {
+      for (const [expected, on] of [
+        [g, false],
+        [g + 1, true],
+      ] as const)
+        expect(
+          await policy.set(p.authority, {
+            version: 'recording-policy.v1',
+            commandId: randomUUID(),
+            expectedPrivacyEpoch: 1,
+            expectedRecordingGeneration: expected,
+            on,
+          }),
+        ).toMatchObject({ kind: 'ok' });
+      expect(
+        await current.activateExposure(p.authority, {
+          commandId: randomUUID(),
+          exposureId: repeated.exposureId,
+          recordingGeneration: g + 2,
+        }),
+      ).toMatchObject({ kind: 'activated' });
+    }
+    const rows = await database.db
+      .selectFrom('experience.recording_segments')
+      .select(['exposure_id', 'recording_generation'])
+      .where('universe_id', '=', p.universeId)
+      .where('first_eligible_activation_at', 'is not', null)
+      .orderBy('first_eligible_activation_at', 'desc')
+      .orderBy('exposure_id')
+      .orderBy('recording_generation')
+      .execute();
+    expect(rows).toHaveLength(22);
+    expect(rows.slice(0, 20).every((r) => r.exposure_id === repeated.exposureId)).toBe(true);
+    const result = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, (scope) =>
+      current.readPrepared(scope, {
+        evaluatedAt: new Date(Date.now() + 60000).toISOString(),
+        topicIds: [],
+        candidates: [{ explanationUnitId: a.unit, facets: [] }],
+        candidateAssetIds: [],
+      }),
+    );
+    expect(result).toMatchObject({
+      kind: 'entered',
+      value: { recent: [{ exposureId: repeated.exposureId }], established: { units: [{ encountered: true }] } },
+    });
+    if (result.kind !== 'entered' || !result.value?.established) throw new Error('CI routing scope refused');
+    expect(result.value.recent).toHaveLength(1);
+    expect(result.value.recent.some((r) => r.exposureId === old.exposureId)).toBe(false);
+    expect(
+      await database.db
+        .selectFrom('experience.encounter_lineage')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(0);
+  });
+  it('merges the two actual initial1 routing lanes, deduplicates a repeated exposure and returns at most20', async () => {
+    // Explicit legacy compatibility account, not a fabricated fresh lifecycle witness.
+    const p = await seedPerson(database.db),
+      a = await fixtureAsset(c),
+      exposures: string[] = [];
+    for (let n = 0; n < 21; n++)
+      exposures.push((await openActive(c, p, { assetId: a.assetId, revision: a.assetRevision })).exposureId);
+    for (const exposureId of [exposures[0]!, exposures[20]!])
+      expect(
+        await current.activateExposure(p.authority, { commandId: randomUUID(), exposureId, recordingGeneration: 1 }),
+      ).toMatchObject({ kind: 'activated' });
+    const added = await openActive(current, p, { assetId: a.assetId, revision: a.assetRevision });
+    expect(
+      await database.db
+        .selectFrom('experience.encounter_lineage')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(21);
+    expect(
+      await database.db
+        .selectFrom('experience.recording_segments')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(3);
+    const result = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, (scope) =>
+      current.readPrepared(scope, {
+        evaluatedAt: new Date(Date.now() + 60000).toISOString(),
+        topicIds: [],
+        candidates: [{ explanationUnitId: a.unit, facets: [] }],
+        candidateAssetIds: [],
+      }),
+    );
+    if (result.kind !== 'entered' || !result.value?.established) throw new Error('CI routing scope refused');
+    expect(result.value.recent).toHaveLength(20);
+    const ids = result.value.recent.map((r) => r.exposureId);
+    expect(new Set(ids).size).toBe(20);
+    expect(ids).toContain(added.exposureId);
+    expect(ids).toContain(exposures[0]);
+    expect(ids.filter((id) => id === exposures[20])).toHaveLength(1);
+    expect(result.value.established.units).toMatchObject([{ encountered: true }]);
+    expect(
+      await database.db
+        .selectFrom('evidence.encounter_evidence')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(0);
   });
 });
