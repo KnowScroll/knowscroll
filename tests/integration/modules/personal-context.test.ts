@@ -362,9 +362,17 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     expect(allObservations.filter((row) => row.recording_generation === 3)).toHaveLength(1);
   });
   it('keeps pending observations separate, then incrementally consumes real qualification without metadata facet invention', async () => {
-    const p = await seedPerson(database.db),
+    const p = await recordingPerson(database),
       r = await read(p);
     const pending = await snapshot(p);
+    expect(pending.routing.recent.map((row) => row.exposureId)).toContain(r.exposure.exposureId);
+    expect(
+      await database.db
+        .selectFrom('experience.encounter_lineage')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(0);
     expect(pending.provisional).toMatchObject({ purpose: 'routing_only', hasMore: false });
     expect(pending).toMatchObject({
       proofAvailability: 'available',

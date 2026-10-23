@@ -78,6 +78,16 @@ create index recording_segment_actual_activation on experience.recording_segment
  (universe_id,privacy_epoch,recording_generation,explanation_unit_id,first_eligible_activation_at desc,exposure_id)
  where first_eligible_activation_at is not null;
 create index recording_segment_reconcile on experience.recording_segments(universe_id,privacy_epoch,recording_generation,exposure_id);
+-- Routing facts span retained generations; correction-only descriptors are not encounters.
+create index recording_routing_recent on experience.recording_segments
+ (universe_id,privacy_epoch,first_eligible_activation_at desc,exposure_id,recording_generation)
+ where first_eligible_activation_at is not null;
+create index recording_routing_unit on experience.recording_segments
+ (universe_id,privacy_epoch,explanation_unit_id,first_eligible_activation_at desc,exposure_id,recording_generation)
+ where first_eligible_activation_at is not null;
+create index recording_routing_facets on experience.recording_segments using gin
+ ((attribution_payload->'facets') jsonb_path_ops)
+ where first_eligible_activation_at is not null;
 
 create table experience.recording_segment_inputs (
  universe_id uuid not null references identity.universes(id) on delete restrict,

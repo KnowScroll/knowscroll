@@ -349,3 +349,18 @@ legacy growth. Off/stale necessary commands retain their behavior. Keep removal 
 original optional generation without stamping or changing its position-free acknowledgement.
 Required API/worker/helper wiring and coordinated process replacement remain rollout work; no
 consumer control or installed recording journey is accepted by this source slice.
+
+
+### Retained recording routing facts
+
+Routing history reads both legacy actual encounters and recording segments with a non-null first
+eligible activation. Each scoped time-index lane reads at most20 raw rows in the last24hours;
+the at-most40 rows merge by exact activation timestamp/exposure, deduplicate exposures, and return
+at most20. Duplicate generations can exhaust a lane: there is no refill or completeness claim.
+Recording attribution wins an exact legacy tie. No current-generation filter relabels retained
+facts; paused reads retain old eligible history while paused activations and correction-only
+segments add no encounter. The unreleased0042 includes scoped recent/unit indexes and a partial
+facet-expression GIN. Established unit probes are exact; facet probes preserve ANY encountered
+unit semantics, independently of the candidate unit. At most100 candidates/16facets and100 asset
+IDs enter these probes. These are routing/novelty facts only: they neither qualify an exposure nor
+create Personal Context support, learning, credit, a session, or collection authority.
