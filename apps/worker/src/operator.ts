@@ -34,7 +34,7 @@ import {
   postgresProductionHarnessPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from '@knowscroll/backend/modules/content';
-import { produceScrollUseCase } from '@knowscroll/backend/modules/content/nest-providers';
+import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backend/modules/content/nest-providers';
 
 /**
  * `node dist/operator.js <area> <command> [options]`: operator commands of the worker release,
@@ -51,7 +51,7 @@ import { produceScrollUseCase } from '@knowscroll/backend/modules/content/nest-p
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js cutroom import-corpus | cutroom commission (trusted configured root packet required) | operator.js content produce-scroll --topic seasons|tides|greenhouse|greenhouse-radiation|greenhouse-balance|greenhouse-limits [--dry-run] [--resume] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired';
+  'usage: operator.js cutroom import-corpus | cutroom commission (trusted configured root packet required) | operator.js content produce-scroll --topic <recipe key> [--dry-run] [--resume] | operator.js content readmit-coverage [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -271,6 +271,27 @@ async function main(): Promise<number> {
     } catch (error) {
       if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
       else logEvent('process.crashed', { reasonCode: 'scroll_production_failed', error });
+      return 1;
+    }
+  }
+  if (area === 'content' && command === 'readmit-coverage' && args.positionals.length === 2) {
+    // Decides coverage again for generated Scrolls from the current plan. Shared content only: no
+    // provider, personal root or network. Refused outside the operator worlds before the database.
+    try {
+      const config = readContentOperatorConfig(process.env);
+      const contentDatabase = createDatabase<Database>(config.database, {
+        onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+      });
+      try {
+        const summary = await readmitCoverageUseCase(contentDatabase.db)({ dryRun: args.values['dry-run'] });
+        print({ command: 'content readmit-coverage', ...summary });
+        return 0;
+      } finally {
+        await contentDatabase.close();
+      }
+    } catch (error) {
+      if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
+      else logEvent('process.crashed', { reasonCode: 'readmit_coverage_failed', error });
       return 1;
     }
   }

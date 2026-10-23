@@ -8,6 +8,7 @@ import {
   type SceneManifest,
   type SceneChunk,
 } from '@knowscroll/contracts';
+import { CONCEPTS, sceneFamilyOf } from '../../content/public.js';
 import type { GeographySceneInput } from '../../geography/public.js';
 import type { StoredObject, StoredChunk, RouteChunk } from './ports.js';
 export const SCENE_POLICY = 'canonical-lattice.v1';
@@ -20,29 +21,33 @@ const refuse = (reason: 'limit' | 'temporarily_unavailable'): never => {
   throw new ProjectionUnavailable(reason);
 };
 const rank = { system: 0, star: 1, planet: 2, region: 3 };
-/** Canonical meaning IDs only; regions inherit an admitted canonical parent's family. */
-function family(o: GeographySceneInput['objects'][number], parent?: StoredObject): SceneDescriptor['family'] {
-  if (o.kind === 'system' || o.kind === 'star')
-    return o.meaningId === 'earth' ? 'terraced.v1' : refuse('temporarily_unavailable');
+/**
+ * The family of one object, from the library plan's catalogue. Only canonical meaning IDs of the
+ * right kind are accepted: a system or star must be a catalogue system, a planet must be a planet of
+ * its parent system, and a region must be a facet of its planet and inherits that planet's family.
+ * Anything else fails closed; nothing is guessed from a label or a hash.
+ */
+function family(
+  o: GeographySceneInput['objects'][number],
+  parent: StoredObject | undefined,
+  parentMeaningId: string | undefined,
+): SceneDescriptor['family'] {
+  const concept = CONCEPTS.find((candidate) => candidate.id === o.meaningId);
   if (o.kind === 'region') {
-    const facets: Record<string, readonly string[]> = {
-      'terraced.v1': ['earth.seasons.axial-tilt', 'earth.seasons.hemispheres', 'earth.seasons.limits'],
-      'archipelago.v1': ['earth.tides.forcing', 'earth.tides.alignment', 'earth.tides.coasts'],
-      'ridged.v1': [
-        'earth.greenhouse-effect.radiation',
-        'earth.greenhouse-effect.balance',
-        'earth.greenhouse-effect.limits',
-      ],
-    };
-    if (!parent || !facets[parent.descriptor.family]!.includes(o.meaningId)) return refuse('temporarily_unavailable');
+    const planet = CONCEPTS.find((candidate) => candidate.id === parentMeaningId);
+    if (
+      !parent ||
+      planet === undefined ||
+      planet.parent === null ||
+      !planet.facets.some((facet) => facet.id === o.meaningId)
+    )
+      return refuse('temporarily_unavailable');
     return parent.descriptor.family;
   }
-  const families: Record<string, SceneDescriptor['family']> = {
-    'earth.seasons': 'terraced.v1',
-    'earth.tides': 'archipelago.v1',
-    'earth.greenhouse-effect': 'ridged.v1',
-  };
-  return families[o.meaningId] ?? refuse('temporarily_unavailable');
+  const isSystem = o.kind === 'system' || o.kind === 'star';
+  if (!concept || (isSystem ? concept.parent !== null : concept.parent !== parentMeaningId))
+    return refuse('temporarily_unavailable');
+  return sceneFamilyOf(o.meaningId) ?? refuse('temporarily_unavailable');
 }
 /** UUID derived from opaque seed + stable chunk identity; contains no account or meaning text. */
 function chunkId(hash: (v: unknown) => string, worldSeed: string, systemId: string, bucket: string): string {
@@ -86,7 +91,7 @@ export function projectBounded(
           parent.descriptor.truthStatus !== o.truthStatus
     )
       return refuse('temporarily_unavailable');
-    const chosenFamily = family(o, parent),
+    const chosenFamily = family(o, parent, ids.get(o.parent.id)?.meaningId),
       existing = objects.get(o.id);
     if (existing) {
       const d = existing.descriptor;

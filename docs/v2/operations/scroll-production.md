@@ -12,13 +12,30 @@ Never create a personal universe to authorize shared production.
 ```
 node dist/operator.js content produce-scroll --topic seasons --dry-run
 node dist/operator.js content produce-scroll --topic seasons
-node dist/operator.js content produce-scroll --topic tides
-node dist/operator.js content produce-scroll --topic greenhouse
-# Additional code-owned units; actual runs require a separate reviewed allocation.
-node dist/operator.js content produce-scroll --topic greenhouse-radiation --dry-run
-node dist/operator.js content produce-scroll --topic greenhouse-balance --dry-run
-node dist/operator.js content produce-scroll --topic greenhouse-limits --dry-run
+node dist/operator.js content produce-scroll --topic attention-mechanism
 node dist/operator.js content produce-scroll --topic seasons --resume
+```
+
+`--topic` takes a recipe key of the library plan, the record keys in
+`packages/backend/src/modules/content/domain/library/` (one file per topic system). An unknown key is
+refused before any database or provider work. A published Scroll gets its planet and facet coverage
+from its recipe in the same transaction (D-033).
+
+After editing the plan (a facet or planet added or reworded), decide coverage again for Scrolls that
+are already published. It is idempotent and appends corrected heads only where the decision changed:
+
+```
+node dist/operator.js content readmit-coverage --dry-run
+node dist/operator.js content readmit-coverage
+```
+
+Before a batch, check that every research page of
+the plan is still accepted by the fetcher and yields a usable passage pool (it fetches slowly, about
+three seconds a page, because Wikipedia rate-limits bursts):
+
+```
+pnpm build
+node scripts/check-library-sources.mjs [--only seasons,tides]
 ```
 
 The bound is **four model requests per topic**, including every structural and semantic repair:
