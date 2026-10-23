@@ -10,7 +10,7 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 |---|---|---|---|
 | `/` | `app/index.tsx` | Redirects to `/explore` | — |
 | `/explore` | `app/(tabs)/explore.tsx` | Signed in: actual discover → offer activation → Scroll/Reel, current context, actions, real continuations and a private retained path. Signed out: first-arrival hint and the existing email sign-in route. | Explore |
-| `/universe` | `app/(tabs)/universe.tsx` | U01 empty universe | Universe |
+| `/universe` | `app/(tabs)/universe.tsx` | U01 to U08 and D02: empty, dust, the map of systems, a system, a planet with its regions, the region card, list view, search, Lately, formation; `?focus=last` flies to the ship's place | Universe |
 | `/conversations` | `app/(tabs)/conversations.tsx` | C01 empty Talk ("Talk" is the label) | Talk |
 | `/friends` | `app/friends/index.tsx` | Real profile, exact handle lookup, bounded Friends/requests/blocked rosters, current pair actions and revocable invite links (#377); no fabricated presence or visibility | Friends |
 | `/friends/invite` | `app/friends/invite.tsx` | Fragment-only invitation entry; pure Check, then explicit Request; signed-out links are discarded before sign-in | Friend invitation |
@@ -208,40 +208,65 @@ frozen command, source, receipt, status and timers. There is no durable request 
 retry endpoint in this bounded consumer. CI fixtures cover these boundaries; actual connected web
 and native request journeys remain coordinator-owned acceptance work.
 
-## Mounted own Universe (#238)
+## Universe (#238)
 
-`/universe` now mounts `createUniverseSceneSession` through one view controller per actual
-AccountScope object. Focus/AppState starts and pauses its existing readonly QueryObserver; the
-scope's existing socket supplies hints. No polling, second socket, observation, exposure, command,
-provider, job or persistence is created by a map action. Same-scope camera/history (maximum32)
-returns exactly; scope end synchronously clears the controller, geometry cache and view. A fresh
-scope object with the same account/epoch never reuses that state. Capability replacement disposes
-old reads before starting one replacement; abort-ignoring replies remain fenced by accepted core.
+Each capability is marked **planned**, **implemented** (in source, covered by CI) or **runtime-verified**
+(driven in a browser against a local PostgreSQL, API and worker with worlds formed through the real
+Geography and Scenes path and the CI fixture model; not on dev).
 
-The layered SVG draws canonical scene-core numeric silhouettes and server anchors. Full/low and
-reduced motion keep identical targets. Geometry cache≤128/full vertices≤8192; viewport output≤64
-bodies/64 routes/32 labels. Crowded drawings explicitly offer the virtualised outline, where all
-accepted≤1000 places remain reachable. Native background pan/pinch and named zoom/fit controls,
-web map-only keys, ordinary44px targets and outline buttons provide the same navigation. Browser
-Back uses one same-address transient marker with no private frame/IDs in history. Panels close
-before a retained camera level; native/toolbar Back follows the same controller.
+| Capability                                                                                   | Status                           |
+| -------------------------------------------------------------------------------------------- | -------------------------------- |
+| Overview with levels of detail, system, planet and region views, region card and Open/return | runtime-verified                 |
+| Dust cues and their note                                                                     | runtime-verified                 |
+| Lately lens, search, list view, simple drawing                                               | runtime-verified                 |
+| Camera, lens and ship memory; after-absence framing; `?focus=last`                           | runtime-verified (web)           |
+| Formation story (U05), all five beats                                                        | runtime-verified                 |
+| Routes between planets (a target on each, "Route to ..." from a planet)                      | implemented                      |
+| Desktop outline panel (D02)                                                                  | runtime-verified                 |
+| Native persistence of the camera (memory only today)                                         | planned                          |
+| Friend's universe (U06), room stations, sky regions that merge quiet systems (U08)           | planned (no backend or data yet) |
 
-Only accepted empty reads use the empty screen. Loading never implies a new planet. Last complete
-same-scope snapshots remain visibly stale on lag/network failure and retain their own labels;
-authority refusals clear private state. Unsupported drawing can retain the independently validated
-Geography outline. Canonical input/catch-up/8MiB accepted-data budgets remain unchanged; they do not
-promise a raw pre-decode network allocation bound.
+`/universe` follows artboards U01 to U08 and D02. The map fills the screen; the header and chips
+float over it.
 
-This first mounted slice covers overview/system/planet/region focus, place details, actual current
-same-system planet-route travel, outline and exact local Back. It does not draw prototype ML worlds,
-on-globe region positions, landmarks or cross-system routes absent from current descriptors. The
-current persisted global lattice and x/y/scale camera remain authoritative. Region encounter Open,
-Lately recency and once-only U05 presentation await their owning backend contracts/authority. The
-place card explicitly states encounter unavailability and offers only general Explore. Actual
-reading→formation, populated projection, visual/device performance and full U01–U08 parity are
-not established or closed by this source change. CI scenes are labelled authored protocol fixtures,
-not personal activity. Connected dev/native/physical acceptance remains coordinator work; the
-separately frozen fb2/schema28 writer experiment is not automatically replaced by this source.
+- **Overview (U01, U08).** Every system as a star with orbits and planets. Level of detail follows
+  the system's size on screen (far: name only; mid: orbits and planet dots; near: planets). A tap
+  flies into a system; far away a first tap selects it and shows its card, and Open enters.
+  Labels never overlap (`placeLabels`); a label with no room is left out and its body keeps its
+  accessible name.
+- **System (U02), planet (U03), region (U04).** Planets sit on orbits in the direction their
+  persisted anchors have from the star. A planet is drawn from the scene-core silhouette (family and
+  palette from the scene, seed turns the land). Regions are pins on the land; choosing one lowers
+  the camera and opens its card with one encounter. Open goes through the real encounter engine and
+  Back returns to the same view with the card closed. The card offers Open and Close only: there is
+  no read yet for more encounters from a region.
+- **Routes.** Only the Cartographer's routes (between planets of one system) are drawn: a dashed
+  line with a 48 px target named "Route from A to B" in the system view, and a "Route to B" chip
+  on a planet. No line is drawn between regions.
+- **Dust (U01 "Emerging").** `POST /v1/universe/emerging/read` gives opaque cues. They are drawn,
+  never labelled, never a destination; a tap explains them in one sentence.
+- **Lately, search, list.** Lately dims quiet places and sorts recent ones first (activity, never
+  existence). Search runs on the device over the person's own places and the query is not kept.
+  The list view is the full outline (the screen-reader primary); from 1024 px it is a permanent
+  panel (D02).
+- **Return.** The camera, lens and ship's place persist per device in the account scope's storage
+  (purged on logout, account switch and privacy reset). After three days away the camera starts
+  framed on everything with the ship parked and a "Return to ..." chip. `/universe?focus=last`
+  flies there.
+- **Formation (U05).** Plays once per committed transition (the server decides): dust, gathering,
+  protostar, star and orbit (new systems only), planet. Reduced motion shows the last frame.
+- **Never evidence.** Looking, panning, searching and choosing a pin create no observation, exposure
+  or command. Only the Reel or Scroll that Open starts is an encounter.
+
+Accessibility: every place is a 48 px button named "Name, a planet"; keyboard on the web pans with
+arrows, zooms with + and - (or the wheel), Home refits, "/" searches; focus rings use the dark-surface
+token; reduced motion stops drift and plays the formation as one still.
+
+Files (`features/universe/`): `universe-session.ts` (state, history, memory, dust), `universe-layout.ts`
+(pure placement), `overview-scene.tsx`, `system-scene.tsx`, `planet-scene.tsx` (drawing and targets),
+`universe-bodies.tsx` (the SVG kit), `universe-surface.tsx` (phone and desktop layout),
+`universe-header.tsx`, `universe-cards.tsx`, `universe-outline.tsx`, `universe-search-panel.tsx`,
+`formation-presentation.tsx`. Choices are in D-039.
 
 ## Mounted Keep lifecycle (#234/#246/#344)
 
