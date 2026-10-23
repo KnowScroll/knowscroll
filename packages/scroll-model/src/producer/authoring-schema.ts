@@ -20,7 +20,7 @@ const text = (min: number, max: number) => z.string().trim().min(min).max(max);
 const evidenceHandle = text(1, 12);
 
 /** Offered evidence passages (`e1`, `e2`, …) this block rests on. */
-const cites = z.array(evidenceHandle).min(1).max(6);
+const cites = z.array(evidenceHandle).min(1).max(12);
 
 const paragraph = z.object({ type: z.literal('paragraph'), cites, text: text(1, FIELD_LIMITS.paragraphChars) });
 
