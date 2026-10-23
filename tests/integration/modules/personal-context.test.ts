@@ -362,8 +362,32 @@ describe('incremental personal context (real PostgreSQL, authored CI fixtures on
     expect(allObservations.filter((row) => row.recording_generation === 3)).toHaveLength(1);
   });
   it('keeps pending observations separate, then incrementally consumes real qualification without metadata facet invention', async () => {
-    const p = await recordingPerson(database),
-      r = await read(p);
+    const p = await recordingPerson(database);
+    expect((await snapshot(p)).topics[0]).toMatchObject({ statisticsAvailability: 'not_observed' });
+    expect(
+      await database.db
+        .selectFrom('evidence.activity_revisions')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(0);
+    // A real separately observed unknown encounter earns observed-zero statistics, not a
+    // qualification or PC support. Bare activation alone still creates no baseline.
+    const unknown = await openActive(c, p, first);
+    expect(
+      await c.ingestObservations(p.authority, { instrumentationVersion: 1, events: [event(unknown, dwell([0, 1]))] }),
+    ).toMatchObject({ kind: 'ingested', accepted: 1 });
+    expect(await c.projectScrollReading(job(p, unknown.exposureId))).toMatchObject({
+      kind: 'applied',
+      qualification: 'unknown',
+    });
+    expect(await c.projectActivity(job(p, unknown.exposureId))).toMatchObject({ kind: 'applied' });
+    expect((await snapshot(p)).topics[0]).toMatchObject({
+      statisticsAvailability: 'available',
+      activity: 0,
+      qualifiedExplanationUnits: 0,
+    });
+    const r = await read(p);
     const pending = await snapshot(p);
     expect(pending.routing.recent.map((row) => row.exposureId)).toContain(r.exposure.exposureId);
     expect(

@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  makeWithPersonalScope,
+  fencePersonalRecording,
+  recordingTransactionOf,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
+import { accountAccessUseCases, recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { eraseUniverse, checkErasureInventory } from '@knowscroll/backend/infrastructure/erasure';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import {
@@ -23,6 +29,7 @@ import { buildFromProviders } from '../support/providers.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
+import { recordingPerson } from '../support/recording-person.js';
 
 /** Synthetic semantic approvals and authored sources ONLY; no live source/map/formation claim. */
 describe('current observed personal coverage (PostgreSQL CI fixtures only)', () => {
@@ -455,16 +462,102 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     ).toEqual([]);
   });
   it('rechecks latest evidence so an explicit qualification correction invalidates retained witnesses and removes support', async () => {
-    const p = await seedPerson(database.db),
+    const p = await recordingPerson(database),
       f = await fixture(),
       e = await read(p, f);
-    // Explicit CI correction record, not an actual new observation or live read claim.
+    const original = (await proof(p, f.unit)).witnesses;
+    expect(original).toHaveLength(1);
+    // An unrelated newer global audit is NOT a descriptor-owned correction. Never restore
+    // exposure-wide latest-row invalidation over exact retained segment identities.
     await sql`insert into evidence.encounter_evidence(universe_id,id,exposure_id,revision,input_watermark,policy_version,qualification,q,coverage,active_dwell_ms,estimated_reading_ms,asset_id,asset_revision,summary,privacy_epoch)
-   select universe_id,${randomUUID()}::uuid,exposure_id,revision+1,input_watermark,'ci-corrected-unqualified.v1','not_qualified',0,0,0,estimated_reading_ms,asset_id,asset_revision,summary,privacy_epoch from evidence.encounter_evidence where universe_id=${p.universeId}::uuid and exposure_id=${e.exposureId}::uuid order by revision desc limit 1`.execute(
+      select universe_id,${randomUUID()}::uuid,exposure_id,revision+1,input_watermark,'ci-unselected-unqualified.v1','not_qualified',0,0,0,estimated_reading_ms,asset_id,asset_revision,summary,privacy_epoch from evidence.encounter_evidence where universe_id=${p.universeId}::uuid and id=${original[0]!.qualificationId}::uuid`.execute(
       database.db,
     );
+    expect((await proof(p, f.unit)).witnesses).toEqual(original);
+    // Actual current original input lineage exists before this EXPLICIT CI correction record.
+    // This is not a new operator API, sensor result or permission to rewrite a historical head.
+    expect(
+      await c.ingestObservations(p.authority, {
+        instrumentationVersion: 1,
+        events: [event(e, dwell([700000, 700001]))],
+      }),
+    ).toMatchObject({ kind: 'ingested', accepted: 1 });
+    const corrected = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, async (scope) => {
+      if (
+        (await accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount(scope)).kind !== 'active'
+      )
+        throw new Error('CI_CORRECTION_OWN');
+      const gate = await fencePersonalRecording(scope, original[0]!.recordingGeneration);
+      if (gate.kind !== 'recording') throw new Error('CI_CORRECTION_GENERATION');
+      const db = recordingTransactionOf(gate.scope),
+        id = randomUUID();
+      const source = await db
+        .selectFrom('evidence.encounter_evidence')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .where('id', '=', original[0]!.qualificationId)
+        .executeTakeFirstOrThrow();
+      const head = await db
+        .selectFrom('evidence.recording_segment_heads')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .where('privacy_epoch', '=', 1)
+        .where('exposure_id', '=', e.exposureId)
+        .where('recording_generation', '=', gate.scope.generation)
+        .executeTakeFirstOrThrow();
+      expect(source.policy_version).toBe('scroll-qualification.v0');
+      expect((head.source_vector as { legacyQualificationId: string }).legacyQualificationId).toBe(source.id);
+      const actual = await db
+        .selectFrom('evidence.observations')
+        .select('seq')
+        .where('universe_id', '=', p.universeId)
+        .where('privacy_epoch', '=', 1)
+        .where('exposure_id', '=', e.exposureId)
+        .where('recording_generation', '=', gate.scope.generation)
+        .orderBy('seq', 'desc')
+        .executeTakeFirstOrThrow();
+      expect(actual.seq).toBeGreaterThan(source.input_watermark);
+      await sql`insert into evidence.encounter_evidence(universe_id,id,exposure_id,revision,input_watermark,policy_version,qualification,q,coverage,active_dwell_ms,estimated_reading_ms,asset_id,asset_revision,summary,privacy_epoch,recording_generation)
+        select universe_id,${id}::uuid,exposure_id,(select max(revision)+1 from evidence.encounter_evidence where universe_id=${p.universeId}::uuid and exposure_id=${e.exposureId}::uuid),${actual.seq},policy_version,'not_qualified',0,0,0,estimated_reading_ms,asset_id,asset_revision,summary,privacy_epoch,recording_generation from evidence.encounter_evidence where universe_id=${p.universeId}::uuid and id=${source.id}::uuid`.execute(
+        db,
+      );
+      const vector = { ...(head.source_vector as Record<string, string | number>), legacyQualificationId: id };
+      await db
+        .updateTable('evidence.recording_segment_heads')
+        .set({ source_vector: JSON.stringify(vector), input_sha256: canonicalSha256(vector) })
+        .where('universe_id', '=', p.universeId)
+        .where('privacy_epoch', '=', 1)
+        .where('exposure_id', '=', e.exposureId)
+        .where('recording_generation', '=', gate.scope.generation)
+        .execute();
+      return id;
+    });
+    expect(corrected.kind).toBe('entered');
     expect((await proof(p, f.unit)).witnesses).toEqual([]);
+    expect(
+      await database.db
+        .selectFrom('personal_context.recording_coverage_references')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toHaveLength(1);
     await c.projectActivity(job(p, e.exposureId));
+    expect(
+      await database.db
+        .selectFrom('personal_context.recording_coverage_references')
+        .selectAll()
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toEqual([]);
+    expect(
+      await database.db
+        .selectFrom('personal_context.recording_segment_heads')
+        .select('qualified')
+        .where('universe_id', '=', p.universeId)
+        .where('exposure_id', '=', e.exposureId)
+        .where('recording_generation', '=', 1)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ qualified: false });
     expect(
       await database.db
         .selectFrom('personal_context.coverage_supports')
@@ -472,6 +565,51 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
         .where('universe_id', '=', p.universeId)
         .execute(),
     ).toEqual([]);
+  });
+  it('retains an exact sealed old-generation certificate while paused and after an unrelated new generation activation', async () => {
+    const p = await recordingPerson(database),
+      f = await fixture(),
+      e = await read(p, f);
+    const original = (await proof(p, f.unit)).witnesses;
+    expect(original).toHaveLength(1);
+    const policy = recordingPolicyFor(database.db, { lockTimeoutMs: 5000 });
+    expect(
+      await policy.set(p.authority, {
+        version: 'recording-policy.v1',
+        commandId: randomUUID(),
+        expectedPrivacyEpoch: 1,
+        expectedRecordingGeneration: 1,
+        on: false,
+      }),
+    ).toMatchObject({ kind: 'ok' });
+    expect((await proof(p, f.unit)).witnesses).toEqual(original);
+    expect(
+      await policy.set(p.authority, {
+        version: 'recording-policy.v1',
+        commandId: randomUUID(),
+        expectedPrivacyEpoch: 1,
+        expectedRecordingGeneration: 2,
+        on: true,
+      }),
+    ).toMatchObject({ kind: 'ok' });
+    expect(
+      await c.activateExposure(p.authority, {
+        commandId: randomUUID(),
+        exposureId: e.exposureId,
+        recordingGeneration: 3,
+      }),
+    ).toMatchObject({ kind: 'activated' });
+    expect(
+      await c.projectActivity({
+        v: 2,
+        universeId: p.universeId,
+        privacyEpoch: 1,
+        exposureId: e.exposureId,
+        recordingGeneration: 3,
+      }),
+    ).toMatchObject({ kind: 'skipped', reason: 'no_current_source' });
+    expect((await proof(p, f.unit)).witnesses).toEqual(original);
+    expect(original.every((w) => w.recordingGeneration === 1 && w.sourceKind === 'segment')).toBe(true);
   });
   it('holds current Content SHARE authority to the personal commit and refuses old proofs after a waiting correction', async () => {
     const p = await seedPerson(database.db),

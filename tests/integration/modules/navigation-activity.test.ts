@@ -827,16 +827,10 @@ describe('Experience navigation and actual routing activity (real PostgreSQL CI 
         .orderBy('exposure_id')
         .execute();
     async function attributedEncounter() {
-      const offer = ready(
-        await projected.navigate(p.authority, {
-          ...discovery(),
-          recordingGeneration: 1,
-          target: { kind: 'return', assetId: asset.assetId, assetRevision: 1 },
-        }),
-      );
-      const active = await projected.activateOffer(p.authority, { ...activation(offer), recordingGeneration: 1 });
-      if (active.kind !== 'accepted') throw new Error('CI_ATTRIBUTION_ACTIVATION');
-      const exposureId = active.outcome.exposureId,
+      // Actual direct encounters avoid asking real-now navigation to read this fixture's
+      // fixed future evaluation snapshot. No production clock/decay guard is changed.
+      const opened = await openActive(current, p, { assetId: asset.assetId, revision: asset.assetRevision });
+      const exposureId = opened.exposureId,
         payload = job(p.universeId, exposureId);
       await activatedAgo(database.db, exposureId, 30);
       expect(await projected.projectActivity(payload)).toMatchObject({ kind: 'skipped', reason: 'no_current_source' });

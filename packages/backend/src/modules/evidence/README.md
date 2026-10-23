@@ -83,6 +83,12 @@ Retained exact audit checks never fall back to latest exposure identity; an exis
 legacy-g1 PC witness remains distinct from a new g1 segment. Content still owns current mapping,
 meaning and publication authority after any waits. Certificates remain factual static coverage,
 not learning or understanding, and Reel facet coverage remains unsupported.
+Segment certificates additionally bind the exact SAME-generation Evidence activity head and the
+known-policy legacy/session Q source pointer. Moving that current pointer refuses the previous
+certificate immediately, before the PC projector runs. A newer unrelated exposure-wide audit is
+not authority and does not invalidate a selected source. Older sealed-generation heads continue
+to validate their original complete identity; independent legacy-base witnesses do not borrow a
+segment head. This is a read fence, not a new correction API or permission to rewrite old history.
 
 The required Experience effects factory implements all four methods with genuine recording
 transactions. It validates <=2 channel effects against owning action/command and exact persisted
