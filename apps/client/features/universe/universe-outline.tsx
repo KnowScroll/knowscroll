@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { content, radius, spacing } from '@knowscroll/design-tokens';
-import { BottomSheet, Button, Text } from '@knowscroll/ui';
+import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { borderWidth, content, dimension, layer, radius, spacing } from '@knowscroll/design-tokens';
+import { Button, IconButton, Scrim, Text } from '@knowscroll/ui';
 import { outlineRows, type OutlineRow, type UniverseIndex } from './universe-layout';
 import type { UniverseViewSession, UniverseViewState } from './universe-session';
 
@@ -80,7 +81,11 @@ export function OutlineList({
   );
 }
 
-/** U02 / U08 "List view" as a sheet on phones: the same outline, with the Lately lens on top. */
+/**
+ * U02 / U08 "List view" as a sheet on phones: the same outline, with the Lately lens on top. Back
+ * belongs to the Universe (hardware Back, Escape and browser Back all close it through the
+ * session), so the sheet adds no history entry of its own that could undo the choice made in it.
+ */
 export function UniverseListSheet({
   session,
   state,
@@ -90,36 +95,84 @@ export function UniverseListSheet({
   readonly state: UniverseViewState;
   readonly index: UniverseIndex;
 }) {
+  const insets = useSafeAreaInsets();
   return (
-    <BottomSheet
+    <Modal
       visible
-      title="Your universe"
-      closeLabel="Close list view"
-      onClose={() => session.back()}
-      testID="universe-list-sheet"
+      transparent
+      animationType="none"
+      onRequestClose={() => {
+        session.back();
+      }}
     >
-      <View style={styles.lens}>
-        <Text variant="bodyS" color={content.ink2} style={styles.lensText}>
-          {state.lately
-            ? 'Lately on: places with recent activity come first in each group.'
-            : 'Every place, in order. Turn on Lately to see recent activity first.'}
-        </Text>
-        <Button
-          label="Lately"
-          size="sm"
-          variant={state.lately ? 'ink' : 'default'}
-          toggled={state.lately}
-          onPress={() => session.setLately(!state.lately)}
-        />
+      <View style={styles.host}>
+        <Scrim onPress={() => session.back()} testID="universe-list-scrim" />
+        <View
+          testID="universe-list-sheet"
+          role="dialog"
+          aria-label="Your universe"
+          accessibilityViewIsModal
+          style={[styles.sheet, { paddingBottom: spacing[7] + insets.bottom }]}
+        >
+          <View style={styles.grab} aria-hidden importantForAccessibility="no-hide-descendants" />
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetTitle}>
+              <Text variant="displayL" heading={2}>
+                Your universe
+              </Text>
+            </View>
+            <IconButton icon="close" label="Close list view" onPress={() => session.back()} />
+          </View>
+          <View style={styles.lens}>
+            <Text variant="bodyS" color={content.ink2} style={styles.lensText}>
+              {state.lately
+                ? 'Lately on: places with recent activity come first in each group.'
+                : 'Every place, in order. Turn on Lately to see recent activity first.'}
+            </Text>
+            <Button
+              label="Lately"
+              size="sm"
+              variant={state.lately ? 'ink' : 'default'}
+              toggled={state.lately}
+              onPress={() => session.setLately(!state.lately)}
+            />
+          </View>
+          <View style={styles.sheetList}>
+            <OutlineList session={session} state={state} index={index} />
+          </View>
+        </View>
       </View>
-      <View style={styles.sheetList}>
-        <OutlineList session={session} state={state} index={index} />
-      </View>
-    </BottomSheet>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  host: { flex: 1, justifyContent: 'flex-end' },
+  sheet: {
+    zIndex: layer.sheet,
+    gap: spacing['3.5'],
+    backgroundColor: content.paper,
+    borderTopWidth: borderWidth.regular,
+    borderColor: content.ink,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing['2.5'],
+    maxHeight: '85%',
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+  },
+  grab: {
+    alignSelf: 'center',
+    width: dimension.grabHandle.width,
+    height: dimension.grabHandle.height,
+    borderRadius: dimension.grabHandle.radius,
+    backgroundColor: content.ink,
+    opacity: 0.25,
+  },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing[3] },
+  sheetTitle: { flex: 1 },
   list: { flexGrow: 0 },
   sheetList: { maxHeight: 420 },
   lens: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], justifyContent: 'space-between' },

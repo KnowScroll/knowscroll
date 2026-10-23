@@ -45,7 +45,7 @@ export function sceneFixture(count = 5, dust = 0) {
     atmosphere: { density: 0.1 },
     detail: { roughness: 0.2 },
     anchor: {
-      x: n < 5 ? n * 150 : (n % 32) * 300,
+      x: n < 5 ? n * 300 : (n % 32) * 300,
       y: n < 5 ? 0 : Math.floor(n / 32) * 300,
       layer: n === 0 ? 0 : n === 1 ? 1 : n === 4 ? 3 : 2,
     },

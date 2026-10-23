@@ -50,16 +50,6 @@ export function indexUniverse(descriptors: readonly SceneDescriptor[], routes: r
   };
 }
 
-/** The system a place belongs to, whatever its kind. */
-export function systemOf(index: UniverseIndex, id: string): SceneDescriptor | undefined {
-  let place = index.byId.get(id);
-  for (let hops = 0; place && hops < 4; hops++) {
-    if (place.kind === 'system') return place;
-    place = index.byId.get(place.parentId);
-  }
-  return undefined;
-}
-
 /** Which of the three screens a focused place opens: the whole map, a system (U02) or a planet (U03). */
 export type UniverseView =
   | { readonly kind: 'universe' }

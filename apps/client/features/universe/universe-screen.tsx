@@ -68,7 +68,11 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   }, [focusParam, foreground, snapshot, session]);
   useEffect(() => {
     if (Platform.OS !== 'web' || !foreground || state.overlay || !state.focusId) return;
-    document.querySelector<HTMLElement>(`[data-testid="universe-focus-${state.focusId}"]`)?.focus();
+    // A region, planet or system with its own target gets focus; a planet's own close-up is the map itself.
+    (
+      document.querySelector<HTMLElement>(`[data-testid="universe-focus-${state.focusId}"]`) ??
+      document.querySelector<HTMLElement>('[data-testid="universe-map"]')
+    )?.focus();
   }, [foreground, state.overlay, state.focusId, state.historyDepth]);
 
   const dust = state.dust.cues.length > 0;
