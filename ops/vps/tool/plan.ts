@@ -266,7 +266,7 @@ function checkProgram(value: unknown, label: string): Checked<V2Program> {
       ok: false,
       reason: `${label}.exec must be ["node", ...arguments] with non-empty, single-line arguments`,
     };
-  return { ok: true, value: { cwd: value.cwd, exec: [...exec] as string[] } };
+  return { ok: true, value: { cwd: value.cwd, exec: [...(exec as string[])] } };
 }
 
 /** The release.json of a v2 release, checked against the commit it must be for. */
@@ -534,10 +534,11 @@ export async function activateAfterSchemaCheck(
 /** No old v2 eraser may run during forward DDL/backfills. A failed stop/disable prevents even
  * the dump/migration invocation; recovery must independently establish the old schema again. */
 export function prepareV2Deployment<T>(actions: {
-  quiesce(): void; dump(): T; migrate(): void;
+  quiesce(): void; dump(): T; migrate(): void; beforeMigrate?(): void;
 }): T {
   actions.quiesce();
   const dump = actions.dump();
+  actions.beforeMigrate?.();
   actions.migrate();
   return dump;
 }
@@ -892,4 +893,187 @@ export function checksumFor(text: string, tarName: string): Checked<string> {
   if (!match || match[2] !== tarName)
     return { ok: false, reason: `the checksum file must be one line "<sha256>  ${tarName}"` };
   return { ok: true, value: match[1] as string };
+}
+
+// #250: DTOs never grant authority; the root-private adapter proves and consumes these.
+export const DEPLOY_LIMITS = {
+  request: 4096,
+  intent: 8192,
+  status: 4096,
+  archive: 16 * 1024 ** 3,
+  lifetime: 1_800_000,
+  proofRows: 256,
+} as const;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SHA = /^[0-9a-f]{40}$/;
+const HASH = /^[0-9a-f]{64}$/;
+export function deployRequestId(value: unknown): value is string {
+  return typeof value === 'string' && UUID.test(value);
+}
+export type DeploymentRequest = {
+  version: 'ks-deploy-request.v1';
+  requestId: string;
+  world: 'dev' | 'stage';
+  mode: 'deploy' | 'promote';
+  commit: string;
+};
+export type DeploymentIdentity = {
+  bootId: string;
+  unit: string;
+  pid: number;
+  startTicks: string;
+  cgroup: string;
+  device: string;
+  inode: string;
+  toolSha256: string;
+  unitSha256: string;
+};
+export type DeploymentIntent = DeploymentRequest &
+  DeploymentIdentity & {
+    version: 'ks-deploy-request.v1';
+    intentVersion: 'ks-deploy-intent.v1';
+    nonce: string;
+    artifactSha256: string;
+    artifactBytes: number;
+    repository: 'KnowScroll/knowscroll';
+    workflowRunId: number;
+    workflowRunAttempt: number;
+    workflowSha256: string;
+    pushHead: string;
+    proofSha256: string;
+    reviewSha256: string;
+    expectedCurrent: string | null;
+    expectedPrevious: string | null;
+    notBeforeUtc: string;
+    expiresUtc: string;
+    notBeforeMono: number;
+    expiresMono: number;
+  };
+export const DEPLOY_PHASES = [
+  'requested',
+  'waiting',
+  'preparing',
+  'ddl_admitted',
+  'succeeded',
+  'refused_pre_ddl',
+  'failed_or_unknown',
+] as const;
+export type DeploymentPhase = (typeof DEPLOY_PHASES)[number];
+export type DeploymentStatus = DeploymentRequest & { phase: DeploymentPhase; reason: string };
+function exactKeys(v: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(v).sort().join(',') === [...keys].sort().join(',');
+}
+const requestKeys = ['version', 'requestId', 'world', 'mode', 'commit'] as const;
+function requestFields(v: Record<string, unknown>): boolean {
+  return (
+    v.version === 'ks-deploy-request.v1' &&
+    deployRequestId(v.requestId) &&
+    (v.world === 'dev' || v.world === 'stage') &&
+    (v.mode === 'deploy' || v.mode === 'promote') &&
+    typeof v.commit === 'string' &&
+    SHA.test(v.commit)
+  );
+}
+export function parseDeploymentRequest(v: unknown): DeploymentRequest | undefined {
+  return isRecord(v) && exactKeys(v, requestKeys) && requestFields(v) ? (v as DeploymentRequest) : undefined;
+}
+export function parseDeploymentStatus(v: unknown): DeploymentStatus | undefined {
+  return isRecord(v) &&
+    exactKeys(v, [...requestKeys, 'phase', 'reason']) &&
+    requestFields(v) &&
+    DEPLOY_PHASES.includes(v.phase as DeploymentPhase) &&
+    typeof v.reason === 'string' &&
+    /^[a-z_]{1,64}$/.test(v.reason)
+    ? (v as DeploymentStatus)
+    : undefined;
+}
+export function parseDeploymentIntent(v: unknown): DeploymentIntent | undefined {
+  const keys = [
+    ...requestKeys,
+    'intentVersion',
+    'nonce',
+    'bootId',
+    'unit',
+    'pid',
+    'startTicks',
+    'cgroup',
+    'device',
+    'inode',
+    'toolSha256',
+    'unitSha256',
+    'artifactSha256',
+    'artifactBytes',
+    'repository',
+    'workflowRunId',
+    'workflowRunAttempt',
+    'workflowSha256',
+    'pushHead',
+    'proofSha256',
+    'reviewSha256',
+    'expectedCurrent',
+    'expectedPrevious',
+    'notBeforeUtc',
+    'expiresUtc',
+    'notBeforeMono',
+    'expiresMono',
+  ];
+  if (
+    !isRecord(v) ||
+    !exactKeys(v, keys) ||
+    !requestFields(v) ||
+    v.intentVersion !== 'ks-deploy-intent.v1' ||
+    !deployRequestId(v.nonce) ||
+    !deployRequestId(v.bootId) ||
+    v.unit !== `ks-deploy@${String(v.requestId)}.service` ||
+    typeof v.cgroup !== 'string' ||
+    v.cgroup !== `/system.slice/${String(v.unit)}` ||
+    typeof v.startTicks !== 'string' ||
+    !/^[1-9][0-9]{0,19}$/.test(v.startTicks) ||
+    typeof v.device !== 'string' ||
+    !/^[0-9a-f]+:[0-9a-f]+$/.test(v.device) ||
+    typeof v.inode !== 'string' ||
+    !/^[1-9][0-9]{0,19}$/.test(v.inode) ||
+    v.repository !== 'KnowScroll/knowscroll' ||
+    v.pushHead !== v.commit
+  )
+    return undefined;
+  for (const k of ['toolSha256', 'unitSha256', 'artifactSha256', 'workflowSha256', 'proofSha256', 'reviewSha256'])
+    if (typeof v[k] !== 'string' || !HASH.test(v[k])) return undefined;
+  for (const k of ['pid', 'artifactBytes', 'workflowRunId', 'workflowRunAttempt'])
+    if (!Number.isSafeInteger(v[k]) || Number(v[k]) <= 0) return undefined;
+  if (Number(v.artifactBytes) > DEPLOY_LIMITS.archive) return undefined;
+  for (const k of ['expectedCurrent', 'expectedPrevious'])
+    if (v[k] !== null && (typeof v[k] !== 'string' || !SHA.test(v[k]))) return undefined;
+  for (const k of ['notBeforeUtc', 'expiresUtc'])
+    if (
+      typeof v[k] !== 'string' ||
+      !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(v[k]) ||
+      !Number.isFinite(Date.parse(v[k])) ||
+      new Date(v[k]).toISOString() !== v[k]
+    )
+      return undefined;
+  for (const k of ['notBeforeMono', 'expiresMono'])
+    if (!Number.isSafeInteger(v[k]) || Number(v[k]) < 0) return undefined;
+  const utc = Date.parse(String(v.expiresUtc)) - Date.parse(String(v.notBeforeUtc));
+  const mono = Number(v.expiresMono) - Number(v.notBeforeMono);
+  if (utc <= 0 || utc > DEPLOY_LIMITS.lifetime || mono <= 0 || mono > DEPLOY_LIMITS.lifetime || utc !== mono)
+    return undefined;
+  return v as DeploymentIntent;
+}
+export function deploymentWindowLive(i: DeploymentIntent, utc: number, mono: number): boolean {
+  return (
+    Number.isFinite(utc) &&
+    Number.isSafeInteger(mono) &&
+    utc >= Date.parse(i.notBeforeUtc) &&
+    utc < Date.parse(i.expiresUtc) &&
+    mono >= i.notBeforeMono &&
+    mono < i.expiresMono
+  );
+}
+export function deploymentMatches(r: DeploymentRequest, i: DeploymentIntent, actual: DeploymentIdentity): boolean {
+  return (
+    requestKeys.every((k) => r[k] === i[k]) &&
+    Object.keys(actual).length === 9 &&
+    (Object.keys(actual) as (keyof DeploymentIdentity)[]).every((k) => actual[k] === i[k])
+  );
 }
