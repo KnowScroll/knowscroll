@@ -100,11 +100,7 @@ const ready = (): ConversationsState => ({
       limit: 20,
       items: [
         {
-          conversation: {
-            ...ref,
-            conversationId: ref.conversationId.toUpperCase(),
-            membershipId: ref.membershipId.toUpperCase(),
-          },
+          conversation: ref,
           peer,
           own: { muted: false, readThroughSequence: 0 },
           latestMessageSequence: 0,
