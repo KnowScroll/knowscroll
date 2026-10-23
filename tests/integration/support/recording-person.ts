@@ -10,7 +10,7 @@ import type { TestDatabase } from './database.js';
 import type { FixturePerson } from './fixtures.js';
 
 /** Actions-only actual account creation: no protocol/witness/pointer seed or legacy adoption. */
-export async function recordingPerson(database: TestDatabase<Database>): Promise<FixturePerson> {
+export async function recordingPerson(database: Pick<TestDatabase<Database>, 'db'>): Promise<FixturePerson> {
   const result = await operatorSignInUseCase({
     db: database.db,
     publicOrigin: 'https://ci.invalid',

@@ -10,6 +10,7 @@ import {
   RecordingPolicyAcceptanceSchema,
   RecordingPolicyReadSchema,
   RecordingProblemSchema,
+  type OpenExposureRequest,
   type RecordingObservationBatchRequest,
   type SetRecordingPolicy,
 } from '@knowscroll/contracts';
@@ -127,20 +128,18 @@ describe('recording policy and v2 intake through the installed graph', () => {
     expect(JSON.stringify(body)).not.toContain(canary);
   }
   async function activated(p: Person, generation: number) {
-    const opened = await post(
-      '/v1/experience/open',
-      {
-        commandId: randomUUID(),
-        target: { kind: 'scroll', assetId },
-        capabilities: {
-          documentSchemas: ['scroll-document.v1'],
-          blocks: Object.fromEntries(
-            ['fallback', 'paragraph', 'subheading', 'list', 'quote', 'callout', 'disclosure'].map((t) => [t, [1]]),
-          ),
-        },
+    const inputOpen: OpenExposureRequest = {
+      commandId: randomUUID(),
+      target: { kind: 'scroll', assetId },
+      origin: { kind: 'direct' },
+      capabilities: {
+        documentSchemas: ['scroll-document.v1'],
+        blocks: Object.fromEntries(
+          ['fallback', 'paragraph', 'subheading', 'list', 'quote', 'callout', 'disclosure'].map((t) => [t, [1]]),
+        ),
       },
-      headers(p),
-    );
+    };
+    const opened = await post('/v1/experience/open', inputOpen, headers(p));
     expect(opened.status).toBe(200);
     const exposure = (await opened.json()) as { exposureId: string; assetRevision: number };
     const input = { commandId: randomUUID(), exposureId: exposure.exposureId, recordingGeneration: generation };
