@@ -27,9 +27,14 @@ import type { PlannerMaterialChange } from '@knowscroll/backend/modules/planner'
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { resolveSupplyQueue, RESOLVE_CONTENT_REQUEST, type ResolveRequest } from '@knowscroll/backend/modules/supply';
-import { plannerRequestProviders, plannerWorkerProviders } from '@knowscroll/backend/modules/planner/nest-providers';
+import {
+  plannerReadProviders,
+  plannerRequestProviders,
+  plannerWorkerProviders,
+} from '@knowscroll/backend/modules/planner/nest-providers';
 import {
   PLANNER_MATERIAL_CHANGE,
+  READ_CURRENT_PLAN,
   RUN_PLANNER,
   plannerQueue,
   type RunPlanner,
@@ -120,6 +125,7 @@ export const jobWiring: Provider[] = [
   ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...plannerRequestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...plannerWorkerProviders({ workerConfig: WORKER_CONFIG }),
+  ...plannerReadProviders(),
   ...experienceEvidenceReadProviders(),
   ...experienceBufferSourceProviders(),
   // The worker persists decisions and ranks; it exposes no operator read of them.
@@ -127,7 +133,7 @@ export const jobWiring: Provider[] = [
   ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
   ...contentProviders(),
   // Same required PC-owned Composer adapter as the API; no legacy prepared-input binding.
-  ...personalContextProviders(),
+  ...personalContextProviders({ readCurrentPlan: READ_CURRENT_PLAN }),
   ...evidenceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...activityProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,

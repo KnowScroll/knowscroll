@@ -13,6 +13,7 @@ const facts: ValidationFacts = {
   evidence: ['a', 'b', 'c'].map((t) => ({ ref: `e:${t}`, explanationUnitId: `unit-${t}`, topicIds: [t] })),
   inventory: [],
   hiddenAssetIds: [],
+  encounteredUnitIds: [],
 };
 function candidate(t = 'a', move: Opportunity['move'] = 'limitation'): Opportunity {
   return {
@@ -77,6 +78,28 @@ describe('Planner deterministic proposal boundary (authored CI fixtures)', () =>
       'target_authority',
     );
     expect(opportunityIssue({ ...x, formats: ['reel'] }, { ...facts, inventory: [asset] })).toBe('target_authority');
+  });
+  it('refuses an existing target the person has already read, but allows missing supply built on it', () => {
+    const asset = {
+      assetId: '00000000-0000-4000-8000-000000000001',
+      assetRevision: 2,
+      catalogWatermark: 'actual-revision',
+      explanationUnitId: 'unit-a',
+      kind: 'scroll' as const,
+      topicIds: ['a'],
+    };
+    const existing = {
+      ...candidate(),
+      target: {
+        kind: 'existing' as const,
+        assetId: asset.assetId,
+        assetRevision: 2,
+        catalogWatermark: 'actual-revision',
+      },
+    };
+    const read = { ...facts, inventory: [asset], encounteredUnitIds: ['unit-a'] };
+    expect(opportunityIssue(existing, read)).toBe('already_encountered');
+    expect(opportunityIssue(candidate(), read)).toBeUndefined();
   });
   it('keeps at most three with distinct units and bounded move/topic repetition', () => {
     const a = candidate(),

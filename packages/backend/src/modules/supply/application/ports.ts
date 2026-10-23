@@ -44,7 +44,10 @@ export type UnavailableReason = Extract<ContentRequestStatus, { status: 'unavail
 export interface Demand {
   readonly id: string;
   readonly command: CreateContentRequest;
-  readonly status: 'requested' | 'ready' | 'unavailable' | 'cancelled';
+  /** `deferred` is planned demand with no admitted content, waiting on a shared group for a production path. */
+  readonly status: 'requested' | 'ready' | 'unavailable' | 'cancelled' | 'deferred';
+  /** Set when the Planner asked on the person's behalf; absent means the person asked. */
+  readonly planned?: { readonly runId: string; readonly slot: number };
   readonly requestRevision: number;
   readonly revision: number;
   readonly createdAt: string;
@@ -68,6 +71,11 @@ export interface SupplyStore {
     id: string,
   ): Promise<{ readonly id: string; readonly joined: boolean }>;
   closeWork(scope: PersonalScopeTx, id: string): Promise<void>;
+  /** The person's open planned demand (`deferred` or `ready`) for exactly this canonical brief, if any. */
+  findOpenPlanned(
+    scope: PersonalScopeTx,
+    brief: CanonicalBrief,
+  ): Promise<{ readonly id: string; readonly state: 'deferred' | 'ready' } | undefined>;
 }
 export type Refusal =
   'scope_refused' | 'command_key_reused' | 'receipt_unavailable' | 'source_unavailable' | 'stale_source' | 'not_found';
@@ -86,6 +94,35 @@ export type CancelRequest = (
   command: CancelContentRequest,
 ) => Promise<Result<CancelContentRequestReceipt>>;
 export type ResolveRequest = (job: ResolveSupplyJob) => Promise<void>;
+
+/** One missing-supply opportunity of an accepted Planner plan. */
+export interface PlannedDemandInput {
+  readonly plannerRunId: string;
+  /** Position of the opportunity in the accepted plan, so one opportunity is one demand. */
+  readonly slot: number;
+  /** The opportunity's topics, most relevant first. The first code-admitted catalogue topic names the brief. */
+  readonly topicIds: readonly string[];
+  readonly format: 'reel' | 'scroll' | 'either';
+  readonly language: string;
+  readonly capabilities: CreateContentRequest['capabilities'];
+  /** Explanations the person has already met. Reuse skips them: the opportunity asks for something new. */
+  readonly alreadyMet: readonly string[];
+}
+export type PlannedDemandOutcome =
+  /** Reuse: admitted content the person has not met already fits. */
+  | { readonly kind: 'ready'; readonly requestId: string }
+  /** The person already has open planned demand for this brief (an earlier plan asked); nothing is added. */
+  | { readonly kind: 'already_recorded'; readonly requestId: string }
+  /** Join or Create-group: waits on the shared matching group. No resolver job and no production run. */
+  | { readonly kind: 'deferred'; readonly requestId: string; readonly joined: boolean }
+  /** Not a code-admitted catalogue brief (topic outside the catalogue, or a language it cannot produce). */
+  | { readonly kind: 'unsupported' };
+/**
+ * Records the Planner's missing-supply opportunity as private demand inside the caller's personal
+ * scope, so it commits atomically with the accepted plan. Applies Reuse then Join/Create-group;
+ * the production path that would resolve a deferred demand is a separate capability.
+ */
+export type RecordPlannedDemand = (scope: PersonalScopeTx, input: PlannedDemandInput) => Promise<PlannedDemandOutcome>;
 export interface SupplyPorts {
   readonly withScope: WithPersonalScope;
   readonly ownerActive: CheckPersonalOwnerActive;

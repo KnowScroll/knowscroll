@@ -56,6 +56,9 @@ ks_v2_worlds: [dev, stage]
 # project owns and which receives no mail, so no real person's account can be opened by one.
 ks_v2_operator_sign_in_pattern: "*@test.knowscroll.space"
 ks_v2_db_conn_limit: 30
+# Worlds whose worker runs the Personal Planner (KS_PLANNER_ENABLED=1, #236). Others keep it off.
+# It spends the same MiniMax token plan as every other role and is subject to the harness caps.
+ks_v2_planner_enabled_worlds: [dev]
 # Per-process memory for the v2 units, inside the world's slice (MemoryMax 1536M above).
 ks_v2_services:
   api: { memory_high: 600M, memory_max: 800M }
