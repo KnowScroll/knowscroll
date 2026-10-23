@@ -10,16 +10,24 @@ import {
 } from '@knowscroll/contracts';
 import { apiProblem, type ApiClient } from './api-client';
 
+/** Consumer-owned storage contract avoids a policy → scope → policy dependency cycle. */
+interface PolicyStorage {
+  get(key: string): string | undefined;
+  set(key: string, value: string): void;
+  remove(key: string): void;
+  readonly durability?: {
+    flush(expected: Readonly<Record<string, string | undefined>>): Promise<boolean>;
+    healthy(): boolean;
+    subscribe(listener: () => void): () => void;
+  };
+}
+
 interface RecordingPolicyOwner {
   readonly account: SessionAccount;
   readonly api: Pick<ApiClient, 'recording'>;
   readonly active: boolean;
   onEnd?(listener: () => void): () => void;
-  readonly storage?: {
-    get(key: string): string | undefined;
-    set(key: string, value: string): void;
-    remove(key: string): void;
-  };
+  readonly storage?: PolicyStorage;
 }
 
 export interface RecordingPolicyState {
@@ -95,6 +103,30 @@ export function createRecordingPolicySession(
     state = { ...state, ...patch, retryOriginal: pending !== undefined };
     for (const listener of [...listeners]) listener();
   };
+  const durable = scope.storage?.durability;
+  const healthy = () => !durable || durable.healthy();
+  const unsubscribeStorage = durable?.subscribe(() => {
+    if (!healthy() && active()) {
+      unresolvedStorage = true;
+      ++serial;
+      publish({ status: 'unknown', collecting: false });
+    }
+  });
+  async function commitPending(command: SetRecordingPolicy): Promise<boolean> {
+    if (!savePending()) return false;
+    return (
+      (!durable || (await durable.flush({ [pendingKey]: JSON.stringify(command) }))) && active() && pending === command
+    );
+  }
+  async function forget(command: SetRecordingPolicy): Promise<void> {
+    scope.storage?.remove(pendingKey);
+    if (durable && !(await durable.flush({ [pendingKey]: undefined }))) {
+      if (active() && pending === command) savePending();
+      throw new Error('recording_choice_removal_unconfirmed');
+    }
+    if (!active() || pending !== command) throw new Error('recording_choice_ended');
+    pending = undefined;
+  }
   const receiptMatches = (receipt: RecordingPolicyReceipt, command: SetRecordingPolicy) =>
     sameId(receipt.commandId, command.commandId) &&
     receipt.requestedPrivacyEpoch === command.expectedPrivacyEpoch &&
@@ -102,7 +134,7 @@ export function createRecordingPolicySession(
     receipt.on === command.on;
 
   async function read(target: ReadRecordingPolicy['target']): Promise<boolean> {
-    if (!active()) return false;
+    if (!active() || !healthy()) return false;
     const token = ++serial;
     publish({ status: 'checking', collecting: false });
     try {
@@ -126,8 +158,7 @@ export function createRecordingPolicySession(
       if (target.kind === 'command') {
         if ('receipt' in answer) {
           if (!pending || !receiptMatches(answer.receipt, pending)) throw new Error('recording_receipt_lineage');
-          pending = undefined;
-          savePending();
+          await forget(pending);
           publish({ receipt: answer.receipt, policy: answer.policy, collecting: false });
           // A recovered historical receipt cannot grant collection. Obtain a separate current read.
           return await read({ kind: 'current' });
@@ -138,7 +169,7 @@ export function createRecordingPolicySession(
       publish({
         status: pending || unresolvedStorage ? 'unknown' : 'current',
         policy: answer.policy,
-        collecting: foreground && !pending && !unresolvedStorage && answer.policy.on,
+        collecting: foreground && healthy() && !pending && !unresolvedStorage && answer.policy.on,
       });
       return !pending && !unresolvedStorage;
     } catch {
@@ -153,19 +184,23 @@ export function createRecordingPolicySession(
     ++serial; // Fence reads started before the local intent, before transport.
     publish({ status: 'sending', collecting: false });
     try {
-      if (!savePending()) throw new Error('recording_choice_storage_unavailable');
+      if (!(await commitPending(command))) throw new Error('recording_choice_storage_unavailable');
       const ack = RecordingPolicyAcceptanceSchema.parse(await scope.api.recording.set(command));
       if (!active() || pending !== command) return false;
       if (!receiptMatches(ack.receipt, command)) throw new Error('recording_receipt_lineage');
-      pending = undefined;
-      savePending();
+      await forget(command);
       publish({ receipt: ack.receipt, collecting: false });
       return await read({ kind: 'current' });
     } catch (error) {
       const problem = apiProblem(error);
       if (!ambiguous && problem && problem.status < 500 && problem.status !== 429) {
-        pending = undefined;
-        savePending();
+        try {
+          await forget(command);
+        } catch {
+          ambiguous = true;
+          if (active()) publish({ status: 'unknown', collecting: false });
+          return false;
+        }
         return await read({ kind: 'current' });
       }
       ambiguous = true;
@@ -230,6 +265,7 @@ export function createRecordingPolicySession(
     },
     end() {
       if (!live) return;
+      unsubscribeStorage?.();
       pending = undefined;
       savePending();
       live = false;

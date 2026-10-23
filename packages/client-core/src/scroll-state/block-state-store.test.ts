@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BlockState } from '@knowscroll/scroll-model';
-import { createAccountScope, memoryStore } from '../account-scope';
+import { createAccountScope, memoryStore, type KeyValueStore } from '../account-scope';
 import { createScopedBlockStateStore } from './block-state-store';
 
 /**
@@ -141,4 +141,56 @@ describe('the scoped block-state store', () => {
     expect(store.keys().every((entry) => entry.startsWith('ks.scope.'))).toBe(true);
     expect(Object.keys(states).sort()).toEqual(['clear', 'earlier', 'get', 'set']);
   });
+});
+
+it('groups a native block value, index, four-revision eviction and clear into complete snapshots (CI port fixture)', () => {
+  const base = memoryStore();
+  const snapshots: Map<string, string>[] = [];
+  let grouped = false;
+  const store: KeyValueStore = {
+    ...base,
+    durability: {
+      flush: () => Promise.resolve(true),
+      healthy: () => true,
+      subscribe: () => () => undefined,
+      fence: () => undefined,
+      purge: () => Promise.resolve(),
+      group(work) {
+        expect(grouped).toBe(false);
+        grouped = true;
+        try {
+          work();
+        } finally {
+          snapshots.push(new Map(base.keys().map((k) => [k, base.getItem(k)!])));
+          grouped = false;
+        }
+      },
+    },
+    setItem(k, v) {
+      expect(grouped).toBe(true);
+      base.setItem(k, v);
+    },
+    removeItem(k) {
+      expect(grouped).toBe(true);
+      base.removeItem(k);
+    },
+  };
+  const { scope } = scopeOver(store);
+  const states = createScopedBlockStateStore(scope.storage);
+  for (let revision = 1; revision <= 5; revision++) states.set(key(revision), sim(revision));
+  expect(snapshots).toHaveLength(5);
+  const prefix = `ks.scope.${scope.id}.`;
+  const index = `${prefix}scroll.block.index.fixture-asset.sim-weight`;
+  expect(JSON.parse(snapshots[4]!.get(index)!)).toEqual([2, 3, 4, 5]);
+  expect(snapshots[4]!.has(`${prefix}scroll.block.fixture-asset.1.sim-weight`)).toBe(false);
+  for (const snapshot of snapshots) {
+    const revisions = JSON.parse(snapshot.get(index)!) as number[];
+    expect(revisions).toHaveLength(Math.min(snapshots.indexOf(snapshot) + 1, 4));
+    for (const revision of revisions)
+      expect(snapshot.has(`${prefix}scroll.block.fixture-asset.${revision}.sim-weight`)).toBe(true);
+  }
+  states.clear(key(5));
+  expect(snapshots).toHaveLength(6);
+  expect(JSON.parse(snapshots[5]!.get(index)!)).toEqual([2, 3, 4]);
+  expect(snapshots[5]!.has(`${prefix}scroll.block.fixture-asset.5.sim-weight`)).toBe(false);
 });

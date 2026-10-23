@@ -1,11 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ReadRecordingPolicy, RecordingPolicyRead, SetRecordingPolicy } from '@knowscroll/contracts';
 import type { ApiClient } from './api-client';
+import type { ScopedStorage, StorageDurability } from './account-scope';
 import { createRecordingPolicySession } from './recording-policy';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const account = { accountId: id(1), universeId: id(2), privacyEpoch: 4, email: 'fixture@recording.test' };
-function fixture() {
+function fixture(storage?: ScopedStorage) {
   let next = 10;
   let generation = 1;
   let revision = 0;
@@ -33,6 +34,7 @@ function fixture() {
   const session = createRecordingPolicySession(
     {
       account,
+      ...(storage ? { storage } : {}),
       get active() {
         return active;
       },
@@ -344,4 +346,151 @@ it('holds background inhibition through a Resume ACK and later current reads unt
   releaseRead();
   await foreground;
   expect(f.session.getState()).toMatchObject({ policy: { generation: 3 }, collecting: true });
+});
+
+/** Commit acknowledgements are controlled here; these fixtures do not establish native persistence. */
+function commitStorage() {
+  const mirror = new Map<string, string>();
+  const disk = new Map<string, string>();
+  const listeners = new Set<() => void>();
+  let gate: Promise<void> | undefined;
+  let failed = false;
+  const commits: Readonly<Record<string, string | undefined>>[] = [];
+  const durability: StorageDurability = {
+    async flush(expected) {
+      commits.push(expected);
+      const snapshot = new Map(mirror);
+      await gate;
+      if (failed) return false;
+      disk.clear();
+      for (const [key, value] of snapshot) disk.set(key, value);
+      return Object.entries(expected).every(([key, value]) => disk.get(key) === value && mirror.get(key) === value);
+    },
+    group: (work) => work(),
+    healthy: () => !failed,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    fence() {
+      failed = true;
+      for (const listener of listeners) listener();
+    },
+    purge: () => Promise.resolve(),
+  };
+  const storage: ScopedStorage = {
+    durability,
+    get: (key) => mirror.get(key),
+    set: (key, value) => {
+      mirror.set(key, value);
+    },
+    remove: (key) => {
+      mirror.delete(key);
+    },
+  };
+  return {
+    storage,
+    disk,
+    mirror,
+    commits,
+    hold(value?: Promise<void>) {
+      gate = value;
+    },
+    fail() {
+      durability.fence();
+    },
+  };
+}
+
+it('native policy choices wait for exact-body commit before transport and committed removal before the fresh read (CI port fixture)', async () => {
+  const s = commitStorage();
+  const f = fixture(s.storage);
+  await f.session.refresh();
+  let releaseCommit!: () => void;
+  s.hold(
+    new Promise<void>((resolve) => {
+      releaseCommit = resolve;
+    }),
+  );
+  const pause = f.session.set(false);
+  await vi.waitFor(() => expect(s.commits).toHaveLength(1));
+  expect(f.commands).toEqual([]);
+  expect(f.session.getState()).toMatchObject({ collecting: false, retryOriginal: true });
+  const original = s.mirror.get('recording.policy.pending.v1')!;
+  let releaseAck!: () => void;
+  f.holdSet(
+    new Promise<void>((resolve) => {
+      releaseAck = resolve;
+    }),
+  );
+  releaseCommit();
+  await vi.waitFor(() => expect(f.commands).toHaveLength(1));
+  expect(s.disk.get('recording.policy.pending.v1')).toBe(original);
+  expect(f.commands[0]).toEqual(JSON.parse(original));
+  let releaseRemoval!: () => void;
+  s.hold(
+    new Promise<void>((resolve) => {
+      releaseRemoval = resolve;
+    }),
+  );
+  releaseAck();
+  await vi.waitFor(() => expect(s.commits).toHaveLength(2));
+  expect(s.commits[1]).toEqual({ 'recording.policy.pending.v1': undefined });
+  expect(f.reads).toHaveLength(1);
+  expect(f.session.getState().retryOriginal).toBe(true);
+  releaseRemoval();
+  expect(await pause).toBe(true);
+  expect(s.disk.has('recording.policy.pending.v1')).toBe(false);
+  expect(f.reads.at(-1)?.target).toEqual({ kind: 'current' });
+  expect(f.session.getState()).toMatchObject({ retryOriginal: false, collecting: false, policy: { generation: 2 } });
+});
+
+it('native commit failure sends nothing and retains the unresolved original without granting collection (CI port fixture)', async () => {
+  const s = commitStorage();
+  const f = fixture(s.storage);
+  await f.session.refresh();
+  let release!: () => void;
+  s.hold(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  const pause = f.session.set(false);
+  await vi.waitFor(() => expect(s.commits).toHaveLength(1));
+  s.fail();
+  release();
+  expect(await pause).toBe(false);
+  expect(f.commands).toEqual([]);
+  expect(f.session.getState()).toMatchObject({ status: 'unknown', retryOriginal: true, collecting: false });
+  expect(await f.session.set(true)).toBe(false);
+  expect(await f.session.refresh()).toBe(false);
+  await expect(f.session.generation()).rejects.toThrow();
+});
+
+it('an accepted native choice with unconfirmed removal stays inhibited and preserves the exact durable retry body (CI port fixture)', async () => {
+  const s = commitStorage();
+  const f = fixture(s.storage);
+  await f.session.refresh();
+  let releaseAck!: () => void;
+  f.holdSet(
+    new Promise<void>((resolve) => {
+      releaseAck = resolve;
+    }),
+  );
+  const pause = f.session.set(false);
+  await vi.waitFor(() => expect(f.commands).toHaveLength(1));
+  const original = s.disk.get('recording.policy.pending.v1');
+  s.fail();
+  releaseAck();
+  expect(await pause).toBe(false);
+  expect(s.disk.get('recording.policy.pending.v1')).toBe(original);
+  expect(s.mirror.get('recording.policy.pending.v1')).toBe(original);
+  expect(f.reads).toHaveLength(1);
+  expect(f.session.getState()).toMatchObject({ retryOriginal: true, collecting: false, status: 'unknown' });
+  expect(await f.session.set(true)).toBe(false);
+  const restartedStorage = { ...s.storage, durability: undefined, get: (key: string) => s.disk.get(key) };
+  const restarted = fixture(restartedStorage).session;
+  expect(restarted.getState()).toMatchObject({ status: 'unknown', retryOriginal: true, collecting: false });
 });

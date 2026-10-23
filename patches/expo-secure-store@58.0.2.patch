@@ -1,0 +1,14 @@
+diff --git a/android/src/main/java/expo/modules/securestore/SecureStoreModule.kt b/android/src/main/java/expo/modules/securestore/SecureStoreModule.kt
+--- a/android/src/main/java/expo/modules/securestore/SecureStoreModule.kt
++++ b/android/src/main/java/expo/modules/securestore/SecureStoreModule.kt
+@@ -208,7 +208,9 @@
+         authenticationHelper
+       )
+       encryptedItem.put(SCHEME_PROPERTY, AESEncryptor.NAME)
+-      saveEncryptedItem(encryptedItem, prefs, keychainAwareKey, options.requireAuthentication, options.keychainService)
++      if (!saveEncryptedItem(encryptedItem, prefs, keychainAwareKey, options.requireAuthentication, options.keychainService)) {
++        throw WriteException("Could not commit encrypted value to SecureStore", key, options.keychainService)
++      }
+ 
+       // If a legacy value exists under this key we remove it to avoid unexpected errors in the future
+       if (prefs.contains(key)) {

@@ -25,8 +25,29 @@ export class ScopeEndedError extends Error {
   }
 }
 
-/** Synchronous string storage under the scope (web: `localStorage`; native: memory for now). */
+/** Native commit receipts describe local storage, never collection permission. */
+export interface StorageDurability {
+  flush(expected: Readonly<Record<string, string | undefined>>): Promise<boolean>;
+  group(work: () => void): void;
+  healthy(): boolean;
+  subscribe(listener: () => void): () => void;
+  fence(): void;
+  purge(): Promise<void>;
+}
+
+/** Preparation is private to the manager after actual session authentication. */
+export interface ScopeStorageLifecycle {
+  prepare(
+    input: { readonly account: SessionAccount; readonly origin: string; readonly credential: string },
+    current: () => boolean,
+  ): Promise<KeyValueStore>;
+  fence(): void;
+  purge(): Promise<void>;
+}
+
+/** Synchronous mirror; native persistence has an explicit awaited commit boundary. */
 export interface KeyValueStore {
+  readonly durability?: StorageDurability;
   keys(): readonly string[];
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -38,6 +59,7 @@ export const SCOPED_STORAGE_PREFIX = 'ks.scope.';
 
 /** The scope's storage: keys are confined to `ks.scope.<account>:<epoch>.` and purged when it ends. */
 export interface ScopedStorage {
+  readonly durability?: StorageDurability;
   get(key: string): string | undefined;
   set(key: string, value: string): void;
   remove(key: string): void;
@@ -81,6 +103,8 @@ export interface AccountScope {
    * every in-flight request, clear its query cache, purge its storage. Idempotent.
    */
   end(): void;
+  /** Native asynchronous cleanup follows the synchronous lifecycle fence. */
+  whenStorageClosed?(): Promise<void>;
 }
 
 /** A scope's id, which is also its claim on the wire (`X-KS-Scope`, review M1). */
@@ -131,9 +155,12 @@ export function fencedFetch(options: {
   readonly scope: string;
   readonly authorization: () => string | undefined;
   readonly onMismatch?: () => void;
+  /** End-entry fence; teardown callbacks may still observe the old active flag. */
+  readonly isEnding?: () => boolean;
 }): Fetch {
+  const closed = () => options.ended.aborted || options.isEnding?.() === true;
   return async (request, init) => {
-    if (options.ended.aborted) throw new ScopeEndedError();
+    if (closed()) throw new ScopeEndedError();
     const authorization = options.authorization();
     const headers = new Headers(request.headers);
     if (authorization !== undefined) headers.set('authorization', authorization);
@@ -141,19 +168,39 @@ export function fencedFetch(options: {
     const fenced = new Request(request, { headers, signal: eitherSignal([request.signal, options.ended]) });
     let response: Response;
     try {
+      if (closed()) throw new ScopeEndedError();
       response = await options.fetch(fenced, init === undefined ? undefined : { ...init, signal: fenced.signal });
     } catch (error) {
-      if (options.ended.aborted) throw new ScopeEndedError();
+      if (closed()) throw new ScopeEndedError();
       throw error;
     }
-    if (options.ended.aborted) throw new ScopeEndedError();
-    if (options.onMismatch !== undefined && (await isScopeMismatch(response))) options.onMismatch();
+    if (closed()) throw new ScopeEndedError();
+    if (options.onMismatch !== undefined) {
+      const mismatch = await isScopeMismatch(response);
+      if (closed()) throw new ScopeEndedError();
+      if (mismatch) options.onMismatch();
+    }
+    if (closed()) throw new ScopeEndedError();
     return response;
   };
 }
 
 function scopedStorage(store: KeyValueStore, prefix: string, ended: AbortSignal): ScopedStorage {
+  const durable = store.durability;
   return {
+    ...(durable
+      ? {
+          durability: {
+            ...durable,
+            flush: (expected: Readonly<Record<string, string | undefined>>) =>
+              ended.aborted
+                ? Promise.resolve(false)
+                : durable.flush(
+                    Object.fromEntries(Object.entries(expected).map(([key, value]) => [`${prefix}${key}`, value])),
+                  ),
+          },
+        }
+      : {}),
     get: (key) => (ended.aborted ? undefined : (store.getItem(`${prefix}${key}`) ?? undefined)),
     set: (key, value) => {
       if (!ended.aborted) store.setItem(`${prefix}${key}`, value);
@@ -190,15 +237,18 @@ export interface AccountScopeOptions {
 export function createAccountScope(options: AccountScopeOptions): AccountScope {
   const id = scopeIdOf(options.account);
   const ended = new AbortController();
+  let lifecycle: 'active' | 'ending' | 'ended' = 'active';
   const prefix = `${SCOPED_STORAGE_PREFIX}${id}.`;
   const queryClient = options.queryClient ?? createQueryClient();
   let connection: ScopeConnection | undefined;
+  let storageClosed = Promise.resolve();
   const endListeners = new Set<() => void>();
   const api = createApiClient({
     baseUrl: options.baseUrl,
     fetch: fencedFetch({
       fetch: options.fetch,
       ended: ended.signal,
+      isEnding: () => lifecycle !== 'active',
       scope: id,
       authorization: options.authorization,
       ...(options.onMismatch === undefined ? {} : { onMismatch: options.onMismatch }),
@@ -211,17 +261,27 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
     api,
     storage: scopedStorage(options.store, prefix, ended.signal),
     get active() {
-      return !ended.signal.aborted;
+      return lifecycle !== 'ended' && !ended.signal.aborted;
     },
     mediaSource(path) {
-      if (ended.signal.aborted || !path.startsWith('/media/') || path.startsWith('//')) throw new ScopeEndedError();
+      if (lifecycle !== 'active' || ended.signal.aborted || !path.startsWith('/media/') || path.startsWith('//'))
+        throw new ScopeEndedError();
       const authorization = options.authorization();
+      if (lifecycle !== 'active' || ended.signal.aborted) throw new ScopeEndedError();
       return {
         uri: new URL(path, options.baseUrl).href,
         ...(authorization === undefined ? {} : { headers: { authorization } }),
       };
     },
     onEnd(listener) {
+      if (lifecycle !== 'active' || ended.signal.aborted) {
+        try {
+          listener();
+        } catch {
+          /* Late resource cleanup cannot interrupt teardown or its caller. */
+        }
+        return () => undefined;
+      }
       endListeners.add(listener);
       return () => {
         endListeners.delete(listener);
@@ -229,30 +289,64 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
     },
     queryKey: (...parts) => ['scope', id, ...parts],
     reconnect() {
-      if (ended.signal.aborted) return;
+      if (lifecycle !== 'active' || ended.signal.aborted) return;
       void scope.recording?.refresh();
-      if (options.connect === undefined) return;
-      connection?.close();
-      connection = options.connect(scope);
+      if (lifecycle !== 'active' || ended.signal.aborted || options.connect === undefined) return;
+      const previous = connection;
+      connection = undefined;
+      previous?.close();
+      if (lifecycle !== 'active' || ended.signal.aborted) return;
+      const next = options.connect(scope);
+      if (lifecycle !== 'active' || ended.signal.aborted) next.close();
+      else connection = next;
     },
     end() {
-      if (ended.signal.aborted) return;
-      for (const listener of endListeners) {
+      if (lifecycle !== 'active' || ended.signal.aborted) return;
+      lifecycle = 'ending'; // Before any health/policy/onEnd callback can reenter.
+      let resolveCleanup!: () => void, rejectCleanup!: (error: unknown) => void;
+      storageClosed = new Promise<void>((resolve, reject) => {
+        resolveCleanup = resolve;
+        rejectCleanup = reject;
+      });
+      void storageClosed.catch(() => undefined); // The manager awaits the original rejection.
+      let failure: { readonly cause: unknown } | undefined;
+      const completeStep = (work: () => void) => {
         try {
-          listener();
-        } catch {
-          /* A native resource already released must never prevent the scope fence. */
+          work();
+        } catch (error) {
+          failure ??= { cause: error };
         }
+      };
+      try {
+        completeStep(() => options.store.durability?.fence());
+        for (const listener of [...endListeners]) {
+          try {
+            listener();
+          } catch {
+            /* A consumer cleanup must not prevent the remaining scope teardown. */
+          }
+        }
+      } finally {
+        endListeners.clear();
+        completeStep(() => connection?.close());
+        connection = undefined;
+        lifecycle = 'ended';
+        completeStep(() => ended.abort(new ScopeEndedError()));
+        completeStep(() => {
+          void queryClient.cancelQueries().catch(() => undefined);
+        });
+        completeStep(() => queryClient.clear());
+        completeStep(() => purgeStorage(options.store, prefix));
+        void Promise.resolve()
+          .then(() => options.store.durability?.purge())
+          .then(() => {
+            if (failure) rejectCleanup(failure.cause);
+            else resolveCleanup();
+          }, rejectCleanup);
       }
-      endListeners.clear();
-      connection?.close();
-      connection = undefined;
-      ended.abort(new ScopeEndedError());
-      void queryClient.cancelQueries();
-      queryClient.clear();
-      purgeStorage(options.store, prefix);
     },
   };
+  scope.whenStorageClosed = () => storageClosed;
   const recording = createRecordingPolicySession(scope);
   Object.defineProperty(scope, 'recording', { value: recording, enumerable: true });
   let signalledReceipt: string | undefined;
@@ -270,7 +364,7 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
   return scope;
 }
 
-/** A `KeyValueStore` in memory (native until a persistent store is needed; tests). */
+/** A synchronous memory store for fixtures, pre-auth placeholders and explicit web fallback. */
 export function memoryStore(): KeyValueStore {
   const values = new Map<string, string>();
   return {

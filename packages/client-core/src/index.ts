@@ -133,3 +133,5 @@ export {
   type RecordingPolicyState,
   type RecordingPolicySession,
 } from './recording-policy';
+
+export type { StorageDurability, ScopeStorageLifecycle } from './account-scope';

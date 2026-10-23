@@ -28,6 +28,7 @@
     "expo-linking": "catalog:",
     "expo-router": "catalog:",
     "expo-secure-store": "catalog:",
+    "expo-sqlite": "catalog:",
     "expo-status-bar": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

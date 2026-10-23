@@ -1,4 +1,4 @@
-import { memoryStore, type KeyValueStore } from '@knowscroll/client-core';
+import { memoryStore, type KeyValueStore, type ScopeStorageLifecycle } from '@knowscroll/client-core';
 
 /**
  * Web: the account scope's local storage over `localStorage` (keys `ks.scope.<account>:<epoch>.…`,
@@ -24,3 +24,6 @@ function browserStore(): KeyValueStore {
 }
 
 export const scopeStorage: KeyValueStore = browserStore();
+
+/** Web retains its explicitly lossy synchronous store. */
+export const scopeDurability: ScopeStorageLifecycle | undefined = undefined;

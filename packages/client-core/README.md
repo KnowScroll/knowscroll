@@ -11,7 +11,7 @@ API client, the hint socket and local stores) with the sign-in client, and the i
 | `src/query-client.ts` | `createQueryClient()`: commands (mutations) never retry; queries retry at most twice and only for network failures and 5xx, after 1 s and then 2 s (`queryRetryDelay` doubles and would cap at 8 s); `shouldRetryQuery`, `queryRetryDelay`. Also exported alone as `@knowscroll/client-core/query-client`, so the root layout does not pull the API client, contracts, Zod and oRPC into the first chunk |
 | `src/health.ts` | `healthQueryOptions(api)`: `GET /health` validated against `HealthResponseSchema`, key `['operations', 'health']` (operations data, not account-scoped) |
 | `src/account-scope.ts` | `createAccountScope()`: one scope per `(accountId, privacyEpoch)` (`scopeIdOf`) owning its QueryClient, its API client (`fencedFetch`: requests carry the scope's abort signal, its own credential and its claim `X-KS-Scope: <account>:<epoch>`; once the scope ended nothing starts and a late response is dropped with `ScopeEndedError`; the API's `409 SCOPE_MISMATCH` makes the manager reread the session), its socket and its storage (keys `ks.scope.<account>:<epoch>.…`). `end()` closes the socket, aborts and fences in-flight requests, clears the cache and purges the storage, in that order; retained storage handles become inert, so late unmount/HTTP callbacks cannot repopulate it |
-| `src/account-scope-manager.ts` | `createAccountScopeManager()`: the single owner of the current scope. `start()` reads the session; `peek()` (whose account a link opens, masked); `redeem()` (the current scope ends **before** the redemption is sent, so nothing it starts can go out with the next credential; a failed redemption remounts the session's scope; native sends the verifier of `SignInBinding`), `refresh()` (a new privacy epoch → a new scope; a refused session → `signed_out: session_ended`), `signOut()` (web: only when the server answered, since only it clears the HttpOnly cookie; native: always drops the secure-store token), `requestLink()` (native: with the S256 challenge of `SignInBinding`); state `starting · signed_out · unavailable · signed_in` for `useSyncExternalStore` |
+| `src/account-scope-manager.ts` | `createAccountScopeManager()`: the single owner of the current scope. `start()` reads the session; `peek()` (whose account a link opens, masked); `redeem()` (the current scope ends **before** the redemption is sent, so nothing it starts can go out with the next credential; a failed redemption remounts the session's scope; native sends the verifier of `SignInBinding`), `refresh()` (a new privacy epoch → a new scope; a refused session → `signed_out: session_ended`), `signOut()` (web: only when the server answered, since only it clears the HttpOnly cookie; native: fences immediately and confirms secure-root cleanup and token removal before signed-out publication), `requestLink()` (native: with the S256 challenge of `SignInBinding`); state `starting · signed_out · unavailable · signed_in` for `useSyncExternalStore` |
 | `src/scroll-state/` | `createScopedBlockStateStore(scope.storage)`: reader state of Scroll blocks by `(assetId, revision, blockId)` in the AccountScope's own storage, so it is purged when the scope ends. Reads go through the scroll-model `BlockState` schema (anything else is forgotten), writes over 1 KiB are ignored, the newest four revisions of a block are kept, and `earlier()` lets a new revision say it started over. Structurally the `ScrollBlockStateStore` of `@knowscroll/ui`. Personal simulation values never leave the device: nothing here sends anything, and a snippet carries one only when its sender explicitly includes it (`buildBlockStateSnapshot`) |
 | `src/sign-in-binding.ts` | `base64UrlOfBytes`, `base64UrlOfBase64`: the encodings of the native verifier and its S256 challenge (RFC 7636; the app's `platform/sign-in-binding.ts` keeps the verifier in the secure store) |
 | `src/account-scope-socket.ts` | `connectScopeSocket()`: Socket.IO on the API origin (native: the scope's bearer in `auth.token`; web: the same-origin cookie; both name the scope in `auth.scope`, and a `SCOPE_MISMATCH` refusal makes the manager reread the session), subscribed to the scope's universe; `scope_changed` above the highest revision seen, or `scope_resync`, invalidates the scope's queries; "io server disconnect" makes the manager recheck the session |
@@ -297,8 +297,48 @@ are terminal; unknown/mismatched responses retain the identical body. A not_reco
 requests a separate policy read, never requeues old events under a new generation. Existing v1
 batches have unknowable original generation: adopting v2 explicitly discards/counts them once,
 retains the disclosure, and removes the old key without destroying an existing v2 queue. Missing
-observations remain unknown, never inferred reading. Storage errors degrade to memory-only delivery.
+observations remain unknown, never inferred reading. Web storage errors degrade to memory-only delivery; a native commit failure inhibits delivery and new collection.
 
-Web localStorage remains subject to quota/crash loss; native scope storage is still memory-only
-and is not crash-durable. Authored race/replay/ACK/segment/UI/browser fixtures are intended for
-hosted Actions only. They do not establish real service qualification, native parity or deployment.
+Web localStorage remains subject to quota/crash loss. Native storage now supplies the explicit
+commit and lifecycle ports described below. Authored race/replay/ACK/segment/UI/browser fixtures
+run only in hosted Actions. They do not establish real service qualification, native parity or deployment.
+
+
+## Native scoped commit boundaries (#249/#222)
+
+`StorageDurability` supplements the synchronous scoped mirror with `flush(expected)` receipts for
+exact retained key/value membership, a synchronous mutation group, a health subscription, an
+immediate fence and an awaited purge. A revision number alone cannot prove a queued batch survived
+capacity eviction. Web stores omit this port and retain their existing lossy behavior. The native
+implementation is owned by `apps/client/platform/native-scope-durability.ts`.
+
+The manager authenticates the actual session before preparing/decrypting native state, and awaits
+hydration plus initial database commit before publishing a scope or starting historical outbox
+replay. Generation, captured credential and actual scope identity fence every asynchronous mount.
+Native sign-out fences before the network request. Account switch, expiry and Clear wait for old
+root cleanup; a failed secure-root write, token clear or preparation/cleanup database commit
+produces unavailable. A later writer failure inhibits recording and delivery. Neither path claims
+successful cleanup or a memory fallback. A keyless CLOSED marker prevents reopening the
+same origin/account/epoch/session binding. A genuine session read proving a changed privacy epoch
+may create a new random root/key after confirmed cleanup, even when Clear retained the bearer.
+Clear never resets recording generation or restores an activation.
+
+A native policy set waits until its exact original command is committed before transport. Its
+ACK/receipt recovery waits for committed removal before resolving pending state, then obtains a
+separate correlated current read. Removal failure retains the original unknown choice and blocks
+an opposite command. Storage health loss immediately inhibits collection. No stored on/off policy,
+current generation, authority-granting receipt or recorder clock is restored.
+
+Native outbox delivery waits for the exact immutable original envelope to be committed. A strict
+terminal ACK removes it from the memory queue and awaits committed disk removal. Failed removal
+exposes `purgeUnconfirmed: true` and suppresses an in-memory resend; retry also attempts removal
+when the memory queue is empty. A process restart may replay the last committed original envelope
+for server deduplication. No new IDs, generation or recorder session are invented. Hydrated backlog
+replay uses the existing scope-owned outbox without creating an encounter or collection permission.
+
+Block value/index/four-revision eviction and clear are grouped into complete snapshot mutations.
+Convenience positions remain private and do not restore playback, sound, navigation history or
+collection intent. Other producer command retry closures remain memory-only. The separate privacy
+operation recovery vault is not implemented by this store and is not included in ordinary scope
+cleanup. Controlled-port fixtures establish ordering only; actual native restart, library failure,
+backup rules, power-loss behavior and physical erasure require their separately owned evidence.
