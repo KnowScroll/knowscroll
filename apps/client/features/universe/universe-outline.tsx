@@ -1,97 +1,129 @@
-import { useEffect, type ReactNode } from 'react';
-import { FlatList, Modal, Platform, StyleSheet, View } from 'react-native';
-import { Button, Text, useDisplay } from '@knowscroll/ui';
-import { content, overlay, spacing } from '@knowscroll/design-tokens';
-import type { UniverseViewSession } from './universe-session';
+import { useEffect, useRef } from 'react';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { content, radius, spacing } from '@knowscroll/design-tokens';
+import { BottomSheet, Button, Text } from '@knowscroll/ui';
+import { outlineRows, type OutlineRow, type UniverseIndex } from './universe-layout';
+import type { UniverseViewSession, UniverseViewState } from './universe-session';
 
-/** One modal host, with no separate history owner. Universe Back owns this overlay. */
-export function UniversePanel({ title, close, children }: { title: string; close: () => void; children: ReactNode }) {
-  const { breakpoint } = useDisplay();
+const ROW_HEIGHT = 52;
+const KIND_WORD = { system: 'System', star: 'Star', planet: 'Planet', region: 'Region' } as const;
+
+/**
+ * The accessible outline of the map (U02 and U08 "List view", D02's side panel): every place, in
+ * order, each a 48 px row that flies there. It is the screen-reader primary view and the way to
+ * reach anything the drawing cannot show.
+ */
+export function OutlineList({
+  session,
+  state,
+  index,
+  onChoose,
+}: {
+  readonly session: UniverseViewSession;
+  readonly state: UniverseViewState;
+  readonly index: UniverseIndex;
+  readonly onChoose?: () => void;
+}) {
+  const rows = outlineRows(index, state.lately);
+  const list = useRef<FlatList<OutlineRow>>(null);
+  const currentRow = rows.findIndex((row) => row.place.objectId === state.focusId);
+  // Open on the place the person is looking at, so the outline answers "where am I".
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const previous = document.activeElement;
-    const panel = document.querySelector<HTMLElement>('[data-testid="universe-panel"]');
-    const controls = () => panel?.querySelectorAll<HTMLElement>('button, a[href], input, [tabindex="0"]');
-    controls()?.[0]?.focus();
-    const trap = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return;
-      const nodes = controls();
-      if (!nodes?.length) return;
-      const first = nodes[0]!,
-        last = nodes[nodes.length - 1]!;
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', trap);
-    return () => {
-      document.removeEventListener('keydown', trap);
-      if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
-    };
-  }, []);
-  return (
-    <Modal visible transparent animationType="none" onRequestClose={close}>
-      <View style={[styles.host, breakpoint === 'desktop' ? styles.docked : null]}>
-        <View
-          testID="universe-panel"
-          role="dialog"
-          accessibilityLabel={title}
-          accessibilityViewIsModal
-          style={styles.panel}
-        >
-          <Text variant="displayL" heading={2}>
-            {title}
-          </Text>
-          <Button label="Close" onPress={close} />
-          {children}
-        </View>
-      </View>
-    </Modal>
-  );
-}
-export function UniverseOutline({ session }: { session: UniverseViewSession }) {
-  const places = session.places();
-  return (
-    <UniversePanel title="Universe outline" close={() => session.back()}>
-      <FlatList
-        style={styles.list}
-        data={places}
-        keyExtractor={(p) => p.id}
-        initialNumToRender={12}
-        maxToRenderPerBatch={12}
-        windowSize={5}
-        accessibilityLabel="Established places"
-        renderItem={({ item }) => {
-          const parent = places.find((p) => p.id === item.parentId);
-          return (
-            <View style={styles.row}>
-              <Button label={`${item.label} · ${item.kind}`} onPress={() => session.focus(item.id)} />
-              <Text variant="meta">
-                {parent ? `In ${parent.label}. ` : ''}
-                {item.truthStatus === 'hypothetical' ? 'Hypothetical.' : ''}
-              </Text>
-            </View>
-          );
+    if (currentRow > 0) list.current?.scrollToIndex({ index: currentRow, viewPosition: 0.3, animated: false });
+    // Only when the list opens or the focus changes, not when Lately reorders it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.focusId]);
+  const current = state.focusId ? index.byId.get(state.focusId) : undefined;
+  const ancestors = new Set<string>();
+  for (let place = current; place; place = index.byId.get(place.parentId)) ancestors.add(place.objectId);
+  const renderRow = ({ item }: { item: OutlineRow }) => {
+    const { place, depth } = item;
+    const isCurrent = place.objectId === state.focusId;
+    return (
+      <Pressable
+        testID={`universe-outline-${place.objectId}`}
+        accessibilityRole="button"
+        accessibilityLabel={`${place.label}, ${KIND_WORD[place.kind].toLowerCase()}${place.truthStatus === 'hypothetical' ? ', hypothetical' : ''}`}
+        accessibilityState={{ selected: isCurrent }}
+        onPress={() => {
+          session.focus(place.objectId);
+          onChoose?.();
         }}
-      />
-    </UniversePanel>
+        style={[
+          styles.row,
+          { paddingLeft: spacing[3] + depth * spacing[5] },
+          ancestors.has(place.objectId) ? styles.ancestor : null,
+          isCurrent ? styles.current : null,
+        ]}
+      >
+        <Text variant={depth === 0 ? 'title' : 'bodyS'} style={depth === 0 ? styles.systemName : null}>
+          {place.label}
+        </Text>
+        <Text variant="label" color={content.ink2}>
+          {KIND_WORD[place.kind]}
+        </Text>
+      </Pressable>
+    );
+  };
+  return (
+    <FlatList
+      accessibilityLabel="Places in your universe"
+      ref={list}
+      data={rows}
+      getItemLayout={(_, position) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * position, index: position })}
+      keyExtractor={(row) => row.place.objectId}
+      renderItem={renderRow}
+      initialNumToRender={16}
+      maxToRenderPerBatch={16}
+      windowSize={7}
+      style={styles.list}
+    />
   );
 }
+
+/** U02 / U08 "List view" as a sheet on phones: the same outline, with the Lately lens on top. */
+export function UniverseListSheet({
+  session,
+  state,
+  index,
+}: {
+  readonly session: UniverseViewSession;
+  readonly state: UniverseViewState;
+  readonly index: UniverseIndex;
+}) {
+  return (
+    <BottomSheet visible title="Your universe" closeLabel="Close list view" onClose={() => session.back()} testID="universe-list-sheet">
+      <View style={styles.lens}>
+        <Text variant="bodyS" color={content.ink2} style={styles.lensText}>
+          {state.lately
+            ? 'Lately on: places with recent activity come first in each group.'
+            : 'Every place, in order. Turn on Lately to see recent activity first.'}
+        </Text>
+        <Button label="Lately" size="sm" variant={state.lately ? 'ink' : 'default'} toggled={state.lately} onPress={() => session.setLately(!state.lately)} />
+      </View>
+      <View style={styles.sheetList}>
+        <OutlineList session={session} state={state} index={index} />
+      </View>
+    </BottomSheet>
+  );
+}
+
 const styles = StyleSheet.create({
-  host: { flex: 1, justifyContent: 'flex-end', backgroundColor: overlay.scrim },
-  docked: { alignItems: 'flex-end', justifyContent: 'center' },
-  panel: {
-    backgroundColor: content.paper,
-    padding: spacing[5],
+  list: { flexGrow: 0 },
+  sheetList: { maxHeight: 420 },
+  lens: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], justifyContent: 'space-between' },
+  lensText: { flex: 1 },
+  row: {
+    height: ROW_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing[3],
-    width: '100%',
-    maxWidth: 560,
-    maxHeight: '85%',
+    paddingRight: spacing[3],
+    borderRadius: radius.md,
+    cursor: 'pointer' as const,
   },
-  list: { height: 360 },
-  row: { paddingVertical: spacing[2], gap: spacing[1] },
+  ancestor: { backgroundColor: content.paper2 },
+  current: { backgroundColor: content.continue },
+  systemName: { fontSize: 18, lineHeight: 24 },
 });

@@ -17,6 +17,7 @@ export function EmptyUniverseScreen() {
       pageTitle="Universe"
       titleVariant="heading"
       backdrop={<UniverseBackdrop />}
+      showAccount={false}
       bodyPlacement="center"
     >
       <StateBlock

@@ -2,7 +2,9 @@ import {
   createRegionPreviewSession,
   createFormationPresentationSession,
   createUniverseSceneSession,
+  readDustCues,
   type AvailableRegionPreview,
+  type DustCue,
   type RegionPreviewState,
   type AccountScope,
   type UniverseSceneState,
@@ -14,14 +16,8 @@ import {
   type SceneGeometry,
   type SceneReturnLocator,
 } from '@knowscroll/scene-core';
-import {
-  boundedFrame,
-  DRAW_LIMITS,
-  fitFrame,
-  INITIAL_FRAME,
-  returnLocator,
-  type UniverseFrame,
-} from './universe-camera';
+import { boundedFrame, DRAW_LIMITS, INITIAL_FRAME, returnLocator, type UniverseFrame } from './universe-camera';
+import { isAbsent, loadUniverseMemory, saveUniverseMemory, type LastPlace } from './universe-memory';
 import { newCommandId } from '../../platform/command-id';
 import { ENCOUNTER_CAPABILITIES } from '../encounter/capabilities';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
@@ -37,14 +33,28 @@ interface CameraEntry {
   readonly focusId: string | null;
   readonly locator?: SceneReturnLocator;
 }
+/** Dust cues of recent reading; a cue is not a place and is never a navigation target. */
+export interface DustState {
+  readonly status: 'idle' | 'loading' | 'ready' | 'unavailable';
+  readonly cues: readonly DustCue[];
+}
 export interface UniverseViewState extends CameraEntry {
   readonly read: UniverseSceneState;
-  readonly overlay: 'outline' | 'place' | null;
+  readonly overlay: 'outline' | 'place' | 'search' | null;
   readonly detail: 'full' | 'low';
   readonly reducedMotion: boolean;
   readonly notice?: 'place_unavailable';
   readonly historyDepth: number;
   readonly regionPreview: RegionPreviewState;
+  /** The Lately lens: quiet places draw calm, and the list puts recent ones first. Per device. */
+  readonly lately: boolean;
+  readonly dust: DustState;
+  /** Where the ship is parked: the last place flown to on this device. */
+  readonly lastPlace: LastPlace | undefined;
+  /** Away long enough that the camera starts framed on everything, with the ship at its last place. */
+  readonly absent: boolean;
+  /** A system picked on the map but not entered yet (second tap or Open enters it). */
+  readonly selectedId: string | null;
 }
 export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean): SceneClientCapabilities {
   return {
@@ -59,7 +69,7 @@ export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean
   };
 }
 /** Focus/camera/preview stay read-only; deliberate Open delegates to the real encounter engine. */
-export function createUniverseViewSession(scope: AccountScope, newId = newCommandId) {
+export function createUniverseViewSession(scope: AccountScope, newId = newCommandId, now = Date.now) {
   let detail: 'full' | 'low' = 'full',
     reducedMotion = true,
     foreground = false,
@@ -76,6 +86,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   let returnPoint: { camera: CameraEntry; history: CameraEntry[] } | undefined;
   const listeners = new Set<() => void>(),
     cache = new Map<string, { key: string; geometry: SceneGeometry }>();
+  const remembered = loadUniverseMemory(scope);
   let state: UniverseViewState = {
     read: core.getState(),
     frame: { ...INITIAL_FRAME },
@@ -85,7 +96,16 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     reducedMotion,
     historyDepth: 0,
     regionPreview: preview.getState(),
+    lately: remembered?.lately ?? false,
+    dust: { status: 'idle', cues: [] },
+    lastPlace: remembered?.lastPlace,
+    absent: false,
+    selectedId: null,
   };
+  let restored = false,
+    dustGeography = -1,
+    dustRead: AbortController | undefined,
+    saveTimer: ReturnType<typeof setTimeout> | undefined;
   const live = () => !ended && scope.active;
   let notificationDepth = 0;
   const publish = (patch: Partial<UniverseViewState>) => {
@@ -96,6 +116,37 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   const formationOff = formation.subscribe(() => publish({}));
   const previewOff = preview.subscribe(() => publish({ regionPreview: preview.getState() }));
   const cancelPreview = () => preview.cancel();
+  const saveNow = () => {
+    clearTimeout(saveTimer);
+    saveTimer = undefined;
+    if (!live()) return;
+    saveUniverseMemory(scope, {
+      focusId: state.focusId,
+      frame: state.frame,
+      lately: state.lately,
+      lastPlace: state.lastPlace,
+      seenAt: now(),
+    });
+  };
+  // Camera drags change the frame many times a second; one trailing write keeps the last one.
+  const saveSoon = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNow, 500);
+  };
+  const loadDust = async () => {
+    if (!live()) return;
+    dustRead?.abort();
+    const controller = (dustRead = new AbortController());
+    publish({ dust: { status: 'loading', cues: state.dust.cues } });
+    const result = await readDustCues(scope, controller.signal);
+    if (controller.signal.aborted || !live()) return;
+    publish({
+      dust:
+        result.status === 'ready'
+          ? { status: 'ready', cues: result.cues }
+          : { status: 'unavailable', cues: state.dust.cues },
+    });
+  };
   const target = (): RegionEncounterTarget | undefined => {
     const read = core.getState(),
       geography = read.geography;
@@ -158,6 +209,26 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       )
     );
   };
+  /**
+   * The first time a Scene is on hand, the camera returns to where this device left it. After a
+   * long absence it starts framed on everything instead, with the ship parked at the last place.
+   */
+  const restoreMemory = () => {
+    if (restored || !remembered) return;
+    restored = true;
+    const absent = isAbsent(remembered, now());
+    const lastPlace = remembered.lastPlace && places().some((p) => p.id === remembered.lastPlace!.id) ? remembered.lastPlace : undefined;
+    const camera: CameraEntry = {
+      focusId: remembered.focusId,
+      frame: remembered.frame,
+      locator: undefined,
+    };
+    if (absent || !remembered.focusId || !validCamera(camera)) {
+      publish({ lastPlace, absent: absent && lastPlace !== undefined });
+      return;
+    }
+    publish({ ...camera, lastPlace });
+  };
   const readChanged = () => {
     const read = core.getState(),
       hadSnapshot = Boolean(state.read.snapshot);
@@ -174,20 +245,22 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
         locator: undefined,
         overlay: null,
         notice: undefined,
+        selectedId: null,
       });
       return;
     }
     cancelPreview();
-    publish({
-      read,
-      ...(!hadSnapshot && read.snapshot && !state.focusId
-        ? { frame: fitFrame(read.snapshot.chunks.flatMap((c) => c.objects).filter((o) => o.kind === 'system')) }
-        : {}),
-    });
+    publish({ read });
     formation.update();
     if (state.focusId && (read.snapshot || read.geography) && !validCamera(state)) {
       history = [];
       publish({ focusId: null, locator: undefined, overlay: null, notice: 'place_unavailable' });
+    }
+    if (!hadSnapshot && read.snapshot) restoreMemory();
+    const revision = read.geography?.geography.revision ?? 0;
+    if (read.geography && revision !== dustGeography) {
+      dustGeography = revision;
+      void loadDust();
     }
   };
   let unsubscribe = core.subscribe(readChanged);
@@ -196,6 +269,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     ended = true;
     foreground = false;
     history = [];
+    clearTimeout(saveTimer);
+    dustRead?.abort();
     cache.clear();
     unsubscribe();
     core.dispose();
@@ -206,6 +281,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       focusId: null,
       locator: undefined,
       overlay: null,
+      selectedId: null,
+      dust: { status: 'idle', cues: [] },
     });
     previewOff();
     preview.dispose();
@@ -216,23 +293,44 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     listeners.clear();
   };
   scope.onEnd?.(end);
+  const showOverlay = (overlay: UniverseViewState['overlay']) => {
+    if (!live() || !foreground) return;
+    const focused = places().find((p) => p.id === state.focusId);
+    if (overlay === 'place' && focused?.kind !== 'region') return;
+    cancelPreview();
+    publish({ overlay, selectedId: null });
+    formation.setForeground(overlay === null);
+    if (overlay === 'place') readPreview();
+  };
   const focus = (id: string) => {
     if (!live() || !foreground || !places().some((p) => p.id === id)) return false;
     cancelPreview();
     formation.skip();
-    history.push({ frame: { ...state.frame }, focusId: state.focusId, locator: state.locator });
-    if (history.length > DRAW_LIMITS.history) history.shift();
     const all = descriptors(),
       object = all.find((o) => o.objectId === id),
-      chunk = state.read.snapshot?.chunks.find((c) => c.objects.some((o) => o.objectId === id));
-    const frame = object ? fitFrame(all.filter((o) => o.objectId === id || o.parentId === id)) : state.frame;
+      current = all.find((o) => o.objectId === state.focusId);
+    // Moving between regions of one planet replaces the view instead of stacking Back steps.
+    const sibling = object?.kind === 'region' && current?.kind === 'region' && current.parentId === object.parentId;
+    if (!sibling) {
+      history.push({ frame: { ...state.frame }, focusId: state.focusId, locator: state.locator });
+      if (history.length > DRAW_LIMITS.history) history.shift();
+    }
+    const chunk = state.read.snapshot?.chunks.find((c) => c.objects.some((o) => o.objectId === id));
+    const place = places().find((p) => p.id === id)!;
+    const frame = { ...INITIAL_FRAME };
     publish({
       focusId: id,
       notice: undefined,
       frame,
       overlay: null,
+      selectedId: null,
+      absent: false,
+      lastPlace: { id, label: place.label, kind: place.kind },
       locator: chunk ? returnLocator(chunk.chunkId, id, frame) : undefined,
     });
+    saveNow();
+    // A region opens its card at once: choosing a pin is how a person lands on it (U04).
+    if (place.kind === 'region') showOverlay('place');
     return true;
   };
   const back = () => {
@@ -244,6 +342,10 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     if (state.overlay) {
       cancelPreview();
       publish({ overlay: null });
+      return true;
+    }
+    if (state.selectedId) {
+      publish({ selectedId: null });
       return true;
     }
     cancelPreview();
@@ -259,6 +361,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
         notice: 'place_unavailable',
       });
     } else publish({ ...entry, overlay: null, notice: undefined });
+    saveNow();
     return true;
   };
   return {
@@ -289,15 +392,20 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     },
     focus,
     back,
-    canBack: () => live() && (Boolean(formation.getState().fact) || history.length > 0 || state.overlay !== null),
+    canBack: () =>
+      live() &&
+      (Boolean(formation.getState().fact) || history.length > 0 || state.overlay !== null || state.selectedId !== null),
     setForeground(value: boolean) {
       if (!live()) return;
       foreground = value;
       formation.setForeground(value && state.overlay === null);
-      if (value) core.resume();
-      else {
+      if (value) {
+        core.resume();
+        if (dustGeography >= 0) void loadDust();
+      } else {
         cancelPreview();
         core.pause();
+        saveNow();
       }
     },
     configure(next: { detail: 'full' | 'low'; reducedMotion: boolean }) {
@@ -315,14 +423,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       if (foreground) core.start();
       formation.setForeground(foreground);
     },
-    showOverlay(overlay: UniverseViewState['overlay']) {
-      if (live() && foreground && (overlay !== 'place' || state.focusId)) {
-        cancelPreview();
-        publish({ overlay });
-        formation.setForeground(overlay === null);
-        if (overlay === 'place') readPreview();
-      }
-    },
+    showOverlay,
     refreshRegionPreview: readPreview,
     openRegion(displayed: AvailableRegionPreview, onReturn: () => void) {
       const selected = target();
@@ -362,20 +463,60 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
           frame: next,
           locator: state.locator ? returnLocator(state.locator.chunkId, state.locator.objectId!, next) : undefined,
         });
+        saveSoon();
       }
     },
+    /** Frames the current view as the screen first draws it. */
     fit() {
       if (live() && foreground) {
-        const frame = fitFrame(
-          descriptors().filter((o) =>
-            !state.focusId ? o.kind === 'system' : o.objectId === state.focusId || o.parentId === state.focusId,
-          ),
-        );
+        const frame = { ...INITIAL_FRAME };
         publish({
           frame,
           locator: state.locator ? returnLocator(state.locator.chunkId, state.locator.objectId!, frame) : undefined,
         });
+        saveSoon();
       }
+    },
+    setLately(lately: boolean) {
+      if (!live() || lately === state.lately) return;
+      publish({ lately });
+      saveNow();
+    },
+    /** Picks a system on the map without entering it; a second tap or Open enters. */
+    select(id: string | null) {
+      if (!live() || !foreground) return;
+      if (id !== null && !places().some((p) => p.id === id)) return;
+      publish({ selectedId: id });
+    },
+    /**
+     * The Back pill of a system, planet or region: one step up the hierarchy (system to the whole
+     * map, planet to its system, region to its planet). Browser and hardware Back keep following
+     * the camera history instead, so both lead somewhere the person has been.
+     */
+    up() {
+      if (!live() || !foreground) return false;
+      const all = places();
+      const parentId = all.find((place) => place.id === state.focusId)?.parentId;
+      const parent = all.find((place) => place.id === parentId && place.kind !== 'star');
+      cancelPreview();
+      formation.skip();
+      history.push({ frame: { ...state.frame }, focusId: state.focusId, locator: state.locator });
+      if (history.length > DRAW_LIMITS.history) history.shift();
+      publish({
+        focusId: parent?.id ?? null,
+        frame: { ...INITIAL_FRAME },
+        locator: undefined,
+        overlay: null,
+        selectedId: null,
+        notice: undefined,
+      });
+      saveNow();
+      return true;
+    },
+    /** Flies to the place the ship is parked at (`?focus=last`, "Return to …"). */
+    focusLast() {
+      const last = state.lastPlace;
+      return last !== undefined && last.id !== state.focusId && focus(last.id);
     },
     async refresh() {
       if (live() && foreground) await core.refresh();
