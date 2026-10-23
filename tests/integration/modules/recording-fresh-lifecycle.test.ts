@@ -11,7 +11,6 @@ import {
 } from '@knowscroll/backend/infrastructure/postgres';
 import { createBoss, applyQueueDeclarations } from '@knowscroll/backend/infrastructure/jobs';
 import {
-  RECORDING_LIFECYCLE_PROTOCOL_SHA256,
   clearExplorationQueue,
   recoverClearOperationsQueue,
   type RecordingScopeTx,
@@ -169,7 +168,6 @@ describe('fresh recording lifecycle certification (Actions only)', () => {
         protocol_version: 1,
         origin_kind: 'birth',
         clear_operation_id: null,
-        registry_sha256: RECORDING_LIFECYCLE_PROTOCOL_SHA256,
       },
     ]);
     expect(await witnesses(legacy)).toEqual([]);
@@ -778,8 +776,8 @@ describe('fresh recording lifecycle certification (Actions only)', () => {
       await c.close();
     }
     await expect(
-      sql`insert into identity.recording_lifecycle_witnesses values(${p.universeId}::uuid,1,${p.accountId}::uuid,1,'birth',null,
-      ${RECORDING_LIFECYCLE_PROTOCOL_SHA256},transaction_timestamp())`.execute(database.db),
+      sql`insert into identity.recording_lifecycle_witnesses(universe_id,privacy_epoch,account_id,protocol_version,origin_kind,clear_operation_id,verified_at)
+      values(${p.universeId}::uuid,1,${p.accountId}::uuid,1,'birth',null,transaction_timestamp())`.execute(database.db),
     ).rejects.toThrow('recording_lifecycle_birth_only');
   });
   it('does not reinterpret epoch-only invalidation as completed Clear or birth', async () => {
@@ -813,8 +811,10 @@ describe('fresh recording lifecycle certification (Actions only)', () => {
     );
     expect(await witnesses(p)).toEqual([]);
     await expect(
-      sql`insert into identity.recording_lifecycle_witnesses values(${p.universeId}::uuid,2,${p.accountId}::uuid,1,'clear_core',${op.id}::uuid,
-      ${RECORDING_LIFECYCLE_PROTOCOL_SHA256},transaction_timestamp())`.execute(database.db),
+      sql`insert into identity.recording_lifecycle_witnesses(universe_id,privacy_epoch,account_id,protocol_version,origin_kind,clear_operation_id,verified_at)
+      values(${p.universeId}::uuid,2,${p.accountId}::uuid,1,'clear_core',${op.id}::uuid,transaction_timestamp())`.execute(
+        database.db,
+      ),
     ).rejects.toThrow('recording_lifecycle_clear_core');
     expect(await inRecording(current, 1, readRecordingLifecycle)).toMatchObject({ value: { kind: 'not_ready' } });
   });

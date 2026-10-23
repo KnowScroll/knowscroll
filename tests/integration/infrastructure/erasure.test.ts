@@ -123,8 +123,8 @@ describe('the erasure registry (real database)', () => {
         : owner,
     );
     expect(await checkErasureInventory(database.db, omitted)).toEqual([
-      'geography.runs.recording_account_id links to an account but no module declares it',
-      'planner.runs.recording_account_id links to an account but no module declares it',
+      'geography.runs.recording_account_id links to an account or person but no module declares it',
+      'planner.runs.recording_account_id links to an account or person but no module declares it',
     ]);
   });
 
@@ -135,7 +135,7 @@ describe('the erasure registry (real database)', () => {
     try {
       expect(await checkErasureInventory(database.db, personalStores)).toEqual([
         'experience.forgotten_personal has a universe_id column but no module declares it in the erasure registry',
-        'experience.forgotten_personal.owner_account_id links to an account but no module declares it',
+        'experience.forgotten_personal.owner_account_id links to an account or person but no module declares it',
       ]);
       const declared = erasureRegistry([
         ...personalStores,
