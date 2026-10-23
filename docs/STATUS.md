@@ -59,7 +59,7 @@ Covered by `checks` (unit tests plus about 885 integration tests against real Po
 - `modules/experience/application/navigation.ts`: `prepare()` is 236 lines with single-letter names. Its snapshot-trimming loop re-serialises up to 100 times.
 - `reasoning/application/propose.ts`: `makeBoundPersonalHarness` is a 194-line closure with shared mutable flags, and an opportunistic purge its TSDoc omits.
 - `modules/social`: the roster cursor is AES-encrypted with a process-random key, so cursors die on restart and cannot work across instances.
-- `erasure-registry.ts`: a 680-line prose manifest is hashed at import time.
+- `modules/*/adapters/erasure.ts`: each builds its Clear dispositions with the same `Object.fromEntries` boilerplate and a post-hoc `clearExploration` assignment. (`erasure-registry.ts` is a plain list since #403.)
 - `reasoning/domain/output.ts`: walks Zod internals.
 - About 67 words are glued to numbers in READMEs ("Migration0028"), and README tails are organised by issue number.
 

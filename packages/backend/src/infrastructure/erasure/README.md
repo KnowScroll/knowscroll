@@ -43,9 +43,10 @@ runs it, and every Clear runs it again. It fails when:
 
 - a table with a `universe_id` column is not declared, or a declared table lacks the column or the
   `ON DELETE RESTRICT` reference to `identity.universes`;
-- a column named `account_id`, `*_account_id`, `person_id` or `*_person_id`, or any column with a
-  foreign key to `identity.accounts` or `identity.universes`, outside identity is not declared as an
-  account column (and the reverse: a declared column that does not exist);
+- a column named `account_id`, `person_id`, `owner_id`, `member_id`, `*_universe_id`,
+  `*_account_id` or `*_person_id`, or any column with a foreign key to `identity.accounts` or
+  `identity.universes`, outside identity is not declared as an account column (and the reverse: a
+  declared column that does not exist);
 - an identity table other than `accounts` and `universes` is not declared as an account table;
 - another table reaches a personal root through foreign keys and is declared nowhere. A child
   table of a personal table therefore needs its own `universe_id`.

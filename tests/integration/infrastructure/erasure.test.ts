@@ -185,6 +185,36 @@ describe('the erasure registry (real database)', () => {
     }
   });
 
+  it('finds a person reference by name when it has no foreign key', async () => {
+    await sql`create table experience.forgotten_refs (peer_universe_id uuid, owner_id uuid, member_id uuid)`.execute(
+      database.db,
+    );
+    try {
+      expect(await checkErasureInventory(database.db, personalStores)).toEqual([
+        'experience.forgotten_refs.member_id links to an account or person but no module declares it',
+        'experience.forgotten_refs.owner_id links to an account or person but no module declares it',
+        'experience.forgotten_refs.peer_universe_id links to an account or person but no module declares it',
+      ]);
+      const declared = erasureRegistry([
+        ...personalStores,
+        {
+          module: 'fixture',
+          tables: [],
+          accountColumns: ['peer_universe_id', 'owner_id', 'member_id'].map((column) => ({
+            schema: 'experience',
+            table: 'forgotten_refs',
+            column,
+          })),
+          nonRowStores: [],
+          erase: () => Promise.reject(new Error('unused')),
+        },
+      ]);
+      expect(await checkErasureInventory(database.db, declared)).toEqual([]);
+    } finally {
+      await sql`drop table experience.forgotten_refs`.execute(database.db);
+    }
+  });
+
   it('finds a child table that reaches a personal root only through another table', async () => {
     await sql`create table composer.forgotten_child (
       decision_id uuid primary key references composer.decisions (id) on delete cascade)`.execute(database.db);
