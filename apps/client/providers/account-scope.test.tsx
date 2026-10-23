@@ -1,6 +1,8 @@
 import { QueryClient, useQuery } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react-native';
 import { AppState, Platform, Text, type AppStateStatus } from 'react-native';
+import * as Crypto from 'expo-crypto';
+import { ReadRecordingPolicySchema } from '@knowscroll/contracts';
 import { createAccountScopeManager, memoryStore, type AccountScope } from '@knowscroll/client-core';
 import { AccountScopeProvider, useAccountScope } from './account-scope';
 
@@ -188,6 +190,13 @@ it('native background inhibits recording and foreground rereads without remounti
     change = listener;
     return { remove };
   });
+  // jest-expo's native ExpoCrypto.randomUUID mock returns undefined. Supply only the UUID
+  // primitive; the actual provider, command adapter and strict correlated HTTP read stay real.
+  let uuidSequence = 0;
+  const uuid = jest.spyOn(Crypto, 'randomUUID').mockImplementation(() => {
+    uuidSequence++;
+    return `0199c000-0000-4000-8000-${uuidSequence.toString(16).padStart(12, '0')}`;
+  });
   let generation = 1;
   let wait: Promise<void> | undefined;
   const manager = createAccountScopeManager({
@@ -198,7 +207,10 @@ it('native background inhibits recording and foreground rereads without remounti
     fetch: async (request) => {
       if (request.url.endsWith('/auth/session'))
         return json(200, { account: accounts.a, client: 'web', expiresAt: '2099-10-23T00:00:00.000Z' });
-      const input = (await request.json()) as { readId: string; target: unknown };
+      expect(new URL(request.url).pathname).toBe('/v1/privacy/recording/read');
+      expect(request.headers.get('x-ks-scope')).toBe(`${accounts.a.accountId}:1`);
+      const input = ReadRecordingPolicySchema.parse(await request.json());
+      expect(input.target).toEqual({ kind: 'current' });
       await wait;
       return json(200, {
         version: 'recording-policy.v1',
@@ -261,6 +273,7 @@ it('native background inhibits recording and foreground rereads without remounti
       await app?.unmount();
     } finally {
       manager.dispose();
+      uuid.mockRestore();
       subscription.mockRestore();
       if (original) Object.defineProperty(AppState, 'currentState', original);
       if (originalPlatform) Object.defineProperty(Platform, 'OS', originalPlatform);
