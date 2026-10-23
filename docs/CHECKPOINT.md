@@ -2,7 +2,7 @@
 
 Coordinator-owned. Verify Git, CI and actual services before acting.
 
-**Updated:** 2026-10-22 23:45 UTC · **Phase:** RESUMED / full recording correction and necessary-accounting recovery · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-23 00:12 UTC · **Phase:** RESUMED / corrected recording candidate and accepted Conversations prerequisite · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Authority
 
@@ -12,7 +12,21 @@ Coordinator-owned. Verify Git, CI and actual services before acting.
 - Personal root/epoch, atomic receipts/effects/required pg-boss work and bounded attempt ledgers remain mandatory. No model/network wait in a DB transaction or HTTP navigation.
 - Preserve owner checkout/DB, legacy/pool/media, interrupted-work backups and all previous attempts. No reset/clean/force/rebase-abort. All worktrees/cache/temp/evidence stay on the mounted SSD.
 
-## Current authoritative phase — 2026-10-22 23:45 UTC
+## Current authoritative phase — 2026-10-23 00:12 UTC
+
+**Actual integration is23fa942428b9ecc329f1cfc757abd9027b227b22/schema41.** PR389 shared Conversations prerequisite is actually squash-merged on exact7eb after independent full11 review94c8f9bd and correction reviewd45d4ee0. Source9a6f5c80/run39875707631 and actualPR95ec2de6/run39875714384 pass all six; acceptance1309bf72 verifies each complete114 logs/102 successful step logs, official artifact ZIP digests, all19,732 manifest entries/41SQL/smoke29. Actual-squash receipt9645e5b5 verifies parent/tree/clean integration fast-forward. Initial5f runs39874079955/39874085550 failed two new key-name assertions; both complete112-entry archives remain retained, never accepted. Corrected assertions distinguish forbidden property names from permitted text discriminator values, preserving private canaries and strict schemas. No Conversations consumer or deployment is implied.
+
+Full recording PR388 remains published at failedd5b3b761; its exact failure counts/archives below remain authoritative historical failures. Root now normally composes all independently closed corrections, ScopeOutcome fixture0c809262 (review8b7c9ca5), and financial/residual11-path08fef003 (whole review0307cd1c), then actual23fa at local05345ee8 before this checkpoint. The financial fix uses a personal-only payload-free exact original run/request/proof/held-receipt cancellation CAS, bounded raw9 attempts and dispatch exclusion. Only actual proved revocation qualifies; stale owner/claim, busy, unavailable, account-actor pre-own epoch denial, dispatched/unknown, mismatched or absent capability leave liability held. Shared production engine/ledger, original history/caps and all44SQL remain exact. Positive fixtures use genuine Identity birth, actual recording effects and sealed Clear; immutable accepted attribution survives metadata changes. This is SOURCE closure, not proof that the102 failed cases or deadletter now pass. Fresh combined statics, different-author composition review and source/actual-PR Actions/full artifacts precede publication/integration acceptance.
+
+Native storage is still memory-only. A bounded encrypted-snapshot/await-barrier proposal is unfinished and not allocated; no native dependency, patch or restart acceptance exists. Privacyv3 source proposal has independent closurec0ed24ad, including finite discovery-key/anchor bounds and exact codec. Concrete new retention/recovery choices are pending owner selection; accepted P1/P6 semantics do not need blanket reapproval. Registry-transition designv2 is conditional, with no SQL45 or NEWdigest elected; rebind it after actual full44 acceptance before Social storage implementation.
+
+Disabled v13 sources8049649c have independent whole-four closure9c1397fa. Finite232 extension proposalv2/9171886d is independently revieweddecf494c but NOT applied: actual ledgerdf1d remains36used/0held/0unknown of43. Rollout proposal650ebc3d has P2OP44-ORDER/2fdcba3a: immediate D002 dev mergeback is required, and a bare flock cannot enforce exact one-use finite admission. Post-lock source gate plus admitted-operation lifetime design is under independent review; no source guard, window, intent, host authority or deployment is elected.
+
+Actual dev remains last-observed476baec5/schema35/archive8579c51b and stagelegacy8982391f; every old window is consumed/expired. Retain v12 terminal failure/NULL failed bodies,22 unexplained own-consumer deltas,2 prejob exposures/Saved revision uncertainty and ZERO accepted generated Scrolls. Exact approved379script is ONE future order≤75c; funds/principal/full billing/corpus/pool/sole-writer/current finite launch gates remain open. No owner-data/history, pool/spending reset, main, production, paid or operational action occurred.
+
+Next: finish exact corrected388 candidate review/Actions and integrate; implement remaining native/Social/privacy/design/operator coverage in disjoint phases, then D002 dev PR/immediate mergeback, real disposable-account connected journeys, separately gated real Cutroom/interactive Scroll evidence and identical-artifact stage. **All five programme requirements remain OPEN.**
+
+## Earlier authoritative phase — 2026-10-22 23:45 UTC
 
 **Actual integration remains7ebacf02/schema41; PR388 published head remains failedd5b3b761. No deployment or paid operation.** Complete source/actual-PR failure archives and exact counts below remain retained. Tracker update [6353701531](https://github.com/KnowScroll/knowscroll/issues/222#issuecomment-6353701531) records the failure and corrective phase. No unchanged rerun or required-check override.
 
