@@ -452,15 +452,14 @@ export type FencePersonalRecording = (
 export const RECORDING_POLICY_USE_CASES = Symbol('identity.recordingPolicy');
 export const FENCE_PERSONAL_RECORDING = Symbol('identity.fencePersonalRecording');
 
-/** Current lifecycle provenance, read only under the caller's genuine recording capability.
- * This is metadata, not another account gate or a reusable authority token. */
-export const RECORDING_LIFECYCLE_PROTOCOL_SHA256 = 'd7942e43bb8211f37dfd08b4dfb6ac2e1b2543229a257f9c5ba850df135a1d10';
+/**
+ * Recording lifecycle of the root, read only under the caller's genuine recording capability.
+ * `fresh` means the root elected the lifecycle (at birth or at a verified Clear) and holds its
+ * witness for the current epoch. This is metadata, not another account gate or a reusable
+ * authority token.
+ */
 export type RecordingLifecycle =
-  | {
-      readonly kind: 'fresh';
-      readonly protocolVersion: 1;
-      readonly registrySha256: typeof RECORDING_LIFECYCLE_PROTOCOL_SHA256;
-    }
+  | { readonly kind: 'fresh'; readonly protocolVersion: 1 }
   | { readonly kind: 'legacy_unknown' }
   | { readonly kind: 'not_ready' }
   | { readonly kind: 'unavailable' };
