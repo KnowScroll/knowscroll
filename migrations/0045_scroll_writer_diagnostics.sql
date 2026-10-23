@@ -55,4 +55,5 @@ alter table content.scroll_production_runs drop constraint scroll_production_run
 alter table content.scroll_production_runs
   add constraint scroll_production_runs_state_check
   check (state in ('research', 'writer', 'published', 'rejected', 'unknown')) not valid;
-alter table content.scroll_production_runs validate constraint scroll_production_runs_state_check;
+-- Left NOT VALID like the other forward vocabulary changes: every new write is checked, and
+-- validation belongs in its own transaction (squawk constraint-missing-not-valid).

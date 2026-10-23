@@ -118,13 +118,18 @@ function deadline(signal: AbortSignal, timeoutMs: number) {
 
 /** `MiniMax-M3.1-Flash` thinks before it answers, adaptively, and refuses `thinking: disabled` (HTTP 400, code 2013). */
 const thinksAdaptively = (model: MiniMaxModel): boolean => model === 'MiniMax-M3.1-Flash';
+/**
+ * A role that does not name an effort gets `low`: left alone the model once thought for 15,000
+ * tokens and never answered, which would eat the small ceilings of decision roles.
+ */
+const DEFAULT_EFFORT = 'low';
 
 /**
  * The MiniMax transport behind `ModelPort` (blueprint §15; providers-and-secrets.md).
  *
  * - `encode`: canonical JSON (sorted keys) of `{model, max_tokens, system, messages, thinking}`,
- *   plus `output_config.effort` for a model that thinks adaptively (without it thinking can use the
- *   whole token budget). Thinking tokens count against `max_tokens`. Thinking content (a
+ *   plus `output_config.effort` for a model that thinks adaptively (the role's, else `low`; without
+ *   it thinking can use the whole token budget). Thinking tokens count against `max_tokens`. Thinking content (a
  *   `thinking` block, or `<think>` framing at the start of the text) is dropped from the answer in
  *   `reply.ts`, and only there.
  * - `send`: exactly one `fetch` (no SDK, no retries, `redirect: "manual"`), one deadline over the
@@ -155,9 +160,7 @@ export function makeMiniMaxModelPort(settings: MiniMaxSettings, fetchImpl: typeo
           system: request.system,
           messages: [{ role: 'user', content: [{ type: 'text', text: request.user }] }],
           thinking: { type: thinksAdaptively(settings.model) ? 'adaptive' : 'disabled' },
-          ...(thinksAdaptively(settings.model) && request.effort !== undefined
-            ? { output_config: { effort: request.effort } }
-            : {}),
+          ...(thinksAdaptively(settings.model) ? { output_config: { effort: request.effort ?? DEFAULT_EFFORT } } : {}),
         }),
       );
     },

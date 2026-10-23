@@ -13,7 +13,7 @@ database or the provider. The production root `scroll-supply` must be enabled in
 # environment (names only; the key stays in the process environment, never on a command line)
 KS_WORLD=dev DATABASE_URL=… MINIMAX_API_KEY=…
 KS_REASONING_PROVIDER=minimax KS_REASONING_PRODUCTION_ENABLED=1
-KS_MINIMAX_MODEL=MiniMax-M3.1-Flash          # the default for this command
+KS_MINIMAX_MODEL=MiniMax-M3.1-Flash          # the default for every role
 KS_SCROLL_PRODUCTION_GENERATION=1            # must match the database root
 
 node dist/operator.js content produce-scroll --topic seasons --dry-run

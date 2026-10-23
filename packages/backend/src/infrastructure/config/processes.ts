@@ -448,7 +448,7 @@ const reasoningVariables = z.object({
   KS_REASONING_PRODUCTION_ENABLED: z.enum(['0', '1']).default('0'),
   KS_REASONING_PROVIDER: z.enum(['none', 'minimax']).default('none'),
   MINIMAX_API_KEY: z.string().optional(),
-  KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3'),
+  KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3.1-Flash'),
   KS_MINIMAX_REQUEST_TIMEOUT_MS: positiveInteger(60_000, 300_000),
   // At least 1: a floor of 0 would switch the quota check off.
   KS_MINIMAX_QUOTA_FLOOR_PERCENT: z.coerce.number().int().min(1).max(100).default(25),
@@ -460,11 +460,6 @@ const reasoningVariables = z.object({
   KS_REASONING_ROLE_TOKENS_PER_DAY: positiveInteger(2_000_000, 1_000_000_000),
   KS_REASONING_MAX_REQUEST_BYTES: positiveInteger(262_144, 262_144),
   KS_REASONING_REQUEST_RETENTION_HOURS: positiveInteger(48, 720),
-});
-
-/** Scroll writing uses `MiniMax-M3.1-Flash` unless the operator names another model (D-031). */
-const scrollProductionReasoningVariables = reasoningVariables.extend({
-  KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3.1-Flash'),
 });
 
 /**
@@ -792,7 +787,7 @@ export function readScrollProductionOperatorConfig(env: Environment): ScrollProd
       }),
       pick(env, ['KS_SCOPE_LOCK_TIMEOUT_MS', 'KS_SCROLL_PRODUCTION_GENERATION']),
     ),
-    checkEnvironment(scrollProductionReasoningVariables, pick(env, Object.keys(reasoningVariables.shape))),
+    checkEnvironment(reasoningVariables, pick(env, Object.keys(reasoningVariables.shape))),
   );
   crossChecks([
     [

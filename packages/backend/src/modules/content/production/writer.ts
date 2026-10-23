@@ -81,7 +81,7 @@ export function writerInstructions(format: WriterFormat): string {
     '- Teach: open with the question or surprise, explain the mechanism, give an example, name the common misunderstanding. Keep the caveats of the passages.',
     '- Write every sentence fresh. The passages are checked mechanically: any run of nine words in a row (ignoring case and punctuation) that also appears in a passage fails the Scroll. So never reuse a phrase of more than four words from a passage, even for a technical idea: say it another way, change the sentence structure, merge or split sentences. Keep names and exact figures.',
     '- State only what the cited passages support. A number may appear only if a cited passage states it, written the same way; otherwise say it in words. Keep digits out of the title, dek and headings.',
-    '- Never name the source, its publisher or a website, and write no web addresses.',
+    '- Never name the source, its publisher or a website, write no web addresses, and never refer to the passages, the sources or the citations in the text (no "the material says").',
     '- The brief gives the subject and the angle. Use only the block types listed below, whatever the brief says about layout.',
     '',
     'BLOCKS (use only these types; examples are invented syntax guidance, never content to reuse):',

@@ -410,7 +410,7 @@ describe('process configuration', () => {
     });
     expect(config.reasoning.minimax).toEqual({
       apiKey: fixtureKey,
-      model: 'MiniMax-M3',
+      model: 'MiniMax-M3.1-Flash',
       requestTimeoutMs: 60_000,
       quotaFloorPercent: 25,
     });
@@ -426,7 +426,7 @@ describe('process configuration', () => {
     expect(config.database.applicationName).toBe('knowscroll-operator-dev');
   });
 
-  it('writes Scrolls with MiniMax-M3.1-Flash unless the operator names another model', () => {
+  it('defaults every role to MiniMax-M3.1-Flash unless the operator names another model', () => {
     const env = {
       KS_WORLD: 'local',
       DATABASE_URL: secretUrl,
@@ -437,6 +437,9 @@ describe('process configuration', () => {
     expect(
       readScrollProductionOperatorConfig({ ...env, KS_MINIMAX_MODEL: 'MiniMax-M3' }).reasoning.minimax?.model,
     ).toBe('MiniMax-M3');
+    expect(
+      configurationError(() => readScrollProductionOperatorConfig({ ...env, KS_MINIMAX_MODEL: 'MiniMax-M9' })).problems,
+    ).toContain('KS_MINIMAX_MODEL: not_allowed');
   });
 
   it('keeps Scroll production disabled and pins its expected grant generation explicitly', () => {

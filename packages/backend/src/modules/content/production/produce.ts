@@ -16,6 +16,7 @@ import type {
 import { inAdmissionTransaction, makeAdmissionStore } from '../adapters/postgres-store.js';
 import { EvidenceRefusal, evidencePassages, evidenceText, type EvidencePassage } from './evidence.js';
 import { completeWriterPublication } from './publication-topic.js';
+import type { AuthoredScroll, DraftProvenance } from '@knowscroll/scroll-model/producer';
 import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
 import type { ProduceScrollResult, RoleReceipt } from './types.js';
 import { REQUEST_BOUND_PER_TOPIC, SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
@@ -25,6 +26,7 @@ import {
   writerFormatOf,
   writerRole,
   WRITER_PROMPT_VERSION,
+  type WriterFormat,
 } from './writer.js';
 
 export interface ProduceScrollDependencies {
@@ -208,7 +210,62 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       : summary(final);
   }
 
-  /** The writer stage: ask once (the harness allows one repair), then compile with the real attempt identities and publish. */
+  /**
+   * The harness has accepted an answer: read the paid attempts, compile the answer with their real
+   * identities and publish it, or end the job with the findings.
+   */
+  async function settleWriterAnswer(
+    topic: ScrollTopic,
+    row: ProductionRow,
+    writer: Extract<ProposeOutcome<AuthoredScroll>, { kind: 'proposed' }>,
+    context: {
+      readonly provenance: DraftProvenance;
+      readonly passages: readonly EvidencePassage[];
+      readonly format: WriterFormat;
+    },
+  ): Promise<ProduceScrollResult> {
+    const receipt = writerReceipt(writer);
+    const accounting = await deps.withScope(deps.authority, (scope) =>
+      deps.harness.readProductionRunAccounting(scope, row.writer_run_id),
+    );
+    if (accounting.kind !== 'entered' || accounting.value.kind !== 'accounted')
+      return end(row, 'writer', 'rejected', ['accounting_unavailable'], [receipt], row.writer_run_id);
+    const attempts = accounting.value.attempts;
+    const paidAttemptIds = attempts
+      .filter((attempt) => !['reserved', 'not_sent'].includes(attempt.state))
+      .map((attempt) => attempt.attemptId);
+    if (paidAttemptIds.length < 1 || paidAttemptIds.length > 2)
+      return end(row, 'writer', 'rejected', ['attempt_bound_exceeded'], [receipt], row.writer_run_id);
+    const recorded = [withAccounting(receipt, attempts)];
+
+    const compiled = compileGeneratedScroll(
+      writer.output,
+      {
+        ...context.provenance,
+        production: {
+          kind: 'model',
+          runId: row.writer_run_id,
+          attemptIds: paidAttemptIds,
+          model: deps.model,
+          promptVersion: WRITER_PROMPT_VERSION,
+        },
+      },
+      context.passages,
+      context.format,
+    );
+    if (compiled.kind === 'refused')
+      return end(
+        row,
+        'writer',
+        'rejected',
+        compiled.issues.map((issue) => issue.code),
+        recorded,
+        row.writer_run_id,
+      );
+    return publish(topic, row, recorded, writer.output, compiled);
+  }
+
+  /** The writer stage: ask once (the harness allows one repair), then settle the answer. */
   async function writeAndPublish(
     topic: ScrollTopic,
     row: ProductionRow,
@@ -254,55 +311,16 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       signal,
     );
     if (writer.kind === 'refused' && writer.reason === 'run_closed') return replayCurrent(row);
-    const receipt = writerReceipt(writer);
     if (writer.kind !== 'proposed')
       return end(
         row,
         'writer',
         writer.kind === 'unknown' ? 'unknown' : 'rejected',
         [writer.kind],
-        [receipt],
+        [writerReceipt(writer)],
         row.writer_run_id,
       );
-
-    const accounting = await deps.withScope(deps.authority, (scope) =>
-      deps.harness.readProductionRunAccounting(scope, row.writer_run_id),
-    );
-    if (accounting.kind !== 'entered' || accounting.value.kind !== 'accounted')
-      return end(row, 'writer', 'rejected', ['accounting_unavailable'], [receipt], row.writer_run_id);
-    const attempts = accounting.value.attempts;
-    const paidAttemptIds = attempts
-      .filter((attempt) => !['reserved', 'not_sent'].includes(attempt.state))
-      .map((attempt) => attempt.attemptId);
-    if (paidAttemptIds.length < 1 || paidAttemptIds.length > 2)
-      return end(row, 'writer', 'rejected', ['attempt_bound_exceeded'], [receipt], row.writer_run_id);
-    const recorded = [withAccounting(receipt, attempts)];
-
-    const compiled = compileGeneratedScroll(
-      writer.output,
-      {
-        ...provenance,
-        production: {
-          kind: 'model',
-          runId: row.writer_run_id,
-          attemptIds: paidAttemptIds,
-          model: deps.model,
-          promptVersion: WRITER_PROMPT_VERSION,
-        },
-      },
-      passages,
-      format,
-    );
-    if (compiled.kind === 'refused')
-      return end(
-        row,
-        'writer',
-        'rejected',
-        compiled.issues.map((issue) => issue.code),
-        recorded,
-        row.writer_run_id,
-      );
-    return publish(topic, row, recorded, writer.output, compiled);
+    return settleWriterAnswer(topic, row, writer, { provenance, passages, format });
   }
 
   return async (

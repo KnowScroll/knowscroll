@@ -114,6 +114,17 @@ describe('the MiniMax transport (fake fetch)', () => {
     }
   });
 
+  it('gives a role that names no effort the low effort, so thinking cannot eat a small ceiling', () => {
+    const port = makeMiniMaxModelPort(
+      { ...settings, model: 'MiniMax-M3.1-Flash' },
+      fakeFetch(() => new Response(okBody)).impl,
+    );
+    expect(JSON.parse(new TextDecoder().decode(port.encode(request)))).toMatchObject({
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low' },
+    });
+  });
+
   it('drops thinking blocks, reports thinking tokens and refuses an answer from another model', async () => {
     const flash = { ...settings, model: 'MiniMax-M3.1-Flash' } as const;
     const body = (model: string) =>

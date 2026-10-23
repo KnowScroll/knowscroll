@@ -32,81 +32,98 @@ function plottedNumbers(block: Extract<AnyBlock, { type: 'chart' }>): number[] {
 
 const PLACEHOLDER = /\{[a-z][a-zA-Z0-9]{0,23}\}/gu;
 
-/**
- * Derives the claim bindings of an authored document from the passages each block cites.
- *
- * - Every block rests on each claim it cites (a `block` binding), which is what makes a block
- *   "bound" for the reader-block and chart checks.
- * - Every number a chart plots must appear in a passage the chart cites (zero excepted), so a chart
- *   cannot carry invented data.
- * - Every sentence of any reader-facing text that states a number is anchored to a cited claim
- *   whose source text contains that same figure, so a figure can never be invented. A figure that
- *   appears in no cited passage is an `authoring_number_not_in_evidence` finding at the block.
- *   A header text may rest on any passage the document cites, a heading on any of its section's.
- *
- * Pure: the same document and citations always give the same bindings, in document order.
- */
-export function deriveBindings(
-  document: HonestyDocument,
-  blockCites: readonly (readonly (readonly string[])[])[],
-  evidence: AuthoringEvidence,
-): { readonly bindings: ProvenanceBinding[]; readonly issues: Issue[] } {
-  const bindings: ProvenanceBinding[] = [];
-  const issues: Issue[] = [];
-  const figuresByClaim = new Map<string, Set<string>>();
-  const figuresOfClaim = (claimId: string): Set<string> => {
-    let known = figuresByClaim.get(claimId);
+/** Figures of a claim's source text, computed once per claim. */
+function figureIndex(evidence: AuthoringEvidence): (claimId: string) => Set<string> {
+  const byClaim = new Map<string, Set<string>>();
+  return (claimId) => {
+    let known = byClaim.get(claimId);
     if (known === undefined) {
       known = figuresIn(evidence.quoteOf.get(claimId) ?? '');
-      figuresByClaim.set(claimId, known);
+      byClaim.set(claimId, known);
     }
     return known;
   };
-  const claimsOfBlock = new Map<string, readonly string[]>();
-  const claimsOfSection = new Map<string, readonly string[]>();
-  const pathOfBlock = new Map<string, string>();
-  const pathOfSection = new Map<string, string>();
-  const allClaims = new Set<string>();
+}
 
+/** What each block and section of the assembled document cites, and where the writer wrote it. */
+interface Citations {
+  readonly claimsOfBlock: Map<string, readonly string[]>;
+  readonly pathOfBlock: Map<string, string>;
+  readonly claimsOfSection: Map<string, readonly string[]>;
+  readonly pathOfSection: Map<string, string>;
+  readonly all: Set<string>;
+}
+
+/**
+ * Resolves every block's handles to claims, binds the block to each (`block` bindings), and checks
+ * what a block's own data states: a chart plots only figures a cited passage contains.
+ */
+function bindCitations(
+  document: HonestyDocument,
+  blockCites: readonly (readonly (readonly string[])[])[],
+  evidence: AuthoringEvidence,
+  figuresOfClaim: (claimId: string) => Set<string>,
+  out: { readonly bindings: ProvenanceBinding[]; readonly issues: Issue[] },
+): Citations {
+  const citations: Citations = {
+    claimsOfBlock: new Map(),
+    pathOfBlock: new Map(),
+    claimsOfSection: new Map(),
+    pathOfSection: new Map(),
+    all: new Set(),
+  };
   document.sections.forEach((section, sectionIndex) => {
     const sectionClaims = new Set<string>();
-    pathOfSection.set(section.id, `sections.${sectionIndex}.heading`);
+    citations.pathOfSection.set(section.id, `sections.${sectionIndex}.heading`);
     section.blocks.forEach((block, blockIndex) => {
       const path = `sections.${sectionIndex}.blocks.${blockIndex}`;
       const claims: string[] = [];
       for (const handle of blockCites[sectionIndex]?.[blockIndex] ?? []) {
         const claimId = evidence.claimIdOf.get(handle);
-        if (claimId === undefined) issues.push({ code: 'authoring_cite_unknown', path });
+        if (claimId === undefined) out.issues.push({ code: 'authoring_cite_unknown', path });
         else if (!claims.includes(claimId)) claims.push(claimId);
       }
       if (block.type === 'chart') {
-        const known = claims.map((claimId) => figuresOfClaim(claimId));
+        const known = claims.map(figuresOfClaim);
         const invented = plottedNumbers(block).some(
           (value) => value !== 0 && !known.some((figures) => figures.has(String(value))),
         );
-        if (invented) issues.push({ code: 'authoring_number_not_in_evidence', path });
+        if (invented) out.issues.push({ code: 'authoring_number_not_in_evidence', path });
       }
       for (const claimId of claims) {
-        bindings.push({ kind: 'block', claimId, blockId: block.id });
+        out.bindings.push({ kind: 'block', claimId, blockId: block.id });
         sectionClaims.add(claimId);
-        allClaims.add(claimId);
+        citations.all.add(claimId);
       }
-      claimsOfBlock.set(block.id, claims);
-      pathOfBlock.set(block.id, path);
+      citations.claimsOfBlock.set(block.id, claims);
+      citations.pathOfBlock.set(block.id, path);
     });
-    claimsOfSection.set(section.id, [...sectionClaims]);
+    citations.claimsOfSection.set(section.id, [...sectionClaims]);
   });
-  if (allClaims.size < evidence.minDistinctCitations) issues.push({ code: 'authoring_too_few_cites', path: '$' });
+  return citations;
+}
 
+/**
+ * Anchors every sentence of a reader-facing text that states a number to a cited claim whose
+ * source text contains that figure. A header may rest on any passage the document cites, a heading
+ * on any of its section's, a block's text on its own.
+ */
+function anchorFigures(
+  document: HonestyDocument,
+  citations: Citations,
+  figuresOfClaim: (claimId: string) => Set<string>,
+  out: { readonly bindings: ProvenanceBinding[]; readonly issues: Issue[] },
+): void {
   for (const entry of addressedTexts(document)) {
     if (entry.code || entry.address === 'header:kicker') continue;
     const [kind = '', second = '', ...rest] = entry.address.split(':');
     const candidates =
       kind === 'block'
-        ? (claimsOfBlock.get(second) ?? [])
+        ? (citations.claimsOfBlock.get(second) ?? [])
         : kind === 'heading'
-          ? (claimsOfSection.get(second) ?? [])
-          : [...allClaims];
+          ? (citations.claimsOfSection.get(second) ?? [])
+          : [...citations.all];
+    // A readout template's `{key}` placeholders are keys, not numbers.
     const placeholders = entry.address.endsWith(':data.readout.template')
       ? [...entry.text.matchAll(PLACEHOLDER)].map((match) => [match.index, match.index + match[0].length] as const)
       : [];
@@ -125,16 +142,56 @@ export function deriveBindings(
       }
       for (const claimId of supporting) {
         if (kind === 'header')
-          bindings.push({ kind: 'header', claimId, field: second as 'title' | 'dek', start: from, end: to });
+          out.bindings.push({ kind: 'header', claimId, field: second as 'title' | 'dek', start: from, end: to });
         else if (kind === 'heading')
-          bindings.push({ kind: 'heading', claimId, sectionId: second, start: from, end: to });
-        else bindings.push({ kind: 'passage', claimId, blockId: second, field: rest.join(':'), start: from, end: to });
+          out.bindings.push({ kind: 'heading', claimId, sectionId: second, start: from, end: to });
+        else
+          out.bindings.push({
+            kind: 'passage',
+            claimId,
+            blockId: second,
+            field: rest.join(':'),
+            start: from,
+            end: to,
+          });
       }
     }
     if (missing) {
-      const path = kind === 'block' ? pathOfBlock.get(second) : kind === 'heading' ? pathOfSection.get(second) : second;
-      issues.push({ code: 'authoring_number_not_in_evidence', path: path ?? '$' });
+      const path =
+        kind === 'block'
+          ? citations.pathOfBlock.get(second)
+          : kind === 'heading'
+            ? citations.pathOfSection.get(second)
+            : second;
+      out.issues.push({ code: 'authoring_number_not_in_evidence', path: path ?? '$' });
     }
   }
-  return { bindings, issues };
+}
+
+/**
+ * Derives the claim bindings of an authored document from the passages each block cites.
+ *
+ * - Every block rests on each claim it cites (a `block` binding), which is what makes a block
+ *   "bound" for the reader-block and chart checks.
+ * - Every number a chart plots must appear in a passage the chart cites (zero excepted), so a chart
+ *   cannot carry invented data.
+ * - Every sentence of any reader-facing text that states a number is anchored to a cited claim
+ *   whose source text contains that same figure, so a figure can never be invented. A figure that
+ *   appears in no cited passage is an `authoring_number_not_in_evidence` finding at the block.
+ * - The document must cite at least `minDistinctCitations` different passages.
+ *
+ * Pure: the same document and citations always give the same bindings, in document order.
+ */
+export function deriveBindings(
+  document: HonestyDocument,
+  blockCites: readonly (readonly (readonly string[])[])[],
+  evidence: AuthoringEvidence,
+): { readonly bindings: ProvenanceBinding[]; readonly issues: Issue[] } {
+  const out = { bindings: [] as ProvenanceBinding[], issues: [] as Issue[] };
+  const figuresOfClaim = figureIndex(evidence);
+  const citations = bindCitations(document, blockCites, evidence, figuresOfClaim, out);
+  if (citations.all.size < evidence.minDistinctCitations)
+    out.issues.push({ code: 'authoring_too_few_cites', path: '$' });
+  anchorFigures(document, citations, figuresOfClaim, out);
+  return out;
 }
