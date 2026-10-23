@@ -1,6 +1,8 @@
 import type * as React from 'react';
 import type * as ConversationOwner from './use-conversations-session';
 import {
+  ConversationInboxSchema,
+  DirectConversationSnapshotSchema,
   ReadConversationInboxSchema,
   ReadDirectConversationSchema,
   SendConversationMessageSchema,
@@ -8,7 +10,7 @@ import {
 } from '@knowscroll/contracts';
 import type { AccountScope } from '@knowscroll/client-core';
 import { harness } from '../encounter/encounter-session.fixture';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { DisplayProvider } from '@knowscroll/ui';
 import { createAccountScope, memoryStore, type ConversationsState } from '@knowscroll/client-core';
 import { SignedInConversation } from './conversation-screen';
@@ -87,6 +89,30 @@ const empty = (): ConversationsState => ({
 });
 const ready = (): ConversationsState => ({
   ...empty(),
+  inbox: {
+    status: 'ready',
+    data: {
+      version: 'direct-conversation.v1',
+      readId: id(11),
+      scope: { accountId: id(1), privacyEpoch: 1 },
+      status: 'ready',
+      viewRevision: 1,
+      limit: 20,
+      items: [
+        {
+          conversation: {
+            ...ref,
+            conversationId: ref.conversationId.toUpperCase(),
+            membershipId: ref.membershipId.toUpperCase(),
+          },
+          peer,
+          own: { muted: false, readThroughSequence: 0 },
+          latestMessageSequence: 0,
+        },
+      ],
+      continuation: { kind: 'end' },
+    },
+  },
   windows: [
     {
       conversation: ref,
@@ -310,6 +336,10 @@ it('opens current inbox membership over retained unavailable ABA membership with
   await owner.open(ref);
   expect(owner.getState().windows[0]!.status).toBe('unavailable');
   await owner.refreshInbox();
+  // Final core focus independently rechecks the selected old membership before inbox.
+  // Settle that prerequisite before measuring the UI's exact new-membership Open.
+  owner.focus(true);
+  await waitFor(() => expect(scope.queryClient.isFetching()).toBe(0));
   reads.length = 0;
   await render(
     <DisplayProvider value={{}}>
@@ -457,4 +487,117 @@ it('rechecks the detail UI scope after a successful delegated Open before routin
   await fireEvent.press(screen.getByRole('button', { name: 'Open Reel' }));
   expect(mockPush).not.toHaveBeenCalled();
   expect(h.session.back()).toBe(false);
+});
+
+it('lets actual final-core focus and resync finish a held inbox without automatic replacement from loading', async () => {
+  mockActualOwner = true;
+  const reads: { conversation: DirectConversationRef; readId: string; scopeHeader: string | null }[] = [];
+  const inboxes: { signal: AbortSignal; readId: string; scopeHeader: string | null }[] = [];
+  const unexpected: string[] = [];
+  let holdInbox = false;
+  const held: (() => void)[] = [];
+  const json = (body: unknown) =>
+    new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+  const scope = createAccountScope({
+    account: { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'held-inbox@fixture.test' },
+    baseUrl: 'https://fixture.invalid',
+    authorization: () => undefined,
+    store: memoryStore(),
+    fetch: async (request) => {
+      const path = new URL(request.url).pathname;
+      const raw: unknown = await request.json();
+      const common = { version: 'direct-conversation.v1', scope: { accountId: id(1), privacyEpoch: 1 } };
+      if (path.endsWith('/inbox')) {
+        const input = ReadConversationInboxSchema.parse(raw);
+        inboxes.push({ signal: request.signal, readId: input.readId, scopeHeader: request.headers.get('x-ks-scope') });
+        const response = () =>
+          json(
+            ConversationInboxSchema.parse({
+              ...common,
+              ...input,
+              status: 'ready',
+              viewRevision: 1,
+              items: [
+                { conversation: ref, peer, own: { muted: false, readThroughSequence: 0 }, latestMessageSequence: 0 },
+              ],
+              continuation: { kind: 'end' },
+            }),
+          );
+        if (holdInbox) return new Promise<Response>((resolve) => held.push(() => resolve(response())));
+        return response();
+      }
+      if (path.endsWith('/read')) {
+        const input = ReadDirectConversationSchema.parse(raw);
+        reads.push({
+          conversation: input.conversation,
+          readId: input.readId,
+          scopeHeader: request.headers.get('x-ks-scope'),
+        });
+        return json(
+          DirectConversationSnapshotSchema.parse({
+            ...common,
+            ...input,
+            status: 'ready',
+            peer,
+            own: { muted: false, readThroughSequence: 0 },
+            latestMessageSequence: 0,
+            messages: [],
+            history: { kind: 'end' },
+            catchUpCursor: `kcc1_${'A'.repeat(43)}`,
+          }),
+        );
+      }
+      unexpected.push(path);
+      throw new Error('Unexpected held inbox fixture endpoint');
+    },
+  });
+  const owner = jest.requireActual<typeof ConversationOwner>('./use-conversations-session').conversationsFor(scope);
+  await owner.refreshInbox();
+  await owner.open(ref);
+  owner.focus(true);
+  await waitFor(() => expect(scope.queryClient.isFetching()).toBe(0));
+  await render(
+    <DisplayProvider value={{}}>
+      <SignedInConversation scope={scope} conversationId={ref.conversationId} />
+    </DisplayProvider>,
+  );
+  await waitFor(() => expect(owner.getState().windows[0]!.status).toBe('ready'));
+  for (const cause of ['focus', 'resync'] as const) {
+    holdInbox = true;
+    const previousHeld = held.length;
+    await act(() => {
+      if (cause === 'focus') {
+        owner.focus(false);
+        owner.focus(true);
+      } else void scope.queryClient.invalidateQueries();
+    });
+    await waitFor(() => expect(held).toHaveLength(previousHeld + 1));
+    const pending = inboxes.at(-1)!;
+    const readsWhileHeld = reads.length;
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(owner.getState().inbox.status).toBe('loading');
+    expect(pending.signal.aborted).toBe(false);
+    expect(reads).toHaveLength(readsWhileHeld);
+    expect(owner.getState().windows[0]!.status).toBe('ready');
+    expect(owner.getState().command).toEqual({ status: 'idle' });
+    holdInbox = false;
+    await act(() => held[previousHeld]!());
+    await waitFor(() => expect(owner.getState().inbox.status).toBe('ready'));
+    await waitFor(() => expect(owner.getState().windows[0]!.status).toBe('ready'));
+    await waitFor(() => expect(scope.queryClient.isFetching()).toBe(0));
+    const inbox = owner.getState().inbox;
+    expect(inbox).toMatchObject({ status: 'ready', data: { readId: pending.readId, items: [{ conversation: ref }] } });
+    expect(pending.scopeHeader).toBe(scope.id);
+    expect(owner.getState().command).toEqual({ status: 'idle' });
+  }
+  expect(reads.every((read) => JSON.stringify(read.conversation) === JSON.stringify(ref))).toBe(true);
+  expect(reads.every((read) => read.scopeHeader === scope.id)).toBe(true);
+  expect(new Set([...reads.map((read) => read.readId), ...inboxes.map((read) => read.readId)]).size).toBe(
+    reads.length + inboxes.length,
+  );
+  expect(unexpected).toEqual([]);
+  await act(() => scope.end());
+  expect(owner.getState()).toMatchObject({ status: 'ended', windows: [], drafts: [] });
 });

@@ -33,7 +33,9 @@ H01 sharing opens the exact selected current inbox membership snapshot before ad
 enabling Send; scope, selection generation, read correlation and current window fences reject late or
 unavailable results. An unresolved global command keeps its original identity/body. Detail prefers the
 current inbox membership over retained unavailable participation, using semantic UUID matches with exact
-membership revision. H01 offers a real conversation plus optional note, exact content send and public/private link
+membership revision. Automatic detail snapshots require the independently current ready inbox;
+loading publications cannot reopen retained windows and cancel the core's shared inbox read lane.
+Focus/resync rechecks and manual Refresh retain their core-owned current-authority paths. H01 offers a real conversation plus optional note, exact content send and public/private link
 creation, current own status, once-only Copy/System Share and deliberate revoke. Private code checking
 uses sensitive JSON within the panel. `/s/:token` remains API/edge-owned; this app adds no token route.
 A copied link or opened system sheet is not delivery. Lost first token delivery requires revoke then

@@ -408,7 +408,7 @@ describe('composed native Share close: actual viewport + encounter + shared SDK 
   it('survives actual observer cleanup/rebind pauses and resumes once only after the close generation is measured visible', async () => {
     const f = await composedEncounter();
     try {
-      await fireEvent.press(screen.getByRole('button', { name: 'Mute' }));
+      await fireEvent.press(screen.getByRole('togglebutton', { name: 'Mute' }));
       const before = f.sdk.play.mock.calls.length,
         surface = f.h.session.getState().surfaceRevision;
       const loads = f.sdk.replaceAsync.mock.calls.filter(([source]) => source !== null).length;

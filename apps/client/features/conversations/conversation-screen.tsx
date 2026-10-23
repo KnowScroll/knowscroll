@@ -115,8 +115,18 @@ export function SignedInConversation({
   useFocusEffect(
     useCallback(() => {
       const snapshot = session.getState();
-      if (snapshot.inbox !== inboxState) return;
-      const current = currentRef(snapshot, conversationId);
+      // Loading is not fresh membership authority. Reopening a retained window here
+      // would supersede the core's shared read serial and abort that inbox recheck.
+      if (
+        snapshot.inbox !== inboxState ||
+        inboxState.status !== 'ready' ||
+        inboxState.data.status !== 'ready' ||
+        !conversationId
+      )
+        return;
+      const current = inboxState.data.items.find((item) =>
+        sameId(item.conversation.conversationId, conversationId),
+      )?.conversation;
       if (
         scope.active &&
         current &&

@@ -179,7 +179,7 @@ it('sends only on deliberate selected conversation send and does not confuse cop
   );
   expect(mockConversations.send).not.toHaveBeenCalled();
   expect(mockShares.create).not.toHaveBeenCalled();
-  await fireEvent.press(screen.getByRole('button', { name: 'Peer fixture' }));
+  await fireEvent.press(screen.getByRole('togglebutton', { name: 'Peer fixture' }));
   await fireEvent.changeText(screen.getByLabelText('Optional share note'), 'A deliberate note');
   await fireEvent.press(screen.getByRole('button', { name: 'Send to selected conversation' }));
   expect(mockConversations.setDraft).toHaveBeenCalledWith(ref, { kind: 'content', target, note: 'A deliberate note' });
@@ -294,7 +294,7 @@ it('never sends an older conversation draft when a new content draft is refused'
       <SignedInSharePanel scope={scope} target={target} title="Authored fixture" onClose={jest.fn()} />
     </DisplayProvider>,
   );
-  await fireEvent.press(screen.getByRole('button', { name: 'Peer fixture' }));
+  await fireEvent.press(screen.getByRole('togglebutton', { name: 'Peer fixture' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Send to selected conversation' }));
   expect(mockConversations.send).not.toHaveBeenCalled();
   expect(
@@ -414,20 +414,24 @@ async function renderActualShare(f: ReturnType<typeof actualTalkFixture>) {
       <SignedInSharePanel scope={f.scope} target={target} title="Actual core fixture" onClose={jest.fn()} />
     </DisplayProvider>,
   );
-  await screen.findByRole('button', { name: 'Actual peer 0' });
+  await screen.findByRole('togglebutton', { name: 'Actual peer 0' });
 }
 it('reads the exact selected snapshot from a fresh Explore owner before preparing and sending content', async () => {
   const f = actualTalkFixture();
   await renderActualShare(f);
   expect(f.owner.getState().windows).toEqual([]);
   expect(f.owner.getState().drafts).toEqual([]);
-  expect(screen.getByRole('button', { name: 'Send to selected conversation' }).props.accessibilityState).toBe(true);
-  await fireEvent.press(screen.getByRole('button', { name: 'Actual peer 0' }));
+  expect(screen.getByRole('togglebutton', { name: 'Actual peer 0', checked: false })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Send to selected conversation' }).props.accessibilityState).toMatchObject({
+    disabled: true,
+  });
+  await fireEvent.press(screen.getByRole('togglebutton', { name: 'Actual peer 0' }));
   await waitFor(() =>
     expect(
       screen.getByRole('button', { name: 'Send to selected conversation' }).props.accessibilityState,
     ).toMatchObject({ disabled: false }),
   );
+  expect(screen.getByRole('togglebutton', { name: 'Actual peer 0', checked: true })).toBeTruthy();
   expect(f.calls.filter((call) => call.path.endsWith('/read')).map((call) => call.body.conversation)).toEqual([ref]);
   expect(f.owner.getState().drafts).toEqual([]);
   expect(f.calls.filter((call) => call.path.endsWith('/send'))).toHaveLength(0);
@@ -456,10 +460,12 @@ it('does not let a late previous selection admit a draft or enable Send for the 
     },
   });
   await renderActualShare(f);
-  await fireEvent.press(screen.getByRole('button', { name: 'Actual peer 0' }));
+  await fireEvent.press(screen.getByRole('togglebutton', { name: 'Actual peer 0' }));
   await waitFor(() => expect(f.calls.some((call) => call.path.endsWith('/read'))).toBe(true));
-  await fireEvent.press(screen.getByRole('button', { name: 'Actual peer 1' }));
-  expect(screen.getByRole('button', { name: 'Send to selected conversation' }).props.accessibilityState).toBe(true);
+  await fireEvent.press(screen.getByRole('togglebutton', { name: 'Actual peer 1' }));
+  expect(screen.getByRole('button', { name: 'Send to selected conversation' }).props.accessibilityState).toMatchObject({
+    disabled: true,
+  });
   expect(f.owner.getState().drafts).toEqual([]);
   await act(async () => {
     release();
@@ -490,7 +496,7 @@ it.each(['unavailable', 'wrong-read', 'wrong-scope'] as const)(
         }),
     });
     await renderActualShare(f);
-    await fireEvent.press(screen.getByRole('button', { name: 'Actual peer 0' }));
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Actual peer 0' }));
     await screen.findByText('This conversation couldn’t be checked. Choose a current destination again.');
     expect(
       screen.getByRole('button', { name: 'Send to selected conversation' }).props.accessibilityState,
@@ -512,7 +518,7 @@ it('purges selected read continuation on scope end and refuses its late availabl
     },
   });
   await renderActualShare(f);
-  await fireEvent.press(screen.getByRole('button', { name: 'Actual peer 0' }));
+  await fireEvent.press(screen.getByRole('togglebutton', { name: 'Actual peer 0' }));
   await waitFor(() => expect(f.calls.some((call) => call.path.endsWith('/read'))).toBe(true));
   await act(() => f.scope.end());
   await act(async () => {
@@ -534,10 +540,12 @@ it('preserves the actual global unknown command and its original draft while Sha
   const drafts = f.owner.getState().drafts;
   const original = f.calls.filter((call) => call.path.endsWith('/send'))[0]!.body;
   await renderActualShare(f);
-  expect(screen.getByRole('button', { name: 'Actual peer 0' }).props.accessibilityState).toMatchObject({
+  expect(screen.getByRole('togglebutton', { name: 'Actual peer 0' }).props.accessibilityState).toMatchObject({
     disabled: true,
   });
-  expect(screen.getByRole('button', { name: 'Send to selected conversation' }).props.accessibilityState).toBe(true);
+  expect(screen.getByRole('button', { name: 'Send to selected conversation' }).props.accessibilityState).toMatchObject({
+    disabled: true,
+  });
   expect(f.owner.getState().command).toEqual(command);
   expect(f.owner.getState().drafts).toEqual(drafts);
   expect(f.calls.filter((call) => call.path.endsWith('/send')).map((call) => call.body)).toEqual([original]);
