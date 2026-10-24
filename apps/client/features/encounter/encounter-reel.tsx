@@ -18,6 +18,8 @@ import { EncounterRail } from './encounter-actions';
 import { retainReelMuted, type EncounterEntry } from './encounter-history';
 import { useEncounterMetrics, type EncounterMetrics } from './encounter-metrics';
 import { EncounterNotices } from './encounter-notices';
+import { encounterOrigin } from './encounter-origin';
+import { EncounterOriginChip } from './encounter-origin-chip';
 import type { EncounterSession, EncounterState } from './encounter-session';
 import { EncounterTopBar } from './encounter-top-bar';
 import type { EncounterGestureMove } from './gestures/arbitration';
@@ -97,6 +99,7 @@ function ReelChrome({
 }) {
   const metrics = useEncounterMetrics();
   const idle = state.phase !== 'active';
+  const origin = encounterOrigin(state.trail, entry, session.regionOriginOf(entry));
   const progressBottom = metrics.bottom + spacing[2];
   const titleBottom = progressBottom + 44 + spacing[3];
   return (
@@ -109,6 +112,7 @@ function ReelChrome({
         pointerEvents="box-none"
       >
         {framed ? null : <EncounterTopBar entry={entry} session={session} surface="media" back={back} />}
+        {framed || origin === undefined ? null : <EncounterOriginChip origin={origin} onBack={back} />}
         <View style={styles.notices} pointerEvents="box-none">
           <EncounterNotices entry={entry} state={state} session={session} />
         </View>

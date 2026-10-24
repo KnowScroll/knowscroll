@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { DisplayProvider } from '@knowscroll/ui';
 import type { EncounterEntry } from './encounter-history';
-import { formatSwitchOrigin } from './encounter-origin';
+import { encounterOrigin, formatSwitchOrigin } from './encounter-origin';
 import { EncounterOriginChip } from './encounter-origin-chip';
 
 function entry(kind: 'reel' | 'scroll', relation: string, position?: EncounterEntry['position']): EncounterEntry {
@@ -46,5 +46,19 @@ describe('where a Scroll was opened from (E06)', () => {
     );
     await fireEvent.press(screen.getByRole('button', { name: 'From the Reel at 0:31. Back to Reel' }));
     expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it('says "From <region>" for an encounter a region card opened, and a format switch since then is the nearer origin (U04)', () => {
+    const opened = entry('reel', 'discovery');
+    expect(encounterOrigin([opened], opened, 'Deployment · Inference & serving')).toEqual({
+      from: 'From Deployment · Inference & serving',
+      backLabel: 'Back to the map',
+      icon: 'universe',
+      tone: 'paper',
+    });
+    expect(encounterOrigin([opened], opened, undefined)).toBeUndefined();
+    expect(encounterOrigin([opened], opened, '')).toBeUndefined();
+    const scroll = entry('scroll', 'format_variant');
+    expect(encounterOrigin([parkedReel, scroll], scroll, 'Deployment')?.from).toBe('From the Reel at 0:31');
   });
 });
