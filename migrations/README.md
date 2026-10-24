@@ -155,3 +155,7 @@ older process simply never touches them.
   tombstones messages and closes conversations; exploration Clear keeps them all.
 
 Apply with the new binary. 0055 (#246) runs first; 0056 only needs the earlier Social tables (0028, 0040).
+
+0057 creates the `ops` views (#248, D-044): allowlisted columns over the owners' tables, `ops.safe_code`, and the journey
+view. Views only; no data. The views over pg-boss and the read-only role's grants are not here: `migrate.js` builds them
+after pg-boss has installed its schema (`infrastructure/postgres/ops-job-views.ts`).

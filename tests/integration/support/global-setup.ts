@@ -1,7 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import type { TestProject } from 'vitest/node';
 import { applyQueueDeclarations, createBoss } from '@knowscroll/backend/infrastructure/jobs';
-import { createDatabase, migrateToLatest } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  OPS_READER_ROLE,
+  createDatabase,
+  createOpsJobViews,
+  grantOpsReader,
+  migrateToLatest,
+} from '@knowscroll/backend/infrastructure/postgres';
 import { loadMigrations } from '@knowscroll/migrations';
 import { TEST_DATABASE_PREFIX, databaseUrl, quoteIdentifier, withAdmin } from './admin.js';
 import { testQueues } from './queues.js';
@@ -50,6 +56,23 @@ export default async function setup(project: TestProject): Promise<() => Promise
   await boss.start();
   await applyQueueDeclarations(boss, testQueues);
   await boss.stop({ graceful: false });
+  // The ops views over pg-boss and the read-only role, as `migrate.js` leaves them on a deployed world.
+  await withAdmin((client) =>
+    client.query(
+      `do $$ begin
+         if not exists (select 1 from pg_roles where rolname = '${OPS_READER_ROLE}') then
+           create role ${OPS_READER_ROLE} nologin;
+         end if;
+       end $$`,
+    ),
+  );
+  const viewDatabase = createDatabase<unknown>(settings, { onIdleClientError: () => undefined });
+  try {
+    await createOpsJobViews(viewDatabase.db);
+    await grantOpsReader(viewDatabase.db);
+  } finally {
+    await viewDatabase.close();
+  }
   project.provide('templateDatabase', template);
   project.provide('runPrefix', runPrefix);
 

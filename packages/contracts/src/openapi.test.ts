@@ -121,6 +121,7 @@ describe('the API contract', () => {
       apiContract.observations.submit,
       apiContract.observations.submitRecording,
       apiContract.diagnostics.evidence,
+      ...Object.values(apiContract.operator),
     ].map((procedure) => procedure['~orpc'].route);
     for (const route of routes) {
       const method = (route.method ?? 'POST').toLowerCase() as 'get' | 'post';

@@ -6,15 +6,22 @@ import {
 } from '@knowscroll/backend/infrastructure/config';
 import { applyQueueDeclarations, createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { createEventLog } from '@knowscroll/backend/infrastructure/observability';
-import { createDatabase, migrateToLatest } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  createDatabase,
+  createOpsJobViews,
+  dropOpsJobViews,
+  grantOpsReader,
+  migrateToLatest,
+} from '@knowscroll/backend/infrastructure/postgres';
 import { loadMigrations } from '@knowscroll/migrations';
 import { declaredQueues } from './queues.js';
 
 /**
  * `node dist/migrate.js`: applies pending reviewed SQL migrations, installs or upgrades the
  * pg-boss schema and applies every declared queue's policy. Run by the deploy tool before the
- * new release starts (after a verified backup in live, CF-27). Exit status 0 means the database
- * is ready for this release.
+ * new release starts (after a verified backup in live, CF-27). It also rebuilds the `ops` views that
+ * read pg-boss's tables and grants the read-only operator role, when that role exists. Exit status 0
+ * means the database is ready for this release.
  */
 async function main(): Promise<number> {
   const logEvent = createEventLog({
@@ -37,6 +44,8 @@ async function main(): Promise<number> {
   try {
     const migrations = loadMigrations();
     logEvent('migrate.started', { count: migrations.length });
+    // The ops views that read pg-boss's tables would block its schema upgrade; they are rebuilt below.
+    await dropOpsJobViews(database.db);
     const outcome = await migrateToLatest(database.db, migrations);
     if (outcome.kind === 'refused') {
       logEvent('migrate.failed', { migration: outcome.migration, reasonCode: outcome.reason });
@@ -59,6 +68,9 @@ async function main(): Promise<number> {
     } finally {
       await boss.stop({ graceful: false });
     }
+    await createOpsJobViews(database.db);
+    if ((await grantOpsReader(database.db)) === 'role_missing')
+      logEvent('migrate.warning', { reasonCode: 'ops_reader_role_missing' });
     logEvent('migrate.completed', {
       count: outcome.applied.length,
       migration: outcome.latest,

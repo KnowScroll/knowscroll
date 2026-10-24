@@ -28,7 +28,9 @@ universe leaves identity alone.
   `WithPersonalScope`, `AuthorityHolds`, and for sign-in `WithResolvedPersonalScope` with
   `RootResolutionTx`/`RootResolution` (implemented by `infrastructure/postgres`).
 - Read ports `ReadAccountUniverse`, `ReadUniverseAccess` (tokens `READ_ACCOUNT_UNIVERSE`,
-  `READ_UNIVERSE_ACCESS`): claims that `withPersonalScope` rechecks under the lock.
+  `READ_UNIVERSE_ACCESS`): claims that `withPersonalScope` rechecks under the lock. `ReadAccountAddress`
+  (`READ_ACCOUNT_ADDRESS`): the address of an active account, used by the Operator module to decide who may
+  look (#248); never for display, mail or logs.
 - Sign-in use cases (tokens `REQUEST_SIGN_IN`, `PEEK_SIGN_IN_LINK`, `REDEEM_SIGN_IN`,
   `RESOLVE_SESSION`, `SESSION_VALID`, `SIGN_OUT`, `SWEEP_SIGN_IN_RECORDS`) and
   `IssueOperatorSignIn`, with their typed results; `OPERATOR_WORLDS`, `operatorAddressMatcher`;

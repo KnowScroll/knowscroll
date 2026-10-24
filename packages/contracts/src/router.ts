@@ -1,4 +1,5 @@
 import { accountContract } from './account.js';
+import { operatorContract } from './operator.js';
 import { publicContentSharesContract } from './public-content-shares.js';
 import { conversationsContract } from './conversations.js';
 import { contentSharesContract } from './content-shares.js';
@@ -44,6 +45,7 @@ import { submitRecordingObservationsContract } from './interactions.js';
 export const apiContract: {
   health: typeof healthContract;
   account: typeof accountContract;
+  operator: typeof operatorContract;
   privacy: typeof privacyContract;
   recording: typeof recordingContract;
   keep: typeof keepContract & { remove: typeof removeKeepEntryContract };
@@ -92,6 +94,7 @@ export const apiContract: {
 } = {
   health: healthContract,
   account: accountContract,
+  operator: operatorContract,
   privacy: privacyContract,
   recording: recordingContract,
   keep: { ...keepContract, remove: removeKeepEntryContract },

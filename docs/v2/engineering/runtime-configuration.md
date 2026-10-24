@@ -36,6 +36,7 @@ print them.
 | `AGENTMAIL_TIMEOUT_MS` | 10000 (max 30000) | one send's whole exchange, response body included |
 | `AGENTMAIL_BASE_URL` | `https://api.agentmail.to` | a different base only outside production (tests with a fake AgentMail); production refuses it |
 | `KS_ALLOW_OPERATOR_SIGN_IN` | unset | exactly `1` lets operator-minted links (`dist/operator.js`) be redeemed; any other value is refused, and so is `1` in every world but `dev`, `stage`, `ci` and `local` (an allow-list: a production world under any name is refused) |
+| `KS_OPERATOR_ACCOUNTS` | unset | who may use the operator routes and the Operator screen (D-044): comma-separated addresses, each exact or with one `*` in the local part, lower case, at most 20. Unset: on `dev` with operator sign-in on, the `KS_OPERATOR_SIGN_IN_PATTERN`; elsewhere nobody. A `*` is refused on `live`. Read when the API starts |
 | `KS_NATIVE_SIGN_IN_BINDING` | unset (off) | exactly `1` lets native apps bind their links with a code challenge; off on every world until the native app ships, and while off `POST /auth/sign-in` with `codeChallenge` answers 422 (re-review N1; what must change before enabling it: `modules/identity/README.md`) |
 | `KS_OPERATOR_SIGN_IN_PATTERN` | required with `KS_ALLOW_OPERATOR_SIGN_IN=1` | the disposable addresses operator links may open, as one address with at most one `*` in the local part and a literal domain (dev and stage: `*@test.knowscroll.space`); an operator link for any other address is refused when redeemed |
 
@@ -134,6 +135,11 @@ stdout, diagnostic records on stderr. Exit 0 done, 2 refused or not applicable, 
 tree's `dist/operator.js` is a different command (`issue-sign-in`). Running it on a world:
 `docs/v2/operations/environments.md`.
 
+## Journey inspector (`node dist/operator.js journey …` in the `worker/` tree)
+
+`KS_WORLD` and `DATABASE_URL` only. Read-only; it prints IDs, states, codes and times. See
+`docs/v2/operations/looking-at-the-system.md`.
+
 ## Library production operator (`node dist/operator.js content …` in the `worker/` tree)
 
 | Variable | Default | Meaning |
@@ -159,7 +165,8 @@ stderr. Exit 0 done, 2 refused or not applicable, 1 failure. Steps: `docs/v2/ope
 | `KS_DB_STATEMENT_TIMEOUT_MS` | 900000 | per-statement timeout for migrations |
 
 Applies pending migrations from the static registry, installs or upgrades pg-boss's `pgboss`
-schema and applies every declared queue's policy. Exit 0 means the database is ready for this
+schema, applies every declared queue's policy, rebuilds the `ops` views that read pg-boss's tables and
+grants the read-only `ks2_ops_reader` role the views (a missing role is only a `migrate.warning`). Exit 0 means the database is ready for this
 release. Migrations are forward-only; recovery is restoring the verified pre-migration backup
 (CF-27).
 

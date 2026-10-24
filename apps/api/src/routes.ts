@@ -1,4 +1,5 @@
 import { AccountController } from './http/account.controller.js';
+import { OperatorController } from './http/operator.controller.js';
 import { ExportDownloadController } from './http/export-download.controller.js';
 import { SocialController } from './http/social.controller.js';
 import { ConversationsController } from './http/conversations.controller.js';
@@ -26,6 +27,7 @@ export const apiControllers = [
   HealthController,
   AuthController,
   AccountController,
+  OperatorController,
   ExportDownloadController,
   ExperienceController,
   ObservationsController,
