@@ -1,20 +1,21 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import type { ShareState, ShareTarget } from '@knowscroll/client-core';
+import type { AvailabilityWord, ShareState, ShareTarget } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing, target as targetSize } from '@knowscroll/design-tokens';
 import { Banner, Icon, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
 import { PersonAvatar } from '../conversations/person-avatar';
-
-/** More friends than this and a search box appears above the list. */
-const SEARCH_FROM = 5;
+import { PersonLine } from './person-line';
+import { GroupLabel } from './step-header';
 
 function TargetRow({
   entry,
+  word,
   selected,
   disabled,
   onSelect,
 }: {
   readonly entry: ShareTarget;
+  readonly word: AvailabilityWord | undefined;
   readonly selected: boolean;
   readonly disabled: boolean;
   readonly onSelect: () => void;
@@ -35,9 +36,7 @@ function TargetRow({
         <Text variant="ui" numberOfLines={1}>
           {entry.person.displayName}
         </Text>
-        <Text variant="meta" color={content.ink2} numberOfLines={1}>
-          @{entry.person.handle}
-        </Text>
+        <PersonLine handle={entry.person.handle} word={word} />
       </View>
       <View style={[styles.radio, selected ? styles.radioOn : null]}>
         {selected ? <Icon name="check" size={14} color={content.onAccent} /> : null}
@@ -71,23 +70,48 @@ export interface FriendPickerProps {
   /** True while a send is in flight or its outcome is known: the choice cannot change. */
   readonly locked: boolean;
   readonly onSelect: (personId: string) => void;
+  /** Availability words, only for friends who show one (the server decides who does). */
+  readonly availabilityOf: (personId: string) => AvailabilityWord | undefined;
 }
 
-/** The single-choice list of friends to send to, with a search box once the list is long. */
-export function FriendPicker({ targets, selected, locked, onSelect }: FriendPickerProps) {
+/**
+ * The single-choice list of friends to send to: a search box, people you already talk to under
+ * "Recent", then the other friends.
+ */
+export function FriendPicker({ targets, selected, locked, onSelect, availabilityOf }: FriendPickerProps) {
   const [query, setQuery] = useState('');
   const searchType = useTypeStyle('bodyS');
   const needle = query.trim().toLowerCase();
   const visible = targets.items.filter((entry) =>
     `${entry.person.displayName} ${entry.person.handle}`.toLowerCase().includes(needle),
   );
+  const recent = visible.filter((entry) => entry.conversation !== undefined);
+  const others = visible.filter((entry) => entry.conversation === undefined);
+  const group = (label: string, entries: readonly ShareTarget[]) =>
+    entries.length === 0 ? null : (
+      <View style={styles.group}>
+        <GroupLabel>{label}</GroupLabel>
+        <View role="radiogroup" accessibilityLabel={label} style={styles.targets}>
+          {entries.map((entry) => (
+            <TargetRow
+              key={entry.person.personId}
+              entry={entry}
+              word={availabilityOf(entry.person.personId)}
+              selected={entry.person.personId === selected}
+              disabled={locked}
+              onSelect={() => onSelect(entry.person.personId)}
+            />
+          ))}
+        </View>
+      </View>
+    );
   return (
     <>
       <TargetsNotice targets={targets} />
-      {targets.items.length > SEARCH_FROM ? (
+      {targets.items.length === 0 ? null : (
         <TextInput
           accessibilityLabel="Search friends"
-          placeholder="Search friends"
+          placeholder="Search friends by name or @handle"
           placeholderTextColor={content.ink2}
           value={query}
           onChangeText={setQuery}
@@ -97,23 +121,15 @@ export function FriendPicker({ targets, selected, locked, onSelect }: FriendPick
             { fontFamily: searchType.fontFamily, fontSize: searchType.fontSize, lineHeight: searchType.lineHeight },
           ]}
         />
-      ) : null}
-      <View role="radiogroup" accessibilityLabel="Friends" style={styles.targets}>
-        {visible.map((entry) => (
-          <TargetRow
-            key={entry.person.personId}
-            entry={entry}
-            selected={entry.person.personId === selected}
-            disabled={locked}
-            onSelect={() => onSelect(entry.person.personId)}
-          />
-        ))}
-      </View>
+      )}
+      {group('Recent', recent)}
+      {group(recent.length === 0 ? 'Friends' : 'More friends', others)}
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  group: { gap: spacing[1] },
   targets: { gap: spacing[1] },
   target: {
     flexDirection: 'row',
