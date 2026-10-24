@@ -158,6 +158,11 @@ budgets for the Planner.
   direction, its what-if and perspective below it, an ordinary branch and an edited one left alone, a draft gone by Clear
   left unmarked, run twice, and the check that a branch is hypothetical if speculative). `account-deletion.test.ts` (erasure).
 - All of the above use a labelled fixture model and production worker.
+- Runtime, real model, the flag and the replacement (24 Oct, a local PostgreSQL, API and worker, two people): 6 requests
+  (one for the root Scroll; three for the Planner, two asks and one repair after `OUTPUT_SCHEMA_MISMATCH`; two for
+  writers, one published and one aborted when the worker was stopped). The Planner marked "gravity pushes Earth away from
+  the Sun every summer" as `speculative` and `needsConfirmation`, and the branch carried the flag. Asked below it for a
+  push half as strong, it answered with `replaces: "gravity"`, and the new branch held that one premise, not two.
 - Runtime, real model, branch view and map (24 Oct, a local PostgreSQL, API and worker, two people): 21 requests (one for
   the root Scroll; 10 for the Planner, seven asks and three repairs after `OUTPUT_SCHEMA_MISMATCH`; 10 for writers, six
   branches and four retried takes). Six branches were made, one removed, one still preparing was shown, one offer was
