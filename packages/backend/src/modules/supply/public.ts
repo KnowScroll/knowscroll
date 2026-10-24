@@ -4,6 +4,7 @@ export type {
   ReadRequest,
   ListRequests,
   CancelRequest,
+  RetryRequest,
   ResolveRequest,
   RecordPlannedDemand,
   PlannedDemandInput,
@@ -16,6 +17,7 @@ export const CREATE_CONTENT_REQUEST = Symbol('supply.createRequest');
 export const READ_CONTENT_REQUEST = Symbol('supply.readRequest');
 export const LIST_CONTENT_REQUESTS = Symbol('supply.listRequests');
 export const CANCEL_CONTENT_REQUEST = Symbol('supply.cancelRequest');
+export const RETRY_CONTENT_REQUEST = Symbol('supply.retryRequest');
 export const RESOLVE_CONTENT_REQUEST = Symbol('supply.resolveRequest');
 export const RECORD_PLANNED_DEMAND = Symbol('supply.recordPlannedDemand');
 

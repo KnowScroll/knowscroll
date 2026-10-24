@@ -185,6 +185,30 @@ export const CancelContentRequestReceiptSchema = z.strictObject({
   outcome: z.enum(['cancelled', 'already_cancelled', 'already_closed']),
 });
 
+/**
+ * New deliberate retry of a request that could not be prepared. It re-drives the same request (same
+ * ID, same words and brief), never a fresh one, and its command ID is reused on transport retry.
+ */
+export const RetryContentRequestSchema = z.strictObject({
+  version: z.literal('content-request-retry.v1'),
+  commandId: CommandIdSchema,
+  requestId: UuidSchema,
+});
+
+/**
+ * Immutable outcome of one retry command, after commit and subject to current authority on replay.
+ * `retrying`: the request is waiting again (or already served from what exists); read its status for
+ * which. `already_open`: it is still preparing or already ready, so nothing changed. `not_retryable`:
+ * it did not close as "could not prepare", its attempts are used up, or nothing can start now (the
+ * day's limit); the request is unchanged and the person should ask differently. A retry recalls and
+ * resends no paid attempt: an attempt of unknown outcome is never resent.
+ */
+export const RetryContentRequestReceiptSchema = z.strictObject({
+  version: z.literal('content-request-retry-receipt.v1'),
+  ...ReceiptFields,
+  outcome: z.enum(['retrying', 'already_open', 'not_retryable']),
+});
+
 export type CreateContentRequest = z.infer<typeof CreateContentRequestSchema>;
 export type ContentRequestReceipt = z.infer<typeof ContentRequestReceiptSchema>;
 export type ReadContentRequest = z.infer<typeof ReadContentRequestSchema>;
@@ -192,6 +216,8 @@ export type ContentRequestStatus = z.infer<typeof ContentRequestStatusSchema>;
 export type ContentRequestList = z.infer<typeof ContentRequestListSchema>;
 export type CancelContentRequest = z.infer<typeof CancelContentRequestSchema>;
 export type CancelContentRequestReceipt = z.infer<typeof CancelContentRequestReceiptSchema>;
+export type RetryContentRequest = z.infer<typeof RetryContentRequestSchema>;
+export type RetryContentRequestReceipt = z.infer<typeof RetryContentRequestReceiptSchema>;
 
 /** Declared HTTP boundary; the API adapter authenticates and fences the current AccountScope. */
 export const createContentRequestContract = oc
@@ -215,3 +241,9 @@ export const cancelContentRequestContract = oc
   .route({ method: 'POST', path: '/v1/content/requests/cancel', successStatus: 200, tags: ['supply'] })
   .input(CancelContentRequestSchema)
   .output(CancelContentRequestReceiptSchema);
+
+/** Body-only identity, like cancel. Reopens only the person's own request that closed as could-not-prepare. */
+export const retryContentRequestContract = oc
+  .route({ method: 'POST', path: '/v1/content/requests/retry', successStatus: 200, tags: ['supply'] })
+  .input(RetryContentRequestSchema)
+  .output(RetryContentRequestReceiptSchema);
