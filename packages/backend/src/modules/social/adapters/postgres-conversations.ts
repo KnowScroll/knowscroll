@@ -16,6 +16,7 @@ import type {
   MemberRow,
   MessageRow,
 } from '../application/conversation-ports.js';
+import type { PairLock } from '../application/ports.js';
 
 type ReadContent = (scope: PersonalScopeTx, refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
 
@@ -56,7 +57,7 @@ const conversationOf = (row: {
   closed: row.closed_at !== null,
 });
 
-interface MessageColumns {
+export interface MessageColumns {
   sequence: string;
   change_sequence: string;
   message_id: string;
@@ -71,7 +72,7 @@ interface MessageColumns {
   display_name: string | null;
 }
 
-const messageOf = (row: MessageColumns): MessageRow => ({
+export const messageOf = (row: MessageColumns): MessageRow => ({
   sequence: Number(row.sequence),
   changeSequence: Number(row.change_sequence),
   messageId: row.message_id,
@@ -91,7 +92,7 @@ const messageOf = (row: MessageColumns): MessageRow => ({
   note: row.note,
 });
 
-const MESSAGE_COLUMNS = [
+export const MESSAGE_COLUMNS = [
   'm.sequence',
   'm.change_sequence',
   'm.message_id',
@@ -282,7 +283,7 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
   };
 
   async function loadConversation(
-    reader: ConversationReader,
+    reader: PairLock | PersonalScopeTx,
     by: { readonly ownAccountId: string } & ({ conversationId: string } | { lineage: string }),
   ): Promise<Conversation | undefined> {
     let select = trxOf(reader)
@@ -295,7 +296,8 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
         'c.last_change_sequence',
         'c.last_activity_at',
         'c.closed_at',
-      ]);
+      ])
+      .where('c.kind', '=', 'direct');
     // Under a pair lock only that friendship's conversations are in reach.
     if ('shared' in reader) select = select.where('c.pair_id', '=', reader.pair.id);
     select =
@@ -364,6 +366,7 @@ async function selectInboxRows(trx: Transaction<Database>, accountId: string, qu
       'profile.handle',
       'profile.display_name',
     ])
+    .where('c.kind', '=', 'direct')
     .where('own.account_id', '=', accountId)
     .where('own.left_at', 'is', null)
     .where('c.last_sequence', '>', '0')
@@ -402,9 +405,9 @@ type InboxJoinRow = Awaited<ReturnType<typeof selectInboxRows>>[number];
  * itself returned. The second statement of a READ COMMITTED read must not ask "what is last now":
  * a message that committed in between would then disagree with the `last_sequence` already read.
  */
-async function selectLastMessages(
+export async function selectLastMessages(
   trx: Transaction<Database>,
-  rows: readonly InboxJoinRow[],
+  rows: readonly { readonly conversation_id: string; readonly last_sequence: string }[],
 ): Promise<ReadonlyMap<string, MessageRow>> {
   if (rows.length === 0) return new Map();
   const wanted = sql.join(rows.map((row) => sql`(${row.conversation_id}::uuid, ${row.last_sequence}::bigint)`));

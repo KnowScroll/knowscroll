@@ -395,7 +395,7 @@ Related: #242.
   `features/privacy/privacy-extensions.ts`.
 - A hint on the `inbox` scope invalidates the Talk queries (`TALK_QUERY_KEY`); a missed hint is recovered by the
   30 second poll, focus and reconnect. The Talk tab shows an unread dot.
-- Not built: group conversations ("Explore with friends", #243), a new-message button, starting a conversation from a
+- Not built: a new-message button, starting a conversation from a
   friend's row, Report, a typing indicator and a native `/s` deep link.
 
 ## Pause and Resume personal recording
@@ -444,3 +444,32 @@ the native lane's journey_). The session token and the sign-in verifier use the 
 - The `expo-secure-store` config plugin keeps the data out of Android backups.
 - Test builds: `EXPO_PUBLIC_KS_TEST_API=1` (the native lane's test API, `docs/v2/engineering/native-lane.md`) lets the
   client use plain HTTP to localhost and makes the Android manifest allow cleartext. Never set it for a build that ships.
+
+## Content threads and snippets (#243, D-046)
+
+Routes: `/threads/<id>` (C04, `?m=<membership>&r=<revision>` from Talk or the share sheet), `/threads/<id>/snippet/<messageId>`
+(the snippet viewer) and `/threads/<id>/read/<assetId>` (a Scroll read inside the thread). Talk (`/conversations`) lists
+direct conversations and threads together; a thread row shows its people, the last message and an invitation badge.
+
+- `features/threads/thread-screen.tsx` is C04: `thread-chrome.tsx` (header, people, options, invitation), the horizontal
+  `episode-navigator.tsx` (own states: visited, now, ready, updated, no longer available), `thread-encounter.tsx` (the
+  folded or open encounter area), `thread-messages.tsx` and the composer. The navigator owns its horizontal gesture and
+  keeps focus order. Which episode is selected, and whether the area is folded, are kept in the account scope's storage
+  on this device only; nothing about them is sent.
+- `reel-encounter.tsx` plays a Reel inside the thread. It starts with a poster and an explicit Watch; only that opens and
+  activates an exposure and mounts the ordinary `ReelPlayer`. The full-screen `snippet-viewer.tsx` does the same for a
+  moment ("Watch from here") and always has a Back to thread button that returns to the same message.
+- `share-moment-sheet.tsx` (H03 for a Reel) picks a range in whole seconds with steps and "Here". `share-from-scroll-sheet.tsx`
+  (H03 for a Scroll) picks sentences or a block, and says "Include how I set it" and, if the block holds the person's own
+  value, "Include my own value" separately (default off). `use-snippet-send.ts` sends one snippet once.
+- `snippet-card.tsx` shows a moment as its range with Play, a passage as its quote with Read in context, a block as its
+  title and settings in words with Open or Open as set. It marks a corrected source "Updated" and a withdrawn one with a
+  quiet note and nothing to open.
+- `thread-scroll-reader.tsx` and `scroll-open.tsx` read a Scroll in the thread; "Open as set" applies the sender's settings
+  through an in-memory overlay (`overlayBlockState`), never to the reader's own saved block state.
+- For the screens owned by the Explore, Reel and Scroll work: a Reel screen mounts `ShareSheetBody`, which now offers
+  "Explore with friends" (`features/sharing/explore-with-friends.tsx`: pick friends, name, "Create thread · N friends").
+  The Reel and Scroll encounter screens can reuse `ShareMomentSheet` and `ShareFromScrollSheet` through the hooks in
+  `features/threads/`. `ReelEncounter` passes `stageMaxHeight` to `ReelPlayer`; if the player's props change, adapt there.
+- Not built: What if and perspectives (#244), keep listening, a thread's own Like and Save (they stay on the full-screen
+  encounter), thumbnails on episode cards, the multi-pane desktop thread (D03), native text selection for passages.

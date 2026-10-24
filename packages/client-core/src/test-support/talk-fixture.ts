@@ -11,6 +11,8 @@ export const account = { accountId: id(1), universeId: id(2), privacyEpoch: 1, e
 export const me = { kind: 'person' as const, personId: id(10), handle: 'fixture.me', displayName: 'Asha fixture' };
 export const peer = { kind: 'person' as const, personId: id(11), handle: 'fixture.ravi', displayName: 'Ravi fixture' };
 export const conversation = { conversationId: id(20), membershipId: id(21), membershipRevision: 1 };
+/** The thread "Explore with friends" creates in the fixture. */
+export const createdThread = { threadId: id(60), membershipId: id(61), membershipRevision: 1 };
 const scopeEnvelope = { accountId: account.accountId, privacyEpoch: 1 };
 
 type Body = Record<string, unknown>;
@@ -255,6 +257,22 @@ export function talkServer() {
           operation: 'conversation.start',
           conversation,
           peerPersonId: body['peerPersonId'],
+        };
+        commands.set(key, acceptance);
+        return replay ? { ...(replay as Body), replayed: true } : acceptance;
+      }
+      case '/v1/social/threads/create': {
+        const key = `thread:${String(body['commandId'])}`;
+        const replay = commands.get(key);
+        const acceptance = replay ?? {
+          version: 'content-thread.v1',
+          scope: scopeEnvelope,
+          commandId: body['commandId'],
+          recordedAt: '2026-10-24T08:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'thread.create',
+          thread: createdThread,
         };
         commands.set(key, acceptance);
         return replay ? { ...(replay as Body), replayed: true } : acceptance;

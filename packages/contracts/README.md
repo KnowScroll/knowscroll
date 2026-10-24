@@ -1296,3 +1296,19 @@ The declarations above are now served. Changes made with that slice:
   links (at most 50: share ID, target, audience, creation and expiry time, content projection). It never returns a
   token; the token is delivered once by `create`.
 - `openapi.test.ts` counts `list` as an additive declaration.
+
+## Content threads and snippets (#243, D-046)
+
+`threads.ts` declares `content-thread.v1`: `apiContract.threads` has ten private JSON POSTs under `/v1/social/threads/`
+(`create`, `read`, `history`, `changes`, `send`, `respond`, `mark-read`, `leave`, `inbox`, `snippets/open`).
+
+- A thread is named by `ContentThreadRef` (thread ID, membership ID, membership revision), like a conversation.
+- `CreateContentThread` takes one to eight distinct friend person IDs, the exact root revision and an optional plain name.
+- A snippet anchor is one of `reel_range {startMs, endMs}`, `scroll_passage {blockId, start, end, quoteHash}` or
+  `scroll_block {blockId, blockType, blockVersion, settings?}`. Settings are a scroll-model snapshot plus an explicit
+  `confirmPersonal` flag; nothing else is accepted. Unknown fields are refused everywhere.
+- A `ContentThreadView` is `unavailable`, `invitation` (who invited and the root, no messages) or `ready` (messages,
+  people, episodes with the caller's own `visited`, own read state, catch-up cursor). No schema has a field for another
+  member's position, current episode or seen marker; `threads.test.ts` checks that unknown fields are refused.
+- A snippet message carries a card: the exact target, the anchor in words (range, quote, label, settings description) and the
+  content status (`available`, `corrected`, `unavailable`). Quote and settings are omitted when the content is unavailable.

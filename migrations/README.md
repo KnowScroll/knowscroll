@@ -159,3 +159,17 @@ Apply with the new binary. 0055 (#246) runs first; 0056 only needs the earlier S
 0057 creates the `ops` views (#248, D-044): allowlisted columns over the owners' tables, `ops.safe_code`, and the journey
 view. Views only; no data. The views over pg-boss and the read-only role's grants are not here: `migrate.js` builds them
 after pg-boss has installed its schema (`infrastructure/postgres/ops-job-views.ts`).
+
+0058 adds content threads (#243, D-046). It is additive: older processes keep working.
+
+- `social.conversations.kind` (`direct` or `thread`, default `direct`); a thread has no friendship (`pair_id` is null).
+- `social.conversation_members` gains `pending`, `invited_by_account_id` and `invited_lineage`. An invited member keeps
+  access while that lineage equals the friendship's accepted lineage; both columns are null when the inviter has gone.
+- `social.content_threads`: one row per thread with the exact root revision, an optional name and the starter (nulled when
+  the starter's account is deleted).
+- `social.message_snippets`: one row per snippet message. A check admits only the three shapes (Reel range, Scroll passage,
+  Scroll block) and bounds the stored quote (600 characters) and settings (1 KiB).
+- `experience.exposures_activated_assets_idx` serves the episode markers (a person's activated exposures by asset).
+- Erasure: both new tables are in the Social inventory (`adapters/erasure.ts`). Deleting an account removes the person's
+  membership, tombstones their messages and deletes those messages' snippet rows. Clear keeps threads and snippets.
+- Apply with the new binary. 0057 runs first; 0058 needs 0056 and 0011.
