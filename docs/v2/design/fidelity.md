@@ -11,7 +11,7 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | A01 | Welcome | matches | Dark ground, one calm star, three entry rows (the drawn third row is a designer's "to decide" note). | dev | [A01](fidelity/pairs/A01.jpg) |
 | A01 | Email form | matches | Label, field, Send sign-in link; error and offline lines present. | dev | [A01](fidelity/pairs/A01.jpg) |
 | A01 | Link sent | matches | Fixed in #441: cream ground, yellow envelope, paper buttons (before: dark). | dev, fixed in #441 | [A01](fidelity/pairs/A01.jpg) |
-| A02 | Signed out (/recover) | differs | Cream ground and buttons fixed in #441; the "You'll return to" card is missing because no surface writes a resume record yet. | dev, #441 | [A01](fidelity/pairs/A01.jpg) |
+| A02 | Signed out (/recover) | differs | Cream ground and buttons fixed in #441. The "You'll return to" card stays out: no surface writes a resume record, and a card that guesses where you were would not be honest. Recorded as intended. | dev, #441 | [A01](fidelity/pairs/A01.jpg) |
 | A02 | Link failed (/recover?reason=link) | matches | Fixed in #441: cream ground, broken-link glyph, Send a new link. | dev, fixed in #441 | [A01](fidelity/pairs/A01.jpg) |
 | C01 | Inbox with rows | differs | Rows match (avatar, preview, time, unread dot); header shows the account avatar where the design has a New button, and a thread invitation is a plain row, not a card (see C03). | dev | [C01](fidelity/pairs/C01.jpg) |
 | C01 | Empty inbox | matches | No conversations yet, Share something, Invite a friend. | dev | [C01](fidelity/pairs/C01.jpg) |
@@ -24,7 +24,7 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | D02 | Desktop Universe | not checked | A dev universe is empty, so the map, outline and station card were not compared at 1440x900; the phone fixture is under U01. | dev 1440x900 | [D02](fidelity/pairs/D02.jpg) |
 | D03 | Desktop Talk | matches | Rail, list and Conversation pane; the empty pane reads Pick a conversation; thread pane shows the Scroll card. | dev 1440x900 | [D03](fidelity/pairs/D03.jpg) |
 | D04 | Desktop room | matches | Room pane, discussion and Room extras as three panes (fixture). | fixture 1440x900 | [D04](fidelity/pairs/D04.jpg) |
-| D05 | Desktop Privacy | differs | Settings rail and four cards present; Recording is two buttons not a switch, body type is larger than drawn, and Notifications and Accessibility rows are missing. | dev 1440x900 | [D05](fidelity/pairs/D05.jpg) |
+| D05 | Desktop Privacy | matches | Settings rail lists Notifications and Accessibility & playback; Recording is a switch in its own card; body type and the dashed danger card follow the design (fixture). | fixture, PRPLACEHOLDER | [D05](fidelity/pairs/D05.jpg) |
 | E01 | Reel playing | differs | Full-bleed video, Like/Save/Share/Ask rail, progress and title match; the topic tag is replaced by the ⋯ menu button, no transcript or caption toggle (see E09). | dev | [E01](fidelity/pairs/E01.jpg) |
 | E01 | Reel paused, offline, unavailable | matches | Fixed in #444: Offline adds Open something you kept; unavailable offers Next subject and Go to Keep (fixture). | fixture, #444 | [E01](fidelity/pairs/E01.jpg) |
 | E01 | Reel corrected note | missing | Needs contract: the exposure context has no correction field (D-054). | not reachable | [E01](fidelity/pairs/E01.jpg) |
@@ -59,12 +59,12 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | H03 | Snippet cards in the thread, open a snippet | not checked | Snippet card and viewer exist (threads feature); not opened here. | - | - |
 | N01 | Navigation and Back | not checked | Covered by the web smoke (gallery-smoke Back with a sheet open); not compared step by step here. | - | - |
 | NavBar | Tab bar | matches | Floating pill with Explore, Universe, Talk (unread dot) and Keep; icon-only at 320. | dev | [D03](fidelity/pairs/D03.jpg) |
-| P01 | Account | differs | Sessions and settings list present; no identity card with Edit, and Notifications and Accessibility & playback rows are missing; Your requests and Keyboard shortcuts rows are extra. | dev | [P01](fidelity/pairs/P01.jpg) |
-| P01 | Notifications, Accessibility & playback | missing | No route. | dev | [P01](fidelity/pairs/P01.jpg) |
-| P02 | Privacy & history hub | differs | Recording is two buttons not a switch, long explanations; rows for history, clear, sharing, delete exist. | dev | [P02](fidelity/pairs/P02.jpg) |
-| P02 | History & export | differs | Request and list exist; receipts are plain, not tinted strips with Download and Retry. | dev | [P02](fidelity/pairs/P02.jpg) |
-| P02 | Clear exploration | differs | Removed and Stays lists and the acknowledgement exist; no dashed confirm box. | dev | [P02](fidelity/pairs/P02.jpg) |
-| P02 | Delete account | differs | Removed and Stays lists exist; the receipt line and dashed danger card are not drawn. | dev | [P02](fidelity/pairs/P02.jpg) |
+| P01 | Account | matches | Identity card with name, handle, email and Edit (the same profile as Friends & visibility); Notifications and Accessibility & playback rows. Your requests and Keyboard shortcuts rows stay as intended extras. | fixture, PRPLACEHOLDER | [P01 after](fidelity/pairs/P01-after.jpg) |
+| P01 | Notifications, Accessibility & playback | differs | Both routes exist with only settings that have behaviour: Ready requests notice, motion (follow the device or always reduce), text size, Reels start with sound, kept on this device (D-057). Not drawn because nothing in the app uses them: Messages, Exploration activity, Room mentions, quiet hours, Captions, Haptics, list view, high-contrast labels. The text size control is three rows, not an A-A stepper. | fixture, PRPLACEHOLDER | [P01 after](fidelity/pairs/P01-after.jpg) |
+| P02 | Privacy & history hub | matches | Recording is a switch with one-line copy; rows for history, clear, sharing, shared links and delete. Shared links is an extra row. | fixture, PRPLACEHOLDER | [P02 after](fidelity/pairs/P02-after.jpg) |
+| P02 | History & export | matches | Receipts are tinted strips: striped Preparing, green Ready with Download, danger Failed with Retry (unit tests; the fixture server had no exports). | fixture, PRPLACEHOLDER | [P02 after](fidelity/pairs/P02-after.jpg) |
+| P02 | Clear exploration | matches | Removed and Stays lists, then the acknowledgement and the button inside a dashed box. | fixture, PRPLACEHOLDER | [P02 after](fidelity/pairs/P02-after.jpg) |
+| P02 | Delete account | matches | Removed and Stays lists; dashed danger box with the acknowledgement; receipt line as a tinted strip. | fixture, PRPLACEHOLDER | [P02 after](fidelity/pairs/P02-after.jpg) |
 | P03 | Report | missing | Owned by agent p250. | p250 | - |
 | R01 | Room preview | matches | Header, who is here to help, labelled AI inhabitants, pinned question, Join room (fixture and dev). | fixture and dev | [R01](fidelity/pairs/R01.jpg) |
 | R01 | Member view and Talk list | matches | Threads, Share into room, activity section; invited chip in Talk (fixture). | fixture | [R01](fidelity/pairs/R01.jpg) |

@@ -65,7 +65,7 @@ export function AccessibilityScreen() {
         ))}
       </View>
       <Text variant="body" style={{ paddingTop: spacing[2] }}>
-        Attention, slowly: this line is the size you chose.
+        This line is the size you chose.
       </Text>
       <SettingsLabel>Playback</SettingsLabel>
       <SwitchRow
