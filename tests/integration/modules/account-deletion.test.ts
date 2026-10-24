@@ -24,7 +24,18 @@ import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { befriend, pairRevision, seedContent, seedFriend, talkCases } from '../support/talk.js';
 import { visitCases } from '../support/visit-world.js';
-import { joinRoom, roomWorld, say, seedRoom, startTopic, unwrap, ask } from '../support/rooms.js';
+import {
+  joinRoom,
+  makeModerator,
+  roomWorld,
+  say,
+  seedRoom,
+  startPoll,
+  startTopic,
+  unwrap,
+  votePoll,
+  ask,
+} from '../support/rooms.js';
 
 /**
  * Account deletion (#246, D-043) against a real PostgreSQL 16 database: the fence, the erasure of
@@ -359,6 +370,10 @@ describe('account deletion (real database)', () => {
           }),
         );
         unwrap(await ask(rooms, erasedAsFriend, room.roomId, discussionId));
+        // A poll the person started as the room's moderator, and their own vote in it.
+        await makeModerator(rooms, room.slug, erasedAsFriend);
+        const poll = unwrap(await startPoll(rooms, erasedAsFriend, room.roomId));
+        unwrap(await votePoll(rooms, erasedAsFriend, room.roomId, poll.activityId, 'o1'));
       } finally {
         await rooms.close();
       }

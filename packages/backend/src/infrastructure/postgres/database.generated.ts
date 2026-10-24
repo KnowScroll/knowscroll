@@ -1377,6 +1377,18 @@ export interface ReceiptsSharedCommands {
   scope_kind: string;
 }
 
+export interface RoomsActivities {
+  activity_id: string;
+  closed_at: Timestamp | null;
+  created_at: Timestamp;
+  created_by_account_id: string | null;
+  definition: Json;
+  kind: string;
+  room_id: string;
+  state: Generated<string>;
+  title: string;
+}
+
 export interface RoomsAiRequests {
   attempt_id: string | null;
   command_id: string;
@@ -1459,6 +1471,13 @@ export interface RoomsMessageSnippets {
   settings: Json | null;
   settings_description: string | null;
   start_ms: number | null;
+}
+
+export interface RoomsPollVotes {
+  account_id: string;
+  activity_id: string;
+  option_id: string;
+  voted_at: Timestamp;
 }
 
 export interface RoomsRooms {
@@ -1910,12 +1929,14 @@ export interface DB {
   "reasoning.usage_receipts": ReasoningUsageReceipts;
   "receipts.personal_commands": ReceiptsPersonalCommands;
   "receipts.shared_commands": ReceiptsSharedCommands;
+  "rooms.activities": RoomsActivities;
   "rooms.ai_requests": RoomsAiRequests;
   "rooms.discussions": RoomsDiscussions;
   "rooms.invitations": RoomsInvitations;
   "rooms.members": RoomsMembers;
   "rooms.message_snippets": RoomsMessageSnippets;
   "rooms.messages": RoomsMessages;
+  "rooms.poll_votes": RoomsPollVotes;
   "rooms.rooms": RoomsRooms;
   "scenarios.drafts": ScenariosDrafts;
   "scenarios.nodes": ScenariosNodes;

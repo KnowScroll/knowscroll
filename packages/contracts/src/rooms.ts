@@ -252,6 +252,12 @@ export const RoomMessageSchema = z.discriminatedUnion('status', [
     ]),
     /** Present exactly when the author is an AI inhabitant. */
     suggestion: AiContributionKindSchema.optional(),
+    /**
+     * The reader is a moderator who has blocked the author. A block collapses the author's words for the
+     * reader (`blocked`), but a moderator must still be able to moderate them, so the words are sent and
+     * the client keeps them collapsed until the moderator chooses to show them.
+     */
+    blockedByYou: z.literal(true).optional(),
   }),
   /** A moderator removed it. It keeps its place; a moderator can restore it. */
   z.strictObject({ ...MessageIdentity, status: z.literal('removed') }),
@@ -494,6 +500,195 @@ export const RoomMessageHidingAcceptanceSchema = z.strictObject({
   hidden: z.boolean(),
 });
 
+// --- Stations on the map --------------------------------------------------------------------
+
+/**
+ * The room stations of the caller's own map (U01, U02): a room whose topic is a system (or a planet)
+ * the caller's Geography has established, placed beside that place. A placement is personal (the same
+ * room can sit beside different places on different maps) and is not membership: it exists because
+ * the person's own map holds the topic, and it says nothing about who is in the room. No answer
+ * counts members or shows who is online.
+ */
+export const ReadRoomStationsSchema = z.strictObject({ ...Read });
+export const RoomStationSchema = z.strictObject({
+  room: RoomSummarySchema,
+  /** `none` is an outsider: the station opens the room's preview. */
+  standing: z.enum(['member', 'moderator', 'invited', 'none']),
+  /** The caller's own objects the station sits beside: always a system, and the planet when the topic is one. */
+  placement: z.strictObject({ systemId: UuidSchema, planetId: UuidSchema.optional() }),
+});
+export type RoomStation = z.infer<typeof RoomStationSchema>;
+export const RoomStationsSchema = z.strictObject({
+  ...ScopedRead,
+  status: z.literal('ready'),
+  stations: z.array(RoomStationSchema).max(100),
+});
+
+// --- Optional room activity (R03) -----------------------------------------------------------
+
+/**
+ * A moderator's poll or quiz, inside one room and only there: never in a feed, never required, never
+ * scored, never part of how a universe forms. A poll's votes are visible to the room and can be changed
+ * until the moderator closes it. A quiz is read one question at a time and answered on the device: the
+ * server stores no answer, no score and no position, so there is nothing to rank or to resume.
+ */
+const ActivityPrompt = z.string().min(1).max(160).refine(isPublicLabel);
+const OptionText = z.string().min(1).max(80).refine(isPublicLabel);
+const OptionId = z.string().regex(/^o[1-5]$/);
+const UniqueOptions = (options: readonly string[]) =>
+  new Set(options.map((o) => o.toLowerCase())).size === options.length;
+const Explanation = z.strictObject({
+  heading: z.string().min(1).max(80).refine(isPublicLabel),
+  text: z.string().min(1).max(240).refine(isPublicLabel),
+  note: z.string().min(1).max(160).refine(isPublicLabel).optional(),
+});
+const QuizQuestionInput = z.strictObject({
+  prompt: ActivityPrompt,
+  options: z.array(OptionText).min(2).max(4).refine(UniqueOptions),
+  explanation: Explanation,
+});
+
+export const NewActivitySchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('poll'),
+    prompt: ActivityPrompt,
+    options: z.array(OptionText).min(2).max(5).refine(UniqueOptions),
+  }),
+  z.strictObject({
+    kind: z.literal('quiz'),
+    title: ActivityPrompt,
+    questions: z.array(QuizQuestionInput).min(1).max(5),
+  }),
+]);
+export type NewActivity = z.infer<typeof NewActivitySchema>;
+export const CreateActivitySchema = z.strictObject({ ...Command, roomId: UuidSchema, activity: NewActivitySchema });
+export const ActivityCreationSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('activity.create'),
+  roomId: UuidSchema,
+  activityId: UuidSchema,
+});
+
+export const ActivityStateSchema = z.enum(['open', 'closed']);
+export const RoomActivitySummarySchema = z.strictObject({
+  activityId: UuidSchema,
+  kind: z.enum(['poll', 'quiz']),
+  title: ActivityPrompt,
+  state: ActivityStateSchema,
+  startedAt: z.iso.datetime(),
+  /** For a poll, whether the caller has voted. Absent for a quiz, which keeps nothing about the caller. */
+  voted: z.boolean().optional(),
+});
+export type RoomActivitySummary = z.infer<typeof RoomActivitySummarySchema>;
+
+/** Open activities first, then closed ones, newest first. A moderator's removed activity is not listed. */
+export const ReadActivitiesSchema = z.strictObject({ ...Read, roomId: UuidSchema });
+export const ActivityListSchema = z.discriminatedUnion('status', [
+  z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),
+  z.strictObject({
+    ...ScopedRead,
+    status: z.literal('ready'),
+    roomId: UuidSchema,
+    /** The caller may start one: a moderator of a room that is open. */
+    canCreate: z.boolean(),
+    activities: z.array(RoomActivitySummarySchema).max(30),
+  }),
+]);
+
+export const ReadActivitySchema = z.strictObject({ ...Read, roomId: UuidSchema, activityId: UuidSchema });
+const PollOptionView = z.strictObject({
+  optionId: OptionId,
+  text: OptionText,
+  /**
+   * Present only while the poll's results are visible (the caller has voted, or the poll is closed): a
+   * member who has not voted yet is not shown how others voted, so the tally never leads their choice.
+   */
+  votes: Counter.optional(),
+  /** The first voters, by public profile: a vote is visible to the room once results are. */
+  voters: z.array(PublicPersonRefSchema).max(12).optional(),
+});
+export const ActivityViewSchema = z.discriminatedUnion('status', [
+  /** Unknown, removed by a moderator, or not a room the caller may read: one shape for all. */
+  z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),
+  z.strictObject({
+    ...ScopedRead,
+    status: z.literal('ready'),
+    roomId: UuidSchema,
+    activityId: UuidSchema,
+    state: ActivityStateSchema,
+    startedAt: z.iso.datetime(),
+    /** The caller is a moderator: they may close or remove it. */
+    canModerate: z.boolean(),
+    activity: z.discriminatedUnion('kind', [
+      z
+        .strictObject({
+          kind: z.literal('poll'),
+          prompt: ActivityPrompt,
+          /** The caller has voted or the poll is closed: tallies and voters follow. Otherwise they are absent. */
+          resultsVisible: z.boolean(),
+          options: z.array(PollOptionView).min(2).max(5),
+          yourVote: OptionId.optional(),
+          /** Open, in a room that accepts posts, for a member. */
+          canVote: z.boolean(),
+        })
+        .refine((poll) =>
+          poll.options.every((option) =>
+            poll.resultsVisible
+              ? option.votes !== undefined && option.voters !== undefined
+              : option.votes === undefined && option.voters === undefined,
+          ),
+        ),
+      z.strictObject({
+        kind: z.literal('quiz'),
+        title: ActivityPrompt,
+        questions: z
+          .array(
+            z.strictObject({
+              questionId: z.string().regex(/^q[1-5]$/),
+              prompt: ActivityPrompt,
+              options: z
+                .array(z.strictObject({ optionId: OptionId, text: OptionText }))
+                .min(2)
+                .max(4),
+              explanation: Explanation,
+            }),
+          )
+          .min(1)
+          .max(5),
+      }),
+    ]),
+  }),
+]);
+export type ActivityView = z.infer<typeof ActivityViewSchema>;
+
+export const VotePollSchema = z.strictObject({
+  ...Command,
+  roomId: UuidSchema,
+  activityId: UuidSchema,
+  optionId: OptionId,
+});
+export const PollVoteAcceptanceSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('poll.vote'),
+  roomId: UuidSchema,
+  activityId: UuidSchema,
+  optionId: OptionId,
+});
+
+export const ModerateActivitySchema = z.strictObject({
+  ...Command,
+  roomId: UuidSchema,
+  activityId: UuidSchema,
+  action: z.enum(['close', 'remove']),
+});
+export const ActivityModerationAcceptanceSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('activity.moderate'),
+  roomId: UuidSchema,
+  activityId: UuidSchema,
+  action: z.enum(['close', 'remove']),
+});
+
 // --- AI inhabitants -------------------------------------------------------------------------
 
 /**
@@ -532,4 +727,14 @@ export const roomsContract = {
   pin: roomsPost('/v1/rooms/discussions/pin', PinDiscussionSchema, DiscussionPinAcceptanceSchema),
   hideMessage: roomsPost('/v1/rooms/discussions/hide', HideRoomMessageSchema, RoomMessageHidingAcceptanceSchema),
   askInhabitant: roomsPost('/v1/rooms/inhabitants/ask', AskInhabitantSchema, InhabitantAskAcceptanceSchema),
+  stations: roomsPost('/v1/rooms/stations', ReadRoomStationsSchema, RoomStationsSchema),
+  activities: roomsPost('/v1/rooms/activities/list', ReadActivitiesSchema, ActivityListSchema),
+  readActivity: roomsPost('/v1/rooms/activities/read', ReadActivitySchema, ActivityViewSchema),
+  createActivity: roomsPost('/v1/rooms/activities/create', CreateActivitySchema, ActivityCreationSchema),
+  votePoll: roomsPost('/v1/rooms/activities/vote', VotePollSchema, PollVoteAcceptanceSchema),
+  moderateActivity: roomsPost(
+    '/v1/rooms/activities/moderate',
+    ModerateActivitySchema,
+    ActivityModerationAcceptanceSchema,
+  ),
 };

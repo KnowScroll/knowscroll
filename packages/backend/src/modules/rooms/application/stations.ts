@@ -1,0 +1,57 @@
+import { ReadRoomStationsSchema, RoomStationsSchema } from '@knowscroll/contracts';
+import type { z } from 'zod';
+import type { PersonalAuthority } from '../../identity/public.js';
+import { placementsOf } from '../domain/stations.js';
+import { ok, refuse, roomEnvelope, type Result, type RoomPorts } from './ports.js';
+import { roomSummary } from './view.js';
+
+/**
+ * The room stations of the caller's own map (U01, U02): the rooms of topics their Geography has
+ * established, each placed beside that system or planet. It reads the caller's own map through
+ * Geography's public port and the room rows without locking any room: a station is a doorway to the
+ * preview, so it shows no member, count or activity. A person with no map has no stations, and no
+ * placement is stored: it is read afresh from the map each time, so it never drifts from it.
+ */
+export function makeStationReads(p: RoomPorts) {
+  return {
+    async stations(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomStationsSchema>>> {
+      const parsed = ReadRoomStationsSchema.safeParse(input);
+      if (!parsed.success) return refuse('invalid_input');
+      const result = await p.withScope(authority, async (scope) => {
+        if (scope.authority.actor.kind !== 'account') return refuse('unavailable');
+        const gate = await p.fenceOwn(scope);
+        if (gate.kind !== 'active') return refuse('unavailable');
+        const map = await p.readGeography(scope);
+        const placements = map.kind === 'read' ? placementsOf(map.input.objects) : [];
+        const rows =
+          placements.length === 0
+            ? []
+            : await p.rooms.forTopics(
+                scope,
+                gate.owner.accountId,
+                placements.map((place) => place.topic),
+              );
+        const stations = rows.flatMap((row) => {
+          const place = placements.find(
+            (candidate) => candidate.topic.kind === row.room.topic.kind && candidate.topic.id === row.room.topic.id,
+          );
+          if (place === undefined) return [];
+          return [
+            {
+              room: roomSummary(row.room),
+              standing: row.standing,
+              placement: {
+                systemId: place.systemId,
+                ...(place.planetId === undefined ? {} : { planetId: place.planetId }),
+              },
+            },
+          ];
+        });
+        return ok(
+          RoomStationsSchema.parse({ ...roomEnvelope(scope), readId: parsed.data.readId, status: 'ready', stations }),
+        );
+      });
+      return result.kind === 'entered' ? result.value : refuse('unavailable');
+    },
+  };
+}

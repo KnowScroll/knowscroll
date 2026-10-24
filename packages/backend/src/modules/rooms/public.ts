@@ -1,11 +1,16 @@
 import type { z } from 'zod';
 import type {
+  ActivityCreationSchema,
+  ActivityListSchema,
+  ActivityModerationAcceptanceSchema,
+  ActivityViewSchema,
   DiscussionChangesPageSchema,
   DiscussionCreationSchema,
   DiscussionHistoryPageSchema,
   DiscussionPinAcceptanceSchema,
   DiscussionViewSchema,
   InhabitantAskAcceptanceSchema,
+  PollVoteAcceptanceSchema,
   RoomInviteAcceptanceSchema,
   RoomJoinAcceptanceSchema,
   RoomLeaveAcceptanceSchema,
@@ -14,6 +19,7 @@ import type {
   RoomMessageHidingAcceptanceSchema,
   RoomModerationAcceptanceSchema,
   RoomSnippetOpeningSchema,
+  RoomStationsSchema,
   RoomViewSchema,
 } from '@knowscroll/contracts';
 import type { PersonalAuthority } from '../identity/public.js';
@@ -55,6 +61,17 @@ export interface RoomUseCases {
   changes(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionChangesPageSchema>>>;
   openSnippet(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomSnippetOpeningSchema>>>;
   ask(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof InhabitantAskAcceptanceSchema>>>;
+  /** The room stations of the caller's own map (U01, U02), each beside the place of its topic. */
+  stations(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomStationsSchema>>>;
+  /** Optional room activity (R03): a moderator's polls and quizzes, for members of the room only. */
+  activities(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ActivityListSchema>>>;
+  readActivity(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ActivityViewSchema>>>;
+  createActivity(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ActivityCreationSchema>>>;
+  votePoll(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof PollVoteAcceptanceSchema>>>;
+  moderateActivity(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof ActivityModerationAcceptanceSchema>>>;
 }
 export const ROOM_USE_CASES = Symbol('rooms.useCases');
 

@@ -54,6 +54,11 @@ export interface RoomDiscussionController {
   readonly subscribe: (listener: () => void) => () => void;
   /** Reads the discussion afresh: newest messages, content thread, and what the person may ask of the inhabitants. */
   readonly load: () => Promise<void>;
+  /**
+   * Reads the discussion afresh and replaces everything loaded, older pages too. For a change that catch-up
+   * cannot carry: a block or unblock collapses or restores words that have no new change number.
+   */
+  readonly resnapshot: () => Promise<void>;
   /** Catches up from the last confirmed change; reads the discussion afresh while an inhabitant is preparing a reply. */
   readonly refresh: () => Promise<void>;
   readonly loadOlder: () => Promise<void>;
@@ -151,10 +156,10 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
     else publish({ offline: true });
   };
 
-  function applySnapshot(view: Ready): void {
+  function applySnapshot(view: Ready, replace: boolean): void {
     catchUpCursor = view.catchUpCursor;
     olderCursor = view.history.kind === 'more' ? view.history.cursor : undefined;
-    const messages = mergeRoomMessages(state.messages, view.messages);
+    const messages = replace ? view.messages : mergeRoomMessages(state.messages, view.messages);
     publish({
       phase: 'ready',
       view,
@@ -165,7 +170,7 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
     });
   }
 
-  async function load(): Promise<void> {
+  async function load(replace = false): Promise<void> {
     try {
       const view = await scope.api.rooms.readDiscussion({
         version: VERSION,
@@ -174,7 +179,7 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
         limit: SNAPSHOT_LIMIT,
       });
       if (view.status === 'unavailable') publish({ phase: 'unavailable' });
-      else applySnapshot(view);
+      else applySnapshot(view, replace);
     } catch (error) {
       failed(error);
     }
@@ -275,7 +280,8 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
       listeners.add(listener);
       return () => void listeners.delete(listener);
     },
-    load,
+    load: () => load(),
+    resnapshot: () => load(true),
     async refresh() {
       if (state.phase === 'unavailable') return;
       if (catchUpCursor === undefined) await load();

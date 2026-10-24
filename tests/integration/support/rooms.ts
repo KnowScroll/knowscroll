@@ -38,6 +38,7 @@ import { makeCheckAssetAudience } from '../../../packages/backend/src/modules/co
 import type { ReasoningHarness } from '@knowscroll/backend/reasoning';
 import type { TestDatabase } from './database.js';
 import { befriend, seedFriend, talkCases, type Friend } from './talk.js';
+import { geographyReader } from './visit-world.js';
 
 export type Rooms = ReturnType<typeof roomUseCases>;
 
@@ -80,6 +81,7 @@ export async function roomWorld(
     readVisited: readVisitedAssets,
     validateSnippet: validateSnippetAnchor,
     resolveSnippet: resolveSnippetAnchor,
+    readGeography: geographyReader(database.db),
     // No Scroll in these tests is made for a thread, so the audience of an order is nobody's.
     checkAudience: makeCheckAssetAudience(database.db, () => Promise.resolve(new Set())),
     now: () => clock.now,
@@ -191,5 +193,27 @@ export const ask = (
   discussionId: string,
   inhabitant: 'explainer' | 'skeptic' = 'skeptic',
 ) => world.rooms.ask(person.authority, { version, commandId: randomUUID(), roomId, discussionId, inhabitant });
+
+/** A moderator starts a poll with the given options (default: three). */
+export const startPoll = (
+  world: RoomWorld,
+  moderator: Friend,
+  roomId: string,
+  options: readonly string[] = ['Batching', 'More instances', 'Shorter answers'],
+  prompt = 'At 10x requests, what would you try first?',
+) =>
+  world.rooms.createActivity(moderator.authority, {
+    version,
+    commandId: randomUUID(),
+    roomId,
+    activity: { kind: 'poll', prompt, options },
+  });
+
+/** A member's vote; a new command ID each time, as a change of mind is. */
+export const votePoll = (world: RoomWorld, person: Friend, roomId: string, activityId: string, optionId: string) =>
+  world.rooms.votePoll(person.authority, { version, commandId: randomUUID(), roomId, activityId, optionId });
+
+export const readActivity = async (world: RoomWorld, person: Friend, roomId: string, activityId: string) =>
+  unwrap(await world.rooms.readActivity(person.authority, { version, readId: randomUUID(), roomId, activityId }));
 
 export { befriend, libraryRoomSeeds };

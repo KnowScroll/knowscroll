@@ -271,7 +271,8 @@ Geography and Scenes path and the CI fixture model; not on dev).
 | Routes between planets (a target on each, "Route to ..." from a planet)                      | implemented                      |
 | Desktop outline panel (D02)                                                                  | runtime-verified                 |
 | Native persistence of the camera (memory only today)                                         | planned                          |
-| Friend's universe (U06), room stations, sky regions that merge quiet systems (U08)           | planned (no backend or data yet) |
+| Room stations beside their systems, a "Rooms" section in the list view (D-051)                | runtime-verified                 |
+| Sky regions that merge quiet systems (U08)                                                   | planned (no backend or data yet) |
 
 `/universe` follows artboards U01 to U08 and D02. The map fills the screen; the header and chips
 float over it.
@@ -509,15 +510,30 @@ Talk (`/conversations`) lists the person's rooms and invitations under the conve
 - `features/rooms/discussion-screen.tsx`: the same thread as a friend's. It reuses `EpisodeNavigator`,
   `ThreadEncounter` (given a `readHref`, so a Scroll opens in the ordinary reader), `ShareMomentSheet`, `SnippetCard` and the
   composer. `room-messages.tsx` draws a person's bubble, an AI inhabitant's (its label above, a dotted outline and a square
-  corner, "A suggestion. Nothing is made unless someone chooses it."), a card, and the markers for a removed message, a deleted account and a message from someone the reader blocked. `inhabitant-bar.tsx` is the only way an inhabitant speaks: a button to ask each one, with the reason when it
+  corner, "A suggestion. Nothing is made unless someone chooses it."), a card, and the markers for a removed message, a deleted account and a message from someone the reader blocked (a moderator who blocked the author gets it collapsed with "Show for moderation", and the options to remove it). An open discussion reads afresh when the person comes back to it, and when the Friends session announces an accepted block or unblock (`announceBlocksChanged`, a counter in the scope's query cache). `inhabitant-bar.tsx` is the only way an inhabitant speaks: a button to ask each one, with the reason when it
   cannot be asked. `message-options-sheet.tsx` holds "Start a thread from this" and the moderator's remove and restore;
   `room-snippet-sheet.tsx` opens a shared moment ("Watch from here").
 - `packages/client-core` holds the state: `createRoom` (preview or member view, join, leave, pause, start, invite) and
   `createRoomDiscussion` (messages with sending bubbles, catch-up, asks, pin, hide). Each command keeps its command ID until the
   server answers. A discussion catches up on focus, on reconnect and every 20 seconds.
 - Which episode is selected, and whether the player is folded, stay on the device, as in a friend thread.
-- Not built: room stations on the map and the desktop room (D04), polls and quizzes (R03), What-if, a focused snippet viewer,
-  sharing a Scroll passage back from a room, reports.
+- Room stations (U01, U02): `useRoomStationsOnMap` reads `rooms.stations` each time the Universe regains focus and passes
+  the stations to `UniverseSurface`, which draws a `StationGlyph` beside the system it names (angle from the room's ID, just
+  outside the outermost orbit), adds a target "Name, a room station" and a "Rooms" section to the list view, and opens the
+  room on a tap. A read that fails leaves the map as it was. A visit to a friend's map passes none.
+- R03 (`activities-section.tsx`, `activity-screen.tsx`, `poll-card.tsx`, `quiz-flow.tsx`, `start-activity-sheet.tsx`): the
+  room's page lists its polls and quizzes as "Optional" (nothing at all when there are none and the person is not a
+  moderator; no count or badge). A poll is a radio group; results (with the voters' names) show once the person has voted or
+  the poll is closed; an unsent vote says "Not sent yet" and retries as the same command. A quiz is read one question at a
+  time and its answers stay in the component, so leaving drops the position without a nag. A moderator starts either from a
+  sheet and closes or removes it from the poll's own screen. Routes: `/rooms/<id>/activity` and `/rooms/<id>/activity/<id>`.
+- D04 (`app/rooms/[roomId]/_layout.tsx`, `room-workspace.tsx`): from 1024 px a member sees the room and its threads on the
+  left, the open discussion, poll or quiz in the centre (the same screens, rendered by a nested `Stack`) and the room extras
+  (the newest open poll in place, the activity list, a moderator's start buttons) on the right. The layout shares one room
+  controller with the centre through `RoomWorkspaceContext`, so a join or leave changes the panes at once; an outsider sees the
+  preview alone. The navigation rail is not drawn beside rooms (they are outside the tab stack, like Talk's threads).
+- Not built: What-if, a focused snippet viewer, sharing a Scroll passage back from a room, reports.
+
 ## What if and Another perspective (#244, D-049)
 
 `features/scenarios/`. A member asks from the whole thread (the two buttons above the message box), from a message (its ⋯

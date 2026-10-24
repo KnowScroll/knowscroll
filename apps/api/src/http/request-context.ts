@@ -64,7 +64,7 @@ function isSocialRequest(request: Pick<Request, 'method' | 'path'>): boolean {
 function isRoomsRequest(request: Pick<Request, 'method' | 'path'>): boolean {
   return (
     request.method === 'POST' &&
-    /^\/v1\/rooms\/(?:list|read|join|leave|invite|moderate|discussions\/(?:create|read|history|changes|send|pin|hide|snippets\/open)|inhabitants\/ask)\/?$/i.test(
+    /^\/v1\/rooms\/(?:list|read|join|leave|invite|moderate|stations|discussions\/(?:create|read|history|changes|send|pin|hide|snippets\/open)|activities\/(?:list|read|create|vote|moderate)|inhabitants\/ask)\/?$/i.test(
       request.path,
     )
   );

@@ -109,12 +109,23 @@ export {
 export {
   createRoom,
   readRoomList,
+  readRoomStations,
   type ModerateAction,
   type RoomController,
   type RoomOptions,
   type RoomState,
   type StartDiscussion,
 } from './room';
+export {
+  createRoomActivities,
+  createRoomActivity,
+  type RoomActivitiesController,
+  type RoomActivitiesOptions,
+  type RoomActivitiesState,
+  type RoomActivityController,
+  type RoomActivityOptions,
+  type RoomActivityState,
+} from './room-activity';
 export {
   createRoomDiscussion,
   mergeRoomMessages,
@@ -261,6 +272,7 @@ export {
 } from './availability-session';
 
 export { createFriendsSession } from './friends-session';
+export { announceBlocksChanged, blocksRevisionKey } from './blocks';
 export { createFriendsHttp, FriendsHttpError, FRIENDS_LIMITS } from './friends-http';
 export type {
   FriendsSession,

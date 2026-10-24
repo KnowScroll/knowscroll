@@ -1,4 +1,4 @@
-import { type RefObject } from 'react';
+import { useState, type RefObject } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -269,6 +269,17 @@ export function RoomMessages({
   };
   const mineOf = (message: RoomMessage) =>
     message.status === 'available' && message.author.kind === 'person' && message.author.personId === ownPersonId;
+  // A moderator who blocked an author still has to moderate them: their words arrive collapsed, and stay so
+  // until the moderator asks to see them (on this screen only; nothing is remembered).
+  const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleShown = (messageId: string) =>
+    setShown((current) => {
+      const next = new Set(current);
+      if (!next.delete(messageId)) next.add(messageId);
+      return next;
+    });
+  const collapsedOf = (message: RoomMessage) =>
+    message.status === 'available' && message.blockedByYou === true && !shown.has(message.messageId);
   return (
     <ScrollView
       ref={scrollRef}
@@ -309,7 +320,7 @@ export function RoomMessages({
               const mine = mineOf(message);
               return (
                 <View key={message.sequence} role="listitem" style={styles.item}>
-                  {message.status === 'available' ? (
+                  {message.status === 'available' && !collapsedOf(message) ? (
                     message.author.kind === 'ai' ? (
                       <View style={styles.aiHeader}>
                         <AiLabel label={message.author.label} />
@@ -327,15 +338,41 @@ export function RoomMessages({
                   ) : null}
                   <View style={styles.line}>
                     <View style={styles.lineBody}>
-                      {message.status === 'available' ? (
-                        <Bubble
-                          message={message}
-                          mine={mine}
-                          partOf={partOf}
-                          actions={actions}
-                          onOpenSnippet={onOpenSnippet}
-                          onStartThread={onStartThread}
-                        />
+                      {message.status === 'available' && collapsedOf(message) ? (
+                        <View style={styles.collapsed} testID="blocked-collapsed">
+                          <Marker words="A message from someone you blocked" mine={false} />
+                          <Button
+                            label="Show for moderation"
+                            size="sm"
+                            variant="ghost"
+                            onPress={() => toggleShown(message.messageId)}
+                            testID={`show-blocked-${message.messageId}`}
+                          />
+                        </View>
+                      ) : message.status === 'available' ? (
+                        <>
+                          <Bubble
+                            message={message}
+                            mine={mine}
+                            partOf={partOf}
+                            actions={actions}
+                            onOpenSnippet={onOpenSnippet}
+                            onStartThread={onStartThread}
+                          />
+                          {message.blockedByYou === true ? (
+                            <View style={styles.revealed}>
+                              <Text variant="metaS" color={content.ink2}>
+                                You blocked this person. Shown for moderation.
+                              </Text>
+                              <Button
+                                label="Hide again"
+                                size="sm"
+                                variant="ghost"
+                                onPress={() => toggleShown(message.messageId)}
+                              />
+                            </View>
+                          ) : null}
+                        </>
                       ) : message.status === 'removed' ? (
                         <Marker words="Message removed by the moderator" mine={false} />
                       ) : message.status === 'blocked' ? (
@@ -404,6 +441,8 @@ const styles = StyleSheet.create({
   item: { gap: spacing[1] },
   line: { flexDirection: 'row', alignItems: 'center', gap: spacing[1] },
   lineBody: { flex: 1 },
+  collapsed: { gap: spacing[1], alignItems: 'flex-start' },
+  revealed: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing[2] },
   aiHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   bubble: { maxWidth: '82%', borderRadius: radius.panel, paddingHorizontal: spacing[4], paddingVertical: spacing[3] },
   snippet: { gap: spacing[2], maxWidth: '100%' },

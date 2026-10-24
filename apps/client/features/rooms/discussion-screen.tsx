@@ -10,7 +10,16 @@ import {
   type RoomDiscussionState,
 } from '@knowscroll/client-core';
 import type { InhabitantId, ReelDocument, RoomMessage, SendRoomBody } from '@knowscroll/contracts';
-import { BottomSheet, Banner, Button, Skeleton, StateBlock, Text, type ReelPositionHandle } from '@knowscroll/ui';
+import {
+  BottomSheet,
+  Banner,
+  Button,
+  Skeleton,
+  StateBlock,
+  Text,
+  useDisplay,
+  type ReelPositionHandle,
+} from '@knowscroll/ui';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import { newCommandId } from '../../platform/command-id';
@@ -143,6 +152,7 @@ function ReadyDiscussion({
   readonly onBack: () => void;
 }) {
   const router = useRouter();
+  const { breakpoint } = useDisplay();
   const view = state.view!;
   const place = useOwnPlace(scope, discussionId);
   const [draft, keepDraft] = useDraft(scope, discussionId);
@@ -246,6 +256,7 @@ function ReadyDiscussion({
             asking={state.asking}
             outcome={askWords(state, lastAsk)}
             onAsk={ask}
+            compact={breakpoint === 'desktop'}
           />
           <Composer
             name="this discussion"
@@ -317,11 +328,12 @@ function OpenDiscussion({
   const backToRoom = () => (router.canGoBack() ? router.back() : router.replace(roomHref(roomId)));
   useDocumentTitle(state.view?.discussion.title ?? 'Discussion');
 
-  // Coming back from a full-screen encounter or a reader: the person's own visited markers may have changed.
+  // Coming back from a full-screen encounter, a reader or the Friends page: the person's own visited markers or
+  // blocks may have changed, and neither reaches catch-up, so the whole discussion is read afresh.
   const seen = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      if (seen.current) void controller.load();
+      if (seen.current) void controller.resnapshot();
       seen.current = true;
     }, [controller]),
   );

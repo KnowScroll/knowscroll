@@ -207,4 +207,47 @@ describe('a room discussion on the client', () => {
     expect(await controller.hide(stored[1]!.messageId, true)).toBe(true);
     expect(controller.getState().messages.map((message) => message.status)).toEqual(['available', 'removed']);
   });
+
+  it('takes a fresh snapshot after a block or unblock: it replaces what was loaded, older pages too', async () => {
+    const blocked = (sequence: number): RoomMessage => ({ messageId: id(100 + sequence), sequence, status: 'blocked' });
+    let current: RoomMessage[] = [text(31, 'newest'), text(32, 'newer')];
+    const older = [text(1, 'oldest'), text(2, 'older')];
+    const scope = scopeOf({
+      readDiscussion: () =>
+        Promise.resolve(readyView(current, { history: { kind: 'more', cursor: 'krh1_x'.padEnd(30, 'x') } })),
+      history: () =>
+        Promise.resolve({
+          status: 'ready',
+          messages: older,
+          continuation: { kind: 'end' },
+        }),
+      changes: () =>
+        Promise.resolve({ status: 'ready', changes: [], continuation: { kind: 'caught_up', cursor: cursor(1) } }),
+    });
+    const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });
+    await controller.load();
+    await controller.loadOlder();
+    expect(controller.getState().messages.map((message) => message.sequence)).toEqual([1, 2, 31, 32]);
+
+    // Ravi was blocked: nothing about it is a change to catch up on, so a catch-up shows no difference...
+    current = [blocked(31), text(32, 'newer')];
+    await controller.refresh();
+    expect(controller.getState().messages.map((message) => message.status)).toEqual([
+      'available',
+      'available',
+      'available',
+      'available',
+    ]);
+    // ...and a fresh snapshot does, and starts the older pages again.
+    await controller.resnapshot();
+    expect(controller.getState().messages.map((message) => [message.sequence, message.status])).toEqual([
+      [31, 'blocked'],
+      [32, 'available'],
+    ]);
+    expect(controller.getState().hasOlder).toBe(true);
+    // Unblocking restores the words the same way.
+    current = [text(31, 'newest'), text(32, 'newer')];
+    await controller.resnapshot();
+    expect(controller.getState().messages.map((message) => message.status)).toEqual(['available', 'available']);
+  });
 });

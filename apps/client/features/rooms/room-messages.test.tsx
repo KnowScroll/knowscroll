@@ -118,6 +118,32 @@ describe('room messages', () => {
     expect(screen.queryByRole('button', { name: 'Message options' })).not.toBeOnTheScreen();
   });
 
+  it('keeps a blocked author’s words collapsed for a moderator, with a way to show them and still moderate', async () => {
+    const blockedByYou: RoomMessage = {
+      messageId: id(102),
+      sequence: 2,
+      status: 'available',
+      author: ravi,
+      recordedAt: at,
+      body: { kind: 'text', text: 'WORDS TO MODERATE' },
+      blockedByYou: true,
+    };
+    const moderator = await show([text(1, asha, 'hello'), blockedByYou], 'moderator');
+    // Collapsed: no words and no name, but the options to remove it are there without reading it.
+    expect(screen.getByText('A message from someone you blocked')).toBeOnTheScreen();
+    expect(screen.queryByText('WORDS TO MODERATE')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Ravi')).not.toBeOnTheScreen();
+    // A moderator has options on every message; the collapsed one's are the second.
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Message options' })[1]!);
+    expect(moderator.onActions).toHaveBeenCalledWith(blockedByYou);
+    // Shown for moderation on request, and put away again.
+    await fireEvent.press(screen.getByTestId(`show-blocked-${blockedByYou.messageId}`));
+    expect(screen.getByText('WORDS TO MODERATE')).toBeOnTheScreen();
+    expect(screen.getByText('You blocked this person. Shown for moderation.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Hide again' }));
+    expect(screen.queryByText('WORDS TO MODERATE')).not.toBeOnTheScreen();
+  });
+
   it('offers message options only where there is something to do: a card, or a moderator', async () => {
     const member = await show([text(1, ravi, 'plain'), card]);
     expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(1);

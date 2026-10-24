@@ -143,7 +143,7 @@ it('claims before mounting a reduced-motion final still and caption, then shown 
   expect(h.session.getState().focusId).toBe(id(12));
   expect(h.session.getState().historyDepth).toBe(1);
   expect(screen.queryByRole('dialog')).toBeNull();
-  expect(h.calls.every((c) => c.path.startsWith('/v1/universe/'))).toBe(true);
+  expect(h.calls.every((c) => c.path.startsWith('/v1/universe/') || c.path === '/v1/rooms/stations')).toBe(true);
   await v.unmount();
 });
 it('full presentation survives its own root-hint refresh of the same validated scene and sends shown only after actual2400ms mounted duration', async () => {

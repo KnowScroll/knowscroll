@@ -65,6 +65,29 @@ describe('RoomsController', () => {
     expect(ask).toHaveBeenCalledExactlyOnceWith(authority, input);
   });
 
+  it('serves the stations of a map and a poll vote by the same rules', async () => {
+    const stations = vi.fn<RoomUseCases['stations']>(() =>
+      Promise.resolve({
+        kind: 'ok',
+        value: { version: 'rooms.v1', scope, readId: commandId, status: 'ready', stations: [] },
+      }),
+    );
+    const votePoll = vi.fn<RoomUseCases['votePoll']>(() => refused('rate_limited'));
+    const request = await admitted();
+    const controller = controllerOver({ stations, votePoll });
+    const read = { version: 'rooms.v1' as const, readId: commandId };
+    expect(await call(controller.stationsRoute(request), read)).toMatchObject({ status: 'ready', stations: [] });
+    expect(stations).toHaveBeenCalledExactlyOnceWith(authority, read);
+    const failure = await call(controller.votePollRoute(request), {
+      version: 'rooms.v1' as const,
+      commandId,
+      roomId,
+      activityId: id(7),
+      optionId: 'o1',
+    }).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ status: problemDetails('TOO_MANY_REQUESTS').status });
+  });
+
   it.each([
     ['invalid_input', 'INVALID_REQUEST'],
     ['command_key_reused', 'COMMAND_KEY_REUSED'],

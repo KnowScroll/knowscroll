@@ -23,7 +23,10 @@ export function InhabitantBar({
   asking,
   outcome,
   onAsk,
+  compact,
 }: {
+  /** One line of labels and buttons instead of a row each, where height is short (D04's centre pane). */
+  readonly compact?: boolean;
   readonly inhabitants: readonly InhabitantStatus[];
   readonly asking: boolean;
   /** The words for the last ask that did not become a request or a reply. */
@@ -39,29 +42,33 @@ export function InhabitantBar({
       <Text variant="metaS" color={content.ink2}>
         Asking sends this discussion’s recent messages, without names, to an AI model.
       </Text>
-      {inhabitants.map((entry) => {
-        const reason = WORDS[entry.ask];
-        return (
-          <View key={entry.inhabitant} style={styles.row}>
-            <View style={styles.who}>
-              <AiLabel label={entry.label} />
-              <Text variant="meta" color={content.ink2} numberOfLines={1}>
-                {reason === undefined ? entry.blurb : reason}
-              </Text>
+      <View style={compact === true ? styles.compact : styles.list}>
+        {inhabitants.map((entry) => {
+          const reason = WORDS[entry.ask];
+          return (
+            <View key={entry.inhabitant} style={compact === true ? styles.compactRow : styles.row}>
+              <View style={compact === true ? styles.compactWho : styles.who}>
+                <AiLabel label={entry.label} />
+                {compact === true && reason === undefined ? null : (
+                  <Text variant="meta" color={content.ink2} numberOfLines={1}>
+                    {reason === undefined ? entry.blurb : reason}
+                  </Text>
+                )}
+              </View>
+              <Button
+                label="Ask"
+                size="sm"
+                accessibilityLabel={`Ask ${entry.label.replace(/\s·\s/g, ', ')}`}
+                disabled={entry.ask !== 'available'}
+                busy={asking}
+                busyLabel="Asking"
+                onPress={() => onAsk(entry.inhabitant)}
+                testID={`ask-${entry.inhabitant}`}
+              />
             </View>
-            <Button
-              label="Ask"
-              size="sm"
-              accessibilityLabel={`Ask ${entry.label.replace(/\s·\s/g, ', ')}`}
-              disabled={entry.ask !== 'available'}
-              busy={asking}
-              busyLabel="Asking"
-              onPress={() => onAsk(entry.inhabitant)}
-              testID={`ask-${entry.inhabitant}`}
-            />
-          </View>
-        );
-      })}
+          );
+        })}
+      </View>
       {outcome === undefined ? null : (
         <View accessibilityLiveRegion="polite">
           <Text variant="metaS">{outcome}</Text>
@@ -82,6 +89,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     backgroundColor: content.paper,
   },
+  list: { gap: spacing[2] },
+  compact: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
+  compactRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  compactWho: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], flexShrink: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   who: { flex: 1, gap: spacing['0.5'] },
 });
