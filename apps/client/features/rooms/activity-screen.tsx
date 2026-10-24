@@ -15,7 +15,7 @@ import { afterPendingBack } from '../../platform/after-pending-back';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
-import { ThreadHeader } from '../threads/thread-chrome';
+import { ActivityHeader } from './activity-header';
 import { PollCard } from './poll-card';
 import { QuizFlow } from './quiz-flow';
 import { discussionHref, isRoomId, roomHref } from './room-links';
@@ -93,13 +93,7 @@ function ReadyActivity({
     });
   return (
     <>
-      <ThreadHeader
-        title={kind}
-        people="Optional · only in this room"
-        onBack={onBack}
-        onPeople={undefined}
-        onMenu={undefined}
-      />
+      <ActivityHeader title={`Room ${kind.toLowerCase()}`} onBack={onBack} />
       <ScrollView contentContainerStyle={styles.body} testID="activity-screen">
         {state.offline ? <Banner kind="offline" lead="Offline." message="This may be out of date." /> : null}
         {view.activity.kind === 'poll' ? (
@@ -128,30 +122,35 @@ function OpenActivity({
   readonly activityId: string;
 }) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { controller, state } = useRoomActivity(scope, roomId, activityId);
   const back = () => (router.canGoBack() ? router.back() : router.replace(roomHref(roomId)));
   useDocumentTitle(state.view === undefined ? 'Room activity' : state.view.activity.kind === 'poll' ? 'Poll' : 'Quiz');
   if (state.phase === 'loading')
     return (
-      <View style={styles.body}>
+      <View style={[styles.body, { paddingTop: insets.top }]}>
         <Skeleton rows={4} label="Loading" />
       </View>
     );
   if (state.phase === 'failed')
     return (
-      <StateBlock
-        title="Can’t open this"
-        body="Check your connection and try again."
-        actions={[{ label: 'Try again', onPress: () => void controller.load() }]}
-      />
+      <View style={{ paddingTop: insets.top }}>
+        <StateBlock
+          title="Can’t open this"
+          body="Check your connection and try again."
+          actions={[{ label: 'Try again', onPress: () => void controller.load() }]}
+        />
+      </View>
     );
   if (state.view === undefined)
     return (
-      <StateBlock
-        title="This isn’t available"
-        body="It may have been removed, or you may no longer be in this room."
-        actions={[{ label: 'Back to the room', role: 'link', href: roomHref(roomId), onPress: back }]}
-      />
+      <View style={{ paddingTop: insets.top }}>
+        <StateBlock
+          title="This isn’t available"
+          body="It may have been removed, or you may no longer be in this room."
+          actions={[{ label: 'Back to the room', role: 'link', href: roomHref(roomId), onPress: back }]}
+        />
+      </View>
     );
   return (
     <ReadyActivity
@@ -176,10 +175,12 @@ export function ActivityScreen(params: { readonly roomId: string; readonly activ
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+      style={[styles.screen, { paddingBottom: insets.bottom }]}
     >
       {!isRoomId(params.roomId) || !isRoomId(params.activityId) ? (
-        <StateBlock title="This isn’t available" body="Check the address and try again." />
+        <View style={{ paddingTop: insets.top }}>
+          <StateBlock title="This isn’t available" body="Check the address and try again." />
+        </View>
       ) : state.status === 'signed_in' ? (
         <OpenActivity
           key={params.activityId}
@@ -188,24 +189,28 @@ export function ActivityScreen(params: { readonly roomId: string; readonly activ
           activityId={params.activityId}
         />
       ) : state.status === 'unavailable' ? (
-        <StateBlock
-          title="Can’t reach your account"
-          body="Reconnect to see this."
-          actions={[{ label: 'Reconnect', onPress: () => void manager.refresh() }]}
-        />
+        <View style={{ paddingTop: insets.top }}>
+          <StateBlock
+            title="Can’t reach your account"
+            body="Reconnect to see this."
+            actions={[{ label: 'Reconnect', onPress: () => void manager.refresh() }]}
+          />
+        </View>
       ) : (
-        <StateBlock
-          title="Sign in to see this"
-          actions={[
-            {
-              label: 'Sign in',
-              variant: 'primary',
-              role: 'link',
-              href: '/welcome',
-              onPress: () => router.navigate('/welcome'),
-            },
-          ]}
-        />
+        <View style={{ paddingTop: insets.top }}>
+          <StateBlock
+            title="Sign in to see this"
+            actions={[
+              {
+                label: 'Sign in',
+                variant: 'primary',
+                role: 'link',
+                href: '/welcome',
+                onPress: () => router.navigate('/welcome'),
+              },
+            ]}
+          />
+        </View>
       )}
     </KeyboardAvoidingView>
   );

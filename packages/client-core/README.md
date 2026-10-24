@@ -417,7 +417,8 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
 Pure controllers over `scope.api.scenarios`. *Implemented; exercised in tests and a browser locally, not on dev.*
 
 - `createScenarioBoard({scope, thread, newId})`: `load` reads the thread's branch cards (every read is "ask again", so a
-  lost hint only delays an update); `remove` keeps one command ID per card revision, so a retry is the same command.
+  lost hint only delays an update; `state.opened` lists the branches whose Scroll this member opened, from their own history only);
+  `remove` keeps one command ID per card revision, so a retry is the same command.
 - `createScenarioComposer({scope, thread, newId})`: `begin` asks for directions (the ask keeps one command ID, so a lost
   answer cannot make two drafts), `refresh` looks at the draft while it is thinking, `choose` sends the one command that
   commissions (one ID per selection; a refusal is final, a lost answer is retried with the same ID), `retry`, `reset`.

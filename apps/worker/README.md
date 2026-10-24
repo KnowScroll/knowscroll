@@ -130,7 +130,9 @@ harness (it ends the ask as failed while `KS_REASONING_PROVIDER=none`).
 `node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
 `content production-status [--only <keys>]` lists every recipe's standing. Both touch only the shared
-database and pg-boss; no provider is called.
+database and pg-boss; no provider is called. `content admit-continuity [--dry-run]` admits the library
+plan's series (Part tabs) and related moves (Related tab) between the published Scrolls: idempotent,
+shared database only (D-059).
 
 The content production operator is `node dist/operator.js content produce-scroll --topic <recipe>
 [--take <1-3>] [--dry-run] [--resume]`, a debugging tool over the same use case. It refuses worlds outside dev/stage/ci/local, defaults to

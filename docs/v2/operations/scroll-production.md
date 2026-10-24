@@ -118,6 +118,26 @@ node dist/operator.js content readmit-coverage --dry-run
 node dist/operator.js content readmit-coverage
 ```
 
+## Series and related moves
+
+The plan also declares which published Scrolls form a series (Part tabs) and which are related
+perspectives (dashed Related tab), in `domain/library/continuity.ts`, by recipe key (D-059). Nothing
+else makes these links, so Explore shows no Part or Related tab until this command has run. Run it
+after a batch has published:
+
+```sh
+node dist/operator.js content admit-continuity --dry-run
+node dist/operator.js content admit-continuity
+```
+
+It resolves each key to the Scroll admitted now and prints what it admitted, what was already there
+(`seriesUnchanged`, `linksUnchanged`) and what it skipped because a Scroll is not published yet
+(`seriesSkipped` names the missing recipes; a series is admitted whole or not at all, `relatedSkipped`
+names the move). Run it again after more Scrolls publish: it adds only what is new and a second run
+changes nothing. A recipe republished as a new revision gets a new series revision and replacement
+links; the old rows stay as inactive history. It touches the shared database only: no provider, no
+person's data.
+
 Before a batch, check that every research page of the plan is still accepted by the fetcher and
 yields a usable passage pool (it fetches slowly, about three seconds a page, because Wikipedia
 rate-limits bursts):

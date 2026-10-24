@@ -186,6 +186,8 @@ export {
   readSavedMetadata,
 } from './discovery-store.js';
 export { admitContinuity } from './continuity-admission.js';
+/** The operator's `content admit-continuity`: the library plan's series and related moves. */
+export { admitLibraryContinuityUseCase } from './library-continuity.js';
 export { makeAdmissionStore } from './postgres-store.js';
 /** Trusted composition/CI fixture seam only. Never bind its approval callback to request input. */
 export {
