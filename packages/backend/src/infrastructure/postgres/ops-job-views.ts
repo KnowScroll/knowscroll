@@ -34,9 +34,38 @@ export const OPS_READER_VIEWS: readonly string[] = [
 
 const JOB_VIEWS_IN_DROP_ORDER = ['recent_errors', 'queue_backlog', 'jobs'] as const;
 
-/** Drops the pg-boss views (and `recent_errors`, which reads them). Nothing to do when they are absent. */
-export async function dropOpsJobViews<DB>(db: Kysely<DB>): Promise<void> {
-  for (const view of JOB_VIEWS_IN_DROP_ORDER) await sql`drop view if exists ${sql.table(`ops.${view}`)}`.execute(db);
+export interface DropOptions {
+  /** How long one attempt waits for the exclusive lock a drop needs. Default 3 s. */
+  readonly lockTimeoutMs?: number;
+  /** How many attempts before the drop fails. Default 8. */
+  readonly attempts?: number;
+}
+
+const LOCK_NOT_AVAILABLE = '55P03';
+
+/**
+ * Drops the pg-boss views (and `recent_errors`, which reads them). Nothing to do when they are absent.
+ * A drop waits for every running query on the views, so each attempt waits only `lockTimeoutMs` and the
+ * drop is tried again; a reader that never lets go fails the deploy within seconds instead of stalling it.
+ * (The reader role carries its own statement timeout, which ends such a query: see the runbook.)
+ */
+export async function dropOpsJobViews<DB>(db: Kysely<DB>, options: DropOptions = {}): Promise<void> {
+  const lockTimeoutMs = options.lockTimeoutMs ?? 3_000;
+  const attempts = options.attempts ?? 8;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await db.transaction().execute(async (trx) => {
+        await sql`select set_config('lock_timeout', ${`${String(lockTimeoutMs)}ms`}, true)`.execute(trx);
+        for (const view of JOB_VIEWS_IN_DROP_ORDER)
+          await sql`drop view if exists ${sql.table(`ops.${view}`)}`.execute(trx);
+      });
+      return;
+    } catch (error) {
+      const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
+      if (code !== LOCK_NOT_AVAILABLE || attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
 }
 
 /**
@@ -145,14 +174,19 @@ export async function createOpsJobViews<DB>(db: Kysely<DB>): Promise<void> {
  * Lets {@link OPS_READER_ROLE} select the allowlisted views, and nothing else. Safe to repeat. The
  * role belongs to the cluster, not to one world's database, and the migration role cannot create
  * it: the owner creates it once (`docs/v2/operations/looking-at-the-system.md`) and the next
- * `migrate.js` run grants it. Returns `role_missing` when it does not exist yet.
+ * `migrate.js` run grants it. Returns `role_missing` when it does not exist yet. A world's database
+ * revokes CONNECT from PUBLIC, so the role is also granted CONNECT on this database (the database
+ * owner, which runs `migrate.js`, may grant it).
  */
 export async function grantOpsReader<DB>(db: Kysely<DB>): Promise<'granted' | 'role_missing'> {
   const found = await sql<{ present: boolean }>`
     select exists (select 1 from pg_roles where rolname = ${OPS_READER_ROLE}) as present`.execute(db);
   if (found.rows[0]?.present !== true) return 'role_missing';
   const role = sql.id(OPS_READER_ROLE);
+  const current = await sql<{ name: string }>`select current_database() as name`.execute(db);
+  const database = sql.id(current.rows[0]?.name ?? '');
   await db.transaction().execute(async (trx) => {
+    await sql`grant connect on database ${database} to ${role}`.execute(trx);
     await sql`grant usage on schema ops to ${role}`.execute(trx);
     for (const view of OPS_READER_VIEWS) await sql`grant select on ${sql.table(`ops.${view}`)} to ${role}`.execute(trx);
     await sql`revoke all on ${sql.table('ops.journey_events')} from ${role}`.execute(trx);

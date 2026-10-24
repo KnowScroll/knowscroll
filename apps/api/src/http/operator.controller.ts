@@ -1,7 +1,7 @@
 import { Controller, Header, Inject, Req } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import type { Request } from 'express';
-import { apiContract, type JourneyResponse, type OperatorPanelsResponse } from '@knowscroll/contracts';
+import { UuidSchema, apiContract, type JourneyResponse, type OperatorPanelsResponse } from '@knowscroll/contracts';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import {
   IS_OPERATOR,
@@ -121,7 +121,10 @@ export class OperatorController {
   journeyRoute(@Req() request: Request) {
     return implement(apiContract.operator.journey).handler(async ({ input }) => {
       await this.requireOperator(request, '/v1/operator/journeys/{id}');
-      const result = await this.readJourney(input.id);
+      // After the operator check, so a malformed ID never tells a non-operator the route exists.
+      const id = UuidSchema.safeParse(input.id);
+      if (!id.success) throw problem('INVALID_REQUEST');
+      const result = await this.readJourney(id.data);
       this.logEvent('operator.read', {
         route: '/v1/operator/journeys/{id}',
         outcome: result.kind,

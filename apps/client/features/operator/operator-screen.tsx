@@ -10,6 +10,12 @@ import { OverviewCard, PrivacyCard, ProductionCard, RealtimeCard, UniverseChange
 import { Chip, Mono, Note, TextButton } from './operator-parts';
 import { columnsFor, operatorColor, operatorFont } from './operator-theme';
 
+/** Names the browser tab only once the server has shown this account the page. */
+function OperatorTitle() {
+  useDocumentTitle('Operator');
+  return null;
+}
+
 function WorldLine({ scope }: { readonly scope: AccountScope }) {
   const health = useQuery(healthQueryOptions(scope.api));
   if (!health.data) return null;
@@ -29,6 +35,8 @@ export function OperatorPanels({ scope }: { readonly scope: AccountScope }) {
     void session.refresh();
   }, [session]);
 
+  // Until the server has said this account is an operator, the page shows nothing of itself.
+  if (state.panels.status === 'loading') return null;
   if (state.panels.status === 'not_operator') return <NotFoundScreen />;
   const columns = columnsFor(width);
   const cardWidth = columns === 1 ? '100%' : columns === 2 ? '49%' : '32.4%';
@@ -46,6 +54,7 @@ export function OperatorPanels({ scope }: { readonly scope: AccountScope }) {
   );
   return (
     <ScrollView role="main" style={styles.ground} contentContainerStyle={styles.content} testID="operator-screen">
+      <OperatorTitle />
       <View style={styles.header}>
         <View style={styles.badges}>
           <View style={styles.badge}>
@@ -67,7 +76,6 @@ export function OperatorPanels({ scope }: { readonly scope: AccountScope }) {
           <TextButton
             label="Refresh"
             onPress={() => void session.refresh()}
-            busy={state.panels.status === 'loading'}
             accessibilityLabel="Read the panels again"
           />
         </View>
@@ -107,7 +115,6 @@ export function OperatorPanels({ scope }: { readonly scope: AccountScope }) {
  */
 export function OperatorScreen() {
   const { state } = useAccountScope();
-  useDocumentTitle('Operator');
   if (state.status !== 'signed_in') return <NotFoundScreen />;
   return <OperatorPanels scope={state.scope} />;
 }

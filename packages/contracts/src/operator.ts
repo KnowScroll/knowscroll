@@ -184,11 +184,15 @@ export type JourneyResponse = z.infer<typeof JourneySchema>;
 /**
  * The journey of one record: a request, production run, Reel order, model attempt, reasoning run,
  * exposure or asset. An asset answers with its shared steps only. `NOT_FOUND` (404) when nothing
- * carries the ID, and for anyone who is not an operator.
+ * carries the ID, and for anyone who is not an operator; `INVALID_REQUEST` (400) for an operator whose ID
+ * is not a UUID.
  */
 export const readOperatorJourneyContract = oc
   .route({ method: 'GET', path: '/v1/operator/journeys/{id}', successStatus: 200, tags: ['operator'] })
-  .input(z.strictObject({ id: UuidSchema }))
+  // Any string, not a UUID: a malformed ID must reach the operator check first, so a person who is not an
+  // operator gets the same 404 whatever they send (the URL's own length limit bounds it). The handler
+  // parses the UUID afterwards.
+  .input(z.strictObject({ id: z.string() }))
   .output(JourneySchema);
 
 export const operatorContract = {

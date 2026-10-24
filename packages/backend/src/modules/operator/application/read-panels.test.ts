@@ -52,6 +52,36 @@ describe('the Operator panels', () => {
     expect(panels.privacy.retentionJobs).toEqual(available([queue(RETENTION_QUEUES[0] ?? '')]));
   });
 
+  it('reads at most three views at a time, so the panels cannot take the connection pool', async () => {
+    let running = 0;
+    let most = 0;
+    const slow =
+      <T>(piece: Piece<T>) =>
+      async () => {
+        running += 1;
+        most = Math.max(most, running);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        running -= 1;
+        return piece;
+      };
+    const base = store();
+    const bounded: PanelStore = {
+      queues: slow(available([queue('supply.resolve-request')])),
+      providerOutcomes: slow(available([])),
+      usage: slow(available({ windowHours: 24, attempts: 0, tokensReported: 0, attemptsWithoutReportedUsage: 0 })),
+      recentErrors: slow(available([])),
+      productionRuns: slow(available([])),
+      refusedAnswers: slow(available([])),
+      reelOrders: slow(available([])),
+      cartographer: slow(available({ counts: [], recent: [] })),
+      privacy: slow(available({ groups: [], failed: [] })),
+    };
+    expect(Object.keys(bounded)).toEqual(Object.keys(base));
+    const panels = await makeReadOperatorPanels({ store: bounded, now })();
+    expect(most).toBe(3);
+    expect(panels.overview.queues.status).toBe('available');
+  });
+
   it('keeps answering when one view cannot be read', async () => {
     const unavailable: Piece<never> = { status: 'unavailable', reason: 'view_missing' };
     const panels = await makeReadOperatorPanels({

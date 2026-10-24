@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
+import pg from 'pg';
 import { z } from 'zod';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { releaseQueues } from '@knowscroll/backend/job-queues';
@@ -397,6 +398,21 @@ describe('the ops views (real PostgreSQL)', () => {
         });
     });
 
+    it('may connect to a database that refuses PUBLIC, once granted', async () => {
+      // A deployed world's database revokes CONNECT from PUBLIC and grants it to the world's role only.
+      await sql`select 1`.execute(db());
+      const name = world.database.name;
+      await sql`revoke connect on database ${sql.id(name)} from ${sql.id(OPS_READER_ROLE)}`.execute(db());
+      await sql`revoke connect on database ${sql.id(name)} from public`.execute(db());
+      const connect = () =>
+        sql<{
+          allowed: boolean;
+        }>`select has_database_privilege(${OPS_READER_ROLE}, ${name}, 'connect') as allowed`.execute(db());
+      expect((await connect()).rows).toEqual([{ allowed: false }]);
+      expect(await grantOpsReader(db())).toBe('granted');
+      expect((await connect()).rows).toEqual([{ allowed: true }]);
+    });
+
     it('holds no privilege to change anything', async () => {
       for (const view of OPS_READER_VIEWS) {
         const held = await sql<{ any: boolean }>`
@@ -428,6 +444,28 @@ describe('the ops views (real PostgreSQL)', () => {
           )
         ).rows,
       ).toEqual(before);
+    });
+
+    it('are not stalled by a reader: each attempt gives up on the lock and tries again', async () => {
+      const reader = new pg.Client({ connectionString: world.database.settings.url });
+      await reader.connect();
+      await reader.query('begin');
+      await reader.query('select 1 from ops.jobs limit 1');
+      try {
+        await expect(dropOpsJobViews(db(), { lockTimeoutMs: 100, attempts: 2 })).rejects.toMatchObject({
+          code: '55P03',
+        });
+        // The failed drop changed nothing.
+        await sql`select 1 from ops.jobs`.execute(db());
+        // The reader lets go while the drop is retrying.
+        setTimeout(() => void reader.query('commit'), 300);
+        await dropOpsJobViews(db(), { lockTimeoutMs: 100, attempts: 10 });
+      } finally {
+        await reader.end();
+      }
+      await expect(sql`select 1 from ops.jobs`.execute(db())).rejects.toMatchObject({ code: '42P01' });
+      await createOpsJobViews(db());
+      await grantOpsReader(db());
     });
 
     it('name every view the reader may select, and every view that exists', async () => {

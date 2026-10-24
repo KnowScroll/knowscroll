@@ -75,7 +75,13 @@ Create the SELECT-only role once for the cluster (the world roles cannot create 
 ```sh
 sudo -u postgres psql -c 'create role ks2_ops_reader nologin'
 sudo -u postgres psql -c "create role <grafana login role> login in role ks2_ops_reader"   # set its password out of band
+sudo -u postgres psql -c "alter role ks2_ops_reader set statement_timeout = '30s'"
 ```
+
+The statement timeout is inherited by the login role. It keeps a long dashboard query from holding the
+views while a deploy rebuilds them (the deploy also gives up on a lock after a few seconds and tries again).
+The world's database refuses CONNECT from everyone but the world's role; `migrate.js` grants `ks2_ops_reader`
+CONNECT on it together with the views, so the login role connects after the next deploy.
 
 The next deploy's `migrate.js` grants `ks2_ops_reader` the views (a missing role is only a warning in
 its output: `migrate.warning`, `ops_reader_role_missing`). To grant now, run `migrate.js` again.

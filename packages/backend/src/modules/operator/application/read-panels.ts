@@ -4,6 +4,24 @@ import type { PanelStore } from './ports.js';
 const PROVIDER_WINDOW_HOURS = 24;
 const LIST_LIMIT = 12;
 const ERROR_LIMIT = 25;
+/** The panels never hold more than this many of the API's connections at once. */
+const MAX_CONCURRENT_READS = 3;
+
+/** Runs the given reads at most `limit` at a time, in the order they were asked for. */
+function limited(limit: number): <T>(read: () => Promise<T>) => Promise<T> {
+  let running = 0;
+  const waiting: (() => void)[] = [];
+  return async <T>(read: () => Promise<T>): Promise<T> => {
+    while (running >= limit) await new Promise<void>((resolve) => waiting.push(resolve));
+    running += 1;
+    try {
+      return await read();
+    } finally {
+      running -= 1;
+      waiting.shift()?.();
+    }
+  };
+}
 
 /**
  * Use case: the six panels of the Operator screen, read at one moment.
@@ -27,17 +45,18 @@ export function makeReadOperatorPanels(deps: {
 }): ReadOperatorPanels {
   const { store } = deps;
   return async () => {
+    const run = limited(MAX_CONCURRENT_READS);
     const [queues, providerOutcomes, recentErrors, runs, refusedAnswers, reelOrders, usage, cartographer, operations] =
       await Promise.all([
-        store.queues(),
-        store.providerOutcomes(PROVIDER_WINDOW_HOURS),
-        store.recentErrors(ERROR_LIMIT),
-        store.productionRuns(LIST_LIMIT),
-        store.refusedAnswers(LIST_LIMIT),
-        store.reelOrders(LIST_LIMIT),
-        store.usage(PROVIDER_WINDOW_HOURS),
-        store.cartographer(LIST_LIMIT),
-        store.privacy(LIST_LIMIT),
+        run(() => store.queues()),
+        run(() => store.providerOutcomes(PROVIDER_WINDOW_HOURS)),
+        run(() => store.recentErrors(ERROR_LIMIT)),
+        run(() => store.productionRuns(LIST_LIMIT)),
+        run(() => store.refusedAnswers(LIST_LIMIT)),
+        run(() => store.reelOrders(LIST_LIMIT)),
+        run(() => store.usage(PROVIDER_WINDOW_HOURS)),
+        run(() => store.cartographer(LIST_LIMIT)),
+        run(() => store.privacy(LIST_LIMIT)),
       ]);
     return {
       generatedAt: deps.now(),

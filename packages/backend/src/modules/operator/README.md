@@ -52,7 +52,7 @@ the same file.
 
 `ks2_ops_reader` (SELECT only) may read every view except `ops.journey_events`. The migration role
 cannot create roles: the owner creates the role once per cluster, and the next `migrate.js` run grants
-it (`grantOpsReader`; a missing role is a warning, not a failure).
+it (`grantOpsReader`: CONNECT on the world's database, which refuses PUBLIC, usage on `ops` and the views; a missing role is a warning, not a failure). The panels read three views at a time so they cannot take the API's connection pool.
 
 ## Journeys
 

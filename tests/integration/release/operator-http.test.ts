@@ -152,8 +152,12 @@ describe('operator routes in the installed release', () => {
   it('answers 404 to a signed-in account that is not an operator, on every operator route', async () => {
     for (const who of [stranger, nameless])
       for (const path of routes()) await expectProblem(await get(path, who), 404, 'NOT_FOUND');
+    // What they send makes no difference: a malformed ID is no reason to answer differently.
+    for (const who of [stranger, nameless])
+      for (const id of ['not-a-uuid', 'x'.repeat(200)])
+        await expectProblem(await get(`/v1/operator/journeys/${id}`, who), 404, 'NOT_FOUND');
     const refusals = api.records.filter((record) => record.event === 'operator.refused');
-    expect(refusals).toHaveLength(4);
+    expect(refusals).toHaveLength(8);
     expect(refusals[0]).toMatchObject({ route: '/v1/operator/panels', reasonCode: 'not_operator', level: 'warn' });
     expect(refusals.every((record) => record['rejectedFields'] === undefined)).toBe(true);
   });
