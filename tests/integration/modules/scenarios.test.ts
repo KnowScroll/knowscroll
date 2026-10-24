@@ -6,6 +6,8 @@
  * provider output.
  */
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { sql } from 'kysely';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ContentThreadRef, ScenarioCard } from '@knowscroll/contracts';
@@ -79,28 +81,47 @@ const version = 'scenario.v1' as const;
 const traffic = { subject: 'Traffic', statement: 'Traffic is ten times higher than in the original' };
 const model = { subject: 'Model', statement: 'The same model serves every request' };
 const latency = { subject: 'Latency target', statement: 'Every answer arrives within the same target' };
+/** A change as the Planner writes it: it names no premise to replace unless it says so. */
+const changing = (assumption: { subject: string; statement: string }, replaces: string | null = null) => ({
+  ...assumption,
+  replaces,
+});
 const batching = {
   title: 'What does batching change at ten times the traffic?',
   explanation: 'Shows how batching holds the cost per answer down.',
-  changes: [traffic],
+  changes: [changing(traffic)],
   kept: [model],
   lens: null,
+  speculative: false,
   needsConfirmation: false,
 };
 const instances = {
   title: 'What do more instances change at ten times the traffic?',
   explanation: 'Shows how adding instances trades cost for waiting.',
-  changes: [{ ...traffic, statement: 'Traffic is ten times higher, spread over more instances' }],
+  changes: [changing({ ...traffic, statement: 'Traffic is ten times higher, spread over more instances' })],
   kept: [model],
   lens: null,
+  speculative: false,
   needsConfirmation: false,
 };
+/** Contradicts established knowledge: speculative, and so asks to be confirmed. */
 const portal = {
   title: 'What if a black hole were a portal?',
   explanation: 'Reasons from a premise the physics does not support.',
-  changes: [{ subject: 'Black hole', statement: 'A black hole is a doorway to somewhere else' }],
+  changes: [changing({ subject: 'Black hole', statement: 'A black hole is a doorway to somewhere else' })],
   kept: [],
   lens: null,
+  speculative: true,
+  needsConfirmation: true,
+};
+/** Only unclear: the member confirms what is meant, but nothing in it contradicts what is known. */
+const unclear = {
+  title: 'What if the system were faster?',
+  explanation: 'Asks what faster would have to mean before anything is made.',
+  changes: [changing({ subject: 'Speed', statement: 'The system answers faster than it does now' })],
+  kept: [],
+  lens: null,
+  speculative: false,
   needsConfirmation: true,
 };
 const operatorView = {
@@ -109,6 +130,7 @@ const operatorView = {
   changes: [],
   kept: [],
   lens: 'the view of the person on call',
+  speculative: false,
   needsConfirmation: false,
 };
 
@@ -191,6 +213,13 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
     await content.close();
     await database.drop();
   });
+
+  /** Tests that script the Planner leave the default one behind them. */
+  const planner = () => {
+    afterEach(() => {
+      plannerScript = () => answerWith({ mode: 'options', options: [batching, instances] });
+    });
+  };
 
   // --- A thread to explore ------------------------------------------------------------------
 
@@ -747,7 +776,8 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
 
       // A what-if below adds its change to the inherited premise.
       await prepare(lens.node.nodeId);
-      plannerScript = () => answerWith({ mode: 'direct', options: [{ ...batching, changes: [latency], kept: [] }] });
+      plannerScript = () =>
+        answerWith({ mode: 'direct', options: [{ ...batching, changes: [changing(latency)], kept: [] }] });
       const lensCard = (await cards(a, aRef)).find((card) => card.nodeId === lens.node.nodeId);
       const deepDraft = await drafted(a, aRef, root, {
         text: 'And if the latency target tightened?',
@@ -1164,6 +1194,7 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
   });
 
   describe('premises that come down from earlier branches', () => {
+    planner();
     it('refuses a kept line that disagrees with a premise an earlier branch holds, and keeps a replaced one in its new words', async () => {
       const { a, aRef, root } = await begun();
       const first = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
@@ -1189,6 +1220,74 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       const replaced = unwrap(await choose(a, aRef, await below(), { kind: 'own', changes: [twenty], kept: [] }));
       expect(replaced.node.assumptions.map((premise) => premise.statement)).toEqual([twenty.statement]);
     });
+
+    it('replaces the premise a direction names whatever its own subject says, so the writer is given one of them', async () => {
+      const { a, aRef, root } = await begun();
+      const first = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
+      await prepare(first.node.nodeId);
+      const ready = (await cards(a, aRef)).find((card) => card.nodeId === first.node.nodeId);
+      const parent = { kind: 'node', nodeId: first.node.nodeId, revision: ready?.revision };
+      const weaker = { subject: 'Load', statement: 'Traffic is only five times higher than in the original' };
+      plannerScript = () =>
+        answerWith({ mode: 'direct', options: [{ ...batching, changes: [changing(weaker, 'Traffic')], kept: [] }] });
+      const second = unwrap(await choose(a, aRef, await drafted(a, aRef, root, { parent })));
+      expect(second.node.assumptions).toEqual([weaker]);
+      const stored = await database.db
+        .selectFrom('content.made_to_order_scrolls')
+        .select('brief')
+        .where('recipe', '=', madeToOrderKey(second.node.nodeId))
+        .executeTakeFirstOrThrow();
+      expect(stored.brief).toContain(weaker.statement);
+      expect(stored.brief).not.toContain(traffic.statement);
+    });
+
+    it('sends a direction that says a held premise again, without naming it, to the one repair', async () => {
+      const { a, aRef, root } = await begun();
+      const first = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
+      await prepare(first.node.nodeId);
+      const ready = (await cards(a, aRef)).find((card) => card.nodeId === first.node.nodeId);
+      const parent = { kind: 'node', nodeId: first.node.nodeId, revision: ready?.revision };
+      const again = {
+        subject: 'Load',
+        statement: 'Traffic is ten times higher than in the original, but only in the evening',
+      };
+      let asked = 0;
+      plannerScript = () => {
+        asked += 1;
+        return answerWith({
+          mode: 'direct',
+          options: [{ ...batching, changes: [changing(again, asked === 1 ? null : 'Traffic')], kept: [] }],
+        });
+      };
+      const draftId = await drafted(a, aRef, root, { parent });
+      expect(asked).toBe(2);
+      const offered = unwrap(await readDraft(a, aRef, draftId));
+      expect(offered).toMatchObject({
+        status: 'ready',
+        options: [{ changes: [{ subject: 'Load', replaces: 'Traffic' }] }],
+      });
+    });
+
+    it('fails the draft honestly when the repair still leaves both, and writes no branch', async () => {
+      const { a, aRef, root } = await begun();
+      const first = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
+      await prepare(first.node.nodeId);
+      const ready = (await cards(a, aRef)).find((card) => card.nodeId === first.node.nodeId);
+      const parent = { kind: 'node', nodeId: first.node.nodeId, revision: ready?.revision };
+      const again = {
+        subject: 'Load',
+        statement: 'Traffic is ten times higher than in the original, but only in the evening',
+      };
+      plannerScript = () =>
+        answerWith({ mode: 'direct', options: [{ ...batching, changes: [changing(again)], kept: [] }] });
+      const before = await counts();
+      const draftId = await drafted(a, aRef, root, { parent });
+      expect(unwrap(await readDraft(a, aRef, draftId))).toMatchObject({
+        status: 'failed',
+        reason: 'could_not_suggest',
+      });
+      expect(await counts()).toEqual(before);
+    });
   });
 
   describe('drafts a day', () => {
@@ -1209,13 +1308,6 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       expect(await startDraft(b, bRef, root)).toMatchObject({ kind: 'ok' });
     });
   });
-
-  /** Tests that script the Planner leave the default one behind them. */
-  const planner = () => {
-    afterEach(() => {
-      plannerScript = () => answerWith({ mode: 'options', options: [batching, instances] });
-    });
-  };
 
   describe('speculative status', () => {
     planner();
@@ -1270,6 +1362,107 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
         )
         .execute();
       expect(stored.filter((row) => row.speculative)).toHaveLength(3);
+    });
+
+    it('says speculative only of what contradicts established knowledge: an idea that is merely unclear is not marked', async () => {
+      const { a, aRef, root } = await begun();
+      plannerScript = () => answerWith({ mode: 'options', options: [unclear, portal] });
+      const draftId = await drafted(a, aRef, root);
+      const offered = await readDraft(a, aRef, draftId);
+      expect(unwrap(offered)).toMatchObject({
+        status: 'ready',
+        options: [
+          { optionId: 'o1', speculative: false, needsConfirmation: true },
+          { optionId: 'o2', speculative: true, needsConfirmation: true },
+        ],
+      });
+      expect(unwrap(await choose(a, aRef, draftId, { kind: 'suggestion', optionId: 'o1' })).node).toMatchObject({
+        speculative: false,
+      });
+      const other = await drafted(a, aRef, root);
+      expect(unwrap(await choose(a, aRef, other, { kind: 'suggestion', optionId: 'o2' })).node).toMatchObject({
+        speculative: true,
+      });
+    });
+
+    it('keeps the flag when the member edits a speculative direction, whatever they change, and never takes it from the request', async () => {
+      const { a, aRef, root } = await begun();
+      plannerScript = () => answerWith({ mode: 'options', options: [portal, batching] });
+      const edited = {
+        kind: 'own',
+        changes: [{ subject: 'Black hole', statement: 'A black hole is a doorway to the next room' }],
+        kept: [],
+      };
+      const fromPortal = await drafted(a, aRef, root);
+      expect(unwrap(await choose(a, aRef, fromPortal, { ...edited, fromOptionId: 'o1' })).node).toMatchObject({
+        speculative: true,
+      });
+      // Edited from an ordinary direction, or typed from scratch: not speculative.
+      const fromBatching = await drafted(a, aRef, root);
+      expect(
+        unwrap(await choose(a, aRef, fromBatching, { kind: 'own', changes: [traffic], kept: [], fromOptionId: 'o2' }))
+          .node,
+      ).toMatchObject({ speculative: false });
+      const scratch = await drafted(a, aRef, root);
+      expect(
+        unwrap(
+          await choose(a, aRef, scratch, {
+            kind: 'own',
+            changes: [{ subject: 'Black hole', statement: 'A black hole is a doorway to a larger place' }],
+            kept: [],
+          }),
+        ).node,
+      ).toMatchObject({ speculative: false });
+    });
+
+    it('refuses an edit that names a direction the draft does not have, another member’s, or one not yet made', async () => {
+      const { a, b, aRef, bRef, root } = await begun();
+      plannerScript = () => answerWith({ mode: 'direct', options: [portal] });
+      const draftId = await drafted(a, aRef, root);
+      const own = (fromOptionId: string) => ({ kind: 'own', changes: [traffic], kept: [], fromOptionId });
+      const before = await counts();
+      expect(await choose(a, aRef, draftId, own('o2'))).toEqual({ kind: 'refused', code: 'invalid_input' });
+      expect(await choose(b, bRef, draftId, own('o1'))).toEqual({ kind: 'refused', code: 'unavailable' });
+      // A draft the Planner has not answered has no directions to edit.
+      const thinking = unwrap(await startDraft(a, aRef, root)).draftId;
+      expect(await choose(a, aRef, thinking, own('o1'))).toEqual({ kind: 'refused', code: 'invalid_input' });
+      expect(await counts()).toEqual(before);
+    });
+
+    it('never reuses a speculative branch for an ordinary one of the same change, nor the reverse', async () => {
+      const { a, b, aRef, bRef, root } = await begun();
+      plannerScript = () => answerWith({ mode: 'direct', options: [portal] });
+      const flagged = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
+      expect(flagged.node.speculative).toBe(true);
+      // Ravi writes the same change himself: nothing marks it speculative, so it is another branch.
+      const typed = unwrap(
+        await choose(b, bRef, unwrap(await startDraft(b, bRef, root)).draftId, {
+          kind: 'own',
+          changes: [{ subject: 'Black hole', statement: 'A black hole is a doorway to somewhere else' }],
+          kept: [],
+        }),
+      );
+      expect(typed).toMatchObject({ reused: false, node: { speculative: false } });
+      expect(typed.node.nodeId).not.toBe(flagged.node.nodeId);
+      // Ravi asked for the same direction and confirmed it: that is the flagged branch.
+      const again = unwrap(await choose(b, bRef, await drafted(b, bRef, root)));
+      expect(again).toMatchObject({ reused: true, node: { nodeId: flagged.node.nodeId, speculative: true } });
+    });
+
+    it('reads an option stored before directions had a flag of their own as speculative when it needed confirming', async () => {
+      const { a, aRef, root } = await begun();
+      plannerScript = () => answerWith({ mode: 'options', options: [batching, portal] });
+      const draftId = await drafted(a, aRef, root);
+      // Part 1 stored `needsConfirmation` only, and no `replaces`.
+      await sql`update scenarios.drafts set options = (select jsonb_agg(o - 'speculative') from jsonb_array_elements(options) as o) where draft_id = ${draftId}`.execute(
+        database.db,
+      );
+      expect(unwrap(await readDraft(a, aRef, draftId))).toMatchObject({
+        options: [{ speculative: false }, { speculative: true }],
+      });
+      expect(unwrap(await choose(a, aRef, draftId, { kind: 'suggestion', optionId: 'o2' })).node).toMatchObject({
+        speculative: true,
+      });
     });
   });
 
@@ -1326,7 +1519,8 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       const first = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
       await prepare(first.node.nodeId);
       const ready = (await cards(a, aRef)).find((card) => card.nodeId === first.node.nodeId);
-      plannerScript = () => answerWith({ mode: 'direct', options: [{ ...batching, changes: [latency], kept: [] }] });
+      plannerScript = () =>
+        answerWith({ mode: 'direct', options: [{ ...batching, changes: [changing(latency)], kept: [] }] });
       await drafted(a, aRef, root, {
         text: 'And if the latency target tightened?',
         parent: { kind: 'node', nodeId: first.node.nodeId, revision: ready?.revision },
@@ -1372,6 +1566,154 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       // The same idea can be asked for again.
       const again = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
       expect(again.node.nodeId).not.toBe(made.node.nodeId);
+    });
+
+    it('sends everyone a bare placeholder for a removed branch: where it stood, and nothing of what it said', async () => {
+      const { a, b, aRef, bRef, root } = await begun();
+      plannerScript = () => answerWith({ mode: 'direct', options: [portal] });
+      const draftId = await drafted(a, aRef, root);
+      const commandId = randomUUID();
+      const made = unwrap(await choose(a, aRef, draftId, { kind: 'suggestion', optionId: 'o1' }, commandId));
+      await prepare(made.node.nodeId);
+      const ready = (await cards(a, aRef)).find((card) => card.nodeId === made.node.nodeId);
+      expect(ready).toMatchObject({ title: portal.title, speculative: true, status: 'ready' });
+      unwrap(
+        await scenarios.remove(a.authority, {
+          version,
+          commandId: randomUUID(),
+          thread: aRef,
+          nodeId: made.node.nodeId,
+          revision: ready?.revision,
+        }),
+      );
+      for (const [who, thread] of [
+        [a, aRef],
+        [b, bRef],
+      ] as const) {
+        const [card] = await cards(who, thread);
+        expect(card).toEqual({
+          nodeId: made.node.nodeId,
+          kind: 'what_if',
+          origin: 'root',
+          title: 'Removed',
+          changes: [],
+          kept: [],
+          hypothetical: true,
+          speculative: false,
+          assumptions: [],
+          status: 'removed',
+          revision: 3,
+          createdAt: expect.any(String) as string,
+        });
+      }
+      // Asking again with the first command answers with the placeholder too, not with the branch as it was.
+      const replay = unwrap(await choose(a, aRef, draftId, { kind: 'suggestion', optionId: 'o1' }, commandId));
+      expect(replay).toMatchObject({ replayed: true, node: { title: 'Removed', status: 'removed', changes: [] } });
+    });
+  });
+
+  describe('the migration that adds the flag, for branches made before it', () => {
+    planner();
+    /** The statements the migration runs to mark what part 1 made, between its markers. */
+    const backfill = (() => {
+      const file = fileURLToPath(new URL('../../../migrations/0063_scenario_speculative.sql', import.meta.url));
+      const text = readFileSync(file, 'utf8');
+      const body = text.slice(text.indexOf('-- backfill:begin') + 17, text.indexOf('-- backfill:end'));
+      return body
+        .split(';')
+        .map((statement) => statement.trim())
+        .filter((statement) => statement !== '');
+    })();
+    const runBackfill = async () => {
+      for (const statement of backfill) await sql.raw(statement).execute(database.db);
+    };
+    const flagsOf = async (...nodeIds: string[]) =>
+      (
+        await database.db
+          .selectFrom('scenarios.nodes')
+          .select(['node_id', 'speculative'])
+          .where('node_id', 'in', nodeIds)
+          .execute()
+      ).map((row) => [row.node_id, row.speculative] as const);
+
+    it('marks the branch made from a direction that needed confirming, and everything below it, and nothing else', async () => {
+      expect(backfill).toHaveLength(2);
+      const { a, aRef, root } = await begun();
+      const readyParent = async (nodeId: string) => {
+        await prepare(nodeId);
+        const card = (await cards(a, aRef)).find((entry) => entry.nodeId === nodeId);
+        return { kind: 'node', nodeId, revision: card?.revision };
+      };
+      // A confirmed direction, a what-if and a perspective below it, an ordinary branch, and an edited direction.
+      plannerScript = () => answerWith({ mode: 'direct', options: [portal] });
+      const marked = unwrap(await choose(a, aRef, await drafted(a, aRef, root))).node.nodeId;
+      const parent = await readyParent(marked);
+      plannerScript = () =>
+        answerWith({ mode: 'direct', options: [{ ...batching, changes: [changing(latency)], kept: [] }] });
+      const below = unwrap(await choose(a, aRef, await drafted(a, aRef, root, { parent }))).node.nodeId;
+      plannerScript = () => answerWith({ mode: 'direct', options: [operatorView] });
+      const lens = unwrap(
+        await choose(
+          a,
+          aRef,
+          await drafted(a, aRef, root, { parent, kind: 'perspective', text: 'From the operator.' }),
+        ),
+      ).node.nodeId;
+      plannerScript = () => answerWith({ mode: 'direct', options: [batching] });
+      const plain = unwrap(await choose(a, aRef, await drafted(a, aRef, root))).node.nodeId;
+      plannerScript = () => answerWith({ mode: 'direct', options: [{ ...portal, changes: [changing(latency)] }] });
+      const editedDraft = await drafted(a, aRef, root);
+      const edited = unwrap(
+        await choose(a, aRef, editedDraft, {
+          kind: 'own',
+          changes: [{ subject: 'Latency target', statement: 'Every answer arrives within half the target' }],
+          kept: [],
+        }),
+      ).node.nodeId;
+      const all = [marked, below, lens, plain, edited];
+      // Part 1 had no column and stored no `speculative` in an option: put the rows back as it left them.
+      await sql`update scenarios.nodes set speculative = false where node_id in (${sql.join(all)})`.execute(
+        database.db,
+      );
+      await sql`update scenarios.drafts set options = (select jsonb_agg(o - 'speculative') from jsonb_array_elements(options) as o) where options is not null`.execute(
+        database.db,
+      );
+      await runBackfill();
+      expect(await flagsOf(...all)).toEqual(
+        expect.arrayContaining([
+          [marked, true],
+          [below, true],
+          [lens, true],
+          [plain, false],
+          [edited, false],
+        ]),
+      );
+      // Run again: nothing more is marked, and what is marked stays.
+      await runBackfill();
+      expect((await flagsOf(...all)).filter(([, flag]) => flag)).toHaveLength(3);
+    });
+
+    it('leaves a branch whose draft is gone unmarked: a Clear cannot be taken back', async () => {
+      const { a, aRef, root } = await begun();
+      plannerScript = () => answerWith({ mode: 'direct', options: [portal] });
+      const draftId = await drafted(a, aRef, root);
+      const nodeId = unwrap(await choose(a, aRef, draftId)).node.nodeId;
+      await sql`update scenarios.nodes set speculative = false where node_id = ${nodeId}`.execute(database.db);
+      await sql`delete from scenarios.drafts where draft_id = ${draftId}`.execute(database.db);
+      await runBackfill();
+      expect(await flagsOf(nodeId)).toEqual([[nodeId, false]]);
+    });
+
+    it('cannot leave a branch speculative that is not hypothetical', async () => {
+      const { a, aRef, root } = await begun();
+      plannerScript = () => answerWith({ mode: 'direct', options: [operatorView] });
+      const lens = unwrap(
+        await choose(a, aRef, await drafted(a, aRef, root, { kind: 'perspective', text: 'From the operator.' })),
+      ).node;
+      expect(lens).toMatchObject({ hypothetical: false, speculative: false });
+      await expect(
+        sql`update scenarios.nodes set speculative = true where node_id = ${lens.nodeId}`.execute(database.db),
+      ).rejects.toThrow(/nodes_speculative_is_hypothetical/);
     });
   });
 

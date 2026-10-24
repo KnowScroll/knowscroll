@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyChanges, wordsKey, type Assumption } from './assumptions.js';
+import { applyChanges, restatesPremise, wordsKey, type Assumption } from './assumptions.js';
 import { meaningOf, planStep, ROOT_PARENT, type ParentFacts } from './exploration.js';
 
 const traffic: Assumption = { subject: 'Traffic', statement: 'Traffic is ten times higher than in the original' };
@@ -223,5 +223,139 @@ describe('meaningOf', () => {
     expect(key(null, { kind: 'what_if', changes: [traffic, model], kept: [] })).toBe(
       key(null, { kind: 'what_if', changes: [model, traffic], kept: [] }),
     );
+  });
+
+  it('keeps a speculative branch and an ordinary one of the same change apart: one is never reused for the other', () => {
+    const plain = key(null, { kind: 'what_if', changes: [traffic], kept: [] });
+    expect(key(null, { kind: 'what_if', changes: [traffic], kept: [], speculative: true })).not.toBe(plain);
+    expect(key(null, { kind: 'what_if', changes: [traffic], kept: [], speculative: false })).toBe(plain);
+  });
+
+  it('tells a change that takes over a premise from one that adds beside it', () => {
+    const parent: ParentFacts = { hypothetical: true, speculative: false, assumptions: [traffic] };
+    const meaning = (replaces: string | undefined) => {
+      const outcome = planStep(parent, {
+        kind: 'what_if',
+        changes: [{ subject: 'Load', statement: 'Load is twenty times higher', replaces }],
+        kept: [],
+      });
+      if (!outcome.ok) throw new Error('CI step refused');
+      return meaningOf('node-1', outcome.step);
+    };
+    expect(meaning('Traffic')).not.toBe(meaning(undefined));
+    expect(meaning('traffic')).toBe(meaning(' Traffic '));
+  });
+});
+
+describe('a change that names the premise it replaces', () => {
+  const push: Assumption = {
+    subject: 'Summer push',
+    statement: 'During each summer gravity would exert an additional net push on Earth away from the Sun',
+  };
+  const tilt: Assumption = { subject: 'Axis', statement: 'Earth’s axis remains steadily tilted' };
+  const parent: ParentFacts = { hypothetical: true, speculative: false, assumptions: [push, tilt] };
+  const weaker = { subject: 'Push strength', statement: 'The summer push is half as strong as first proposed' };
+
+  it('replaces it whatever its own subject says, in its place, and drops the old words', () => {
+    const outcome = planStep(parent, { kind: 'what_if', changes: [{ ...weaker, replaces: 'summer push' }], kept: [] });
+    expect(outcome).toMatchObject({ ok: true });
+    if (!outcome.ok) return;
+    expect(outcome.step.assumptions).toEqual([weaker, tilt]);
+    expect(outcome.step.changes).toEqual([weaker]);
+    expect(outcome.step.replaced).toEqual(['summer push']);
+  });
+
+  it('adds beside the premise when it names none and has another subject, as before', () => {
+    const outcome = planStep(parent, { kind: 'what_if', changes: [weaker], kept: [] });
+    expect(outcome.ok && outcome.step.assumptions).toEqual([push, tilt, weaker]);
+    expect(outcome.ok && outcome.step.replaced).toEqual([]);
+  });
+
+  it('is the same as replacing by subject when it names its own subject', () => {
+    const outcome = planStep(parent, {
+      kind: 'what_if',
+      changes: [{ subject: 'Axis', statement: 'Earth’s axis would be straight', replaces: 'AXIS' }],
+      kept: [],
+    });
+    expect(outcome.ok && outcome.step.assumptions.map((item) => item.subject)).toEqual(['Summer push', 'Axis']);
+    expect(outcome.ok && outcome.step.replaced).toEqual([]);
+  });
+
+  it('is refused when it names a premise that does not hold', () => {
+    expect(planStep(parent, { kind: 'what_if', changes: [{ ...weaker, replaces: 'Moon' }], kept: [] })).toEqual({
+      ok: false,
+      refusal: 'replaces_unknown_premise',
+    });
+  });
+
+  it('is refused when two changes replace one premise, or when it lands on a subject already held', () => {
+    expect(
+      planStep(parent, {
+        kind: 'what_if',
+        changes: [
+          { ...weaker, replaces: 'Summer push' },
+          { subject: 'Other', statement: 'Something else is the case here', replaces: 'Summer push' },
+        ],
+        kept: [],
+      }),
+    ).toEqual({ ok: false, refusal: 'replaces_conflict' });
+    expect(
+      planStep(parent, {
+        kind: 'what_if',
+        changes: [{ ...weaker, subject: 'Axis', replaces: 'Summer push' }],
+        kept: [],
+      }),
+    ).toEqual({ ok: false, refusal: 'replaces_conflict' });
+    expect(
+      planStep(parent, {
+        kind: 'what_if',
+        changes: [
+          { ...weaker, replaces: 'Summer push' },
+          { subject: 'Summer push', statement: 'Pushing stops in autumn' },
+        ],
+        kept: [],
+      }),
+    ).toEqual({ ok: false, refusal: 'replaces_conflict' });
+  });
+
+  it('cannot be kept by the same step: what it takes over is not still held', () => {
+    expect(
+      planStep(parent, {
+        kind: 'what_if',
+        changes: [{ ...weaker, replaces: 'Summer push' }],
+        kept: [{ subject: 'Summer push', statement: 'During each summer gravity would push' }],
+      }),
+    ).toEqual({ ok: false, refusal: 'kept_contradicts_change' });
+  });
+});
+
+describe('a change that says again a premise that holds', () => {
+  const push: Assumption = {
+    subject: 'Summer push',
+    statement:
+      'During each hemisphere’s summer, gravity would exert an additional net push on Earth away from the Sun.',
+  };
+
+  it('is recognised when nearly all its content words are the premise’s, whatever the subject', () => {
+    expect(
+      restatesPremise(
+        {
+          subject: 'Weaker push',
+          statement:
+            'During each hemisphere’s summer, gravity would exert an additional net push on Earth away from the Sun at half the originally proposed strength.',
+        },
+        push,
+      ),
+    ).toBe(true);
+  });
+
+  it('is not recognised for a change about something else, even one that shares a few words', () => {
+    expect(
+      restatesPremise(
+        { subject: 'Axis', statement: 'Earth’s axis would be tilted sixty degrees from the Sun’s equator' },
+        push,
+      ),
+    ).toBe(false);
+    expect(restatesPremise({ subject: 'Moon', statement: 'Earth would have a second, larger moon' }, push)).toBe(false);
   });
 });

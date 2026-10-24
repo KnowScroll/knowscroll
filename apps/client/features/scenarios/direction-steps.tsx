@@ -106,10 +106,11 @@ export function ConfirmStep({
   return (
     <View style={sheetStyles.step}>
       <View style={styles.notice} role="note">
-        <Text variant="uiS">{SPECULATIVE_NOTICE}</Text>
+        <Text variant="uiS">{option.speculative ? SPECULATIVE_NOTICE : 'Is this what you mean?'}</Text>
         <Text variant="bodyS">
-          A quick check first. The branch will say that this is an idea, not something that is known, and will compare
-          it with what is established.
+          {option.speculative
+            ? 'A quick check first. The branch will say that this is an idea, not something that is known, and will compare it with what is established.'
+            : 'A quick check first. This could be read more than one way. Check the premise below, or edit it, before anything is made.'}
         </Text>
       </View>
       <Text variant="ui">{option.title}</Text>

@@ -27,7 +27,7 @@ function suggestionsOf(drafts: readonly DraftRow[], nodes: readonly NodeRow[]) {
         kind: draft.kind,
         ...(draft.parentNodeId === undefined ? {} : { parentNodeId: draft.parentNodeId }),
         title: option.title,
-        speculative: option.needsConfirmation,
+        speculative: option.speculative,
       })),
     )
     .slice(0, MAX_SCENARIO_SUGGESTIONS);

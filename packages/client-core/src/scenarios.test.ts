@@ -23,6 +23,7 @@ const option = {
   explanation: 'Shows how batching holds the cost down.',
   changes: [traffic],
   kept: [model],
+  speculative: false,
   needsConfirmation: false,
 };
 const card = (patch: Partial<ScenarioCard> = {}): ScenarioCard => ({
@@ -340,6 +341,27 @@ describe('the member’s own request', () => {
     });
     expect(selection?.kept).toEqual([{ subject: 'The same model', statement: 'The same model serves every request' }]);
     expect(selection).not.toHaveProperty('lens');
+  });
+
+  it('names the direction an edit came from, and nothing when it came from nowhere', () => {
+    const edited = ownSelection({
+      kind: 'what_if',
+      changes: [{ statement: twenty }],
+      kept: [],
+      lens: '',
+      fromOptionId: 'o2',
+    });
+    expect(edited).toMatchObject({ kind: 'own', fromOptionId: 'o2' });
+    expect(ownSelection({ kind: 'what_if', changes: [{ statement: twenty }], kept: [], lens: '' })).not.toHaveProperty(
+      'fromOptionId',
+    );
+    expect(ownSelection({ kind: 'perspective', changes: [], kept: [], lens: 'cost', fromOptionId: 'o1' })).toEqual({
+      kind: 'own',
+      changes: [],
+      kept: [],
+      lens: 'cost',
+      fromOptionId: 'o1',
+    });
   });
 
   it('takes only the lens for a perspective', () => {

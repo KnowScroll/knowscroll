@@ -329,24 +329,27 @@ const MIN_STATEMENT = 3;
  * The member's complete request as the server takes it, or nothing while it is not complete: a what-if
  * needs one sentence that changes something, a perspective needs a lens. A line keeps its subject when it
  * has one (so it replaces the premise of that subject instead of standing beside it); a new line is named
- * by its first words, and so adds a premise.
+ * by its first words, and so adds a premise. A request edited from one of the draft's directions names it
+ * (`fromOptionId`): the server keeps that direction's speculative flag for it.
  */
 export function ownSelection(request: {
   readonly kind: ScenarioKind;
   readonly changes: readonly OwnRow[];
   readonly kept: readonly OwnRow[];
   readonly lens: string;
+  readonly fromOptionId?: string | undefined;
 }): Extract<ScenarioSelection, { kind: 'own' }> | undefined {
+  const from = request.fromOptionId === undefined ? {} : { fromOptionId: request.fromOptionId };
   if (request.kind === 'perspective') {
     const lens = request.lens.trim();
-    return lens.length >= MIN_STATEMENT ? { kind: 'own', changes: [], kept: [], lens } : undefined;
+    return lens.length >= MIN_STATEMENT ? { kind: 'own', changes: [], kept: [], lens, ...from } : undefined;
   }
   const assumptions = (rows: readonly OwnRow[]): Assumption[] =>
     rows
       .map((row) => ({ subject: row.subject ?? subjectOfStatement(row.statement), statement: row.statement.trim() }))
       .filter((row) => row.statement.length >= MIN_STATEMENT);
   const changes = assumptions(request.changes);
-  return changes.length === 0 ? undefined : { kind: 'own', changes, kept: assumptions(request.kept) };
+  return changes.length === 0 ? undefined : { kind: 'own', changes, kept: assumptions(request.kept), ...from };
 }
 
 /** One assumption the way a chip says it: "Changed: traffic is ten times higher". */

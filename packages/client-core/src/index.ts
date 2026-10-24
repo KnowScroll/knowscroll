@@ -74,6 +74,7 @@ export {
   saveMapPreferences,
   type MapFilter,
   type MapHere,
+  type MapInput,
   type MapPreferences,
   type MapRow,
   type MapView,

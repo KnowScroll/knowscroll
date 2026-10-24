@@ -38,19 +38,39 @@ interface NewBranch {
   readonly commandId: string;
 }
 
-/** The step the member chose: one of the draft's stored directions by ID, or their own complete request. */
+/** One of the draft's stored directions, while the draft is ready; the one a choice or an edit starts from. */
+const optionOf = (draft: DraftRow, optionId: string) =>
+  draft.state === 'ready' ? draft.options?.find((candidate) => candidate.optionId === optionId) : undefined;
+
+/**
+ * The step the member chose: one of the draft's stored directions by ID, or their own complete request. A request
+ * typed from scratch is never speculative: nothing but the Planner says so. One edited from a direction (it names
+ * that direction) keeps the direction's flag, resolved here from the member's own draft, never taken from the
+ * request: changing a word of a speculative idea does not make it established.
+ */
 function requestOf(draft: DraftRow, selection: Choice['selection']): Chosen | undefined {
-  if (selection.kind === 'own')
-    return { request: { kind: draft.kind, changes: selection.changes, kept: selection.kept, lens: selection.lens } };
-  const option = draft.options?.find((candidate) => candidate.optionId === selection.optionId);
-  if (draft.state !== 'ready' || option === undefined) return undefined;
+  if (selection.kind === 'own') {
+    const from = selection.fromOptionId === undefined ? undefined : optionOf(draft, selection.fromOptionId);
+    if (selection.fromOptionId !== undefined && from === undefined) return undefined;
+    return {
+      request: {
+        kind: draft.kind,
+        changes: selection.changes,
+        kept: selection.kept,
+        lens: selection.lens,
+        speculative: from?.speculative ?? false,
+      },
+    };
+  }
+  const option = optionOf(draft, selection.optionId);
+  if (option === undefined) return undefined;
   return {
     request: {
       kind: draft.kind,
       changes: option.changes,
       kept: option.kept,
       lens: option.lens,
-      speculative: option.needsConfirmation,
+      speculative: option.speculative,
     },
     title: option.title,
     explanation: option.explanation,

@@ -133,6 +133,7 @@ export interface MapView {
   readonly empty: 'none' | 'search' | 'filter' | undefined;
 }
 
+/** One branch or suggestion on its way into the outline, with the text a search looks in. */
 interface Node {
   readonly id: string;
   readonly parentId: string | undefined;
@@ -141,15 +142,8 @@ interface Node {
   children: Node[];
 }
 
-const ROOT = 'root';
-
-/**
- * The map of one thread as an outline (X04): the original sequence, with the branches that grew from it nested
- * under it as they were made, and the member's own unmade suggestions where they would continue. It shows
- * what exists: a suggestion has no number, a removed branch says "Removed" and nothing else, "You" marks only
- * the member's own position, and a long group folds until it is opened. Pure: the same inputs, the same rows.
- */
-export function buildMap(input: {
+/** Everything `buildMap` reads. */
+export interface MapInput {
   readonly threadTitle: string;
   readonly episodes: readonly ThreadEpisode[];
   /** The thread's root Scroll: the original branches grew from it. */
@@ -162,117 +156,153 @@ export function buildMap(input: {
   readonly selectedAssetId: string | undefined;
   readonly preferences: MapPreferences;
   readonly query: string;
-}): MapView {
-  const { filter, expanded } = input.preferences;
-  const query = input.query.trim().toLowerCase();
-  const mineOf = (card: ScenarioCard) => card.startedBy !== undefined && card.startedBy.personId === input.ownPersonId;
+}
 
+const ROOT = 'root';
+
+/** A branch as a node. A removed one is a placeholder: its words are not here, so no search can find it. */
+function branchNode(card: ScenarioCard, input: MapInput): Node {
+  const removed = card.status === 'removed';
+  return {
+    id: card.nodeId,
+    parentId: card.parentNodeId,
+    text: removed ? '' : `${card.title} ${card.lens ?? ''}`.toLowerCase(),
+    children: [],
+    row: {
+      kind: 'branch',
+      key: card.nodeId,
+      depth: 1,
+      nodeId: card.nodeId,
+      branchKind: card.kind,
+      title: removed ? 'Removed' : card.title,
+      status: card.status,
+      speculative: card.speculative,
+      hypothetical: card.hypothetical,
+      mine: card.startedBy !== undefined && card.startedBy.personId === input.ownPersonId,
+      here: input.here.kind === 'branch' && input.here.nodeId === card.nodeId,
+      openable: card.status === 'ready',
+    },
+  };
+}
+
+/** An offer the member has not made, as a node under the branch it would continue. */
+function suggestionNode(suggestion: ScenarioSuggestion): Node {
+  const id = `${suggestion.draftId}:${suggestion.optionId}`;
+  return {
+    id,
+    parentId: suggestion.parentNodeId,
+    text: suggestion.title.toLowerCase(),
+    children: [],
+    row: {
+      kind: 'suggestion',
+      key: id,
+      depth: 1,
+      draftId: suggestion.draftId,
+      optionId: suggestion.optionId,
+      title: suggestion.title,
+      speculative: suggestion.speculative,
+    },
+  };
+}
+
+/** The branches and suggestions as a forest: each under its parent, those continuing the root (or a parent not here) on top. */
+function forestOf(input: MapInput): Node[] {
   const nodes = new Map<string, Node>();
-  for (const card of input.cards) {
-    const removed = card.status === 'removed';
-    nodes.set(card.nodeId, {
-      id: card.nodeId,
-      parentId: card.parentNodeId,
-      text: removed ? '' : `${card.title} ${card.lens ?? ''}`.toLowerCase(),
-      children: [],
-      row: {
-        kind: 'branch',
-        key: card.nodeId,
-        depth: 1,
-        nodeId: card.nodeId,
-        branchKind: card.kind,
-        title: removed ? 'Removed' : card.title,
-        status: card.status,
-        speculative: card.speculative,
-        hypothetical: card.hypothetical,
-        mine: mineOf(card),
-        here: input.here.kind === 'branch' && input.here.nodeId === card.nodeId,
-        openable: card.status === 'ready',
-      },
-    });
-  }
+  for (const card of input.cards) nodes.set(card.nodeId, branchNode(card, input));
   for (const suggestion of input.suggestions) {
-    const id = `${suggestion.draftId}:${suggestion.optionId}`;
-    nodes.set(id, {
-      id,
-      parentId: suggestion.parentNodeId,
-      text: suggestion.title.toLowerCase(),
-      children: [],
-      row: {
-        kind: 'suggestion',
-        key: id,
-        depth: 1,
-        draftId: suggestion.draftId,
-        optionId: suggestion.optionId,
-        title: suggestion.title,
-        speculative: suggestion.speculative,
-      },
-    });
+    const node = suggestionNode(suggestion);
+    nodes.set(node.id, node);
   }
   const top: Node[] = [];
   for (const node of nodes.values()) {
     const parent = node.parentId === undefined ? undefined : nodes.get(node.parentId);
     (parent === undefined ? top : parent.children).push(node);
   }
+  return top;
+}
 
-  // What the filter and the search keep: the nodes that match, and the path to each so it reads in place.
+/**
+ * What the filter and the search keep: the nodes that match, and the path to each so it reads in place.
+ * Narrows `children` as it goes.
+ */
+function narrow(top: readonly Node[], filter: MapFilter, query: string): Node[] {
   const matches = (node: Node): boolean => {
     if (filter === 'suggestions' && node.row.kind !== 'suggestion') return false;
     if (filter === 'mine' && (node.row.kind !== 'branch' || !node.row.mine)) return false;
     return query === '' || node.text.includes(query);
   };
   const keep = (node: Node): boolean => {
-    const kept = node.children.filter(keep);
-    node.children = kept;
-    return matches(node) || kept.length > 0;
+    node.children = node.children.filter(keep);
+    return matches(node) || node.children.length > 0;
   };
-  const visible = top.filter(keep);
+  return top.filter(keep);
+}
 
-  /**
-   * Lays a group out under its parent; past `GROUP_LIMIT` the rest fold until the member opens them. A fold
-   * that would hide a single line is not worth its own line, so it only starts at two.
-   */
-  const place = (into: MapRow[], list: readonly Node[], depth: number, groupKey: string, parentTitle: string) => {
-    const folded = query === '' && !expanded.includes(groupKey) && list.length > GROUP_LIMIT + 1;
-    for (const node of folded ? list.slice(0, GROUP_LIMIT) : list) {
-      into.push({ ...node.row, depth });
-      place(into, node.children, depth + 1, node.id, node.row.title);
-    }
-    if (folded)
-      into.push({
-        kind: 'more',
-        key: `more:${groupKey}`,
-        depth,
-        groupKey,
-        parentTitle,
-        hidden: list.length - GROUP_LIMIT,
-      });
-  };
-
-  const selected = input.selectedAssetId ?? input.episodes[0]?.assetId;
-  const out: MapRow[] = [];
-  const branchRows: MapRow[] = [];
-  for (const episode of input.episodes) {
-    out.push({
-      kind: 'episode',
-      key: `episode:${episode.assetId}`,
-      depth: 0,
-      assetId: episode.assetId,
-      part: episode.part,
-      title: episode.title,
-      here: input.here.kind === 'original' && selected === episode.assetId,
-      unavailable: episode.state === 'unavailable',
-    });
-    if (episode.assetId === input.rootAssetId) {
-      place(branchRows, visible, 1, ROOT, episode.title);
-      out.push(...branchRows);
-    }
+/**
+ * Lays a group out under its parent, depth first. Past `GROUP_LIMIT` the rest fold until the member opens them
+ * (never while searching). A fold that would hide a single line is not worth its own line, so it only starts at two.
+ */
+function layOut(
+  into: MapRow[],
+  list: readonly Node[],
+  place: { readonly depth: number; readonly groupKey: string; readonly parentTitle: string },
+  show: { readonly expanded: readonly string[]; readonly searching: boolean },
+): void {
+  const folded = !show.searching && !show.expanded.includes(place.groupKey) && list.length > GROUP_LIMIT + 1;
+  for (const node of folded ? list.slice(0, GROUP_LIMIT) : list) {
+    into.push({ ...node.row, depth: place.depth });
+    layOut(into, node.children, { depth: place.depth + 1, groupKey: node.id, parentTitle: node.row.title }, show);
   }
-  const hasBranches = branchRows.length > 0;
+  if (folded)
+    into.push({
+      kind: 'more',
+      key: `more:${place.groupKey}`,
+      depth: place.depth,
+      groupKey: place.groupKey,
+      parentTitle: place.parentTitle,
+      hidden: list.length - GROUP_LIMIT,
+    });
+}
+
+/** An episode of the original sequence as a line, with "You" when it is the member's own place. */
+function episodeRow(episode: ThreadEpisode, input: MapInput): MapRow {
+  const selected = input.selectedAssetId ?? input.episodes[0]?.assetId;
+  return {
+    kind: 'episode',
+    key: `episode:${episode.assetId}`,
+    depth: 0,
+    assetId: episode.assetId,
+    part: episode.part,
+    title: episode.title,
+    here: input.here.kind === 'original' && selected === episode.assetId,
+    unavailable: episode.state === 'unavailable',
+  };
+}
+
+/**
+ * The map of one thread as an outline (X04): the original sequence, with the branches that grew from it nested
+ * under it as they were made, and the member's own unmade suggestions where they would continue. It shows
+ * what exists: a suggestion has no number, a removed branch says "Removed" and nothing else, "You" marks only
+ * the member's own position, and a long group folds until it is opened. Pure: the same inputs, the same rows.
+ */
+export function buildMap(input: MapInput): MapView {
+  const query = input.query.trim().toLowerCase();
+  const visible = narrow(forestOf(input), input.preferences.filter, query);
+  const show = { expanded: input.preferences.expanded, searching: query !== '' };
+  const rows: MapRow[] = [];
+  let branchRows = 0;
+  for (const episode of input.episodes) {
+    rows.push(episodeRow(episode, input));
+    if (episode.assetId !== input.rootAssetId) continue;
+    const branches: MapRow[] = [];
+    layOut(branches, visible, { depth: 1, groupKey: ROOT, parentTitle: episode.title }, show);
+    branchRows = branches.length;
+    rows.push(...branches);
+  }
   const anythingMade = input.cards.length + input.suggestions.length > 0;
   return {
     title: input.threadTitle,
-    rows: out,
-    empty: hasBranches ? undefined : !anythingMade ? 'none' : query !== '' ? 'search' : 'filter',
+    rows,
+    empty: branchRows > 0 ? undefined : !anythingMade ? 'none' : query !== '' ? 'search' : 'filter',
   };
 }

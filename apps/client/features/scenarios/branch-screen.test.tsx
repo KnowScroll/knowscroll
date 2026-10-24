@@ -33,10 +33,13 @@ let mockBoard: Pick<ScenarioBoardState, 'cards' | 'phase' | 'suggestions'> = {
   phase: 'ready',
   suggestions: [],
 };
+const mockLoad = jest.fn();
+const mockRefresh = jest.fn();
 jest.mock('./use-scenarios', () => ({
-  useScenarioBoard: () => ({ controller: {}, state: mockBoard }),
+  useScenarioBoard: () => ({ controller: { load: mockLoad }, state: mockBoard }),
   useScenarioComposer: jest.fn(),
 }));
+let mockThreadPhase: ContentThreadState['phase'] = 'ready';
 const mockThread = {
   name: undefined,
   root: {
@@ -51,7 +54,7 @@ const mockThread = {
   ],
 } as unknown as ContentThreadState;
 jest.mock('../threads/use-content-thread', () => ({
-  useContentThread: () => ({ controller: {}, state: mockThread }),
+  useContentThread: () => ({ controller: { refresh: mockRefresh }, state: { ...mockThread, phase: mockThreadPhase } }),
 }));
 jest.mock('../threads/scroll-open', () => {
   const { Text } = jest.requireActual<typeof ReactNative>('react-native');
@@ -100,6 +103,9 @@ async function open(cards: ScenarioCard[], phase: ScenarioBoardState['phase'] = 
 }
 
 afterEach(() => {
+  mockThreadPhase = 'ready';
+  mockLoad.mockClear();
+  mockRefresh.mockClear();
   stored.clear();
   mockBack.mockClear();
   mockReplace.mockClear();
@@ -156,20 +162,59 @@ describe('a branch opened from its card or the map', () => {
     expect(screen.getAllByRole('button', { name: /^Back to Black holes/ }).length).toBeGreaterThan(0);
   });
 
-  it('says a removed branch was removed, and a branch the member cannot reach is just not there', async () => {
-    await open([card({ status: 'removed', content: undefined })]);
+  it('says a branch was removed only when it is there and its card says removed, and shows nothing it said', async () => {
+    await open([card({ status: 'removed', content: undefined, title: 'Removed', changes: [], assumptions: [] })]);
     expect(screen.getByText('This branch was removed')).toBeOnTheScreen();
     expect(screen.queryByText(/black hole were a portal/)).toBeNull();
     expect(screen.queryByLabelText(/^Item 1/)).toBeNull();
   });
 
-  it('treats an unknown branch the same way as a removed one', async () => {
+  it('says an unknown branch, or one the member cannot see, is not available, and never that it was removed', async () => {
     await open([]);
-    expect(screen.getByText('This branch was removed')).toBeOnTheScreen();
+    expect(screen.getByText('This branch isn’t available')).toBeOnTheScreen();
+    expect(screen.queryByText(/removed/)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to the thread' }));
+    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
-  it('waits for the branches to be read before saying anything is missing', async () => {
+  it('says the thread is not available, as the thread’s own address does, when the member cannot open it', async () => {
+    mockThreadPhase = 'unavailable';
+    await open([card()]);
+    expect(screen.getByText('This thread isn’t available')).toBeOnTheScreen();
+    expect(screen.queryByText(/removed/)).toBeNull();
+    expect(screen.queryByText(/black hole were a portal/)).toBeNull();
+    await fireEvent.press(screen.getByRole('link', { name: 'Back to Talk' }));
+    expect(mockReplace).toHaveBeenCalledWith('/conversations');
+  });
+
+  it('says the same when the branches say the member has no place in the thread', async () => {
+    await open([], 'unavailable');
+    expect(screen.getByText('This thread isn’t available')).toBeOnTheScreen();
+    expect(screen.queryByText(/removed/)).toBeNull();
+  });
+
+  it('says it could not open the branch when a read failed, offers to try again, and says nothing of the branch', async () => {
+    await open([], 'failed');
+    expect(screen.getByText('Can’t open this branch')).toBeOnTheScreen();
+    expect(screen.queryByText(/removed/)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+    expect(mockLoad).toHaveBeenCalledTimes(1);
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('says the same when it is the thread that could not be read', async () => {
+    mockThreadPhase = 'failed';
+    await open([card()]);
+    expect(screen.getByText('Can’t open this branch')).toBeOnTheScreen();
+  });
+
+  it('waits for the thread and its branches to be read before saying anything is missing', async () => {
     await open([], 'loading');
     expect(screen.getByLabelText('Opening the branch')).toBeOnTheScreen();
+    await screen.unmount();
+    mockThreadPhase = 'loading';
+    await open([card()]);
+    expect(screen.getByLabelText('Opening the branch')).toBeOnTheScreen();
+    expect(screen.queryByText(/black hole were a portal/)).toBeNull();
   });
 });

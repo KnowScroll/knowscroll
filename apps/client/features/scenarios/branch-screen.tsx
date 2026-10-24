@@ -11,10 +11,12 @@ import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { OpenScroll, ThreadScrollArticle } from '../threads/scroll-open';
 import { useOwnPlace } from '../threads/own-place';
+import { useMarkHere } from './use-mark-here';
 import { threadHref, threadRefFromParams } from '../threads/thread-links';
 import { threadTitle } from '../threads/thread-chrome';
 import { useContentThread } from '../threads/use-content-thread';
 import { BranchNavigator, SpeculativeBanner, TryAnotherPrompt, branchSubtitle } from './branch-chrome';
+import { branchViewOf } from './branch-view';
 import { BranchSheets } from './branch-sheets';
 import { useScenarioBoard } from './use-scenarios';
 import { useThreadBranches } from './use-thread-branches';
@@ -52,12 +54,11 @@ function ReadyBranch({
   );
 }
 
-/** What stands where the Scroll will be: it is being made, it could not be, it was removed, or it is not there. */
-function BranchState({ card, loading }: { readonly card: ScenarioCard | undefined; readonly loading: boolean }) {
-  if (card === undefined && loading) return <Skeleton rows={3} label="Opening the branch" />;
-  if (card === undefined || card.status === 'removed')
+/** What stands where the Scroll will be, once the branch is known to be there: being made, or unable to be. */
+function BranchStatus({ view }: { readonly view: { readonly kind: 'preparing' | 'branch_failed' | 'removed' } }) {
+  if (view.kind === 'removed')
     return <StateBlock title="This branch was removed" body="The rest of the thread is where you left it." />;
-  if (card.status === 'failed')
+  if (view.kind === 'branch_failed')
     return (
       <StateBlock title="Couldn’t prepare this branch" body="It can be removed from the thread and asked for again." />
     );
@@ -69,6 +70,62 @@ function BranchState({ card, loading }: { readonly card: ScenarioCard | undefine
         This changes when it is ready. You can go back to the thread meanwhile.
       </Text>
     </View>
+  );
+}
+
+/**
+ * What a branch's address shows when there is no branch to show: still reading, not the member's thread, a read that
+ * did not arrive, or no such branch among the ones they can see. Only a branch that is there and was removed says
+ * "removed" (that is `BranchStatus`); everything else says only what is true of the read.
+ */
+function NoBranch({
+  view,
+  onRetry,
+  onBack,
+}: {
+  readonly view: { readonly kind: 'loading' | 'thread_unavailable' | 'failed' | 'missing' };
+  readonly onRetry: () => void;
+  readonly onBack: () => void;
+}) {
+  const router = useRouter();
+  if (view.kind === 'loading')
+    return (
+      <View style={styles.state}>
+        <Skeleton rows={3} label="Opening the branch" />
+      </View>
+    );
+  if (view.kind === 'thread_unavailable')
+    return (
+      <StateBlock
+        title="This thread isn’t available"
+        body="It may have ended, or you may no longer have access."
+        actions={[
+          {
+            label: 'Back to Talk',
+            role: 'link',
+            href: '/conversations',
+            onPress: () => router.replace('/conversations'),
+          },
+        ]}
+      />
+    );
+  if (view.kind === 'failed')
+    return (
+      <StateBlock
+        title="Can’t open this branch"
+        body="It didn’t load. Check your connection and try again."
+        actions={[
+          { label: 'Try again', variant: 'primary', onPress: onRetry },
+          { label: 'Back to the thread', onPress: onBack },
+        ]}
+      />
+    );
+  return (
+    <StateBlock
+      title="This branch isn’t available"
+      body="It may not exist, or you may no longer have access."
+      actions={[{ label: 'Back to the thread', onPress: onBack }]}
+    />
   );
 }
 
@@ -84,11 +141,14 @@ function BranchBody({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const board = useScenarioBoard(scope, thread);
-  const { state } = useContentThread(scope, thread);
+  const { controller, state } = useContentThread(scope, thread);
   const place = useOwnPlace(scope, thread.threadId);
+  useMarkHere(scope, thread.threadId, nodeId);
   const card = board.state.cards.find((candidate) => candidate.nodeId === nodeId);
+  const view = branchViewOf(state.phase, board.state.phase, card);
   const title = threadTitle(state);
-  useDocumentTitle(card === undefined || card.status === 'removed' ? title : `${branchSubtitle(card)} · ${title}`);
+  const named = view.kind === 'preparing' || view.kind === 'branch_failed' || view.kind === 'ready';
+  useDocumentTitle(named ? `${branchSubtitle(view.card)} · ${title}` : title);
   const back = returnTarget(title, state.episodes, place.selected);
   const branches = useThreadBranches({
     scope,
@@ -97,14 +157,29 @@ function BranchBody({
     state,
     board,
     selectedAssetId: place.selected,
-    hereNodeId: nodeId,
     onBranchStarted: () => undefined,
   });
   const toThread = () => {
     if (router.canGoBack()) router.back();
     else router.replace(threadHref(thread));
   };
-  const ready = card?.status === 'ready' && card.content !== undefined ? { ...card, content: card.content } : undefined;
+  const retry = () => {
+    void board.controller.load();
+    void controller.refresh();
+  };
+  if (
+    view.kind === 'loading' ||
+    view.kind === 'thread_unavailable' ||
+    view.kind === 'failed' ||
+    view.kind === 'missing'
+  )
+    return (
+      <View role="main" style={[styles.screen, { paddingTop: insets.top + spacing[3] }]}>
+        <NoBranch view={view} onRetry={retry} onBack={toThread} />
+      </View>
+    );
+  const item = view.kind === 'ready' ? 'current' : view.kind === 'preparing' ? 'preparing' : undefined;
+  const speculative = named && view.card.speculative;
   return (
     <View role="main" style={[styles.screen, { paddingTop: insets.top + spacing[3] }]}>
       <View style={styles.head}>
@@ -114,31 +189,26 @@ function BranchBody({
           </Text>
           {branches.mapOffered ? <Button label="Map" size="sm" variant="ghost" onPress={branches.map.show} /> : null}
         </View>
-        {card === undefined || card.status === 'removed' ? null : (
+        {named ? (
           <Text variant="uiS" color={content.accent} numberOfLines={2}>
-            {branchSubtitle(card)}
+            {branchSubtitle(view.card)}
           </Text>
-        )}
-        <BranchNavigator
-          returnLabel={back.label}
-          returnSpoken={back.spoken}
-          item={ready === undefined ? (card?.status === 'preparing' ? 'preparing' : undefined) : 'current'}
-          onReturn={toThread}
-        />
-        {card?.speculative === true ? <SpeculativeBanner /> : null}
+        ) : null}
+        <BranchNavigator returnLabel={back.label} returnSpoken={back.spoken} item={item} onReturn={toThread} />
+        {speculative ? <SpeculativeBanner /> : null}
       </View>
-      {ready === undefined ? (
-        <View style={styles.state}>
-          <BranchState card={card} loading={board.state.phase === 'loading'} />
-          <Button label={back.spoken} variant="ghost" onPress={toThread} />
-        </View>
-      ) : (
+      {view.kind === 'ready' ? (
         <ReadyBranch
           scope={scope}
-          card={ready}
-          onAsk={(words) => branches.scenarios.continueBranch(ready, words)}
+          card={view.card}
+          onAsk={(words) => branches.scenarios.continueBranch(view.card, words)}
           onBack={toThread}
         />
+      ) : (
+        <View style={styles.state}>
+          <BranchStatus view={view} />
+          <Button label={back.spoken} variant="ghost" onPress={toThread} />
+        </View>
       )}
       <BranchSheets
         scope={scope}

@@ -518,7 +518,11 @@ form with earlier premises (add or replace) and the removed-branch note are cove
   had selected (or the thread), the branch's one item ("1 · current", "1 · preparing" until its Scroll exists),
   "Speculative scenario · not established science" in words when it is, the Scroll, and at its end "Try another
   assumption" (the words go to the same sheet, which asks for directions). A removed or unknown branch and a branch
-  still being prepared say so and keep only the way back. The **Map** button is here too once the thread has several
+  still being prepared say so and keep only the way back. What the address shows is chosen by `branch-view.ts` from what was
+  read, and only a card that is there and `removed` says "removed": a thread that is not the member's shows the thread's
+  "This thread isn't available", a failed read shows "Can't open this branch" with Try again, and a branch missing among
+  those read shows "This branch isn't available" without saying why. `use-mark-here.ts` remembers on the device where the
+  member is. The **Map** button is here too once the thread has several
   branches, so a member can move between branches without going back; "You" marks the branch they have open. The Scroll is the member's own encounter without
   the thread's share control (`ThreadScrollArticle chrome="own"`). Where the member is stays on the device
   (`thread.here.<id>`).

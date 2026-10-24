@@ -153,6 +153,6 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: ReasoningHarness)
       },
       signal,
     );
-    await p.withScope(authority, (scope) => apply(scope, job.draftId, suggestVerdict(outcome)));
+    await p.withScope(authority, (scope) => apply(scope, job.draftId, suggestVerdict(outcome, value.draftKind)));
   };
 }

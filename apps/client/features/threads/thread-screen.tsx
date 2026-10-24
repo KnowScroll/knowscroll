@@ -24,6 +24,7 @@ import { useScenarioBoard } from '../scenarios/use-scenarios';
 import { useThreadBranches } from '../scenarios/use-thread-branches';
 import { EpisodeNavigator } from './episode-navigator';
 import { useOwnPlace } from './own-place';
+import { useMarkHere } from '../scenarios/use-mark-here';
 import { ShareMomentSheet } from './share-moment-sheet';
 import { InvitationView, OptionsSheet, PeopleSheet, ThreadHeader, threadTitle } from './thread-chrome';
 import { ThreadEncounter } from './thread-encounter';
@@ -64,6 +65,7 @@ function ReadyThread({
 }) {
   const router = useRouter();
   const place = useOwnPlace(scope, thread.threadId);
+  useMarkHere(scope, thread.threadId);
   const [draft, keepDraft] = useDraft(scope, thread.threadId);
   const [people, setPeople] = useState(false);
   const [menu, setMenu] = useState(false);

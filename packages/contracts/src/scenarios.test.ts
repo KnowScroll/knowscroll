@@ -85,6 +85,23 @@ describe('choosing', () => {
       }).success,
     ).toBe(true);
   });
+  it('lets an edit name the direction it came from, and only a direction of the draft', () => {
+    const edit = (fromOptionId: unknown) =>
+      ChooseScenarioSchema.safeParse({
+        ...base,
+        selection: { kind: 'own', changes: [traffic], kept: [], fromOptionId },
+      }).success;
+    expect(edit('o2')).toBe(true);
+    expect(edit('o4')).toBe(false);
+    expect(edit('first')).toBe(false);
+    // A suggestion has no use for it: the direction is the choice.
+    expect(
+      ChooseScenarioSchema.safeParse({
+        ...base,
+        selection: { kind: 'suggestion', optionId: 'o1', fromOptionId: 'o1' },
+      }).success,
+    ).toBe(false);
+  });
   it('refuses an option the planner cannot name, too many changes or kept things, and unknown fields', () => {
     for (const selection of [
       { kind: 'suggestion', optionId: 'o4' },
@@ -115,6 +132,7 @@ describe('what a draft and a branch show', () => {
     explanation: 'Shows how batching holds the cost down.',
     changes: [traffic],
     kept: [],
+    speculative: false,
     needsConfirmation: false,
   };
   it('describes a ready draft with one to three directions only', () => {
@@ -125,6 +143,17 @@ describe('what a draft and a branch show', () => {
       false,
     );
     expect(ScenarioOptionSchema.safeParse({ ...option, optionId: 'o9' }).success).toBe(false);
+  });
+  it('says apart that a direction is speculative and that it needs confirming, and names what a change replaces', () => {
+    expect(ScenarioOptionSchema.safeParse({ ...option, speculative: true, needsConfirmation: true }).success).toBe(
+      true,
+    );
+    const { speculative: _omitted, ...withoutFlag } = option;
+    expect(ScenarioOptionSchema.safeParse(withoutFlag).success).toBe(false);
+    const replacing = { ...option, changes: [{ ...traffic, subject: 'Load', replaces: 'Traffic' }] };
+    expect(ScenarioOptionSchema.safeParse(replacing).success).toBe(true);
+    expect(ScenarioOptionSchema.safeParse({ ...option, changes: [{ ...traffic, replaces: 'T' }] }).success).toBe(false);
+    expect(ScenarioOptionSchema.safeParse({ ...option, changes: [{ ...traffic, extra: 1 }] }).success).toBe(false);
   });
   it('says a failed draft failed in one of two ways, and an unavailable one nothing else', () => {
     const base = { version: 'scenario.v1', readId: id(9), scope };

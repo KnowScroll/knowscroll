@@ -2,7 +2,7 @@ import type { PersonalAuthority, PersonalScopeTx, ReadOn, WithPersonalScope } fr
 import type { ReadScrollSourcePages, ReadShareableContent } from '../../content/public.js';
 import type { CommissionScenarioOrder } from '../../supply/public.js';
 import type { ThreadGuest } from '../../social/public.js';
-import type { Assumption } from '../domain/assumptions.js';
+import type { Assumption, StepChange } from '../domain/assumptions.js';
 import type { ScenarioKind } from '../domain/exploration.js';
 
 export type Origin = { readonly kind: 'root' } | { readonly kind: 'snippet' | 'message'; readonly messageId: string };
@@ -12,9 +12,12 @@ export interface StoredOption {
   readonly optionId: 'o1' | 'o2' | 'o3';
   readonly title: string;
   readonly explanation: string;
-  readonly changes: readonly Assumption[];
+  readonly changes: readonly StepChange[];
   readonly kept: readonly Assumption[];
   readonly lens?: string;
+  /** The premise contradicts established knowledge. An edit of this direction keeps the flag. */
+  readonly speculative: boolean;
+  /** The idea is unclear or speculative: the member confirms it before anything is made. */
   readonly needsConfirmation: boolean;
 }
 
