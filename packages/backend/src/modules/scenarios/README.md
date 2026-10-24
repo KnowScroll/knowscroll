@@ -19,13 +19,13 @@ driven in a browser. It is not running on dev.
 
 ## What a member can do
 
-| Action                       | Use case (`SCENARIO_USE_CASES`) | What it does                                                                                                                                                                                                                         | Status      |
-| ---------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
-| Ask for directions           | `draft`                         | Stores a private draft, sends one job. Starts no production. At most 20 a day.                                                                                                                                                       | Implemented |
-| See the directions           | `readDraft`                     | `thinking`, `ready` (one clear idea, or two to three options), `failed` or `chosen`. Private to the asker.                                                                                                                           | Implemented |
-| Choose                       | `choose`                        | Picks an option, or sends the member's own complete request. The only command that commissions. Idempotent.                                                                                                                          | Implemented |
+| Action                       | Use case (`SCENARIO_USE_CASES`) | What it does                                                                                                                                                                                                                                     | Status      |
+| ---------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| Ask for directions           | `draft`                         | Stores a private draft, sends one job. Starts no production. At most 20 a day.                                                                                                                                                                   | Implemented |
+| See the directions           | `readDraft`                     | `thinking`, `ready` (one clear idea, or two to three options), `failed` or `chosen`. Private to the asker.                                                                                                                                       | Implemented |
+| Choose                       | `choose`                        | Picks an option, or sends the member's own complete request. The only command that commissions. Idempotent.                                                                                                                                      | Implemented |
 | See the thread's branches    | `list`                          | Cards, oldest first, removed ones as bare placeholders, and the caller's own offers: the directions of their ready drafts that they have not chosen (at most 9; private, never another member's). Polled and hinted, never a position of anyone. | Implemented |
-| Remove a branch they started | `remove`                        | The card becomes a note; its Scroll closes.                                                                                                                                                                                          | Implemented |
+| Remove a branch they started | `remove`                        | The card becomes a note; its Scroll closes.                                                                                                                                                                                                      | Implemented |
 
 Not built: Reel branches, a retry command for a failed branch (remove it and ask again), a discussion scoped to one
 branch (it needs a scope on messages, which Social and idea rooms (#245) own), idea rooms.
@@ -57,7 +57,10 @@ another node at a revision). The rules are pure, in `domain/`:
   (`replaces`, the Planner's `replaces: <subject> | null`). Code checks the name against the premises that hold, and a
   change that names one replaces it whatever its own subject says, in its place; a change that names none replaces only a
   premise of its own subject, as before. A change that says a held premise again in other words without naming it is not
-  accepted from the Planner (it goes to the one repair): both would reach the writer.
+  accepted from the Planner (it goes to the one repair): both would reach the writer. A change that names a premise under
+  another subject must also share a content word with it, or it goes to the repair too: a premise is never dropped by a
+  change that has nothing to do with it. The client shows each premise an option would take out, in its own words
+  ("Replaces: …"), on the card, the summary and the confirm step, so the member agrees to what goes before choosing.
 - **Another perspective**: a named lens, no change; the parent's premises and status are kept. A perspective
   on the unchanged root is not hypothetical.
 - `planStep` is the one rule that checks a proposed or a hand-written step, so anything the Planner proposes

@@ -66,6 +66,15 @@ function contentWords(text: string): Set<string> {
   );
 }
 
+/**
+ * Whether two assumptions have a content word in common, subject and statement together. The least that must hold
+ * for one to take the other's place under another subject: an unrelated premise is not silently dropped.
+ */
+export function sharesContentWord(a: Assumption, b: Assumption): boolean {
+  const left = contentWords(`${a.subject} ${a.statement}`);
+  return [...contentWords(`${b.subject} ${b.statement}`)].some((word) => left.has(word));
+}
+
 /** How alike two statements are, for a change that may be an adjusted premise: shared words, and their share of the shorter. */
 const RESTATES_MIN_SHARED = 4;
 const RESTATES_MIN_SHARE = 0.7;

@@ -80,6 +80,23 @@ describe('the Scenario Planner answer', () => {
     ]);
   });
 
+  it('sends a change that would drop a premise it has nothing to do with to the repair', () => {
+    const parent: ParentFacts = {
+      hypothetical: true,
+      speculative: false,
+      assumptions: [{ subject: 'Axis tilt', statement: 'The axis of the planet is tilted' }],
+    };
+    const gravity = (replaces: string | null) => ({
+      ...whatIf,
+      changes: [{ subject: 'Gravity', statement: 'Gravity pushes things away from the Sun', replaces }],
+      kept: [],
+    });
+    expect(issues(check('what_if', { mode: 'direct', options: [gravity('Axis tilt')] }, parent))).toEqual([
+      'replaces_unrelated_premise',
+    ]);
+    expect(check('what_if', { mode: 'direct', options: [gravity(null)] }, parent).success).toBe(true);
+  });
+
   it('sends a change that says a held premise again, without naming it, to the repair', () => {
     const push = {
       subject: 'Summer push',

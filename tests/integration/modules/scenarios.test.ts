@@ -1268,6 +1268,32 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       });
     });
 
+    it('sends a direction that would drop a premise it has nothing to do with to the one repair, so none goes unseen', async () => {
+      const { a, aRef, root } = await begun();
+      const first = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
+      await prepare(first.node.nodeId);
+      const ready = (await cards(a, aRef)).find((card) => card.nodeId === first.node.nodeId);
+      const parent = { kind: 'node', nodeId: first.node.nodeId, revision: ready?.revision };
+      const gravity = { subject: 'Gravity', statement: 'Gravity pushes things away from the Sun' };
+      let asked = 0;
+      plannerScript = () => {
+        asked += 1;
+        return answerWith({
+          mode: 'direct',
+          options: [{ ...batching, changes: [changing(gravity, asked === 1 ? 'Traffic' : null)], kept: [] }],
+        });
+      };
+      const draftId = await drafted(a, aRef, root, { parent });
+      expect(asked).toBe(2);
+      // The repaired direction adds beside the premise: nothing is dropped, and the option says so.
+      expect(unwrap(await readDraft(a, aRef, draftId))).toMatchObject({
+        status: 'ready',
+        options: [{ changes: [{ subject: 'Gravity' }] }],
+      });
+      const [option] = (unwrap(await readDraft(a, aRef, draftId)) as { options: { changes: object[] }[] }).options;
+      expect(option?.changes[0]).not.toHaveProperty('replaces');
+    });
+
     it('fails the draft honestly when the repair still leaves both, and writes no branch', async () => {
       const { a, aRef, root } = await begun();
       const first = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));

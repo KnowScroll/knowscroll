@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyChanges, restatesPremise, wordsKey, type Assumption } from './assumptions.js';
+import { applyChanges, restatesPremise, sharesContentWord, wordsKey, type Assumption } from './assumptions.js';
 import { meaningOf, planStep, ROOT_PARENT, type ParentFacts } from './exploration.js';
 
 const traffic: Assumption = { subject: 'Traffic', statement: 'Traffic is ten times higher than in the original' };
@@ -288,13 +288,33 @@ describe('a change that names the premise it replaces', () => {
     });
   });
 
+  it('is refused when it replaces a premise it has nothing to do with, so one is not dropped unseen', () => {
+    const gravity = { subject: 'Gravity', statement: 'Gravity pushes things away from the Sun instead of pulling' };
+    expect(planStep(parent, { kind: 'what_if', changes: [{ ...gravity, replaces: 'Axis' }], kept: [] })).toEqual({
+      ok: false,
+      refusal: 'replaces_unrelated_premise',
+    });
+    // The same premise is replaced when the change is about it, or when it says nothing of another subject.
+    const about = { subject: 'Gravity', statement: 'Gravity would tilt Earth’s axis back and forth every year' };
+    expect(planStep(parent, { kind: 'what_if', changes: [{ ...about, replaces: 'Axis' }], kept: [] })).toMatchObject({
+      ok: true,
+    });
+    expect(
+      planStep(parent, {
+        kind: 'what_if',
+        changes: [{ subject: 'Axis', statement: 'Gravity pushes things away from the Sun', replaces: 'Axis' }],
+        kept: [],
+      }),
+    ).toMatchObject({ ok: true });
+  });
+
   it('is refused when two changes replace one premise, or when it lands on a subject already held', () => {
     expect(
       planStep(parent, {
         kind: 'what_if',
         changes: [
           { ...weaker, replaces: 'Summer push' },
-          { subject: 'Other', statement: 'Something else is the case here', replaces: 'Summer push' },
+          { subject: 'Other', statement: 'Another push is the case here', replaces: 'Summer push' },
         ],
         kept: [],
       }),
@@ -357,5 +377,25 @@ describe('a change that says again a premise that holds', () => {
       ),
     ).toBe(false);
     expect(restatesPremise({ subject: 'Moon', statement: 'Earth would have a second, larger moon' }, push)).toBe(false);
+  });
+});
+
+describe('what two assumptions have in common', () => {
+  it('is a content word, in subject or statement, and not filler or a short word', () => {
+    const axis = { subject: 'Axis', statement: 'Earth’s axis remains steadily tilted' };
+    expect(sharesContentWord({ subject: 'Gravity', statement: 'Gravity pushes away from the Sun' }, axis)).toBe(false);
+    expect(
+      sharesContentWord(
+        { subject: 'Tilt', statement: 'The tilt is sixty degrees' },
+        { subject: 'Axis', statement: 'The axis is tilted' },
+      ),
+    ).toBe(false);
+    expect(sharesContentWord({ subject: 'Axis angle', statement: 'The angle is larger' }, axis)).toBe(true);
+    expect(
+      sharesContentWord(
+        { subject: 'Orbit', statement: 'The orbit would be square' },
+        { subject: 'Shape', statement: 'The orbit is round' },
+      ),
+    ).toBe(true);
   });
 });

@@ -353,15 +353,40 @@ export function ownSelection(request: {
 }
 
 /** One assumption the way a chip says it: "Changed: traffic is ten times higher". */
-export const chipText = (prefix: 'Changed' | 'Kept', assumption: Assumption): string =>
+export const chipText = (prefix: 'Changed' | 'Kept' | 'Replaces', assumption: Assumption): string =>
   `${prefix}: ${assumption.statement.charAt(0).toLowerCase()}${assumption.statement.slice(1)}`;
 
-/** The summary a screen reader gets for an option: what changes, what stays, or the lens. */
-export function describeOption(option: Pick<ScenarioOption, 'changes' | 'kept' | 'lens'>): string {
+const subjectKey = (subject: string): string => subject.normalize('NFKC').toLowerCase().replaceAll(/\s+/gu, ' ').trim();
+
+/**
+ * The premises of the branch this continues that an option would drop: for each change, the premise it names
+ * (`replaces`) or, naming none, the one of its own subject. The member sees these before choosing, so what is
+ * taken out is never a surprise.
+ */
+export function replacedPremises(
+  option: Pick<ScenarioOption, 'changes'>,
+  premises: readonly Assumption[],
+): readonly Assumption[] {
+  const found = option.changes.flatMap((change) => {
+    const target = subjectKey(change.replaces ?? change.subject);
+    const premise = premises.find((candidate) => subjectKey(candidate.subject) === target);
+    return premise === undefined ? [] : [premise];
+  });
+  return [...new Set(found)];
+}
+
+/** The summary a screen reader gets for an option: what changes, what it replaces, what stays, or the lens. */
+export function describeOption(
+  option: Pick<ScenarioOption, 'changes' | 'kept' | 'lens'>,
+  premises: readonly Assumption[] = [],
+): string {
   if (option.lens !== undefined) return `Another perspective: ${option.lens}.`;
   const changed = option.changes.map((change) => chipText('Changed', change)).join('. ');
+  const replaced = replacedPremises(option, premises)
+    .map((premise) => chipText('Replaces', premise))
+    .join('. ');
   const kept = option.kept.map((keep) => chipText('Kept', keep)).join('. ');
-  return [changed, kept].filter((part) => part !== '').join('. ') + '.';
+  return [changed, replaced, kept].filter((part) => part !== '').join('. ') + '.';
 }
 
 /** The kind of a card in the reader's words, for its kicker and its accessible name. */

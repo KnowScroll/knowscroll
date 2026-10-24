@@ -84,6 +84,7 @@ export {
   createScenarioBoard,
   createScenarioComposer,
   describeOption,
+  replacedPremises,
   kindedTitle,
   kindWord,
   ownSelection,

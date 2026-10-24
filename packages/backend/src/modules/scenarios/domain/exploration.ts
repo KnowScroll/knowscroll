@@ -4,6 +4,7 @@ import {
   MAX_CHANGES,
   MAX_KEPT,
   repeatsSubject,
+  sharesContentWord,
   targetOf,
   wordsKey,
   type Assumption,
@@ -43,6 +44,7 @@ export type StepRefusal =
   | 'kept_contradicts_change'
   | 'kept_contradicts_premise'
   | 'replaces_unknown_premise'
+  | 'replaces_unrelated_premise'
   | 'replaces_conflict'
   | 'too_many_assumptions';
 
@@ -121,17 +123,20 @@ export function planStep(parent: ParentFacts, request: StepRequest): StepOutcome
 }
 
 /**
- * Whether the changes that name a premise to replace can all be applied. Each names a premise that holds, no
- * premise is replaced twice, and a change that moves to a new subject does not land on a subject another premise
- * or change already has (the two would silently become one).
+ * Whether the changes that name a premise to replace can all be applied. Each names a premise that holds, and under
+ * another subject shares at least a content word with it (a change is not allowed to drop a premise it has nothing to
+ * do with); no premise is replaced twice, and a change that moves to a new subject does not land on a subject another
+ * premise or change already has (the two would silently become one).
  */
 function replacementRefusal(parent: ParentFacts, changes: readonly StepChange[]): StepRefusal | undefined {
-  const held = new Set(parent.assumptions.map((premise) => wordsKey(premise.subject)));
+  const held = new Map(parent.assumptions.map((premise) => [wordsKey(premise.subject), premise]));
   const taken = new Set<string>();
   for (const change of changes) {
     if (change.replaces === undefined) continue;
     const target = targetOf(change);
-    if (!held.has(target)) return 'replaces_unknown_premise';
+    const premise = held.get(target);
+    if (premise === undefined) return 'replaces_unknown_premise';
+    if (target !== wordsKey(change.subject) && !sharesContentWord(change, premise)) return 'replaces_unrelated_premise';
     if (taken.has(target)) return 'replaces_conflict';
     taken.add(target);
   }

@@ -38,6 +38,8 @@ const SAFE_HINTS: Readonly<Record<PlannerRefusal, string>> = {
     'The premises of the earlier branches plus this option exceed four assumptions. Change a subject that is already assumed instead of adding a new one.',
   replaces_unknown_premise:
     "A change may only replace a premise listed in branch_premises. Use that premise's subject exactly, or null.",
+  replaces_unrelated_premise:
+    'A change may only replace a premise it is about. Name the premise it adjusts, or use null and state something that stands beside the premises.',
   replaces_conflict:
     'A change that replaces a premise must not take the subject of another premise or of another change, and no premise is replaced twice.',
   change_restates_premise:

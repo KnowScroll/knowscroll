@@ -8,6 +8,7 @@ import {
   createScenarioComposer,
   describeOption,
   kindedTitle,
+  replacedPremises,
   ownSelection,
   subjectOfStatement,
 } from './scenarios';
@@ -309,6 +310,29 @@ describe('words', () => {
     expect(describeOption({ ...option, changes: [], kept: [], lens: 'the operator’s view' })).toBe(
       'Another perspective: the operator’s view.',
     );
+  });
+
+  describe('what an option would drop', () => {
+    const axis = { subject: 'Axis tilt', statement: 'Earth’s axis is tilted' };
+    const spin = { subject: 'Spin', statement: 'Earth turns once a day' };
+    const gravity = { subject: 'Gravity', statement: 'Gravity pushes away from the Sun', replaces: 'axis TILT' };
+
+    it('is the premise a change names, whatever its own subject, or else the premise of its own subject', () => {
+      expect(replacedPremises({ changes: [gravity] }, [axis, spin])).toEqual([axis]);
+      expect(
+        replacedPremises({ changes: [{ subject: ' spin ', statement: 'Earth turns twice a day' }] }, [axis, spin]),
+      ).toEqual([spin]);
+      expect(replacedPremises({ changes: [traffic] }, [axis, spin])).toEqual([]);
+      expect(replacedPremises({ changes: [gravity] }, [])).toEqual([]);
+    });
+
+    it('lists each premise once, and reads aloud what is dropped', () => {
+      expect(replacedPremises({ changes: [gravity, { ...gravity, subject: 'Pull' }] }, [axis])).toEqual([axis]);
+      expect(describeOption({ changes: [gravity], kept: [], lens: undefined }, [axis, spin])).toBe(
+        'Changed: gravity pushes away from the Sun. Replaces: earth’s axis is tilted.',
+      );
+      expect(chipText('Replaces', axis)).toBe('Replaces: earth’s axis is tilted');
+    });
   });
 });
 

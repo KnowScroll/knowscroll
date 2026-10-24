@@ -271,6 +271,68 @@ describe('the What if… sheet', () => {
     });
   });
 
+  describe('what a direction would take out of the branch it continues', () => {
+    const axis = { subject: 'Axis tilt', statement: 'Earth’s axis is tilted' };
+    const gravity = { subject: 'Gravity', statement: 'Gravity pushes away from the Sun', replaces: 'Axis tilt' };
+    const dropping = { ...option, changes: [gravity], kept: [] };
+    const below: ScenarioStart = { ...start, premises: [axis, model] };
+    const replaces = 'Replaces: earth’s axis is tilted';
+
+    it('shows it on the summary of one idea, before Explore', async () => {
+      await open(
+        {
+          draft: () => Promise.resolve({ draftId: id(7) }),
+          readDraft: () => Promise.resolve({ status: 'ready', mode: 'direct', options: [dropping] }),
+        },
+        { start: below },
+      );
+      await ask();
+      expect(await screen.findByText(replaces)).toBeOnTheScreen();
+      expect(screen.getByText('Changed: gravity pushes away from the Sun')).toBeOnTheScreen();
+    });
+
+    it('shows it on each of several directions, only on the one that drops it', async () => {
+      await open(
+        {
+          draft: () => Promise.resolve({ draftId: id(7) }),
+          readDraft: () => Promise.resolve({ status: 'ready', mode: 'options', options: [dropping, second] }),
+        },
+        { start: below },
+      );
+      await ask();
+      expect(await screen.findAllByText(replaces)).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Explore this' })).toHaveLength(2);
+    });
+
+    it('shows it on the confirm step of a speculative idea, so the member agrees to what goes', async () => {
+      await open(
+        {
+          draft: () => Promise.resolve({ draftId: id(7) }),
+          readDraft: () =>
+            Promise.resolve({
+              status: 'ready',
+              mode: 'direct',
+              options: [{ ...dropping, speculative: true, needsConfirmation: true }],
+            }),
+        },
+        { start: below },
+      );
+      await ask();
+      expect(await screen.findByText('Speculative scenario · not established science')).toBeOnTheScreen();
+      expect(screen.getByText(replaces)).toBeOnTheScreen();
+    });
+
+    it('shows nothing of it on the real subject, where nothing is held', async () => {
+      await open({
+        draft: () => Promise.resolve({ draftId: id(7) }),
+        readDraft: () => Promise.resolve({ status: 'ready', mode: 'direct', options: [dropping] }),
+      });
+      await ask();
+      expect(await screen.findByText('WE’LL EXPLORE')).toBeOnTheScreen();
+      expect(screen.queryByText(/Replaces:/)).toBeNull();
+    });
+  });
+
   it('keeps the subjects of an edited suggestion, so the edit replaces what it was and nothing beside it', async () => {
     const { calls } = await open({
       draft: () => Promise.resolve({ draftId: id(7) }),

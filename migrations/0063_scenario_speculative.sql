@@ -15,6 +15,11 @@
 -- account's deletion) is gone, so a branch made from it stays unmarked, and an edited direction whose changes were
 -- not touched is marked although part 1 did not mark it. The statements between the markers are what the
 -- integration test runs against rows seeded as part 1 wrote them.
+--
+-- Semantic keys. A branch's meaning (and so its `semantic_key`) now includes whether it is speculative and which
+-- premises it takes over. The keys of branches made before this change were hashed the old way and are not
+-- recomputed, so asking again for an idea that already has such a branch makes one extra branch (one extra Create),
+-- once, instead of reusing it. Nothing is merged or lost; the old branch stays as it is.
 -- (Provisional number: the coordinator assigns the final one.)
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
