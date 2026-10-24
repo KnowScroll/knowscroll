@@ -109,6 +109,14 @@ production, binding) with the personal reasoning harness. `KS_SUPPLY_CREATE_DAIL
 productions Create may start per UTC day for people's asks (default 20 in `local`, 0 elsewhere);
 `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` (default 5) caps the Planner's demand apart from it.
 
+Two consumers belong to What if and Another perspective (#244, D-049). `scenarios.suggest-draft` asks the Scenario Planner
+for the directions of one draft with the personal reasoning harness (IDs only in the payload; the run is the draft ID, so
+a redelivery never pays twice) and commissions nothing. `scenarios.resolve-branches` runs every minute: it binds a
+preparing branch to its admitted Scroll, sends the next take of a rejected one (up to three), closes a branch that cannot
+be produced or is 30 minutes old, and hints the thread's members; it logs `scenarios.branches_resolved`. The worker
+builds the thread guest, the made-to-order readers and the production sender for them (`threadGuestProviders`,
+`madeToOrderProviders`, `scrollProductionSenderProviders`).
+
 `node dist/operator.js supply recover-open-demand [--dry-run]` (`src/supply-operator.ts`) sends one
 resolver job for every ask that is still open from before Create existed and prints the counts. It is
 idempotent and calls no provider.

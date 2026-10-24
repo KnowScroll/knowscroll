@@ -438,3 +438,26 @@ reads the document only to find the block; it returns the quote, label and descr
 Reel ranges have no time mapping between revisions, so a corrected Reel is never played from an old range.
 The pure rules (`domain/snippets.ts`) are `reelRangeHolds` and the snippet grammar. *Implemented; runtime-verified locally
 with a real Reel and two Scrolls, not on dev.*
+
+## Made-to-order Scrolls for a thread's branches (#244, D-049)
+
+A What if or Another perspective in a thread is produced as a Scroll that belongs to that thread and to no one's map.
+Content owns the order, the production and the access rule; the `scenarios` module decides the branch and Supply the cap.
+
+| Store | Role |
+| --- | --- |
+| `content.made_to_order_scrolls` | One row per order: recipe `order-<32 hex of the branch id>`, the asset it will become, mode (`what_if` or `perspective`), the code-built brief, one to three research pages, the kicker and the framing (the Hypothetical label with its premises, or the lens). No person and no words of a member. |
+
+| Port (`public.ts`) | Where it runs | Used for |
+| --- | --- | --- |
+| `RECORD_MADE_TO_ORDER_SCROLL` | inside the caller's personal transaction | record an order (idempotent per order ID); returns its recipe and asset |
+| `READ_MADE_TO_ORDER_PRODUCTION` | on the pool | the standing of one order: not started, running, published (asset revision and title), retryable (next take) or stopped |
+| `READ_SCROLL_SOURCE_PAGES` | inside the caller's transaction | up to three research pages chosen by code for a branch: the provenance sources of the root Scroll, else the same explanation's other Scroll, else the library recipe's pages |
+| `CHECK_ASSET_AUDIENCE` | Experience and Social, wherever an ID reaches or quotes a Scroll: open, document read, save, like, hide, navigation, the saved list and page, snippets, the data export | given `ReadOn` (the caller's open transaction, or the pool for the lock-free document read) and the IDs, answers the subset the caller may reach; an ordered Scroll is in it only if `READ_ORDER_AUDIENCE` (provided by the scenarios module: members of the branch's thread, now) says so; any other asset always is |
+
+An ordered Scroll is published with **no topic attribution and no coverage**: it adds no planet, region or lane, is
+left out of every discovery candidate read and out of the shareable card read (it reads as unavailable there).
+`Open` and `Read document` refuse it (`asset_not_found`, `exposure_not_found`) for anyone outside its thread.
+Production is the same `content.produce-scroll` job, takes and stop rules as a library recipe; see
+`production/README.md`. *Implemented. Not runtime-verified on dev.*
+

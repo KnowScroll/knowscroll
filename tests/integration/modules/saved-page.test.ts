@@ -74,6 +74,8 @@ describe('complete live Saved keysets over real PG', () => {
         withScope: makeWithPersonalScope(db.db, { lockTimeoutMs: 10000 }),
         fenceOwn: accountAccessUseCases({ db: db.db, lockTimeoutMs: 10000 }).fenceOwnAccount,
         codec: value,
+        // Nothing here is ordered for a thread: every asset is open to everyone.
+        audience: (_on, _authority, assetIds) => Promise.resolve(new Set(assetIds)),
         metadata: async (scope, refs) => {
           batches.push(refs.length);
           return readSavedPageMetadata(scope, refs);

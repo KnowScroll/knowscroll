@@ -395,3 +395,16 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
 - `thread-snippets.ts`: `initialRange`, `nudgeRange`, `setRangeEnd`, `sentenceRanges`, `passageOf`, `formatRange` for the pickers.
 - `overlayBlockState` (`scroll-state/snippet-overlay.ts`): the sender's block settings, shown without writing the reader's own.
 - The Talk fixture serves `threads/create` and the thread reads for tests; it is a labelled fixture.
+
+## What if and Another perspective (#244, D-049)
+
+Pure controllers over `scope.api.scenarios`. *Implemented; exercised in tests and a browser locally, not on dev.*
+
+- `createScenarioBoard({scope, thread, newId})`: `load` reads the thread's branch cards (every read is "ask again", so a
+  lost hint only delays an update); `remove` keeps one command ID per card revision, so a retry is the same command.
+- `createScenarioComposer({scope, thread, newId})`: `begin` asks for directions (the ask keeps one command ID, so a lost
+  answer cannot make two drafts), `refresh` looks at the draft while it is thinking, `choose` sends the one command that
+  commissions (one ID per selection; a refusal is final, a lost answer is retried with the same ID), `retry`, `reset`.
+  Phases: `idle`, `sending`, `thinking`, `ready`, `failed`, `choosing`, `chosen`, `blocked` (`budget`, `unsupported`,
+  `invalid`, `stale`, `unavailable`, `offline`). Nothing it holds reaches the thread before a branch exists.
+- `subjectOfStatement`, `chipText`, `describeOption`, `kindWord`: the words a screen uses for an assumption chip and a card.

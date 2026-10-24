@@ -22,6 +22,8 @@ KS_REASONING_PRODUCTION_REQUESTS_PER_DAY=200 # the production scope's own caps (
 KS_REASONING_PRODUCTION_TOKENS_PER_DAY=3000000
 KS_SUPPLY_CREATE_DAILY_CAP=10                # API and worker: productions people's requests may start per day
 KS_SUPPLY_PLANNER_CREATE_DAILY_CAP=5         # API and worker: the part the Planner's demand may use (default 5)
+KS_SUPPLY_SCENARIO_DAILY_CAP=6               # API: branches of content threads (What if, perspectives) per day (D-049)
+KS_SUPPLY_SCENARIO_THREAD_CAP=6              # API: branches one thread may have ordered over its life (default 6)
 
 # seed the library through the same jobs Quartermaster sends (the worker runs them)
 node dist/operator.js content production-status [--only seasons,tides]
@@ -96,6 +98,12 @@ and its effective value is never above the people's cap: setting the people's ca
 for both. A person may also have at most 10 asks open at once (a fixed limit; it bounds the polling work),
 and an ask still open after 30 minutes reads as `could_not_prepare`, even if no job ever closed it.
 Planned demand only ever binds to a Scroll the person has not met.
+
+A thread's branch (a What if or Another perspective, D-049) is produced by the same jobs but is not a library recipe and not
+a Create for a person's ask: it has its own two caps, `KS_SUPPLY_SCENARIO_DAILY_CAP` (the world's UTC day; 0 turns it off) and
+`KS_SUPPLY_SCENARIO_THREAD_CAP` (per thread), counted from `supply.scenario_orders`. Its recipe key is `order-<32 hex>`;
+`content production-status` lists the library plan's recipes only, so look a branch up in `scenarios.nodes` (its status
+and `asset_id`; the `ops.jobs` view shows its production job). It publishes with no topic attribution and no coverage.
 
 `--topic` takes a recipe key of the library plan, the record keys in
 `packages/backend/src/modules/content/domain/library/` (one file per topic system). An unknown key

@@ -5,6 +5,8 @@ import { evidencePassages } from './evidence.js';
 import {
   compileGeneratedScroll,
   generatedProvenance,
+  libraryIdentity,
+  SCENARIO_WRITER_PROMPT_VERSION,
   writerFormatOf,
   writerInstructions,
   writerRole,
@@ -27,7 +29,7 @@ const page = extractResearch(
 );
 const passages = evidencePassages([page]);
 const provenance = generatedProvenance({
-  topic: 'seasons',
+  identity: libraryIdentity('seasons'),
   runId: 'ci-writer-run',
   attemptIds: ['ci-attempt'],
   model: 'MiniMax-M3.1-Flash',
@@ -113,6 +115,61 @@ describe('the writer instructions', () => {
     expect(writerFormatOf({ interactive: true })).toBe('diagram');
     expect(writerFormatOf({ interactive: false })).toBe('comparison');
     expect(writerFormatOf({ interactive: true, interactiveKind: 'simulation' })).toBe('simulation');
+  });
+});
+
+describe('the instructions of a Scroll ordered from code (D-049)', () => {
+  it('leave the library’s instructions exactly as they were', () => {
+    for (const format of ['comparison', 'diagram', 'simulation', 'chart', 'timeline', 'sequence'] as const) {
+      expect(writerInstructions(format, 'library')).toBe(writerInstructions(format));
+      expect(writerInstructions(format)).not.toContain('THIS IS A WHAT-IF');
+      expect(writerInstructions(format)).not.toContain('THIS IS ANOTHER PERSPECTIVE');
+    }
+  });
+
+  it('make a what-if a labelled thought experiment: premise first, consequences as reasoning, quantities in words', () => {
+    const text = writerInstructions('comparison', 'what_if');
+    expect(text).toContain('THIS IS A WHAT-IF');
+    expect(text).toContain('Open by stating the premise plainly');
+    expect(text).toContain('Never present a consequence as a fact');
+    expect(text).toContain('never say or hint that the premise is true');
+    expect(text).toContain('in words (for example "ten times"), never in digits');
+    expect(text).toContain('THIS RECIPE.');
+    expect(text.length).toBeLessThan(16_000);
+  });
+
+  it('make a perspective the same facts through a lens, with inherited premises still hypothetical', () => {
+    const text = writerInstructions('comparison', 'perspective');
+    expect(text).toContain('THIS IS ANOTHER PERSPECTIVE');
+    expect(text).toContain('Do not change any assumption');
+    expect(text).toContain('they are hypothetical');
+    expect(text).not.toContain('THIS IS A WHAT-IF');
+  });
+
+  it('record their own prompt version in the role and the provenance, not the library’s', () => {
+    const identity = {
+      assetId: '5d7a1a3e-52e5-4a4a-9a45-0b6bf6b3a111',
+      explanationUnitId: 'order-5d7a1a3e52e54a4a9a450b6bf6b3a111',
+      kicker: 'What if',
+      framing: { kind: 'hypothetical' as const, assumptions: ['Traffic is ten times higher'], kept: [] },
+    };
+    const ordered = generatedProvenance({
+      identity,
+      mode: 'what_if',
+      runId: 'ci-writer-run',
+      attemptIds: ['ci-attempt'],
+      model: 'MiniMax-M3.1-Flash',
+      passages,
+      pages: [page],
+    });
+    expect(ordered.production).toMatchObject({ promptVersion: SCENARIO_WRITER_PROMPT_VERSION });
+    expect(ordered.publication.framing).toEqual(identity.framing);
+    expect(ordered.publication.kicker).toBe('What if');
+    expect(writerRole({ provenance: ordered, passages, format: 'comparison', mode: 'what_if' }).version).toBe(
+      SCENARIO_WRITER_PROMPT_VERSION,
+    );
+    expect(writerRole({ provenance, passages, format: 'comparison' }).version).toBe(WRITER_PROMPT_VERSION);
+    expect(SCENARIO_WRITER_PROMPT_VERSION).not.toBe(WRITER_PROMPT_VERSION);
   });
 });
 

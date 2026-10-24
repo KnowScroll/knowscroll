@@ -365,3 +365,14 @@ one-failing-friend rule are decided in the use cases. No handler waits for a mod
 carries any member's position or seen marker. The scope gateway needs no change: a thread bumps the same `inbox_heads`
 and hints the same `inbox` scope. Tests: `tests/integration/release/threads-http.test.ts` runs the installed API against
 a real PostgreSQL. *Implemented. Not yet run on dev.*
+
+### What if and Another perspective (#244, D-049)
+
+`ScenariosController` (`src/http/scenarios.controller.ts`) mounts private POSTs under `/v1/social/scenarios/`: `draft`,
+`draft/read`, `choose`, `list` and `remove`, through the same session, `Origin` and `X-KS-Scope` pipeline as the thread
+routes. Each handler calls `SCENARIO_USE_CASES` and maps a refusal to the closed Social problem family
+(`invalid_input` to `INVALID_REQUEST`, `stale_revision` to `SHARING_REVISION_STALE`, `command_key_reused` to
+`COMMAND_KEY_REUSED`, `budget_unavailable` to `TOO_MANY_REQUESTS`, `unsupported` to `UNPROCESSABLE_REQUEST`,
+`unavailable` to `SHARING_UNAVAILABLE`). Membership, the parent's revision, the caps and idempotence are decided in the use
+cases; no handler waits for a model. The API also reads `KS_SUPPLY_SCENARIO_DAILY_CAP` and `KS_SUPPLY_SCENARIO_THREAD_CAP`.
+Tests: `tests/integration/modules/scenarios.test.ts`. *Implemented. Not yet run on dev.*

@@ -28,6 +28,21 @@ import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identit
 import { REFRESH_VISIT_PUBLICATION, type RefreshVisitPublication } from '@knowscroll/backend/modules/social';
 import { visitRefreshProviders } from '@knowscroll/backend/modules/social/nest-providers';
 import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
+import { threadGuestProviders } from '@knowscroll/backend/modules/social/nest-providers';
+import { orderAudienceProviders, scenarioWorkerProviders } from '@knowscroll/backend/modules/scenarios/nest-providers';
+import {
+  CHECK_ASSET_AUDIENCE,
+  READ_ORDER_AUDIENCE,
+  type CheckAssetAudience,
+} from '@knowscroll/backend/modules/content';
+import {
+  resolveBranchesQueue,
+  suggestDraftQueue,
+  RESOLVE_SCENARIO_BRANCHES,
+  SUGGEST_SCENARIO_DRAFT,
+  type ResolveSummary,
+  type SuggestStep,
+} from '@knowscroll/backend/modules/scenarios';
 import { resolveSupplyQueue, RESOLVE_CONTENT_REQUEST, type ResolveRequest } from '@knowscroll/backend/modules/supply';
 import {
   plannerReadProviders,
@@ -59,7 +74,11 @@ import {
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { jobConsumer, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
-import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  contentProviders,
+  madeToOrderProviders,
+  scrollProductionSenderProviders,
+} from '@knowscroll/backend/modules/content/nest-providers';
 import {
   projectEncounterActivityQueue,
   PROJECT_ENCOUNTER_ACTIVITY,
@@ -155,6 +174,17 @@ export const jobWiring: Provider[] = [
   ...composerProviders({ isOperator: () => false }),
   ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
   ...contentProviders(),
+  ...madeToOrderProviders({ database: DATABASE, orderAudience: READ_ORDER_AUDIENCE }),
+  ...scrollProductionSenderProviders({ boss: PG_BOSS }),
+  // Scenarios (D-049): the planner answers a draft, and a sweep binds branches to their Scrolls.
+  ...threadGuestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, database: DATABASE }),
+  // Who may reach a branch's Scroll, so the data export keeps a title only for those still in its thread.
+  ...orderAudienceProviders({ database: DATABASE }),
+  ...scenarioWorkerProviders({
+    withPersonalScope: WITH_PERSONAL_SCOPE,
+    database: DATABASE,
+    harness: REASONING_HARNESS,
+  }),
   // Same required PC-owned Composer adapter as the API; no legacy prepared-input binding.
   ...personalContextProviders({ readCurrentPlan: READ_CURRENT_PLAN }),
   ...evidenceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
@@ -176,6 +206,9 @@ export const jobWiring: Provider[] = [
       RUN_CARTOGRAPHER,
       PUBLISH_GEOGRAPHY_DELTA,
       RESOLVE_CONTENT_REQUEST,
+      SUGGEST_SCENARIO_DRAFT,
+      RESOLVE_SCENARIO_BRANCHES,
+      CHECK_ASSET_AUDIENCE,
       RUN_PLANNER,
       PREPARE_COMPOSER_BUFFER,
       APPLY_ACTION_EVIDENCE,
@@ -198,6 +231,9 @@ export const jobWiring: Provider[] = [
       runCartographer: RunCartographer,
       publishDelta: PublishGeographyDelta,
       resolveRequest: ResolveRequest,
+      suggestDraft: SuggestStep,
+      resolveBranches: () => Promise<ResolveSummary>,
+      audience: CheckAssetAudience,
       runPlanner: RunPlanner,
       prepareBuffer: PrepareBuffer,
       applyActionEvidence: ApplyActionEvidence,
@@ -238,7 +274,10 @@ export const jobWiring: Provider[] = [
             eraseAccountData: eraseCurrentAccount,
             lockTimeoutMs: config.scopeLockTimeoutMs,
           }),
-          exports: dataExportFor(db, boss, { gather: exportCurrentPerson, lockTimeoutMs: config.scopeLockTimeoutMs }),
+          exports: dataExportFor(db, boss, {
+            gather: (scope, person) => exportCurrentPerson(scope, person, audience),
+            lockTimeoutMs: config.scopeLockTimeoutMs,
+          }),
         },
         logEvent,
       ),
@@ -257,6 +296,14 @@ export const jobWiring: Provider[] = [
       }),
       jobConsumer(resolveSupplyQueue, async (payload, delivery) => {
         await resolveRequest(payload, delivery);
+      }),
+      jobConsumer(suggestDraftQueue, async (payload, delivery) => {
+        await suggestDraft(payload, delivery.signal);
+      }),
+      // Every minute: preparing branches get their Scroll, the next take, or an honest end.
+      jobConsumer(resolveBranchesQueue, async () => {
+        const summary = await resolveBranches();
+        logEvent('scenarios.branches_resolved', { count: summary.bound + summary.failed + summary.sent });
       }),
       jobConsumer(plannerQueue, async (payload, delivery) => {
         await runPlanner(payload, delivery.signal);

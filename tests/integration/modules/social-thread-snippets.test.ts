@@ -847,7 +847,7 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
       );
       const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 10_000 });
       const outcome = await withScope(a.authority, (scope) =>
-        socialErasure.export!.read(scope, { accountId: a.accountId }),
+        socialErasure.export!.read(scope, { accountId: a.accountId, reach: (ids) => Promise.resolve(new Set(ids)) }),
       );
       if (outcome.kind !== 'entered') throw new Error('CI export');
       const file = JSON.stringify(outcome.value);

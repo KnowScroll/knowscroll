@@ -37,6 +37,14 @@ export interface PersonalScopeTx {
 }
 
 /**
+ * Where a read runs: inside the caller's open personal scope (on that scope's own transaction), or on
+ * the pool when the caller holds no connection. A check made while a transaction is open must pass
+ * `{ scope }`: reading on the pool there takes a second connection, and with the pool as small as it
+ * is, enough concurrent callers would each hold one and wait for another.
+ */
+export type ReadOn = { readonly scope: PersonalScopeTx } | { readonly pool: true };
+
+/**
  * The capability of one shared root (conversation, room, exploration) locked *after* the actor's
  * personal root, inside the same transaction (blueprint §19 lock order: personal root → this
  * universe's rows → at most one shared root → its subordinate rows). Only `enterSharedRoot` creates
