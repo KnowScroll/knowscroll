@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DiscussionView, RoomView } from '@knowscroll/contracts';
 import { CONCEPTS } from '@knowscroll/backend/modules/content';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
-import { seedRooms } from '@knowscroll/backend/modules/rooms/nest-providers';
+import { seedRooms, setRoomModerator } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import {
   ask,
@@ -21,7 +21,7 @@ import {
   unwrap,
   type RoomWorld,
 } from '../support/rooms.js';
-import { consumptionRows, seedContent, seedFriend, withdraw, type Friend } from '../support/talk.js';
+import { consumptionRows, friendCommand, seedContent, seedFriend, withdraw, type Friend } from '../support/talk.js';
 import { seedPerson } from '../support/fixtures.js';
 import { addReelRevision, seedReel } from '../support/thread-fixtures.js';
 
@@ -612,6 +612,161 @@ describe('idea rooms (real PostgreSQL)', () => {
       expect(JSON.stringify(room)).not.toContain('PRIVATE-FRIEND-WORDS');
       const view = await readDiscussion(world, ravi!, roomId, discussionId);
       expect(JSON.stringify(view)).not.toContain('PRIVATE-FRIEND-WORDS');
+    });
+  });
+  describe('the moderator role and the operator’s control', () => {
+    const roleOf = async (roomId: string, person: Friend) =>
+      world.db
+        .selectFrom('rooms.members')
+        .select(['role', 'ended_at', 'ended_by'])
+        .where('room_id', '=', roomId)
+        .where('account_id', '=', person.accountId)
+        .executeTakeFirstOrThrow();
+
+    it('does not keep the role when a moderator leaves and comes back: it is the operator’s to give again', async () => {
+      const { roomId, slug } = await seedRoom(world);
+      const moderator = await seedFriend(world.db, world.friends);
+      unwrap(await joinRoom(world, moderator, roomId));
+      await makeModerator(world, slug, moderator);
+      unwrap(await world.rooms.leave(moderator.authority, { version, commandId: randomUUID(), roomId }));
+      expect(await roleOf(roomId, moderator)).toMatchObject({ role: 'member', ended_by: 'left' });
+      expect(unwrap(await joinRoom(world, moderator, roomId)).role).toBe('member');
+      expect(await readRoom(moderator, roomId)).toMatchObject({ status: 'member', role: 'member' });
+      await makeModerator(world, slug, moderator);
+      expect(await readRoom(moderator, roomId)).toMatchObject({ role: 'moderator' });
+    });
+
+    it('takes the role back only from a current member, and never brings back someone who left', async () => {
+      const { roomId, slug } = await seedRoom(world);
+      const moderator = await seedFriend(world.db, world.friends);
+      unwrap(await joinRoom(world, moderator, roomId));
+      await makeModerator(world, slug, moderator);
+      const take = () =>
+        setRoomModerator(world.db, { slug, accountId: moderator.accountId, moderator: false, now: world.clock.now });
+      unwrap(await world.rooms.leave(moderator.authority, { version, commandId: randomUUID(), roomId }));
+      expect(await take()).toBe('not_a_member');
+      expect(await roleOf(roomId, moderator)).toMatchObject({ ended_by: 'left' });
+      expect(await readRoom(moderator, roomId)).toMatchObject({ status: 'preview' });
+
+      unwrap(await joinRoom(world, moderator, roomId));
+      await makeModerator(world, slug, moderator);
+      expect(await take()).toBe('removed');
+      expect(await roleOf(roomId, moderator)).toMatchObject({ role: 'member', ended_at: null });
+    });
+
+    it('names only a person with a claimed profile, and does not undo a moderator’s removal', async () => {
+      const { roomId, slug } = await seedRoom(world);
+      const unnamed = await seedPerson(world.db);
+      const name = (accountId: string) =>
+        setRoomModerator(world.db, { slug, accountId, moderator: true, now: world.clock.now });
+      expect(await name(unnamed.accountId)).toBe('profile_needed');
+      expect(
+        await world.db.selectFrom('rooms.members').select('role').where('account_id', '=', unnamed.accountId).execute(),
+      ).toEqual([]);
+
+      const moderator = await seedFriend(world.db, world.friends);
+      await makeModerator(world, slug, moderator);
+      const removed = await seedFriend(world.db, world.friends);
+      unwrap(await joinRoom(world, removed, roomId));
+      unwrap(
+        await world.rooms.moderate(moderator.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId,
+          action: { kind: 'remove_member', personId: removed.person.personId },
+        }),
+      );
+      expect(await name(removed.accountId)).toBe('removed_from_room');
+      expect(await roleOf(roomId, removed)).toMatchObject({ ended_by: 'removed' });
+      expect(await name(randomUUID())).toBe('unknown_account');
+      expect(
+        await setRoomModerator(world.db, {
+          slug: 'no-such-room',
+          accountId: moderator.accountId,
+          moderator: true,
+          now: world.clock.now,
+        }),
+      ).toBe('unknown_room');
+    });
+  });
+
+  describe('blocks between members', () => {
+    it('collapses a blocked person’s words for the person who blocked them, and for no one else', async () => {
+      const { roomId, slug } = await seedRoom(world);
+      const moderator = await seedFriend(world.db, world.friends);
+      await makeModerator(world, slug, moderator);
+      const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
+      const discussionId = await startTopic(world, asha, roomId, 'A topic');
+      unwrap(await say(world, asha, roomId, discussionId, 'words of Asha'));
+      const first = await readDiscussion(world, asha, roomId, discussionId);
+      if (first.status !== 'ready') throw new Error('expected ready');
+      unwrap(await say(world, ravi, roomId, discussionId, 'BLOCKED-WORDS before'));
+      expect(JSON.stringify(await readDiscussion(world, asha, roomId, discussionId))).toContain('BLOCKED-WORDS before');
+
+      unwrap(await friendCommand(world.friends, asha, ravi, 'block'));
+      unwrap(await say(world, ravi, roomId, discussionId, 'BLOCKED-WORDS after'));
+
+      const blocker = await readDiscussion(world, asha, roomId, discussionId);
+      if (blocker.status !== 'ready') throw new Error('expected ready');
+      expect(blocker.messages.map((message) => message.status)).toEqual(['available', 'blocked', 'blocked']);
+      expect(JSON.stringify(blocker)).not.toContain('BLOCKED-WORDS');
+      expect(JSON.stringify(blocker)).not.toContain(ravi.person.handle);
+      // Catch-up shows the same marker, never the words.
+      const changes = unwrap(
+        await world.rooms.changes(asha.authority, {
+          version,
+          readId: randomUUID(),
+          roomId,
+          discussionId,
+          limit: 10,
+          cursor: first.catchUpCursor,
+        }),
+      );
+      if (changes.status !== 'ready') throw new Error('expected changes');
+      expect(changes.changes.map((change) => change.message.status)).toEqual(['blocked', 'blocked']);
+      expect(JSON.stringify(changes)).not.toContain('BLOCKED-WORDS');
+
+      // The blocked person and everyone else read the room as before: nothing tells Ravi he was blocked.
+      for (const reader of [ravi, moderator]) {
+        const view = await readDiscussion(world, reader, roomId, discussionId);
+        if (view.status !== 'ready') throw new Error('expected ready');
+        expect(view.messages.map((message) => message.status)).toEqual(['available', 'available', 'available']);
+      }
+      // Unblocking restores the words: a block is a reader's choice, not a change to the room.
+      unwrap(await friendCommand(world.friends, asha, ravi, 'unblock'));
+      expect(JSON.stringify(await readDiscussion(world, asha, roomId, discussionId))).toContain('BLOCKED-WORDS after');
+    });
+
+    it('does not open a moment a blocked person shared', async () => {
+      const { roomId } = await seedRoom(world);
+      const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
+      const reel = await seedReel(world.db, { durationMs: 40_000, title: 'Tokens' });
+      const started = unwrap(
+        await world.rooms.create(asha.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId,
+          start: { kind: 'content', root: { assetId: reel.assetId, assetRevision: 1 } },
+        }),
+      );
+      const sent = unwrap(
+        await send(ravi, roomId, started.discussionId, {
+          kind: 'snippet',
+          target: { assetId: reel.assetId, assetRevision: 1 },
+          anchor: { kind: 'reel_range', startMs: 5_000, endMs: 15_000 },
+        }),
+      );
+      const open = () =>
+        world.rooms.openSnippet(asha.authority, {
+          version,
+          readId: randomUUID(),
+          roomId,
+          discussionId: started.discussionId,
+          messageId: sent.messageId,
+        });
+      expect(unwrap(await open())).toMatchObject({ status: 'ready' });
+      unwrap(await friendCommand(world.friends, asha, ravi, 'block'));
+      expect(unwrap(await open())).toMatchObject({ status: 'unavailable' });
     });
   });
 });

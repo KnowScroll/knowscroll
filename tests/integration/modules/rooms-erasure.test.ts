@@ -203,15 +203,14 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
     await clearRecordingPerson(database, boss, person);
 
     expect(await jobsOf(person.universeId)).toBe(0);
+    // The ask is ended but not handed back: its call may already have been running, so it stays counted.
     expect(
-      (
-        await world.db
-          .selectFrom('rooms.ai_requests')
-          .select('state')
-          .where('request_id', '=', asking.request_id)
-          .executeTakeFirstOrThrow()
-      ).state,
-    ).toBe('failed');
+      await world.db
+        .selectFrom('rooms.ai_requests')
+        .select(['state', 'dispatched'])
+        .where('request_id', '=', asking.request_id)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ state: 'failed', dispatched: true });
     const cleared = { ...person, authority: { ...person.authority, privacyEpoch: 2 } };
     const view = await readDiscussion(world, cleared, roomId, discussionId);
     if (view.status !== 'ready') throw new Error('expected ready');

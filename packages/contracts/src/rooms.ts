@@ -255,6 +255,8 @@ export const RoomMessageSchema = z.discriminatedUnion('status', [
   }),
   /** A moderator removed it. It keeps its place; a moderator can restore it. */
   z.strictObject({ ...MessageIdentity, status: z.literal('removed') }),
+  /** Written by someone the reader has blocked: collapsed for the reader, shown as usual to everyone else (D-051). */
+  z.strictObject({ ...MessageIdentity, status: z.literal('blocked') }),
   /** The author's account was deleted. */
   z.strictObject({ ...MessageIdentity, status: z.literal('unavailable') }),
 ]);

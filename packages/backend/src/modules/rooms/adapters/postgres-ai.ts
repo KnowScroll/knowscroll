@@ -37,15 +37,21 @@ const requestOf = (row: RequestColumns): AiRequestRow => ({
 /** Postgres AI inhabitant requests (migration 0062): the rate-bound ledger and the provenance of each contribution. */
 export const aiStore: AiStore = {
   async countAsks(lock, query) {
-    const row = await sql<{ room: string; person: string }>`
-      select count(*) filter (where room_id = ${lock.roomId}::uuid) as room,
-        count(*) filter (where requested_by_account_id = ${query.accountId}::uuid) as person
+    // An ask is refunded only if it never reached the provider: a failed ask that was dispatched still counts.
+    const row = await sql<{ room: string; person: string; person_requests: string }>`
+      select count(*) filter (where room_id = ${lock.roomId}::uuid and (state <> 'failed' or dispatched)) as room,
+        count(*) filter (where requested_by_account_id = ${query.accountId}::uuid and (state <> 'failed' or dispatched)) as person,
+        count(*) filter (where requested_by_account_id = ${query.accountId}::uuid) as person_requests
       from rooms.ai_requests
-      where created_at >= ${query.since} and state <> 'failed'
+      where created_at >= ${query.since}
         and (room_id = ${lock.roomId}::uuid or requested_by_account_id = ${query.accountId}::uuid)`.execute(
       sharedTransactionOf(lock.shared),
     );
-    return { room: Number(row.rows[0]?.room ?? 0), person: Number(row.rows[0]?.person ?? 0) };
+    return {
+      room: Number(row.rows[0]?.room ?? 0),
+      person: Number(row.rows[0]?.person ?? 0),
+      personRequests: Number(row.rows[0]?.person_requests ?? 0),
+    };
   },
 
   async openAsks(lock, discussionId, now) {
@@ -117,11 +123,12 @@ export const aiStore: AiStore = {
           prompt_version: outcome.provenance.promptVersion,
           model: outcome.provenance.model,
           attempt_id: outcome.provenance.attemptId ?? null,
+          dispatched: true,
         })
         .execute();
       return;
     }
-    await base.set({ state: outcome.state, settled_at: outcome.at }).execute();
+    await base.set({ state: outcome.state, settled_at: outcome.at, dispatched: outcome.dispatched }).execute();
   },
 
   async forJob(scope, requestId) {

@@ -3,6 +3,7 @@ import {
   CONTRIBUTION_MAX_CHARS,
   KINDS_OF,
   PERSON_ASKS_PER_DAY,
+  PERSON_REQUESTS_PER_DAY,
   ROOM_ASKS_PER_DAY,
   askDecision,
   contributionProblem,
@@ -10,7 +11,7 @@ import {
 } from './contribution.js';
 
 describe('askDecision', () => {
-  const quiet = { roomAsksToday: 0, personAsksToday: 0, openAsk: false };
+  const quiet = { roomAsksToday: 0, personAsksToday: 0, personRequestsToday: 0, openAsk: false };
 
   it('lets a member ask when nothing is being prepared and the bounds are not reached', () => {
     expect(askDecision(quiet)).toBe('allowed');
@@ -24,6 +25,12 @@ describe('askDecision', () => {
     expect(askDecision({ ...quiet, roomAsksToday: ROOM_ASKS_PER_DAY - 1 })).toBe('allowed');
     expect(askDecision({ ...quiet, roomAsksToday: ROOM_ASKS_PER_DAY })).toBe('room_resting');
     expect(askDecision({ ...quiet, personAsksToday: PERSON_ASKS_PER_DAY })).toBe('person_resting');
+  });
+
+  it('also rests a person who has made many asks that never counted, so failed asks cannot pile up', () => {
+    expect(askDecision({ ...quiet, personRequestsToday: PERSON_REQUESTS_PER_DAY - 1 })).toBe('allowed');
+    expect(askDecision({ ...quiet, personRequestsToday: PERSON_REQUESTS_PER_DAY })).toBe('person_resting');
+    expect(PERSON_REQUESTS_PER_DAY).toBeGreaterThan(PERSON_ASKS_PER_DAY);
   });
 
   it('keeps the person’s bound below the room’s, so one person cannot use the whole room day', () => {

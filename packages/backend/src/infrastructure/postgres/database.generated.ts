@@ -1382,6 +1382,7 @@ export interface RoomsAiRequests {
   command_id: string;
   created_at: Timestamp;
   discussion_id: string;
+  dispatched: Generated<boolean>;
   inhabitant: string;
   message_id: string | null;
   model: string | null;

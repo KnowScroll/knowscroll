@@ -43,7 +43,7 @@ Operator controls: `libraryRoomSeeds`, `seedRooms`, `setRoomModerator`.
 Dependency direction: `domain/` (pure rules: join decision, ask bounds, contribution text rules,
 cursors) <- `application/` (use cases over ports) <- `adapters/` (PostgreSQL, Nest providers, erasure).
 Other modules and the API import only `public.ts`. Rooms reads other modules only through their
-public ports: people and friends from Social (`READ_PUBLIC_PEOPLE`, `READ_FRIEND_ACCOUNTS`, and the
+public ports: people, friends and blocks from Social (`READ_PUBLIC_PEOPLE`, `READ_FRIEND_ACCOUNTS`, `READ_BLOCKED_AMONG`, and the
 `snippetCard` presentation rule), content cards, sequences and snippet anchors from Content, a person's
 own visited markers from Experience, and the personal harness from Reasoning. It never reads Social's
 conversations or threads.
@@ -59,9 +59,12 @@ conversations or threads.
   screen reader says "AI, Skeptic" before the words.
 - **An inhabitant speaks only because a member asked.** `ask` is the only way a contribution begins. The
   room is locked FOR UPDATE so the bounds are exact: one ask prepared per discussion at a time, at
-  most 12 asks per room and 4 per person per UTC day (failed asks do not count). The worker rechecks that
+  most 12 asks per room and 4 per person per UTC day, and at most 12 asks of any outcome per person and
+  day. An ask is counted unless it never reached the provider (`dispatched`): the worker rechecks that
   the asker is still a member of an open room before it stores anything, so a member who left, a pause or a
-  Clear cancels the contribution even if the model finished.
+  Clear drops the contribution even if the model finished, but the call was made, so the ask stays counted and
+  leaving and rejoining buys no extra call. Only an ask that ended before any call (the asker had already gone,
+  no provider configured) is handed back, and the any-outcome bound keeps those from piling up.
 - **An inhabitant never starts production.** A contribution is a message. Nothing it says creates a
   demand, a job or a branch; a person who likes a suggestion asks for it themselves.
 - **Private friend context never flows in.** The context an inhabitant reads is this room's own
@@ -114,7 +117,7 @@ ends as failed.
 | discussions | kept | the starter link is cleared; the discussion stays for the others |
 | messages | kept | the person's messages become tombstones (no author, body, card or note; same place and number; fresh change number) |
 | message_snippets | kept | deleted with the author's tombstoned message |
-| ai_requests | kept; asks still queued end as failed | the asker link is cleared and queued asks end as failed; an AI contribution a deleted person asked for stays with the room |
+| ai_requests | kept; asks still queued end as failed (and stay counted against the day) | the asker link is cleared and queued asks end as failed; an AI contribution a deleted person asked for stays with the room |
 | pg-boss `rooms.contribute` | the universe's job payloads are deleted | the same (universe erasure runs first) |
 
 Clear never removes messages, cards, discussions or memberships: they are explicit communication (D-042).
@@ -137,4 +140,6 @@ person who never took part in a room has no section.
 - Tests: `tests/integration/modules/rooms.test.ts`, `rooms-inhabitants.test.ts`, `rooms-erasure.test.ts`;
   domain tests next to `domain/`.
 - Operator: `node dist/operator.js rooms seed [--dry-run]` and `rooms moderator --room <slug> --account <uuid> [--remove]`
+  (naming needs a claimed profile and never undoes a removal; `--remove` only takes the role from a current member;
+  a moderator who leaves and comes back is an ordinary member until named again)
   (`apps/worker/src/rooms-operator.ts`).

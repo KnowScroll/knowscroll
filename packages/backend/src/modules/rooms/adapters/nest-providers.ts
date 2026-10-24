@@ -4,10 +4,12 @@ import type { EnqueueJob } from '../../../infrastructure/jobs/index.js';
 import { requestHash, type CanonicalJson } from '../../../infrastructure/receipts/index.js';
 import { REASONING_HARNESS, type ReasoningHarness } from '../../../reasoning/public.js';
 import {
+  CHECK_ASSET_AUDIENCE,
   READ_CONTENT_SEQUENCE,
   READ_SHAREABLE_CONTENT,
   RESOLVE_SNIPPET_ANCHOR,
   VALIDATE_SNIPPET_ANCHOR,
+  type CheckAssetAudience,
   type ReadContentSequence,
   type ReadShareableContent,
   type ResolveSnippetAnchor,
@@ -22,8 +24,10 @@ import {
   type WithPersonalScope,
 } from '../../identity/public.js';
 import {
+  READ_BLOCKED_AMONG,
   READ_FRIEND_ACCOUNTS,
   READ_PUBLIC_PEOPLE,
+  type ReadBlockedAmong,
   type ReadFriendAccounts,
   type ReadPublicPeople,
 } from '../../social/public.js';
@@ -39,6 +43,7 @@ import { CONTRIBUTE_AS_INHABITANT, ROOM_USE_CASES, type ContributeAsInhabitant, 
 import { aiStore } from './postgres-ai.js';
 import { discussionStore } from './postgres-discussions.js';
 import { roomStore } from './postgres-rooms.js';
+import { gateSnippetAnchors } from './snippet-audience.js';
 
 /** What every room use case needs from the rest of the system, chosen by the composition root. */
 export interface RoomsDeps {
@@ -46,11 +51,15 @@ export interface RoomsDeps {
   readonly fenceOwn: FenceOwnAccount;
   readonly readPeople: ReadPublicPeople;
   readonly readFriends: ReadFriendAccounts;
+  /** Which of some accounts the caller has blocked: their words are collapsed for the caller, never for anyone else. */
+  readonly readBlocked: ReadBlockedAmong;
   readonly readContent: ReadShareableContent;
   readonly readSequence: ReadContentSequence;
   readonly readVisited: ReadVisitedAssets;
   readonly validateSnippet: ValidateSnippetAnchor;
   readonly resolveSnippet: ResolveSnippetAnchor;
+  /** Which Scrolls the caller may open: one made for a thread is not a room's to quote (D-049). */
+  readonly checkAudience: CheckAssetAudience;
   /** Only the API enqueues the ask job; the worker consumes it and never sends one. */
   readonly enqueue?: EnqueueJob;
   readonly now?: () => Date;
@@ -78,6 +87,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
         return (await deps.readPeople(scope, { accountIds: [accountId] })).length > 0;
       },
     },
+    blocked: (scope, accountId, candidates) => deps.readBlocked(scope, accountId, candidates),
     friends: {
       async accounts(scope, accountId, limit) {
         return (await deps.readFriends(scope, accountId, { limit })).map((friend) => friend.accountId);
@@ -90,8 +100,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     readContent: deps.readContent,
     readSequence: deps.readSequence,
     readVisited: deps.readVisited,
-    validateSnippet: deps.validateSnippet,
-    resolveSnippet: deps.resolveSnippet,
+    ...gateSnippetAnchors(deps.checkAudience, deps.validateSnippet, deps.resolveSnippet),
     newId: deps.newId ?? uuidv7,
     hash: (operation, input) => requestHash(operation, input as CanonicalJson),
     now: deps.now ?? (() => new Date()),
@@ -143,11 +152,13 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
         FENCE_OWN_ACCOUNT,
         READ_PUBLIC_PEOPLE,
         READ_FRIEND_ACCOUNTS,
+        READ_BLOCKED_AMONG,
         READ_SHAREABLE_CONTENT,
         READ_CONTENT_SEQUENCE,
         READ_VISITED_ASSETS,
         VALIDATE_SNIPPET_ANCHOR,
         RESOLVE_SNIPPET_ANCHOR,
+        CHECK_ASSET_AUDIENCE,
         tokens.enqueueJob,
       ],
       useFactory: (
@@ -155,11 +166,13 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
         fenceOwn: FenceOwnAccount,
         readPeople: ReadPublicPeople,
         readFriends: ReadFriendAccounts,
+        readBlocked: ReadBlockedAmong,
         readContent: ReadShareableContent,
         readSequence: ReadContentSequence,
         readVisited: ReadVisitedAssets,
         validateSnippet: ValidateSnippetAnchor,
         resolveSnippet: ResolveSnippetAnchor,
+        checkAudience: CheckAssetAudience,
         enqueue: EnqueueJob,
       ) =>
         roomUseCases({
@@ -167,11 +180,13 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
           fenceOwn,
           readPeople,
           readFriends,
+          readBlocked,
           readContent,
           readSequence,
           readVisited,
           validateSnippet,
           resolveSnippet,
+          checkAudience,
           enqueue,
         }),
     },
@@ -193,6 +208,8 @@ export function roomsWorkerProviders(tokens: { readonly withPersonalScope: symbo
         READ_VISITED_ASSETS,
         VALIDATE_SNIPPET_ANCHOR,
         RESOLVE_SNIPPET_ANCHOR,
+        CHECK_ASSET_AUDIENCE,
+        READ_BLOCKED_AMONG,
         REASONING_HARNESS,
         CHECK_PERSONAL_OWNER_ACTIVE,
         tokens.workerConfig,
@@ -207,6 +224,8 @@ export function roomsWorkerProviders(tokens: { readonly withPersonalScope: symbo
         readVisited: ReadVisitedAssets,
         validateSnippet: ValidateSnippetAnchor,
         resolveSnippet: ResolveSnippetAnchor,
+        checkAudience: CheckAssetAudience,
+        readBlocked: ReadBlockedAmong,
         harness: ReasoningHarness,
         ownerActive: CheckPersonalOwnerActive,
         config: WorkerConfig,
@@ -221,6 +240,8 @@ export function roomsWorkerProviders(tokens: { readonly withPersonalScope: symbo
           readVisited,
           validateSnippet,
           resolveSnippet,
+          checkAudience,
+          readBlocked,
           harness,
           ownerActive,
           model: config.reasoning.minimax?.model ?? 'unconfigured',

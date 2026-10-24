@@ -28,10 +28,14 @@ const LIFECYCLE = {
   'rooms.ai_requests': 'the asker link is cleared; a contribution stays with the room',
 } as const;
 
-/** Ends the asks of this universe's account that are still queued: their job is being erased. */
+/**
+ * Ends the asks of this universe's account that are still queued: their job is being erased. A queued ask may
+ * already have its model call running, so it stays counted against the daily bounds (`dispatched`): a Clear does
+ * not hand an ask back.
+ */
 async function failQueuedAsks(trx: ReturnType<typeof transactionOf>, universeId: string): Promise<number> {
   const failed = await sql`
-    update rooms.ai_requests set state = 'failed', settled_at = now()
+    update rooms.ai_requests set state = 'failed', settled_at = now(), dispatched = true
     where state = 'queued' and requested_by_account_id = (select account_id from identity.universes where id = ${universeId}::uuid)`.execute(
     trx,
   );

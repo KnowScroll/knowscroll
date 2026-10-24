@@ -73,7 +73,8 @@ export function makeContribute(p: ContributePorts, harness: ReasoningHarness): C
       const found = await standingAsk(p, scope, job.requestId);
       if (found === undefined) return undefined;
       if (!found.allowed || found.discussion === undefined) {
-        await p.ai.settle(found.lock, job.requestId, { state: 'failed', at: p.now() });
+        // The authority went before any call: nothing reached the provider, so the ask is not counted.
+        await p.ai.settle(found.lock, job.requestId, { state: 'failed', at: p.now(), dispatched: false });
         return undefined;
       }
       const material = await assembleMaterial(p, scope, found.lock, {
@@ -126,9 +127,12 @@ async function applyVerdict(
     if (found === undefined) return;
     const at = p.now();
     if (verdict.kind !== 'contribution' || !found.allowed) {
+      // An answer the asker is no longer allowed to have (they left, the room paused) is dropped, but the
+      // model was called: the ask stays counted. Only an ask that never reached the provider is refunded.
       await p.ai.settle(found.lock, request.requestId, {
         state: verdict.kind === 'nothing_to_add' && found.allowed ? 'declined' : 'failed',
         at,
+        dispatched: verdict.kind === 'failed' ? verdict.dispatched : true,
       });
       return;
     }

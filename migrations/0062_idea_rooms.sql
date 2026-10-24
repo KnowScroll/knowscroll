@@ -75,7 +75,7 @@ create index invitations_invitee on rooms.invitations(invitee_account_id);
 
 -- A discussion is a room thread. With a root (an exact asset revision) it is a content thread: the
 -- Reel or Scroll and the talk about it. origin_message_id names the message it was started from.
--- The id is derived from the starter and the command, so a retried create finds the same discussion.
+-- The id is generated when the discussion is created; the receipt of the create command makes a retry find it.
 create table rooms.discussions (
   discussion_id uuid primary key,
   room_id uuid not null references rooms.rooms(room_id) on delete restrict,
@@ -173,6 +173,10 @@ create table rooms.message_snippets (
 -- request is the rate-bound ledger (per room and day, per person and day) and, once an answer is
 -- stored, the provenance of the contribution: the role and prompt versions, the model and the
 -- reasoning attempt it came from. An AI inhabitant never speaks without a row here.
+-- dispatched says the ask reached the provider (an attempt was made, whatever came back). The daily bounds
+-- count every ask that is queued, answered, declined or dispatched, so an ask is refunded only when it
+-- never reached the provider: leaving, a pause or a Clear after the call does not give it back. Every ask in
+-- any state is also counted in a separate, larger bound, so asks that fail at once cannot pile up.
 create table rooms.ai_requests (
   request_id uuid primary key,
   room_id uuid not null references rooms.rooms(room_id) on delete restrict,
@@ -189,11 +193,14 @@ create table rooms.ai_requests (
   prompt_version text,
   model text,
   attempt_id uuid,
+  dispatched boolean not null default false,
   check ((state = 'completed') = (message_id is not null)),
+  check (dispatched or state in ('queued', 'failed')),
   check ((state = 'queued') = (settled_at is null)),
   check (state <> 'completed' or (role_version is not null and prompt_version is not null and model is not null))
 );
-create unique index ai_requests_command on rooms.ai_requests(requested_by_account_id, command_id)
+-- A command ID is a person's per room (shared receipts are per room), so the same ID in another room is another ask.
+create unique index ai_requests_command on rooms.ai_requests(room_id, requested_by_account_id, command_id)
   where requested_by_account_id is not null;
 create index ai_requests_room_day on rooms.ai_requests(room_id, created_at);
 create index ai_requests_asker_day on rooms.ai_requests(requested_by_account_id, created_at)
