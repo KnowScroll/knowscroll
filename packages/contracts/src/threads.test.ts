@@ -7,7 +7,7 @@ import {
   SnippetAnchorSchema,
   ThreadMessageSchema,
   ThreadSummarySchema,
-} from './threads';
+} from './threads.js';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const person = { kind: 'person' as const, personId: id(10), handle: 'ci.asha', displayName: 'Asha' };

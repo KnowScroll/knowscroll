@@ -3,8 +3,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TALK_QUERY_KEY, findThread, type AccountScope } from '@knowscroll/client-core';
-import type { ContentThreadRef, ReelDocument } from '@knowscroll/contracts';
+import {
+  TALK_QUERY_KEY,
+  findThread,
+  type AccountScope,
+  type ContentThreadController,
+  type ContentThreadState,
+} from '@knowscroll/client-core';
+import type { ContentThreadRef, ReelDocument, SendThreadBody } from '@knowscroll/contracts';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { Banner, Skeleton, StateBlock, type ReelPositionHandle } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
@@ -56,69 +62,38 @@ function useOwnPlace(scope: AccountScope, threadId: string) {
   };
 }
 
-function OpenThread({ scope, thread }: { readonly scope: AccountScope; readonly thread: ContentThreadRef }) {
+/** What the person sees once the thread is read: episodes, encounter, messages, composer and sheets. */
+function ReadyThread({
+  scope,
+  thread,
+  controller,
+  state,
+  title,
+  onBack,
+  onLeft,
+}: {
+  readonly scope: AccountScope;
+  readonly thread: ContentThreadRef;
+  readonly controller: ContentThreadController;
+  readonly state: ContentThreadState;
+  readonly title: string;
+  readonly onBack: () => void;
+  readonly onLeft: () => void;
+}) {
   const router = useRouter();
-  const { controller, state } = useContentThread(scope, thread);
   const place = useOwnPlace(scope, thread.threadId);
   const [draft, keepDraft] = useDraft(scope, thread.threadId);
   const [people, setPeople] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [moment, setMoment] = useState<{ document: ReelDocument; positionMs: number }>();
+  const [moment, setMoment] = useState<ShareableMoment>();
   const positionRef = useRef<ReelPositionHandle>(null);
-  const { ref: scrollRef, onScroll, follow } = useFollowEnd(`${state.phase}:${String(state.messages.length)}`);
-  const leaveToTalk = () => router.replace('/conversations');
-  const back = () => (router.canGoBack() ? router.back() : leaveToTalk());
-  const title = threadTitle(state);
-  useDocumentTitle(title);
-
-  // Coming back from a full-screen encounter or a reader: the person's own visited markers may have changed.
-  const seen = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      if (seen.current) void controller.load();
-      seen.current = true;
-    }, [controller]),
-  );
+  const { ref: scrollRef, onScroll, follow } = useFollowEnd(String(state.messages.length));
   // The keyboard opening folds the player, and folding pauses it (C04).
   useEffect(() => {
     const subscription = Keyboard.addListener('keyboardDidShow', () => place.setFolded(true));
     return () => subscription.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setFolded only writes this device's storage and state
   }, []);
-
-  if (state.phase === 'loading')
-    return (
-      <View style={styles.body}>
-        <Skeleton rows={4} label="Loading thread" />
-      </View>
-    );
-  if (state.phase === 'unavailable')
-    return (
-      <StateBlock
-        title="This thread isn’t available"
-        body="It may have ended, or you may no longer have access."
-        actions={[{ label: 'Back to Talk', role: 'link', href: '/conversations', onPress: leaveToTalk }]}
-      />
-    );
-  if (state.phase === 'failed')
-    return (
-      <StateBlock
-        title="Can’t open this thread"
-        body="Check your connection and try again."
-        actions={[{ label: 'Try again', onPress: () => void controller.load() }]}
-      />
-    );
-  if (state.phase === 'invitation')
-    return (
-      <>
-        <ThreadHeader title={title} people={undefined} onBack={back} onPeople={undefined} onMenu={undefined} />
-        <InvitationView
-          state={state}
-          onJoin={() => void controller.respond('join')}
-          onDecline={() => void controller.respond('decline').then((answered) => answered && leaveToTalk())}
-        />
-      </>
-    );
 
   const episodes = state.episodes;
   const series = state.sequence === 'series';
@@ -133,7 +108,7 @@ function OpenThread({ scope, thread }: { readonly scope: AccountScope; readonly 
       <ThreadHeader
         title={title}
         people={state.participants.map((participant) => participant.person.displayName).join(', ')}
-        onBack={back}
+        onBack={onBack}
         onPeople={() => setPeople(true)}
         onMenu={() => setMenu(true)}
       />
@@ -193,7 +168,7 @@ function OpenThread({ scope, thread }: { readonly scope: AccountScope; readonly 
       {moment === undefined ? null : (
         <ShareMomentSheet
           visible
-          title={`${current?.title ?? ''}`}
+          title={current?.title ?? ''}
           durationMs={moment.document.durationMs}
           positionMs={moment.positionMs}
           currentPositionMs={() => positionRef.current?.capture()?.positionMs ?? moment.positionMs}
@@ -202,12 +177,7 @@ function OpenThread({ scope, thread }: { readonly scope: AccountScope; readonly 
           onShare={(range, note) => {
             setMoment(undefined);
             follow();
-            void controller.send({
-              kind: 'snippet',
-              target: { assetId: moment.document.assetId, assetRevision: moment.document.revision },
-              anchor: { kind: 'reel_range', startMs: range.startMs, endMs: range.endMs },
-              ...(note === '' ? {} : { note }),
-            });
+            void controller.send(momentMessage(moment.document, range, note));
           }}
         />
       )}
@@ -217,10 +187,93 @@ function OpenThread({ scope, thread }: { readonly scope: AccountScope; readonly 
         onClose={() => setMenu(false)}
         onLeave={() => {
           setMenu(false);
-          void controller.leave().then((left) => left && leaveToTalk());
+          void controller.leave().then((left) => left && onLeft());
         }}
       />
     </>
+  );
+}
+
+/** A Reel moment the person is about to share: the revision actually playing and where it was. */
+interface ShareableMoment {
+  readonly document: ReelDocument;
+  readonly positionMs: number;
+}
+
+/** The snippet message for a chosen range of the exact Reel revision that is playing. */
+function momentMessage(
+  document: ReelDocument,
+  range: { readonly startMs: number; readonly endMs: number },
+  note: string,
+): SendThreadBody {
+  return {
+    kind: 'snippet',
+    target: { assetId: document.assetId, assetRevision: document.revision },
+    anchor: { kind: 'reel_range', startMs: range.startMs, endMs: range.endMs },
+    ...(note === '' ? {} : { note }),
+  };
+}
+
+function OpenThread({ scope, thread }: { readonly scope: AccountScope; readonly thread: ContentThreadRef }) {
+  const router = useRouter();
+  const { controller, state } = useContentThread(scope, thread);
+  const leaveToTalk = () => router.replace('/conversations');
+  const back = () => (router.canGoBack() ? router.back() : leaveToTalk());
+  const title = threadTitle(state);
+  useDocumentTitle(title);
+
+  // Coming back from a full-screen encounter or a reader: the person's own visited markers may have changed.
+  const seen = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (seen.current) void controller.load();
+      seen.current = true;
+    }, [controller]),
+  );
+
+  if (state.phase === 'loading')
+    return (
+      <View style={styles.body}>
+        <Skeleton rows={4} label="Loading thread" />
+      </View>
+    );
+  if (state.phase === 'unavailable')
+    return (
+      <StateBlock
+        title="This thread isn’t available"
+        body="It may have ended, or you may no longer have access."
+        actions={[{ label: 'Back to Talk', role: 'link', href: '/conversations', onPress: leaveToTalk }]}
+      />
+    );
+  if (state.phase === 'failed')
+    return (
+      <StateBlock
+        title="Can’t open this thread"
+        body="Check your connection and try again."
+        actions={[{ label: 'Try again', onPress: () => void controller.load() }]}
+      />
+    );
+  if (state.phase === 'invitation')
+    return (
+      <>
+        <ThreadHeader title={title} people={undefined} onBack={back} onPeople={undefined} onMenu={undefined} />
+        <InvitationView
+          state={state}
+          onJoin={() => void controller.respond('join')}
+          onDecline={() => void controller.respond('decline').then((answered) => answered && leaveToTalk())}
+        />
+      </>
+    );
+  return (
+    <ReadyThread
+      scope={scope}
+      thread={thread}
+      controller={controller}
+      state={state}
+      title={title}
+      onBack={back}
+      onLeft={leaveToTalk}
+    />
   );
 }
 

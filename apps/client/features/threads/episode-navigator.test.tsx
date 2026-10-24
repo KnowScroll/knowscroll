@@ -46,13 +46,13 @@ describe('the episode navigator', () => {
     expect(screen.getByText('2 · now')).toBeOnTheScreen();
   });
 
-  it('labels an episode that is gone without hiding it', async () => {
+  it('labels an episode that is gone without hiding it', () => {
     expect(episodeLabel(episode(2, { state: 'unavailable' }), false, true)).toBe(
       'Part 2, Time slows, no longer available',
     );
   });
 
-  it('calls a single item by its format, not by a part number', async () => {
+  it('calls a single item by its format, not by a part number', () => {
     expect(episodeLabel({ ...episode(1), part: undefined }, true, false)).toBe('Reel, The edge, selected');
     expect(episodeLabel({ ...episode(2), part: undefined }, false, false)).toBe('Scroll, Time slows');
   });

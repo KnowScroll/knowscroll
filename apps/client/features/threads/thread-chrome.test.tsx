@@ -61,7 +61,7 @@ describe('a thread invitation', () => {
     ).toBeOnTheScreen();
   });
 
-  it('is titled by the name its starter gave, else by what it is about', async () => {
+  it('is titled by the name its starter gave, else by what it is about', () => {
     expect(threadTitle({ name: 'Black holes', root })).toBe('Black holes');
     expect(threadTitle({ name: undefined, root })).toBe('The edge');
     expect(threadTitle({ name: undefined, root: undefined })).toBe('Shared thread');

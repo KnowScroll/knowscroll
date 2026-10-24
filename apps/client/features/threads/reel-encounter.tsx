@@ -160,7 +160,7 @@ export function ReelEncounter({
     if (!active) exposure?.recorder.discontinuity();
   }, [active, exposure]);
 
-  // The range ends where the sender chose: pause there instead of playing on.
+  // The range ends where the sender chose. Setting `ended` makes the player inactive, which pauses it.
   const watched = useMemo(() => {
     if (exposure === undefined || moment === undefined) return exposure?.recorder;
     const recorder = exposure.recorder;
@@ -168,13 +168,10 @@ export function ReelEncounter({
       ...recorder,
       sample(next: Parameters<ReelRecorder['sample']>[0]) {
         recorder.sample(next);
-        if (next.playing && next.positionMs >= moment.endMs) {
-          (typeof handle === 'object' && handle !== null && 'current' in handle ? handle.current : null)?.pause();
-          setEnded(true);
-        }
+        if (next.playing && next.positionMs >= moment.endMs) setEnded(true);
       },
     } satisfies ReelRecorder;
-  }, [exposure, moment, handle]);
+  }, [exposure, moment]);
 
   if (state.status === 'unavailable')
     return <StateBlock title="This Reel isn't available" body="Check your connection, then try again." />;
