@@ -192,6 +192,24 @@ describe('the worker operator command (reasoning) from the built release', () =>
     });
   });
 
+  it('reports what admit-continuity would do on a database without library Scrolls, and writes nothing', async () => {
+    const result = await operator(env(), ['content', 'admit-continuity', '--dry-run']);
+    expect(result.code).toBe(0);
+    expect(result.result).toMatchObject({
+      command: 'content admit-continuity',
+      dryRun: true,
+      seriesRevisionsAdmitted: 0,
+      seriesUnchanged: 0,
+      linksAdmitted: 0,
+      linksUnchanged: 0,
+    });
+    // Nothing is published, so every declared series is skipped and says what it waits for.
+    const { seriesSkipped } = result.result as { seriesSkipped: { unpublished: string[] }[] };
+    expect(seriesSkipped.length).toBeGreaterThan(0);
+    expect(seriesSkipped.every((entry) => entry.unpublished.length > 0)).toBe(true);
+    expect(await handle.db.selectFrom('content.continuity_links').select('id').execute()).toHaveLength(0);
+  });
+
   it('refuses to start without its configuration, naming the variable and echoing no value', async () => {
     const missing = await operator({ KS_WORLD: 'ci' }, ['reasoning', 'unknown']);
     expect({ code: missing.code, stdout: missing.stdout }).toEqual({ code: 1, stdout: '' });

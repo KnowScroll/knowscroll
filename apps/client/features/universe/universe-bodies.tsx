@@ -158,7 +158,20 @@ export function OrbitRing({
 }
 
 /** A region pin: an octagon with a centre dot, yellow when selected. */
-export function RegionPin({ x, y, selected, size = 11 }: { x: number; y: number; selected?: boolean; size?: number }) {
+export function RegionPin({
+  x,
+  y,
+  selected,
+  here,
+  size = 11,
+}: {
+  x: number;
+  y: number;
+  selected?: boolean;
+  /** U04 "you were here": a ring around the place the person left through its card. */
+  here?: boolean;
+  size?: number;
+}) {
   const corners = Array.from({ length: 8 }, (_, index) => {
     const angle = (Math.PI / 4) * index + Math.PI / 8;
     return `${(x + Math.cos(angle) * size).toFixed(2)},${(y + Math.sin(angle) * size).toFixed(2)}`;
@@ -166,6 +179,17 @@ export function RegionPin({ x, y, selected, size = 11 }: { x: number; y: number;
   return (
     <G>
       {selected ? <Circle cx={x} cy={y} r={size * 2} fill={space.regionPin.selected} opacity={0.28} /> : null}
+      {here ? (
+        <Circle
+          cx={x}
+          cy={y}
+          r={size * 2.1}
+          fill="none"
+          stroke={space.regionPin.selected}
+          strokeWidth={2}
+          opacity={0.9}
+        />
+      ) : null}
       <Polygon
         points={corners}
         fill={selected ? space.regionPin.selected : space.regionPin.fill}

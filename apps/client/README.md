@@ -298,8 +298,12 @@ float over it.
 - **System (U02), planet (U03), region (U04).** Planets sit on orbits in the direction their
   persisted anchors have from the star. A planet is drawn from the scene-core silhouette (family and
   palette from the scene, seed turns the land). Regions are pins on the land; choosing one lowers
-  the camera and opens its card with one encounter. Open goes through the real encounter engine and
-  Back returns to the same view with the card closed. The card offers Open and Close only: there is
+  the camera and opens its card with one encounter. Open goes through the real encounter engine; the
+  encounter carries a "From <region> · <planet>" chip that is Back (`encounterOrigin`, the same chip as
+  the format switch's), and Back, by button or chip, returns to the same view with the card closed. The
+  region left through its card then shows "<region> · you were here" and a ring (`universe-here-marker.ts`):
+  a private marker kept in the account scope's storage (purged with the scope, dropped after 14 days),
+  cleared when the person chooses that region again. The card offers Open and Close only: there is
   no read yet for more encounters from a region.
 - **Routes.** Only the Cartographer's routes (between planets of one system) are drawn: a dashed
   line with a 48 px target named "Route from A to B" in the system view, and a "Route to B" chip

@@ -105,7 +105,7 @@ export function MapLabel({
 }: {
   readonly label: PlacedLabel;
   readonly text: string;
-  readonly variant?: 'plain' | 'pill' | 'selected';
+  readonly variant?: 'plain' | 'pill' | 'selected' | 'here';
   readonly calm?: boolean;
 }) {
   const pill = variant !== 'plain';
@@ -116,12 +116,12 @@ export function MapLabel({
         styles.label,
         { left: label.x, top: label.y, width: label.width, height: label.height },
         pill ? styles.pill : null,
-        variant === 'selected' ? styles.selectedPill : null,
+        variant === 'selected' || variant === 'here' ? styles.selectedPill : null,
       ]}
     >
       <Text
         variant="spaceLabel"
-        color={variant === 'selected' ? content.ink : calm ? space.label2 : space.label}
+        color={variant === 'selected' || variant === 'here' ? content.ink : calm ? space.label2 : space.label}
         align="center"
         numberOfLines={1}
         style={pill ? null : styles.plainText}

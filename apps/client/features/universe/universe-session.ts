@@ -12,6 +12,7 @@ import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
 import { boundedFrame, DRAW_LIMITS, INITIAL_FRAME, returnLocator, type UniverseFrame } from './universe-camera';
 import { createCameraHistory, type CameraEntry } from './universe-camera-history';
 import { createDeviceMemory } from './universe-device-memory';
+import { clearHereMarker, readHereMarker, writeHereMarker } from './universe-here-marker';
 import { createDustReader, NO_DUST, type DustState } from './universe-dust';
 import { createGeometryCache } from './universe-geometry-cache';
 import type { LastPlace } from './universe-memory';
@@ -40,6 +41,8 @@ export interface UniverseViewState extends CameraEntry {
   readonly absent: boolean;
   /** A system picked on the map but not entered yet (second tap or Open enters it). */
   readonly selectedId: string | null;
+  /** U04: the region the person left through its card's Open, private to this device, until they choose it again. */
+  readonly youWereHere: string | null;
 }
 export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean): SceneClientCapabilities {
   return {
@@ -88,6 +91,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     lastPlace: memory.lastPlace,
     absent: false,
     selectedId: null,
+    youWereHere: readHereMarker(scope, now()) ?? null,
   };
   const publish = (patch: Partial<UniverseViewState>) => {
     state = { ...state, ...patch, historyDepth: history.size() };
@@ -207,6 +211,13 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     formation.setForeground(overlay === null);
     if (overlay === 'place') readPreview();
   };
+  /** "Deployment · Inference & serving": the words of the chip an encounter opened from a region carries (U04). */
+  const regionChipOf = (regionId: string): string => {
+    const all = places();
+    const region = all.find((place) => place.id === regionId);
+    const planet = all.find((place) => place.id === region?.parentId);
+    return [region?.label, planet?.label].filter((part) => part !== undefined && part !== '').join(' · ');
+  };
   const here = (): CameraEntry => ({ frame: { ...state.frame }, focusId: state.focusId, locator: state.locator });
   const focus = (id: string) => {
     if (!live() || !foreground || !places().some((p) => p.id === id)) return false;
@@ -221,6 +232,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     const chunk = state.read.snapshot?.chunks.find((c) => c.objects.some((o) => o.objectId === id));
     const place = places().find((p) => p.id === id)!;
     const frame = { ...INITIAL_FRAME };
+    // Choosing the place again is what the marker was waiting for.
+    if (state.youWereHere === id) clearHereMarker(scope);
     publish({
       focusId: id,
       notice: undefined,
@@ -228,6 +241,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       overlay: null,
       selectedId: null,
       absent: false,
+      youWereHere: state.youWereHere === id ? null : state.youWereHere,
       lastPlace: { id, label: place.label, kind: place.kind },
       locator: chunk ? returnLocator(chunk.chunkId, id, frame) : undefined,
     });
@@ -348,7 +362,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       )
         return false;
       const saved = { camera: here(), history: history.snapshot() };
-      const accepted = encounterSessionFor(scope).openRegion(displayed, () => {
+      const accepted = encounterSessionFor(scope).openRegion(displayed, regionChipOf(selected.regionId), () => {
         if (!live() || returnPoint !== saved) return;
         history.restore(saved.history);
         publishCamera(saved.camera);
@@ -357,7 +371,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       if (!accepted) return false;
       returnPoint = saved;
       cancelPreview();
-      publish({ overlay: null });
+      writeHereMarker(scope, selected.regionId, now());
+      publish({ overlay: null, youWereHere: selected.regionId });
       return true;
     },
     camera(frame: UniverseFrame) {

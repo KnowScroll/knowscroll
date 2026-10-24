@@ -77,15 +77,15 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | U01 | First state | matches | Your universe starts quiet, Go to Explore (dev). | dev | [U01](fidelity/pairs/U01.jpg) |
 | U02 | System | matches | System, planets, station card (fixture). | fixture | [U01](fidelity/pairs/U01.jpg) |
 | U03 | Planet | matches | Planet scene, route chip, list view (fixture). | fixture | [U01](fidelity/pairs/U01.jpg) |
-| U04 | Region card | differs | Region card with Close and Try again; fixture preview was unavailable so Open was not shown. | fixture | [U01](fidelity/pairs/U01.jpg) |
+| U04 | Region card | matches | Region card with Open and Close (Try again when the preview fails). An encounter opened from it shows "From <region> · <planet>", which is Back; on return the pin shows "you were here" with a ring until it is chosen again (private, device-local, purged with the scope). "More in <region>" is not offered: there is no read for more encounters from a region. | fixture, #456 | [U04 after](fidelity/pairs/U04-after.jpg) |
 | U05 | Formation sequence | matches | Dust, gathering, protostar, star, planet settles with Skip and Done (fixture). | fixture | [U05](fidelity/pairs/U05.jpg) |
-| U06 | Friend visit | differs | Visiting bar, privacy line and a map; the drawn friend universe has seeded personal looks, a room station card and a Leave on the bar. Dev's empty friend map was not compared. | dev | [U06](fidelity/pairs/U06.jpg) |
+| U06 | Friend visit | differs | Leave is on the visiting bar (first in tab order) beside "Visiting <name> · Only what <name> shares". Not drawn: the room station card (the visitor snapshot carries shared systems and planets only, no rooms) and the seeded personal looks (no data). Recorded, not built. | fixture, #456 | [U06](fidelity/pairs/U06.jpg) |
 | U06 | Not shared with you | matches | This universe isn't shared with you with two exits. | dev | [U06](fidelity/pairs/U06.jpg) |
 | U07 | Three worlds | not checked | Planet looks come from a seeded scene; a three-person comparison was not built. | - | - |
 | U08 | Search | matches | Search field with grouped results and hint line (fixture). | fixture | [U08](fidelity/pairs/U08.jpg) |
-| U08 | List view | differs | Nested outline in a sheet; design groups by family with a Lately switch. | fixture | [U08](fidelity/pairs/U08.jpg) |
+| U08 | List view | differs | Outline by system with a Lately toggle on top. Not grouped by family: places carry no thematic family (the scene "family" is only the land style), and sky regions that merge quiet systems have no backend yet. Lately is a toggle button, not a switch. | fixture, #456 | [U08](fidelity/pairs/U08.jpg) |
 | V01 | Tablet portrait | matches | Rail plus thread aside at 834x1112. | dev | [D01](fidelity/pairs/D01.jpg) |
-| V01 | Compact 320 and 200% text | differs | Compact phone is icon-only; the first-arrival hint covers the action rail until dismissed. | dev 320x640 | [D01](fidelity/pairs/D01.jpg) |
+| V01 | Compact 320 and 200% text | matches | At 320x640 the first-arrival hint keeps clear of the action rail (it stops short of it); the icon-only compact bar is as drawn. | fixture, #456 | [V01 after](fidelity/pairs/V01-320-after.jpg) |
 | X01 | What if sheet | matches | Sheet, From chip, idea, We'll explore summary with Changed/Kept, Explore. | dev | [X01](fidelity/pairs/X01.jpg) |
 | X01 | Branch preparing in the thread | matches | Dashed branch card with Preparing. | dev | [X01](fidelity/pairs/X01.jpg) |
 | X02 | Branch cards | matches | Fixed in #455: Explore this is the card's one action; What if… and Remove are in ⋯ (Remove stays on a card that is preparing or could not be prepared, as drawn); a speculative what-if carries a Speculative tag (D-056); and the card says "Opened by you" only to the member who opened its Scroll (the server tells each member their own list, never another's). | dev, fixture, fixed in #455 | [X02](fidelity/pairs/X02.jpg) |

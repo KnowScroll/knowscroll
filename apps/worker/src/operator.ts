@@ -1,4 +1,4 @@
-import { produceLibraryCommand, productionStatusCommand } from './library-operator.js';
+import { admitContinuityCommand, produceLibraryCommand, productionStatusCommand } from './library-operator.js';
 import { journeyCommand } from './journey-operator.js';
 import { reelCommand } from './reel-operator.js';
 import { roomsCommand } from './rooms-operator.js';
@@ -47,7 +47,7 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
+  'usage: operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js content admit-continuity [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -186,6 +186,8 @@ async function main(): Promise<number> {
     return recoverOpenDemandCommand({ dryRun: args.values['dry-run'] }, print, logEvent);
   if (area === 'content' && command === 'production-status' && args.positionals.length === 2)
     return productionStatusCommand(args.values.only === undefined ? {} : { only: args.values.only }, print, logEvent);
+  if (area === 'content' && command === 'admit-continuity' && args.positionals.length === 2)
+    return admitContinuityCommand({ dryRun: args.values['dry-run'] }, print, logEvent);
   if (area === 'content' && command === 'readmit-coverage' && args.positionals.length === 2) {
     // Decides coverage again for generated Scrolls from the current plan. Shared content only: no
     // provider, personal root or network. Refused outside the operator worlds before the database.
