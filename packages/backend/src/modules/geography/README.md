@@ -97,7 +97,7 @@ selective Clear removes the evidence and so the cue. Map visits and suggestions 
 | `RUN_CARTOGRAPHER`, `PUBLISH_GEOGRAPHY_DELTA` | Worker consumers |
 | `READ_OWN_GEOGRAPHY`, `READ_OWN_DELTAS` | Snapshot and catch-up reads |
 | `READ_OWN_EMERGING` | Dust cues |
-| `READ_GEOGRAPHY_SCENE_INPUT`, `GEOGRAPHY_APPLIED` | Scenes' input and the same-transaction hook |
+| `READ_GEOGRAPHY_SCENE_INPUT`, `GEOGRAPHY_APPLIED` | Scenes' input and the same-transaction hook; Social reads the same input to draw the list a friend may visit (D-047) |
 | `READ_OWN_REGION_CONSTRAINT` | Exact region authority for region encounters (U04) |
 
 Dependencies point inward: `adapters/` (Postgres, Nest wiring) use `application/` (run, apply,

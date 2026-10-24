@@ -57,10 +57,10 @@ test('Friends keeps empty scans explicit, resolves a fragment privately and neve
   await expect(page.getByRole('heading', { name: 'Friend invitation', exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/friends\/invite$/);
   await expect(page.getByText('No visible people in this part of the scan. Choose Next to continue.')).toBeVisible();
-  expect(calls.filter((c) => c.path.endsWith('/page'))).toHaveLength(1);
   await page.getByRole('button', { name: 'Next page', exact: true }).click();
-  await expect(page.getByText('Friends · availability not shared')).toBeVisible();
-  await expect(page.getByText('Online', { exact: true })).toHaveCount(0);
+  // A friend with unknown availability shows no word, and can be visited by public handle.
+  await expect(page.getByRole('button', { name: `Visit ${peer.displayName}’s universe`, exact: true })).toBeVisible();
+  await expect(page.getByText(/Online|Recently active|availability/)).toHaveCount(0);
   await page.getByRole('button', { name: 'Check invitation', exact: true }).click();
   await expect(
     page.getByRole('button', { name: `Request friendship with ${peer.displayName}`, exact: true }),

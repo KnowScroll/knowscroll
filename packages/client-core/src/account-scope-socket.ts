@@ -1,5 +1,11 @@
 import { io } from 'socket.io-client';
-import { SOCKET_PATH, ScopeChangedHintSchema, socketEvents, type ScopeRef } from '@knowscroll/contracts';
+import {
+  PRESENCE_HEARTBEAT_MS,
+  SOCKET_PATH,
+  ScopeChangedHintSchema,
+  socketEvents,
+  type ScopeRef,
+} from '@knowscroll/contracts';
 import type { AccountScope, ScopeConnection } from './account-scope';
 
 /** What the socket needs from the scope manager besides the scope. */
@@ -11,6 +17,11 @@ export interface SocketContext {
   readonly onRevoked: () => void;
   /** The server refused the handshake as made for another scope (`SCOPE_MISMATCH`): reread the session. */
   readonly onMismatch: () => void;
+  /**
+   * Whether the app is open and visible right now. Heartbeats go only while it is, so a closed tab or
+   * a backgrounded app stops looking "Online" within a minute. Omitted means always visible.
+   */
+  readonly visible?: () => boolean;
 }
 
 /** The query-key prefix under which Talk's queries live; an inbox hint refreshes only these. */
@@ -26,6 +37,10 @@ export const TALK_QUERY_KEY = 'talk';
  * refused as `SCOPE_MISMATCH` (another account or epoch is now this device's) makes it reread the
  * session. Closing it (the scope's first step when it ends) removes every handler first, so no hint
  * of an ended scope reaches anything.
+ *
+ * It also says "I'm around" every `PRESENCE_HEARTBEAT_MS` while connected and visible. The server
+ * stores that only for a person who chose to show availability, and answers the same either way, so the
+ * socket never learns the choice. A beat is not consumption evidence.
  */
 export function connectScopeSocket(scope: AccountScope, context: SocketContext): ScopeConnection {
   const token = context.bearerToken();
@@ -42,7 +57,19 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
       queryKey: kind === 'inbox' ? scope.queryKey(TALK_QUERY_KEY) : scope.queryKey(),
     });
   };
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+  const beat = () => {
+    if (scope.active && socket.connected && (context.visible?.() ?? true))
+      socket.emit(socketEvents.presenceHeartbeat, () => undefined);
+  };
+  const stopHeartbeat = () => {
+    if (heartbeat !== undefined) clearInterval(heartbeat);
+    heartbeat = undefined;
+  };
   socket.on('connect', () => {
+    stopHeartbeat();
+    beat();
+    heartbeat = setInterval(beat, PRESENCE_HEARTBEAT_MS);
     for (const kind of ['universe', 'inbox'] as const)
       socket.emit(
         socketEvents.subscribeScope,
@@ -64,6 +91,7 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
   });
   socket.on(socketEvents.scopeResync, () => refresh('all'));
   socket.on('disconnect', (reason) => {
+    stopHeartbeat();
     if (reason === 'io server disconnect' && scope.active) context.onRevoked();
   });
   socket.on('connect_error', (error: Error) => {
@@ -71,6 +99,7 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
   });
   return {
     close() {
+      stopHeartbeat();
       socket.removeAllListeners();
       socket.close();
     },

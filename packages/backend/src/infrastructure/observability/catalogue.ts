@@ -113,6 +113,7 @@ export const diagnosticCatalogue = {
   'realtime.subscription_refused': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'error'] },
   'realtime.access_revoked': { severity: 'info', module: 'realtime', fields: ['count'] },
   'realtime.relay_failed': { severity: 'error', module: 'realtime', fields: ['reasonCode', 'error'] },
+  'realtime.heartbeat_failed': { severity: 'warn', module: 'realtime', fields: ['reasonCode', 'error'] },
   'realtime.sockets_reauthenticated': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'count'] },
   // Identity (S1.3). Never an address, token, link, cookie or key: outcomes and codes only.
   'identity.sign_in_requested': { severity: 'info', module: 'identity', fields: ['requestId', 'outcome'] },

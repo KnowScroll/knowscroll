@@ -1537,6 +1537,12 @@ export interface SocialPairSides {
   public_state: Generated<string>;
 }
 
+export interface SocialPresence {
+  account_id: string;
+  last_seen_at: Timestamp;
+  window_token: Int8;
+}
+
 export interface SocialProfiles {
   account_id: string;
   display_name: string;
@@ -1569,6 +1575,41 @@ export interface SocialRosterHeads {
   kind: string;
   owner_account_id: string;
   revision: Generated<Int8>;
+}
+
+export interface SocialVisibilityAudience {
+  friend_account_id: string;
+  owner_account_id: string;
+}
+
+export interface SocialVisibilitySettings {
+  account_id: string;
+  audience: Generated<string>;
+  presence_preference: Generated<string>;
+  presence_revision: Generated<Int8>;
+  visibility_revision: Generated<Int8>;
+}
+
+export interface SocialVisitPlanets {
+  label: string;
+  planet_id: string;
+  public_planet_id: string;
+  system_id: string;
+  universe_id: string;
+}
+
+export interface SocialVisitPublications {
+  geography_revision: Int8;
+  projection_token: Int8;
+  refreshed_at: Timestamp;
+  universe_id: string;
+}
+
+export interface SocialVisitSystems {
+  label: string;
+  public_system_id: string;
+  system_id: string;
+  universe_id: string;
 }
 
 export interface SupplyRequests {
@@ -1720,10 +1761,16 @@ export interface DB {
   "social.messages": SocialMessages;
   "social.pair_sides": SocialPairSides;
   "social.pairs": SocialPairs;
+  "social.presence": SocialPresence;
   "social.profiles": SocialProfiles;
   "social.requests": SocialRequests;
   "social.roster_entries": SocialRosterEntries;
   "social.roster_heads": SocialRosterHeads;
+  "social.visibility_audience": SocialVisibilityAudience;
+  "social.visibility_settings": SocialVisibilitySettings;
+  "social.visit_planets": SocialVisitPlanets;
+  "social.visit_publications": SocialVisitPublications;
+  "social.visit_systems": SocialVisitSystems;
   "supply.requests": SupplyRequests;
   "supply.work": SupplyWork;
 }

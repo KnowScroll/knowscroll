@@ -2,6 +2,7 @@ import { AccountController } from './http/account.controller.js';
 import { OperatorController } from './http/operator.controller.js';
 import { ExportDownloadController } from './http/export-download.controller.js';
 import { SocialController } from './http/social.controller.js';
+import { VisibilityController } from './http/visibility.controller.js';
 import { ConversationsController } from './http/conversations.controller.js';
 import { ThreadsController } from './http/threads.controller.js';
 import { ShareLandingController } from './http/share-landing.controller.js';
@@ -41,6 +42,7 @@ export const apiControllers = [
   KeepRemoveController,
   PrivacyController,
   SocialController,
+  VisibilityController,
   ConversationsController,
   ThreadsController,
   ShareLandingController,

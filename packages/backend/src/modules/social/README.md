@@ -2,8 +2,9 @@
 
 People find each other by handle, become friends, send each other a Reel or Scroll and talk about it.
 Several friends can explore one Reel or Scroll together in a content thread, and point each other at an exact moment, passage or block.
-A link to a Reel or Scroll can also be shared outside the app. Nothing here is consumption evidence:
-sending, receiving or opening a shared card never creates an exposure, an observation or a Keep.
+A link to a Reel or Scroll can also be shared outside the app. A person can let friends visit their universe
+and see whether they are around. Nothing here is consumption evidence: sending, receiving or opening a shared
+card, visiting a universe and being shown as online never create an exposure, an observation or a Keep.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL. **Runtime-verified**
 means used on a running dev system. Nothing in this module is runtime-verified yet.
@@ -17,11 +18,15 @@ means used on a running dev system. Nothing in this module is runtime-verified y
 | Conversations | `conversations`, `conversation_members`, `messages`, `inbox_heads` | `CONVERSATION_USE_CASES.conversations`: start, inbox, read, history, changes, send, read of a send, mark read, mute, leave | Implemented |
 | Share links | `content_shares` | `CONVERSATION_USE_CASES.shares`: create, revoke, read own, list own, resolve, public preview | Implemented |
 | Content threads | `content_threads`, `message_snippets` (and `conversations`, `conversation_members`, `messages`, `inbox_heads` with `kind = 'thread'`) | `THREAD_USE_CASES`: create, read, history, changes, send, respond, mark read, leave, inbox, open snippet | Implemented; not runtime-verified on dev |
+| Visibility, availability and visits | `visibility_settings`, `visibility_audience`, `presence`, `visit_publications`, `visit_systems`, `visit_planets` | `VISIBILITY_USE_CASES`: read and set visibility, read and set the availability choice, read a visit; `RECORD_HEARTBEAT`; `REFRESH_VISIT_PUBLICATION` | Implemented |
 
 Dependency direction: `domain/` (pure rules and cursors) <- `application/` (use cases over ports) <-
 `adapters/` (PostgreSQL, Nest providers, erasure). Other modules and the API import only `public.ts`.
 Content metadata for cards comes from the Content module's `READ_SHAREABLE_CONTENT` and
-`READ_PUBLIC_CONTENT` (never its tables). Threads also use Content's `READ_CONTENT_SEQUENCE`, `VALIDATE_SNIPPET_ANCHOR` and `RESOLVE_SNIPPET_ANCHOR` and Experience's `READ_VISITED_ASSETS`. The module has no jobs and no queue work.
+`READ_PUBLIC_CONTENT` (never its tables), and the systems and planets a person can share from Geography's
+`READ_GEOGRAPHY_SCENE_INPUT`. Threads also use Content's `READ_CONTENT_SEQUENCE`, `VALIDATE_SNIPPET_ANCHOR` and
+`RESOLVE_SNIPPET_ANCHOR` and Experience's `READ_VISITED_ASSETS`. The module has no queue of its own: the worker calls
+`REFRESH_VISIT_PUBLICATION` after each scene projection (see "Visibility, availability and the friend visit").
 
 ## Friends
 
@@ -160,6 +165,47 @@ A committed send, join, leave or read bumps `inbox_heads` for each member whose 
 `notifyInboxChanged`, as direct conversations do. The thread screen catches up from its cursor on a hint, a focus or
 its 20 second poll, so a lost hint loses nothing.
 
+## Visibility, availability and the friend visit
+
+A person decides what friends may see (F02, D-047). Everything starts off: nobody may visit, no system is
+shared and availability is hidden. No row means the defaults, so reading the settings writes nothing.
+
+- **Who may visit.** The audience is `nobody`, `chosen_friends` or `all_friends`. The chosen friends are rows
+  that only mean something while the two are friends: accepting, removing or blocking deletes the rows between
+  the two people under the friendship's lock, so an old choice never returns with a new friendship. A chosen
+  list with nobody in it reads as `nobody`.
+- **What they see.** The owner chooses factual systems. A visitor gets each chosen system with its factual
+  planets, as names under random public IDs: never stars, regions, routes, hypothetical places, activity,
+  positions, a count of what is hidden, or anything about reading. An ID stays while its place stays shared
+  and is new when it is shared again. Lists are sorted by label, so order carries no chronology.
+- **The published copy.** A visitor's request never enters the owner's personal root. `visibility.set` draws
+  the copy from the owner's own Geography (`visit_publications`, `visit_systems`, `visit_planets`) in the same
+  transaction as the settings. After each scene projection the worker calls `REFRESH_VISIT_PUBLICATION` for the
+  universe: a system actor in its own transaction that rechecks the universe and epoch, does nothing for a
+  universe that shares nothing and writes nothing when the list is unchanged. `projection_token` is random and
+  changes only when a visitor would see a difference; it counts nothing.
+- **The visit read** (`POST /v1/social/visits/read`) runs in the visitor's own scope: own account fence and the
+  host's account fence, the friendship's lock, both sides `friends` and neither blocking, the host's audience,
+  then the copy. Every refusal is the same `unavailable` answer: never shared, revoked, an ended friendship, a
+  block, an unknown person, yourself. The answer's authority is the visitor's pair revision and the copy's
+  token; the owner's settings revision never leaves the owner. A visit writes nothing, tells the owner nothing
+  and is not evidence for either person.
+- **Availability.** The app sends `presence_heartbeat` over the socket every 20 s while connected and visible;
+  the gateway checks the session and the caller's own scope again and answers `{ ok: true }` whatever the
+  setting. `recordHeartbeat` is one statement stamped with the database clock: it stores the time only for an
+  active account whose preference is not `hidden`, and starts a new window after 15 minutes of silence with a
+  new random `window_token`, the answer's `expiryRevision`, which counts nothing. Setting `hidden` deletes the row. A friends page and a pair read turn the stored age (measured by the database) into a word
+  (`domain/presence.ts`): "Online" for 60 s, then "Recently active" until 15 minutes, never above the person's
+  choice, with a constant lease (30 s or 60 s) that never reveals the last beat. Hidden, expired and unknown are
+  one `unknown` answer. There is no push: friends reread while Friends is open.
+
+Commands (`visibility.set`, `presence.preference.set`) use personal receipts, expect the revision the client
+read (`stale_revision` otherwise) and replay the same ID and body. Choosing a friend who is not a friend now
+(or yourself), or a system that is not the caller's own factual system, is `invalid_input` and changes nothing.
+
+Status: implemented with tests against real PostgreSQL (`tests/integration/modules/social-visibility.test.ts`)
+and the installed API (`tests/integration/release/visits-http.test.ts`). Not runtime-verified on dev.
+
 ## Erasure and export
 
 | Store | Exploration Clear | Account deletion |
@@ -170,21 +216,33 @@ its 20 second poll, so a lost hint loses nothing.
 | content_shares | kept | deleted |
 | content_threads | kept | the starter link is cleared; the thread stays for the others |
 | message_snippets | kept | deleted with the author's tombstoned message |
+| visibility_settings, visibility_audience, presence | kept (choices and a lapsing signal, not exploration history) | deleted; the chosen-friend rows naming the account on either side too |
+| visit_publications, visit_systems, visit_planets | deleted (friends who visit then see an empty universe) | deleted with the universe |
 
 Clear never removes messages, cards, snippets, threads or links. `eraseAccount` order: take the person's thread rows (id order), delete the person's links, delete the snippet rows of their messages, tombstone
 their messages, pick the peers, close conversations, delete their membership and heads, hint the peers, then
 the friendship rows. The export (`socialErasure.export`) holds the profile, counts of connections, the
 invitation state, the conversation count and the person's own words (newest 2,000, with `truncated`) and
-their shared links without tokens, and how many threads they are in and started (with the names they gave). It names no other person.
+their shared links without tokens, how many threads they are in and started (with the names they gave), and in
+words who may visit, how many friends they chose, how they show as available and the titles of the systems they
+share (never a heartbeat, a public ID or who the friends are). It names no other person.
 
 ## Failure and recovery
 
 - A lost response: retry with the same command ID.
 - A lost hint: the next hint, a focus, or the 30 second poll reads `changes` from the cursor.
 - A stale friendship view: the command is refused as stale and the client rereads the pair.
+- A stale settings page: `visibility.set` and `presence.preference.set` answer `stale_revision`, and the page
+  rereads and shows what the server holds.
+- A lost heartbeat: availability lapses by itself within a minute; nothing keeps someone "Online".
+- A failed refresh: the job retries; the visitors keep the last copy, and the next successful projection or the
+  owner's next change redraws it.
 
 ## Related
 
-- Blueprint 02d sections 14 and 17; decisions D-042 (conversations and links), D-043 (deleted accounts), D-046 (threads and snippets).
-- Contracts: `packages/contracts/src/sharing.ts`, `conversations.ts`, `threads.ts`, `content-shares.ts`, `friend-pages.ts`.
-- Tests: `tests/integration/modules/social-*.test.ts` (threads: `social-threads`, `social-thread-snippets`), `tests/integration/release/conversations-http.test.ts`, `threads-http.test.ts`.
+- Blueprint 02d sections 14 and 17; decisions D-042 (conversations and links), D-043 (deleted accounts), D-046
+  (threads and snippets), D-047 (sharing and visibility, availability, the friend visit).
+- Contracts: `packages/contracts/src/sharing.ts`, `conversations.ts`, `threads.ts`, `content-shares.ts`,
+  `friend-pages.ts`, `socket.ts` (`presence_heartbeat`).
+- Tests: `tests/integration/modules/social-*.test.ts` (threads: `social-threads`, `social-thread-snippets`),
+  `tests/integration/release/conversations-http.test.ts`, `threads-http.test.ts`, `visits-http.test.ts`.

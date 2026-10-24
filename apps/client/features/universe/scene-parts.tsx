@@ -4,11 +4,11 @@ import { content, highlightRing, space, target } from '@knowscroll/design-tokens
 import { Text, useFocusRing } from '@knowscroll/ui';
 import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
 import type { UniverseIndex, Size, PlacedLabel } from './universe-layout';
-import type { UniverseViewSession, UniverseViewState } from './universe-session';
+import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
 /** What every scene (overview, system, planet) is drawn from. */
 export interface SceneProps {
-  readonly session: UniverseViewSession;
+  readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
   readonly index: UniverseIndex;
   readonly size: Size;
@@ -21,7 +21,7 @@ export interface SceneProps {
  * rules must not take the screen down: its target and its row in the list stay, only the drawing goes.
  */
 export function safeGeometry(
-  session: UniverseViewSession,
+  session: UniverseMapSession,
   descriptor: SceneDescriptor,
   low = false,
 ): SceneGeometry | undefined {

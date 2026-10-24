@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderWidth, content, dimension, layer, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, IconButton, Scrim, Text } from '@knowscroll/ui';
 import { outlineRows, placeTrail, type OutlineRow, type UniverseIndex } from './universe-layout';
-import type { UniverseViewSession, UniverseViewState } from './universe-session';
+import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
 const ROW_HEIGHT = 52;
 const KIND_WORD = { system: 'System', star: 'Star', planet: 'Planet', region: 'Region' } as const;
@@ -19,11 +19,13 @@ export function OutlineList({
   state,
   index,
   onChoose,
+  label = 'Places in your universe',
 }: {
-  readonly session: UniverseViewSession;
+  readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
   readonly index: UniverseIndex;
   readonly onChoose?: () => void;
+  readonly label?: string;
 }) {
   const rows = outlineRows(index, state.lately);
   const list = useRef<FlatList<OutlineRow>>(null);
@@ -84,7 +86,7 @@ export function OutlineList({
   return (
     <FlatList
       role="list"
-      accessibilityLabel="Places in your universe"
+      accessibilityLabel={label}
       ref={list}
       data={rows}
       getItemLayout={(_, position) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * position, index: position })}
@@ -103,7 +105,7 @@ export function DrawingToggle({
   session,
   state,
 }: {
-  readonly session: UniverseViewSession;
+  readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
 }) {
   const simple = state.detail === 'low';
@@ -127,12 +129,16 @@ export function UniverseListSheet({
   session,
   state,
   index,
+  owner,
 }: {
-  readonly session: UniverseViewSession;
+  readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
   readonly index: UniverseIndex;
+  /** A friend's name: the sheet is theirs, and there is no Lately lens over a universe that is not yours. */
+  readonly owner?: string;
 }) {
   const insets = useSafeAreaInsets();
+  const title = owner === undefined ? 'Your universe' : `${owner}’s universe`;
   return (
     <Modal
       visible
@@ -147,7 +153,7 @@ export function UniverseListSheet({
         <View
           testID="universe-list-sheet"
           role="dialog"
-          aria-label="Your universe"
+          aria-label={title}
           accessibilityViewIsModal
           style={[styles.sheet, { paddingBottom: spacing[7] + insets.bottom }]}
         >
@@ -155,25 +161,27 @@ export function UniverseListSheet({
           <View style={styles.sheetHeader}>
             <View style={styles.sheetTitle}>
               <Text variant="displayL" heading={2}>
-                Your universe
+                {title}
               </Text>
             </View>
             <IconButton icon="close" label="Close list view" onPress={() => session.back()} />
           </View>
-          <View style={styles.lens}>
-            <Text variant="bodyS" color={content.ink2} style={styles.lensText}>
-              {state.lately
-                ? 'Lately on: places with recent activity come first in each group.'
-                : 'Every place, in order. Turn on Lately to see recent activity first.'}
-            </Text>
-            <Button
-              label="Lately"
-              size="sm"
-              variant={state.lately ? 'ink' : 'default'}
-              toggled={state.lately}
-              onPress={() => session.setLately(!state.lately)}
-            />
-          </View>
+          {owner === undefined ? (
+            <View style={styles.lens}>
+              <Text variant="bodyS" color={content.ink2} style={styles.lensText}>
+                {state.lately
+                  ? 'Lately on: places with recent activity come first in each group.'
+                  : 'Every place, in order. Turn on Lately to see recent activity first.'}
+              </Text>
+              <Button
+                label="Lately"
+                size="sm"
+                variant={state.lately ? 'ink' : 'default'}
+                toggled={state.lately}
+                onPress={() => session.setLately(!state.lately)}
+              />
+            </View>
+          ) : null}
           <View style={styles.drawing}>
             <Text variant="bodyS" color={content.ink2} style={styles.lensText}>
               A flat drawing for slow devices. Every place stays where it is.
@@ -181,7 +189,12 @@ export function UniverseListSheet({
             <DrawingToggle session={session} state={state} />
           </View>
           <View style={styles.sheetList}>
-            <OutlineList session={session} state={state} index={index} />
+            <OutlineList
+              session={session}
+              state={state}
+              index={index}
+              {...(owner === undefined ? {} : { label: `Places in ${owner}’s universe` })}
+            />
           </View>
         </View>
       </View>

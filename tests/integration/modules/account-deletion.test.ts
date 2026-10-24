@@ -16,12 +16,13 @@ import {
   recordingPolicyFor,
 } from '@knowscroll/backend/modules/identity/nest-providers';
 import { makeAttemptLedger } from '@knowscroll/backend/reasoning/nest-providers';
-import { socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
+import { heartbeatRecorder, socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { everyStoreSeeder } from '../support/every-store.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { befriend, pairRevision, seedContent, seedFriend, talkCases } from '../support/talk.js';
+import { visitCases } from '../support/visit-world.js';
 
 /**
  * Account deletion (#246, D-043) against a real PostgreSQL 16 database: the fence, the erasure of
@@ -245,6 +246,24 @@ describe('account deletion (real database)', () => {
       const buddy = await seedFriend(database.db, talk.friends);
       const erasedAsFriend = { ...erased, person: erasedPerson };
       await befriend(talk.friends, erasedAsFriend, buddy);
+      // What the person lets friends see: the real preference and heartbeat, and a labelled audience
+      // row (choosing a friend needs a readable Geography, which an erasure fixture does not hold).
+      const visits = visitCases(database.db);
+      expect(
+        (
+          await visits.visibility.setPresencePreference(erased.authority, {
+            version: 'sharing.v1',
+            commandId: randomUUID(),
+            expectedPresencePreferenceRevision: 1,
+            preference: 'online',
+          })
+        ).kind,
+      ).toBe('ok');
+      await heartbeatRecorder(database.db)(erased.accountId);
+      await database.db
+        .insertInto('social.visibility_audience')
+        .values({ owner_account_id: erased.accountId, friend_account_id: buddy.accountId })
+        .execute();
       const started = await talk.talk.conversations.start(erased.authority, {
         version: 'direct-conversation.v1',
         commandId: randomUUID(),
