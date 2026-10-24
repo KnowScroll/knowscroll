@@ -205,28 +205,32 @@ function ReadyThread({
       />
     </>
   );
+  // One element path for both layouts: only styles and the Conversation title differ, and the roles
+  // stay the same because React Native Web draws a different element for each role, which would
+  // remount the player on a resize across 1024 px (ending its recorder and opening a second exposure).
   return (
     <>
-      {sideBySide ? (
-        <View style={styles.panes}>
-          <View role="region" aria-label="Thread" style={styles.threadPane}>
-            <ScrollView contentContainerStyle={styles.threadPaneContent}>{threadPane}</ScrollView>
-          </View>
-          <View role="region" aria-label="Conversation" style={styles.conversationPane}>
+      <View style={sideBySide ? styles.panes : styles.stack}>
+        <View role="region" aria-label="Thread" style={sideBySide ? styles.threadPane : styles.fitContent}>
+          <ScrollView
+            scrollEnabled={sideBySide}
+            style={sideBySide ? undefined : styles.fitContent}
+            contentContainerStyle={sideBySide ? styles.threadPaneContent : undefined}
+          >
+            {threadPane}
+          </ScrollView>
+        </View>
+        <View role="region" aria-label="Conversation" style={sideBySide ? styles.conversationPane : styles.stack}>
+          {sideBySide ? (
             <View style={styles.conversationHeader}>
               <Text variant="title" heading={2}>
                 Conversation
               </Text>
             </View>
-            {conversationPane}
-          </View>
-        </View>
-      ) : (
-        <>
-          {threadPane}
+          ) : null}
           {conversationPane}
-        </>
-      )}
+        </View>
+      </View>
       {moment === undefined ? null : (
         <ShareMomentSheet
           visible
@@ -440,6 +444,9 @@ const styles = StyleSheet.create({
   column: { width: '100%', maxWidth: layout.measureDesktop, alignSelf: 'center' },
   /** D03: the thread's own pane takes the width it is given; the conversation fills the rest. */
   panes: { flex: 1, minHeight: 0, flexDirection: 'row' },
+  stack: { flex: 1, minHeight: 0 },
+  /** One column: the thread's own part takes the height of its content and the messages take the rest. */
+  fitContent: { flexGrow: 0, flexShrink: 0 },
   threadPane: {
     width: THREAD_PANE_WIDTH,
     borderRightWidth: borderWidth.regular,

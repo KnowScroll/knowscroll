@@ -118,10 +118,13 @@ export function ConversationScreen(params: {
       )}
     </KeyboardAvoidingView>
   );
+  // The inbox is a sibling before a conversation wrapper that is always there, so a resize across
+  // 1024 px adds or removes only the inbox: the open conversation keeps its controller, its
+  // reads, its socket and any message still being sent.
   return (
     <TalkFrame>
-      {withInbox && state.status === 'signed_in' ? (
-        <View style={styles.panes}>
+      <View style={styles.panes}>
+        {withInbox && state.status === 'signed_in' ? (
           <View role="complementary" aria-label="Conversations" style={styles.inbox}>
             <ScrollView contentContainerStyle={styles.inboxContent}>
               <Text variant="title" heading={2}>
@@ -130,11 +133,9 @@ export function ConversationScreen(params: {
               <TalkList scope={state.scope} currentId={params.conversationId} />
             </ScrollView>
           </View>
-          <View style={styles.conversation}>{screen}</View>
-        </View>
-      ) : (
-        screen
-      )}
+        ) : null}
+        <View style={withInbox ? styles.conversation : styles.fill}>{screen}</View>
+      </View>
     </TalkFrame>
   );
 }
@@ -142,6 +143,7 @@ export function ConversationScreen(params: {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
   panes: { flex: 1, minHeight: 0, flexDirection: 'row' },
+  fill: { flex: 1, minWidth: 0, minHeight: 0 },
   inbox: {
     width: PANE_LIST_WIDTH + 2 * layout.gutter,
     borderRightWidth: borderWidth.regular,

@@ -13,29 +13,62 @@ const sizes = [
   { width: 844, height: 390, label: 'a landscape phone' },
 ] as const;
 
-/** How far the page scrolls sideways, and the text that ends beyond the window (outside strips that scroll on purpose). */
+/**
+ * How far the page scrolls sideways, the text that ends beyond the window (outside strips that
+ * scroll on purpose), and the pairs of texts drawn over each other.
+ */
 async function overflow(page: Page) {
   return page.evaluate(() => {
     const width = document.documentElement.clientWidth;
-    const clipped = [...document.querySelectorAll<HTMLElement>('[dir="auto"]')]
+    const texts = [...document.querySelectorAll<HTMLElement>('[dir="auto"]')].filter((node) => {
+      const box = node.getBoundingClientRect();
+      return (
+        box.width > 0 &&
+        box.height > 0 &&
+        node.textContent?.trim() !== '' &&
+        node.querySelector('[dir="auto"]') === null &&
+        // The floating tab bar and rail are drawn over the page on purpose; the page keeps clear of them at its end.
+        node.closest('[role="navigation"], nav') === null
+      );
+    });
+    const clipped = texts
       .filter((node) => !node.closest('[data-testid="episode-navigator"]'))
-      .filter((node) => {
-        const box = node.getBoundingClientRect();
-        return box.width > 0 && box.height > 0 && box.right > width + 1;
-      })
+      .filter((node) => node.getBoundingClientRect().right > width + 1)
       .map((node) => (node.textContent ?? '').slice(0, 40));
-    return { sideways: document.documentElement.scrollWidth - width, clipped };
+    const overlapping: string[] = [];
+    for (const [index, first] of texts.entries()) {
+      for (const second of texts.slice(index + 1)) {
+        const a = first.getBoundingClientRect();
+        const b = second.getBoundingClientRect();
+        const across = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const down = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (across > 2 && down > 2)
+          overlapping.push(`${(first.textContent ?? '').slice(0, 24)} | ${(second.textContent ?? '').slice(0, 24)}`);
+      }
+    }
+    return { sideways: document.documentElement.scrollWidth - width, clipped, overlapping };
   });
 }
 
+/**
+ * The browser's text size at 200 %: the root font size doubles, and the app (which reads it as its
+ * system text size, `useDisplay().textScale`) resizes its own text by the 200 % rules of the type scale.
+ */
 async function doubleText(page: Page) {
+  const sizes = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('main [dir="auto"]')].reduce(
+        (sum, node) => sum + Number.parseFloat(getComputedStyle(node).fontSize),
+        0,
+      ),
+    );
+  const before = await sizes();
   await page.evaluate(() => {
-    for (const node of document.querySelectorAll<HTMLElement>('[dir="auto"]')) {
-      const style = getComputedStyle(node);
-      node.style.fontSize = `${parseFloat(style.fontSize) * 2}px`;
-      node.style.lineHeight = `${parseFloat(style.lineHeight) * 2}px`;
-    }
+    document.documentElement.style.fontSize = '32px';
+    window.dispatchEvent(new Event('resize'));
   });
+  // The app took the browser's size as its own text size: its text really is larger now.
+  await expect.poll(sizes).toBeGreaterThan(before * 1.2);
 }
 
 const routes = ['/saved', '/conversations', '/account', '/account/privacy', '/friends'] as const;
@@ -48,7 +81,7 @@ for (const size of sizes) {
       await page.goto(route);
       await expect(page.getByRole('main')).toBeVisible();
       await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
-      expect(await overflow(page), route).toEqual({ sideways: 0, clipped: [] });
+      expect(await overflow(page), route).toEqual({ sideways: 0, clipped: [], overlapping: [] });
     }
   });
 }
@@ -61,7 +94,7 @@ test('signed-in routes keep their text inside the window with every text doubled
     await expect(page.getByRole('main')).toBeVisible();
     await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
     await doubleText(page);
-    expect(await overflow(page), `${route} at 200% text`).toEqual({ sideways: 0, clipped: [] });
+    expect(await overflow(page), `${route} at 200% text`).toEqual({ sideways: 0, clipped: [], overlapping: [] });
   }
 });
 
@@ -69,11 +102,13 @@ test('an encounter reflows on a landscape phone and with doubled text', async ({
   await encounterFixture(page, 'scroll', { viewport: { width: 844, height: 390 } });
   await page.goto('/explore');
   await expect(page.getByTestId('encounter-page')).toContainText('CI encounter fixture 1');
-  expect(await overflow(page)).toEqual({ sideways: 0, clipped: [] });
+  // The first-arrival hint floats over the article by design: put it away first.
+  await page.getByRole('button', { name: 'Got it' }).click();
+  expect(await overflow(page)).toEqual({ sideways: 0, clipped: [], overlapping: [] });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByTestId('encounter-page')).toContainText('CI encounter fixture 1');
   await doubleText(page);
-  expect(await overflow(page)).toEqual({ sideways: 0, clipped: [] });
+  expect(await overflow(page)).toEqual({ sideways: 0, clipped: [], overlapping: [] });
 });
 
 test('motion is reduced when the person asks for it', async ({ page }) => {

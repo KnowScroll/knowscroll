@@ -28,8 +28,10 @@ interface Violation {
 }
 
 /** Serious and critical WCAG 2.x A/AA violations on the page as it is now, in a readable shape. */
-async function seriousViolations(page: Page): Promise<Violation[]> {
-  const results = await new AxeBuilder({ page })
+async function seriousViolations(page: Page, within?: string): Promise<Violation[]> {
+  const builder = new AxeBuilder({ page });
+  if (within !== undefined) builder.include(within);
+  const results = await builder
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
     .analyze();
   return results.violations
@@ -38,21 +40,49 @@ async function seriousViolations(page: Page): Promise<Violation[]> {
       rule: violation.id,
       impact: violation.impact ?? '',
       help: violation.help,
-      targets: violation.nodes.slice(0, 4).map((node) => `${node.target.join(' ')}  ${node.html.slice(0, 140)}`),
+      targets: violation.nodes
+        .slice(0, 4)
+        .map(
+          (node) =>
+            `${node.target.join(' ')}  ${node.html.slice(0, 100)}  ${JSON.stringify(node.any[0]?.data ?? {}).slice(0, 200)}`,
+        ),
     }));
+}
+
+/** Waits until a sheet has finished fading in: axe would read half-transparent text as low contrast. */
+async function sheetSettled(page: Page) {
+  const total = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[role="dialog"], [role="dialog"] *')].reduce(
+        (sum, node) => sum + Number.parseFloat(getComputedStyle(node).opacity),
+        0,
+      ),
+    );
+  let last = -1;
+  await expect
+    .poll(async () => {
+      const now = await total();
+      const settled = now === last;
+      last = now;
+      await page.waitForTimeout(120);
+      return settled;
+    })
+    .toBe(true);
 }
 
 /**
  * Waits until the route has painted its own content, then checks it: one main landmark (V01), and
  * no serious axe violation.
  */
-async function expectAccessible(page: Page, ready: () => Promise<void>, landmarks = true) {
+async function expectAccessible(page: Page, ready: () => Promise<void>, insideDialog = false) {
   await ready();
   // A skeleton or a spinner is not the screen: wait until the route has finished loading.
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
-  // Behind a modal sheet the page is inert, so its landmarks are hidden on purpose.
-  if (landmarks) await expect(page.getByRole('main')).toHaveCount(1);
-  expect(await seriousViolations(page)).toEqual([]);
+  // Behind a modal dialog the page is out of reach (no landmarks to count, no contrast to ask of
+  // text under the scrim), so an open dialog is checked on its own.
+  if (insideDialog) await sheetSettled(page);
+  else await expect(page.getByRole('main')).toHaveCount(1);
+  expect(await seriousViolations(page, insideDialog ? '[role="dialog"]' : undefined)).toEqual([]);
 }
 
 test.describe('signed out', () => {
@@ -140,9 +170,41 @@ test.describe('a sheet', () => {
         if (size.width < 1024) await page.getByRole('button', { name: 'Got it' }).click();
         await sheet.open(page).click();
         await expect(page.getByRole('dialog')).toBeVisible();
-        await expectAccessible(page, () => expect(page.getByRole('dialog')).toBeVisible(), false);
+        await expectAccessible(page, () => expect(page.getByRole('dialog')).toBeVisible(), true);
       });
     }
+  }
+});
+
+test.describe('the keyboard map', () => {
+  test('over a desktop Explore has no serious axe violations', async ({ page }) => {
+    await encounterFixture(page, 'reel', { viewport: widths[2], series: true });
+    await page.route('**/media/gesture-fixture', (route) => route.fulfill({ status: 404, body: 'fixture only' }));
+    await page.goto('/explore');
+    await page.getByRole('button', { name: 'All shortcuts' }).click();
+    await expectAccessible(
+      page,
+      () => expect(page.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeVisible(),
+      true,
+    );
+  });
+
+  for (const size of [widths[0], widths[2]]) {
+    test(`from Account at ${size.label} has no serious axe violations`, async ({ page }) => {
+      await signedInAccount(page);
+      await page.setViewportSize(size);
+      await page.goto('/account');
+      await page.getByRole('button', { name: 'Keyboard shortcuts' }).click();
+      // The page behind a modal sheet is out of reach while it is open, and back when it closes.
+      await expect(page.locator('#root')).toHaveAttribute('inert', '');
+      await expectAccessible(
+        page,
+        () => expect(page.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeVisible(),
+        true,
+      );
+      await page.keyboard.press('Escape');
+      await expect(page.locator('#root')).not.toHaveAttribute('inert');
+    });
   }
 });
 
@@ -201,7 +263,7 @@ test.describe('the Universe', () => {
         await expectAccessible(
           page,
           () => expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible(),
-          false,
+          true,
         );
       }
     });

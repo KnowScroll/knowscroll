@@ -35,6 +35,7 @@ export default defineConfig({
         'talk-smoke.spec.ts',
         'reflow-smoke.spec.ts',
         'keyboard-smoke.spec.ts',
+        'privacy-smoke.spec.ts',
         'desktop-smoke.spec.ts',
       ],
       use: { baseURL: `http://127.0.0.1:${production}` },

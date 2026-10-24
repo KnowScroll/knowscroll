@@ -3,6 +3,7 @@ export { Text, useTypeStyle, type TextProps } from './text/text';
 export { useFocusRing } from './display/focus-ring';
 export { dialogHostSemantics, dialogSemantics, toggleSemantics } from './display/semantics';
 export { spaceActivates } from './display/space-key';
+export { usePageInert } from './overlay/page-inert';
 export { Icon, type IconProps } from './icons/icon';
 export { iconShapes, type IconName } from './icons/icon-paths';
 export { Spinner } from './feedback/spinner';

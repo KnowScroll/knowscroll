@@ -18,6 +18,14 @@ describe('spaceActivates (web)', () => {
     expect(prevented).toHaveBeenCalled();
   });
 
+  it('does nothing for a disabled control, yet still keeps the page from scrolling', () => {
+    const activate = jest.fn();
+    const { onKeyDown } = spaceActivates(activate, true) as { onKeyDown: KeyHandler };
+    const prevented = press(onKeyDown, ' ');
+    expect(activate).not.toHaveBeenCalled();
+    expect(prevented).toHaveBeenCalled();
+  });
+
   it('does not repeat while the key is held, and ignores other keys', () => {
     const activate = jest.fn();
     const { onKeyDown } = spaceActivates(activate) as { onKeyDown: KeyHandler };

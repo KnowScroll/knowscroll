@@ -595,3 +595,8 @@ On dev, one test account that read every 15 s started 229 Cartographer runs in f
 - **Headings break long words.** On the web a heading uses `overflow-wrap: anywhere`, so a long title at a large text size on a 320 px phone does not run past the edge. Body text and labels keep the default, because `anywhere` would let a flex item shrink to one letter.
 - **Not claimed.** VoiceOver was not run by an agent (it needs a person at the machine). Axe covers names, roles, contrast of text on paper and landmarks; contrast of captions over video is not machine-checkable.
 
+
+- **One element path across 1024 px.** A resize must not remount what holds state: the Reel card and the phone column are one tree (`ReelFrame`), the thread's panes and a conversation's wrapper are one tree with the inbox as a sibling, and roles stay constant because React Native Web draws a different element per role. Tests resize across 1024 px with a playing Reel and a typed draft and require the same video, no second exposure and no second read.
+- **Focus follows the stage.** Each encounter is its own stage element, so a key that moves on would drop focus to the page. A stage that held focus when it went away hands focus to the next stage within three seconds, so the next key lands. The arrows ignore Alt, Ctrl and Cmd (browser Back, the person's own shortcuts).
+- **The web has a text size.** The app reads the browser's text size (root font size over 16 px) as its system text size, so the 200 % type rules apply on the web too. `reflow-smoke` doubles it and checks the right edge and overlaps.
+- **A modal sheet makes the page inert** (`usePageInert`), and axe checks an open dialog on its own.

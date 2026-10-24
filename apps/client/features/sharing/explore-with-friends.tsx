@@ -32,7 +32,7 @@ function Row({
       {...focus.props}
       role="checkbox"
       aria-checked={selected}
-      {...spaceActivates(onToggle)}
+      {...spaceActivates(onToggle, disabled)}
       accessibilityLabel={person.displayName}
       disabled={disabled}
       onPress={onToggle}

@@ -43,15 +43,23 @@ const messages = [
   text(3, meera, 'I will catch up on Part 3 tonight.'),
 ];
 
+/** Every request the fixture answered, in order, so a test can count a read or an open. */
+export interface TalkCall {
+  readonly path: string;
+  readonly body: Record<string, unknown>;
+}
+
 export async function talkFixture(page: Page, viewport: { width: number; height: number }) {
   await page.setViewportSize(viewport);
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account, client: 'web', expiresAt: '2099-10-24T00:00:00.000Z' } }),
   );
+  const calls: TalkCall[] = [];
   await page.route('**/v1/**', (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+    calls.push({ path, body });
     const base = { version: 'content-thread.v1', readId: body['readId'], scope };
     const direct = { version: 'direct-conversation.v1', readId: body['readId'], scope };
     const lastDirect = { ...text(2, ravi, 'Did you see the second part?') };
@@ -181,7 +189,69 @@ export async function talkFixture(page: Page, viewport: { width: number; height:
           acceptedThroughSequence: messages.length,
         },
       });
+    // A Reel opened from the thread: open, media grant, activate, then the recorder's batches.
+    if (path === '/v1/experience/open')
+      return route.fulfill({
+        json: {
+          commandId: body['commandId'],
+          exposureId: id(400),
+          assetId: (body['target'] as { assetId: string }).assetId,
+          assetRevision: 1,
+          kind: 'reel',
+          revision: 1,
+          replayed: false,
+        },
+      });
+    if (path === '/v1/media/grants')
+      return route.fulfill({
+        json: {
+          document: {
+            schemaVersion: 'reel-document.v1',
+            assetId: episodes[0]!.assetId,
+            revision: 1,
+            title: 'CI part 1',
+            summary: 'CI playback fixture',
+            language: 'en',
+            truthLabel: 'generated',
+            fixture: true,
+            captions: 'burned_in',
+            mediaKey: `sha256/aa/${'a'.repeat(64)}.mp4`,
+            durationMs: 20000,
+            width: 1080,
+            height: 1920,
+          },
+          path: '/media/talk-fixture',
+          expiresAt: '2099-10-24T18:00:00.000Z',
+        },
+      });
+    if (path === '/v1/experience/activate')
+      return route.fulfill({
+        json: {
+          commandId: body['commandId'],
+          exposureId: id(400),
+          activatedAt: '2026-10-24T10:00:00.000Z',
+          revision: 1,
+          replayed: false,
+        },
+      });
+    if (path === '/v1/observations/recording-batch') {
+      const events = body['events'] as { eventId: string }[];
+      return route.fulfill({
+        json: {
+          version: 'observation-batch.v2',
+          result: 'processed',
+          recordingGeneration: body['recordingGeneration'],
+          currentGeneration: body['recordingGeneration'],
+          scope,
+          accepted: events.length,
+          duplicates: 0,
+          rejected: 0,
+          results: events.map((event) => ({ eventId: event.eventId, status: 'accepted' })),
+          revision: 1,
+        },
+      });
+    }
     return route.fulfill({ status: 404, json: {} });
   });
-  return { thread };
+  return { thread, calls };
 }

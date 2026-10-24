@@ -243,3 +243,11 @@ React Native Web gives a checkbox, radio or switch Enter but reserves Space for 
 nothing. It also does not write `accessibilityState` to the DOM: set `aria-checked`, `aria-expanded`, `aria-busy`
 or `aria-current` beside it. `dialogSemantics(title)` goes on a sheet inside a `Modal` and `dialogHostSemantics(title)`
 on the `Modal` itself, so the web dialog has one name.
+
+`usePageInert(open)` makes the app root `inert` while a modal sheet is open (the sheet is drawn into `document.body`, outside
+it), so the page behind cannot be focused, clicked or read; holds are counted so a sheet over a sheet frees the page only
+when the last one closes. `BottomSheet` and the Universe's modal sheets use it.
+
+`DisplayRoot` reads the system text size: the window's font scale on native, and on the web the browser's own text size
+(the root font size over 16 px, at least 1), read again on resize and focus. The type roles then apply their 200 % rules
+as on a phone. Page zoom changes the window width instead, which the breakpoints follow.

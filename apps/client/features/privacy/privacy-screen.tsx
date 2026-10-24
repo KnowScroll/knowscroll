@@ -1,5 +1,5 @@
 import { Link, Redirect, useRouter } from 'expo-router';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { borderWidth, content, radius, spacing, target } from '@knowscroll/design-tokens';
 import { IconButton, Text, useDisplay, useFocusRing } from '@knowscroll/ui';
@@ -173,8 +173,11 @@ export function PrivacyScreen() {
 /** One control on a page of its own (phones and tablets), back to the hub. */
 export function SubPage({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   const router = useRouter();
+  // An address opened on a desktop goes to the one page. A window that grows past 1024 px while the
+  // person is in the middle of Delete or Export keeps that page: redirecting would drop their step.
   const desktop = useOnePage();
-  if (desktop) return <Redirect href="/account/privacy" />;
+  const [openedOnDesktop] = useState(desktop);
+  if (openedOnDesktop) return <Redirect href="/account/privacy" />;
   const back = () => {
     if (router.canGoBack()) router.back();
     else router.navigate('/account/privacy');

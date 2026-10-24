@@ -3,7 +3,7 @@ import { sceneFixture, fixtureAccount } from '../features/universe/universe.fixt
 import { signedInAccount } from './account-fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 import { encounterFixture } from './encounter-fixture';
-import { conversation, talkFixture, thread } from './talk-fixture';
+import { talkFixture, thread } from './talk-fixture';
 
 /**
  * Keyboard-only use of the production export over labelled HTTP fixtures: every stop of the Tab
@@ -66,12 +66,18 @@ test('Explore by keyboard: the stage moves between subjects and parts, the switc
   expect(unseen(stops), 'Explore: stops that draw no focus').toEqual([]);
   const navigations = () => commands.filter((call) => call.path === '/v1/experience/navigate');
 
+  // Focus reaches the stage by Tab, as for a keyboard user, and stays with it after each move:
   // ↓ is the next subject, → the next part of the thread.
-  await page.getByTestId('reel-navigation-stage').focus();
+  await page.goto('/explore');
+  await expect(caption).toContainText('CI encounter fixture 1');
+  for (let tabs = 0; tabs < 30; tabs += 1) {
+    await page.keyboard.press('Tab');
+    if (await page.getByTestId('reel-navigation-stage').evaluate((node) => node === document.activeElement)) break;
+  }
+  await expect(page.getByTestId('reel-navigation-stage')).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(caption).toContainText('CI encounter fixture 2');
   expect(navigations().at(-1)?.body['intent']).toEqual({ mode: 'vertical', direction: 'next' });
-  await page.getByTestId('reel-navigation-stage').focus();
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => navigations().at(-1)?.body['intent']).toMatchObject({ mode: 'series', direction: 'next' });
 
@@ -149,10 +155,18 @@ test('Talk by keyboard: Tab reaches the episodes, the arrows move between them, 
   expect(names.indexOf('Thread options')).toBeLessThan(names.findIndex((name) => /^Message/.test(name)));
   expect(names.at(-1)).toBe('Account and settings');
 
-  const second = page.getByRole('button', { name: /CI part 2/ }).first();
-  await second.focus();
+  // Part 1 is open to begin with; the right arrow in the episode list opens Part 2 and the left arrow Part 1 again.
+  const part = (number: number) =>
+    page.getByTestId('episode-navigator').getByRole('button', { name: new RegExp(`part ${String(number)}`, 'i') });
+  await expect(part(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(part(2)).toHaveAttribute('aria-pressed', 'false');
+  await part(1).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(part(2)).toHaveAttribute('aria-pressed', 'true');
+  await expect(part(1)).toHaveAttribute('aria-pressed', 'false');
   await page.keyboard.press('ArrowLeft');
-  await expect(page.getByRole('button', { name: /CI part 1.*(now|selected)?/ }).first()).toBeVisible();
+  await expect(part(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(part(2)).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('Privacy by keyboard on a desktop: the recording button is a stop, and the destructive step asks for an acknowledgement first', async ({
@@ -170,5 +184,3 @@ test('Privacy by keyboard on a desktop: the recording button is a stop, and the 
   await page.keyboard.press('Space');
   await expect(acknowledge).toHaveAttribute('aria-checked', 'true');
 });
-
-void conversation;
