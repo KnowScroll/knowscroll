@@ -27,6 +27,9 @@ import { ReelGestureStage } from './gestures/reel-gesture-stage';
 
 type ReelEntry = Extract<EncounterEntry, { kind: 'reel' }>;
 
+/** What the action rail takes from the right edge, so notes drawn over the Reel stay out of its way. */
+const RAIL_CLEARANCE = 64;
+
 /** Room the edge tabs take beside the title and, on a short screen, beside the progress row. */
 const EDGE_TAB_WIDTH = 76;
 
@@ -159,7 +162,12 @@ function ReelChrome({
           onToggleMuted={playback.toggleMuted}
         />
       </View>
-      {hint === null ? null : <View style={[styles.hint, { bottom: metrics.bottom + spacing[4] }]}>{hint}</View>}
+      {hint === null ? null : (
+        // The hint keeps clear of the action rail, so on a 320 px phone it never covers Like, Save, Share or Ask (V01).
+        <View style={[styles.hint, { bottom: metrics.bottom + spacing[4], right: spacing[4] + RAIL_CLEARANCE }]}>
+          {hint}
+        </View>
+      )}
     </>
   );
 }

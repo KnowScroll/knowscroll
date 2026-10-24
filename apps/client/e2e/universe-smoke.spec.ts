@@ -268,11 +268,16 @@ test('canonical region card opens displayed A through actual activation, then Ba
   await article.hover();
   await page.mouse.wheel(0, 420);
   await expect.poll(() => article.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  // U04: the encounter says where it was opened from, and that chip is Back.
+  const fromRegion = page.getByRole('button', { name: 'From CI region 4 · CI planet 2. Back to the map', exact: true });
+  await expect(fromRegion).toBeVisible();
+  await fromRegion.click();
   await expect(page.getByRole('button', { name: 'Back to CI planet 2', exact: true })).toBeVisible();
   await expect(card).toHaveCount(0);
-  await expect(pin).toBeFocused();
-  expect(await pin.boundingBox()).toEqual(panned);
+  // The region left through its card says so; choosing it again clears that.
+  const here = page.getByRole('button', { name: 'CI region 4 · you were here, a region', exact: true });
+  await expect(here).toBeFocused();
+  expect(await here.boundingBox()).toEqual(panned);
   expect(calls.filter((c) => c.path.endsWith('/region/open'))).toHaveLength(1);
   expect(calls.filter((c) => c.path.endsWith('/activate'))).toHaveLength(1);
   expect(calls.some((c) => c.path === '/v1/experience/open')).toBe(false);
