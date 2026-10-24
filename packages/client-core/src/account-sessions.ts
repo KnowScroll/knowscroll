@@ -6,15 +6,20 @@ interface SessionsOwner {
   readonly active: boolean;
 }
 
+/** What is being signed out: one session, or every other one. */
+export type SessionsEnding = { readonly kind: 'session'; readonly id: string } | { readonly kind: 'others' };
+
 /**
- * The person's own sessions for Account (P01). `ending` names the session being signed out, or
- * `others` while every other one is. `failed` means the last sign-out did not go through (offline
- * or refused) and the list is as it was.
+ * The person's own sessions for Account (P01). `readAt` is when the list was read (milliseconds),
+ * so "last used 2 days ago" is worked out from it, never from a clock read while drawing. `ending`
+ * says what is being signed out. `failed` means the last sign-out did not go through (offline or
+ * refused) and the list is as it was.
  */
 export interface AccountSessionsState {
   readonly status: 'loading' | 'ready' | 'unavailable';
   readonly sessions: readonly SessionSummary[];
-  readonly ending: string | 'others' | undefined;
+  readonly readAt: number;
+  readonly ending: SessionsEnding | undefined;
   readonly failed: boolean;
 }
 
@@ -30,7 +35,7 @@ export interface AccountSessionsSession {
 
 /** Sessions of one account scope. Answers that arrive after the scope ended are dropped by its fenced requests. */
 export function createAccountSessionsSession(owner: SessionsOwner): AccountSessionsSession {
-  let state: AccountSessionsState = { status: 'loading', sessions: [], ending: undefined, failed: false };
+  let state: AccountSessionsState = { status: 'loading', sessions: [], readAt: 0, ending: undefined, failed: false };
   const listeners = new Set<() => void>();
   let serial = 0;
 
@@ -44,13 +49,13 @@ export function createAccountSessionsSession(owner: SessionsOwner): AccountSessi
     const mine = (serial += 1);
     try {
       const { sessions } = await owner.api.account.sessions();
-      if (mine === serial) set({ status: 'ready', sessions });
+      if (mine === serial) set({ status: 'ready', sessions, readAt: Date.now() });
     } catch {
       if (mine === serial) set({ status: state.sessions.length > 0 ? 'ready' : 'unavailable' });
     }
   }
 
-  async function sign(ending: string | 'others', send: () => Promise<unknown>): Promise<void> {
+  async function sign(ending: SessionsEnding, send: () => Promise<unknown>): Promise<void> {
     set({ ending, failed: false });
     try {
       await send();
@@ -72,7 +77,7 @@ export function createAccountSessionsSession(owner: SessionsOwner): AccountSessi
       return () => listeners.delete(listener);
     },
     refresh,
-    end: (sessionId) => sign(sessionId, () => owner.api.account.endSession({ sessionId })),
-    endOthers: () => sign('others', () => owner.api.account.endOtherSessions()),
+    end: (sessionId) => sign({ kind: 'session', id: sessionId }, () => owner.api.account.endSession({ sessionId })),
+    endOthers: () => sign({ kind: 'others' }, () => owner.api.account.endOtherSessions()),
   };
 }

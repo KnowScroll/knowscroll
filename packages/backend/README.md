@@ -55,5 +55,7 @@ Social exposes backend-only explicit profile/handle and Friends pair operations 
 
 1. Add its table to the module's migration, with a `universe_id` column that references `identity.universes` `ON DELETE RESTRICT`.
 2. Declare it in the module's `adapters/erasure.ts`: table, owner column, and how full erasure and Clear treat it.
-3. A new module adds one line to the list in `src/erasure-registry.ts`.
-4. Nothing else: no digest, no witness migration. The schema inventory test fails until the declaration exists.
+3. Say what the person's export does with it: add it to the `covers` of the module's `export` (and read it in `export.read`, own records only, readable fields, bounded), or to its `omits` with the reason. A store the export does not account for stops every process at start-up (`accountLifecycleRegistry`).
+4. A table keyed by account (or linking to one) outside the module's own universe tables also needs the module's `eraseAccount`; account deletion removes it before the account.
+5. A new module adds one line to the list in `src/erasure-registry.ts`.
+6. Nothing else: no digest, no witness migration. The schema inventory test fails until the declaration exists, and the account-deletion test fails when no test fills the store.

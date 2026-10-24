@@ -48,7 +48,7 @@ export function SettingsRow({ href, ...rest }: RowProps & { readonly href: Href 
   const focus = useFocusRing('onLight');
   return (
     <Link href={href} asChild>
-      <Pressable {...focus.props} accessibilityLabel={rest.title} style={StyleSheet.flatten([styles.row, focus.style])}>
+      <Pressable {...focus.props} accessibilityLabel={rest.title} style={{ ...styles.row, ...focus.style }}>
         <RowBody {...rest} trailing={rest.trailing ?? <Icon name="forward" size={20} />} />
       </Pressable>
     </Link>

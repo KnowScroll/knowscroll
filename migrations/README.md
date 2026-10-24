@@ -127,3 +127,14 @@ the row. The guard trigger is untouched and witnesses stay immutable. Apply with
 of the previous recipe still selects the dropped column and fails with a database error (closed, never an
 unverified lifecycle) until it is replaced. Erasure completeness no longer depends on the witness: the
 schema inventory test and the inventory check inside every Clear prove it (D-050).
+
+0055 is the account privacy slice (#246, D-043). `identity.accounts` and `identity.universes` accept the
+status `deleting` (their checks are replaced `NOT VALID`); every existing check tests `status = 'active'`, so
+a deleting account is fenced everywhere without further changes. `identity.account_deletions` holds one
+operation per deletion: its id is chosen by the client and doubles as the receipt a signed-out device can
+still read, and when the work completes the row drops its account and universe links and stays as an audit row
+(id, two timestamps, a state) with no personal data. `identity.data_exports` holds one export file per row
+(at most five per account, a file removed at first download, expiry or account deletion; a download link is the
+SHA-256 of a one-time token). `identity.sessions` gains `device_label` and `last_used_at`. All new objects are
+additive, so an older process neither writes `deleting` nor reads the new columns. Apply with the new binary:
+a deployment without the worker's `identity.delete-account` consumer would leave deletions pending.

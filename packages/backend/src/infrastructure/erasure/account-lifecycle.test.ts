@@ -26,7 +26,13 @@ describe('the account lifecycle registry', () => {
   });
 
   it('refuses a module with account-keyed stores and no account eraser', () => {
-    const { eraseAccount: _removed, ...without } = base;
+    const without: ModuleErasure = {
+      module: 'fixture',
+      tables: base.tables,
+      accountTables: base.accountTables,
+      nonRowStores: base.nonRowStores,
+      erase: erased,
+    };
     expect(() => accountLifecycleRegistry([withExport(without)])).toThrow('ACCOUNT_ERASER_MISSING: fixture');
   });
 

@@ -149,6 +149,7 @@ export {
   createAccountSessionsSession,
   type AccountSessionsSession,
   type AccountSessionsState,
+  type SessionsEnding,
 } from './account-sessions';
 export { createDataExportsSession, type DataExportsSession, type DataExportsState } from './data-exports';
 export { requestAccountDeletion, type AccountDeletionDeps, type AccountDeletionOutcome } from './account-deletion';

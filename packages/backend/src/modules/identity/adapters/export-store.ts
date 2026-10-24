@@ -125,7 +125,7 @@ export function exportStore(deps: {
           // Only the export row is locked: the account row is read, never held.
           .modifyEnd(sql`for update of entry`)
           .executeTakeFirst();
-        if (row?.payload == null) return undefined;
+        if (row === undefined || row.payload === null) return undefined;
         await trx
           .updateTable('identity.data_exports')
           .set({

@@ -416,6 +416,33 @@ describe('account deletion (real database)', () => {
     ).toEqual({ status: 'active' });
   });
 
+  it('drops the account’s live sockets when the request commits, and sends nothing when it is refused', async () => {
+    const person = await recordingPerson(database);
+    const listener = await database.pool.connect();
+    const notices: unknown[] = [];
+    let done: () => void = () => undefined;
+    const barrier = new Promise<void>((resolve) => (done = resolve));
+    listener.on('notification', (event) => {
+      if (event.channel === 'ks_access_revoked') notices.push(JSON.parse(event.payload ?? '{}'));
+      if (event.channel === 'ci_barrier') done();
+    });
+    try {
+      await listener.query('listen ks_access_revoked');
+      await listener.query('listen ci_barrier');
+      const use = deleting();
+      const refused = await use.request({ ...person.authority, privacyEpoch: 9 }, { receiptId: randomUUID() });
+      expect(refused).toEqual({ kind: 'refused', reason: 'epoch_changed' });
+      expect((await use.request(person.authority, { receiptId: randomUUID() })).kind).toBe('accepted');
+      await sql`select pg_notify('ci_barrier', 'done')`.execute(database.db);
+      await barrier;
+      expect(notices).toEqual([{ v: 1, accountId: person.accountId }]);
+    } finally {
+      await listener.query('unlisten *');
+      listener.removeAllListeners('notification');
+      listener.release();
+    }
+  });
+
   it('refuses a sign-in with an old link while the account is being deleted', async () => {
     const person = await recordingPerson(database);
     const link = await requestLink(await emailOf(person.accountId));

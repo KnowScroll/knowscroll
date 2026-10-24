@@ -25,7 +25,7 @@ const stays = [
  * so the result is read from the receipt, which needs none. A request that gets no answer is not
  * assumed either way: "Check" asks the receipt whether it arrived.
  */
-export function DeletePanel() {
+export function DeletePanel({ titled = true }: { readonly titled?: boolean }) {
   const router = useRouter();
   const { manager, state: account } = useAccountScope();
   const [understood, setUnderstood] = useState(false);
@@ -65,9 +65,11 @@ export function DeletePanel() {
 
   return (
     <View style={{ gap: spacing[4] }}>
-      <Text variant="title" heading={2}>
-        Delete account
-      </Text>
+      {titled ? (
+        <Text variant="title" heading={2}>
+          Delete account
+        </Text>
+      ) : null}
       <Text variant="body">
         Removes your account, history, universe, kept items and messages you sent. People you messaged keep a "deleted
         account" placeholder.

@@ -82,7 +82,7 @@ function SettingsNav() {
         Settings
       </Text>
       <Link href="/account" asChild>
-        <Pressable {...focus.props} accessibilityRole="link" style={StyleSheet.flatten([styles.navItem, focus.style])}>
+        <Pressable {...focus.props} accessibilityRole="link" style={{ ...styles.navItem, ...focus.style }}>
           <Text variant="bodyS">Account</Text>
         </Pressable>
       </Link>
@@ -147,6 +147,7 @@ export function PrivacyScreen() {
       tone="paper"
       title="Privacy & history"
       showAccount={false}
+      bodyOffset={spacing[5]}
       leading={<IconButton icon="back" label="Back to account" onPress={back} />}
     >
       {desktop ? <Desktop /> : <Hub />}
@@ -168,6 +169,7 @@ function SubPage({ title, children }: { readonly title: string; readonly childre
       tone="paper"
       title={title}
       showAccount={false}
+      bodyOffset={spacing[5]}
       leading={<IconButton icon="back" label="Back to privacy and history" onPress={back} />}
     >
       <View style={styles.page}>{children}</View>
@@ -186,7 +188,7 @@ export function PrivacyExportScreen() {
 export function PrivacyClearScreen() {
   return (
     <SubPage title="Clear exploration">
-      <ClearPanel />
+      <ClearPanel titled={false} />
     </SubPage>
   );
 }
@@ -194,7 +196,7 @@ export function PrivacyClearScreen() {
 export function PrivacyDeleteScreen() {
   return (
     <SubPage title="Delete account">
-      <DeletePanel />
+      <DeletePanel titled={false} />
     </SubPage>
   );
 }

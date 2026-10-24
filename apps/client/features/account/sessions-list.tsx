@@ -6,6 +6,9 @@ import { Banner, Button, Skeleton, Tag } from '@knowscroll/ui';
 import { ago } from './relative-time';
 import { SettingsLabel, StaticRow } from './settings-parts';
 
+/** What the person was just asked about: signing out one device, or all the others. */
+type Asking = { readonly kind: 'session'; readonly id: string } | { readonly kind: 'others' };
+
 /**
  * P01 "Sessions": where this person is signed in, as coarse device names and when each was last
  * used. Signing a device out asks once, in the row itself; "other devices" does the same for all
@@ -15,15 +18,15 @@ import { SettingsLabel, StaticRow } from './settings-parts';
 export function SessionsList({ scope }: { readonly scope: AccountScope }) {
   const sessions = useMemo(() => createAccountSessionsSession(scope), [scope]);
   const state = useSyncExternalStore(sessions.subscribe, sessions.getState, sessions.getState);
-  const [asking, setAsking] = useState<string | 'others' | undefined>(undefined);
+  const [asking, setAsking] = useState<Asking | undefined>(undefined);
   useEffect(() => {
     void sessions.refresh();
   }, [sessions]);
   const others = state.sessions.filter((session) => !session.current);
   const ending = state.ending !== undefined;
-  const confirm = (target: string | 'others') => {
+  const confirm = (target: Asking) => {
     setAsking(undefined);
-    void (target === 'others' ? sessions.endOthers() : sessions.end(target));
+    void (target.kind === 'others' ? sessions.endOthers() : sessions.end(target.id));
   };
   return (
     <View>
@@ -39,7 +42,7 @@ export function SessionsList({ scope }: { readonly scope: AccountScope }) {
       ) : null}
       {state.failed ? <Banner kind="error" lead="Couldn't sign out." message="Nothing changed. Try again." /> : null}
       {state.sessions.map((session) => {
-        const sure = asking === session.id;
+        const sure = asking?.kind === 'session' && asking.id === session.id;
         return (
           <StaticRow
             key={session.id}
@@ -49,7 +52,7 @@ export function SessionsList({ scope }: { readonly scope: AccountScope }) {
                 ? `Sign out of ${session.deviceLabel}?`
                 : session.current
                   ? 'Signed in now'
-                  : `Last used ${ago(session.lastUsedAt, Date.now())}`
+                  : `Last used ${ago(session.lastUsedAt, state.readAt)}`
             }
             trailing={
               session.current ? (
@@ -62,7 +65,7 @@ export function SessionsList({ scope }: { readonly scope: AccountScope }) {
                     accessibilityLabel={`Confirm sign out of ${session.deviceLabel}`}
                     size="sm"
                     variant="danger"
-                    onPress={() => confirm(session.id)}
+                    onPress={() => confirm({ kind: 'session', id: session.id })}
                   />
                 </View>
               ) : (
@@ -70,11 +73,11 @@ export function SessionsList({ scope }: { readonly scope: AccountScope }) {
                   label="Sign out"
                   size="sm"
                   variant="ghost"
-                  busy={state.ending === session.id}
+                  busy={state.ending?.kind === 'session' && state.ending.id === session.id}
                   busyLabel="Signing out…"
                   disabled={ending}
                   accessibilityLabel={`Sign out ${session.deviceLabel}`}
-                  onPress={() => setAsking(session.id)}
+                  onPress={() => setAsking({ kind: 'session', id: session.id })}
                 />
               )
             }
@@ -83,14 +86,14 @@ export function SessionsList({ scope }: { readonly scope: AccountScope }) {
       })}
       {others.length > 1 ? (
         <View style={styles.others}>
-          {asking === 'others' ? (
+          {asking?.kind === 'others' ? (
             <View style={styles.choices}>
               <Button label="Cancel" size="sm" variant="ghost" onPress={() => setAsking(undefined)} />
               <Button
                 label={`Sign out ${String(others.length)} other devices`}
                 size="sm"
                 variant="danger"
-                onPress={() => confirm('others')}
+                onPress={() => confirm({ kind: 'others' })}
               />
             </View>
           ) : (
@@ -98,10 +101,10 @@ export function SessionsList({ scope }: { readonly scope: AccountScope }) {
               label="Sign out of other devices"
               variant="ghost"
               size="sm"
-              busy={state.ending === 'others'}
+              busy={state.ending?.kind === 'others'}
               busyLabel="Signing out…"
               disabled={ending}
-              onPress={() => setAsking('others')}
+              onPress={() => setAsking({ kind: 'others' })}
             />
           )}
         </View>

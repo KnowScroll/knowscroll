@@ -32,9 +32,9 @@ const message = (state: PrivacyClearState): string => {
 /**
  * P02 "Clear exploration": what is removed and what stays before one deliberate step, then honest
  * receipt states over the manager-owned controller (selective Clear, #345). Used on its own page
- * on phones and as a card on desktops.
+ * on phones (the page title names it: `titled={false}`) and as a card on desktops.
  */
-export function ClearPanel() {
+export function ClearPanel({ titled = true }: { readonly titled?: boolean }) {
   const { manager, state: account } = useAccountScope();
   const privacy = manager.privacy;
   const state = useSyncExternalStore(privacy.subscribe, privacy.getState, privacy.getState);
@@ -47,9 +47,11 @@ export function ClearPanel() {
   const canConfirm = account.status === 'signed_in' && account.scope.active && state.canConfirm;
   return (
     <View style={{ gap: spacing[4] }}>
-      <Text variant="title" heading={2}>
-        Clear exploration
-      </Text>
+      {titled ? (
+        <Text variant="title" heading={2}>
+          Clear exploration
+        </Text>
+      ) : null}
       <Text variant="body">
         Removes your watch and read history, the interests and plans derived from it, and your universe.
       </Text>

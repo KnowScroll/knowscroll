@@ -245,6 +245,7 @@ describe('P02 hub and export', () => {
       ];
       await act(async () => {
         jest.advanceTimersByTime(4_500);
+        await Promise.resolve();
       });
       expect(await screen.findByText('Ready')).toBeOnTheScreen();
       await fireEvent.press(screen.getByRole('button', { name: 'Download' }));

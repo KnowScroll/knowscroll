@@ -116,6 +116,7 @@ export function AccountScreen() {
       title="You"
       pageTitle="Account"
       showAccount={false}
+      bodyOffset={spacing[5]}
       leading={<IconButton icon="back" label={`Back to ${destination}`} onPress={back} />}
     >
       {state.status === 'signed_in' ? (
