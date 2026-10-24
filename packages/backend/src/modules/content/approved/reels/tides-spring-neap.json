@@ -92,13 +92,13 @@
         },
         {
           "id": "show-full-moon",
-          "text": "a bright full Moon above a calm dark sea",
+          "text": "a bright full Moon, large in the frame, above a moonlit silver sea at dusk",
           "type": "presence",
           "claimId": "c3"
         },
         {
           "id": "show-half-moon",
-          "text": "a half Moon above a calm dark sea",
+          "text": "a half Moon, large in the frame, above a calm sea under a glowing dusk sky",
           "type": "presence",
           "claimId": "c4"
         }
@@ -119,8 +119,8 @@
     },
     "style": {
       "id": "style-knowscroll-nature",
-      "version": 1,
-      "text": "realistic nature documentary footage, vivid natural light, steady camera"
+      "version": 2,
+      "text": "realistic nature documentary footage, vivid natural light, every shot clearly lit from its first frame, slow continuous camera drift"
     },
     "title": "Bigger tides, smaller tides",
     "summary": "Why the sea rises and falls farther at some times of the month than at others, and what the Moon and Sun have to do with it."
