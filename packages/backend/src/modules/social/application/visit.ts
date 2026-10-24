@@ -76,7 +76,7 @@ export function makeReadVisit(p: VisibilityPorts) {
           owner: person,
           authority: {
             pairRevision: visitorSide.revision,
-            publishedProjectionRevision: published?.projectionRevision ?? 1,
+            publishedProjectionRevision: published?.projectionToken ?? 1,
           },
           projection: {
             presentation: 'list.v1',
@@ -129,7 +129,7 @@ export function makeRefreshVisit(p: RefreshPorts) {
         const changed = publicationChanged(before.systems, planned);
         if (!changed && before.geographyRevision === own.geographyRevision) return 'unchanged' as const;
         await p.visibility.savePublication(scope, job.universeId, {
-          ...nextPublication(before, planned, own.geographyRevision, changed),
+          ...nextPublication(before, planned, own.geographyRevision, changed, () => p.newOpaqueToken()),
           refreshedAt: p.now(),
         });
         return changed ? ('refreshed' as const) : ('unchanged' as const);

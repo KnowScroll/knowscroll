@@ -21,7 +21,8 @@ export const DEFAULT_VISIBILITY: StoredVisibility = {
 
 /** What visitors are shown of one universe, as of the last refresh. */
 export interface StoredPublication {
-  readonly projectionRevision: number;
+  /** Random; changes only when the list a visitor receives changes. Counts nothing. */
+  readonly projectionToken: number;
   readonly geographyRevision: number;
   readonly systems: readonly PublishedSystem[];
 }

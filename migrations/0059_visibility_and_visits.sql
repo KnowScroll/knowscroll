@@ -46,22 +46,24 @@ create table social.visibility_audience (
 );
 create index visibility_audience_friend on social.visibility_audience(friend_account_id);
 
--- When a person who shows availability last sent a heartbeat. Friends never read the time: they read
--- a word ("Online", "Recently active") derived from it. `window_number` counts the stretches of
--- activity separated by more than the recently-active horizon, and is the `expiryRevision` of the
--- availability answer. Not written for a person whose availability is hidden.
+-- When a person who shows availability last sent a heartbeat, on the database clock. Friends never
+-- read the time: they read a word ("Online", "Recently active") derived from it. `window_token` is
+-- random and new for each stretch of activity (one starts after a gap longer than the
+-- recently-active horizon); it is the `expiryRevision` of the availability answer, a fence that
+-- counts nothing, so a friend cannot learn how often someone has been around. Not written for a
+-- person whose availability is hidden.
 create table social.presence (
   account_id uuid primary key references identity.accounts(id) on delete restrict,
   last_seen_at timestamptz not null,
-  window_number bigint not null default 1 check (window_number between 1 and 9007199254740991)
+  window_token bigint not null check (window_token between 1 and 9007199254740991)
 );
 
 -- What visitors may be shown of one universe, as of the last refresh. `geography_revision` is the
--- Geography revision it was drawn from; `projection_revision` moves only when the list a visitor
--- would receive changes.
+-- Geography revision it was drawn from; `projection_token` is random and changes only when the list a
+-- visitor would receive changes, so a visitor cannot count how often the owner changed it.
 create table social.visit_publications (
   universe_id uuid primary key references identity.universes(id) on delete restrict,
-  projection_revision bigint not null default 1 check (projection_revision between 1 and 9007199254740991),
+  projection_token bigint not null check (projection_token between 1 and 9007199254740991),
   geography_revision bigint not null check (geography_revision between 0 and 9007199254740991),
   refreshed_at timestamptz not null
 );

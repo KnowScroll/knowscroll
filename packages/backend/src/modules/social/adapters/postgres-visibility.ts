@@ -4,6 +4,7 @@ import { sharedTransactionOf, transactionOf } from '../../../infrastructure/post
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { PRESENCE, type PresencePreference } from '../domain/presence.js';
 import type { PublishedSystem } from '../domain/visibility.js';
+import { newOpaqueToken } from './opaque-token.js';
 import { DEFAULT_VISIBILITY, type VisibilityStore, type VisibilityTx } from '../application/visibility-store.js';
 
 const trxOf = (tx: VisibilityTx): Transaction<Database> =>
@@ -75,6 +76,7 @@ export const visibilityStore: VisibilityStore = {
       )
       .select(['p.account_id', 'p.person_id'])
       .where('p.person_id', 'in', [...personIds])
+      .where('p.account_id', '<>', ownerAccountId)
       .where('mine.public_state', '=', 'friends')
       .where('theirs.public_state', '=', 'friends')
       .where('mine.own_blocked', '=', false)
@@ -108,12 +110,10 @@ export const visibilityStore: VisibilityStore = {
   async presence(tx, accountId) {
     const row = await trxOf(tx)
       .selectFrom('social.presence')
-      .select(['last_seen_at', 'window_number'])
+      .select(['window_token', sql<string>`extract(epoch from now() - last_seen_at) * 1000`.as('age_ms')])
       .where('account_id', '=', accountId)
       .executeTakeFirst();
-    return row
-      ? { lastSeenAtMs: new Date(row.last_seen_at).getTime(), windowNumber: Number(row.window_number) }
-      : undefined;
+    return row ? { ageMs: Number(row.age_ms), windowToken: Number(row.window_token) } : undefined;
   },
 
   async clearPresence(scope, accountId) {
@@ -124,7 +124,7 @@ export const visibilityStore: VisibilityStore = {
     const trx = trxOf(tx);
     const header = await trx
       .selectFrom('social.visit_publications')
-      .select(['projection_revision', 'geography_revision'])
+      .select(['projection_token', 'geography_revision'])
       .where('universe_id', '=', universeId)
       .executeTakeFirst();
     if (!header) return undefined;
@@ -143,7 +143,7 @@ export const visibilityStore: VisibilityStore = {
       .orderBy('public_planet_id')
       .execute();
     return {
-      projectionRevision: Number(header.projection_revision),
+      projectionToken: Number(header.projection_token),
       geographyRevision: Number(header.geography_revision),
       systems: systems.map((system): PublishedSystem => ({
         systemId: system.system_id,
@@ -166,13 +166,13 @@ export const visibilityStore: VisibilityStore = {
       .insertInto('social.visit_publications')
       .values({
         universe_id: universeId,
-        projection_revision: next.projectionRevision,
+        projection_token: next.projectionToken,
         geography_revision: next.geographyRevision,
         refreshed_at: next.refreshedAt,
       })
       .onConflict((conflict) =>
         conflict.column('universe_id').doUpdateSet({
-          projection_revision: next.projectionRevision,
+          projection_token: next.projectionToken,
           geography_revision: next.geographyRevision,
           refreshed_at: next.refreshedAt,
         }),
@@ -230,23 +230,24 @@ export const visibilityStore: VisibilityStore = {
 };
 
 /**
- * Records one heartbeat for a person who shows availability, in one statement: nothing is written
- * for a person whose availability is hidden or who never changed the setting, so hiding stores
- * nothing. A heartbeat after more than the recently-active horizon starts a new window, which is the
- * `expiryRevision` of the answers friends read. Only an active account can send one.
+ * Records one heartbeat for a person who shows availability, in one statement stamped with the
+ * database clock (every API instance and every reader share it): nothing is written for a person
+ * whose availability is hidden or who never changed the setting, so hiding stores nothing. A
+ * heartbeat after more than the recently-active horizon starts a new window with a new random token,
+ * which is the `expiryRevision` of the answers friends read. Only an active account can send one.
  */
-export async function recordHeartbeat(db: Kysely<Database>, accountId: string, now: Date): Promise<void> {
+export async function recordHeartbeat(db: Kysely<Database>, accountId: string): Promise<void> {
   await sql`
-    insert into social.presence (account_id, last_seen_at, window_number)
-    select settings.account_id, ${now}, 1
+    insert into social.presence (account_id, last_seen_at, window_token)
+    select settings.account_id, now(), ${newOpaqueToken()}
     from social.visibility_settings settings
     join identity.accounts account on account.id = settings.account_id and account.status = 'active'
     where settings.account_id = ${accountId}::uuid and settings.presence_preference <> 'hidden'
     on conflict (account_id) do update set
-      window_number = case
-        when social.presence.last_seen_at < ${now}::timestamptz - ${PRESENCE.recentMs} * interval '1 millisecond'
-          then social.presence.window_number + 1
-        else social.presence.window_number
+      window_token = case
+        when social.presence.last_seen_at < now() - ${PRESENCE.recentMs} * interval '1 millisecond'
+          then excluded.window_token
+        else social.presence.window_token
       end,
       last_seen_at = excluded.last_seen_at`.execute(db);
 }

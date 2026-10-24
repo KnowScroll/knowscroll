@@ -68,6 +68,112 @@ const draftOf = (confirmed: SharingVisibility): VisibilityDraft => ({
   systemIds: confirmed.systems.filter((system) => system.shared).map((system) => system.systemId),
 });
 
+type SetAudience = SetVisibilityBody['audience'];
+
+/**
+ * The audience a draft asks the server for. A chosen list with no one in it shares with nobody; the
+ * draft keeps the radio where the person put it.
+ */
+function audienceOfDraft(draft: VisibilityDraft): SetAudience {
+  if (draft.mode === 'all_friends') return { mode: 'all_friends' };
+  if (draft.mode === 'chosen_friends' && draft.friendIds.length > 0)
+    return { mode: 'chosen_friends', personIds: [...draft.friendIds] };
+  return { mode: 'nobody' };
+}
+
+/** Whether the server already holds exactly this audience and these shared systems. */
+function alreadyConfirmed(confirmed: SharingVisibility, audience: SetAudience, systemIds: readonly string[]): boolean {
+  const sameSystems =
+    confirmed.systems.filter((system) => system.shared).length === systemIds.length &&
+    confirmed.systems.every((system) => system.shared === systemIds.includes(system.systemId));
+  const sameAudience =
+    confirmed.audience.mode === audience.mode &&
+    (confirmed.audience.mode !== 'chosen_friends' ||
+      (audience.mode === 'chosen_friends' &&
+        confirmed.audience.personIds.length === audience.personIds.length &&
+        confirmed.audience.personIds.every((id) => audience.personIds.includes(id))));
+  return sameSystems && sameAudience;
+}
+
+const toggled = (list: readonly string[], id: string): string[] =>
+  list.includes(id) ? list.filter((item) => item !== id) : [...list, id];
+
+/** The person's friends, by name, as the picker lists them. */
+async function readFriends(scope: AccountScope, newId: () => string): Promise<readonly PublicPersonRef[]> {
+  const friends: PublicPersonRef[] = [];
+  let cursor: Parameters<typeof scope.api.friendPages.friends>[0]['cursor'];
+  for (let pages = 0; pages < MAX_FRIEND_PAGES; pages += 1) {
+    const page = await scope.api.friendPages.friends({
+      version: FRIEND_PAGES_VERSION,
+      requestId: newId(),
+      filter: 'friends',
+      limit: FRIENDS_PAGE,
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    for (const item of page.items) if (item.state === 'friends') friends.push(item.peer);
+    cursor = page.next;
+    if (cursor === undefined) break;
+  }
+  return friends.sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+/** What the availability saver needs of the session: the latest state, and a way to change it. */
+interface SessionHost {
+  readonly current: () => VisibilityState;
+  readonly publish: (patch: Partial<VisibilityState>) => void;
+}
+
+/**
+ * Saving the availability choice. It is its own command, separate from the audience, and keeps the
+ * one choice that failed for want of a connection so Retry can send it again.
+ */
+function createPresenceSaver(scope: AccountScope, newId: () => string, host: SessionHost) {
+  let failedWhileOffline: PresencePreference | undefined;
+
+  async function set(preference: PresencePreference): Promise<void> {
+    const current = host.current().presence;
+    if (current === undefined || current.preference === preference) return;
+    host.publish({ save: { status: 'saving' } });
+    failedWhileOffline = undefined;
+    try {
+      await scope.api.sharing.setPresencePreference({
+        version: VERSION,
+        commandId: newId(),
+        expectedPresencePreferenceRevision: current.presencePreferenceRevision,
+        preference,
+      });
+      host.publish({ presence: await scope.api.sharing.presencePreference({}), save: { status: 'saved' } });
+    } catch (error) {
+      const kind = talkFailure(error);
+      if (kind === 'ended') return;
+      host.publish({ save: { status: 'failed', reason: failureOf(kind) } });
+      if (kind === 'offline') failedWhileOffline = preference;
+      else
+        try {
+          host.publish({ presence: await scope.api.sharing.presencePreference({}) });
+        } catch {
+          // Shown as it was.
+        }
+    }
+  }
+
+  /** Sends the choice that was lost offline, from the server's current revision. False when there is none. */
+  async function retry(): Promise<boolean> {
+    if (failedWhileOffline === undefined) return false;
+    const preference = failedWhileOffline;
+    try {
+      host.publish({ presence: await scope.api.sharing.presencePreference({}) });
+    } catch {
+      host.publish({ save: { status: 'failed', reason: 'offline' } });
+      return true;
+    }
+    await set(preference);
+    return true;
+  }
+
+  return { set, retry };
+}
+
 /**
  * The state behind F02 "Sharing & visibility": who may visit, which systems they see, and whether
  * friends see "Online" or "Recently active". Every change is one command that carries the whole page,
@@ -91,30 +197,12 @@ export function createVisibilitySession(options: VisibilitySessionOptions): Visi
   };
   let saving: Promise<void> | undefined;
   let dirty = false;
-  let failedPresence: PresencePreference | undefined;
+  const presence = createPresenceSaver(scope, newId, { current: () => state, publish });
 
   function publish(patch: Partial<VisibilityState>): void {
     if (!scope.active) return;
     state = { ...state, ...patch };
     for (const listener of [...listeners]) listener();
-  }
-
-  async function readFriends(): Promise<readonly PublicPersonRef[]> {
-    const friends: PublicPersonRef[] = [];
-    let cursor: Parameters<typeof scope.api.friendPages.friends>[0]['cursor'];
-    for (let pages = 0; pages < MAX_FRIEND_PAGES; pages += 1) {
-      const page = await scope.api.friendPages.friends({
-        version: FRIEND_PAGES_VERSION,
-        requestId: newId(),
-        filter: 'friends',
-        limit: FRIENDS_PAGE,
-        ...(cursor === undefined ? {} : { cursor }),
-      });
-      for (const item of page.items) if (item.state === 'friends') friends.push(item.peer);
-      cursor = page.next;
-      if (cursor === undefined) break;
-    }
-    return friends.sort((a, b) => a.displayName.localeCompare(b.displayName));
   }
 
   async function load(): Promise<void> {
@@ -132,7 +220,7 @@ export function createVisibilitySession(options: VisibilitySessionOptions): Visi
     if (state.friends.status === 'idle' || state.friends.status === 'failed') {
       publish({ friends: { status: 'loading', items: state.friends.items } });
       try {
-        publish({ friends: { status: 'ready', items: await readFriends() } });
+        publish({ friends: { status: 'ready', items: await readFriends(scope, newId) } });
       } catch (error) {
         if (talkFailure(error) !== 'ended') publish({ friends: { status: 'failed', items: [] } });
       }
@@ -143,25 +231,9 @@ export function createVisibilitySession(options: VisibilitySessionOptions): Visi
   async function saveOnce(): Promise<void> {
     const { confirmed, draft } = state;
     if (confirmed === undefined || draft === undefined) return;
-    const chosen = draft.mode === 'chosen_friends' ? draft.friendIds : [];
-    // A chosen list with no one in it shares with nobody; the draft keeps the radio where the person put it.
-    const audience: SetVisibilityBody['audience'] =
-      draft.mode === 'all_friends'
-        ? { mode: 'all_friends' }
-        : draft.mode === 'chosen_friends' && chosen.length > 0
-          ? { mode: 'chosen_friends', personIds: [...chosen] }
-          : { mode: 'nobody' };
-    const sameSystems =
-      confirmed.systems.filter((system) => system.shared).length === draft.systemIds.length &&
-      confirmed.systems.every((system) => system.shared === draft.systemIds.includes(system.systemId));
-    const sameAudience =
-      confirmed.audience.mode === audience.mode &&
-      (confirmed.audience.mode !== 'chosen_friends' ||
-        (audience.mode === 'chosen_friends' &&
-          confirmed.audience.personIds.length === audience.personIds.length &&
-          confirmed.audience.personIds.every((id) => audience.personIds.includes(id))));
+    const audience = audienceOfDraft(draft);
     // Nothing the server does not already have: no command, so no needless revision and no "saved".
-    if (sameSystems && sameAudience) return;
+    if (alreadyConfirmed(confirmed, audience, draft.systemIds)) return;
     publish({ save: { status: 'saving' } });
     try {
       await scope.api.sharing.setVisibility({
@@ -212,33 +284,6 @@ export function createVisibilitySession(options: VisibilitySessionOptions): Visi
     return requestSave();
   }
 
-  async function setPresence(preference: PresencePreference): Promise<void> {
-    const current = state.presence;
-    if (current === undefined || current.preference === preference) return;
-    publish({ save: { status: 'saving' } });
-    failedPresence = undefined;
-    try {
-      await scope.api.sharing.setPresencePreference({
-        version: VERSION,
-        commandId: newId(),
-        expectedPresencePreferenceRevision: current.presencePreferenceRevision,
-        preference,
-      });
-      publish({ presence: await scope.api.sharing.presencePreference({}), save: { status: 'saved' } });
-    } catch (error) {
-      const kind = talkFailure(error);
-      if (kind === 'ended') return;
-      publish({ save: { status: 'failed', reason: failureOf(kind) } });
-      if (kind === 'offline') failedPresence = preference;
-      else
-        try {
-          publish({ presence: await scope.api.sharing.presencePreference({}) });
-        } catch {
-          // Shown as it was.
-        }
-    }
-  }
-
   return {
     getState: () => state,
     subscribe(listener) {
@@ -250,32 +295,16 @@ export function createVisibilitySession(options: VisibilitySessionOptions): Visi
     toggleFriend(personId) {
       const draft = state.draft;
       if (draft === undefined) return Promise.resolve();
-      const friendIds = draft.friendIds.includes(personId)
-        ? draft.friendIds.filter((id) => id !== personId)
-        : [...draft.friendIds, personId];
-      return change({ mode: 'chosen_friends', friendIds });
+      return change({ mode: 'chosen_friends', friendIds: toggled(draft.friendIds, personId) });
     },
     toggleSystem(systemId) {
       const draft = state.draft;
       if (draft === undefined) return Promise.resolve();
-      const systemIds = draft.systemIds.includes(systemId)
-        ? draft.systemIds.filter((id) => id !== systemId)
-        : [...draft.systemIds, systemId];
-      return change({ systemIds });
+      return change({ systemIds: toggled(draft.systemIds, systemId) });
     },
-    setPresence,
+    setPresence: presence.set,
     async retry() {
-      if (failedPresence !== undefined) {
-        const preference = failedPresence;
-        try {
-          publish({ presence: await scope.api.sharing.presencePreference({}) });
-        } catch {
-          publish({ save: { status: 'failed', reason: 'offline' } });
-          return;
-        }
-        await setPresence(preference);
-        return;
-      }
+      if (await presence.retry()) return;
       // Start from what the server has now, with the page as the person left it.
       try {
         publish({ confirmed: await scope.api.sharing.visibility({}) });

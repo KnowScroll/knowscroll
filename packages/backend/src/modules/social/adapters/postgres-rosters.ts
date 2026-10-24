@@ -1,4 +1,5 @@
 import { PublicPersonRefSchema } from '@knowscroll/contracts';
+import { sql } from 'kysely';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { RosterStore } from '../application/ports.js';
 import type { PresencePreference } from '../domain/presence.js';
@@ -36,8 +37,8 @@ export const rosterStore: RosterStore = {
         'a.status as account_status',
         'u.status as universe_status',
         'v.presence_preference',
-        'pr.last_seen_at',
-        'pr.window_number',
+        'pr.window_token',
+        sql<string | null>`extract(epoch from now() - pr.last_seen_at) * 1000`.as('presence_age_ms'),
       ])
       .where('e.owner_account_id', '=', scope.authority.actor.accountId)
       .where('e.kind', '=', filter);
@@ -57,9 +58,9 @@ export const rosterStore: RosterStore = {
       presence: {
         preference: asPreference(r.presence_preference),
         record:
-          r.last_seen_at === null || r.window_number === null
+          r.presence_age_ms === null || r.window_token === null
             ? undefined
-            : { lastSeenAtMs: new Date(r.last_seen_at).getTime(), windowNumber: Number(r.window_number) },
+            : { ageMs: Number(r.presence_age_ms), windowToken: Number(r.window_token) },
       },
     }));
   },

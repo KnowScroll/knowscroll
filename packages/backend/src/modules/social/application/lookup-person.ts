@@ -90,7 +90,7 @@ export function makeReadPair(p: SocialPorts) {
         const now = p.now().getTime();
         const peerSettings = locked ? await p.visibility.settings(locked.shared, gate.peer.accountId) : undefined;
         const peerPresence = locked ? await p.visibility.presence(locked.shared, gate.peer.accountId) : undefined;
-        const availability = availabilityOf(peerSettings?.presencePreference ?? 'hidden', peerPresence, now);
+        const availability = availabilityOf(peerSettings?.presencePreference ?? 'hidden', peerPresence);
         const view = publicPair(locked?.pair, gate.owner.accountId, peer.person, now, availability);
         // Preserve a pending sender projection even after a private peer block; it conveys no access.
         if (

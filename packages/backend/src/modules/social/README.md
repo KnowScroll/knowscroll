@@ -129,26 +129,26 @@ shared and availability is hidden. No row means the defaults, so reading the set
   the copy from the owner's own Geography (`visit_publications`, `visit_systems`, `visit_planets`) in the same
   transaction as the settings. After each scene projection the worker calls `REFRESH_VISIT_PUBLICATION` for the
   universe: a system actor in its own transaction that rechecks the universe and epoch, does nothing for a
-  universe that shares nothing and writes nothing when the list is unchanged. `projection_revision` moves only
-  when a visitor would see a difference.
+  universe that shares nothing and writes nothing when the list is unchanged. `projection_token` is random and
+  changes only when a visitor would see a difference; it counts nothing.
 - **The visit read** (`POST /v1/social/visits/read`) runs in the visitor's own scope: own account fence and the
   host's account fence, the friendship's lock, both sides `friends` and neither blocking, the host's audience,
   then the copy. Every refusal is the same `unavailable` answer: never shared, revoked, an ended friendship, a
   block, an unknown person, yourself. The answer's authority is the visitor's pair revision and the copy's
-  revision; the owner's settings revision never leaves the owner. A visit writes nothing, tells the owner nothing
+  token; the owner's settings revision never leaves the owner. A visit writes nothing, tells the owner nothing
   and is not evidence for either person.
 - **Availability.** The app sends `presence_heartbeat` over the socket every 20 s while connected and visible;
   the gateway checks the session and the caller's own scope again and answers `{ ok: true }` whatever the
-  setting. `recordHeartbeat` is one statement: it stores the time only for an active account whose preference is
-  not `hidden`, and starts a new window (`window_number`, the answer's `expiryRevision`) after 15 minutes of
-  silence. Setting `hidden` deletes the row. A friends page and a pair read turn the stored time into a word
+  setting. `recordHeartbeat` is one statement stamped with the database clock: it stores the time only for an
+  active account whose preference is not `hidden`, and starts a new window after 15 minutes of silence with a
+  new random `window_token`, the answer's `expiryRevision`, which counts nothing. Setting `hidden` deletes the row. A friends page and a pair read turn the stored age (measured by the database) into a word
   (`domain/presence.ts`): "Online" for 60 s, then "Recently active" until 15 minutes, never above the person's
   choice, with a constant lease (30 s or 60 s) that never reveals the last beat. Hidden, expired and unknown are
   one `unknown` answer. There is no push: friends reread while Friends is open.
 
 Commands (`visibility.set`, `presence.preference.set`) use personal receipts, expect the revision the client
-read (`stale_revision` otherwise) and replay the same ID and body. Choosing a friend who is not a friend now,
-or a system that is not the caller's own factual system, is `invalid_input` and changes nothing.
+read (`stale_revision` otherwise) and replay the same ID and body. Choosing a friend who is not a friend now
+(or yourself), or a system that is not the caller's own factual system, is `invalid_input` and changes nothing.
 
 Status: implemented with tests against real PostgreSQL (`tests/integration/modules/social-visibility.test.ts`)
 and the installed API (`tests/integration/release/visits-http.test.ts`). Not runtime-verified on dev.

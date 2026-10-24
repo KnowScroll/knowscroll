@@ -84,6 +84,8 @@ export const SharingPersonLookupSchema = z.discriminatedUnion('status', [
 
 /** Hidden, expired and unknown presence have exactly one shape. expiryRevision fences delivery;
  * it is independent of pair, preference and projection revisions, never an exact peer timestamp.
+ * It is an opaque random token, new for each stretch of the peer's activity: compare it for
+ * equality only, because it counts nothing and cannot say how often the peer has been around.
  * Unknown has no revision/TTL: private heartbeat, hiding and expiry cannot change that shape.
  * validForMs is a relative freshness lease, not a heartbeat policy or peer event timestamp.
  * Its one-day transport ceiling selects no runtime duration. Future adapters check actual expiry;
@@ -332,7 +334,9 @@ const VisitorTarget = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('handle'), handle: SharingHandleSchema }),
 ]);
 /** What the visitor's answer was built from: their own view of the friendship and the version of
- * what the owner publishes. The owner's settings revision never leaves the owner. */
+ * what the owner publishes. publishedProjectionRevision is an opaque random token that changes when
+ * the published list does: compare it for equality only, because it cannot say how often the owner
+ * changed it. The owner's settings revision never leaves the owner. */
 const VisitorAuthority = z.strictObject({
   pairRevision: Revision,
   publishedProjectionRevision: Revision,

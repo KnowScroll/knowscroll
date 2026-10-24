@@ -33,29 +33,29 @@ export const PRESENCE = {
 
 /** The stored facts about one person's last heartbeat. Never sent to a friend. */
 export interface PresenceRecord {
-  readonly lastSeenAtMs: number;
-  /** Counts stretches of activity; the `expiryRevision` of an answer. */
-  readonly windowNumber: number;
+  /** How long ago the last heartbeat was, measured by the database against its own clock. */
+  readonly ageMs: number;
+  /**
+   * Random, new for each stretch of activity: the `expiryRevision` of an answer. It counts nothing,
+   * so a friend cannot learn how many stretches someone has had.
+   */
+  readonly windowToken: number;
 }
 
 /**
- * Availability of one person for a friend at `nowMs`.
+ * Availability of one person for a friend.
  *
  * The preference caps what is shown: someone who chose "Recently active" is never shown as
- * "Online", even while they are. A record from the future (clock skew) counts as just now.
+ * "Online", even while they are. A negative age (a clock that stepped back) counts as just now.
  */
-export function availabilityOf(
-  preference: PresencePreference,
-  record: PresenceRecord | undefined,
-  nowMs: number,
-): Availability {
+export function availabilityOf(preference: PresencePreference, record: PresenceRecord | undefined): Availability {
   if (preference === 'hidden' || record === undefined) return { state: 'unknown' };
-  const ageMs = Math.max(0, nowMs - record.lastSeenAtMs);
+  const ageMs = Math.max(0, record.ageMs);
   if (ageMs < PRESENCE.onlineMs)
     return preference === 'online'
-      ? { state: 'online', expiryRevision: record.windowNumber, validForMs: PRESENCE.onlineLeaseMs }
-      : { state: 'recently_active', expiryRevision: record.windowNumber, validForMs: PRESENCE.recentLeaseMs };
+      ? { state: 'online', expiryRevision: record.windowToken, validForMs: PRESENCE.onlineLeaseMs }
+      : { state: 'recently_active', expiryRevision: record.windowToken, validForMs: PRESENCE.recentLeaseMs };
   if (ageMs < PRESENCE.recentMs)
-    return { state: 'recently_active', expiryRevision: record.windowNumber, validForMs: PRESENCE.recentLeaseMs };
+    return { state: 'recently_active', expiryRevision: record.windowToken, validForMs: PRESENCE.recentLeaseMs };
   return { state: 'unknown' };
 }

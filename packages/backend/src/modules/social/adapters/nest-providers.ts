@@ -32,6 +32,7 @@ import {
 import { makeReadVisit, makeRefreshVisit } from '../application/visit.js';
 import type { RefreshPorts, VisibilityPorts } from '../application/visibility-ports.js';
 import { READ_GEOGRAPHY_SCENE_INPUT, type ReadGeographySceneInput } from '../../geography/public.js';
+import { newOpaqueToken } from './opaque-token.js';
 import { recordHeartbeat, visibilityStore } from './postgres-visibility.js';
 import { makeLookupPerson, makeReadPair } from '../application/lookup-person.js';
 import { makePairCommand } from '../application/pairs.js';
@@ -120,6 +121,7 @@ export function visibilityUseCases(
     ...socialPorts(deps),
     readGeography: deps.readGeography,
     newPublicId: deps.newPublicId ?? randomUUID,
+    newOpaqueToken,
   };
   return {
     readVisibility: makeReadVisibility(ports),
@@ -142,6 +144,7 @@ export function refreshVisitPublication(deps: {
     visibility: visibilityStore,
     readGeography: deps.readGeography,
     newPublicId: deps.newPublicId ?? randomUUID,
+    newOpaqueToken,
     now: deps.now ?? (() => new Date()),
   };
   return makeRefreshVisit(ports);
@@ -159,8 +162,8 @@ export function readInboxRevision(db: Kysely<Database>): ReadInboxRevision {
   };
 }
 /** Heartbeats are one statement on the pool: availability is account-keyed and takes no personal root. */
-export function heartbeatRecorder(db: Kysely<Database>, now: () => Date = () => new Date()): RecordHeartbeat {
-  return (accountId) => recordHeartbeat(db, accountId, now());
+export function heartbeatRecorder(db: Kysely<Database>): RecordHeartbeat {
+  return (accountId) => recordHeartbeat(db, accountId);
 }
 
 /** The worker's visit refresh, bound to the scope and the geography read the worker already has. */

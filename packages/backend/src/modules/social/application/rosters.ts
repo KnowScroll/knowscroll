@@ -62,7 +62,7 @@ export function makeReadRoster(p: SocialPorts, requests: boolean) {
             state: 'friends',
             peer: r.person,
             pairRevision: r.revision,
-            availability: availabilityOf(r.presence.preference, r.presence.record, time),
+            availability: availabilityOf(r.presence.preference, r.presence.record),
           });
         else items.push({ state: 'blocked', peer: r.person, pairRevision: r.revision });
       }

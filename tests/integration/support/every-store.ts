@@ -544,7 +544,12 @@ export async function everyStoreSeeder(
       const visitSystemId = randomUUID();
       await tx
         .insertInto('social.visit_publications')
-        .values({ universe_id: person.universeId, geography_revision: 1, refreshed_at: new Date() })
+        .values({
+          universe_id: person.universeId,
+          projection_token: 1,
+          geography_revision: 1,
+          refreshed_at: new Date(),
+        })
         .execute();
       await tx
         .insertInto('social.visit_systems')

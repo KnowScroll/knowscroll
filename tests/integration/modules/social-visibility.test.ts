@@ -30,7 +30,7 @@ describe('visibility, presence and the friend visit (real database)', () => {
   beforeAll(async () => {
     db = await createTestDatabase<Database>('social_visibility');
     cases = visitCases(db.db);
-    beat = heartbeatRecorder(db.db, () => cases.clock.now);
+    beat = heartbeatRecorder(db.db);
   });
   afterAll(async () => {
     await db.drop();
@@ -85,6 +85,15 @@ describe('visibility, presence and the friend visit (real database)', () => {
   }
   const moveClock = (ms: number) => {
     cases.clock.now = new Date(cases.clock.now.getTime() + ms);
+  };
+  /** Makes a person's last heartbeat older by `ms`: ages are measured against the database's own clock. */
+  const ageHeartbeat = async (person: Friend, ms: number) => {
+    await sql`update social.presence set last_seen_at = last_seen_at - ${ms} * interval '1 millisecond'
+      where account_id = ${person.accountId}::uuid`.execute(db.db);
+  };
+  const windowTokenOf = (availability: Awaited<ReturnType<typeof availabilityOf>>) => {
+    if (availability.state === 'unknown') throw new Error('CI no availability to read a window from');
+    return availability.expiryRevision;
   };
   const SECOND = 1_000,
     MINUTE = 60 * SECOND;
@@ -151,7 +160,7 @@ describe('visibility, presence and the friend visit (real database)', () => {
         ...answer.projection.systems[0]!.planets.map((p) => p.publicPlanetId),
       ];
       for (const id of publicIds) expect(world.privateIds).not.toContain(id);
-      expect(answer.authority.publishedProjectionRevision).toBe(1);
+      expect(Number.isSafeInteger(answer.authority.publishedProjectionRevision)).toBe(true);
     });
 
     it('lets only the chosen friends in', async () => {
@@ -173,6 +182,25 @@ describe('visibility, presence and the friend visit (real database)', () => {
       const stranger = await seedFriend(db.db, cases.friends);
       expectAccepted(await setVisibility(cases, owner, { mode: 'all_friends' }, [systemId(world, 'earth')]));
       expect((await visitOf(stranger, owner)).status).toBe('unavailable');
+    });
+
+    it('refuses an owner who chooses themselves, instead of failing the command', async () => {
+      const { owner, world } = await setup();
+      const attempt = await setVisibility(
+        cases,
+        owner,
+        { mode: 'chosen_friends', personIds: [owner.person.personId] },
+        [systemId(world, 'earth')],
+      );
+      expect(attempt).toEqual({ kind: 'refused', code: 'invalid_input' });
+      const own = await ownVisibility(cases, owner);
+      expect(own).toMatchObject({ visibilityRevision: 1, audience: { mode: 'nobody' } });
+      const rows = await db.db
+        .selectFrom('social.visibility_audience')
+        .select('owner_account_id')
+        .where('owner_account_id', '=', owner.accountId)
+        .execute();
+      expect(rows).toEqual([]);
     });
 
     it('refuses an owner who chooses a person who is not their friend, or a system that is not theirs', async () => {
@@ -242,8 +270,8 @@ describe('visibility, presence and the friend visit (real database)', () => {
       const again = await visitOf(friend, owner);
       if (first.status !== 'available' || again.status !== 'available') throw new Error('CI visit not available');
       expect(again.projection.systems[0]!.publicSystemId).not.toBe(first.projection.systems[0]!.publicSystemId);
-      // The revision of what visitors see moved with each change.
-      expect(again.authority.publishedProjectionRevision).toBeGreaterThan(first.authority.publishedProjectionRevision);
+      // The token of what visitors see changes with the list, and is not a counter.
+      expect(again.authority.publishedProjectionRevision).not.toBe(first.authority.publishedProjectionRevision);
     });
 
     it('ends when the friendship ends, and an old choice does not come back with a new friendship', async () => {
@@ -371,7 +399,7 @@ describe('visibility, presence and the friend visit (real database)', () => {
         'Seasons',
         'Tides',
       ]);
-      expect(after.authority.publishedProjectionRevision).toBe(before.authority.publishedProjectionRevision + 1);
+      expect(after.authority.publishedProjectionRevision).not.toBe(before.authority.publishedProjectionRevision);
       // The planets that were already shared keep their public identity.
       const kept = before.projection.systems[0]!.planets.map((p) => p.publicPlanetId);
       for (const id of kept) expect(after.projection.systems[0]!.planets.map((p) => p.publicPlanetId)).toContain(id);
@@ -406,15 +434,19 @@ describe('visibility, presence and the friend visit (real database)', () => {
       expect(await availabilityOf(friend, owner)).toEqual({ state: 'unknown' });
       await beat(owner.accountId);
       const online = await availabilityOf(friend, owner);
-      expect(online).toMatchObject({ state: 'online', expiryRevision: 1 });
-      moveClock(20 * SECOND);
+      expect(online).toMatchObject({ state: 'online', validForMs: 30_000 });
+      await ageHeartbeat(owner, 20 * SECOND);
       expect(await availabilityOf(friend, owner)).toEqual(online);
-      moveClock(50 * SECOND);
+      await ageHeartbeat(owner, 50 * SECOND);
       const recent = await availabilityOf(friend, owner);
-      expect(recent).toMatchObject({ state: 'recently_active', expiryRevision: 1 });
-      moveClock(5 * MINUTE);
+      expect(recent).toMatchObject({
+        state: 'recently_active',
+        validForMs: 60_000,
+        expiryRevision: windowTokenOf(online),
+      });
+      await ageHeartbeat(owner, 5 * MINUTE);
       expect(await availabilityOf(friend, owner)).toEqual(recent);
-      moveClock(11 * MINUTE);
+      await ageHeartbeat(owner, 11 * MINUTE);
       expect(await availabilityOf(friend, owner)).toEqual({ state: 'unknown' });
     });
 
@@ -425,7 +457,7 @@ describe('visibility, presence and the friend visit (real database)', () => {
       expectAccepted(await setPresence(owner, 'online'));
       const neverSeen = JSON.stringify(await availabilityOf(friend, owner));
       await beat(owner.accountId);
-      moveClock(20 * MINUTE);
+      await ageHeartbeat(owner, 20 * MINUTE);
       const expired = JSON.stringify(await availabilityOf(friend, owner));
       expect(neverSeen).toBe(hidden);
       expect(expired).toBe(hidden);
@@ -439,17 +471,41 @@ describe('visibility, presence and the friend visit (real database)', () => {
       expect(await availabilityOf(friend, owner)).toMatchObject({ state: 'recently_active' });
     });
 
-    it('starts a new window after a long absence, so a stale answer can be told from a fresh one', async () => {
+    it('starts a new window with a new random token after a long absence, and counts nothing', async () => {
       const { owner, friends } = await setup();
       const [friend] = friends as [Friend];
       expectAccepted(await setPresence(owner, 'online'));
       await beat(owner.accountId);
-      moveClock(30 * SECOND);
+      const first = windowTokenOf(await availabilityOf(friend, owner));
+      await ageHeartbeat(owner, 30 * SECOND);
       await beat(owner.accountId);
-      expect(await availabilityOf(friend, owner)).toMatchObject({ expiryRevision: 1 });
-      moveClock(20 * MINUTE);
+      expect(windowTokenOf(await availabilityOf(friend, owner))).toBe(first);
+      const tokens = [first];
+      for (let window = 0; window < 3; window += 1) {
+        await ageHeartbeat(owner, 20 * MINUTE);
+        await beat(owner.accountId);
+        const answer = await availabilityOf(friend, owner);
+        expect(answer.state).toBe('online');
+        tokens.push(windowTokenOf(answer));
+      }
+      expect(new Set(tokens).size).toBe(tokens.length);
+      for (const token of tokens) expect(Number.isSafeInteger(token) && token >= 1).toBe(true);
+      // Not a counter: a friend cannot work out how many windows there have been.
+      expect(tokens.every((token, index) => index === 0 || token === tokens[index - 1]! + 1)).toBe(false);
+    });
+
+    it('stamps a heartbeat with the database clock, whatever the API clock says', async () => {
+      const { owner } = await setup();
+      expectAccepted(await setPresence(owner, 'online'));
+      moveClock(-3 * 24 * 60 * MINUTE);
       await beat(owner.accountId);
-      expect(await availabilityOf(friend, owner)).toMatchObject({ state: 'online', expiryRevision: 2 });
+      moveClock(3 * 24 * 60 * MINUTE);
+      const row = await db.db
+        .selectFrom('social.presence')
+        .select(sql<string>`extract(epoch from now() - last_seen_at) * 1000`.as('age_ms'))
+        .where('account_id', '=', owner.accountId)
+        .executeTakeFirstOrThrow();
+      expect(Number(row.age_ms)).toBeLessThan(10 * SECOND);
     });
 
     it('deletes the stored heartbeat the moment availability is hidden', async () => {

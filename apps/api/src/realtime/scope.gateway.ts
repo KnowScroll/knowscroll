@@ -55,7 +55,8 @@ function cacheKey(caller: Caller, universeId: string): string {
  * Socket.IO gateway for live hints (blueprint §4, §7): authenticated connections, authorised
  * `subscribe_scope`/`unsubscribe_scope` (the caller's `universe` and `inbox` scopes, both named by
  * their own universe), and `scope_changed`/`scope_resync`/`scope_revoked` hints
- * from the LISTEN relay. There are no socket commands; durable state is read over HTTP.
+ * from the LISTEN relay. The one socket command is `presence_heartbeat`, which says an open, visible
+ * app is around (D-047). Everything else durable is read and written over HTTP.
  *
  * Room membership is a delivery aid, never authority:
  * - every subscribe joins first and then checks the caller's session validity and current access

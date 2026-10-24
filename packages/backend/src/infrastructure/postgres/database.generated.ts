@@ -1510,7 +1510,7 @@ export interface SocialPairSides {
 export interface SocialPresence {
   account_id: string;
   last_seen_at: Timestamp;
-  window_number: Generated<Int8>;
+  window_token: Int8;
 }
 
 export interface SocialProfiles {
@@ -1570,7 +1570,7 @@ export interface SocialVisitPlanets {
 
 export interface SocialVisitPublications {
   geography_revision: Int8;
-  projection_revision: Generated<Int8>;
+  projection_token: Int8;
   refreshed_at: Timestamp;
   universe_id: string;
 }

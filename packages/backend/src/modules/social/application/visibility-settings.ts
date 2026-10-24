@@ -136,7 +136,7 @@ export function makeSetVisibility(p: VisibilityPorts) {
         });
         await p.visibility.replaceChosenFriends(scope, accountId, friendAccountIds);
         await p.visibility.savePublication(scope, gate.owner.universeId, {
-          ...nextPublication(before, planned, own.geographyRevision, systemsChanged),
+          ...nextPublication(before, planned, own.geographyRevision, systemsChanged, () => p.newOpaqueToken()),
           refreshedAt: p.now(),
         });
       }
@@ -157,18 +157,22 @@ export function makeSetVisibility(p: VisibilityPorts) {
   };
 }
 
-/** The published copy after a change: the first copy is revision 1, and it moves only when visitors would see a difference. */
+/**
+ * The published copy after a change. Its token is new for the first copy and whenever visitors would
+ * see a difference, and unchanged otherwise. It is random, so a visitor can tell that the list moved
+ * but not how often it has.
+ */
 export function nextPublication(
   before: StoredPublication | undefined,
   systems: StoredPublication['systems'],
   geographyRevision: number,
   changed: boolean,
+  newToken: () => number,
 ): StoredPublication {
   return {
     systems,
     geographyRevision,
-    projectionRevision:
-      before === undefined ? 1 : changed ? increment(before.projectionRevision) : before.projectionRevision,
+    projectionToken: before === undefined || changed ? newToken() : before.projectionToken,
   };
 }
 

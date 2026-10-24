@@ -15,6 +15,8 @@ export interface RefreshPorts {
   readGeography: ReadGeographySceneInput;
   /** A random identifier unrelated to any private one. Never time-ordered, never derived. */
   newPublicId(): string;
+  /** A random positive integer below 2^48, for fences that must not count anything (D-047). */
+  newOpaqueToken(): number;
   now(): Date;
 }
 
