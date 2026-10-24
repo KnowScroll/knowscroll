@@ -46,18 +46,29 @@ export function makeReadOperatorPanels(deps: {
   const { store } = deps;
   return async () => {
     const run = limited(MAX_CONCURRENT_READS);
-    const [queues, providerOutcomes, recentErrors, runs, refusedAnswers, reelOrders, usage, cartographer, operations] =
-      await Promise.all([
-        run(() => store.queues()),
-        run(() => store.providerOutcomes(PROVIDER_WINDOW_HOURS)),
-        run(() => store.recentErrors(ERROR_LIMIT)),
-        run(() => store.productionRuns(LIST_LIMIT)),
-        run(() => store.refusedAnswers(LIST_LIMIT)),
-        run(() => store.reelOrders(LIST_LIMIT)),
-        run(() => store.usage(PROVIDER_WINDOW_HOURS)),
-        run(() => store.cartographer(LIST_LIMIT)),
-        run(() => store.privacy(LIST_LIMIT)),
-      ]);
+    const [
+      queues,
+      providerOutcomes,
+      recentErrors,
+      runs,
+      refusedAnswers,
+      reelOrders,
+      usage,
+      cartographer,
+      operations,
+      reports,
+    ] = await Promise.all([
+      run(() => store.queues()),
+      run(() => store.providerOutcomes(PROVIDER_WINDOW_HOURS)),
+      run(() => store.recentErrors(ERROR_LIMIT)),
+      run(() => store.productionRuns(LIST_LIMIT)),
+      run(() => store.refusedAnswers(LIST_LIMIT)),
+      run(() => store.reelOrders(LIST_LIMIT)),
+      run(() => store.usage(PROVIDER_WINDOW_HOURS)),
+      run(() => store.cartographer(LIST_LIMIT)),
+      run(() => store.privacy(LIST_LIMIT)),
+      run(() => store.reports(LIST_LIMIT)),
+    ]);
     return {
       generatedAt: deps.now(),
       overview: {
@@ -70,6 +81,7 @@ export function makeReadOperatorPanels(deps: {
       },
       production: { runs, refusedAnswers, reelOrders, usage },
       universeChange: { cartographer },
+      safety: { reports },
       realtime: { delivery: NO_TIER0_SOURCE },
       privacy: {
         operations,

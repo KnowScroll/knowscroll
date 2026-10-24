@@ -27,6 +27,7 @@ export const OPS_READER_VIEWS: readonly string[] = [
   'reel_orders',
   'geography_runs',
   'privacy_operations',
+  'feedback_reports',
   'jobs',
   'queue_backlog',
   'recent_errors',

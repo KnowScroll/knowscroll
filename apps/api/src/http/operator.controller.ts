@@ -28,7 +28,7 @@ function mapPiece<From, To>(source: Piece<From>, map: (data: From) => To): Piece
 }
 
 function wirePanels(panels: OperatorPanels): OperatorPanelsResponse {
-  const { overview, production, universeChange, privacy } = panels;
+  const { overview, production, universeChange, safety, privacy } = panels;
   const queueRows = (rows: readonly QueueRow[]) =>
     rows.map((row) => ({ ...row, lastCompletedAt: isoOrNull(row.lastCompletedAt) }));
   return {
@@ -59,6 +59,12 @@ function wirePanels(panels: OperatorPanels): OperatorPanelsResponse {
       cartographer: mapPiece(universeChange.cartographer, (summary) => ({
         counts: summary.counts.map((row) => ({ ...row })),
         recent: summary.recent.map((row) => ({ ...row, updatedAt: iso(row.updatedAt) })),
+      })),
+    },
+    safety: {
+      reports: mapPiece(safety.reports, (summary) => ({
+        last24Hours: summary.last24Hours,
+        recent: summary.recent.map((row) => ({ ...row, createdAt: iso(row.createdAt) })),
       })),
     },
     realtime: panels.realtime,

@@ -70,6 +70,7 @@ import type {
   ApplyEncounterAction,
   ApplyAction,
   ListSaved,
+  NotInterestedUseCases,
 } from '@knowscroll/backend/modules/experience';
 import type {
   IngestObservations,
@@ -100,7 +101,9 @@ import {
   APPLY_ENCOUNTER_ACTION,
   APPLY_ACTION,
   LIST_SAVED,
+  notInterestedProviders,
 } from '@knowscroll/backend/modules/experience/nest-providers';
+import { NOT_INTERESTED_USE_CASES } from '@knowscroll/backend/modules/experience';
 import type { WithPersonalScope, RecordingScopeTx } from '@knowscroll/backend/modules/identity';
 import { EXPERIENCE_RECORDING_EFFECTS, type ExperienceRecordingEffects } from '@knowscroll/backend/modules/experience';
 import type { TestDatabase } from './database.js';
@@ -165,6 +168,7 @@ export async function scrollUseCases(
   readonly applyEncounterAction: ApplyEncounterAction;
   readonly applyAction: ApplyAction;
   readonly listSaved: ListSaved;
+  readonly notInterested: NotInterestedUseCases;
   /** Actual owning effect from this fixture graph, for delegation/failure wrappers. */
   readonly activityContextEffect: ActivityDerivedEffect;
   /** Actual required Experience effects, exposed only for the selected recording fixture graph. */
@@ -253,6 +257,7 @@ export async function scrollUseCases(
       { database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE },
       options.recording ? { recordingEffects: EXPERIENCE_RECORDING_EFFECTS } : {},
     ),
+    ...notInterestedProviders({ withPersonalScope: SCOPE }),
     ...evidenceIntakeProviders({ database: DATABASE, withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
     ...evidenceProviders({ enqueueJob: ENQUEUE, withPersonalScope: SCOPE }),
   ];
@@ -306,6 +311,7 @@ export async function scrollUseCases(
     applyEncounterAction: build(APPLY_ENCOUNTER_ACTION) as ApplyEncounterAction,
     applyAction: build(APPLY_ACTION) as ApplyAction,
     listSaved: build(LIST_SAVED) as ListSaved,
+    notInterested: build(NOT_INTERESTED_USE_CASES) as NotInterestedUseCases,
     activityContextEffect: values.get(ACTIVITY_CONTEXT_EFFECT) as ActivityDerivedEffect,
     ...(options.recording
       ? { recordingEffects: build(EXPERIENCE_RECORDING_EFFECTS) as ExperienceRecordingEffects }

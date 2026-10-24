@@ -343,6 +343,12 @@ export async function everyStoreSeeder(
       target: { assetId: asset.assetId, assetRevision: 1 },
     });
     if (saved.kind !== 'applied') throw new Error('fixture save refused');
+    // A short-lived "Not interested" on the same asset: the routing constraint is a personal store too.
+    const notInterested = await scroll.notInterested.set(person.authority, {
+      commandId: randomUUID(),
+      assetId: asset.assetId,
+    });
+    if (notInterested.kind !== 'applied') throw new Error('fixture not-interested refused');
     // Actual retained membership with a latest private place: every registered store remains covered.
     const membership = await database.db
       .selectFrom('experience.saved_items')

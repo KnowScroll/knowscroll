@@ -264,6 +264,7 @@ describe('personal data export (real database)', () => {
       'label',
       'lastUsedAt',
       'messagesWritten',
+      'notInterested',
       'openedAt',
       'place',
       'places',
