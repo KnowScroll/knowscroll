@@ -2,7 +2,7 @@ import type * as React from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { AccountScopeState } from '@knowscroll/client-core';
-import { conversation, peer, talkServer } from '@knowscroll/client-core/talk-fixture';
+import { conversation, invitedThread, peer, talkServer } from '@knowscroll/client-core/talk-fixture';
 import { DisplayProvider } from '@knowscroll/ui';
 import { ConversationsScreen } from './conversations-screen';
 
@@ -78,6 +78,70 @@ describe('Talk inbox (labelled in-memory server)', () => {
     expect(mockPush).toHaveBeenCalledWith(
       `/conversations/${conversation.conversationId}?m=${conversation.membershipId}&r=1`,
     );
+    await finish(server);
+  });
+
+  it('shows an invitation as a card with a preview, and joins from the card into the thread', async () => {
+    const server = talkServer();
+    server.inviteToThread('Black holes');
+    await mount(server);
+    const card = await screen.findByTestId('thread-invitation');
+    expect(card).toBeOnTheScreen();
+    expect(screen.getByText(`${peer.displayName} started a thread · Black holes`)).toBeOnTheScreen();
+    expect(screen.getByText(/Your universe and history aren’t shared/)).toBeOnTheScreen();
+    // The invitation is a card, not a row in the list.
+    expect(screen.queryByTestId(`talk-thread-${invitedThread.threadId}`)).toBeNull();
+    const threadPath = `/threads/${invitedThread.threadId}?m=${invitedThread.membershipId}&r=1`;
+    await fireEvent.press(screen.getByRole('link', { name: 'Preview the thread' }));
+    expect(mockPush).toHaveBeenCalledWith(threadPath);
+    mockPush.mockClear();
+    await fireEvent.press(screen.getByRole('button', { name: 'Join thread' }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith(threadPath));
+    expect(server.invitationAnswers()).toEqual(['join']);
+    await finish(server);
+  });
+
+  it('ignores an invitation with one decline, and the card goes quietly', async () => {
+    const server = talkServer();
+    server.inviteToThread('Black holes');
+    await mount(server);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Ignore' }));
+    await waitFor(() => expect(screen.queryByTestId('thread-invitation')).toBeNull());
+    expect(server.invitationAnswers()).toEqual(['decline']);
+    expect(mockPush).not.toHaveBeenCalled();
+    await finish(server);
+  });
+
+  it('keeps the card and says so when the answer did not arrive, then retries the same command', async () => {
+    const server = talkServer();
+    server.inviteToThread('Black holes');
+    await mount(server);
+    server.failNext('/v1/social/threads/respond', 'network');
+    await fireEvent.press(await screen.findByRole('button', { name: 'Ignore' }));
+    expect(await screen.findByText('Couldn’t reach KnowScroll.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Ignore' }));
+    await waitFor(() => expect(screen.queryByTestId('thread-invitation')).toBeNull());
+    const answers = server.requests.filter((request) => request.path.endsWith('/threads/respond'));
+    expect(answers).toHaveLength(2);
+    expect(answers[0]?.body['commandId']).toBe(answers[1]?.body['commandId']);
+    await finish(server);
+  });
+
+  it('offers New once there is something in Talk, and not on the first-visit screen', async () => {
+    const empty = talkServer();
+    await mount(empty);
+    await screen.findByText('No conversations yet');
+    expect(screen.queryByRole('button', { name: 'New conversation' })).toBeNull();
+    // The account stays reachable from every tab header (D-006 c), with or without New.
+    expect(screen.getByRole('link', { name: 'Account and settings' })).toBeOnTheScreen();
+    await finish(empty);
+    const server = talkServer();
+    server.peerSays('hello');
+    await mount(server);
+    await fireEvent.press(await screen.findByRole('button', { name: 'New conversation' }));
+    expect(screen.getByRole('link', { name: 'Account and settings' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Invite a friend' }));
+    expect(mockPush).toHaveBeenCalledWith('/friends');
     await finish(server);
   });
 

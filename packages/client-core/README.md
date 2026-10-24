@@ -392,6 +392,12 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
 - `createExploreWithFriends(...)`: lists friends (`friends.recentCount` of the first items are people the person already talks to), creates the thread with one command ID per intent, and reports
   `created`, `unavailable` or `unconfirmed` (retry sends the identical command, so it cannot make two threads).
 - `readThreadSummaries`, `findThread`, `threadRowView`, `describeThreadMessage`: Talk rows for threads.
+- `invitationCardView`, `answerThreadInvitation(scope, thread, 'join' | 'decline', commandId)`: the invitation card in
+  Talk. Ignore is the same decline the thread screen sends: it ends the invitation for this person only.
+- `composerAddressees(people)`: "Ravi and Meera"; two people who share a first word get a last initial, or a handle.
+- Both conversation and content-thread state carry `awayAfterSequence`: set when a lost connection returned and
+  something arrived after the last message the person had, so the screen draws "While you were away" there. It only
+  places the divider and never moves the scroll.
 - `thread-snippets.ts`: `initialRange`, `nudgeRange`, `setRangeEnd`, `sentenceRanges`, `passageOf`, `formatRange` for the pickers.
 - `overlayBlockState` (`scroll-state/snippet-overlay.ts`): the sender's block settings, shown without writing the reader's own.
 - The Talk fixture serves `threads/create` and the thread reads for tests; it is a labelled fixture.

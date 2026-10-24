@@ -27,6 +27,7 @@ const state = (patch: Partial<ContentThreadState>): ContentThreadState => ({
   hasOlder: false,
   loadingOlder: false,
   offline: false,
+  awayAfterSequence: undefined,
   responding: false,
   ...patch,
 });
@@ -50,7 +51,7 @@ describe('a thread invitation', () => {
     expect(screen.getByText(/Joining does not tell anyone what you have seen/)).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Join this thread' }));
     expect(onJoin).toHaveBeenCalledTimes(1);
-    await fireEvent.press(screen.getByRole('button', { name: 'Not now' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Ignore' }));
     expect(onDecline).toHaveBeenCalledTimes(1);
   });
 
