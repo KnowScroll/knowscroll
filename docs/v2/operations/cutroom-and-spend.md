@@ -47,9 +47,9 @@ Anything different: stop and look before going on.
 
 ### 2. Raise the pool cap (migration 0005) and record it
 
-The pool records the migrations it has applied in `schema_migrations` (the name of the file and the SHA-256
-of its text). v1's migrator applied each file and inserted its row in the same transaction; step 2 does the
-same for `0005`.
+The pool records the migrations it has applied in `schema_migrations` (`name text`, `checksum text`,
+`applied_at timestamptz`): the file name with `.sql` and the SHA-256 of its text. v1's migrator applied each
+file and inserted its row in the same transaction; step 2 does the same for `0005`.
 
 First look at the tracker and confirm its hash format against a row that already exists:
 
@@ -59,9 +59,7 @@ shasum -a 256 ops/pool/migrations/0001_shared_pool.sql ops/pool/migrations/0002_
 ```
 
 Expected: rows for `0001_shared_pool.sql` and `0002_cap_seven_dollars.sql`, and each stored hash equals the
-`shasum` of that file in the repository. The statements below use the columns `filename` and `sha256`. If `\d`
-shows other names (v1's own code calls them `name` and `checksum`), change the two column names in the
-`INSERT` and nothing else.
+`shasum` of that file in the repository.
 
 Take a copy, then apply the file and insert its row **in one transaction**. It runs as the pool's owner role.
 The file refuses a pool that is not in the state step 1 checked, and then neither the cap nor the row changes.
@@ -69,24 +67,20 @@ The file refuses a pool that is not in the state step 1 checked, and then neithe
 ```sh
 ssh knowscroll-vps 'sudo -u postgres pg_dump -Fc knowscroll_pool | sudo tee /srv/knowscroll/backups/pool-before-0005.dump > /dev/null'
 { cat ops/pool/migrations/0005_cap_four_dollars_more.sql
-  printf "INSERT INTO schema_migrations (filename, sha256) VALUES ('0005_cap_four_dollars_more.sql', 'bc56796c81fe0851b39386288b75be9e60b3a3b1f6d89f2ca449f40dabc518e7');\n"
+  printf "INSERT INTO schema_migrations (name, checksum) VALUES ('0005_cap_four_dollars_more.sql', 'bc56796c81fe0851b39386288b75be9e60b3a3b1f6d89f2ca449f40dabc518e7');\n"
 } | ssh knowscroll-vps 'sudo -u postgres psql -v ON_ERROR_STOP=1 --single-transaction \
   "postgresql:///knowscroll_pool?host=/var/run/postgresql&options=-c%20role%3Dks_pool" -f -'
-ssh knowscroll-vps 'sudo -u postgres psql -d knowscroll_pool -Atc "select * from pool_budget_status()" -c "select filename, sha256 from schema_migrations order by 1"'
+ssh knowscroll-vps 'sudo -u postgres psql -d knowscroll_pool -Atc "select * from pool_budget_status()" -c "select name, checksum from schema_migrations order by 1"'
 ```
 
 Expected: `1017|617|400`, and three tracker rows ending with `0005_cap_four_dollars_more.sql`. Check the hash in the
 `INSERT` first: `shasum -a 256 ops/pool/migrations/0005_cap_four_dollars_more.sql` must print the same value.
 (CI keeps this page and the file in step: a test fails if the hash here is not the file's.)
 
-**One thing to know before a v1 release is ever deployed to stage again.** v1's migrator
-(`scripts/migrate-pool.ts` in the `legacy/v1-final` tag) reads the pool-migrations folder of the release being
-deployed, requires every recorded migration to be present in it, and applies only files that are not recorded.
-It never re-runs `0005`, because a v1 release has no such file. But with the row recorded it stops with
-"Applied migration is missing from disk: 0005_cap_four_dollars_more.sql". A v2 release runs no pool migrator,
-so nothing is affected by the row and the row is correct for any later v2-era pool tooling. If a v1 stage
-deploy is still planned, delete the row first (`DELETE FROM schema_migrations WHERE filename =
-'0005_cap_four_dollars_more.sql'`) and put it back afterwards; the cap itself needs no such care.
+Once `0005` is recorded, a fresh v1 deploy to stage would refuse at its pool migrator ("Applied migration is
+missing from disk"), because a v1 release has no `0005` file. That is a safe failure, and it does not block us:
+stage moves to v2 by `scripts/promote.sh stage`, a v2 release runs no pool migrator, and `ks rollback` runs no
+migrator. The row stays once recorded.
 
 ### 3. Let the world reach the pool
 

@@ -97,20 +97,20 @@ describe('the runbook step that applies 0005 and records it', () => {
     const hash = (value: string) => createHash('sha256').update(value).digest('hex');
     // The tracker as the v1 migrator left it: one row per applied file, the hash of its text.
     await pool.client.query(
-      'create table schema_migrations (filename text primary key, sha256 text not null, applied_at timestamptz not null default now())',
+      'create table schema_migrations (name text primary key, checksum text not null, applied_at timestamptz not null default now())',
     );
     for (const name of ['0001_shared_pool.sql', '0002_cap_seven_dollars.sql'])
-      await pool.client.query('insert into schema_migrations (filename, sha256) values ($1, $2)', [
+      await pool.client.query('insert into schema_migrations (name, checksum) values ($1, $2)', [
         name,
         hash(await text(name)),
       ]);
 
     const name = '0005_cap_four_dollars_more.sql';
     const migration = await text(name);
-    const record = `INSERT INTO schema_migrations (filename, sha256) VALUES ('${name}', '${hash(migration)}');`;
+    const record = `INSERT INTO schema_migrations (name, checksum) VALUES ('${name}', '${hash(migration)}');`;
     const tracked = async () =>
-      (await pool.client.query<{ filename: string }>('select filename from schema_migrations order by 1')).rows.map(
-        (row) => row.filename,
+      (await pool.client.query<{ name: string }>('select name from schema_migrations order by 1')).rows.map(
+        (row) => row.name,
       );
 
     await pool.seedSettled(618);
@@ -121,7 +121,7 @@ describe('the runbook step that applies 0005 and records it', () => {
     await pool.drop();
     pool = await createTestPool();
     await pool.client.query(
-      'create table schema_migrations (filename text primary key, sha256 text not null, applied_at timestamptz not null default now())',
+      'create table schema_migrations (name text primary key, checksum text not null, applied_at timestamptz not null default now())',
     );
     await pool.seedSettled(617);
     await pool.client.query(`${migration}\n${record}\n`);
