@@ -13,6 +13,8 @@ export const peer = { kind: 'person' as const, personId: id(11), handle: 'fixtur
 export const conversation = { conversationId: id(20), membershipId: id(21), membershipRevision: 1 };
 /** The thread "Explore with friends" creates in the fixture. */
 export const createdThread = { threadId: id(60), membershipId: id(61), membershipRevision: 1 };
+/** The thread a fixture invitation opens. */
+export const invitedThread = { threadId: id(70), membershipId: id(71), membershipRevision: 1 };
 const scopeEnvelope = { accountId: account.accountId, privacyEpoch: 1 };
 
 type Body = Record<string, unknown>;
@@ -41,6 +43,8 @@ export function talkServer() {
   let readThrough = 0;
   let muted = false;
   let tokenCounter = 0;
+  let invitation: { readonly name: string } | undefined;
+  const invitationAnswers: unknown[] = [];
   const token = () => `kssh_${String(++tokenCounter).padStart(43, 'T')}`;
 
   const shownPeer = () =>
@@ -245,6 +249,49 @@ export function talkServer() {
             : [],
           continuation: { kind: 'end' },
         };
+      case '/v1/social/threads/inbox':
+        return {
+          version: 'content-thread.v1',
+          readId: body['readId'],
+          scope: scopeEnvelope,
+          status: 'ready',
+          limit: body['limit'],
+          viewRevision: 1,
+          items:
+            invitation === undefined
+              ? []
+              : [
+                  {
+                    thread: invitedThread,
+                    name: invitation.name,
+                    root: {
+                      status: 'available',
+                      target: { assetId: id(500), assetRevision: 1 },
+                      metadata: { kind: 'reel', title: 'What one answer costs to serve', summary: '', language: 'en' },
+                    },
+                    state: 'invited',
+                    ownPersonId: me.personId,
+                    people: [peer],
+                    latestMessageSequence: 0,
+                    own: { readThroughSequence: 0, muted: false },
+                    lastActivityAt: '2026-10-24T08:00:00.000Z',
+                  },
+                ],
+        };
+      case '/v1/social/threads/respond':
+        invitationAnswers.push(body['response']);
+        invitation = undefined;
+        return {
+          version: 'content-thread.v1',
+          scope: scopeEnvelope,
+          commandId: body['commandId'],
+          recordedAt: '2026-10-24T08:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'thread.respond',
+          response: body['response'],
+          thread: invitedThread,
+        };
       case '/v1/social/conversations/start': {
         const key = `start:${String(body['commandId'])}`;
         const replay = commands.get(key);
@@ -396,6 +443,12 @@ export function talkServer() {
     failNext(path: string, ...kinds: Failure[]) {
       failures.set(path, [...(failures.get(path) ?? []), ...kinds]);
     },
+    /** The peer invites the person to a thread; Talk lists it as a card until it is answered. */
+    inviteToThread(name: string) {
+      invitation = { name };
+    },
+    /** What the person answered to invitations, in order. */
+    invitationAnswers: () => [...invitationAnswers],
     /** The peer writes a message. */
     peerSays: (text: string) => add(peer, { text }),
     /** The server turns a message into a tombstone with a new change number. */

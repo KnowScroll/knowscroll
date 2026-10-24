@@ -11,7 +11,7 @@ import { dayKey, dayLabel, type ThreadController, type ThreadState } from '@know
 import type { ConversationMessage } from '@knowscroll/contracts';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
-import { MessageBubble, OutgoingBubble } from './message-views';
+import { AwayDivider, firstAwayMessage, MessageBubble, OutgoingBubble } from './message-views';
 
 /** How close to the end still counts as "reading the latest" (px). */
 const NEAR_END = 80;
@@ -68,6 +68,7 @@ export function MessageList({ state, controller, name, scrollRef, onScroll }: Me
     message.status === 'available' && message.author.personId !== state.peer?.personId;
   const lastMineSequence = [...state.messages].reverse().find(mineOf)?.sequence;
   const now = new Date();
+  const awayFrom = firstAwayMessage(state.messages, state.awayAfterSequence);
   return (
     <ScrollView
       ref={scrollRef}
@@ -100,6 +101,7 @@ export function MessageList({ state, controller, name, scrollRef, onScroll }: Me
             </Text>
             {group.items.map((message) => (
               <View key={message.sequence} role="listitem" style={styles.item}>
+                {message.sequence === awayFrom ? <AwayDivider /> : null}
                 <MessageBubble message={message} mine={mineOf(message)} />
                 {message.sequence === lastMineSequence && state.outgoing.length === 0 ? (
                   <Text variant="monoXs" color={content.ink2} align="right">

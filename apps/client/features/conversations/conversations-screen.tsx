@@ -8,8 +8,10 @@ import { useAccountScopeIfPresent } from '../../providers/account-scope';
 import { ScreenFrame } from '../shell/screen-frame';
 import { EmptyTalk } from './empty-talk-screen';
 import { PersonAvatar } from './person-avatar';
+import { NewTalkButton, useTalkHasContent } from './new-talk';
 import { conversationHref } from './conversation-links';
 import { useTalkInbox } from './use-talk-inbox';
+import { InvitationCard } from '../threads/invitation-card';
 import { ThreadRow } from '../threads/thread-row';
 import { useThreadInbox } from '../threads/use-thread-inbox';
 import { RoomRow } from '../rooms/room-row';
@@ -70,18 +72,21 @@ export function TalkList({ scope, currentId }: { readonly scope: AccountScope; r
       />
     );
   if (inbox.items.length === 0 && threads.items.length === 0 && rooms.items.length === 0) return <EmptyTalk />;
-  // Direct conversations and threads share one list, newest activity first.
+  // An invitation is a card above the list (C03), not a row; the rest share one list, newest first.
+  const invitations = threads.items.filter((item) => item.state === 'invited');
   const rows = [
     ...inbox.items.map((item) => ({
       key: item.conversation.conversationId,
       at: inboxRowView(item).at?.getTime() ?? 0,
       node: <InboxRow item={item} current={item.conversation.conversationId === currentId} />,
     })),
-    ...threads.items.map((item) => ({
-      key: item.thread.threadId,
-      at: threadRowView(item).at.getTime(),
-      node: <ThreadRow item={item} />,
-    })),
+    ...threads.items
+      .filter((item) => item.state !== 'invited')
+      .map((item) => ({
+        key: item.thread.threadId,
+        at: threadRowView(item).at.getTime(),
+        node: <ThreadRow item={item} />,
+      })),
   ].sort((first, second) => second.at - first.at);
   return (
     <View style={styles.list}>
@@ -90,6 +95,9 @@ export function TalkList({ scope, currentId }: { readonly scope: AccountScope; r
           <Banner kind="offline" lead="Offline." message="This list may be out of date." />
         </View>
       ) : null}
+      {invitations.map((item) => (
+        <InvitationCard key={item.thread.threadId} scope={scope} item={item} />
+      ))}
       <View role="list" accessibilityLabel="Conversations">
         {rows.map((row) => (
           <View key={row.key} role="listitem">
@@ -125,20 +133,21 @@ export function TalkList({ scope, currentId }: { readonly scope: AccountScope; r
   );
 }
 
-/**
- * C01: Talk, the inbox of real conversations. Reading or opening it records nothing about anyone.
- * From 1024 px (D03) the list has a pane beside it, where a chosen conversation opens; until one
- * is chosen the pane says so.
- */
-export function ConversationsScreen() {
-  const { state, manager } = useAccountScopeIfPresent();
-  const desktop = useDisplay().breakpoint === 'desktop';
+/** A signed-in person's Talk: C01 draws New where the account avatar sits, with the list right under the title. */
+function SignedInTalk({ scope, desktop }: { readonly scope: AccountScope; readonly desktop: boolean }) {
+  const listed = useTalkHasContent(scope);
   return (
-    <ScreenFrame tone="paper" title="Talk" bodyOffset={dimension.stateOffsetPhone.talk}>
-      {state.status === 'signed_in' && desktop ? (
+    <ScreenFrame
+      tone="paper"
+      title="Talk"
+      showAccount={false}
+      bodyOffset={listed ? spacing[3] : dimension.stateOffsetPhone.talk}
+      trailing={listed ? <NewTalkButton /> : undefined}
+    >
+      {desktop ? (
         <View style={styles.panes}>
           <View style={styles.listPane}>
-            <TalkList scope={state.scope} />
+            <TalkList scope={scope} />
           </View>
           <View style={styles.emptyPane}>
             <Text variant="heading" heading={2}>
@@ -149,9 +158,25 @@ export function ConversationsScreen() {
             </Text>
           </View>
         </View>
-      ) : state.status === 'signed_in' ? (
-        <TalkList scope={state.scope} />
-      ) : state.status === 'unavailable' && manager !== undefined ? (
+      ) : (
+        <TalkList scope={scope} />
+      )}
+    </ScreenFrame>
+  );
+}
+
+/**
+ * C01: Talk, the inbox of real conversations. Reading or opening it records nothing about anyone.
+ * From 1024 px (D03) the list has a pane beside it, where a chosen conversation opens; until one
+ * is chosen the pane says so.
+ */
+export function ConversationsScreen() {
+  const { state, manager } = useAccountScopeIfPresent();
+  const desktop = useDisplay().breakpoint === 'desktop';
+  if (state.status === 'signed_in') return <SignedInTalk scope={state.scope} desktop={desktop} />;
+  return (
+    <ScreenFrame tone="paper" title="Talk" bodyOffset={dimension.stateOffsetPhone.talk}>
+      {state.status === 'unavailable' && manager !== undefined ? (
         <StateBlock
           title="Can't reach your account"
           body="Reconnect to see your conversations."

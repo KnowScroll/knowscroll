@@ -19,6 +19,8 @@ export interface ScreenFrameProps {
   readonly leading?: ReactNode;
   /** The account avatar in the header (D-006 c). On desktops it lives in the rail instead. */
   readonly showAccount?: boolean;
+  /** A screen's own header action (Talk's New), drawn in place of the account avatar. */
+  readonly trailing?: ReactNode;
   /** Decoration behind everything (the universe's glow and stars). */
   readonly backdrop?: ReactNode;
   /** How the body sits below the header. */
@@ -50,6 +52,7 @@ export function ScreenFrame({
   titleVariant = 'page',
   leading,
   showAccount = true,
+  trailing,
   backdrop,
   bodyPlacement = 'start',
   bodyOffset = dimension.stateOffsetPhone.keep,
@@ -70,6 +73,16 @@ export function ScreenFrame({
     }, [tone]),
   );
 
+  const headerAction =
+    trailing ??
+    (accountInHeader ? (
+      <AccountButton
+        onPress={() => router.navigate('/account')}
+        href="/account"
+        surface={tone === 'space' ? 'dark' : 'light'}
+        {...(initial === undefined ? {} : { initial })}
+      />
+    ) : undefined);
   const gutter = gutterFor(breakpoint);
   return (
     <View testID={testID} style={[styles.ground, { backgroundColor: tone === 'space' ? space.s0 : content.paper }]}>
@@ -86,22 +99,7 @@ export function ScreenFrame({
           },
         ]}
       >
-        <TopBar
-          title={title}
-          titleVariant={titleVariant}
-          tone={tone}
-          leading={leading}
-          trailing={
-            accountInHeader ? (
-              <AccountButton
-                onPress={() => router.navigate('/account')}
-                href="/account"
-                surface={tone === 'space' ? 'dark' : 'light'}
-                {...(initial === undefined ? {} : { initial })}
-              />
-            ) : undefined
-          }
-        />
+        <TopBar title={title} titleVariant={titleVariant} tone={tone} leading={leading} trailing={headerAction} />
         <View
           style={[
             styles.body,

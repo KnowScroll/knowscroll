@@ -1,5 +1,6 @@
 import type { ContentThreadRef, ThreadMessage, ThreadSummary } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
+import { talkFailure } from './talk-failure';
 import { formatRange } from './thread-snippets';
 
 const VERSION = 'content-thread.v1' as const;
@@ -86,4 +87,72 @@ export function threadRowView(item: ThreadSummary): ThreadRowView {
     unread: invited || (!mine && item.latestMessageSequence > item.own.readThroughSequence),
     at: new Date(item.lastActivityAt),
   };
+}
+
+/** What the invitation card in Talk shows: the people and content named in words, nothing of the conversation. */
+export interface InvitationCardView {
+  readonly heading: string;
+  readonly detail: string;
+  readonly kind: 'reel' | 'scroll' | undefined;
+}
+
+/**
+ * C03's "new thread" card. An invitation names only who asked and what the thread is about; who else
+ * is in it stays unseen until the person joins.
+ */
+export function invitationCardView(item: ThreadSummary): InvitationCardView {
+  const inviter = item.people[0]?.displayName ?? 'A friend';
+  const metadata =
+    item.root.status === 'available'
+      ? item.root.metadata
+      : item.root.status === 'corrected'
+        ? item.root.current.metadata
+        : undefined;
+  const title = item.name ?? metadata?.title;
+  return {
+    heading: title === undefined ? `${inviter} started a thread` : `${inviter} started a thread · ${title}`,
+    detail: metadata === undefined ? 'with you' : `with you · ${kindWord(metadata.kind)}`,
+    kind: metadata?.kind,
+  };
+}
+
+/** How answering an invitation ended; `unavailable` means the invitation changed or ended meanwhile. */
+export type InvitationAnswer = 'done' | 'unavailable' | 'offline' | 'failed' | 'ended';
+
+/**
+ * Joins or declines an invitation from Talk (C03: Join thread, Ignore). Ignoring is the same
+ * `thread.respond` decline the thread's own screen sends: it ends the invitation for this person
+ * only, and nobody else's list or notice changes. The caller keeps `commandId` for the intent, so a
+ * retry after an unknown outcome is the same command.
+ */
+export async function answerThreadInvitation(
+  scope: AccountScope,
+  thread: ContentThreadRef,
+  response: 'join' | 'decline',
+  commandId: string,
+): Promise<InvitationAnswer> {
+  try {
+    await scope.api.threads.respond({ version: VERSION, commandId, thread, response });
+    return 'done';
+  } catch (error) {
+    const failure = talkFailure(error);
+    return failure === 'stale' ? 'failed' : failure;
+  }
+}
+
+/**
+ * Who a thread composer addresses ("Message Ravi and Meera"): each person's first word, and the
+ * handle for any whose first word another person shares, so two "Sam"s are never both "Sam".
+ * Nobody to address reads "everyone".
+ */
+export function composerAddressees(
+  people: readonly { readonly displayName: string; readonly handle: string }[],
+): string {
+  const firstWord = (person: { readonly displayName: string }) => person.displayName.trim().split(/\s+/)[0] ?? '';
+  const names = people.map((person) => {
+    const shared = people.filter((other) => firstWord(other).toLowerCase() === firstWord(person).toLowerCase());
+    return shared.length > 1 ? `@${person.handle}` : firstWord(person);
+  });
+  if (names.length === 0) return 'everyone';
+  return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names.at(-1)!}`;
 }

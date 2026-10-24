@@ -5,6 +5,7 @@ import type {
   SendConversationMessage,
 } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
+import { awayAfter, newestSequence } from './away-divider';
 import { talkFailure } from './talk-failure';
 
 const VERSION = 'direct-conversation.v1' as const;
@@ -42,6 +43,8 @@ export interface ThreadState {
   readonly muted: boolean;
   /** The last read answer did not arrive; what is shown may be out of date. */
   readonly offline: boolean;
+  /** After a lost connection returned with new messages: the sequence the "While you were away" divider follows. */
+  readonly awayAfterSequence: number | undefined;
 }
 
 export interface ThreadController {
@@ -112,7 +115,9 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
     ended: false,
     muted: false,
     offline: false,
+    awayAfterSequence: undefined,
   };
+  let lostAfter: number | undefined;
   let catchUpCursor: string | undefined;
   let olderCursor: string | undefined;
   let readThrough = 0;
@@ -138,7 +143,17 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
     if (kind === 'ended') return;
     if (kind === 'unavailable') publish({ phase: 'unavailable' });
     else if (state.phase === 'loading') publish({ phase: 'failed', offline: kind === 'offline' });
-    else publish({ offline: true });
+    else {
+      if (!state.offline) lostAfter = newestSequence(state.messages);
+      publish({ offline: true });
+    }
+  }
+
+  /** The divider patch for messages read right after a lost connection came back. */
+  function returned(messages: readonly ConversationMessage[]): Partial<ThreadState> {
+    const away = state.offline ? awayAfter(lostAfter, messages) : undefined;
+    lostAfter = undefined;
+    return away === undefined ? {} : { awayAfterSequence: away };
   }
 
   async function load(): Promise<void> {
@@ -160,6 +175,7 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
         ended: snapshot.ended === true,
         muted: snapshot.own.muted,
         offline: false,
+        ...returned(snapshot.messages),
       });
       void markRead();
     } catch (error) {
@@ -191,7 +207,13 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
         );
         catchUpCursor = page.continuation.cursor;
         const wasEnded = state.ended;
-        publish({ messages, outgoing: settle(messages), ended: page.ended === true, offline: false });
+        publish({
+          messages,
+          outgoing: settle(messages),
+          ended: page.ended === true,
+          offline: false,
+          ...returned(messages),
+        });
         // The conversation just ended (someone left, or an account was deleted): read it afresh,
         // because who the other person is shown as may have changed with it.
         if (page.ended === true && !wasEnded) {
