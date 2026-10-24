@@ -290,6 +290,7 @@ export interface ContentScrollProductionRuns {
   research: Generated<Json>;
   scope_generation: number;
   state: string;
+  take: Generated<number>;
   target_revision: number;
   topic: string;
   writer_output: Json | null;
@@ -729,6 +730,18 @@ export interface GeographyState {
   universe_id: string;
 }
 
+export interface IdentityAccountDeletions {
+  account_id: string | null;
+  attempts: Generated<number>;
+  completed_at: Timestamp | null;
+  failure_code: string | null;
+  id: string;
+  next_attempt_at: Generated<Timestamp>;
+  requested_at: Generated<Timestamp>;
+  scope_id: string | null;
+  state: Generated<string>;
+}
+
 export interface IdentityAccounts {
   created_at: Generated<Timestamp>;
   id: string;
@@ -770,6 +783,19 @@ export interface IdentityClearOperations {
   to_epoch: number;
 }
 
+export interface IdentityDataExports {
+  account_id: string;
+  downloaded_at: Timestamp | null;
+  expires_at: Timestamp | null;
+  id: string;
+  link_expires_at: Timestamp | null;
+  link_hash: string | null;
+  payload: Buffer | null;
+  ready_at: Timestamp | null;
+  requested_at: Generated<Timestamp>;
+  state: Generated<string>;
+}
+
 export interface IdentityEmailAddresses {
   account_id: string;
   address: string;
@@ -806,9 +832,11 @@ export interface IdentitySessions {
   account_id: string;
   client: string;
   created_at: Generated<Timestamp>;
+  device_label: string | null;
   expires_at: Timestamp;
   id: string;
   issued_by_command: string | null;
+  last_used_at: Timestamp | null;
   revoked_at: Timestamp | null;
   revoked_reason: string | null;
   token_hash: string;
@@ -1580,8 +1608,10 @@ export interface SupplyWork {
   brief: Json;
   canonical_key: string;
   closed_at: Timestamp | null;
+  commissioned_by: string | null;
   created_at: Generated<Timestamp>;
   id: string;
+  production_recipe: string | null;
 }
 
 export interface DB {
@@ -1641,9 +1671,11 @@ export interface DB {
   "geography.relations": GeographyRelations;
   "geography.runs": GeographyRuns;
   "geography.state": GeographyState;
+  "identity.account_deletions": IdentityAccountDeletions;
   "identity.accounts": IdentityAccounts;
   "identity.clear_liabilities": IdentityClearLiabilities;
   "identity.clear_operations": IdentityClearOperations;
+  "identity.data_exports": IdentityDataExports;
   "identity.email_addresses": IdentityEmailAddresses;
   "identity.recording_commands": IdentityRecordingCommands;
   "identity.recording_lifecycle_witnesses": IdentityRecordingLifecycleWitnesses;

@@ -1,6 +1,6 @@
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { sql } from 'kysely';
-import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { exportNothing, type ModuleErasure } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { applyActionEvidenceQueue, projectScrollReadingQueue, projectEncounterActivityQueue } from '../events.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
@@ -62,3 +62,8 @@ evidenceErasure.clearExploration = {
     return { module: 'evidence', status: 'completed', removed };
   },
 };
+
+evidenceErasure.export = exportNothing(
+  evidenceErasure,
+  'Observations, qualification and scores derived from your activity: internal projections of the encounters listed under experience.',
+);

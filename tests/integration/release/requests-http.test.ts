@@ -155,6 +155,8 @@ describe('private Supply HTTP boundary in the installed release', () => {
       AGENTMAIL_INBOX_ID: 'fixture@agentmail.invalid',
       KS_BODY_LIMIT_BYTES: '4096',
       KS_SHUTDOWN_GRACE_SECONDS: '10',
+      // Create may start production for a request that no admitted content serves (D-037).
+      KS_SUPPLY_CREATE_DAILY_CAP: '20',
     });
     await api.waitForEvent('process.started');
     await waitForHttp(`${origin}/health`);
@@ -297,12 +299,12 @@ describe('private Supply HTTP boundary in the installed release', () => {
   });
 
   it('cancels only its private waiter, replays cancellation and rejects command-key reuse', async () => {
-    const c = command('earth.tides', 'reel');
+    const c = command('earth.tides', 'scroll');
     const a = await client().supply.create(c);
     const b = await client(stranger).supply.create({ ...c, commandId: randomUUID() });
     expect(await client().supply.read({ requestId: a.requestId })).toMatchObject({
       status: 'preparing',
-      phase: 'requested',
+      phase: 'preparing',
     });
     const before = await snapshot(person);
     for (let n = 0; n < 3; n++) await client().supply.read({ requestId: a.requestId });
@@ -322,7 +324,7 @@ describe('private Supply HTTP boundary in the installed release', () => {
     expect(await client().supply.read({ requestId: a.requestId })).toMatchObject({ status: 'cancelled' });
     expect(await client(stranger).supply.read({ requestId: b.requestId })).toMatchObject({
       status: 'preparing',
-      phase: 'requested',
+      phase: 'preparing',
     });
     expect(await client().supply.create(c)).toEqual({ ...a, replayed: true });
     await expectProblem(await post('/v1/content/requests', { ...c, language: 'fr' }), 422, 'COMMAND_KEY_REUSED');
@@ -340,10 +342,10 @@ describe('private Supply HTTP boundary in the installed release', () => {
     expect(new Set(work.map((r) => r.work_id)).size).toBe(1);
     const shared = await handle.db
       .selectFrom('supply.work')
-      .select('active')
+      .select(['active', 'production_recipe'])
       .where('id', '=', work[0]!.work_id!)
       .executeTakeFirstOrThrow();
-    expect(shared.active).toBe(true);
+    expect(shared).toEqual({ active: true, production_recipe: 'tides' });
   });
 
   it('makes foreign and unknown request reads/cancels identical without private effects', async () => {
@@ -375,21 +377,59 @@ describe('private Supply HTTP boundary in the installed release', () => {
     expect(await snapshot(stranger)).toEqual(before);
   });
 
-  it('accepts unsupported private text as a closed status without work or logging the request', async () => {
+  it('closes an ask no match can serve at once, and keeps a free-text ask private while it waits to be matched', async () => {
     const p = await seedPerson(handle.db);
-    const c: CreateContentRequest = {
+    const french: CreateContentRequest = {
       ...command(),
       intent: { kind: 'topic', subject: { kind: 'text', text: privateCanary }, format: 'scroll' },
+      language: 'fr',
     };
-    const receipt = await client(p).supply.create(c);
-    expect(await client(p).supply.read({ requestId: receipt.requestId })).toMatchObject({
+    const closed = await client(p).supply.create(french);
+    expect(await client(p).supply.read({ requestId: closed.requestId })).toMatchObject({
       status: 'unavailable',
       reason: 'unsupported_request',
     });
+    expect((await snapshot(p)).jobs).toEqual([]);
+
+    const free: CreateContentRequest = {
+      ...command(),
+      intent: { kind: 'topic', subject: { kind: 'text', text: privateCanary }, format: 'scroll' },
+    };
+    const receipt = await client(p).supply.create(free);
+    expect(await client(p).supply.read({ requestId: receipt.requestId })).toMatchObject({
+      status: 'preparing',
+      phase: 'requested',
+    });
+    // The queued job names the request by ID; the words are in the private row only.
     const state = await snapshot(p);
-    expect(state.jobs).toEqual([]);
+    expect(state.jobs).toHaveLength(1);
+    expect(JSON.stringify(state.jobs)).not.toContain(privateCanary);
     expect(state.exposures).toEqual([]);
-    expect(await client(p).supply.create(c)).toEqual({ ...receipt, replayed: true });
+    expect(await client(p).supply.create(free)).toEqual({ ...receipt, replayed: true });
+  });
+
+  it('lists the person own asks newest first with a title, never another person ask', async () => {
+    const p = await seedPerson(handle.db),
+      other = await seedPerson(handle.db);
+    const first = await client(p).supply.create(command('earth.seasons', 'scroll'));
+    await client(other).supply.create(command('earth.tides', 'scroll'));
+    const second = await client(p).supply.create({
+      ...command(),
+      intent: { kind: 'topic', subject: { kind: 'text', text: 'How do whales sleep?' }, format: 'either' },
+    });
+    const listed = await client(p).supply.list();
+    expect(listed).toMatchObject({ version: 'content-request-list.v1' });
+    expect(listed.requests.map((r) => [r.title, r.format, r.status.requestId])).toEqual([
+      ['How do whales sleep?', 'either', second.requestId],
+      ['Seasons', 'scroll', first.requestId],
+    ]);
+    expect(JSON.stringify(listed)).not.toContain('Tides');
+    await expectProblem(await fetch(`${origin}/v1/content/requests`, { headers: {} }), 401, 'UNAUTHENTICATED');
+    await expectProblem(
+      await fetch(`${origin}/v1/content/requests`, { headers: headers(p, 2) }),
+      409,
+      'SCOPE_MISMATCH',
+    );
   });
 
   it('fences stale scope before read/create/cancel and keeps old-epoch requests hidden after reset', async () => {

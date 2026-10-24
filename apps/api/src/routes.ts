@@ -1,3 +1,5 @@
+import { AccountController } from './http/account.controller.js';
+import { ExportDownloadController } from './http/export-download.controller.js';
 import { SocialController } from './http/social.controller.js';
 import { ConversationsController } from './http/conversations.controller.js';
 import { ShareLandingController } from './http/share-landing.controller.js';
@@ -23,6 +25,8 @@ import { ObservationsController } from './http/observations.controller.js';
 export const apiControllers = [
   HealthController,
   AuthController,
+  AccountController,
+  ExportDownloadController,
   ExperienceController,
   ObservationsController,
   RecordingController,

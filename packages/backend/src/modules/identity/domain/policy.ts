@@ -9,6 +9,12 @@ export const SIGN_IN_LINK_TTL_MINUTES = 15;
 /** A session lasts at most this long (the migration refuses longer). */
 export const SESSION_TTL_DAYS = 30;
 
+/** Account shows at most this many live sessions; older ones are the ones that scrolled off. */
+export const SESSION_LIST_LIMIT = 20;
+
+/** `last_used_at` is written at most this often per session, so a busy session is not a hot row. */
+export const SESSION_TOUCH_MINUTES = 10;
+
 export interface LinkLimit {
   readonly max: number;
   readonly windowSeconds: number;

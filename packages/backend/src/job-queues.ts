@@ -11,9 +11,12 @@ import {
   projectEncounterActivityQueue,
 } from './modules/evidence/public.js';
 import {
-  sweepSignInRecordsQueue,
+  buildDataExportQueue,
   clearExplorationQueue,
+  deleteAccountQueue,
+  recoverAccountDeletionsQueue,
   recoverClearOperationsQueue,
+  sweepSignInRecordsQueue,
 } from './modules/identity/public.js';
 import {
   cutroomAccountingQueue,
@@ -35,6 +38,9 @@ export const releaseQueues = queueRegistry([
   recoverReceiveCutroomQueue,
   clearExplorationQueue,
   recoverClearOperationsQueue,
+  deleteAccountQueue,
+  recoverAccountDeletionsQueue,
+  buildDataExportQueue,
   cutroomPoolQueue,
   cutroomAccountingQueue,
   cutroomFollowQueue,
@@ -46,6 +52,7 @@ export const releaseQueues = queueRegistry([
   cartographyQueue,
   publishDeltaQueue,
   resolveSupplyQueue,
+  produceScrollQueue,
   plannerQueue,
   prepareBufferQueue,
   applyActionEvidenceQueue,
@@ -55,4 +62,4 @@ export const releaseQueues = queueRegistry([
   purgeExpiredRequestsQueue,
   sweepDispatchedAttemptsQueue,
 ]);
-import { receiveCutroomQueue, recoverReceiveCutroomQueue } from './modules/content/public.js';
+import { produceScrollQueue, receiveCutroomQueue, recoverReceiveCutroomQueue } from './modules/content/public.js';

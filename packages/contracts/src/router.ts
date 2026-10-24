@@ -1,3 +1,4 @@
+import { accountContract } from './account.js';
 import { publicContentSharesContract } from './public-content-shares.js';
 import { conversationsContract } from './conversations.js';
 import { contentSharesContract } from './content-shares.js';
@@ -11,7 +12,12 @@ import { sharingContract } from './sharing.js';
 import { readSceneManifestContract, readSceneChunkContract } from './scenes.js';
 import { readEmergingUniverseContract, readGeographyContract, readUniverseDeltasContract } from './geography.js';
 import { mediaGrantContract } from './media.js';
-import { cancelContentRequestContract, createContentRequestContract, readContentRequestContract } from './supply.js';
+import {
+  cancelContentRequestContract,
+  createContentRequestContract,
+  listContentRequestsContract,
+  readContentRequestContract,
+} from './supply.js';
 import { exposureContextContract, navigateExperienceContract } from './navigation.js';
 import { previewRegionEncounterContract, openRegionEncounterContract } from './region-encounter.js';
 import {
@@ -37,6 +43,7 @@ import { submitRecordingObservationsContract } from './interactions.js';
 // Named procedure references keep declaration emission bounded as the shared protocol grows.
 export const apiContract: {
   health: typeof healthContract;
+  account: typeof accountContract;
   privacy: typeof privacyContract;
   recording: typeof recordingContract;
   keep: typeof keepContract & { remove: typeof removeKeepEntryContract };
@@ -56,6 +63,7 @@ export const apiContract: {
   supply: {
     create: typeof createContentRequestContract;
     read: typeof readContentRequestContract;
+    list: typeof listContentRequestsContract;
     cancel: typeof cancelContentRequestContract;
   };
   identity: {
@@ -83,6 +91,7 @@ export const apiContract: {
   diagnostics: { evidence: typeof evidenceDiagnosticsContract };
 } = {
   health: healthContract,
+  account: accountContract,
   privacy: privacyContract,
   recording: recordingContract,
   keep: { ...keepContract, remove: removeKeepEntryContract },
@@ -102,6 +111,7 @@ export const apiContract: {
   supply: {
     create: createContentRequestContract,
     read: readContentRequestContract,
+    list: listContentRequestsContract,
     cancel: cancelContentRequestContract,
   },
   identity: {

@@ -15,6 +15,7 @@ export type {
   TopicStatistics,
   ReadRecentContextTopics,
 } from './application/ports.js';
+export { encounteredUnitsOf } from './application/met-units.js';
 export const APPLY_PROJECTED_ENCOUNTER = Symbol('personal-context.applyProjectedEncounter');
 export const READ_EXPLORATION_SNAPSHOT = Symbol('personal-context.readExplorationSnapshot');
 export const ACTIVITY_CONTEXT_EFFECT = Symbol('personal-context.activityContextEffect');

@@ -1,6 +1,6 @@
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { sql } from 'kysely';
-import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { exportNothing, type ModuleErasure } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { plannerQueue } from '../events.js';
@@ -48,3 +48,5 @@ plannerErasure.clearExploration = {
     return { module: 'planner', status: 'completed', removed };
   },
 };
+
+plannerErasure.export = exportNothing(plannerErasure, 'Internal plans and the runs that proposed them.');

@@ -198,8 +198,12 @@ async function lockAndRecheck(
   return { kind: 'locked', revision: universe.revision };
 }
 
-/** Creates the scope capability for the locked root and runs `work`; the capability dies with it. */
-async function runInScope<T>(
+/**
+ * Creates the scope capability for the locked root and runs `work`; the capability dies with it.
+ * Exported for identity's account-deletion entry, which locks a `deleting` root itself and then
+ * needs the same capability the universe erasers take.
+ */
+export async function runInScope<T>(
   trx: Transaction<Database>,
   authority: PersonalAuthority,
   revisionAtEntry: number,

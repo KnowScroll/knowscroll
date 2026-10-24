@@ -44,8 +44,16 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { WorkerConfig } from '@knowscroll/backend/infrastructure/config';
 import type { createBoss } from '@knowscroll/backend/infrastructure/jobs';
-import { eraseCurrentExploration } from '@knowscroll/backend/erasure-registry';
-import { clearExplorationFor } from '@knowscroll/backend/modules/identity/nest-providers';
+import {
+  eraseCurrentAccount,
+  eraseCurrentExploration,
+  exportCurrentPerson,
+} from '@knowscroll/backend/erasure-registry';
+import {
+  clearExplorationFor,
+  dataExportFor,
+  deleteAccountFor,
+} from '@knowscroll/backend/modules/identity/nest-providers';
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { jobConsumer, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
@@ -78,14 +86,20 @@ import {
 } from '@knowscroll/backend/modules/identity';
 import { identitySweepProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import {
+  PRODUCTION_REASONING_HARNESS,
   PURGE_EXPIRED_REQUESTS,
+  REASONING_HARNESS,
   SWEEP_DISPATCHED_ATTEMPTS,
+  WITH_PRODUCTION_SCOPE,
   purgeExpiredRequestsQueue,
   sweepDispatchedAttemptsQueue,
+  type ProductionReasoningHarness,
   type PurgeExpiredRequests,
   type SweepDispatchedAttempts,
+  type WithProductionScope,
 } from '@knowscroll/backend/reasoning';
 import { reasoningPurgeProviders, reasoningSweepProviders } from '@knowscroll/backend/reasoning/nest-providers';
+import { scrollProductionConsumers } from './production-jobs.js';
 import {
   ENQUEUE_JOB,
   DATABASE,
@@ -95,7 +109,7 @@ import {
   WORKER_CONFIG,
   PG_BOSS,
 } from './tokens.js';
-import { clearExplorationConsumers } from './privacy.js';
+import { accountPrivacyConsumers, clearExplorationConsumers } from './privacy.js';
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-context';
 
@@ -122,7 +136,13 @@ export const jobWiring: Provider[] = [
       },
   },
   ...identityScopeOwnerProviders(),
-  ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
+  // The worker's resolver matches free-text asks through the personal reasoning harness.
+  ...supplyProviders({
+    withPersonalScope: WITH_PERSONAL_SCOPE,
+    enqueueJob: ENQUEUE_JOB,
+    config: WORKER_CONFIG,
+    harness: REASONING_HARNESS,
+  }),
   ...plannerRequestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...plannerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   ...plannerReadProviders(),
@@ -160,6 +180,8 @@ export const jobWiring: Provider[] = [
       SWEEP_SIGN_IN_RECORDS,
       PURGE_EXPIRED_REQUESTS,
       SWEEP_DISPATCHED_ATTEMPTS,
+      PRODUCTION_REASONING_HARNESS,
+      WITH_PRODUCTION_SCOPE,
       LOG_EVENT,
       DATABASE,
       PG_BOSS,
@@ -179,6 +201,8 @@ export const jobWiring: Provider[] = [
       sweepSignInRecords: SweepSignInRecords,
       purgeExpiredRequests: PurgeExpiredRequests,
       sweepDispatchedAttempts: SweepDispatchedAttempts,
+      productionHarness: ProductionReasoningHarness,
+      withProductionScope: WithProductionScope,
       logEvent: LogEvent,
       db: Kysely<Database>,
       boss: ReturnType<typeof createBoss>,
@@ -187,6 +211,13 @@ export const jobWiring: Provider[] = [
       jobConsumer(expireFormationQueue, async (job) => formation.expire(job)),
       jobConsumer(recoverFormationQueue, async (job) => {
         await formation.recover(job);
+      }),
+      ...scrollProductionConsumers({
+        config,
+        db,
+        harness: productionHarness,
+        withScope: withProductionScope,
+        logEvent,
       }),
       ...cutroomConsumers(config.cutroom, config.world, (setup) => assembleCutroom(db, boss, config, setup)),
       ...receiveConsumers(config.receiving, config.world, (setup) => assembleReceiving(db, boss, config, setup)),
@@ -198,6 +229,16 @@ export const jobWiring: Provider[] = [
           lockTimeoutMs: config.scopeLockTimeoutMs,
         }),
       ),
+      ...accountPrivacyConsumers(
+        {
+          deletion: deleteAccountFor(db, boss, {
+            eraseAccountData: eraseCurrentAccount,
+            lockTimeoutMs: config.scopeLockTimeoutMs,
+          }),
+          exports: dataExportFor(db, boss, { gather: exportCurrentPerson, lockTimeoutMs: config.scopeLockTimeoutMs }),
+        },
+        logEvent,
+      ),
       jobConsumer(projectSceneQueue, async (payload) => {
         await projectScene(payload);
       }),
@@ -207,8 +248,8 @@ export const jobWiring: Provider[] = [
       jobConsumer(publishDeltaQueue, async (payload) => {
         await publishDelta(payload);
       }),
-      jobConsumer(resolveSupplyQueue, async (payload) => {
-        await resolveRequest(payload);
+      jobConsumer(resolveSupplyQueue, async (payload, delivery) => {
+        await resolveRequest(payload, delivery);
       }),
       jobConsumer(plannerQueue, async (payload, delivery) => {
         await runPlanner(payload, delivery.signal);
@@ -246,7 +287,7 @@ export const jobWiring: Provider[] = [
       // Every 15 minutes (pg-boss cron, review m12): expired links and long-ended sessions.
       jobConsumer(sweepSignInRecordsQueue, async () => {
         const removed = await sweepSignInRecords();
-        logEvent('identity.sign_in_records_swept', { count: removed.links + removed.sessions });
+        logEvent('identity.sign_in_records_swept', { count: removed.links + removed.sessions + removed.exports });
       }),
       // Every 15 minutes: protected request bytes past their retention (logs `reasoning.requests_purged`).
       jobConsumer(purgeExpiredRequestsQueue, async () => {

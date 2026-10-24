@@ -31,6 +31,7 @@ export {
   type AccountScopeManagerOptions,
   type AccountScopeState,
   type SessionTokenStore,
+  type SignedOutReason,
   type SignInBinding,
 } from './account-scope-manager';
 export { TALK_QUERY_KEY, connectScopeSocket, type SocketContext } from './account-scope-socket';
@@ -62,6 +63,7 @@ export {
   createAuthClient,
   type AuthClient,
   type AuthClientOptions,
+  type DeletionReceiptOutcome,
   type PeekOutcome,
   type RedeemOutcome,
   type RequestLinkOutcome,
@@ -159,3 +161,19 @@ export {
   type RecordingPolicyState,
   type RecordingPolicySession,
 } from './recording-policy';
+
+export {
+  DELETION_RECEIPT_KEY,
+  createDeletionReceiptSession,
+  type DeletionReceiptSession,
+  type DeletionReceiptState,
+} from './deletion-receipt';
+
+export {
+  createAccountSessionsSession,
+  type AccountSessionsSession,
+  type AccountSessionsState,
+  type SessionsEnding,
+} from './account-sessions';
+export { createDataExportsSession, type DataExportsSession, type DataExportsState } from './data-exports';
+export { requestAccountDeletion, type AccountDeletionDeps, type AccountDeletionOutcome } from './account-deletion';

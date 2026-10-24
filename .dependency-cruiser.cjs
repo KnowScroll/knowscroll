@@ -30,6 +30,10 @@ const compositionRoots = [
   '^apps/worker/src/jobs\\.ts$',
   // The worker's operator command composes the reasoning ledger for write-offs (S2.2).
   '^apps/worker/src/operator\\.ts$',
+  // The Scroll production consumer and the operator's library commands compose the production use case (#239).
+  '^apps/worker/src/production-jobs\\.ts$',
+  '^apps/worker/src/library-operator\\.ts$',
+  '^apps/worker/src/supply-operator\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 

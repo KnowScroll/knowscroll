@@ -10,6 +10,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/problems.ts` | `problemCatalogue` (code → HTTP status, fixed title), RFC 9457 `ProblemDetailsSchema`, `problemDetails()` |
 | `src/health.ts` | `GET /health` response and contract |
 | `src/identity.ts` | `/auth/*` sign-in and session routes, the link and session token shapes, the session cookie names (D-022) |
+| `src/account.ts` | Sessions (`GET /v1/account/sessions`, end one, end others), personal data export (`POST/GET /v1/account/exports`, one-time link), account deletion (`POST /v1/account/delete`) and the session-less deletion receipt routes under `/auth/deletion` (#246, D-043); `DELETED_ACCOUNT_LABEL` is the placeholder every shared surface shows for a deleted account |
 | `src/privacy.ts` | Declaration-only selective Clear exploration intent/acceptance, current coarse status and closed local problems |
 | `src/recording.ts` | Declaration-only recording policy read/set, immutable original receipts, current generation and closed private problems (#376) |
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |

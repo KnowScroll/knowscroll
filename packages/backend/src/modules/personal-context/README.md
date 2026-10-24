@@ -36,6 +36,11 @@ returns only supported facet IDs, with mapping/policy revision added to this inp
 that exists, no two-facet planet requirement can be met by this module's output. The reference-count
 mechanism can store trusted covered facets but the current integration does not invent them.
 
+`encounteredUnitsOf(snapshot)` (public) derives the explanations a person has met from a snapshot:
+qualified supporting evidence, retained routing history and established encountered units. It is a read,
+never a fact. The Planner uses it for what to suggest, and Supply uses it to bind planned demand only to
+content the person has not met.
+
 `ReadExplorationSnapshot` requires an existing live `PersonalScopeTx`. It validates independent
 bounds: ≤100 exact requested topics, ≤100 candidate explanation units and ≤16 facets/unit,
 ≤100 candidate asset IDs, recent actual routing history ≤20, provisional observation IDs ≤20,

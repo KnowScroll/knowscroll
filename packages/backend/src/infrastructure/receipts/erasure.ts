@@ -1,5 +1,5 @@
 import { clearCoreTransactionOf } from '../postgres/privacy-scope.js';
-import type { ModuleErasure } from '../erasure/registry.js';
+import { exportNothing, type ModuleErasure } from '../erasure/registry.js';
 import { transactionOf } from '../postgres/personal-scope.js';
 
 /** Personal command receipts of one universe. Shared receipts follow the shared scope's lifecycle. */
@@ -18,6 +18,15 @@ export const receiptsErasure: ModuleErasure = {
   },
 };
 
+/** Shared command receipts name the acting account; they go with it. Others' receipts are not touched. */
+receiptsErasure.eraseAccount = async (scope) => {
+  const result = await transactionOf(scope.personal)
+    .deleteFrom('receipts.shared_commands')
+    .where('actor_account_id', '=', scope.accountId)
+    .executeTakeFirst();
+  return { module: 'receipts', status: 'completed', removed: Number(result.numDeletedRows) };
+};
+
 receiptsErasure.clearExploration = {
   dispositions: { 'receipts.personal_commands': 'erase', 'receipts.shared_commands': 'preserve' },
   async erase(scope) {
@@ -29,3 +38,5 @@ receiptsErasure.clearExploration = {
     return { module: 'receipts', status: 'completed', removed: Number(result.numDeletedRows) };
   },
 };
+
+receiptsErasure.export = exportNothing(receiptsErasure, 'Command bookkeeping.');

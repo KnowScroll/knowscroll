@@ -24,7 +24,7 @@ export function requestHarness() {
     updatedAt: createdAt,
   } as const;
   let status: ContentRequestStatus = { ...fields, status: 'preparing', phase: 'requested' };
-  let createFailure = false;
+  let createFailure: boolean | 'too_many_open' = false;
   let cancelFailure = false;
   let withdrawn = false;
   let readGate: Promise<void> | undefined;
@@ -58,6 +58,11 @@ export function requestHarness() {
       }
       if (request.method === 'POST') {
         await createGate;
+        if (createFailure === 'too_many_open')
+          return new Response(JSON.stringify(problemDetails('TOO_MANY_REQUESTS')), {
+            status: 429,
+            headers: { 'content-type': 'application/problem+json' },
+          });
         if (createFailure) throw new Error('unknown_create');
         return json({
           version: 'content-request-receipt.v1',
@@ -100,7 +105,7 @@ export function requestHarness() {
     session,
     calls,
     opens,
-    setCreateFailure: (value: boolean) => {
+    setCreateFailure: (value: boolean | 'too_many_open') => {
       createFailure = value;
     },
     setCancelFailure: (value: boolean) => {

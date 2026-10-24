@@ -137,6 +137,15 @@ export const diagnosticCatalogue = {
     fields: ['requestId', 'method', 'route', 'reasonCode'],
   },
   'identity.operator_sign_in': { severity: 'by-call', module: 'identity', fields: ['outcome', 'reasonCode', 'error'] },
+  // Account deletion (D-043): outcomes and durations only. No account, universe or receipt id.
+  'identity.account_deletion_requested': { severity: 'info', module: 'identity', fields: ['requestId', 'outcome'] },
+  'identity.account_deletion_processed': {
+    severity: 'info',
+    module: 'identity',
+    fields: ['outcome', 'durationMs'],
+  },
+  'identity.account_deletions_recovered': { severity: 'info', module: 'identity', fields: ['count'] },
+  'identity.data_export_built': { severity: 'info', module: 'identity', fields: ['outcome', 'durationMs'] },
   'reasoning.admission_refused': {
     severity: 'info',
     module: 'reasoning',
@@ -173,6 +182,13 @@ export const diagnosticCatalogue = {
     severity: 'by-call',
     module: 'content',
     fields: ['outcome', 'reasonCode', 'count', 'error'],
+  },
+  // One delivery of the production job of a library recipe: the recipe key (`context`), the final
+  // outcome and its first code, and how many paid attempts the job holds. Never a draft or research.
+  'content.scroll_production_finished': {
+    severity: 'info',
+    module: 'content',
+    fields: ['context', 'outcome', 'reasonCode', 'count', 'durationMs'],
   },
   // Evidence intake (API) and projection (worker). Counts and codes; no event, block or exposure
   // content (D-017); personal-linkable IDs are withheld from the journal by the sink projection.
