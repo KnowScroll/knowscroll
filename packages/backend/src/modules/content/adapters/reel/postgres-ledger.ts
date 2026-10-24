@@ -32,6 +32,7 @@ interface AttemptRow {
   ceiling_cents: number;
   state: AttemptState;
   outcome_code: string | null;
+  dispatched_at: Date | null;
   run_id: string | null;
   pool_state: PoolState;
   remote_outcome: RunOutcome | null;
@@ -73,6 +74,7 @@ const attemptOf = (row: AttemptRow): ReelAttemptRecord => ({
   ceilingCents: row.ceiling_cents,
   state: row.state,
   outcomeCode: row.outcome_code,
+  dispatchedAt: row.dispatched_at,
   runId: row.run_id,
   poolState: row.pool_state,
   finished: finishedOf(row),
@@ -118,7 +120,7 @@ function updateOf(move: AttemptMove): { readonly set: RawBuilder<unknown>; reado
     case 'released':
       return {
         set: sql`pool_state = 'released'`,
-        when: sql`pool_state = 'claimed' and state in ('not_sent', 'failed')`,
+        when: sql`pool_state = 'claimed' and state in ('not_sent', 'failed', 'written_off')`,
       };
   }
 }

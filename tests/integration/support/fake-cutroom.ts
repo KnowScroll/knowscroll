@@ -37,6 +37,8 @@ export interface CompletedOptions {
   readonly costCents: number;
   /** Mark a failed check on a used take, so the engine's own record does not attest the Reel. */
   readonly failTake?: boolean;
+  /** The engine's record lists a degradation its result does not: the two disagree. */
+  readonly mismatchRecord?: boolean;
   readonly resumes?: string;
 }
 
@@ -282,7 +284,7 @@ export async function startFakeCutroom(root: string, onPost?: (body: string) => 
             outcome: options.failTake === true && index === 0 && gate === '4' ? 'fail' : 'accept',
           })),
         })),
-        degradations: [],
+        degradations: options.mismatchRecord === true ? [{ shotId: 'shot-2', reason: 'fixture mismatch' }] : [],
       };
       event(entry, { type: 'run.finished', status: 'completed' });
       return entry;

@@ -109,6 +109,13 @@ async function conclude(c: Conclusion): Promise<FollowResult> {
   const facts = factsOf(report);
   if (!attempt.paid)
     return finishedResult(c, report.tip.estimateCents === undefined ? {} : { estimateCents: report.tip.estimateCents });
+  if (attempt.poolState === 'settled')
+    return finishedResult(
+      c,
+      c.order.assetId === null
+        ? { reelRefused: 'not_published' }
+        : { published: { assetId: c.order.assetId, created: false } },
+    );
   if (report.outcome !== 'completed' || report.tip.until !== 'video') {
     const settled = await settleClaim(p, attempt, facts, report.outcome);
     return settled.kind === 'held'

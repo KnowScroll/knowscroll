@@ -67,7 +67,7 @@ create table content.reel_attempts (
   check (paid or pool_state = 'none'),
   -- Claim before order: nothing paid leaves `reserved` without a claim in the pool.
   check (not paid or state in ('reserved', 'not_sent') or pool_state <> 'none'),
-  check (pool_state <> 'released' or state in ('not_sent', 'failed')),
+  check (pool_state <> 'released' or state in ('not_sent', 'failed', 'written_off')),
   check (pool_state <> 'settled' or (remote_outcome is not null and settled_at is not null)),
   check ((dispatched_at is null) = (state in ('reserved', 'not_sent'))),
   check ((remote_outcome is null) = (finished_at is null)),

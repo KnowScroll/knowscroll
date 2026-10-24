@@ -40,6 +40,8 @@ export interface ReelAttemptRecord {
   readonly ceilingCents: number;
   readonly state: AttemptState;
   readonly outcomeCode: string | null;
+  /** When the dispatch intent was committed: the request may have left from then on. */
+  readonly dispatchedAt: Date | null;
   /** The first run Cutroom made for the request. */
   readonly runId: string | null;
   readonly poolState: PoolState;
@@ -272,4 +274,5 @@ export interface ReelPorts {
   readonly publisher: ReelPublisher;
   readonly sha256: (text: string) => string;
   readonly newId: () => string;
+  readonly now: () => Date;
 }

@@ -23,6 +23,8 @@ export interface ReelSettings {
   readonly cutroomArtifactRoot: string;
   readonly mediaRoot: string;
   readonly ffprobePath?: string | undefined;
+  /** The clock; only tests set it. */
+  readonly now?: (() => Date) | undefined;
 }
 
 /**
@@ -48,5 +50,6 @@ export function composeReelOperator(db: Kysely<Database>, poolDatabase: pg.Pool,
     publisher: postgresReelPublisher(db),
     sha256,
     newId,
+    now: settings.now ?? (() => new Date()),
   });
 }

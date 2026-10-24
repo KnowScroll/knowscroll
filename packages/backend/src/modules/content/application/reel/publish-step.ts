@@ -1,6 +1,6 @@
 import { checkEngineRecord, type ChainReport, type ChainRun } from '../../domain/reel/chain.js';
 import { approvalReference } from '../../domain/reel/script.js';
-import { checkAgainstWorld, recipeOf, type LintedScript, type ScriptRefusal } from './assess.js';
+import { checkAgainstWorld, recipeOf, type LintedScript } from './assess.js';
 import type { InstalledReel, ReelPorts, TwinScroll } from './ports.js';
 
 /** Cutroom's pinned revision (CF-61): the wire contract the Reel was made under. */
@@ -22,9 +22,10 @@ export interface PublishInput {
 }
 
 /**
- * `held`: try again later, nothing is lost (a file not readable yet, a Scroll not published here
- * yet, Cutroom unreachable). `refused`: this Reel will never be published, and the money for it
- * is spent.
+ * `held`: nothing is decided. Either something is not ready (a file not readable yet, a Scroll not
+ * published here yet, Cutroom unreachable) or something does not add up and a person should look
+ * (the engine's record disagrees with its result). The claim stays open.
+ * `refused`: the Reel is made and will never be published, and its money is spent.
  */
 export type PublishOutcome =
   | { readonly kind: 'published'; readonly assetId: string; readonly created: boolean }
@@ -64,12 +65,17 @@ function provenanceOf(
   };
 }
 
-function refusalOfScript(refusal: ScriptRefusal): PublishOutcome {
-  // A missing twin may appear later; a repeat or a changed unit never goes away.
-  return refusal.code === 'scroll_not_published'
-    ? { kind: 'held', code: refusal.code }
-    : { kind: 'refused', code: refusal.code };
-}
+/** What makes a made Reel unpublishable for good: the engine's own failed checks, a media file that is not a Reel, a repeat. */
+const FINAL_REFUSALS = new Set([
+  'record_picture',
+  'record_take',
+  'media_profile_refused',
+  'media_faststart_refused',
+  'artifact_size',
+  'repetition',
+]);
+
+const outcomeOf = (code: string): PublishOutcome => ({ kind: FINAL_REFUSALS.has(code) ? 'refused' : 'held', code });
 
 /**
  * Turns a finished, completed request into a Reel in this world: the engine's own record is
@@ -82,16 +88,15 @@ function refusalOfScript(refusal: ScriptRefusal): PublishOutcome {
 export async function publishFinishedReel(p: ReelPorts, input: PublishInput): Promise<PublishOutcome> {
   const { report, runs, linted } = input;
   const tip = report.tip;
-  if (tip.until !== 'video' || tip.videoPath === undefined) return { kind: 'refused', code: 'result_without_video' };
+  if (tip.until !== 'video' || tip.videoPath === undefined) return outcomeOf('result_without_video');
   const answered = await p.engine.record(report.finalRunId);
   if (answered.kind !== 'finished') return { kind: 'held', code: 'engine_unreachable' };
   const verdict = checkEngineRecord(tip, answered.record, runs.at(-1)?.status.resumes);
-  if (verdict !== 'ok') return { kind: 'refused', code: verdict };
+  if (verdict !== 'ok') return outcomeOf(verdict);
   const world = await checkAgainstWorld(p, linted);
-  if (world.kind === 'refused') return refusalOfScript(world);
+  if (world.kind === 'refused') return outcomeOf(world.code);
   const installed = await p.media.install({ path: tip.videoPath, runId: report.finalRunId });
-  if (installed.kind === 'unreadable') return { kind: 'held', code: installed.code };
-  if (installed.kind === 'refused') return { kind: 'refused', code: installed.code };
+  if (installed.kind !== 'installed') return outcomeOf(installed.code);
   const published = await p.publisher.publish({
     scriptName: linted.name,
     script: linted.script,
@@ -102,8 +107,5 @@ export async function publishFinishedReel(p: ReelPorts, input: PublishInput): Pr
     orderId: input.origin.kind === 'ordered' ? input.origin.orderId : undefined,
     runId: report.finalRunId,
   });
-  if (published.kind === 'published') return published;
-  return published.code === 'twin_changed'
-    ? { kind: 'held', code: published.code }
-    : { kind: 'refused', code: published.code };
+  return published.kind === 'published' ? published : outcomeOf(published.code);
 }

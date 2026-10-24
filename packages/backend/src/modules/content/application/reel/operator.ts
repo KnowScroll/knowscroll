@@ -3,6 +3,7 @@ import { makeFollowReel } from './follow.js';
 import { makeOrderReel } from './order.js';
 import type { ReelPorts } from './ports.js';
 import { makeReceiveReel } from './receive.js';
+import { makeSettleUnpublished } from './settle-unpublished.js';
 import { makeReelStatus } from './status.js';
 import { makeWriteOff } from './write-off.js';
 
@@ -19,6 +20,7 @@ export function makeReelOperator(p: ReelPorts) {
     receive: makeReceiveReel(p),
     status: makeReelStatus(p),
     writeOff: makeWriteOff(p),
+    settleUnpublished: makeSettleUnpublished(p),
   };
 }
 

@@ -11,7 +11,7 @@ import { checkShippedReelScript, composeReelOperator } from '@knowscroll/backend
 type Print = (result: Record<string, unknown>) => void;
 
 const usage =
-  'usage: operator.js reel check --script <name> | reel order --script <name> --until plan|video --ceiling <cents> [--retake] | reel follow --script <name> --until plan|video [--wait-seconds <n>] | reel receive --script <name> | reel status | reel write-off --attempt <uuid> --reason <text>';
+  'usage: operator.js reel check --script <name> | reel order --script <name> --until plan|video --ceiling <cents> [--retake] | reel follow --script <name> --until plan|video [--wait-seconds <n>] | reel receive --script <name> | reel status | reel write-off --attempt <uuid> --reason <text> [--release-claim] | reel settle --script <name> --until video --reason <text>';
 
 const POLL_SECONDS = 20;
 const MAX_WAIT_SECONDS = 3600;
@@ -59,7 +59,17 @@ async function run(command: string, values: Record<string, string | boolean | un
       const attempt = values['attempt'];
       const reason = values['reason'];
       if (typeof attempt !== 'string' || typeof reason !== 'string' || reason.trim() === '') return undefined;
-      return reel.writeOff({ attemptId: attempt, reason: `cli:${operatorName(process.env)}: ${reason.trim()}` });
+      return reel.writeOff({
+        attemptId: attempt,
+        reason: `cli:${operatorName(process.env)}: ${reason.trim()}`,
+        releaseClaim: values['release-claim'] === true,
+      });
+    }
+    case 'settle': {
+      const reason = values['reason'];
+      if (script === '' || until !== 'video' || typeof reason !== 'string' || reason.trim() === '') return undefined;
+      const result = await reel.settleUnpublished({ scriptName: script, until });
+      return { ...result, reason: `cli:${operatorName(process.env)}: ${reason.trim()}` };
     }
     default:
       return undefined;
@@ -85,6 +95,7 @@ export async function reelCommand(argv: readonly string[], print: Print, logEven
         'wait-seconds': { type: 'string' },
         attempt: { type: 'string' },
         reason: { type: 'string' },
+        'release-claim': { type: 'boolean', default: false },
       },
       allowPositionals: true,
       strict: true,

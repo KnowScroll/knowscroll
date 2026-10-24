@@ -106,7 +106,10 @@ export interface ReelWorld {
   readonly pool: TestPool;
   readonly root: string;
   /** A world (its database and operator) that orders from the shared fixture Cutroom and pool. */
-  join(name: 'dev' | 'stage'): Promise<{
+  join(
+    name: 'dev' | 'stage',
+    clock?: () => Date,
+  ): Promise<{
     readonly db: TestDatabase<Database>;
     readonly mediaRoot: string;
     readonly operator: ReturnType<typeof composeReelOperator>;
@@ -132,7 +135,7 @@ export async function createReelWorld(
     pool,
     root,
     setPostMode: cutroom.setPostMode,
-    async join(name) {
+    async join(name, clock) {
       const db = await createTestDatabase<Database>(`reel_${name}`);
       worlds.push(db);
       const mediaRoot = join(root, `media-${name}`);
@@ -143,6 +146,7 @@ export async function createReelWorld(
         cutroomArtifactRoot: cutroom.artifactRoot,
         mediaRoot,
         ffprobePath,
+        now: clock,
       });
       return { db, mediaRoot, operator };
     },
