@@ -124,18 +124,26 @@ test.describe('an encounter', () => {
 });
 
 test.describe('a sheet', () => {
-  test('the More sheet over a Reel has no serious axe violations', async ({ page }) => {
-    await encounterFixture(page, 'reel', { viewport: { width: 390, height: 844 }, series: true });
-    await page.route('**/media/gesture-fixture', (route) => route.fulfill({ status: 404, body: 'fixture only' }));
-    await page.goto('/explore');
-    await page.getByRole('button', { name: 'Got it' }).click();
-    await page.getByRole('button', { name: 'More options' }).click();
-    await expectAccessible(
-      page,
-      () => expect(page.getByRole('heading', { name: 'More', exact: true })).toBeVisible(),
-      false,
-    );
-  });
+  /** What each sheet names itself, and the control that opens it from a Reel with its thread. */
+  const sheets = [
+    { name: 'More', open: (page: Page) => page.getByRole('button', { name: 'More options' }) },
+    { name: 'Share', open: (page: Page) => page.getByRole('button', { name: 'Share', exact: true }) },
+    { name: 'Ask', open: (page: Page) => page.getByRole('button', { name: 'Ask about this' }) },
+  ] as const;
+  for (const size of [widths[0], widths[2]]) {
+    for (const sheet of sheets) {
+      test(`the ${sheet.name} sheet over a Reel at ${size.label} has no serious axe violations`, async ({ page }) => {
+        await encounterFixture(page, 'reel', { viewport: size, series: true });
+        await page.route('**/media/gesture-fixture', (route) => route.fulfill({ status: 404, body: 'fixture only' }));
+        await page.goto('/explore');
+        // The swipe hint is drawn only where the Reel is full-bleed.
+        if (size.width < 1024) await page.getByRole('button', { name: 'Got it' }).click();
+        await sheet.open(page).click();
+        await expect(page.getByRole('dialog')).toBeVisible();
+        await expectAccessible(page, () => expect(page.getByRole('dialog')).toBeVisible(), false);
+      });
+    }
+  }
 });
 
 test.describe('the Universe', () => {
