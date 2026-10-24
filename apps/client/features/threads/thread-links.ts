@@ -11,9 +11,16 @@ export const threadHref = (ref: ContentThreadRef): string => `/threads/${ref.thr
 export const snippetHref = (ref: ContentThreadRef, messageId: string): string =>
   `/threads/${ref.threadId}/snippet/${messageId}${carry(ref)}`;
 
-/** The thread's own reader of one of its Scrolls, where a passage or block can be shared back. */
-export const readInThreadHref = (ref: ContentThreadRef, assetId: string): string =>
-  `/threads/${ref.threadId}/read/${assetId}${carry(ref)}`;
+/**
+ * The thread's own reader of one of its Scrolls, where a passage or block can be shared back. A
+ * branch's Scroll is read here too, without the share control: a passage of a branch cannot be
+ * shared yet, because a snippet points into the thread's own sequence.
+ */
+export const readInThreadHref = (
+  ref: ContentThreadRef,
+  assetId: string,
+  options: { readonly branch?: boolean } = {},
+): string => `/threads/${ref.threadId}/read/${assetId}${carry(ref)}${options.branch === true ? '&b=1' : ''}`;
 
 /** The reference a thread address carries, or undefined when it has none (a link without `m`). */
 export function threadRefFromParams(params: {

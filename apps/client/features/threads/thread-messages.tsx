@@ -14,28 +14,71 @@ import {
   type ContentThreadState,
   type OutgoingThreadMessage,
 } from '@knowscroll/client-core';
-import type { ThreadEpisode, ThreadMessage } from '@knowscroll/contracts';
+import type { ScenarioCard, ScenarioKind, ThreadEpisode, ThreadMessage } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
-import { Button, Text } from '@knowscroll/ui';
+import { Button, IconButton, Text } from '@knowscroll/ui';
+import { BranchCard } from '../scenarios/branch-card';
 import { SnippetCard } from './snippet-card';
+
+/** One thing in the thread's timeline: a message, or a branch card at the moment it was made. */
+type Entry =
+  | { readonly kind: 'message'; readonly message: ThreadMessage }
+  | { readonly kind: 'branch'; readonly card: ScenarioCard };
 
 interface Group {
   readonly key: string;
   readonly at: Date;
-  readonly items: ThreadMessage[];
+  readonly items: Entry[];
 }
 
-/** Messages grouped under a day label; a tombstone has no time and stays in the day before it. */
-function dividedByDay(messages: readonly ThreadMessage[]): Group[] {
-  const groups: { key: string; at: Date; items: ThreadMessage[] }[] = [];
+/**
+ * The messages with the branch cards among them, in the order they happened. A card goes where its
+ * time falls; a tombstone has no time and stays after the message before it. Removed branches leave the
+ * chat (their line is a small note, not a card).
+ */
+export function timeline(messages: readonly ThreadMessage[], cards: readonly ScenarioCard[]): Entry[] {
+  const waiting = cards
+    .filter((card) => card.status !== 'removed')
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+  const entries: Entry[] = [];
+  const placeBefore = (time: string | undefined) => {
+    while (waiting[0] !== undefined && (time === undefined || waiting[0].createdAt <= time))
+      entries.push({ kind: 'branch', card: waiting.shift()! });
+  };
   for (const message of messages) {
-    const at = message.status === 'available' ? new Date(message.recordedAt) : undefined;
+    if (message.status === 'available') placeBefore(message.recordedAt);
+    entries.push({ kind: 'message', message });
+  }
+  placeBefore(undefined);
+  return entries;
+}
+
+const timeOf = (entry: Entry): Date | undefined =>
+  entry.kind === 'branch'
+    ? new Date(entry.card.createdAt)
+    : entry.message.status === 'available'
+      ? new Date(entry.message.recordedAt)
+      : undefined;
+
+/** Entries grouped under a day label; one with no time (a tombstone) stays in the day before it. */
+function dividedByDay(entries: readonly Entry[]): Group[] {
+  const groups: { key: string; at: Date; items: Entry[] }[] = [];
+  for (const entry of entries) {
+    const at = timeOf(entry);
     const last = groups.at(-1);
-    if (at === undefined && last !== undefined) last.items.push(message);
-    else if (last !== undefined && at !== undefined && last.key === dayKey(at)) last.items.push(message);
-    else groups.push({ key: at === undefined ? 'removed' : dayKey(at), at: at ?? new Date(), items: [message] });
+    if (at === undefined && last !== undefined) last.items.push(entry);
+    else if (last !== undefined && at !== undefined && last.key === dayKey(at)) last.items.push(entry);
+    else groups.push({ key: at === undefined ? 'removed' : dayKey(at), at: at ?? new Date(), items: [entry] });
   }
   return groups;
+}
+
+/** Where a branch began, in words: the whole thread, a shared moment or passage, or someone's message. */
+function startedLine(card: ScenarioCard, messages: readonly ThreadMessage[]): string {
+  if (card.origin === 'root' || card.originMessageId === undefined) return 'from the thread';
+  if (card.origin === 'snippet') return 'from a shared moment or passage';
+  const message = messages.find((candidate) => candidate.messageId === card.originMessageId);
+  return message?.status === 'available' ? `from ${message.author.displayName}’s message` : 'from a message';
 }
 
 function Bubble({
@@ -43,11 +86,14 @@ function Bubble({
   mine,
   partOf,
   onOpenSnippet,
+  onWhatIf,
 }: {
   readonly message: ThreadMessage;
   readonly mine: boolean;
   readonly partOf: (assetId: string) => string | undefined;
   readonly onOpenSnippet: (messageId: string) => void;
+  /** Starts a What if… from this snippet (X01: the button on a snippet card). */
+  readonly onWhatIf: (message: Extract<ThreadMessage, { status: 'available' }>) => void;
 }) {
   if (message.status === 'unavailable')
     return (
@@ -75,6 +121,9 @@ function Bubble({
           partLabel={partOf(target.assetId)}
           onOpen={() => onOpenSnippet(message.messageId)}
         />
+        {snippet.content.status === 'unavailable' ? null : (
+          <Button label="What if…" size="sm" variant="ghost" icon="hypothetical" onPress={() => onWhatIf(message)} />
+        )}
       </View>
     );
   }
@@ -131,6 +180,28 @@ function OutgoingBubble({
   );
 }
 
+const entryKey = (entry: Entry | undefined): string =>
+  entry === undefined ? '' : entry.kind === 'branch' ? entry.card.nodeId : String(entry.message.sequence);
+
+/** The visible ⋯ of a message (X01: a message's menu, as well as long-press): What if… and Another perspective start here. */
+function MessageMenuButton({
+  message,
+  onOpen,
+}: {
+  readonly message: Extract<ThreadMessage, { status: 'available' }>;
+  readonly onOpen: (message: Extract<ThreadMessage, { status: 'available' }>) => void;
+}) {
+  return (
+    <IconButton
+      icon="more"
+      label={`Options for ${message.author.displayName}’s message`}
+      variant="plain"
+      size={44}
+      onPress={() => onOpen(message)}
+    />
+  );
+}
+
 export interface ThreadMessagesProps {
   readonly state: ContentThreadState;
   readonly controller: ContentThreadController;
@@ -140,6 +211,16 @@ export interface ThreadMessagesProps {
   readonly scrollRef: RefObject<ScrollViewInstance | null>;
   readonly onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   readonly onOpenSnippet: (messageId: string) => void;
+  /** The thread's branches, shown as cards among the messages (X02). */
+  readonly branches: readonly ScenarioCard[];
+  readonly onOpenBranch: (card: ScenarioCard) => void;
+  readonly onRemoveBranch: (card: ScenarioCard) => void;
+  /** Asks What if… from a branch that is ready: the new one continues it. */
+  readonly onContinueBranch: (card: ScenarioCard) => void;
+  /** The message menu: What if… and Another perspective from this message. */
+  readonly onMessageMenu: (message: Extract<ThreadMessage, { status: 'available' }>) => void;
+  /** Starts a request from a message or a snippet card directly. */
+  readonly onAsk: (message: Extract<ThreadMessage, { status: 'available' }>, kind: ScenarioKind) => void;
 }
 
 /** The thread's messages by day with the author named above each other person's bubble, then what is still being sent. */
@@ -151,6 +232,12 @@ export function ThreadMessages({
   scrollRef,
   onScroll,
   onOpenSnippet,
+  branches,
+  onOpenBranch,
+  onRemoveBranch,
+  onContinueBranch,
+  onMessageMenu,
+  onAsk,
 }: ThreadMessagesProps) {
   const now = new Date();
   const series = state.sequence === 'series';
@@ -184,21 +271,45 @@ export function ThreadMessages({
         </Text>
       ) : null}
       <View role="list" accessibilityLabel="Messages in this thread" style={styles.messages}>
-        {dividedByDay(state.messages).map((group) => (
-          <View key={group.key + String(group.items[0]?.sequence)} style={styles.messages}>
+        {dividedByDay(timeline(state.messages, branches)).map((group) => (
+          <View key={group.key + entryKey(group.items[0])} style={styles.messages}>
             <Text variant="metaS" color={content.ink2} align="center">
               {dayLabel(group.at, now)}
             </Text>
-            {group.items.map((message) => (
-              <View key={message.sequence} role="listitem" style={styles.item}>
-                {message.status === 'available' && !mineOf(message) ? (
-                  <Text variant="metaS" color={content.ink2}>
-                    {message.author.displayName}
-                  </Text>
-                ) : null}
-                <Bubble message={message} mine={mineOf(message)} partOf={partOf} onOpenSnippet={onOpenSnippet} />
-              </View>
-            ))}
+            {group.items.map((entry) =>
+              entry.kind === 'branch' ? (
+                <View key={entry.card.nodeId} role="listitem" style={styles.branch}>
+                  <BranchCard
+                    card={entry.card}
+                    starterIsYou={entry.card.startedBy?.personId === ownPersonId}
+                    startedLine={startedLine(entry.card, state.messages)}
+                    onOpen={onOpenBranch}
+                    onRemove={onRemoveBranch}
+                    onContinue={onContinueBranch}
+                  />
+                </View>
+              ) : (
+                <View key={entry.message.sequence} role="listitem" style={styles.item}>
+                  {entry.message.status === 'available' && !mineOf(entry.message) ? (
+                    <Text variant="metaS" color={content.ink2}>
+                      {entry.message.author.displayName}
+                    </Text>
+                  ) : null}
+                  <View style={[styles.line, mineOf(entry.message) ? styles.mine : styles.theirs]}>
+                    <Bubble
+                      message={entry.message}
+                      mine={mineOf(entry.message)}
+                      partOf={partOf}
+                      onOpenSnippet={onOpenSnippet}
+                      onWhatIf={(message) => onAsk(message, 'what_if')}
+                    />
+                    {entry.message.status === 'available' ? (
+                      <MessageMenuButton message={entry.message} onOpen={onMessageMenu} />
+                    ) : null}
+                  </View>
+                </View>
+              ),
+            )}
           </View>
         ))}
         {state.outgoing.map((entry) => (
@@ -228,6 +339,8 @@ const styles = StyleSheet.create({
   },
   messages: { gap: spacing[3] },
   item: { gap: spacing[1] },
+  branch: { alignItems: 'center' },
+  line: { flexDirection: 'row', alignItems: 'center', gap: spacing[1], maxWidth: '100%' },
   bubble: { maxWidth: '82%', borderRadius: radius.panel, paddingHorizontal: spacing[4], paddingVertical: spacing[3] },
   snippet: { gap: spacing[2], maxWidth: '100%' },
   mine: { alignSelf: 'flex-end', alignItems: 'flex-end', gap: spacing[1] },
