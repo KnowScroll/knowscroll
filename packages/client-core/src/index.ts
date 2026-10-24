@@ -55,6 +55,39 @@ export {
 } from './conversation-thread';
 export { dayKey, dayLabel, describeMessage, inboxRowView, listTime, type InboxRowView } from './talk-format';
 export {
+  createContentThread,
+  type ContentThreadController,
+  type ContentThreadOptions,
+  type ContentThreadState,
+  type OutgoingThreadMessage,
+} from './content-thread';
+export {
+  describeThreadMessage,
+  readThreadSummaries,
+  threadRowView,
+  type ThreadRowView,
+} from './thread-inbox';
+export {
+  createExploreWithFriends,
+  type CreateStatus,
+  type ExploreWithFriendsOptions,
+  type ExploreWithFriendsSession,
+  type ExploreWithFriendsState,
+} from './explore-with-friends';
+export {
+  MAX_PASSAGE_CHARS,
+  MIN_RANGE_MS,
+  formatClock,
+  formatRange,
+  initialRange,
+  nudgeRange,
+  passageOf,
+  sentenceRanges,
+  setRangeEnd,
+  type PassageRange,
+  type ReelRange,
+} from './thread-snippets';
+export {
   createShareSession,
   createSharedLinksSession,
   type LinkStatus,
