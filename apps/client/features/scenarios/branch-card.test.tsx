@@ -19,6 +19,7 @@ const card = (patch: Partial<ScenarioCard> = {}): ScenarioCard => ({
   changes: [traffic],
   kept: [model],
   hypothetical: true,
+  speculative: false,
   assumptions: [traffic],
   startedBy: asha,
   status: 'preparing',

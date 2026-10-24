@@ -25,6 +25,7 @@ const card: ScenarioCard = {
   changes: [traffic],
   kept: [model],
   hypothetical: true,
+  speculative: false,
   assumptions: [traffic],
   status: 'preparing',
   revision: 1,

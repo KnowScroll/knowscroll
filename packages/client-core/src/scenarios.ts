@@ -5,6 +5,7 @@ import type {
   ScenarioKind,
   ScenarioOption,
   ScenarioParent,
+  ScenarioSuggestion,
 } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import { apiProblem } from './api-client';
@@ -23,6 +24,8 @@ export interface ScenarioBoardState {
   readonly phase: 'loading' | 'ready' | 'unavailable' | 'failed';
   /** The thread's branches, oldest first, removed ones included. */
   readonly cards: readonly ScenarioCard[];
+  /** What this member was offered and has not made: private to them, not branches, never numbered. */
+  readonly suggestions: readonly ScenarioSuggestion[];
   /** The last read did not arrive; what is shown may be out of date. */
   readonly offline: boolean;
 }
@@ -49,7 +52,7 @@ export function createScenarioBoard(options: {
 }): ScenarioBoardController {
   const { scope, thread, newId } = options;
   const listeners = new Set<() => void>();
-  let state: ScenarioBoardState = { phase: 'loading', cards: [], offline: false };
+  let state: ScenarioBoardState = { phase: 'loading', cards: [], suggestions: [], offline: false };
   /** A removal that may or may not have reached the server keeps its command, so a retry is the same command. */
   const removals = new Map<string, string>();
   const publish = (patch: Partial<ScenarioBoardState>) => {
@@ -61,12 +64,12 @@ export function createScenarioBoard(options: {
   async function load(): Promise<void> {
     try {
       const list = await scope.api.scenarios.list({ version: VERSION, readId: newId(), thread });
-      if (list.status === 'unavailable') publish({ phase: 'unavailable', cards: [], offline: false });
-      else publish({ phase: 'ready', cards: list.cards, offline: false });
+      if (list.status === 'unavailable') publish({ phase: 'unavailable', cards: [], suggestions: [], offline: false });
+      else publish({ phase: 'ready', cards: list.cards, suggestions: list.suggestions, offline: false });
     } catch (error) {
       const kind = talkFailure(error);
       if (kind === 'ended') return;
-      if (kind === 'unavailable') publish({ phase: 'unavailable', cards: [] });
+      if (kind === 'unavailable') publish({ phase: 'unavailable', cards: [], suggestions: [] });
       else if (state.phase === 'loading') publish({ phase: 'failed', offline: kind === 'offline' });
       else publish({ offline: true });
     }
@@ -144,6 +147,8 @@ export interface ScenarioComposerController {
   readonly begin: (ask: ScenarioAsk) => Promise<void>;
   /** Looks at the draft again while it is thinking. A poll calls this. */
   readonly refresh: () => Promise<void>;
+  /** Picks up a draft the member already has (an offer they have not made): its directions come back as `ready`. */
+  readonly attach: (draftId: string) => Promise<void>;
   /** Chooses one direction or submits the member's own request. Only this commissions anything. */
   readonly choose: (selection: ScenarioSelection) => Promise<void>;
   /** Tries the step that was blocked by a lost answer again, with the same command. */
@@ -277,6 +282,14 @@ export function createScenarioComposer(options: {
       return send(ask);
     },
     refresh,
+    attach: (id) => {
+      draftId = id;
+      askCommandId = newId();
+      choiceCommands.clear();
+      lastStep = undefined;
+      publish({ ...idle, phase: 'thinking' });
+      return refresh();
+    },
     choose,
     retry: () => (lastStep === undefined ? Promise.resolve() : lastStep()),
     reset: () => {

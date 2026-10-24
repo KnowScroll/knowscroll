@@ -63,6 +63,19 @@ export {
   type OutgoingThreadMessage,
 } from './content-thread';
 export {
+  DEFAULT_MAP_PREFERENCES,
+  GROUP_LIMIT,
+  buildMap,
+  loadMapPreferences,
+  mapOffered,
+  saveMapPreferences,
+  type MapFilter,
+  type MapHere,
+  type MapPreferences,
+  type MapRow,
+  type MapView,
+} from './scenario-map';
+export {
   chipText,
   createScenarioBoard,
   createScenarioComposer,
