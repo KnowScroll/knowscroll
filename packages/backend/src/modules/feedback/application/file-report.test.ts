@@ -30,6 +30,7 @@ interface Options {
 /** Ports over memory: the target reads answer what the test says, and every write is logged. */
 function fixture(options: Options = {}) {
   const inserted: NewReport[] = [];
+  const findEarlierAbuse = vi.fn(() => Promise.resolve(options.earlier));
   const receipts = new Map<string, { key: ReceiptKey; outcome?: Record<string, unknown> }>();
   const withScope: WithPersonalScope = (_authority, work) => work(scope).then((value) => ({ kind: 'entered', value }));
   const ports: ReportPorts = {
@@ -73,7 +74,7 @@ function fixture(options: Options = {}) {
       ),
     reports: {
       countSince: vi.fn(() => Promise.resolve(options.sentToday ?? 0)),
-      findEarlierAbuse: vi.fn(() => Promise.resolve(options.earlier)),
+      findEarlierAbuse,
       insert: (_scope, report) => {
         inserted.push(report);
         return Promise.resolve();
@@ -82,7 +83,7 @@ function fixture(options: Options = {}) {
     newId: () => id(99),
     now: () => now,
   };
-  return { ports, inserted, receipts, cases: makeReportUseCases(ports) };
+  return { ports, inserted, receipts, findEarlierAbuse, cases: makeReportUseCases(ports) };
 }
 
 const abuse = (target: unknown, commandId = id(20)) =>
@@ -210,7 +211,7 @@ describe('every report', () => {
 
   it('answers a repeat abuse report about the same target with the first receipt and writes nothing', async () => {
     const earlier = { reportId: id(77), createdAt: new Date('2026-10-20T08:30:00.000Z') };
-    const { cases, inserted, receipts, ports } = fixture({ earlier, sentToday: REPORTS_PER_WINDOW });
+    const { cases, inserted, receipts, findEarlierAbuse } = fixture({ earlier, sentToday: REPORTS_PER_WINDOW });
     // Past the daily bound, a repeat is still answered: it adds nothing, so it costs nothing.
     expect(await cases.reportAbuse(authority, abuse({ kind: 'person', personId: id(50) }, id(21)))).toEqual({
       kind: 'received',
@@ -218,7 +219,7 @@ describe('every report', () => {
     });
     expect(inserted).toEqual([]);
     expect(receipts.size).toBe(0);
-    expect(ports.reports.findEarlierAbuse).toHaveBeenCalledWith(
+    expect(findEarlierAbuse).toHaveBeenCalledWith(
       scope,
       reporter,
       expect.objectContaining({ targetKind: 'person', reportedAccountId: otherPerson }),
@@ -227,7 +228,7 @@ describe('every report', () => {
 
   it('does not look for an earlier report on a content error: a Reel can have several errors', async () => {
     const earlier = { reportId: id(77), createdAt: new Date('2026-10-20T08:30:00.000Z') };
-    const { cases, inserted, ports } = fixture({ earlier });
+    const { cases, inserted, findEarlierAbuse } = fixture({ earlier });
     const result = await cases.reportContentError(authority, {
       commandId: id(22),
       target: { assetId: id(10), assetRevision: 2 },
@@ -235,7 +236,7 @@ describe('every report', () => {
     });
     expect(result).toMatchObject({ kind: 'received', outcome: { reportId: id(99), replayed: false } });
     expect(inserted).toHaveLength(1);
-    expect(ports.reports.findEarlierAbuse).not.toHaveBeenCalled();
+    expect(findEarlierAbuse).not.toHaveBeenCalled();
   });
 
   it('refuses a command ID reused for another report', async () => {

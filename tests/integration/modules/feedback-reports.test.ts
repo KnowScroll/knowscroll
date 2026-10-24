@@ -521,9 +521,9 @@ describe('reports to the safety team (real PostgreSQL)', () => {
       // Whatever the table holds, the count is of people: a second row from the same reporter (the unique
       // index is dropped for this check and put back) does not move it.
       const [{ definition }] = (
-        await sql<{ definition: string }>`select pg_get_indexdef('feedback.reports_one_abuse_per_target'::regclass) as definition`.execute(
-          database.db,
-        )
+        await sql<{
+          definition: string;
+        }>`select pg_get_indexdef('feedback.reports_one_abuse_per_target'::regclass) as definition`.execute(database.db)
       ).rows as [{ definition: string }];
       await sql`drop index feedback.reports_one_abuse_per_target`.execute(database.db);
       try {
@@ -751,9 +751,11 @@ describe('reports to the safety team (real PostgreSQL)', () => {
       await sql`update feedback.reports set retain_until = retain_until - interval '2 days'
         where retain_until is not null`.execute(database.db);
       const due = Number(
-        (await sql<{ n: string }>`select count(*)::text as n from feedback.reports where retain_until < now()`.execute(
-          database.db,
-        )).rows[0]?.n,
+        (
+          await sql<{ n: string }>`select count(*)::text as n from feedback.reports where retain_until < now()`.execute(
+            database.db,
+          )
+        ).rows[0]?.n,
       );
       expect(due).toBeGreaterThanOrEqual(4);
       // The reports about the deleted person go. Everything else, including every other report, stays.
