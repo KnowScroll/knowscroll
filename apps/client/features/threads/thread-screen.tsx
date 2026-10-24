@@ -22,7 +22,7 @@ import { EpisodeNavigator } from './episode-navigator';
 import { ShareMomentSheet } from './share-moment-sheet';
 import { InvitationView, OptionsSheet, PeopleSheet, ThreadHeader, threadTitle } from './thread-chrome';
 import { ThreadEncounter } from './thread-encounter';
-import { snippetHref, threadRefFromParams } from './thread-links';
+import { readInThreadHref, snippetHref, threadRefFromParams } from './thread-links';
 import { ThreadMessages } from './thread-messages';
 import { useContentThread } from './use-content-thread';
 
@@ -128,7 +128,7 @@ function ReadyThread({
           />
           <ThreadEncounter
             scope={scope}
-            thread={thread}
+            readHref={(assetId) => readInThreadHref(thread, assetId)}
             episode={current}
             series={series}
             total={episodes.length}

@@ -38,6 +38,18 @@ async function failQueuedAsks(trx: ReturnType<typeof transactionOf>, universeId:
   return Number(failed.numAffectedRows ?? 0);
 }
 
+/**
+ * Takes the row of every discussion the account wrote in or started, in id order, before anything else of
+ * theirs is touched. A send in flight holds its discussion's row; waiting here first, in one order, means
+ * two deletions that touch the same discussions never wait on each other in opposite orders.
+ */
+async function lockDiscussionsOf(trx: ReturnType<typeof transactionOf>, account: string): Promise<void> {
+  await sql`select discussion_id from rooms.discussions
+    where started_by_account_id = ${account}::uuid
+      or discussion_id in (select discussion_id from rooms.messages where author_account_id = ${account}::uuid)
+    order by discussion_id for update`.execute(trx);
+}
+
 /** The most messages one export file carries; the file says how many there are and whether it was cut. */
 const EXPORT_MESSAGE_LIMIT = 2000;
 
@@ -83,6 +95,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
   async eraseAccount(scope) {
     const trx = transactionOf(scope.personal);
     const account = scope.accountId;
+    await lockDiscussionsOf(trx, account);
     let removed = 0;
     const count = (result: { numAffectedRows?: bigint | undefined }) => Number(result.numAffectedRows ?? 0);
     removed += count(

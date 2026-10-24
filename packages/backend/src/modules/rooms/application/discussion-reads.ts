@@ -153,16 +153,24 @@ export function makeDiscussionReads(p: RoomPorts) {
           const content = discussion.root === null ? undefined : await discussionEpisodes(p, scope, discussion.root);
           const [root] = discussion.root === null ? [] : await p.readContent(scope, [discussion.root]);
           const asks = await inhabitantStatuses(p, entered, discussion.discussionId, p.now());
+          const wanted = [
+            entered.owner.accountId,
+            ...(discussion.startedByAccountId === null ? [] : [discussion.startedByAccountId]),
+          ];
+          const people = await p.people.byAccounts(scope, wanted);
+          const you = people.get(entered.owner.accountId);
+          // A member always has a claimed profile; without one the view is as unavailable as for a stranger.
+          if (you === undefined)
+            return DiscussionViewSchema.parse({ ...roomEnvelope(scope), readId: query.readId, status: 'unavailable' });
           const starter =
-            discussion.startedByAccountId === null
-              ? undefined
-              : (await p.people.byAccounts(scope, [discussion.startedByAccountId])).get(discussion.startedByAccountId);
+            discussion.startedByAccountId === null ? undefined : people.get(discussion.startedByAccountId);
           return DiscussionViewSchema.parse({
             ...roomEnvelope(scope),
             readId: query.readId,
             status: 'ready',
             room: roomSummary(room),
             role: entered.member!.role,
+            you,
             discussion: {
               discussionId: discussion.discussionId,
               title: discussion.title,

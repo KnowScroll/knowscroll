@@ -342,6 +342,8 @@ export const DiscussionViewSchema = z.discriminatedUnion('status', [
       status: z.literal('ready'),
       room: RoomSummarySchema,
       role: RoomRoleSchema,
+      /** The caller's own public profile, so a screen can set their messages apart. */
+      you: PublicPersonRefSchema,
       discussion: z.strictObject({
         discussionId: UuidSchema,
         title: DiscussionTitle,

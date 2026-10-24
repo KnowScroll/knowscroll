@@ -42,6 +42,7 @@ function readyView(messages: RoomMessage[], extra: Record<string, unknown> = {})
     status: 'ready',
     room,
     role: 'member',
+    you: asha,
     discussion: { discussionId, title: 'Where should it run?', pinned: false },
     canPost: true,
     inhabitants: inhabitants('available'),
