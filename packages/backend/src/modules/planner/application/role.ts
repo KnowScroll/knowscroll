@@ -40,6 +40,8 @@ export function plannerRole(context: FrozenContext): ReasoningRole<PlannerPropos
     // MiniMax-M3.1-Flash thinks before it answers and thinking tokens count against this ceiling.
     // 4096 was truncated twice on a real run; the proposal itself is about 1,500 tokens.
     maxOutputTokens: 12_288,
+    // Runs because the person read, not because they asked: it stops at the background share of the budgets.
+    budgetClass: 'background',
     minContextItems: 1,
     instructions: INSTRUCTIONS,
     outputSchema: ProposalSchema.superRefine((proposal, c) => {

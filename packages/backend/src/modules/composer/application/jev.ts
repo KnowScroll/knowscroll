@@ -15,6 +15,8 @@ export const JEV_ROLE_ID = 'composer.jev';
 /** Changes with the instructions or the output schema. Recorded on every run and stored assessment. */
 export const JEV_ROLE_VERSION = 'jev.1';
 export const JEV_POLICY_VERSION = 'composer-jev.v0';
+/** The role version and the harness framing version together name the instructions an assessment answered. */
+export const JEV_ASSESSMENT_VERSION = `${JEV_ROLE_VERSION}/${HARNESS_PROMPT_VERSION}`;
 
 const Score = z.number().min(0).max(1);
 const JevOutputSchema = z.strictObject({
@@ -45,6 +47,8 @@ export const JEV_ROLE: ReasoningRole<JevOutput> = {
   outputSchema: JevOutputSchema,
   // Adaptive-thinking models spend part of this budget thinking (D-031); the answer is ~40 tokens per candidate.
   maxOutputTokens: 4096,
+  // Runs because the person swiped, not because they asked: it stops at the background share of the budgets.
+  budgetClass: 'background',
   minContextItems: 2,
 };
 
@@ -172,8 +176,7 @@ export function storedAssessments(input: {
   readonly lifetimeMs: number;
 }): SemanticAssessments {
   return {
-    // The role version names the instructions and schema; the harness framing version names the prompt wrapper.
-    roleVersion: `${JEV_ROLE_VERSION}/${HARNESS_PROMPT_VERSION}`,
+    roleVersion: JEV_ASSESSMENT_VERSION,
     model: input.model,
     assessedAt: input.assessedAt.toISOString(),
     expiresAt: new Date(input.assessedAt.getTime() + input.lifetimeMs).toISOString(),

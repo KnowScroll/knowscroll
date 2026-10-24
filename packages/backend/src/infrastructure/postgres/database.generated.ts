@@ -54,6 +54,15 @@ export interface ComposerDecisions {
   universe_id: string;
 }
 
+export interface ComposerJevAssessments {
+  entries: Json;
+  model: string;
+  privacy_epoch: number;
+  role_version: string;
+  universe_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface ContentAssetProvenance {
   asset_id: string;
   provenance: Json;
@@ -1377,6 +1386,7 @@ export interface ReasoningProtectedRequests {
 
 export interface ReasoningUsageReceipts {
   attempt_id: string;
+  background: Generated<boolean>;
   budget_window: Timestamp;
   cached_tokens: number | null;
   conclusive_failure: Generated<boolean>;
@@ -1871,6 +1881,7 @@ export interface SupplyWork {
 export interface DB {
   "composer.buffers": ComposerBuffers;
   "composer.decisions": ComposerDecisions;
+  "composer.jev_assessments": ComposerJevAssessments;
   "content.asset_provenance": ContentAssetProvenance;
   "content.asset_revisions": ContentAssetRevisions;
   "content.assets": ContentAssets;

@@ -183,6 +183,21 @@ describe('process configuration', () => {
       readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '0' }),
     ).toThrow();
   });
+  it('keeps half of every daily cap for roles a person asks for, and reads the share as whole percent', () => {
+    const env = { DATABASE_URL: secretUrl, KS_WORLD: 'local' };
+    expect(readWorkerConfig(env).reasoning.backgroundSharePercent).toBe(50);
+    expect(
+      readWorkerConfig({ ...env, KS_REASONING_BACKGROUND_SHARE_PERCENT: '0' }).reasoning.backgroundSharePercent,
+    ).toBe(0);
+    expect(
+      readScrollProductionOperatorConfig({ ...env, KS_REASONING_BACKGROUND_SHARE_PERCENT: '100' }).reasoning
+        .backgroundSharePercent,
+    ).toBe(100);
+    for (const bad of ['101', '-1', '12.5', 'half'])
+      expect(
+        configurationError(() => readWorkerConfig({ ...env, KS_REASONING_BACKGROUND_SHARE_PERCENT: bad })).problems,
+      ).toHaveLength(1);
+  });
   it('reads the production generation the Scroll consumer works under', () => {
     expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).scrollProductionGeneration).toBe(1);
     expect(
@@ -454,6 +469,7 @@ describe('process configuration', () => {
         productionScope: { requestsPerDay: 200, tokensPerDay: 3_000_000 },
         roleDefault: { requestsPerDay: 200, tokensPerDay: 2_000_000 },
       },
+      backgroundSharePercent: 50,
       maxRequestBytes: 262_144,
       requestRetentionSeconds: 48 * 3600,
     });
