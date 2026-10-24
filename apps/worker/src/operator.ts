@@ -10,6 +10,7 @@ import { lockCommissionBusiness } from '@knowscroll/backend/modules/content/nest
 import { makeWithCutroomScope } from '@knowscroll/backend/reasoning/nest-providers';
 import { readCutroomSetup } from './cutroom-jobs.js';
 import { produceLibraryCommand, productionStatusCommand } from './library-operator.js';
+import { recoverOpenDemandCommand } from './supply-operator.js';
 import { assembleCutroom, assembleReceiving } from './jobs.js';
 import { readReceiveSetup } from './cutroom-receive-jobs.js';
 import { makeCutroomReelImporter } from '@knowscroll/backend/modules/content/nest-providers';
@@ -54,7 +55,7 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js cutroom import-corpus | cutroom commission (trusted configured root packet required) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js content readmit-coverage [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
+  'usage: operator.js cutroom import-corpus | cutroom commission (trusted configured root packet required) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -295,6 +296,8 @@ async function main(): Promise<number> {
       print,
       logEvent,
     );
+  if (area === 'supply' && command === 'recover-open-demand' && args.positionals.length === 2)
+    return recoverOpenDemandCommand({ dryRun: args.values['dry-run'] }, print, logEvent);
   if (area === 'content' && command === 'production-status' && args.positionals.length === 2)
     return productionStatusCommand(args.values.only === undefined ? {} : { only: args.values.only }, print, logEvent);
   if (area === 'content' && command === 'readmit-coverage' && args.positionals.length === 2) {

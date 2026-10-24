@@ -3,6 +3,7 @@ import type { CreateContentRequest } from '@knowscroll/contracts';
 import { CONCEPTS } from '../../content/public.js';
 import type { EncounterSnapshot } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
+import { WAIT_LIMIT_MS } from './commission.js';
 import type { CanonicalBrief, SupplyPorts, Demand, Source } from './ports.js';
 
 export const sourceOf = (command: CreateContentRequest): Source | undefined =>
@@ -89,13 +90,20 @@ async function catalogueCandidates(
     limit: 100,
   });
 }
+/**
+ * Explanations content must not bind to: a fixed set, or a decision made once the candidate units are
+ * known (planned demand re-derives what the person has met at the moment it binds).
+ */
+export type SkipExplanations =
+  ReadonlySet<string> | ((candidateUnits: readonly string[]) => Promise<ReadonlySet<string>>);
+
 /** One sorted Content lock batch. Private/source data is never submitted as retrieval text. */
 export async function inventory(
   p: SupplyPorts,
   scope: PersonalScopeTx,
   c: CreateContentRequest,
   brief?: CanonicalBrief,
-  skipExplanations: ReadonlySet<string> = new Set(),
+  skip: SkipExplanations = new Set(),
 ) {
   const source = sourceOf(c);
   const sourceSnapshot = source ? await p.readExact(scope, { ...source, capabilities: c.capabilities }) : undefined;
@@ -109,11 +117,10 @@ export async function inventory(
       : brief?.subject.kind === 'catalogue'
         ? await catalogueCandidates(p, scope, c, { ...brief, subject: brief.subject })
         : [];
+  const serving = candidates.filter((x) => brief && matches(brief, x));
+  const skipExplanations = typeof skip === 'function' ? await skip(serving.map((x) => x.explanationUnitId)) : skip;
   const heads = await p.lockCurrent(scope, {
-    refs: [
-      ...(source ? [source] : []),
-      ...candidates.filter((x) => brief && matches(brief, x) && !skipExplanations.has(x.explanationUnitId)),
-    ],
+    refs: [...(source ? [source] : []), ...serving.filter((x) => !skipExplanations.has(x.explanationUnitId))],
     capabilities: c.capabilities,
   });
   const sourceHead = source ? heads.find((x) => sameRef(x.ref, source)) : undefined;
@@ -160,6 +167,18 @@ export async function snapshot(p: SupplyPorts, scope: PersonalScopeTx, d: Demand
     return ContentRequestStatusSchema.parse({ ...base, status: 'unavailable', reason: d.reason });
   if ((source && !sourceHead?.encounter) || (d.status === 'ready' && !contentHead?.encounter))
     return ContentRequestStatusSchema.parse({ ...base, status: 'unavailable', reason: 'source_unavailable' });
+  // An open request past its wait limit reads as closed even when no job ever closed it (a poll that was
+  // dead-lettered, a worker that stayed down). The next write freezes the same outcome.
+  if (
+    (d.status === 'requested' || d.status === 'deferred' || d.status === 'matching') &&
+    p.now().getTime() - Date.parse(d.createdAt) >= WAIT_LIMIT_MS
+  )
+    return ContentRequestStatusSchema.parse({
+      ...base,
+      requestRevision: checkedRevision(requestRevision + 1),
+      status: 'unavailable',
+      reason: 'could_not_prepare',
+    });
   // `requested` means a request nothing has started yet: a free-text ask still being matched. Once
   // a group stands behind it, production is real durable work and the request is preparing.
   if (d.status === 'matching')

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { encounteredUnitsOf } from '../../personal-context/public.js';
 import {
   diversify,
   opportunityIssue,
@@ -24,7 +25,7 @@ import type {
   ReadPlannerOpportunities,
   RunPlanner,
 } from './ports.js';
-import { encounteredUnitsOf, prepareContext } from './context.js';
+import { prepareContext } from './context.js';
 import { recordMissingSupplyDemand } from './demand.js';
 import { ensureRun, withoutClaim } from './request.js';
 import { PlannerJobSchema, type PlannerJob } from '../events.js';

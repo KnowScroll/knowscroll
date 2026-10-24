@@ -89,6 +89,8 @@ export interface ApiConfig extends ReleaseIdentity {
   readonly identity: IdentitySettings;
   /** Shared Scroll productions that people's requests may start per UTC day; 0 turns Create off. */
   readonly supplyCreateDailyCap: number;
+  /** Productions the Planner's demand may start per UTC day; never above `supplyCreateDailyCap`. */
+  readonly supplyPlannerCreateDailyCap: number;
 }
 
 /** The operator sign-in command (`dist/operator.js`), refused unless enabled outside live. */
@@ -135,8 +137,10 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly cartographerEnabled: boolean;
   /** Jev's optional semantic assessment in the Composer buffer job; default off, on for dev. */
   readonly jevEnabled: boolean;
-  /** Shared Scroll productions that the Planner's demand may start per UTC day; 0 turns Create off. */
+  /** Shared Scroll productions that people's requests may start per UTC day; 0 turns Create off. */
   readonly supplyCreateDailyCap: number;
+  /** Productions the Planner's demand may start per UTC day; never above `supplyCreateDailyCap`. */
+  readonly supplyPlannerCreateDailyCap: number;
   /** The production scope generation the `content.produce-scroll` consumer works under. */
   readonly scrollProductionGeneration: number;
   readonly database: DatabaseSettings;
@@ -208,6 +212,13 @@ function supplyCreateDailyCap(configured: number | undefined, world: string): nu
   return configured ?? (world === 'local' ? 20 : 0);
 }
 
+/**
+ * `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP`: the productions the Planner's own demand may start per UTC day.
+ * It is counted apart from people's asks, so the Planner cannot use up what a person's explicit ask
+ * needs, and it is never above the cap for people: switching Create off switches it off too. Default 5.
+ */
+const supplyPlannerCapVariable = z.coerce.number().int().min(0).max(500).default(5);
+
 const databaseVariables = {
   DATABASE_URL: PostgresUrlSchema,
   KS_DB_STATEMENT_TIMEOUT_MS: positiveInteger(15_000, 600_000),
@@ -260,6 +271,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_AUTH_ADAPTER: z.enum(['session', 'test-bearer']).default('session'),
       KS_SOCKET_AUTH_CACHE_MS: z.coerce.number().int().min(0).max(30_000).default(30_000),
       KS_SUPPLY_CREATE_DAILY_CAP: supplyCreateCapVariable,
+      KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
     }),
     pick(env, [
       'DATABASE_URL',
@@ -274,6 +286,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_AUTH_ADAPTER',
       'KS_SOCKET_AUTH_CACHE_MS',
       'KS_SUPPLY_CREATE_DAILY_CAP',
+      'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
     ]),
   );
   const [release, parsed, identity] = combineChecks(
@@ -307,6 +320,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     socketAuthorisationCacheMs: parsed.KS_SOCKET_AUTH_CACHE_MS,
     identity,
     supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
+    supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
     ...(parsed.KS_MEDIA_ROOT === undefined ? {} : { mediaRoot: parsed.KS_MEDIA_ROOT }),
   };
 }
@@ -591,6 +605,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_CARTOGRAPHER_ENABLED: z.enum(['0', '1']).default('0'),
         KS_JEV_ENABLED: z.enum(['0', '1']).default('0'),
         KS_SUPPLY_CREATE_DAILY_CAP: supplyCreateCapVariable,
+        KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
         KS_SCROLL_PRODUCTION_GENERATION: positiveInteger(1, 2_147_483_647),
         KS_CUTROOM_COMMISSIONING_ENABLED: z.enum(['0', '1']).default('0'),
         KS_CUTROOM_RECEIVING_ENABLED: z.enum(['0', '1']).default('0'),
@@ -637,6 +652,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_CARTOGRAPHER_ENABLED',
         'KS_JEV_ENABLED',
         'KS_SUPPLY_CREATE_DAILY_CAP',
+        'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
         'KS_SCROLL_PRODUCTION_GENERATION',
         'KS_CUTROOM_COMMISSIONING_ENABLED',
         'KS_CUTROOM_RECEIVING_ENABLED',
@@ -725,6 +741,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     cartographerEnabled: parsed.KS_CARTOGRAPHER_ENABLED === '1',
     jevEnabled: parsed.KS_JEV_ENABLED === '1',
     supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
+    supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
     scrollProductionGeneration: parsed.KS_SCROLL_PRODUCTION_GENERATION,
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),
     shutdownGraceMs: parsed.KS_SHUTDOWN_GRACE_SECONDS * 1000,

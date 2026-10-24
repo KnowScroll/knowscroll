@@ -11,7 +11,7 @@ import {
   type CatalogueBrief,
   type LibraryRecipeStatus,
   type ProductionJobState,
-  type ScrollProductionState,
+  type ScrollProductionReading,
   type ScrollRecipeChoice,
 } from '../domain/library/serving.js';
 import { SCROLL_PRODUCTION_VERSION } from '../production/topics.js';
@@ -82,10 +82,15 @@ export async function chooseScrollRecipe(scope: PersonalScopeTx, brief: Catalogu
   return recipe === undefined || take === undefined ? { kind: 'none' } : { kind: 'recipe', recipe, take };
 }
 
-/** The standing of one recipe's production, for a waiter deciding whether to keep waiting. */
-export async function readScrollProduction(scope: PersonalScopeTx, recipe: string): Promise<ScrollProductionState> {
+/**
+ * The standing of one recipe's production and the take a send for it should name, for a waiter
+ * deciding whether to keep waiting and for a request that joins work already under way.
+ */
+export async function readScrollProduction(scope: PersonalScopeTx, recipe: string): Promise<ScrollProductionReading> {
   const key = Object.hasOwn(RECIPES, recipe) ? (recipe as RecipeKey) : undefined;
-  if (key === undefined) return 'stopped';
+  if (key === undefined) return { state: 'stopped' };
   const [standing] = await readLibraryStatus(transactionOf(scope), [key]);
-  return standing?.state ?? 'stopped';
+  if (standing === undefined) return { state: 'stopped' };
+  const take = takeToSend(standing.state, standing.takes);
+  return { state: standing.state, ...(take === undefined ? {} : { take }) };
 }

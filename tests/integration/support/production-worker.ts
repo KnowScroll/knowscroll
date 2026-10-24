@@ -9,6 +9,7 @@ import {
 import type { TestDatabase } from './database.js';
 import { fixtureModel, fixtureSettings, silent } from './fixture-model.js';
 import type { FixtureScenario } from './fixture-model-port.js';
+import type { ResearchPage } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { fixtureResearchFor } from './generated-scroll.js';
 
 /** The fixture model's quota observation per attempt. */
@@ -22,7 +23,11 @@ export type QuotaScript = NonNullable<Parameters<typeof fixtureModel>[1]>['quota
 export function fixtureProductionWorker(
   database: TestDatabase<Database>,
   script: () => FixtureScenario,
-  options: { readonly quota?: QuotaScript } = {},
+  options: {
+    readonly quota?: QuotaScript;
+    /** The research fetch; defaults to the authored fixture pages. */
+    readonly research?: (url: string) => Promise<ResearchPage>;
+  } = {},
 ) {
   const fixture = fixtureModel(script, {
     label: 'production-worker-CI-fixture',
@@ -47,7 +52,7 @@ export function fixtureProductionWorker(
       withScope,
       harness: overrides.harness ?? harness,
       model: model.model,
-      research: (url) => Promise.resolve(fixtureResearchFor(url)),
+      research: options.research ?? ((url) => Promise.resolve(fixtureResearchFor(url))),
     });
   return { fixture, harness, producer, run: makeRunScrollProduction(producer()) };
 }

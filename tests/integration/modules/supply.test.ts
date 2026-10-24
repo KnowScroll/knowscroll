@@ -18,6 +18,7 @@ import {
   checkRequestSource,
 } from '@knowscroll/backend/modules/experience/nest-providers';
 import { produceScrollQueue, SCROLL_PRODUCTION_VERSION } from '@knowscroll/backend/modules/content';
+import { READ_EXPLORATION_SNAPSHOT } from '@knowscroll/backend/modules/personal-context';
 import {
   CREATE_CONTENT_REQUEST,
   READ_CONTENT_REQUEST,
@@ -56,7 +57,8 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     const values = new Map<symbol, unknown>([
       [SCOPE, withScope()],
       [ENQUEUE, makeEnqueueJob(content.boss)],
-      [CONFIG, { supplyCreateDailyCap: 50 }],
+      [CONFIG, { supplyCreateDailyCap: 50, supplyPlannerCreateDailyCap: 5 }],
+      [READ_EXPLORATION_SNAPSHOT, content.readExploration],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
       ...experienceEvidenceReadProviders().map((p) => [p.provide, p.useValue] as const),

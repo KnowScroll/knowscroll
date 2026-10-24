@@ -1528,6 +1528,7 @@ export interface SupplyWork {
   brief: Json;
   canonical_key: string;
   closed_at: Timestamp | null;
+  commissioned_by: string | null;
   created_at: Generated<Timestamp>;
   id: string;
   production_recipe: string | null;

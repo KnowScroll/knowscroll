@@ -51,6 +51,12 @@ export function takeToSend(standing: ScrollProductionState, takes: number): numb
   }
 }
 
+/** A recipe's standing with the take a send for it should name (none when nothing can be sent). */
+export interface ScrollProductionReading {
+  readonly state: ScrollProductionState;
+  readonly take?: number;
+}
+
 /** The catalogue meaning a person asked for: a planet, and optionally one angle on it. */
 export interface CatalogueBrief {
   readonly topicId: string;

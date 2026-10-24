@@ -3,7 +3,8 @@
 -- supply.work gains the library recipe whose production job the group commissioned, set when Create
 -- starts the group and never changed. A group without one commissioned nothing: it was created before
 -- Create existed, or it only waits on work that someone else started. Public metadata like the rest of
--- the row: a recipe key names code-owned data and carries no person.
+-- the row: a recipe key names code-owned data and carries no person. `commissioned_by` says whether a
+-- person's ask or the Planner's demand started it, so each origin has its own daily cap.
 -- Queries: the day's Create count (`production_recipe is not null`, newest `created_at`), served by a
 -- partial index. Growth: at most KS_SUPPLY_CREATE_DAILY_CAP rows a day carry a recipe.
 -- supply.requests gains `matching`: a person's free-text ask that waits for its catalogue match. It has
@@ -16,6 +17,9 @@ set local lock_timeout='5s';
 set local statement_timeout='60s';
 
 alter table supply.work add column production_recipe text;
+alter table supply.work add column commissioned_by text;
+alter table supply.work add constraint supply_work_commissioned_by
+ check(commissioned_by is null or commissioned_by in('person','planner')) not valid;
 alter table supply.work add constraint supply_work_production_recipe
  check(production_recipe is null or (production_recipe ~ '^[a-z][a-z0-9]*(-[a-z0-9]+)*$' and length(production_recipe)<=64)) not valid;
 -- squawk-ignore require-concurrent-index-creation

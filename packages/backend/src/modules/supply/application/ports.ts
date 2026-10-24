@@ -68,6 +68,9 @@ export interface Demand {
   readonly contentAvailabilityRevision?: number;
   readonly sourceAvailabilityRevision?: number;
 }
+/** Who started a shared group's production: a person's own ask, or the Planner's demand. Each has its own daily cap. */
+export type CommissionOrigin = 'person' | 'planner';
+
 /** A shared matching group as a waiter needs to know it. */
 export interface WorkRecord {
   readonly id: string;
@@ -94,11 +97,13 @@ export interface SupplyStore {
     scope: PersonalScopeTx,
     brief: CanonicalBrief,
     id: string,
-    recipe?: string,
+    commission?: { readonly recipe: string; readonly origin: CommissionOrigin },
   ): Promise<{ readonly id: string; readonly joined: boolean }>;
   readWork(scope: PersonalScopeTx, id: string): Promise<WorkRecord | undefined>;
-  /** Groups started today (UTC) with a production job: what the daily Create cap counts. */
-  countCommissionedSince(scope: PersonalScopeTx, since: Date): Promise<number>;
+  /** Groups started since `since` by this origin with a production job: what a daily Create cap counts. */
+  countCommissionedSince(scope: PersonalScopeTx, since: Date, origin: CommissionOrigin): Promise<number>;
+  /** The person's own asks that are still open (waiting to be matched or produced), which bound their poll jobs. */
+  countOpenPersonDemands(scope: PersonalScopeTx): Promise<number>;
   closeWork(scope: PersonalScopeTx, id: string): Promise<void>;
   /** The person's own asks (not the Planner's), newest first. */
   listPersonDemands(scope: PersonalScopeTx, limit: number): Promise<readonly Demand[]>;
@@ -109,7 +114,14 @@ export interface SupplyStore {
   ): Promise<{ readonly id: string; readonly state: 'deferred' | 'ready' } | undefined>;
 }
 export type Refusal =
-  'scope_refused' | 'command_key_reused' | 'receipt_unavailable' | 'source_unavailable' | 'stale_source' | 'not_found';
+  | 'scope_refused'
+  | 'command_key_reused'
+  | 'receipt_unavailable'
+  | 'source_unavailable'
+  | 'stale_source'
+  | 'not_found'
+  /** The person already has the most open asks they may have; no receipt is written. */
+  | 'too_many_open';
 export type Result<T> =
   { readonly kind: 'ok'; readonly value: T } | { readonly kind: 'refused'; readonly reason: Refusal };
 export type CreateRequest = (
@@ -183,8 +195,16 @@ export interface SupplyPorts {
   readonly readProduction: ReadScrollProduction;
   /** Sends the production job of one take of a recipe in the caller's transaction (idempotent per recipe, version and take). */
   readonly enqueueProduction: (scope: PersonalScopeTx, recipe: string, take: number) => Promise<void>;
-  /** Shared Scroll productions Create may start per UTC day; 0 turns Create off. */
-  readonly createDailyCap: number;
+  /** Shared Scroll productions Create may start per UTC day, by who asks; 0 turns Create off for that origin. */
+  readonly createDailyCaps: Readonly<Record<CommissionOrigin, number>>;
+  /**
+   * Which of these explanations the person has already met, re-derived inside the scope. Planned demand
+   * asks for something new, so it never binds to one of them.
+   */
+  readonly readMetUnits: (
+    scope: PersonalScopeTx,
+    query: { readonly topicIds: readonly string[]; readonly units: readonly string[] },
+  ) => Promise<ReadonlySet<string>>;
   readonly lockCurrent: LockCurrentEncounters;
   readonly readExact: ReadExactEncounter;
   readonly checkSource: CheckRequestSource;

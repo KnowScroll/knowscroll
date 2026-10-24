@@ -23,7 +23,8 @@ import {
 import type { ProductionReasoningHarness } from '@knowscroll/backend/reasoning';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
-import { fixtureAuthored } from '../support/generated-scroll.js';
+import { fixtureAuthored, fixtureResearchFor } from '../support/generated-scroll.js';
+import { ResearchRefusal } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { productionStore } from '../../../packages/backend/src/modules/content/production/store.js';
 import { signal, silent } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
@@ -128,6 +129,19 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       result: { outcome: 'published' },
     });
     expect(p.fixture.calls).toHaveLength(1);
+    // The attempt that sent nothing before the pause is not part of the lineage: the Scroll is still
+    // attributed to its topic and bound to its facets, so a person who asked for it can be served.
+    expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([
+      { topic_id: 'earth.seasons' },
+    ]);
+    const outcomes = await database.db
+      .selectFrom('content.scroll_production_runs')
+      .select('outcomes')
+      .where('topic', '=', 'seasons')
+      .executeTakeFirstOrThrow();
+    expect(outcomes.outcomes).not.toContainEqual(expect.objectContaining({ code: 'attribution_unverified' }));
+    const bound = await database.db.selectFrom('content.region_bindings').select('facet_id').execute();
+    expect(bound.length).toBeGreaterThan(0);
   });
 
   it('resumes the same job after a crash before the writer, without fetching the research again', async () => {
@@ -147,6 +161,52 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       result: { outcome: 'published' },
     });
     expect(p.fixture.calls).toHaveLength(1);
+  });
+
+  describe('research failures', () => {
+    const research = (failure: () => Error | undefined) => (url: string) => {
+      const error = failure();
+      return error === undefined ? Promise.resolve(fixtureResearchFor(url)) : Promise.reject(error);
+    };
+
+    it('does not spend a take on a transient failure: the job waits at research and the same take publishes', async () => {
+      let failure: Error | undefined = new ResearchRefusal('network_failed');
+      const p = fixtureProductionWorker(database, answer, { research: research(() => failure) });
+      await expect(p.run(produceScrollJob('seasons', 1), delivery())).rejects.toThrow(
+        'SCROLL_PRODUCTION_RESEARCH_UNAVAILABLE',
+      );
+      expect(p.fixture.calls).toHaveLength(0);
+      expect(await runRow()).toMatchObject({ state: 'research' });
+      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'running', takes: 1 });
+      // A plain error (not a refusal of the sources) is a blip as well.
+      failure = new Error('socket hang up');
+      await expect(p.run(produceScrollJob('seasons', 1), delivery())).rejects.toThrow(
+        'SCROLL_PRODUCTION_RESEARCH_UNAVAILABLE',
+      );
+      failure = undefined;
+      expect(await p.run(produceScrollJob('seasons', 1), delivery())).toMatchObject({
+        kind: 'finished',
+        result: { outcome: 'published', take: 1 },
+      });
+      expect(
+        await database.db
+          .selectFrom('content.scroll_production_runs')
+          .select('take')
+          .where('topic', '=', 'seasons')
+          .execute(),
+      ).toEqual([{ take: 1 }]);
+    });
+
+    it('still rejects a take on a verdict about the sources', async () => {
+      const p = fixtureProductionWorker(database, answer, {
+        research: research(() => new ResearchRefusal('soft_404')),
+      });
+      expect(await p.run(produceScrollJob('seasons', 1), delivery())).toMatchObject({
+        kind: 'finished',
+        result: { outcome: 'rejected', codes: ['soft_404'] },
+      });
+      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'retryable', takes: 1 });
+    });
   });
 
   describe('takes after a rejection', () => {

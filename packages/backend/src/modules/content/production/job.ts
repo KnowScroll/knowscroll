@@ -33,7 +33,9 @@ export type ScrollProductionJobOutcome =
  * this version, and an unknown attempt waits for an operator. `paused` also completes it: nothing was
  * sent, the run stays open, and the next send for the recipe (an operator's library run, or a person's
  * request) resumes it once the budget or quota allows. A job that is still `in_progress` after the
- * call belongs to another running delivery, so this one fails to be tried again later.
+ * call belongs to another running delivery, so this one fails to be tried again later. A transient
+ * research failure (the network, a host that is slow or erroring) also fails the delivery, so the queue
+ * tries it again with backoff; the job stays at its research stage and no take is spent.
  */
 export function makeRunScrollProduction(produce: ProduceScroll) {
   return async function runScrollProduction(
@@ -46,6 +48,7 @@ export function makeRunScrollProduction(produce: ProduceScroll) {
     const result = await produce(recipe, false, delivery.signal, true, job.take);
     if (result.outcome === 'scope_refused') throw new Error('SCROLL_PRODUCTION_SCOPE_REFUSED');
     if (result.outcome === 'in_progress') throw new Error('SCROLL_PRODUCTION_IN_PROGRESS');
+    if (result.outcome === 'retry_later') throw new Error('SCROLL_PRODUCTION_RESEARCH_UNAVAILABLE');
     return { kind: 'finished', result };
   };
 }

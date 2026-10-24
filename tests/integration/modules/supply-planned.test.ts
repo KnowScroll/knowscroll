@@ -17,7 +17,7 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
   beforeAll(async () => {
     database = await createTestDatabase<Database>('supply_planned');
     content = await scrollUseCases(database);
-    supply = realSupply(database, content.boss, { createDailyCap: 10 });
+    supply = realSupply(database, content.boss, { createDailyCap: 10, readExploration: content.readExploration });
   });
   afterAll(async () => {
     await content.close();
@@ -68,7 +68,7 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
   });
 
   it('commissions nothing, and stores nothing, when Create is off or has no recipe left', async () => {
-    const off = realSupply(database, content.boss);
+    const off = realSupply(database, content.boss, { readExploration: content.readExploration });
     const person = await seedPerson(database.db);
     const recordWith = (record: typeof supply.record, input: PlannedDemandInput) =>
       withScope()(person.authority, (scope) => record(scope, input)).then((result) => {

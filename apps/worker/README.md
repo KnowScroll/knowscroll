@@ -58,7 +58,12 @@ one recipe and take per delivery, with resume, so a redelivery continues the sam
 registered only when `KS_REASONING_PRODUCTION_ENABLED=1`; otherwise jobs wait in the queue. The
 `supply.resolve-request` consumer advances a person's request (a free-text match, the wait for
 production, binding) with the personal reasoning harness. `KS_SUPPLY_CREATE_DAILY_CAP` caps the
-productions Create may start per UTC day (default 20 in `local`, 0 elsewhere).
+productions Create may start per UTC day for people's asks (default 20 in `local`, 0 elsewhere);
+`KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` (default 5) caps the Planner's demand apart from it.
+
+`node dist/operator.js supply recover-open-demand [--dry-run]` (`src/supply-operator.ts`) sends one
+resolver job for every ask that is still open from before Create existed and prints the counts. It is
+idempotent and calls no provider.
 
 `node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and

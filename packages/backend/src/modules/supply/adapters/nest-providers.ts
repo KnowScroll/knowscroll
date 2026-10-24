@@ -26,6 +26,11 @@ import {
 } from '../../content/public.js';
 import type { ReasoningHarness } from '../../../reasoning/public.js';
 import {
+  READ_EXPLORATION_SNAPSHOT,
+  encounteredUnitsOf,
+  type ReadExplorationSnapshot,
+} from '../../personal-context/public.js';
+import {
   CHECK_PERSONAL_OWNER_ACTIVE,
   type CheckPersonalOwnerActive,
   type WithPersonalScope,
@@ -55,7 +60,10 @@ import { supplyStore } from './postgres-store.js';
 export const SUPPLY_PORTS = Symbol('supply.ports');
 /** What Supply reads from a process's configuration (the API's and the worker's both carry it). */
 export interface SupplySettings {
+  /** Productions people's own asks may start per UTC day; 0 turns Create off. */
   readonly supplyCreateDailyCap: number;
+  /** Productions the Planner's demand may start per UTC day; never above the cap for people. */
+  readonly supplyPlannerCreateDailyCap: number;
 }
 
 /** Priority of a person's production job over operator seeding (priority 0). */
@@ -80,6 +88,7 @@ export function supplyProviders(t: {
         t.withPersonalScope,
         t.enqueueJob,
         t.config,
+        READ_EXPLORATION_SNAPSHOT,
         CHOOSE_SCROLL_RECIPE,
         READ_SCROLL_PRODUCTION,
         READ_REGION_ENCOUNTER_CANDIDATES,
@@ -93,6 +102,7 @@ export function supplyProviders(t: {
         withScope: WithPersonalScope,
         enqueue: EnqueueJob,
         settings: SupplySettings,
+        readExploration: ReadExplorationSnapshot,
         chooseRecipe: ChooseScrollRecipe,
         readProduction: ReadScrollProduction,
         readFacetCandidates: ReadRegionEncounterCandidates,
@@ -108,7 +118,22 @@ export function supplyProviders(t: {
         chooseRecipe,
         readProduction,
         readFacetCandidates,
-        createDailyCap: settings.supplyCreateDailyCap,
+        createDailyCaps: {
+          person: settings.supplyCreateDailyCap,
+          planner: Math.min(settings.supplyPlannerCreateDailyCap, settings.supplyCreateDailyCap),
+        },
+        readMetUnits: async (scope, query) => {
+          const snapshot = await readExploration(scope, {
+            evaluatedAt: new Date().toISOString(),
+            topicIds: [...query.topicIds],
+            candidates: query.units.map((explanationUnitId) => ({ explanationUnitId, facets: [] })),
+            provisionalLimit: 0,
+          });
+          // Without proof of what they have met, nothing is shown to be new: bind nothing.
+          return snapshot.proofAvailability === 'available'
+            ? new Set(encounteredUnitsOf(snapshot))
+            : new Set(query.units);
+        },
         enqueueProduction: (scope, recipe, take) => {
           const job = produceScrollJob(recipe, take);
           return enqueue(scope, produceScrollQueue, job, {
@@ -191,4 +216,5 @@ export {
 export { makeResolveRequest } from '../application/resolve.js';
 export { makeMatchRequest } from '../application/matching.js';
 export { makeListRequests } from '../application/list.js';
+export { recoverOpenDemand, type RecoveredDemand } from './recover-open-demand.js';
 export type { SupplyPorts } from '../application/ports.js';

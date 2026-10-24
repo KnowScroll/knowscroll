@@ -41,6 +41,18 @@ describe('request consumer over actual scoped HTTP fixture transport', () => {
       h.scope.end();
     }
   });
+  it('says so when the person already has the most open asks, and keeps the draft', async () => {
+    const h = requestHarness();
+    try {
+      h.setCreateFailure('too_many_open');
+      ask(h);
+      await waitFor(() => expect(h.session.getState().phase).toBe('refused'));
+      expect(h.session.getState()).toMatchObject({ error: 'too_many_open', text: 'private prose' });
+      expect(h.session.getState().receipt).toBeUndefined();
+    } finally {
+      h.scope.end();
+    }
+  });
   it('keeps immutable replay acceptance separate from current read and refuses withdrawn Open', async () => {
     const h = requestHarness();
     let release = () => {};

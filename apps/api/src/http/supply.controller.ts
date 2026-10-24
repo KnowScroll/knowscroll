@@ -25,6 +25,8 @@ const refusalProblems: Record<Refusal, ProblemCode> = {
   stale_source: 'ASSET_REVISION_STALE',
   // Unknown and another person's request have the same answer.
   not_found: 'NOT_FOUND',
+  // Too many asks are open at once: try again after one ends or is cancelled.
+  too_many_open: 'TOO_MANY_REQUESTS',
 };
 
 /** Private demand commands: acceptance receipts and current status remain separate reads. */

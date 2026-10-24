@@ -12,15 +12,22 @@ import {
   type ReadRequest,
   type RecordPlannedDemand,
 } from '@knowscroll/backend/modules/supply';
+import { READ_EXPLORATION_SNAPSHOT, type ReadExplorationSnapshot } from '@knowscroll/backend/modules/personal-context';
 import { SUPPLY_PORTS, supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import type { TestDatabase } from './database.js';
 import { buildFromProviders } from './providers.js';
 
 /**
  * Supply's planned-demand entry and the person-facing status read and cancel, built from the worker's
- * providers. `createDailyCap` is what Create may start per day (default 0: Create is off, like dev's default).
+ * providers. `createDailyCap` is what Create may start per day for people (default 0: Create is off, like
+ * dev's default) and `plannerCreateDailyCap` what the Planner's demand may start (default: the same).
+ * `readExploration` is the person's actual exploration snapshot, from which supply re-derives what they met.
  */
-export function realSupply(database: TestDatabase<Database>, boss: PgBoss, options: { createDailyCap?: number } = {}) {
+export function realSupply(
+  database: TestDatabase<Database>,
+  boss: PgBoss,
+  options: { createDailyCap?: number; plannerCreateDailyCap?: number; readExploration: ReadExplorationSnapshot },
+) {
   const SCOPE = Symbol('test.supply.scope'),
     ENQUEUE = Symbol('test.supply.enqueue'),
     CONFIG = Symbol('test.supply.config');
@@ -28,7 +35,14 @@ export function realSupply(database: TestDatabase<Database>, boss: PgBoss, optio
   const values = new Map<symbol, unknown>([
     [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
     [ENQUEUE, makeEnqueueJob(boss)],
-    [CONFIG, { supplyCreateDailyCap: options.createDailyCap ?? 0 }],
+    [
+      CONFIG,
+      {
+        supplyCreateDailyCap: options.createDailyCap ?? 0,
+        supplyPlannerCreateDailyCap: options.plannerCreateDailyCap ?? options.createDailyCap ?? 0,
+      },
+    ],
+    [READ_EXPLORATION_SNAPSHOT, options.readExploration],
     ...identityScopeOwnerProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...experienceEvidenceReadProviders().map((provider) => [provider.provide, provider.useValue] as const),
@@ -45,5 +59,5 @@ export function realSupply(database: TestDatabase<Database>, boss: PgBoss, optio
 export const realRecordPlannedDemand = (
   database: TestDatabase<Database>,
   boss: PgBoss,
-  options: { createDailyCap?: number } = {},
+  options: Parameters<typeof realSupply>[2],
 ): RecordPlannedDemand => realSupply(database, boss, options).record;

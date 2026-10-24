@@ -6,11 +6,13 @@ import type { CreateContentRequest } from '@knowscroll/contracts';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
+import { requestHash } from '@knowscroll/backend/infrastructure/receipts';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import { produceScrollJob, produceScrollQueue } from '@knowscroll/backend/modules/content';
+import { READ_EXPLORATION_SNAPSHOT } from '@knowscroll/backend/modules/personal-context';
 import {
   CANCEL_CONTENT_REQUEST,
   CREATE_CONTENT_REQUEST,
@@ -24,18 +26,19 @@ import {
   type ListRequests,
   type ReadRequest,
   type RecordPlannedDemand,
+  type PlannedDemandInput,
   type ResolveRequest,
 } from '@knowscroll/backend/modules/supply';
-import { SUPPLY_PORTS, supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
+import { SUPPLY_PORTS, recoverOpenDemand, supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { buildFromProviders } from '../support/providers.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureAuthored } from '../support/generated-scroll.js';
 import { fixtureHarness, fixtureModel } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { fixtureProductionWorker } from '../support/production-worker.js';
+import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
-import { scrollUseCases } from '../support/scroll.js';
+import { scrollUseCases, starterSource } from '../support/scroll.js';
 
 const capabilities = { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] };
 const writerAnswer = (): FixtureScenario => ({ kind: 'success', text: JSON.stringify(fixtureAuthored('diagram')) });
@@ -60,11 +63,15 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
 
   /** Builds the use cases with the given Create cap and production script. */
-  async function build(options: { cap?: number; writer?: () => FixtureScenario } = {}) {
+  async function build(
+    options: { cap?: number; plannerCap?: number; writer?: () => FixtureScenario; quota?: QuotaScript } = {},
+  ) {
     database = await createTestDatabase<Database>('supply_create');
     await sql`update reasoning.production_scopes set enabled=true where id='scroll-supply'`.execute(database.db);
     content = await scrollUseCases(database);
-    production = fixtureProductionWorker(database, options.writer ?? writerAnswer);
+    production = fixtureProductionWorker(database, options.writer ?? writerAnswer, {
+      ...(options.quota ? { quota: options.quota } : {}),
+    });
     matchScript = () => matchAnswer(null);
     matchModel = fixtureModel((sequence) => matchScript(sequence), { label: 'supply-match-CI-fixture' });
     const SCOPE = Symbol('scope'),
@@ -80,7 +87,14 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     const values = new Map<symbol, unknown>([
       [SCOPE, withScope()],
       [ENQUEUE, makeEnqueueJob(content.boss)],
-      [CONFIG, { supplyCreateDailyCap: options.cap ?? 10 }],
+      [
+        CONFIG,
+        {
+          supplyCreateDailyCap: options.cap ?? 10,
+          supplyPlannerCreateDailyCap: options.plannerCap ?? options.cap ?? 10,
+        },
+      ],
+      [READ_EXPLORATION_SNAPSHOT, content.readExploration],
       [HARNESS, fixtureHarness(database.db, { model: matchModel }).harness],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
@@ -164,6 +178,67 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       .select(['work.id', 'work.active', 'work.production_recipe', 'request.decision'])
       .where('request.id', '=', requestId)
       .executeTakeFirstOrThrow();
+
+  /** An admitted Scroll of the library for a topic, as authored CI content (not produced). */
+  async function admit(topicId: string, title = 'Authored CI Supply fixture') {
+    const source = starterSource() as {
+      assetId: string;
+      publication: { explanationUnitId: string };
+      draft: { title: string };
+    };
+    source.draft.title = title;
+    source.assetId = randomUUID();
+    source.publication.explanationUnitId = `ci-supply-${randomUUID()}`;
+    const imported = await content.importScroll(source);
+    if (imported.kind !== 'imported') throw new Error('CI fixture admission refused');
+    await database.db
+      .insertInto('content.encounter_topics')
+      .values({
+        asset_id: imported.assetId,
+        asset_revision: imported.revision,
+        topic_id: topicId,
+        role: 'primary',
+        weight: 1,
+      })
+      .execute();
+    return { assetId: imported.assetId, assetRevision: imported.revision, unit: source.publication.explanationUnitId };
+  }
+  /** The person opens and activates a Scroll, which is how an explanation becomes one they have met. */
+  async function meet(person: FixturePerson, asset: { assetId: string }) {
+    const opened = await content.openExposure(person.authority, {
+      commandId: randomUUID(),
+      target: { kind: 'scroll', assetId: asset.assetId },
+      origin: { kind: 'direct' },
+      capabilities,
+    });
+    if (opened.kind !== 'opened') throw new Error('CI open refused');
+    const activated = await content.activateExposure(person.authority, {
+      commandId: randomUUID(),
+      exposureId: opened.outcome.exposureId,
+    });
+    if (activated.kind !== 'activated') throw new Error('CI activation refused');
+  }
+  const plan = (topicId: string, overrides: Partial<PlannedDemandInput> = {}): PlannedDemandInput => ({
+    plannerRunId: randomUUID(),
+    slot: 0,
+    topicIds: [topicId],
+    format: 'scroll',
+    language: 'en',
+    capabilities,
+    alreadyMet: [],
+    ...overrides,
+  });
+  const recordFor = (person: FixturePerson, input: PlannedDemandInput) =>
+    withScope()(person.authority, (scope) => recordPlanned(scope, input)).then((result) => {
+      if (result.kind !== 'entered') throw new Error('CI scope refused');
+      return result.value;
+    });
+  const queuedProduceJobs = async () =>
+    (
+      await sql<{
+        data: { recipe: string; take: number };
+      }>`select data from pgboss.job where name=${produceScrollQueue.name} and state='created'`.execute(database.db)
+    ).rows.map((row) => row.data);
   const publish = (recipe: string, take = 1) =>
     production.run(produceScrollJob(recipe, take), { signal: new AbortController().signal });
 
@@ -327,6 +402,279 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     expect(await produceJobs()).toHaveLength(1);
     // Without `duplicate`, a refused send is an error: the caller's transaction must not go on.
     await expect(send({ singletonKey: 'seasons:one' })).rejects.toThrow('did not create a job');
+  });
+
+  describe('work that was dropped, left over or too slow', () => {
+    it('resumes a paused or dropped job when another person joins its group', async () => {
+      let quotaSpent = true;
+      await build({
+        quota: () => ({
+          verdict: quotaSpent ? 'unavailable' : 'not_applicable',
+          intervalRemainingPercent: null,
+          weeklyRemainingPercent: null,
+        }),
+      });
+      const first = await seedPerson(database.db),
+        second = await seedPerson(database.db),
+        third = await seedPerson(database.db);
+      const a = await ask(first, catalogue('earth.seasons'));
+      expect(await queuedProduceJobs()).toEqual([expect.objectContaining({ recipe: 'seasons', take: 1 })]);
+
+      // The worker takes the job and pauses: the quota is spent, nothing is sent, the delivery completes.
+      expect(await publish('seasons')).toMatchObject({ result: { outcome: 'paused' } });
+      await sql`update pgboss.job set state='completed' where name=${produceScrollQueue.name}`.execute(database.db);
+      expect(await queuedProduceJobs()).toEqual([]);
+
+      // Joining the group sends the job again, so the work resumes instead of leaving the joiner to time out.
+      const b = await ask(second, catalogue('earth.seasons'));
+      expect((await workOf(b)).decision).toBe('join');
+      expect(await queuedProduceJobs()).toEqual([expect.objectContaining({ recipe: 'seasons', take: 1 })]);
+      // A second joiner while that job is queued adds nothing.
+      await ask(third, catalogue('earth.seasons'));
+      expect(await queuedProduceJobs()).toHaveLength(1);
+
+      quotaSpent = false;
+      expect(await publish('seasons')).toMatchObject({ result: { outcome: 'published' } });
+      // The attempt that sent nothing before the pause must not stop the Scroll being attributed to its topic.
+      expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([
+        { topic_id: 'earth.seasons' },
+      ]);
+      await resolve(job(first, a));
+      await resolve(job(second, b));
+      expect(await status(first, a)).toMatchObject({ status: 'ready' });
+      expect(await status(second, b)).toMatchObject({ status: 'ready' });
+
+      // A job that was dead-lettered is sent again the same way.
+      await sql`delete from pgboss.job where name=${produceScrollQueue.name}`.execute(database.db);
+      const fourth = await seedPerson(database.db);
+      const c = await ask(fourth, catalogue('earth.tides'));
+      await sql`update pgboss.job set state='failed' where name=${produceScrollQueue.name}`.execute(database.db);
+      expect(await queuedProduceJobs()).toEqual([]);
+      await ask(await seedPerson(database.db), catalogue('earth.tides'));
+      expect(await queuedProduceJobs()).toEqual([expect.objectContaining({ recipe: 'tides', take: 1 })]);
+      expect((await status(fourth, c)).status).toBe('preparing');
+    });
+
+    it('advances open demand that was left from before Create: one recovery job per ask, then it is commissioned', async () => {
+      await build();
+      const planned = await seedPerson(database.db),
+        asked = await seedPerson(database.db);
+      const seasonsBrief = {
+        version: 'supply-brief.v1',
+        rights: 'shared_admitted',
+        language: 'en',
+        format: 'scroll',
+        subject: { kind: 'catalogue', catalogueVersion: 'content-concepts.v1', topicId: 'earth.seasons' },
+      } as const;
+      // The state an older release left: a group with no recipe, and asks with no resolver job.
+      const legacyGroup = randomUUID();
+      await database.db
+        .insertInto('supply.work')
+        .values({
+          id: legacyGroup,
+          canonical_key: requestHash('supply-public-canonical.v1', seasonsBrief),
+          brief: JSON.stringify(seasonsBrief),
+        })
+        .execute();
+      const insertRow = async (
+        person: FixturePerson,
+        state: 'deferred' | 'requested',
+        origin: 'planner' | 'person',
+      ) => {
+        const id = randomUUID();
+        await database.db
+          .insertInto('supply.requests')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            id,
+            command: JSON.stringify(catalogue('earth.seasons')),
+            state,
+            origin,
+            ...(origin === 'planner' ? { planner_run_id: randomUUID(), planner_slot: 0 } : {}),
+            request_revision: 1,
+            revision: 0,
+            decision: 'join',
+            work_id: legacyGroup,
+            brief: JSON.stringify(seasonsBrief),
+            created_at: new Date(),
+            updated_at: new Date(),
+          })
+          .execute();
+        return id;
+      };
+      const plannedId = await insertRow(planned, 'deferred', 'planner');
+      const askedId = await insertRow(asked, 'requested', 'person');
+      expect(await status(planned, plannedId)).toMatchObject({ status: 'preparing' });
+
+      const dry = await recoverOpenDemand(database.db, content.boss, { dryRun: true });
+      expect(dry).toEqual({ open: { deferred: 1, requested: 1 }, queued: 0, alreadyQueued: 0 });
+      expect(await resolverJobs(planned)).toEqual([]);
+      const first = await recoverOpenDemand(database.db, content.boss, { dryRun: false });
+      expect(first).toEqual({ open: { deferred: 1, requested: 1 }, queued: 2, alreadyQueued: 0 });
+      // Running it again sends nothing new.
+      expect(await recoverOpenDemand(database.db, content.boss, { dryRun: false })).toEqual({
+        open: { deferred: 1, requested: 1 },
+        queued: 0,
+        alreadyQueued: 2,
+      });
+      expect(await resolverJobs(planned)).toHaveLength(1);
+
+      // The resolver commissions what the old group never did, and the waiters stand on the new one.
+      await resolve(job(planned, plannedId));
+      await resolve(job(asked, askedId));
+      expect(await produceJobs()).toHaveLength(1);
+      const workIds = await database.db
+        .selectFrom('supply.requests')
+        .select(['id', 'work_id'])
+        .where('id', 'in', [plannedId, askedId])
+        .execute();
+      expect(new Set(workIds.map((row) => row.work_id)).size).toBe(1);
+      expect(workIds[0]!.work_id).not.toBe(legacyGroup);
+      expect(
+        await database.db
+          .selectFrom('supply.work')
+          .select(['active', 'production_recipe', 'commissioned_by'])
+          .where('id', '=', workIds[0]!.work_id!)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ active: true, production_recipe: 'seasons', commissioned_by: 'planner' });
+      expect((await status(planned, plannedId)).status).toBe('preparing');
+
+      await publish('seasons');
+      await resolve(job(planned, plannedId));
+      await resolve(job(asked, askedId));
+      expect(await status(planned, plannedId)).toMatchObject({ status: 'ready' });
+      expect(await status(asked, askedId)).toMatchObject({ status: 'ready' });
+    });
+
+    it('binds planned demand only to content the person has not met, however it looks at plan time', async () => {
+      await build();
+      const person = await seedPerson(database.db);
+      const read = await admit('earth.tides', 'Already read');
+      await meet(person, read);
+      const outcome = await recordFor(person, plan('earth.tides', { alreadyMet: [read.unit] }));
+      if (outcome.kind !== 'deferred') throw new Error(`CI planned demand not deferred: ${outcome.kind}`);
+      expect(await produceJobs()).toHaveLength(1);
+
+      // The paid job is still queued and the Scroll they already read serves the topic: it must not stand in.
+      await resolve(job(person, outcome.requestId));
+      expect(await status(person, outcome.requestId)).toMatchObject({ status: 'preparing' });
+
+      // What is produced is new to them: that binds.
+      await publish('tides');
+      await resolve(job(person, outcome.requestId));
+      expect(await status(person, outcome.requestId)).toMatchObject({
+        status: 'ready',
+        content: { assetId: TOPICS.tides.assetId },
+      });
+
+      // Their own explicit ask for the same topic is not demand for something new, and still gets the read Scroll first.
+      const other = await seedPerson(database.db);
+      const own = await ask(other, catalogue('earth.tides'));
+      expect(await status(other, own)).toMatchObject({ status: 'ready' });
+    });
+
+    it('closes an open request past its wait limit when it is read, though no job ever closed it', async () => {
+      await build();
+      const person = await seedPerson(database.db);
+      const requestId = await ask(person, catalogue('earth.seasons'));
+      const free = await ask(person, freeText('anything at all'));
+      await sql`update supply.requests set created_at = now() - interval '31 minutes', updated_at = now() - interval '31 minutes'`.execute(
+        database.db,
+      );
+      for (const id of [requestId, free]) {
+        const closed = await status(person, id);
+        expect(closed).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+        expect(await status(person, id)).toEqual(closed);
+      }
+      const listed = await list(person.authority);
+      if (listed.kind !== 'ok') throw new Error('CI list refused');
+      expect(listed.value.requests.map((request) => request.status.status)).toEqual(['unavailable', 'unavailable']);
+      // A cancel then finds nothing open, and the closed outcome is frozen in the row.
+      expect(
+        await cancel(person.authority, {
+          version: 'content-request-cancel.v1',
+          commandId: randomUUID(),
+          requestId,
+        }),
+      ).toMatchObject({ kind: 'ok', value: { outcome: 'already_closed' } });
+      expect(
+        await database.db.selectFrom('supply.requests').select('state').where('id', '=', requestId).executeTakeFirst(),
+      ).toEqual({ state: 'unavailable' });
+    });
+
+    it('limits how many asks a person may have open, without writing a receipt for a refused one', async () => {
+      await build();
+      const person = await seedPerson(database.db);
+      const asks = [];
+      for (let n = 0; n < 10; n += 1) asks.push(freeText(`question number ${String(n)}`));
+      const ids: string[] = [];
+      for (const command of asks) ids.push(await ask(person, command));
+      const eleventh = freeText('one question too many');
+      expect(await create(person.authority, eleventh)).toEqual({ kind: 'refused', reason: 'too_many_open' });
+      expect(
+        await database.db
+          .selectFrom('receipts.personal_commands')
+          .select('command_id')
+          .where('command_id', '=', eleventh.commandId)
+          .execute(),
+      ).toEqual([]);
+      // A replay of an accepted ask still replays, and closing one makes room for the same command.
+      expect(await create(person.authority, asks[0]!)).toMatchObject({ kind: 'ok', value: { replayed: true } });
+      await cancel(person.authority, {
+        version: 'content-request-cancel.v1',
+        commandId: randomUUID(),
+        requestId: ids[0]!,
+      });
+      expect(await create(person.authority, eleventh)).toMatchObject({ kind: 'ok' });
+      // The limit is per person, and the Planner's demand is not counted against it.
+      expect(await create((await seedPerson(database.db)).authority, freeText('someone else'))).toMatchObject({
+        kind: 'ok',
+      });
+    });
+
+    it('cuts a long title to what the list allows', async () => {
+      await build();
+      const person = await seedPerson(database.db);
+      const longTitled = await admit('earth.tides');
+      // Reel titles are allowed to be longer than a Scroll's; the stored title is what the list must cut.
+      await sql`alter table content.asset_revisions disable trigger user`.execute(database.db);
+      await sql`update content.asset_revisions set title=${'A'.repeat(240)} where asset_id=${longTitled.assetId}::uuid`.execute(
+        database.db,
+      );
+      await ask(person, catalogue('earth.tides'));
+      await ask(person, freeText('B'.repeat(300)));
+      const listed = await list(person.authority);
+      if (listed.kind !== 'ok') throw new Error('CI list refused');
+      expect(listed.value.requests.map((request) => request.title.length)).toEqual([160, 160]);
+    });
+  });
+
+  describe('the Planner and people share Create without starving each other', () => {
+    it('counts the Planner demand against its own cap, so a person explicit ask still starts work', async () => {
+      await build({ cap: 3, plannerCap: 1 });
+      const person = await seedPerson(database.db);
+      expect(await recordFor(person, plan('earth.seasons'))).toMatchObject({ kind: 'deferred' });
+      // The Planner has used its one production today; a second brief of its own is not commissioned.
+      expect(await recordFor(person, plan('earth.tides', { slot: 1 }))).toEqual({ kind: 'not_commissioned' });
+
+      // People's asks have their own count: three still start, then the day's cap closes the fourth.
+      const asker = await seedPerson(database.db);
+      for (const topic of ['earth.tides', 'space.stars', 'space.black-holes']) {
+        const id = await ask(asker, catalogue(topic));
+        expect((await workOf(id)).decision).toBe('create');
+        expect(await status(asker, id)).toMatchObject({ status: 'preparing' });
+      }
+      const over = await ask(asker, catalogue('space.exoplanets'));
+      expect(await status(asker, over)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
+    });
+
+    it('never lets the Planner start work when Create is off for people', async () => {
+      await build({ cap: 0, plannerCap: 5 });
+      const person = await seedPerson(database.db);
+      expect(await recordFor(person, plan('earth.seasons'))).toEqual({ kind: 'not_commissioned' });
+      expect(await produceJobs()).toHaveLength(0);
+    });
   });
 
   it('starts at most the daily cap of productions, lets a joiner in past it, and closes the rest honestly', async () => {

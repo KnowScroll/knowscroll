@@ -7,7 +7,7 @@ import {
 } from '@knowscroll/contracts';
 import type { CreateContentRequest } from '@knowscroll/contracts';
 import { CONCEPTS } from '../../content/public.js';
-import { commissionSupply } from './commission.js';
+import { MAX_OPEN_REQUESTS, commissionSupply } from './commission.js';
 import { briefOf, checkedRevision, inventory, snapshot, sourceOf } from './inventory.js';
 import type { SupplyPorts, Demand, CreateRequest, ReadRequest, CancelRequest, RecordPlannedDemand } from './ports.js';
 
@@ -35,6 +35,10 @@ export function makeCreateRequest(p: SupplyPorts): CreateRequest {
           }),
         } as const;
       if (previous.kind !== 'new') return { kind: 'refused', reason: previous.reason } as const;
+      // Every open ask is polled by its own jobs, so the number a person may have open is bounded. A refusal
+      // writes no receipt: the same command can be sent again once an ask ends or is cancelled.
+      if ((await p.store.countOpenPersonDemands(scope)) >= MAX_OPEN_REQUESTS)
+        return { kind: 'refused', reason: 'too_many_open' } as const;
       const source = sourceOf(c);
       if (source && !(await p.checkSource(scope, source))) return { kind: 'refused', reason: 'stale_source' } as const;
       // This preliminary immutable read grants no authority; one sorted lock batch below
@@ -70,7 +74,7 @@ export function makeCreateRequest(p: SupplyPorts): CreateRequest {
           contentAvailabilityRevision: current.ready.availabilityRevision,
         };
       else if (brief) {
-        const commissioned = await commissionSupply(p, scope, brief);
+        const commissioned = await commissionSupply(p, scope, brief, 'person');
         demand =
           commissioned.kind === 'waiting'
             ? {
@@ -237,7 +241,7 @@ export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
       });
       return { kind: 'ready', requestId: id };
     }
-    const commissioned = await commissionSupply(p, scope, brief);
+    const commissioned = await commissionSupply(p, scope, brief, 'planner');
     if (commissioned.kind === 'unavailable') return { kind: 'not_commissioned' };
     await p.store.insert(scope, { ...demand, workId: commissioned.workId, decision: commissioned.decision });
     await p.enqueue(scope, id);

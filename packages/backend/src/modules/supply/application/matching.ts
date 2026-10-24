@@ -45,7 +45,7 @@ async function decide(
       content: found.encounter,
       contentAvailabilityRevision: found.availabilityRevision,
     };
-  const commissioned = await commissionSupply(p, scope, brief);
+  const commissioned = await commissionSupply(p, scope, brief, 'person');
   return commissioned.kind === 'waiting'
     ? { status: 'requested', decision: commissioned.decision, reason: undefined, brief, workId: commissioned.workId }
     : { ...closed(commissioned.reason), brief };

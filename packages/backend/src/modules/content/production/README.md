@@ -37,7 +37,16 @@ send nothing.
 
 When a daily budget or the provider's quota is used up, the run **pauses**: nothing is sent, the job stays
 open at its writer stage and the delivery completes. The next send for the recipe (an operator's library
-run, or a person's request) resumes it. A rejection is a verdict on the answer; a pause is not.
+run, or a person who joins the group: Quartermaster sends the job again on every join) resumes it. A
+rejection is a verdict on the answer; a pause is not. Attempts that sent nothing stay in the ledger but
+are left out of a published Scroll's lineage, so a Scroll published after a pause is attributed to its
+topic and facets like any other. A run that keeps pausing uses up the step's four attempt slots
+(`attempts_exhausted`), and then the take is rejected.
+
+A failed research fetch (`dns_timeout`, `request_timeout`, `network_failed`, `http_refused`, or an error that
+is not a refusal) is also not a verdict. The job stays at `research`, no take is spent, and the delivery fails
+so the queue retries it with its backoff. Only `soft_404`, a refused host or an unusable page ends the take
+as rejected.
 
 ## The pipeline
 

@@ -187,7 +187,9 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
         {state.phase === 'refused' ? (
           <View role="alert">
             <Text variant="bodyS">
-              This request couldn't be accepted. Your source or access may have changed. Choose again when you're ready.
+              {state.error === 'too_many_open'
+                ? 'You have several requests still preparing. Let one finish, or cancel one in Your requests, then ask again.'
+                : "This request couldn't be accepted. Your source or access may have changed. Choose again when you're ready."}
             </Text>
           </View>
         ) : null}

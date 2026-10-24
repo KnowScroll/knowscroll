@@ -144,7 +144,10 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
       readExact: readExactEncounter,
       capabilities: { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] },
       harness,
-      recordDemand: realRecordPlannedDemand(database, c.boss, { createDailyCap: 10 }),
+      recordDemand: realRecordPlannedDemand(database, c.boss, {
+        createDailyCap: 10,
+        readExploration: c.readExploration,
+      }),
       enabled: () => plannerEnabled,
       hash: (x) => requestHash('personal-planner.v0', x as Parameters<typeof requestHash>[1]),
       newId: randomUUID,

@@ -142,14 +142,18 @@ export type {
   LibraryProductionPlan,
   LibraryRecipeStatus,
   ProductionSend,
+  ScrollProductionReading,
   ScrollProductionState,
   ScrollRecipeChoice,
 } from './domain/library/serving.js';
 /** Chooses the library recipe a missing-supply request commissions; read inside the caller's personal transaction. */
 export type ChooseScrollRecipe = (scope: PersonalScopeTx, brief: CatalogueBrief) => Promise<ScrollRecipeChoice>;
 export const CHOOSE_SCROLL_RECIPE = Symbol('content.chooseScrollRecipe');
-/** Where one recipe's production stands; `stopped` for a key the plan does not hold. */
-export type ReadScrollProduction = (scope: PersonalScopeTx, recipe: string) => Promise<ScrollProductionState>;
+/**
+ * Where one recipe's production stands (`stopped` for a key the plan does not hold) and the take a
+ * send for it should name.
+ */
+export type ReadScrollProduction = (scope: PersonalScopeTx, recipe: string) => Promise<ScrollProductionReading>;
 export const READ_SCROLL_PRODUCTION = Symbol('content.readScrollProduction');
 
 /** Code-selected production topics and predictable model-request ceiling; no research is exported. */
@@ -179,7 +183,7 @@ import type {
   ContinuityAdmission,
 } from './domain/discovery.js';
 import type { AdmissionTx } from './application/ports.js';
-import type { CatalogueBrief, ScrollProductionState, ScrollRecipeChoice } from './domain/library/serving.js';
+import type { CatalogueBrief, ScrollProductionReading, ScrollRecipeChoice } from './domain/library/serving.js';
 export type ReadDiscoveryCandidates = (
   scope: PersonalScopeTx,
   query: EncounterQuery,

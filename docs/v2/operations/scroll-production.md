@@ -21,6 +21,7 @@ KS_SCROLL_PRODUCTION_GENERATION=1            # must match the database root
 KS_REASONING_PRODUCTION_REQUESTS_PER_DAY=200 # the production scope's own caps (the defaults)
 KS_REASONING_PRODUCTION_TOKENS_PER_DAY=3000000
 KS_SUPPLY_CREATE_DAILY_CAP=10                # API and worker: productions people's requests may start per day
+KS_SUPPLY_PLANNER_CREATE_DAILY_CAP=5         # API and worker: the part the Planner's demand may use (default 5)
 
 # seed the library through the same jobs Quartermaster sends (the worker runs them)
 node dist/operator.js content production-status [--only seasons,tides]
@@ -59,6 +60,42 @@ per-person ones, because seeding the library takes about 70 writer requests and 
 and role caps still apply. When a cap or the provider's quota (`KS_MINIMAX_QUOTA_FLOOR_PERCENT`, default
 25) is used up, a run **pauses** (`outcome: paused`): nothing is sent and the job stays open. Run
 `produce-library` again after the window or the UTC day resets.
+
+A paused job is not lost, and nobody has to wait for the next `produce-library`: a person who asks for the
+same Scroll joins the group, and a join sends the group's job again (same identity, so a queued job is
+never doubled). That also revives a job the queue dead-lettered. A run that pauses again and again uses up
+the step's attempt slots (four unsent attempts per step, `attempts_exhausted`) and the take ends as
+`rejected`; the next take starts fresh.
+
+### Research that is down
+
+A failed fetch (`dns_timeout`, `request_timeout`, `network_failed`, `http_refused`, or an unclassified error)
+is a blip, not a verdict about the sources. The job stays at its research step, no take is spent, the
+delivery fails and the queue retries it (two retries). Only a verdict ends a take: `soft_404`, a refused
+host, an unusable page, or a rejected answer.
+
+### Asks left open from before Create
+
+Asks that were open when Create arrived have no resolver job and may stand on a group that commissioned
+nothing. The recovery command sends one resolver job for each open ask. The resolver then commissions the
+group (or joins one that has work behind it), binds content that exists, or closes the ask honestly:
+
+```sh
+node dist/operator.js supply recover-open-demand --dry-run   # counts open asks by state, sends nothing
+node dist/operator.js supply recover-open-demand             # one job per open ask
+```
+
+It prints `open` (by state), `queued` and `alreadyQueued`. Running it again sends nothing new while the
+earlier jobs are retained. It calls no provider; the productions it leads to run under the caps above.
+
+### Who may start a production
+
+Create has two daily counts, so the Planner cannot use what a person's own ask needs. People's asks use
+`KS_SUPPLY_CREATE_DAILY_CAP`. The Planner's demand uses `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` (default 5),
+and its effective value is never above the people's cap: setting the people's cap to 0 turns Create off
+for both. A person may also have at most 10 asks open at once (a fixed limit; it bounds the polling work),
+and an ask still open after 30 minutes reads as `could_not_prepare`, even if no job ever closed it.
+Planned demand only ever binds to a Scroll the person has not met.
 
 `--topic` takes a recipe key of the library plan, the record keys in
 `packages/backend/src/modules/content/domain/library/` (one file per topic system). An unknown key

@@ -10,14 +10,20 @@ function formatOf(command: CreateContentRequest): 'reel' | 'scroll' | 'either' {
   return command.intent.kind === 'topic' ? command.intent.format : command.intent.to;
 }
 
+/** The most a list title may hold (the contract's bound); a longer title is cut, never refused. */
+const TITLE_LIMIT = 160;
+
 /** The person's own words, the catalogue topic they chose, or the Scroll that is ready: never an internal brief. */
 function titleOf(d: Demand): string {
-  if (d.content) return d.content.metadata.title;
   const { intent } = d.command;
-  if (intent.kind === 'variant') return `The same explanation as a ${intent.to === 'reel' ? 'Reel' : 'Scroll'}`;
-  return intent.subject.kind === 'text'
-    ? intent.subject.text.trim().slice(0, 160)
-    : conceptLabel(intent.subject.topicId, intent.subject.facetId);
+  const title = d.content
+    ? d.content.metadata.title
+    : intent.kind === 'variant'
+      ? `The same explanation as a ${intent.to === 'reel' ? 'Reel' : 'Scroll'}`
+      : intent.subject.kind === 'text'
+        ? intent.subject.text.trim()
+        : conceptLabel(intent.subject.topicId, intent.subject.facetId);
+  return title.slice(0, TITLE_LIMIT);
 }
 
 /**

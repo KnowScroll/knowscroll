@@ -103,11 +103,11 @@ export const supplyStore: SupplyStore = {
       .executeTakeFirst();
     return row ? workOf(row) : undefined;
   },
-  async joinOrCreate(scope, brief, id, recipe) {
+  async joinOrCreate(scope, brief, id, commission) {
     const key = requestHash('supply-public-canonical.v1', brief);
     const r = await sql<{
       id: string;
-    }>`insert into supply.work(id,canonical_key,brief,production_recipe) values(${id}::uuid,${key},${JSON.stringify(brief)}::jsonb,${recipe ?? null})
+    }>`insert into supply.work(id,canonical_key,brief,production_recipe,commissioned_by) values(${id}::uuid,${key},${JSON.stringify(brief)}::jsonb,${commission?.recipe ?? null},${commission?.origin ?? null})
       on conflict(canonical_key) where active do update set canonical_key=excluded.canonical_key returning id`.execute(
       transactionOf(scope),
     );
@@ -122,12 +122,24 @@ export const supplyStore: SupplyStore = {
       .executeTakeFirst();
     return row ? workOf(row) : undefined;
   },
-  async countCommissionedSince(scope, since) {
+  async countCommissionedSince(scope, since, origin) {
     const row = await transactionOf(scope)
       .selectFrom('supply.work')
       .select(sql<string>`count(*)`.as('count'))
       .where('production_recipe', 'is not', null)
+      .where('commissioned_by', '=', origin)
       .where('created_at', '>=', since)
+      .executeTakeFirstOrThrow();
+    return Number(row.count);
+  },
+  async countOpenPersonDemands(scope) {
+    const row = await transactionOf(scope)
+      .selectFrom('supply.requests')
+      .select(sql<string>`count(*)`.as('count'))
+      .where('universe_id', '=', scope.authority.universeId)
+      .where('privacy_epoch', '=', scope.authority.privacyEpoch)
+      .where('origin', '=', 'person')
+      .where('state', 'in', ['requested', 'matching'])
       .executeTakeFirstOrThrow();
     return Number(row.count);
   },
