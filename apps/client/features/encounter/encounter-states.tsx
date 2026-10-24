@@ -94,19 +94,7 @@ export function EncounterStateScreen({
   if (phase === 'offline')
     return (
       <StateFrame>
-        <OfflineState
-          body="Your place is kept. Try again when you're connected."
-          onRetry={() => session.retry()}
-          more={[
-            {
-              label: 'Open something you kept',
-              href: '/saved',
-              role: 'link',
-              onPress: () => router.navigate('/saved'),
-              variant: 'default',
-            },
-          ]}
-        />
+        <OfflineState body="Your place is kept. Try again when you're connected." onRetry={() => session.retry()} />
       </StateFrame>
     );
   if (phase === 'error')
