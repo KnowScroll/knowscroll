@@ -18,7 +18,8 @@ import { declaredQueues } from './queues.js';
 
 /**
  * `node dist/migrate.js`: applies pending reviewed SQL migrations, installs or upgrades the
- * pg-boss schema and applies every declared queue's policy. Run by the deploy tool before the
+ * pg-boss schema, applies every declared queue's policy and schedule, and removes the schedule of any
+ * queue that is no longer declared. Run by the deploy tool before the
  * new release starts (after a verified backup in live, CF-27). It also rebuilds the `ops` views that
  * read pg-boss's tables and grants the read-only operator role, when that role exists. Exit status 0
  * means the database is ready for this release.
@@ -64,7 +65,8 @@ async function main(): Promise<number> {
     });
     try {
       await boss.start();
-      await applyQueueDeclarations(boss, declaredQueues);
+      for (const removed of await applyQueueDeclarations(boss, declaredQueues))
+        logEvent('jobs.schedule_removed', { queue: removed.queue });
     } finally {
       await boss.stop({ graceful: false });
     }
