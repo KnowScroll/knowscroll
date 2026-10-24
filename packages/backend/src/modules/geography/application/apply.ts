@@ -55,18 +55,14 @@ export async function applyProposal(
   }
   const view = await p.store.view(scope);
   if (!validView(view, c.universeId)) return { kind: 'refused', reason: 'stored_structure' };
-  if (view.state.revision !== c.base.revision || view.state.desiredRevision !== c.desiredRevision)
-    return { kind: 'refused', reason: 'revision_changed' };
+  if (view.state.revision !== c.base.revision) return { kind: 'refused', reason: 'revision_changed' };
   const fresh = await prepareGeography(p, cap, view, c);
-  if (
-    !fresh ||
-    fresh.pcRevision !== c.pcRevision ||
-    fresh.factsSha256 !== c.factsSha256 ||
-    !(await p.ownerActive(scope))
-  )
-    return { kind: 'refused', reason: 'source_changed' };
+  if (!fresh || !(await p.ownerActive(scope))) return { kind: 'refused', reason: 'source_changed' };
+  // New reading since the context was frozen does not void a proposal: it applies when every
+  // operation still holds on today's authority. Support that was withdrawn, corrected or retracted
+  // makes it fail here as `source_changed`.
   const issue = proposalIssue(proposal, fresh.facts);
-  if (issue) return { kind: 'refused', reason: issue };
+  if (issue) return { kind: 'refused', reason: fresh.factsSha256 === c.factsSha256 ? issue : 'source_changed' };
   if (!proposal.operations.length) return { kind: 'refused', reason: 'no_changes' };
   const revision = view.state.revision + 1,
     objects = [...view.objects],

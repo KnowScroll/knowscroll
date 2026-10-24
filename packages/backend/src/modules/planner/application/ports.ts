@@ -30,6 +30,8 @@ export interface PlannerState {
   readonly activeRunId?: string;
   readonly acceptedRevision: number;
   readonly intent?: PlannerIntent;
+  /** The earliest the next run may start (`pacing.ts`); absent means no wait. */
+  readonly nextRunNotBefore?: string;
 }
 export interface FrozenContext {
   readonly version: 'planner-context.v0';
@@ -132,10 +134,14 @@ export interface PlannerPorts {
   readonly enabled: () => boolean;
   readonly prepareNormalWake: (scope: RecordingScopeTx, runId: string) => Promise<'ready' | 'busy' | 'unavailable'>;
   readonly enqueueRetirement: (scope: RecordingScopeTx, runId: string) => Promise<void>;
+  /**
+   * Wakes a run. Without `delayed` the wake is immediate; `startAfter` alone delays the ordinary wake;
+   * with `expectedClaimId` it is the recovery wake bound to that claim.
+   */
   readonly enqueue: (
     scope: RecordingScopeTx,
     runId: string,
-    delayed?: { readonly startAfter: Date; readonly expectedClaimId: string },
+    delayed?: { readonly startAfter: Date; readonly expectedClaimId?: string },
   ) => Promise<void>;
   readonly hash: (value: unknown) => string;
   readonly canonicalHash: (value: unknown) => string;

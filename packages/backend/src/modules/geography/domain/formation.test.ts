@@ -2,7 +2,7 @@ import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 import { CONCEPTS } from '../../content/public.js';
 import { compactSupports } from './compaction.js';
-import { reconcileWithRules, requiredChanges } from './formation.js';
+import { placesDue, reconcileWithRules, requiredChanges } from './formation.js';
 import {
   FORMATION,
   MAX_PROPOSAL_OPERATIONS,
@@ -78,6 +78,26 @@ describe('what the formation rules require, without a model', () => {
     expect(kindsOf(three)).toEqual(['create_system', 'establish_star', 'form_planet', 'add_region', 'add_region']);
   });
 
+  it('asks for a model only while a place is due, never for activity alone or for nothing', () => {
+    expect(placesDue(facts([support('a')]))).toBe(false);
+    expect(placesDue(facts([support('a'), support('b')]))).toBe(true);
+    const established = requiredChanges(facts([support('a'), support('b')])).operations.map((operation) => {
+      const candidate = candidates.find((c) => 'key' in operation && c.key === operation.key)!;
+      return {
+        ...candidate,
+        label: candidate.labels[0]!,
+        objectRevision: 1,
+        originTransitionId: 'earlier',
+        activity: { availability: 'available' as const, state: 'quiet' as const },
+      };
+    });
+    const later = facts([support('a'), support('b')], established);
+    expect(requiredChanges(later).operations.map((operation) => operation.kind)).toEqual([
+      'set_activity',
+      'set_activity',
+    ]);
+    expect(placesDue(later)).toBe(false);
+  });
   it('never forms a planet from three units over one facet', () => {
     const proposal = requiredChanges(facts([support('a'), support('b'), support('c')]));
     expect(kindsOf(proposal)).toEqual(['create_system', 'establish_star']);

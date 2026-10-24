@@ -246,11 +246,18 @@ function customFeedback(
   return { code, detail: catalogue[code] as string };
 }
 
+/**
+ * An allowed literal the repair may print. Literals come from the role's schema, never from the
+ * rejected answer, so versioned names such as `cartographer-proposal.v1` are shown whole. Masking
+ * them to `?` taught a model to answer `"version": "?"`.
+ */
+const safeLiteral = /^[A-Za-z0-9_.-]{1,48}$/;
+
 function primitiveList(values: readonly unknown[]): string | undefined {
   const shown = values
     .slice(0, 5)
     .filter((value) => typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
-    .map((value) => (typeof value === 'string' && !safeSegment.test(value) ? '?' : String(value)));
+    .map((value) => (typeof value === 'string' && !safeLiteral.test(value) ? '?' : String(value)));
   return shown.length === 0 ? undefined : shown.join(', ');
 }
 

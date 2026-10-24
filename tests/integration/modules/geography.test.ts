@@ -174,6 +174,12 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     const r = runner(p),
       s = await state(p);
     await r.run(await job(p, s.activeRunId!), signal());
+    // One unit earns nothing, so reading alone asks no model. An explicit request still does, and
+    // the proposal it gets back (a planet from one unit) is refused.
+    expect(r.model.calls).toHaveLength(0);
+    const asked = await request(p.authority, { commandId: randomUUID() });
+    if (asked.kind !== 'accepted') throw new Error('CI request refused');
+    await r.run(await job(p, asked.runId), signal());
     expect(r.model.calls).toHaveLength(2);
     expect(await snapshot(p)).toMatchObject({ status: 'empty', geography: { revision: 0 } });
     expect(
