@@ -84,7 +84,7 @@ export function createSecureKeyValueStore(
     if (!known.has(key)) return null;
     const cached = known.get(key);
     if (cached !== undefined) return cached;
-    let stored: string | null = null;
+    let stored: string | null;
     try {
       stored = backend.getItem(itemNameOf(key));
     } catch {

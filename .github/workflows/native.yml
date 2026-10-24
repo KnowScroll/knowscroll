@@ -7,9 +7,14 @@
 #
 # Triggers
 # - `workflow_dispatch` (once this file is on `dev`, the default branch):
-#     gh workflow run native.yml --ref <branch> -f api_origin=https://app.dev.knowscroll.space -f gallery=true
+#     gh workflow run native.yml --ref <branch> [-f api_origin=https://app.dev.knowscroll.space] -f gallery=true
 # - `pull_request` (opened, reopened, synchronize, labeled) only while the PR carries the label
-#   `run-native`. Pull requests use the dev origin and build the developer gallery.
+#   `run-native`. Pull requests build against the test API and the developer gallery.
+#
+# The default `api_origin` is the lane's own test API (http://127.0.0.1:3399): the `emulator` job
+# builds the release trees, starts them over a disposable PostgreSQL service with fixture content
+# (apps/client/maestro/test-api/serve.mjs) and the journey flows sign in, explore, read, keep and
+# restart against it. An https origin builds a normal app and runs the signed-out flows only.
 #
 # Jobs: `apk` (expo prebuild, Gradle release build with the JS bundle embedded, debug-signed) then
 # `emulator` (API 35 google_apis x86_64, Maestro flows from apps/client/maestro, screenshots, JUnit
@@ -19,9 +24,9 @@ on:
   workflow_dispatch:
     inputs:
       api_origin:
-        description: World origin the app talks to (HTTPS only), baked into the build
+        description: World origin the app talks to, baked into the build. HTTPS, or the lane's test API (http://127.0.0.1:3399, the default)
         type: string
-        default: https://app.dev.knowscroll.space
+        default: http://127.0.0.1:3399
       gallery:
         description: Build with the developer component gallery (EXPO_PUBLIC_KS_GALLERY=1) and run the gallery flows
         type: boolean
@@ -36,7 +41,9 @@ concurrency:
   group: native-${{ github.ref }}-${{ (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-native')) && 'lane' || github.run_id }}
   cancel-in-progress: true
 env:
-  KS_API_ORIGIN: ${{ inputs.api_origin || 'https://app.dev.knowscroll.space' }}
+  KS_API_ORIGIN: ${{ inputs.api_origin || 'http://127.0.0.1:3399' }}
+  # The port the test API listens on and the emulator reaches through `adb reverse`.
+  KS_TEST_API_PORT: '3399'
   # Pull requests always build the gallery; a manual run decides with its input.
   KS_GALLERY: ${{ github.event_name != 'workflow_dispatch' || inputs.gallery }}
   # Pinned tools (recorded in docs/v2/operations/dependency-matrix.md).
@@ -55,21 +62,31 @@ jobs:
       (github.event.action != 'labeled' || github.event.label.name == 'run-native'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      # "true" when the app was built for the lane's test API: the emulator job then starts it and runs the journeys.
+      test_api: ${{ steps.inputs.outputs.test_api }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: The build inputs are what the lane promises
+        id: inputs
         run: |
+          test_api=false
           case "$KS_API_ORIGIN" in
             https://*) ;;
-            *) echo "api_origin must be an https:// origin (production native builds refuse plain HTTP): $KS_API_ORIGIN"; exit 1 ;;
+            "http://127.0.0.1:$KS_TEST_API_PORT")
+              # The only plain-HTTP origin a build may name; the client and the manifest accept it only with this flag.
+              test_api=true
+              echo "EXPO_PUBLIC_KS_TEST_API=1" >> "$GITHUB_ENV" ;;
+            *) echo "api_origin must be an https:// origin or http://127.0.0.1:$KS_TEST_API_PORT (the lane's test API): $KS_API_ORIGIN"; exit 1 ;;
           esac
           case "$KS_API_ORIGIN" in
             *[[:space:]]*) echo "api_origin must not contain whitespace"; exit 1 ;;
           esac
+          echo "test_api=$test_api" >> "$GITHUB_OUTPUT"
           {
             echo "### native: build inputs"
             echo "- event: \`$GITHUB_EVENT_NAME\`"
-            echo "- API origin baked into the build: \`$KS_API_ORIGIN\`"
+            echo "- API origin baked into the build: \`$KS_API_ORIGIN\` (test API: $test_api)"
             echo "- developer gallery (EXPO_PUBLIC_KS_GALLERY): \`$KS_GALLERY\`"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "EXPO_PUBLIC_KS_API_ORIGIN=$KS_API_ORIGIN" >> "$GITHUB_ENV"
@@ -173,6 +190,14 @@ jobs:
             test "$marker" -eq 0 || { echo "EXPO_PUBLIC_KS_GALLERY is unset, but the bundle carries the developer gallery"; exit 1; }
           fi
           test "$origin" -ge 1 || { echo "the API origin $KS_API_ORIGIN is not in the bundle"; exit 1; }
+          # Cleartext HTTP is allowed in a build made for the test API, and only there.
+          cleartext=$("$build_tools/aapt2" dump xmltree "$apk" --file AndroidManifest.xml | grep -c 'usesCleartextTraffic.*true' || true)
+          echo "- cleartext traffic allowed by the manifest: $cleartext (test API build: ${EXPO_PUBLIC_KS_TEST_API:-0})" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${EXPO_PUBLIC_KS_TEST_API:-0}" = "1" ]; then
+            test "$cleartext" -ge 1 || { echo "a test API build must allow cleartext traffic to the emulator host"; exit 1; }
+          else
+            test "$cleartext" -eq 0 || { echo "a build for an https origin must not allow cleartext traffic"; exit 1; }
+          fi
       - name: Upload the APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -184,9 +209,75 @@ jobs:
   emulator:
     needs: apk
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
+    services:
+      # The test API's database: disposable, discarded with the job. Unused when the APK names an https origin.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      KS_TEST_API: ${{ needs.apk.outputs.test_api }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        if: env.KS_TEST_API == 'true'
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: env.KS_TEST_API == 'true'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: env.KS_TEST_API == 'true'
+        with:
+          node-version: 22.23.0
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        if: env.KS_TEST_API == 'true'
+        run: pnpm install --frozen-lockfile
+      # The Reel the test API serves is generated colour-bar video (no provider is called).
+      - name: Media fixture tooling
+        if: env.KS_TEST_API == 'true'
+        run: |
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            if test -f /etc/apt/apt-mirrors.txt; then
+              printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+            fi
+            sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update --error-on=any
+            sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install --yes --no-install-recommends ffmpeg
+          fi
+          ffprobe -version | head -n 1
+      - name: Build the API and worker, and deploy their release trees
+        if: env.KS_TEST_API == 'true'
+        run: |
+          pnpm --filter '!@knowscroll/client' --filter '!@knowscroll/integration-tests' build
+          release="$RUNNER_TEMP/release"
+          pnpm --config.inject-workspace-packages=true --filter @knowscroll/api deploy --prod "$release/api"
+          pnpm --config.inject-workspace-packages=true --filter @knowscroll/worker deploy --prod "$release/worker"
+      # Fixture world (serve.mjs): migrated database, the authored starter Scroll, one Reel from generated
+      # video through a fake Cutroom, sign-in mail recorded in a file, native sign-in binding on. The
+      # database name is one the Reel importer accepts for fixtures.
+      - name: Start the test API
+        if: env.KS_TEST_API == 'true'
+        run: |
+          psql "postgres://postgres:postgres@localhost:5432/postgres" --no-psqlrc --quiet --command 'create database knowscroll_fixture_native'
+          mkdir -p "$RUNNER_TEMP/test-api"
+          setsid nohup node apps/client/maestro/test-api/serve.mjs \
+            --release "$RUNNER_TEMP/release" \
+            --database-url "postgres://postgres:postgres@localhost:5432/knowscroll_fixture_native" \
+            --port "$KS_TEST_API_PORT" --out "$RUNNER_TEMP/test-api" > "$RUNNER_TEMP/test-api.out" 2>&1 &
+          for _ in $(seq 1 180); do
+            if grep -q '^ready ' "$RUNNER_TEMP/test-api.out"; then break; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/test-api.out"
+          grep -q '^ready ' "$RUNNER_TEMP/test-api.out"
+          curl --fail --silent "http://127.0.0.1:$KS_TEST_API_PORT/health"
       - name: Download the APK
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -215,6 +306,8 @@ jobs:
         env:
           KS_APK: ${{ runner.temp }}/apk/app-release.apk
           KS_OUT: ${{ runner.temp }}/native-out
+          KS_TEST_API_ORIGIN: ${{ needs.apk.outputs.test_api == 'true' && env.KS_API_ORIGIN || '' }}
+          KS_TEST_API_MAIL: ${{ runner.temp }}/test-api/mail.jsonl
           MAESTRO_CLI_NO_ANALYTICS: 'true'
           MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: 'true'
         with:
@@ -245,5 +338,17 @@ jobs:
           path: |
             ${{ runner.temp }}/native-out
             !${{ runner.temp }}/native-out/screenshots
+          if-no-files-found: warn
+          retention-days: 14
+      # The API's own logs (never mail.jsonl, which holds sign-in tokens, nor the fixture media).
+      - name: Upload the test API logs
+        if: ${{ !cancelled() && needs.apk.outputs.test_api == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-api-logs
+          path: |
+            ${{ runner.temp }}/test-api/api.log
+            ${{ runner.temp }}/test-api/worker.log
+            ${{ runner.temp }}/test-api/operator.log
           if-no-files-found: warn
           retention-days: 14
