@@ -192,10 +192,36 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
             <Text variant="body">{unavailableCopy[status.reason]}</Text>
           </View>
         ) : null}
+        {couldBePreparedAgain && state.error === 'too_many_open' ? (
+          <View role="alert">
+            <Text variant="bodyS">
+              You have several requests still preparing. Let one finish, or cancel one in Your requests, then try again.
+            </Text>
+          </View>
+        ) : null}
         {couldBePreparedAgain ? (
           <>
-            <Button label="Try again" variant="primary" onPress={() => session.tryAgain()} />
-            {state.mode === 'topic' ? <Button label="Ask differently" onPress={() => session.editAgain()} /> : null}
+            {state.error === 'not_retryable' ? (
+              <View role="alert">
+                <Text variant="bodyS">This one can&apos;t be tried again. Asking another way may work.</Text>
+              </View>
+            ) : (
+              <Button label="Try again" variant="primary" onPress={() => session.tryAgain()} />
+            )}
+            {state.mode === 'topic' ? (
+              <Button
+                label="Ask differently"
+                variant={state.error === 'not_retryable' ? 'primary' : 'default'}
+                onPress={() => session.editAgain()}
+              />
+            ) : null}
+          </>
+        ) : null}
+        {state.phase === 'retrying' ? <Button label="Trying again" busy /> : null}
+        {state.phase === 'retry_unknown' ? (
+          <>
+            <Text variant="bodyS">Trying again wasn&apos;t confirmed. Your request is kept for retry.</Text>
+            <Button label="Retry trying again" onPress={() => session.retryTryAgain()} />
           </>
         ) : null}
         {state.error === 'read' ? (

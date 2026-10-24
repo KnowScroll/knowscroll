@@ -11,6 +11,13 @@ export const WAIT_POLL_MS = 20_000;
  */
 export const WAIT_LIMIT_MS = 30 * 60_000;
 
+/**
+ * How many times a person may ask to try one request again. A retry reopens the same request, so the
+ * count bounds the production it can ask for over its life; a person who still has nothing asks
+ * differently.
+ */
+export const MAX_RETRIES = 3;
+
 /** How many asks a person may have open at once; each one is polled by its own jobs until it ends. */
 export const MAX_OPEN_REQUESTS = 10;
 
@@ -80,16 +87,24 @@ export async function commissionSupply(
 /** Production that is queued or running will still deliver (a paused or dropped job counts: sending it again resumes it). */
 export const isComing = (state: ScrollProductionState) => state === 'not_started' || state === 'running';
 
+/** What decides when a request's current wait began and which wait it is. */
+export interface WaitClock {
+  readonly createdAt: string;
+  /** When the latest retry began; absent until the first retry. */
+  readonly waitStartedAt?: string;
+  readonly retries?: number;
+}
+
+/** When the wait of this request began: its creation, or its latest retry. */
+export const waitStartOf = (clock: WaitClock): string => clock.waitStartedAt ?? clock.createdAt;
+
 /**
- * When a waiter looks again, and which slot that is. Slots are fixed offsets from the request's
- * creation, and the sender makes one job per request and slot, so two deliveries of the same poll
- * schedule the same next one and the chain of polls never forks.
+ * When a waiter looks again, and which slot that is. Slots are fixed offsets from the start of the
+ * wait, and the sender makes one job per request, retry and slot, so two deliveries of the same poll
+ * schedule the same next one and the chain of polls never forks. A retry starts its own chain.
  */
-export function nextPoll(createdAt: string, now: Date) {
-  const waited = now.getTime() - Date.parse(createdAt);
-  const slot = Math.max(1, Math.floor(waited / WAIT_POLL_MS) + 1);
-  return {
-    startAfter: new Date(Date.parse(createdAt) + slot * WAIT_POLL_MS),
-    slot,
-  };
+export function nextPoll(clock: WaitClock, now: Date) {
+  const start = Date.parse(waitStartOf(clock));
+  const slot = Math.max(1, Math.floor((now.getTime() - start) / WAIT_POLL_MS) + 1);
+  return { startAfter: new Date(start + slot * WAIT_POLL_MS), slot, attempt: clock.retries ?? 0 };
 }

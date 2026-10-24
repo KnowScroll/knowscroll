@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { DisplayProvider } from '@knowscroll/ui';
+import { defaultDevicePreferences } from '../account/device-preferences';
+import { DevicePreferencesProvider } from '../../providers/device-preferences';
 import { unavailableCopy } from '../requests/request-copy';
 import type { RequestState } from '../requests/request-session';
 import { EncounterNotices } from './encounter-notices';
@@ -74,6 +76,42 @@ describe('request notices over an encounter', () => {
     expect(screen.getByText(/Ready: your Scroll of “Why long prompts cost more”/)).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Later' }));
     expect(f.dismissNotice).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the ready notice away when Notifications turns it off, and still says a request is unavailable', async () => {
+    const off = (children: React.ReactNode) => (
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <DevicePreferencesProvider initial={{ ...defaultDevicePreferences, readyNotices: false }}>
+          {children}
+        </DevicePreferencesProvider>
+      </DisplayProvider>
+    );
+    const ready = fixture({
+      status: {
+        status: 'ready',
+        content: { metadata: { title: 'Why long prompts cost more' } },
+      } as RequestState['status'],
+    });
+    const view = await render(
+      off(
+        <EncounterNotices entry={ready.entry} state={{ phase: 'active' } as EncounterState} session={ready.session} />,
+      ),
+    );
+    expect(screen.queryByText(/Ready: your Scroll/)).toBeNull();
+    await view.unmount();
+    const closed = fixture({
+      status: { status: 'unavailable', reason: 'no_compatible_supply' } as RequestState['status'],
+    });
+    await render(
+      off(
+        <EncounterNotices
+          entry={closed.entry}
+          state={{ phase: 'active' } as EncounterState}
+          session={closed.session}
+        />,
+      ),
+    );
+    expect(screen.getByText(unavailableCopy.no_compatible_supply)).toBeOnTheScreen();
   });
 
   it('says the Scroll is the one that was asked for, only on that encounter', async () => {

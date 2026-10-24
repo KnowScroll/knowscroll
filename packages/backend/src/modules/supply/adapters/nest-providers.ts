@@ -3,6 +3,7 @@ import {
   READ_CONTENT_REQUEST,
   LIST_CONTENT_REQUESTS,
   CANCEL_CONTENT_REQUEST,
+  RETRY_CONTENT_REQUEST,
   RESOLVE_CONTENT_REQUEST,
   RECORD_PLANNED_DEMAND,
   COMMISSION_SCENARIO_ORDER,
@@ -53,6 +54,7 @@ import {
   makeCreateRequest,
   makeReadRequest,
   makeCancelRequest,
+  makeRetryRequest,
   makeRecordPlannedDemand,
 } from '../application/requests.js';
 import { makeListRequests } from '../application/list.js';
@@ -183,7 +185,11 @@ export function supplyProviders(t: {
               ? undefined
               : {
                   startAfter: options.startAfter,
-                  jobId: stableUuid(`supply-wait:${requestId}:${options.slot}`),
+                  jobId: stableUuid(
+                    options.attempt === 0
+                      ? `supply-wait:${requestId}:${options.slot}`
+                      : `supply-wait:${requestId}:${options.attempt}:${options.slot}`,
+                  ),
                   duplicate: 'ignore',
                 },
           ),
@@ -213,6 +219,7 @@ export function supplyProviders(t: {
     { provide: READ_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeReadRequest(p) },
     { provide: LIST_CONTENT_REQUESTS, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeListRequests(p) },
     { provide: CANCEL_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeCancelRequest(p) },
+    { provide: RETRY_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeRetryRequest(p) },
     {
       provide: RESOLVE_CONTENT_REQUEST,
       inject: [SUPPLY_PORTS, ...(t.harness === undefined ? [] : [t.harness])],
@@ -230,6 +237,7 @@ export {
   makeCreateRequest,
   makeReadRequest,
   makeCancelRequest,
+  makeRetryRequest,
   makeRecordPlannedDemand,
 } from '../application/requests.js';
 export { makeResolveRequest } from '../application/resolve.js';
