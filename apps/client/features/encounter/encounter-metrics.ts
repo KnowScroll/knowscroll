@@ -19,6 +19,8 @@ export interface EncounterMetrics {
   readonly compact: boolean;
   readonly railed: boolean;
   readonly reelColumn: number;
+  /** The window size these metrics were computed for, so a test can wait for the commit that matches a resize. */
+  readonly window: { readonly width: number; readonly height: number };
 }
 
 /** Where encounter chrome may sit: below the status bar, clear of the tab bar or rail. */
@@ -35,5 +37,6 @@ export function useEncounterMetrics(): EncounterMetrics {
     compact: breakpoint === 'compact',
     railed,
     reelColumn: Math.min(width, REEL_COLUMN_MAX),
+    window: { width, height },
   };
 }

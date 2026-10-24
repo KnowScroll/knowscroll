@@ -887,7 +887,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       requests.visible(value && state.overlayOwner === 'request' && state.overlay);
       if (returning) {
         const entry = history.current();
-        if (entry?.started) entry.restored = true;
+        if (entry?.started) history.returnPaused(entry);
         publish({ surfaceRevision: state.surfaceRevision + 1 });
       }
       if (!value) {

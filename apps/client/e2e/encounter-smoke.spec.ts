@@ -441,6 +441,17 @@ test('Keep traverses beyond one hundred items, revisits a page, resets filters a
 });
 
 // Real exported geometry and hit targets over authored transport; no decoded/native playback claim.
+/**
+ * Resizes the window and waits until the Reel chrome has been laid out for that size. The stage
+ * reflows at once in CSS, but the chrome is positioned from the window size in a later React commit,
+ * so measuring right after `setViewportSize` can see the old layout. The chrome names the size it
+ * was laid out for in its test id; there is nothing to sleep on.
+ */
+async function resizeReel(page: Page, size: { width: number; height: number }) {
+  await page.setViewportSize(size);
+  await expect(page.getByTestId(`reel-chrome-${String(size.width)}x${String(size.height)}`)).toBeAttached();
+}
+
 test('the full-bleed Reel keeps every control reachable and the same video across phone, landscape and desktop bounds', async ({
   page,
 }) => {
@@ -475,10 +486,7 @@ test('the full-bleed Reel keeps every control reachable and the same video acros
     { width: 768, height: 1024 },
     { width: 1440, height: 900 },
   ]) {
-    await page.setViewportSize(viewport);
-    await expect
-      .poll(() => page.getByTestId('reel-video-stage').evaluate((node) => node.getBoundingClientRect().width))
-      .toBeGreaterThan(100);
+    await resizeReel(page, viewport);
     // The stage fills the Reel column: the whole page on a phone, a column of at most 480 px on a wide screen.
     const stage = await page.getByTestId('reel-video-stage').boundingBox();
     if (!stage) throw new Error('The Reel stage is measurable');
@@ -513,8 +521,7 @@ test('the full-bleed Reel keeps every control reachable and the same video acros
       ).toBe(true);
     }
     // The full-bleed layout keeps its parts in order and apart: top bar, then the action rail, then the
-    // edge tab; the title above the progress row; and nothing drawn over anything else. Polled, because
-    // a resize settles over a frame or two.
+    // edge tab; the title above the progress row; and nothing drawn over anything else.
     const where = `${String(viewport.width)}×${String(viewport.height)}`;
     const layoutProblems = async () => {
       const rect = async (locator: ReturnType<Page['locator']>) => {
@@ -551,7 +558,7 @@ test('the full-bleed Reel keeps every control reachable and the same video acros
         if (!apart(parts[first], parts[second])) problems.push(`${first} overlaps ${second}`);
       return problems;
     };
-    await expect.poll(layoutProblems, { message: `Reel layout at ${where}` }).toEqual([]);
+    expect(await layoutProblems(), `Reel layout at ${where}`).toEqual([]);
     const switchBox = await page.getByRole('radiogroup', { name: 'Format of this explanation' }).boundingBox();
     if (!switchBox) throw new Error('The full format switch remains available');
     expect(switchBox.x).toBeGreaterThanOrEqual(0);
@@ -562,7 +569,7 @@ test('the full-bleed Reel keeps every control reachable and the same video acros
   }
   // Text-only browser enlargement exercises real wrapping/hit geometry. Actual Display textScale=2
   // semantics are separately checked by the native UI fixtures; this is not an OS setting claim.
-  await page.setViewportSize({ width: 355, height: 767 });
+  await resizeReel(page, { width: 355, height: 767 });
   await page.locator('[data-testid="encounter-explore"] [dir="auto"]').evaluateAll((nodes) => {
     for (const node of nodes)
       if (node instanceof HTMLElement) {

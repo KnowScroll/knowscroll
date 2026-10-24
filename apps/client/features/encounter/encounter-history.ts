@@ -114,7 +114,7 @@ export function createEncounterHistory(
     entry.surface = undefined;
     entry.resumePlaying = false;
   };
-  /** Back and a trail jump restore an entry paused, whatever it was doing when it was left (E01: no sound after a detour). */
+  /** Back, a trail jump and a return from another tab restore an entry paused, whatever it was doing when it was left (E01: no sound after a detour). */
   const returnPaused = (entry: EncounterEntry) => {
     entry.restored = true;
     entry.resumePlaying = false;
@@ -139,6 +139,7 @@ export function createEncounterHistory(
     canBack: () => cursor > 0,
     capture,
     park,
+    returnPaused,
     push(entry: EncounterEntry) {
       if (ended || !scope.active) {
         endEntry(entry);

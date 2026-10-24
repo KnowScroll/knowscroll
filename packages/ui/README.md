@@ -184,7 +184,7 @@ The consumer binds the position to the same activated encounter's asset and immu
 stores it only within AccountScope, and purges it when that scope ends. No grant, source URL,
 exposure activation, telemetry, upload or wire persistence belongs in this local position. The ref
 clears synchronously on unmount or ScopeEnd; retained methods cannot operate on the ended player.
-Restore waits for the source commit and SDK readiness and remains paused until explicit Play.
+Restore waits for the source commit and SDK readiness and remains paused until explicit Play, except for the one `initialPlaying` case below (a sheet that was opened over a playing Reel and has closed).
 Changing `initialPositionMs` on a mounted player does not seek; remount for another restore intent.
 Grant renewal and Retry preserve the newest actual playhead instead of reapplying the initial offset. `initialMuted` is mount-only, default false; `onMutedChange` reports explicit user intent only.
 The sound choice is distinct from temporary SDK autoplay muting. While replacement is pending,

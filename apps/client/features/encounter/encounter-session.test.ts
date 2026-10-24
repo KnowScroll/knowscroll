@@ -360,6 +360,51 @@ describe('actual encounter controller over CI transport fixtures', () => {
     }
   });
 
+  it('returning from another tab restores a Reel paused, so a sheet closed before its source restores never plays it', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      const first = h.session.getState().entry!;
+      h.session.bindSurface(first, {
+        capture: () => ({ kind: 'reel', positionMs: 7000, playing: true, muted: false }),
+        pause: jest.fn(),
+      });
+      h.session.setForeground(false);
+      expect(first.position).toMatchObject({ positionMs: 7000, playing: true });
+      h.session.setForeground(true);
+      expect(first.position).toMatchObject({ positionMs: 7000, playing: false });
+      h.session.setOverlay(true);
+      h.session.setOverlay(false);
+      expect(first.resumePlaying).toBeFalsy();
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('a trail jump restores the earlier Reel paused, so a sheet closed afterwards never plays it', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      const first = h.session.getState().entry!;
+      h.session.bindSurface(first, {
+        capture: () => ({ kind: 'reel', positionMs: 3000, playing: true, muted: false }),
+        pause: jest.fn(),
+      });
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'active');
+      const second = h.session.getState().entry!;
+      expect(second).not.toBe(first);
+      h.session.restore(first.exposureId);
+      expect(h.session.getState().entry).toBe(first);
+      expect(first.position).toMatchObject({ positionMs: 3000, playing: false });
+      h.session.setOverlay(true);
+      h.session.setOverlay(false);
+      expect(first.resumePlaying).toBeFalsy();
+    } finally {
+      h.scope.end();
+    }
+  });
+
   it('a context refetch that a newer one replaced is not "offline"', async () => {
     const h = harness();
     try {

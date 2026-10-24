@@ -88,6 +88,9 @@ function ReelChrome({
   return (
     <>
       <View
+        // Names the window size this chrome was laid out for: a resize reaches the chrome in a later
+        // React commit than the stage's own CSS reflow, and the e2e waits for this to match.
+        testID={`reel-chrome-${String(metrics.window.width)}x${String(metrics.window.height)}`}
         style={[styles.top, { top: metrics.top, left: metrics.side, right: metrics.side }]}
         pointerEvents="box-none"
       >
