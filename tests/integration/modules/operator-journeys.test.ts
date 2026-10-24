@@ -23,8 +23,8 @@ describe('journeys across modules (real PostgreSQL, CI fixture models)', () => {
   let joinerExposureId: string;
   const readJourney = () => readJourneyFor(world.database.db);
 
-  async function journeyOf(id: string): Promise<Journey> {
-    const outcome = await readJourney()(id);
+  async function journeyOf(id: string, options?: { allowPerson: boolean }): Promise<Journey> {
+    const outcome = await readJourney()(id, options);
     if (outcome.kind !== 'found') throw new Error(`no journey for ${id}`);
     return outcome.journey;
   }
@@ -126,12 +126,16 @@ describe('journeys across modules (real PostgreSQL, CI fixture models)', () => {
   });
 
   it("gives a person's whole journey from their universe, and nobody else's", async () => {
-    const journey = await journeyOf(asker.universeId);
+    const journey = await journeyOf(asker.universeId, { allowPerson: true });
     expect(journey.subject).toBe('universe');
     expect(stages(journey)).toEqual(expect.arrayContaining(['supply.request', 'experience.exposure_opened']));
     const refs = journey.steps.map((step) => step.ref);
     expect(refs).not.toContain(joinerRequestId);
     expect(refs).not.toContain(joinerExposureId);
+  });
+
+  it("does not open a person's journey from their universe ID unless the command asks for it", async () => {
+    expect(await readJourney()(asker.universeId)).toEqual({ kind: 'not_found' });
   });
 
   it('names a model attempt and its reasoning run as such', async () => {
@@ -166,7 +170,7 @@ describe('journeys across modules (real PostgreSQL, CI fixture models)', () => {
     const before = await sql<{ n: string }>`select count(*)::text as n from receipts.personal_commands`.execute(
       world.database.db,
     );
-    await journeyOf(asker.universeId);
+    await journeyOf(asker.universeId, { allowPerson: true });
     const after = await sql<{ n: string }>`select count(*)::text as n from receipts.personal_commands`.execute(
       world.database.db,
     );

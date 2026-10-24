@@ -56,7 +56,7 @@ export async function journeyCommand(argv: readonly string[], print: Print, logE
         }
         journeyId = found.universeId;
       }
-      const outcome = await readJourneyFor(database.db)(journeyId);
+      const outcome = await readJourneyFor(database.db)(journeyId, { allowPerson: true });
       logEvent('operator.read', {
         route: '/cli/journey',
         outcome: outcome.kind,

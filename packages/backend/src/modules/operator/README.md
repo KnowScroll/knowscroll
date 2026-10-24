@@ -60,13 +60,13 @@ it (`grantOpsReader`; a missing role is a warning, not a failure).
 up to four rounds (request to group, group to the production run of its recipe, run to attempts and
 refused answers, run to asset, exposure to asset). It stops at 300 steps and keeps the newest.
 
-- **Scope.** The first step names a universe or none. Later rounds read that universe's records and shared
+- **Scope.** A universe ID (a person's whole journey) is answered only by the operator command, never by the API. The first step names a universe or none. Later rounds read that universe's records and shared
   records (groups, production, Reel orders) only. An asset ID answers with its shared steps alone. A
   production run shows no request and no person; several waiters on one group stay apart.
 - **Gaps.** An attempt whose outcome is `unknown` is shown as a gap that is never sent again. A started
   step with no recorded end after 30 minutes is shown as having no recorded completion.
-- **Account search** is not in the screen. `journey --account` resolves the account to its universe through
-  Identity's read port, from the server shell.
+- **Account search** is not in the screen or the API. `journey --account` resolves the account to its universe
+  through Identity's read port, from the server shell.
 
 ## Entry points
 

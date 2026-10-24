@@ -4,7 +4,12 @@
  * writes. The use cases are built by `adapters/nest-providers.ts`.
  */
 export { makeIsOperator, type IsOperator } from './application/operator-access.js';
-export { MAX_JOURNEY_STEPS, type JourneyOutcome, type ReadJourney } from './application/read-journey.js';
+export {
+  MAX_JOURNEY_STEPS,
+  type JourneyOptions,
+  type JourneyOutcome,
+  type ReadJourney,
+} from './application/read-journey.js';
 export type { ReadOperatorPanels } from './application/read-panels.js';
 export { renderJourney } from './domain/render.js';
 export type { Journey, JourneyGap, JourneyStep, JourneySubject } from './domain/journey.js';

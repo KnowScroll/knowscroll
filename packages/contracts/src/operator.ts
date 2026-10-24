@@ -145,6 +145,7 @@ export const readOperatorPanelsContract = oc
   .route({ method: 'GET', path: '/v1/operator/panels', successStatus: 200, tags: ['operator'] })
   .output(OperatorPanelsSchema);
 
+/** What the ID turned out to be. `universe` is the operator command's alone; the API never answers it. */
 export const JourneySubjectSchema = z.enum([
   'request',
   'production_run',

@@ -24,15 +24,24 @@ export type JourneyOutcome = { readonly kind: 'found'; readonly journey: Journey
 /**
  * Use case: the journey of one record, as a timeline across modules.
  *
- * Input: an ID of a request, production run, Reel order, model attempt, exposure, asset or
- * universe. Output: its steps oldest first, with the gaps the records leave, or `not_found`.
+ * Input: an ID of a request, production run, Reel order, model attempt, reasoning run, exposure or
+ * asset, and with `allowPerson` a universe. Output: its steps oldest first, with the gaps the records leave, or `not_found`.
  * Authority: the caller has already decided that the person may inspect (the operator check at the
  * API, the operator shell for the CLI). Reads only the `ops` allowlist; it never reads another
  * person's records: once the first step names a universe, later rounds read that universe's
  * records and shared records only.
  * Side effects: none. Failure: a store error is thrown; there is nothing to retry or roll back.
  */
-export type ReadJourney = (id: string) => Promise<JourneyOutcome>;
+export type ReadJourney = (id: string, options?: JourneyOptions) => Promise<JourneyOutcome>;
+
+export interface JourneyOptions {
+  /**
+   * Allow a universe ID, which opens a person's whole journey. Only the operator command sets it:
+   * finding a person is a separate step from reading a record (blueprint §26). Off by default, so the
+   * API never answers it.
+   */
+  readonly allowPerson?: boolean;
+}
 
 function merged(known: readonly JourneyEvent[], found: readonly JourneyEvent[]): JourneyEvent[] {
   const identities = new Set(known.map(eventIdentity));
@@ -40,8 +49,8 @@ function merged(known: readonly JourneyEvent[], found: readonly JourneyEvent[]):
 }
 
 export function makeReadJourney(deps: { readonly store: JourneyStore; readonly now: () => Date }): ReadJourney {
-  return async (id) => {
-    const seed = await deps.store.findById(id, MAX_JOURNEY_STEPS + 1);
+  return async (id, options = {}) => {
+    const seed = await deps.store.findById(id, MAX_JOURNEY_STEPS + 1, options.allowPerson === true);
     if (seed.length === 0) return { kind: 'not_found' };
     const universes = universesOf(seed);
     let events: JourneyEvent[] = [...seed];

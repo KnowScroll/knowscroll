@@ -14,8 +14,11 @@ import type {
 
 /** Reads `ops.journey_events`. It changes nothing and holds no lock. */
 export interface JourneyStore {
-  /** The newest steps (at most `limit`) that carry `id` in any key column, a universe ID included. */
-  findById(id: string, limit: number): Promise<readonly JourneyEvent[]>;
+  /**
+   * The newest steps (at most `limit`) that carry `id` in a key column. A universe ID answers only
+   * when `includeUniverse` is set: it is a person's whole journey.
+   */
+  findById(id: string, limit: number, includeUniverse: boolean): Promise<readonly JourneyEvent[]>;
   /**
    * Steps that carry any of `keys`, restricted to shared records and to the records of `universeIds`:
    * a journey never reads into another person's records.

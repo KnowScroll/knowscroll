@@ -86,7 +86,7 @@ function journeyEventOf(row: JourneyRow): JourneyEvent {
 /** `ops.journey_events` through the application role. Read-only. */
 export function makeJourneyStore(db: Kysely<Database>): JourneyStore {
   return {
-    async findById(id, limit) {
+    async findById(id, limit, includeUniverse) {
       const rows = await db
         .selectFrom('ops.journey_events')
         .select(JOURNEY_COLUMNS)
@@ -98,7 +98,7 @@ export function makeJourneyStore(db: Kysely<Database>): JourneyStore {
             eb('reel_order_id', '=', id),
             eb('attempt_id', '=', id),
             eb('reasoning_run_id', '=', id),
-            eb('universe_id', '=', id),
+            ...(includeUniverse ? [eb('universe_id', '=', id)] : []),
             // An asset is shared by many people: only its shared steps answer its ID.
             eb.and([eb('asset_id', '=', id), eb('universe_id', 'is', null)]),
           ]),

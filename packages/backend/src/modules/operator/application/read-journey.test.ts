@@ -34,10 +34,13 @@ function event(overrides: Partial<JourneyEvent> & Pick<JourneyEvent, 'stage'>): 
 function fixtureStore(all: readonly JourneyEvent[]) {
   const asked: { keys: RelatedKeys; universeIds: readonly string[] }[] = [];
   const store: JourneyStore = {
-    findById: (id, limit) =>
+    findById: (id, limit, includeUniverse) =>
       Promise.resolve(
         all
-          .filter((step) => step.requestId === id || step.productionRunId === id || step.universeId === id)
+          .filter(
+            (step) =>
+              step.requestId === id || step.productionRunId === id || (includeUniverse && step.universeId === id),
+          )
           .slice(0, limit),
       ),
     findRelated: (keys, universeIds, limit) => {
@@ -132,6 +135,13 @@ describe('reading a journey', () => {
     expect(asked.every((ask) => ask.universeIds.length === 0)).toBe(true);
   });
 
+  it("opens a person's whole journey only when it is asked for, which the API never does", async () => {
+    const { store } = fixtureStore([request, group]);
+    expect(await makeReadJourney({ store, now })('u1')).toEqual({ kind: 'not_found' });
+    expect((await makeReadJourney({ store, now })('u1', { allowPerson: false })).kind).toBe('not_found');
+    expect((await makeReadJourney({ store, now })('u1', { allowPerson: true })).kind).toBe('found');
+  });
+
   it('answers not_found when nothing carries the ID', async () => {
     const { store } = fixtureStore([request]);
     expect(await makeReadJourney({ store, now })('nothing')).toEqual({ kind: 'not_found' });
@@ -142,7 +152,7 @@ describe('reading a journey', () => {
       event({ stage: 'receipt.command', universeId: 'u1', commandId: `c${index}`, startedAt: new Date(base + index) }),
     );
     const { store } = fixtureStore(many);
-    const outcome = await makeReadJourney({ store, now })('u1');
+    const outcome = await makeReadJourney({ store, now })('u1', { allowPerson: true });
     if (outcome.kind !== 'found') throw new Error('expected a journey');
     expect(outcome.journey.steps).toHaveLength(MAX_JOURNEY_STEPS);
     expect(outcome.journey.truncated).toBe(true);
