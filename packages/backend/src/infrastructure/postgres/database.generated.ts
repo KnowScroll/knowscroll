@@ -188,6 +188,7 @@ export interface ContentReelOrders {
   id: string;
   published_at: Timestamp | null;
   recipe_key: string;
+  script_json: Json;
   script_name: string;
   script_sha256: string;
   until: string;
