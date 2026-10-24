@@ -46,16 +46,19 @@ export interface EncounterActionPlacement {
  * answer for every display (D-006 b), and both components lay themselves out from it; only the
  * direction of a line differs (a column along the Reel's edge, a row in the Scroll's strip).
  */
-export function encounterActionPlacement(display: Pick<Display, 'breakpoint' | 'textScale'>): EncounterActionPlacement {
+export function encounterActionPlacement(
+  display: Pick<Display, 'breakpoint' | 'textScale'>,
+  dense = false,
+): EncounterActionPlacement {
   if (display.textScale > typeScaling.labelsSentenceCaseAbove)
     return { side: 'end', arrangement: 'grid', compact: false };
-  return { side: 'end', arrangement: 'line', compact: display.breakpoint === 'compact' };
+  return { side: 'end', arrangement: 'line', compact: dense || display.breakpoint === 'compact' };
 }
 
 /** The container style a placement means, shared by the rail and the strip. */
-function placementStyle(placement: EncounterActionPlacement): ViewStyle {
+function placementStyle(placement: EncounterActionPlacement, align?: 'start' | 'end'): ViewStyle {
   if (placement.arrangement === 'grid') return { alignSelf: 'stretch' };
-  return { alignSelf: placement.side === 'end' ? 'flex-end' : 'flex-start' };
+  return { alignSelf: (align ?? placement.side) === 'end' ? 'flex-end' : 'flex-start' };
 }
 
 export interface EncounterActionsProps {
@@ -65,6 +68,10 @@ export interface EncounterActionsProps {
   readonly saved?: boolean;
   /** The Save command is in flight. */
   readonly saving?: boolean;
+  /** Short screens: 44 px buttons without words, as on a compact phone. */
+  readonly dense?: boolean;
+  /** Where the Scroll's strip sits in its row: under the opening it starts at the text edge (E02-1). */
+  readonly align?: 'start' | 'end';
   readonly onAction: (action: EncounterAction) => void;
 }
 
@@ -109,10 +116,14 @@ function ActionGrid({ props, placement }: { props: EncounterActionsProps; placem
 /** The Reel's action rail: a column of on-media icon buttons with a word under each. */
 export function ActionRail(props: EncounterActionsProps) {
   const display = useDisplay();
-  const placement = encounterActionPlacement(display);
+  const placement = encounterActionPlacement(display, props.dense);
   if (placement.arrangement === 'grid') return <ActionGrid props={props} placement={placement} />;
   return (
-    <View role="group" accessibilityLabel="Actions" style={[styles.rail, placementStyle(placement)]}>
+    <View
+      role="group"
+      accessibilityLabel="Actions"
+      style={[styles.rail, placement.compact ? styles.railCompact : null, placementStyle(placement)]}
+    >
       {visibleSet(props.available).map((spec) => {
         const pressed = pressedFor(spec, props);
         return (
@@ -144,10 +155,10 @@ export function ActionRail(props: EncounterActionsProps) {
 /** The Scroll's action strip: the same actions in a pill row (top and end of the article). */
 export function ActionStrip(props: EncounterActionsProps) {
   const display = useDisplay();
-  const placement = encounterActionPlacement(display);
+  const placement = encounterActionPlacement(display, props.dense);
   if (placement.arrangement === 'grid') return <ActionGrid props={props} placement={placement} />;
   return (
-    <View role="group" accessibilityLabel="Actions" style={[styles.strip, placementStyle(placement)]}>
+    <View role="group" accessibilityLabel="Actions" style={[styles.strip, placementStyle(placement, props.align)]}>
       {visibleSet(props.available).map((spec) => (
         <IconButton
           key={spec.id}
@@ -166,6 +177,7 @@ export function ActionStrip(props: EncounterActionsProps) {
 
 const styles = StyleSheet.create({
   rail: { alignItems: 'center', gap: spacing['3.5'] },
+  railCompact: { gap: spacing[2] },
   railItem: { alignItems: 'center', gap: spacing[1] },
   strip: {
     flexDirection: 'row',

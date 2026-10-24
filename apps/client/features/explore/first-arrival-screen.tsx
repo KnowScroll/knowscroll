@@ -1,20 +1,12 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { borderWidth, content, elevation, radius, space, spacing } from '@knowscroll/design-tokens';
-import { Button, Icon, Text, useDisplay, type IconName } from '@knowscroll/ui';
+import { space, spacing } from '@knowscroll/design-tokens';
+import { Button, Text, useDisplay } from '@knowscroll/ui';
 import { usesRail } from '../shell/app-navigation';
 import { ScreenFrame } from '../shell/screen-frame';
 import { UniverseBackdrop } from '../universe/universe-backdrop';
-
-function HintLine({ icon, children }: { icon: IconName; children: string }) {
-  return (
-    <View style={styles.hintLine}>
-      <Icon name={icon} size={18} />
-      <Text variant="ui">{children}</Text>
-    </View>
-  );
-}
+import { FirstArrivalHint } from './first-arrival-hint';
 
 /**
  * A03 "First arrival": how to move around, on the spatial ground, with no survey. The export
@@ -39,17 +31,15 @@ export function FirstArrivalScreen() {
     >
       <View style={styles.column}>
         {hintVisible ? (
-          <View role="note" accessibilityLabel="How to move around" style={styles.hint}>
-            <Text variant="uiS" color={content.ink2}>
-              Once a Reel is playing:
-            </Text>
-            <HintLine icon="arrowUp">Swipe up for something new</HintLine>
-            <HintLine icon="arrowRight">Go deeper with the tab on the right</HintLine>
-            <Text variant="meta" color={content.ink2}>
-              Prefer buttons? Every swipe also has a button and a key.
-            </Text>
-            <Button label="Got it" variant="ink" size="sm" onPress={() => setHintVisible(false)} />
-          </View>
+          <FirstArrivalHint
+            lead="Once a Reel is playing:"
+            lines={[
+              { icon: 'arrowUp', text: 'Swipe up for something new' },
+              { icon: 'arrowRight', text: 'Go deeper with the tab on the right' },
+            ]}
+            footnote="Prefer buttons? Every swipe also has a button and a key."
+            onDismiss={() => setHintVisible(false)}
+          />
         ) : null}
         <View role="status" style={styles.status}>
           <Text variant="displayL" color={space.label} heading={1}>
@@ -73,16 +63,5 @@ export function FirstArrivalScreen() {
 
 const styles = StyleSheet.create({
   column: { gap: spacing[8], maxWidth: 560, width: '100%', alignSelf: 'center' },
-  hint: {
-    gap: spacing['2.5'],
-    padding: spacing[4],
-    borderRadius: radius.edgeTab,
-    borderWidth: borderWidth.regular,
-    borderColor: content.ink,
-    backgroundColor: content.paper,
-    boxShadow: elevation.hint,
-    alignItems: 'flex-start',
-  },
-  hintLine: { flexDirection: 'row', alignItems: 'center', gap: spacing['1.5'] },
   status: { gap: spacing[3] },
 });

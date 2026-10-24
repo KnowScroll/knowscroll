@@ -8,7 +8,7 @@
   "scripts": {
     "start": "expo start",
     "build": "expo export --platform web --output-dir dist --clear",
-    "build:gallery": "EXPO_PUBLIC_KS_GALLERY=1 expo export --platform web --output-dir dist-gallery --clear",
+    "build:gallery": "EXPO_PUBLIC_KS_GALLERY=1 EXPO_PUBLIC_KS_DEV_EVIDENCE=1 expo export --platform web --output-dir dist-gallery --clear",
     "typecheck": "tsc -p tsconfig.json",
     "test": "jest --ci",
     "test:web": "playwright test -c e2e/playwright.config.ts"

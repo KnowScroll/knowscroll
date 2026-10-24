@@ -83,10 +83,11 @@ describe('actual request sheet and radio keyboard ownership (web DOM)', () => {
       const ask = container.querySelector<HTMLButtonElement>('button')!;
       ask.focus();
       act(() => ask.click());
-      const sheet = container.querySelector<HTMLElement>('[role="dialog"]')!;
+      // The dialog is drawn into the document body, above the tab bar, not inside the app's own container.
+      const sheet = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
       expect(sheet.getAttribute('aria-label')).toBe('Ask for something');
-      expect(document.activeElement).toBe(container.querySelector('textarea'));
-      const radios = () => [...container.querySelectorAll<HTMLElement>('[role="radio"]')];
+      expect(document.activeElement).toBe(sheet.querySelector('textarea'));
+      const radios = () => [...sheet.querySelectorAll<HTMLElement>('[role="radio"]')];
       const checked = () => radios().filter((radio) => radio.getAttribute('aria-checked') === 'true');
       expect(checked()).toHaveLength(1);
       expect(checked()[0]!.textContent).toBe('Either');
@@ -113,7 +114,7 @@ describe('actual request sheet and radio keyboard ownership (web DOM)', () => {
       expect(document.activeElement).toBe(send);
       key(send, 'Escape');
       expect(closes).toBe(1);
-      expect(container.querySelector('[role="dialog"]')).toBeNull();
+      expect(document.body.querySelector('[role="dialog"]')).toBeNull();
       expect(document.activeElement).toBe(ask);
       expect(push).not.toHaveBeenCalled();
       expect(replace).not.toHaveBeenCalled();

@@ -29,6 +29,8 @@ export interface RequestState {
   /** `too_many_open`: the person already has the most open asks they may have. */
   readonly error?: 'source' | 'read' | 'refused' | 'too_many_open';
   readonly reading?: boolean;
+  /** The notice the person put away (Later, Dismiss): kept with the request, so a remount does not bring it back. */
+  readonly dismissedRequestId?: string;
 }
 const initial = (): RequestState => ({ phase: 'draft', mode: 'topic', text: '', format: 'either', about: false });
 const sameSource = (a: Source | undefined, b: Source | undefined) => JSON.stringify(a) === JSON.stringify(b);
@@ -250,6 +252,10 @@ export function createRequestSession(
     },
     retrySend() {
       if (state.phase === 'send_unknown') void send();
+    },
+    /** Puts the ready or unavailable notice for this request away. The request itself is untouched. */
+    dismissNotice() {
+      if (valid() && state.receipt) publish({ dismissedRequestId: state.receipt.requestId });
     },
     refresh: read,
     cancel() {

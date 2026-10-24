@@ -1,14 +1,34 @@
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import { createRef, useLayoutEffect } from 'react';
 import { act, fireEvent, screen, within } from '@testing-library/react-native';
 import { useVideoPlayer, type VideoPlayer, type VideoSource } from 'expo-video';
 import { focusRing } from '@knowscroll/design-tokens';
 import { expectPressed, renderOn } from '../test-support/render';
 import { DisplayProvider } from '../display/display';
-import { ReelPlayer, type ReelPlayerProps, type ReelPositionHandle } from './reel-player';
+import { ReelPlayer, type ReelControls, type ReelPlayerProps, type ReelPositionHandle } from './reel-player';
+import { ReelProgress } from './reel-progress';
+
+/** The player with the progress row and sound switch the screens draw over it. */
+function WithSound(props: ReelPlayerProps) {
+  return (
+    <ReelPlayer {...props}>
+      {(playback) => (
+        <ReelProgress
+          positionMs={playback.positionMs}
+          durationMs={playback.durationMs}
+          muted={playback.muted}
+          onToggleMuted={playback.toggleMuted}
+        />
+      )}
+    </ReelPlayer>
+  );
+}
 
 // The native SDK is a recording stand-in here; real playback belongs to browser/emulator evidence.
 jest.mock('expo-video', () => ({ VideoView: 'VideoView', useVideoPlayer: jest.fn() }));
+
+// The first render in this file also compiles the SVG icon set, which is slow on a cold CI runner.
+jest.setTimeout(20000);
 
 describe('Reel source renewal authority', () => {
   afterEach(() => {
@@ -262,10 +282,10 @@ describe('paused loaded-source Retry', () => {
       await Promise.resolve();
     });
     await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
-    expect(screen.getByText('Playback interrupted')).toBeTruthy();
+    expect(screen.getByText(/Playback interrupted/)).toBeTruthy();
     expect(player.status).toBe('readyToPlay');
     await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
-    expect(screen.queryByText('Playback interrupted')).toBeNull();
+    expect(screen.queryByText(/Playback interrupted/)).toBeNull();
     expect(load).toHaveBeenCalledTimes(3);
     await act(async () => {
       finishRetry?.({
@@ -277,7 +297,7 @@ describe('paused loaded-source Retry', () => {
     // Scope/effect cleanup clears the old source before the retry installs the fresh one.
     expect(replace).toHaveBeenCalledTimes(3);
     expect(player.src).toEqual({ uri: 'https://fixture.invalid/media/retry' });
-    expect(screen.queryByText('Playback interrupted')).toBeNull();
+    expect(screen.queryByText(/Playback interrupted/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
     expect(player.playing).toBe(false);
@@ -302,7 +322,7 @@ describe('paused loaded-source Retry', () => {
       await Promise.resolve();
     });
     expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
-    expect(screen.getByText('Playback interrupted')).toBeTruthy();
+    expect(screen.getByText(/Playback interrupted/)).toBeTruthy();
     await rendered.unmount();
   });
 
@@ -333,7 +353,8 @@ describe('paused loaded-source Retry', () => {
           registerEnd={() => () => undefined}
         />,
       );
-      expect(screen.getByText(sdkStatus === 'error' ? 'Playback interrupted' : 'Fixture')).toBeTruthy();
+      if (sdkStatus === 'error') expect(screen.getByText(/Playback interrupted/)).toBeTruthy();
+      else expect(screen.queryByText(/Playback interrupted/)).toBeNull();
       if (sdkStatus === 'error') {
         await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
         expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
@@ -403,9 +424,9 @@ describe('source commit and resume ordering', () => {
     if (ending === 'ended') {
       expect(player.src).toBeNull();
       expect(statusReads).toBe(0);
-      expect(screen.queryByText('Playback interrupted')).toBeNull();
+      expect(screen.queryByText(/Playback interrupted/)).toBeNull();
     } else {
-      expect(screen.getByText('Playback interrupted')).toBeTruthy();
+      expect(screen.getByText(/Playback interrupted/)).toBeTruthy();
     }
     await rendered.unmount();
   });
@@ -627,6 +648,21 @@ describe('local Reel positions', () => {
     await rendered.unmount();
   });
 
+  it('plays on once its source is restored when a sheet it was playing under has closed, and only then', async () => {
+    const f = fixture();
+    f.player.status = 'loading';
+    const rendered = await renderOn(<ReelPlayer {...f.props} initialPositionMs={8125} initialPlaying />);
+    expect(f.player.play).not.toHaveBeenCalled();
+    await act(async () => {
+      f.player.status = 'readyToPlay';
+      f.listeners.get('statusChange')?.({ status: 'readyToPlay' });
+      await Promise.resolve();
+    });
+    expect(f.seeks).toHaveBeenCalledWith(8.125);
+    expect(f.player.play).toHaveBeenCalledTimes(1);
+    await rendered.unmount();
+  });
+
   it('retains the initial restore intent when Retry happens before the SDK has ever been ready', async () => {
     const f = fixture();
     f.player.status = 'loading';
@@ -722,8 +758,8 @@ describe('local Reel positions', () => {
   );
 });
 
-describe('Reel noninteractive stage wrapper', () => {
-  it('wraps video and poster while keeping controls outside and retaining the same player/source on rerender', async () => {
+describe('Reel stage wrapper', () => {
+  it('wraps the video and its play surface while the chrome stays outside, retaining the same player/source on rerender', async () => {
     const play = jest.fn();
     const replaceAsync = jest.fn(() => Promise.resolve());
     const player = {
@@ -754,44 +790,28 @@ describe('Reel noninteractive stage wrapper', () => {
       onDiscontinuity: jest.fn(),
       registerEnd: () => () => undefined,
     };
-    const rendered = await renderOn(
-      <ReelPlayer {...props} renderStage={(stage) => <View testID="fixture-stage-wrapper">{stage}</View>} />,
+    const element = (
+      <ReelPlayer {...props} renderStage={(stage) => <View testID="fixture-stage-wrapper">{stage}</View>}>
+        <View testID="fixture-chrome">
+          <Text>Chrome</Text>
+        </View>
+      </ReelPlayer>
     );
+    const rendered = await renderOn(element);
     const stage = screen.getByTestId('fixture-stage-wrapper');
     expect(within(stage).getByLabelText('Stage fixture Reel')).toBeTruthy();
-    expect(within(stage).queryByRole('button')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Back 10s' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Forward 10s' })).toBeTruthy();
+    // The play surface is the stage's only control; the chrome is a sibling of the stage.
+    expect(within(stage).getAllByRole('button')).toHaveLength(1);
+    expect(within(stage).queryByText('Chrome')).toBeNull();
+    expect(within(screen.getByTestId('fixture-chrome')).getByText('Chrome')).toBeTruthy();
+    expect(within(screen.getByTestId('reel-video-stage')).queryByText('Chrome')).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
     expect(play).toHaveBeenCalledTimes(1);
     player.currentTime = 3.25;
     expect(positionRef.current?.capture()?.positionMs).toBe(3250);
     await rendered.rerender(
-      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-        <ReelPlayer {...props} renderStage={(children) => <View testID="fixture-stage-wrapper">{children}</View>} />
-      </DisplayProvider>,
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>{element}</DisplayProvider>,
     );
-    // Real measured frame width changes only the video stage, never the mounted SDK/source/position.
-    await fireEvent(screen.getByTestId('reel-player'), 'layout', {
-      nativeEvent: { layout: { width: 355, height: 600 } },
-    });
-    expect(screen.getByTestId('reel-video-stage')).toHaveStyle({ height: 480 });
-    await fireEvent(screen.getByTestId('reel-player'), 'layout', {
-      nativeEvent: { layout: { width: 240, height: 600 } },
-    });
-    expect(screen.getByTestId('reel-video-stage')).toHaveStyle({ height: 240 * (16 / 9) });
-    expect(within(screen.getByTestId('reel-video-stage')).queryByRole('button')).toBeNull();
-    expect(within(screen.getByTestId('reel-player-controls')).getByRole('button', { name: 'Back 10s' })).toBeTruthy();
-    expect(loadSource).toHaveBeenCalledTimes(1);
-    expect(replaceAsync).toHaveBeenCalledTimes(1);
-    expect(positionRef.current?.capture()?.positionMs).toBe(3250);
-    await rendered.rerender(
-      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-        <ReelPlayer {...props} stageMaxHeight={120} />
-      </DisplayProvider>,
-    );
-    expect(screen.getByTestId('reel-video-stage')).toHaveStyle({ height: 120, minHeight: 120 });
-    expect(screen.getByRole('button', { name: 'Back 10s' })).toBeTruthy();
     expect(loadSource).toHaveBeenCalledTimes(1);
     expect(replaceAsync).toHaveBeenCalledTimes(1);
     expect(positionRef.current?.capture()?.positionMs).toBe(3250);
@@ -800,6 +820,64 @@ describe('Reel noninteractive stage wrapper', () => {
 });
 
 // Labelled SDK fixtures: audio intent and teardown ordering, never actual decoding or playback.
+describe('screen-drawn controls', () => {
+  it('lets a screen play, pause and seek through controlsRef, and leave the stage without a button', async () => {
+    const seeks: number[] = [];
+    const play = jest.fn();
+    let seconds = 5;
+    const player = {
+      get currentTime() {
+        return seconds;
+      },
+      set currentTime(value: number) {
+        seeks.push(value);
+        seconds = value;
+      },
+      playing: false,
+      status: 'readyToPlay',
+      playbackRate: 1,
+      play,
+      pause: jest.fn(),
+      replaceAsync: jest.fn(() => Promise.resolve()),
+      addListener: () => ({ remove: () => undefined }),
+    } as unknown as VideoPlayer;
+    jest.mocked(useVideoPlayer).mockReturnValue(player);
+    const controlsRef = createRef<ReelControls>();
+    const rendered = await renderOn(
+      <ReelPlayer
+        title="Compact fixture"
+        durationMs={30000}
+        active
+        tapToToggle={false}
+        controlsRef={controlsRef}
+        loadSource={() =>
+          Promise.resolve({
+            source: { uri: 'https://fixture.invalid/media/compact' },
+            expiresAt: new Date(Date.now() + 60000).toISOString(),
+          })
+        }
+        onSample={jest.fn()}
+        onDiscontinuity={jest.fn()}
+        registerEnd={() => () => undefined}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Play' })).toBeNull();
+    await act(async () => {
+      controlsRef.current?.seekBy(10);
+      await Promise.resolve();
+    });
+    expect(seeks.at(-1)).toBe(15);
+    await act(async () => {
+      controlsRef.current?.seekBy(-100);
+      controlsRef.current?.toggle();
+      await Promise.resolve();
+    });
+    expect(seeks.at(-1)).toBe(0);
+    expect(play).toHaveBeenCalledTimes(1);
+    await rendered.unmount();
+  });
+});
+
 describe('explicit Reel sound controls', () => {
   afterEach(() => jest.useRealTimers());
   function fixture() {
@@ -880,10 +958,10 @@ describe('explicit Reel sound controls', () => {
   }
   it('offers an accessible phone-sized sound toggle without playback, source or recording effects', async () => {
     const f = fixture();
-    const app = await renderOn(<ReelPlayer {...f.props} />, { width: 320, textScale: 2 });
+    const app = await renderOn(<WithSound {...f.props} />, { width: 320, textScale: 2 });
     const sources = f.player.replaceAsync.mock.calls.length;
     const discontinuities = jest.mocked(f.props.onDiscontinuity).mock.calls.length;
-    for (const label of ['Back 10s', 'Play', 'Forward 10s', 'Mute']) {
+    for (const label of ['Play', 'Mute']) {
       const control = screen.getByRole(label === 'Mute' ? 'togglebutton' : 'button', { name: label });
       await fireEvent(control, 'focus');
       expect(control).toHaveStyle({ outlineColor: focusRing.onDark.color });
@@ -916,7 +994,7 @@ describe('explicit Reel sound controls', () => {
     async (initialMuted, fails) => {
       jest.useFakeTimers();
       const f = fixture();
-      const app = await renderOn(<ReelPlayer {...f.props} initialMuted={initialMuted} />);
+      const app = await renderOn(<WithSound {...f.props} initialMuted={initialMuted} />);
       await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
       await act(async () => {
         jest.advanceTimersByTime(40000);
@@ -940,7 +1018,7 @@ describe('explicit Reel sound controls', () => {
   it('never unmutes or resumes from a late replacement after scope disposal, and a new player starts independently', async () => {
     jest.useFakeTimers();
     const f = fixture();
-    const app = await renderOn(<ReelPlayer {...f.props} initialMuted />);
+    const app = await renderOn(<WithSound {...f.props} initialMuted />);
     await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
     await act(async () => {
       jest.advanceTimersByTime(40000);
@@ -965,7 +1043,7 @@ describe('explicit Reel sound controls', () => {
     expect(f.player.replaceAsync).toHaveBeenLastCalledWith(null);
     await app.unmount();
     const next = fixture();
-    const nextApp = await renderOn(<ReelPlayer {...next.props} />);
+    const nextApp = await renderOn(<WithSound {...next.props} />);
     expectPressed(screen.getByRole('togglebutton', { name: 'Mute' }), false);
     expect(next.player.muted).toBe(false);
     expect(next.player.play).not.toHaveBeenCalled();

@@ -2,11 +2,15 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope, KeepPlaceState } from '@knowscroll/client-core';
-import type { SavedItem } from './saved-query';
-import { spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, Skeleton, Text } from '@knowscroll/ui';
+import { borderWidth, content, elevation, radius, spacing } from '@knowscroll/design-tokens';
+import { Banner, Button, IconButton, Skeleton, Tag, Text, formatClock } from '@knowscroll/ui';
 import { createKeepView, type AvailableKeep } from './keep-place-bridge';
+import type { SavedItem } from './saved-query';
 
+/**
+ * Keep write outcomes that need a person, in plain words: an unconfirmed update can be retried,
+ * a changed place needs a choice, an unavailable place can be checked again. Quiet otherwise.
+ */
 export function KeepWriteStatus({
   state,
   refresh,
@@ -18,37 +22,37 @@ export function KeepWriteStatus({
   readonly retry: () => void;
   readonly resolve: (choice: 'server' | 'candidate') => void;
 }) {
-  if (!state) return null;
-  if (state.status === 'ended') return null;
+  if (!state || state.status === 'ended') return null;
   return (
     <View style={styles.stack}>
-      {state.write === 'sending' ? <Text variant="meta">Updating your saved place…</Text> : null}
-      {state.write === 'refreshing' ? <Text variant="meta">Checking the latest saved place…</Text> : null}
       {state.write === 'unknown' ? (
-        <>
-          <Text variant="bodyS">That update wasn't confirmed. Retry checks the same update.</Text>
-          <Button label="Retry place update" onPress={retry} />
-        </>
+        <Banner
+          kind="error"
+          lead="Your place wasn't saved."
+          message="It may still be the old one."
+          action={{ label: 'Retry place update', onPress: retry }}
+        />
       ) : null}
       {state.write === 'conflict' ? (
         <>
-          <Text variant="bodyS">Your saved place changed. Choose which place to keep.</Text>
+          <Banner kind="info" lead="Your saved place changed." message="Choose which place to keep." />
           <Button label="Use current saved place" onPress={() => resolve('server')} />
           <Button label="Replace with my chosen place" variant="ghost" onPress={() => resolve('candidate')} />
         </>
       ) : null}
       {state.status === 'unavailable' ? (
-        <>
-          <Text variant="bodyS">Your saved place isn't available. Nothing has been confirmed as updated.</Text>
-          <Button label="Check saved place" variant="ghost" onPress={refresh} />
-        </>
-      ) : null}
-      {state.status === 'ready' && state.write === 'idle' && state.snapshot?.status === 'available' ? (
-        <Text variant="meta">Latest saved place loaded.</Text>
+        <Banner
+          kind="info"
+          lead="Your saved place isn't available."
+          message="Nothing was changed."
+          action={{ label: 'Check saved place', onPress: refresh }}
+        />
       ) : null}
     </View>
   );
 }
+
+/** S02: one kept encounter, where you left off, and the way back in. Opening this page records nothing. */
 export function KeepDetail({
   scope,
   item,
@@ -73,38 +77,59 @@ export function KeepDetail({
   const state = useSyncExternalStore(view.subscribe, view.getState, view.getState);
   const snapshot = state.status === 'ready' && state.snapshot?.status === 'available' ? state.snapshot : undefined;
   const position = snapshot?.place.status === 'set' ? snapshot.place.position : undefined;
+  const format = item.kind === 'reel' ? 'Reel' : 'Scroll';
   return (
     <View style={styles.stack} testID="keep-detail">
-      <Button label="Back to Keep" variant="ghost" onPress={onBack} />
-      <Text variant="title" heading={2}>
-        {item.metadata?.title ?? 'Saved encounter'}
-      </Text>
-      {item.metadata?.summary ? <Text variant="bodyS">{item.metadata.summary}</Text> : null}
-      <Text variant="meta">Where you left off</Text>
-      {state.status === 'loading' ? <Skeleton rows={2} label="Loading saved place" /> : null}
-      {state.status === 'ready' && state.snapshot?.status === 'not_saved' ? (
-        <Text variant="bodyS">This version is no longer in Keep.</Text>
-      ) : null}
-      {state.status === 'ready' && state.snapshot?.status === 'saved_unavailable' ? (
-        <Text variant="bodyS">
-          This saved version's place isn't available. An updated version doesn't inherit its place.
+      <View style={styles.top}>
+        <IconButton icon="back" label="Back to Keep" onPress={onBack} />
+      </View>
+      <View style={styles.card}>
+        <Tag label={format} />
+        <Text variant="displayL" heading={2}>
+          {item.metadata?.title ?? 'Saved encounter'}
         </Text>
+        {item.metadata?.summary ? (
+          <Text variant="body" color={content.ink2}>
+            {item.metadata.summary}
+          </Text>
+        ) : null}
+        <View style={styles.place}>
+          <Text variant="label" color={content.ink2}>
+            Where you left off
+          </Text>
+          {state.status === 'loading' ? <Skeleton rows={1} label="Loading saved place" /> : null}
+          {state.status === 'ready' && state.snapshot?.status === 'not_saved' ? (
+            <Text variant="ui">This version is no longer in Keep.</Text>
+          ) : null}
+          {state.status === 'ready' && state.snapshot?.status === 'saved_unavailable' ? (
+            <Text variant="ui">
+              This saved version's place isn't available. An updated version doesn't inherit its place.
+            </Text>
+          ) : null}
+          {snapshot?.place.status === 'none' ? (
+            <Text variant="ui">No place yet. It is kept when you save or leave.</Text>
+          ) : null}
+          {position?.kind === 'reel' ? (
+            <Text variant="ui">
+              {position.positionMs >= 1000
+                ? `Paused at ${formatClock(position.positionMs)}`
+                : 'You have not started yet.'}
+            </Text>
+          ) : null}
+          {position?.kind === 'scroll' ? <Text variant="ui">Your reading place is kept.</Text> : null}
+        </View>
+      </View>
+      {item.availability === 'corrected' ? (
+        <Banner
+          kind="corrected"
+          lead="Revised since you kept it."
+          message="This is the version you saved. Choose the updated one from your Keep."
+        />
       ) : null}
-      {snapshot?.place.status === 'none' ? (
-        <Text variant="bodyS">
-          No place kept yet. Your place is kept when you save or leave an available encounter.
-        </Text>
-      ) : null}
-      {position?.kind === 'reel' ? (
-        <Text variant="bodyS">
-          Paused at {Math.floor(position.positionMs / 60000)}:
-          {String(Math.floor(position.positionMs / 1000) % 60).padStart(2, '0')}
-        </Text>
-      ) : null}
-      {position?.kind === 'scroll' ? <Text variant="bodyS">Your reading place is kept.</Text> : null}
       {position ? (
         <Button
-          label="Resume saved place"
+          label="Resume where you left off"
+          variant="primary"
           disabled={state.write !== 'idle'}
           onPress={() => onOpen('resume', snapshot)}
         />
@@ -112,23 +137,28 @@ export function KeepDetail({
       {item.availability !== 'withdrawn' ? (
         <Button
           label="Start from the top"
-          variant="ghost"
           disabled={!snapshot || state.write !== 'idle'}
           onPress={() => onOpen('top', snapshot)}
         />
       ) : (
         <Banner kind="info" lead="This encounter was withdrawn." message="It can't be opened." />
       )}
-      {item.availability === 'corrected' ? (
-        <Text variant="bodyS">
-          This is your original saved version. Choose the updated version separately from the library.
-        </Text>
-      ) : null}
       <KeepWriteStatus state={state} refresh={view.refresh} retry={view.retry} resolve={view.resolveConflict} />
-      <Text variant="meta">
-        Opening this detail records no reading or watching. Saved places are checked again before resuming.
-      </Text>
     </View>
   );
 }
-const styles = StyleSheet.create({ stack: { gap: spacing[3] } });
+
+const styles = StyleSheet.create({
+  stack: { gap: spacing[3] },
+  top: { flexDirection: 'row' },
+  card: {
+    gap: spacing[3],
+    padding: spacing[5],
+    borderRadius: radius.panel,
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    backgroundColor: content.paper,
+    boxShadow: elevation.hero,
+  },
+  place: { gap: spacing[1], padding: spacing[3], borderRadius: radius.card, backgroundColor: content.highlight },
+});
