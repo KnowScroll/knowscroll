@@ -122,7 +122,7 @@ describe('P02 selective Clear', () => {
     expect(f.app.getPathname()).toBe('/account/privacy/clear');
     await screen.findByText('No clear request is recorded for this account.');
     expect(screen.getByRole('button', { name: 'Clear exploration' })).toBeDisabled();
-    expect(screen.getByText(/Keep items and their saved places stay/)).toBeOnTheScreen();
+    expect(screen.getByText('Keep items and their saved places.')).toBeOnTheScreen();
     const before = f.manager.getState();
     if (before.status !== 'signed_in') throw new Error('fixture scope missing');
     await confirm();
@@ -155,7 +155,8 @@ describe('P02 selective Clear', () => {
     const f = await mount({ completed: true });
     await screen.findByText('No clear request is recorded for this account.');
     await confirm();
-    expect(await screen.findByText('Live exploration removal is complete.')).toBeOnTheScreen();
+    expect(await screen.findByText('Cleared from KnowScroll')).toBeOnTheScreen();
+    expect(screen.getByText(/Live exploration removal is complete/)).toBeOnTheScreen();
     expect(screen.getByText(/Context already sent to an AI provider cannot be recalled/)).toBeOnTheScreen();
     expect(screen.getByText(/No expiry date is confirmed here/)).toBeOnTheScreen();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Clear exploration' })).toBeDisabled());

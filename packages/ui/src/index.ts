@@ -17,6 +17,7 @@ export {
   type FormatAvailability,
   type FormatSwitchProps,
 } from './actions/format-switch';
+export { SwitchRow, type SwitchRowProps } from './actions/switch-row';
 export { EdgeTab, type EdgeTabKind, type EdgeTabProps } from './actions/edge-tab';
 export { RequestStatusChip, type RequestStatus, type RequestStatusChipProps } from './actions/request-status-chip';
 export {

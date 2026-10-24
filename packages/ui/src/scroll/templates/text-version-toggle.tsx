@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
+import { SwitchTrack } from '../../actions/switch-row';
 import { spaceActivates } from '../../display/space-key';
 import { useFocusRing } from '../../display/focus-ring';
 import { Text } from '../../text/text';
@@ -32,16 +33,10 @@ export function TextVersionToggle({
       <Text variant="bodyS" style={styles.label}>
         Text version of diagrams
       </Text>
-      <View style={[styles.track, on ? styles.trackOn : null]}>
-        <View style={[styles.knob, on ? styles.knobOn : null]} />
-      </View>
+      <SwitchTrack on={on} />
     </Pressable>
   );
 }
-
-const SWITCH_WIDTH = 56;
-const SWITCH_HEIGHT = 32;
-const KNOB = 22;
 
 const styles = StyleSheet.create({
   row: {
@@ -58,22 +53,4 @@ const styles = StyleSheet.create({
     cursor: 'pointer' as const,
   },
   label: { flex: 1, fontWeight: '600' },
-  track: {
-    width: SWITCH_WIDTH,
-    height: SWITCH_HEIGHT,
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    borderWidth: borderWidth.regular,
-    borderColor: content.ink,
-    backgroundColor: content.paper2,
-  },
-  trackOn: { backgroundColor: content.accent },
-  knob: {
-    width: KNOB,
-    height: KNOB,
-    marginLeft: 3,
-    borderRadius: radius.pill,
-    backgroundColor: content.ink,
-  },
-  knobOn: { marginLeft: SWITCH_WIDTH - KNOB - 3 - 2 * borderWidth.regular, backgroundColor: content.paper },
 });
