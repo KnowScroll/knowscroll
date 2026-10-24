@@ -159,3 +159,8 @@ Apply with the new binary. 0055 (#246) runs first; 0056 only needs the earlier S
 0057 creates the `ops` views (#248, D-044): allowlisted columns over the owners' tables, `ops.safe_code`, and the journey
 view. Views only; no data. The views over pg-boss and the read-only role's grants are not here: `migrate.js` builds them
 after pg-boss has installed its schema (`infrastructure/postgres/ops-job-views.ts`).
+
+0062 adds one nullable column, `next_run_not_before`, to `geography.state` and `planner.state` (#231, D-052): the
+earliest time that person's next Cartographer or Planner run may start. A settled run sets it, and the next run's wake
+waits for it. Nothing is backfilled or constrained, so an older process leaves it null (no wait). Apply with the new
+binary; the generated database types change by the same two lines.

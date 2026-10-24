@@ -59,8 +59,8 @@ export async function applyProposal(
   const fresh = await prepareGeography(p, cap, view, c);
   if (!fresh || !(await p.ownerActive(scope))) return { kind: 'refused', reason: 'source_changed' };
   // New reading since the context was frozen does not void a proposal: it applies when every
-  // operation still holds on today's authority. Withdrawn, corrected or retracted support makes
-  // it fail here, and that is the only way an in-flight answer goes stale.
+  // operation still holds on today's authority. Support that was withdrawn, corrected or retracted
+  // makes it fail here as `source_changed`.
   const issue = proposalIssue(proposal, fresh.facts);
   if (issue) return { kind: 'refused', reason: fresh.factsSha256 === c.factsSha256 ? issue : 'source_changed' };
   if (!proposal.operations.length) return { kind: 'refused', reason: 'no_changes' };

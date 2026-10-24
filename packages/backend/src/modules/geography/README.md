@@ -3,7 +3,7 @@
 Geography owns the places in a person's universe: systems, their organising stars, planets, regions
 and routes. It decides when reading is enough to form one, records every change as an immutable
 delta, and offers the unlabelled dust cues that come before a system. Scene projection, rendering,
-navigation and sharing belong to other modules. Decisions: D-033, D-038. Tracker: #237.
+navigation and sharing belong to other modules. Decisions: D-033, D-038, D-052. Tracker: #237.
 
 Status words used below: **implemented** (in source, covered by `checks`), **runtime-verified**
 (seen working on a running API and worker), **planned**.
@@ -29,14 +29,24 @@ facet support today, so a Reel-only reader gets dust but no system until Reel co
 
 1. Evidence qualifies an encounter and Personal Context projects it. In the same transaction the
    material-change hook (`GEOGRAPHY_MATERIAL_CHANGE`) records a new desired revision and makes sure
-   one run exists for the person. Further changes coalesce into that run.
+   one run exists for the person. Further changes coalesce into that run. A new run's wake waits
+   until `geography.state.next_run_not_before`, which every settled run sets 30 seconds ahead
+   (`domain/pacing.ts`, D-052). Reading that keeps arriving is therefore one pending run, not one
+   run per encounter. An explicit request is not paced: it starts a run at once when none is pending and otherwise joins the pending one.
 2. The worker (`geography.cartograph`) claims the run and, in a short transaction, freezes a
    context: the canonical candidates, their stable IDs and labels, and the person's current
    positive support. Support comes from Personal Context's trusted coverage, which itself checks
    Evidence and Content under the person's root. A reader whose support is more than one context
-   holds gets the support the rules need (see Limits and degradation).
-3. The role `geography.cartographer` asks the model for a `cartographer-proposal.v1`. No model call
-   happens inside a database transaction.
+   holds gets the support the rules need (see Limits and degradation). The context is frozen when
+   the run starts, so a run that waited sees everything that arrived while it waited.
+3. Formation is the rules' decision (D-038), so a model has something to choose only when a place is
+   due. With none due, a reading-triggered run asks no model: it applies any activity change by the
+   rules, or settles `insufficient/no_changes`, with no ledger run. An explicit request
+   (`REQUEST_CARTOGRAPHY`) always asks the model.
+   Otherwise the role `geography.cartographer` asks the model for a `cartographer-proposal.v1`. The
+   context lists the places the rules entitle as ready `due` operations; the model returns them,
+   may pick another canonical label, and may add a route. No model call happens inside a database
+   transaction.
 4. Code picks what to apply (`planFor` in `application/run.ts`) and records it in the run's
    `outcome`:
    - `applied`: a valid proposal that already covers what the rules require;
@@ -48,19 +58,24 @@ facet support today, so a Reel-only reader gets dust but no system until Reel co
      place) or cannot share a delta with them (more than 32 operations);
    - nothing for an `unknown` attempt. It may still be reconciled, so the run stays `unknown` until
      an operator resumes it.
-5. One revision-checked transaction rechecks the owner, epoch, desired revision and the whole
+5. One revision-checked transaction rechecks the owner, epoch, geography revision and the whole
    current authority, applies all operations, writes the delta, advances the personal revision,
    enqueues `geography.publish-delta` and calls `GeographyApplied` so Scenes can project. Any
-   failure rolls everything back, including the ledger closure.
+   failure rolls everything back, including the ledger closure. Reading that arrived while the
+   model worked does not void a proposal: it applies when every operation still holds on today's
+   authority, and the later reading gets its own paced run. Withdrawn, corrected or retracted
+   support makes it `stale/source_changed`, and only then is a valid answer cancelled.
 6. An answer that is unusable with nothing due settles the run. The next qualified encounter
-   starts another one. Only an `unknown` attempt holds a run.
+   starts another one, which waits its interval. Only an `unknown` attempt holds a run.
 
 The harness can also refuse before it admits a run (`provider_unavailable`, `role_invalid`,
 `run_invalid`, `run_mismatch`, `context_invalid`, `context_insufficient`, `request_too_large`). No ledger run or attempt exists then,
 so there is nothing to close. When accounting proves nothing is retained, the rules are applied under
 the claim's own authority (same checks, same transaction); with nothing due the run is released with
 the refusal as its outcome. A refusal that does come from a ledger run which is already closed is
-settled the same way, without a second close.
+settled the same way, without a second close. If the ledger run was closed under the run (the idle
+sweep), nothing can be applied under it; the run settles by the rules the same way, once accounting
+shows no live attempt.
 
 ## What the model may propose, and what code checks
 
@@ -108,7 +123,8 @@ Context, Content's concept catalogue and Identity through their `public.ts`.
 
 `KS_CARTOGRAPHER_ENABLED=1` on the worker switches the role on (default 0). It is the only switch.
 Spend is bounded by the shared reasoning budgets and by the role's failure brake: five failed runs
-per UTC day stop its model calls, and the rules still form places. The worker also needs
+per UTC day stop its model calls, and the rules still form places. Runs are paced 30 seconds apart
+(`RUN_INTERVAL_MS` in `domain/pacing.ts`). The worker also needs
 `KS_REASONING_PROVIDER=minimax` and `MINIMAX_API_KEY`. With the switch off, a claimed run is
 released as `insufficient/disabled` without a model call and the person's cartography is not
 stranded: reading after the switch is on starts a new run. A run that older code parked as
@@ -118,7 +134,7 @@ stranded: reading after the switch is on starts a new run. A run that older code
 
 | Store | Purpose |
 |---|---|
-| `geography.state` | One row per universe and epoch: revisions (`revision`, `structureRevision`, `activityRevision`), desired and material revision, active run, published checkpoint |
+| `geography.state` | One row per universe and epoch: revisions (`revision`, `structureRevision`, `activityRevision`), desired and material revision, active run, published checkpoint, `next_run_not_before` (the pacing time) |
 | `geography.runs` | The business run: header, frozen private context (at most 512 KiB), proposal, outcome |
 | `geography.objects` | Places with stable semantic key and UUID, support references, retained structure |
 | `geography.relations` | Routes and retained aliases, withdrawn rows stay |
@@ -168,8 +184,11 @@ not no reading. `loading` and `lagging` need a real queued or prepared run.
 - **Discovery.** Candidate discovery refuses past 1000 raw coverage references or 256 KiB of keys;
   then the run settles as `coverage_unavailable` and the next reading tries again.
 - **One delta.** A run applies at most 32 operations. Anything still due is applied by the next run.
-- **Model and cost.** One run and one model call per material change; the shared reasoning budgets
-  and the failure brake bound spend.
+- **Model and cost.** A run makes a model call only when the rules entitle a place, or on an
+  explicit request, so calls follow formation events and not encounters. A call costs about 10,000
+  tokens and the first answer validates (the repair is the exception). Runs are paced 30 seconds
+  apart. The shared reasoning budgets (60 requests and 600,000 tokens per person per UTC day) and the
+  failure brake bound spend; a refused call applies the rules and closes its ledger run.
 
 ## Erasure
 
@@ -187,15 +206,21 @@ creation delta without its delivery fact fails the whole transaction at commit.
 
 ## Verification
 
-`checks` runs the pure rules and properties (`domain/*.test.ts`) and PostgreSQL integration suites:
+`checks` runs the pure rules and properties (`domain/*.test.ts`, `application/role.test.ts`) and
+PostgreSQL integration suites:
 `geography.test.ts` (authority, atomicity, replay, paging, erasure), `cartographer-formation.test.ts`
 (dust, system, planet, unrelated topics, inactivity, Clear with row counts, model failure, the failure
 brake, a role switched off, parked runs, refusals before admission, a conflicting proposal and a reader
-with more than 100 covered pairs) and
+with more than 100 covered pairs), `cartographer-churn.test.ts` (a burst of reading is one pending
+run, a valid answer applies while more reading arrives, no model call without a place due, budget
+refusal and a closed ledger run end the run) and
 `recording-geography.test.ts` (original generation and wake ownership). Sources, maps and model
 answers in tests are labelled CI fixtures. A local drive with a real sign-in, the release API and
 worker, three Scrolls from the production path and a real MiniMax call showed dust, then a system
-and star, then a planet (D-038).
+and star, then a planet (D-038). A timed local session (pg-boss consumers started as the worker
+starts them, real MiniMax, six Scrolls read 8 seconds apart) made three runs and one model call,
+which validated on the first answer; no ledger run was cancelled and the planet, system, star and
+two regions formed (D-052).
 
 ## Related
 

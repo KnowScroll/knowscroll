@@ -10,7 +10,8 @@ receive demand for content that does not exist yet.
 
 | Capability | State |
 |---|---|
-| Material evidence change queues one run per person | implemented, CI-verified |
+| Material evidence change queues one run per person, paced five minutes apart | implemented, CI-verified |
+| A valid plan is accepted although more evidence arrived; budget ends a run and closes its ledger run | implemented, CI-verified (D-052) |
 | Model role `personal-planner.v0` proposes, code validates and stores | implemented, CI-verified with an authored fixture model, run against the real model locally |
 | Composer reads the current plan | implemented, CI-verified |
 | Missing-supply opportunities become deferred supply demand | implemented, CI-verified |
@@ -30,12 +31,24 @@ Both paths do the same thing: raise `planner.state.desired_revision` and make su
 active run and one `planner.run` job exist for the person. Many changes while a run is active
 become one newer desired revision, not many jobs.
 
+Runs are paced (D-052). A settled run sets `planner.state.next_run_not_before` five minutes ahead
+(`domain/pacing.ts`), and the wake of the next run waits for it. Evidence that arrives meanwhile joins
+that pending run, which freezes its context when it starts. The first run after a quiet period starts at
+once. A request from the person is not paced: it starts a run at once when none is pending and otherwise joins the pending one.
+
 A run that stopped does not end the person's Planner. New evidence puts a `blocked` run (disabled, no
-provider, quota, budget, a refusal: nothing was sent) back in the queue by the same transition as an
+provider, quota, a refusal: nothing was sent) back in the queue by the same transition as an
 explicit resume, so a paid answer already kept in the ledger is reused, never paid for twice. An
 `unknown` run (a request may have been sent) is woken instead. The worker then retires it, and a
 successor with a new business run takes over, once the Reasoning ledger says its attempt is settled
 or the run is two hours old. The attempt is never resent; it stays in the ledger as a liability.
+
+Budget does not block a run. When the person's day of tokens or the failure brake refuses the call,
+the run ends `insufficient` (`budget_exhausted` or `failure_brake`), its ledger run is closed
+`cancelled` so nothing is left admitted, and the next evidence starts a new run (paced), which asks
+again. The same happens when the ledger run behind a run is found closed or spent (`run_closed`,
+`run_mismatch`, `attempts_exhausted`), for example after the idle sweep closed it: the run ends and a
+new business run takes over. A run that holds an `unknown` attempt never ends this way.
 
 `KS_PLANNER_ENABLED` is a switch on the worker. It defaults to `1` in the `local` world and to `0`
 elsewhere; the dev world sets it to `1` in its environment file. When it is `0`, a delivery stores
@@ -71,7 +84,11 @@ accepted (`opportunityIssue`, `diversify`):
 One repair attempt is allowed, with fixed hints. After the answer arrives code rechecks the same
 facts against the current database inside the accepting transaction. Accepted opportunities are
 diversified: one per explanation unit, at most two per move and at most two per topic, capped at
-three. A run that finishes after newer evidence arrived is stored as `stale` and a successor runs.
+three. A valid plan is accepted although more evidence arrived while the model worked: every
+opportunity is checked against today's evidence and inventory, and the evidence behind the plan is
+recorded as the context it was made from. The later evidence gets its own paced run. The plan is stored
+as `stale` only when the person asked for something else meanwhile (a new intent) or an opportunity no
+longer holds.
 
 ## Where the output goes
 
@@ -111,7 +128,7 @@ The full engine rules (attempt ledger, reservation, repair, quota, failure brake
 
 | Table | Holds | Notes |
 |---|---|---|
-| `planner.state` | desired and accepted revision, active run, intent | one row per person and epoch |
+| `planner.state` | desired and accepted revision, active run, intent, `next_run_not_before` (the pacing time) | one row per person and epoch |
 | `planner.runs` | one row per run: status, claim, wake IDs, recording origin, frozen context and its two hashes | the origin and context are written once |
 | `planner.revisions` | accepted opportunities per revision, with the attempt that produced them | only the latest three are read |
 | `pgboss/planner.run` | IDs-only jobs | the only work outbox |
@@ -154,6 +171,9 @@ Layout: `domain/proposal.ts` (schemas, `opportunityIssue`, `diversify`), `applic
 
 `tests/integration/modules/planner.test.ts` and `recording-planner.test.ts` cover receipts, wakes,
 claims, recovery, generations, privacy and erasure with an authored fixture model.
+`planner.test.ts` also covers the churn rules: a plan accepted while more evidence arrived and one paced
+successor, a plan staled by a new intent, a budget-refused run ended with its ledger run closed, and a run
+whose ledger run was closed starting over with a new one.
 `tests/integration/modules/planner-loop.test.ts` covers the connected loop: a qualified encounter
 queues the run in the same transaction, the worker accepts a plan, Composer ranks with it and Supply
 holds the deferred demand, and a Clear removes it all and fences a stale delivery. Fixture replies are

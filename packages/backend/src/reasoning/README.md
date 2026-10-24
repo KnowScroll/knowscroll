@@ -16,6 +16,7 @@ owns admission, budgets, transport, parsing, limits and attempt tracking. No too
 | Recording-aware personal roles (Planner, Cartographer) | Implemented in source and CI. The roles are off by default and the path has not run on a live system. |
 | Selective Clear accounting and erasure of a person's attempts | Implemented and CI-tested. |
 | Crash sweep and request purge jobs | Implemented, scheduled in the worker and CI-tested. |
+| Idle-run sweep: personal runs left `admitted` for six hours with no live attempt are closed `cancelled` | Implemented, in the five-minute sweep job and CI-tested (D-052). |
 | Operator commands | Implemented and runtime-verified from the built worker tree (`release/worker-operator-journey.test.ts`). |
 | Tool loops, a second queue, other providers | Not planned (blueprint §15). |
 
@@ -373,6 +374,11 @@ What settles:
 Accounting is deliberately conservative: input tokens include cache writes and the charge adds cache
 reads on top, which may count a cached read twice if MiniMax's `input_tokens` already includes it
 (an open question to check on the first real response on dev, `providers-and-secrets.md`).
+A refused admission leaves no reservation, but `admitRun` has already recorded the run, so a role that
+ends a run on `budget_exhausted` or `failure_brake` must close it (the Planner and the Cartographer
+do, D-052); the idle-run sweep closes any that is left. Measured on dev, a Cartographer call costs about
+10,000 tokens and a Planner call about 6,000, against the default per-person day of 60 requests and 600,000
+tokens; with the rules in D-052 a 30-minute reading session uses about 70,000.
 Erasing a universe deletes its attempts, which are what the **scope** cap counts, so a person who
 repeatedly clears their history gets a fresh per-scope allowance each time; the role and global caps
 count the receipts, which survive, and bound that (review m4: accepted, no change). Defaults and
@@ -390,7 +396,7 @@ sweep and the operator's reads take no root lock: they lock one attempt or recei
 
 | Queue                                 | Schedule                                | Work                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `reasoning.sweep-dispatched-attempts` | every 5 minutes (pg-boss cron, worker)  | Move attempts `dispatched` for longer than the request deadline + 2 minutes to `unknown` (`OUTCOME_NOT_RECORDED`, receipt `unknown`). A crash after dispatch leaves such an attempt; without the sweep nothing could see it (not `reasoning unknown`, not the write-off) and the universe's erasure waited on it for ever. Never resends; a late answer from a live handler still reconciles. |
+| `reasoning.sweep-dispatched-attempts` | every 5 minutes (pg-boss cron, worker)  | Move attempts `dispatched` for longer than the request deadline + 2 minutes to `unknown` (`OUTCOME_NOT_RECORDED`, receipt `unknown`). A crash after dispatch leaves such an attempt; without the sweep nothing could see it (not `reasoning unknown`, not the write-off) and the universe's erasure waited on it for ever. Never resends; a late answer from a live handler still reconciles. The same job closes personal runs left `admitted` that nobody has touched for six hours and that have no `reserved`, `dispatched` or `unknown` attempt and none settled within that time (`closeIdleRuns`, log `reasoning.idle_runs_closed`). They are leftovers of a role that ended without closing the run; the role finds `run_closed` and starts a new run. No attempt, charge or liability changes. |
 | `reasoning.purge-expired-requests`    | every 15 minutes (pg-boss cron, worker) | Delete protected request bytes past `expires_at`, in batches that skip locked rows, keeping those of `dispatched` attempts and settling expired `reserved` ones `not_sent` first. The attempt, its hash and its receipt stay. The harness also purges opportunistically (at most every 15 minutes per process).                                                                               |
 
 Model calls themselves are made inside the owning module's job handlers. A queue delivery is never
@@ -456,7 +462,7 @@ it is the usual rule that a bad setting stops the program. The API never receive
 
 `reasoning.provider_configured` (once at worker start), `admission_refused`, `attempt_reserved`,
 `quota_observed`, `attempt_dispatched`, `attempt_settled`, `attempt_written_off`, `dispatched_swept`,
-`requests_purged`, `purge_failed` carry run/attempt IDs, provider, model, role, prompt version,
+`idle_runs_closed`, `requests_purged`, `purge_failed` carry run/attempt IDs, provider, model, role, prompt version,
 outcome and reason **codes**, usage counts and durations. Never a prompt, context, answer, error
 message, URL or key. Failed jobs store code-only output.
 

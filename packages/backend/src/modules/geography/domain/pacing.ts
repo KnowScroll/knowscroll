@@ -3,7 +3,7 @@
  * long, so reading that keeps arriving becomes one pending run with a delayed wake. The delayed run
  * freezes its context when it starts, so it sees everything that arrived while it waited.
  */
-export const RUN_INTERVAL_MS = 30_000;
+const RUN_INTERVAL_MS = 30_000;
 
 /** The earliest the run after one that settles at `settledAt` may start. */
 export function nextRunNotBefore(settledAt: Date): string {

@@ -70,7 +70,7 @@ describe('Cartographer runs under continuous reading (real PostgreSQL CI fixture
     });
     const finished = run.run(await world.job(person, runId), signal());
     await flying;
-    return { runId, run, frozen: () => frozen, answer: answer.open, finished };
+    return { runId, run, frozen: () => frozen, answer: (scenario: FixtureScenario) => answer.open(scenario), finished };
   }
 
   it('turns a burst of reading into one pending run, and applies the answer that was in flight while more arrived', async () => {
@@ -133,6 +133,23 @@ describe('Cartographer runs under continuous reading (real PostgreSQL CI fixture
     expect(run.model.calls).toHaveLength(0);
     expect(await runsOf(person)).toEqual([{ id: runId, status: 'insufficient', outcome: 'no_changes' }]);
     expect(await ledgerOf(person)).toEqual([]);
+    expect((await state(person)).activeRunId).toBeUndefined();
+  });
+
+  it('completes the ledger run of a valid answer that concludes nothing needs changing', async () => {
+    const { database, fixture, observe, state, runner, job } = world;
+    const person = await seedPerson(database.db);
+    await observe(person, await fixture(undefined, topic, [facet]));
+    const asked = await world.request(person.authority, { commandId: randomUUID() });
+    if (asked.kind !== 'accepted') throw new Error('CI request refused');
+    const run = runner(person, () => ({
+      kind: 'success',
+      text: JSON.stringify({ version: 'cartographer-proposal.v1', operations: [] }),
+    }));
+    await run.run(await job(person, asked.runId), signal());
+    expect(run.model.calls).toHaveLength(1);
+    expect(await runsOf(person)).toEqual([{ id: asked.runId, status: 'insufficient', outcome: 'no_changes' }]);
+    expect(await ledgerOf(person)).toEqual(['completed']);
     expect((await state(person)).activeRunId).toBeUndefined();
   });
 
