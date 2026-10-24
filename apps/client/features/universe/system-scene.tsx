@@ -52,6 +52,11 @@ export function SystemScene({
     priority: descriptor.objectId === state.lastPlace?.id ? 2 : 1,
   }));
   // The stations of rooms whose topic is this system, or one of its planets: beside that planet, else below the orbits.
+  // The stage is small on a phone, so a station is kept inside it, clear of the header and the chips.
+  const inView = (point: { x: number; y: number }) => ({
+    x: Math.min(size.width - 52, Math.max(52, point.x)),
+    y: Math.min(size.height - 170, Math.max(150, point.y)),
+  });
   const here = (stations ?? [])
     .filter((station) => station.placement.systemId === system.objectId)
     .map((station) => {
@@ -61,16 +66,16 @@ export function SystemScene({
           : composition.planets.find(({ descriptor }) => descriptor.objectId === station.placement.planetId);
       if (planet) {
         const point = at(planet.position);
-        return { station, at: { x: point.x + planetRadius + 26, y: point.y + planetRadius + 14 } };
+        return { station, at: inView({ x: point.x + planetRadius + 26, y: point.y + planetRadius + 14 }) };
       }
       const offset = stationOffset(station.room.roomId, composition.bands, unit, 38);
-      return { station, at: { x: centre.x + offset.x, y: centre.y + offset.y } };
+      return { station, at: inView({ x: centre.x + offset.x, y: centre.y + offset.y }) };
     });
   for (const { station, at: spot } of here)
     requests.push({
       id: `station:${station.room.roomId}`,
       anchor: spot,
-      clearance: 18,
+      clearance: 30,
       width: labelWidth(station.room.name),
       height: LABEL_HEIGHT,
       priority: 0,
@@ -123,7 +128,7 @@ export function SystemScene({
           ) : null;
         })}
         {here.map(({ station, at: spot }) => (
-          <StationGlyph key={station.room.roomId} x={spot.x} y={spot.y} calm={state.lately} />
+          <StationGlyph key={station.room.roomId} x={spot.x} y={spot.y} scale={0.85} calm={state.lately} />
         ))}
         {parked ? (
           <ShipGlyph x={at(parked.position).x + planetRadius + 18} y={at(parked.position).y - planetRadius - 6} />

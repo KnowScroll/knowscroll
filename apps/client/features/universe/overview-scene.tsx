@@ -102,7 +102,7 @@ export function OverviewScene({ session, state, index, size, onDust, stations, o
       requests.push({
         id: `station:${station.room.roomId}`,
         anchor: at,
-        clearance: 16,
+        clearance: 30,
         width: labelWidth(station.room.name),
         height: LABEL_HEIGHT,
         priority: 0,
