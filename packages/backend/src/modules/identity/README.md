@@ -229,7 +229,9 @@ Supply checks it before and after Content authority waits, before resolver effec
 account suspension only. `withPersonalScope` still handles universe status/epoch; session/device
 sign-out does not revoke an already accepted private demand or impersonate the original actor.
 
-## Account authority fences (#246 prerequisite)
+## Account authority fences
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #246.
 
 `accountAccessUseCases({ db, lockTimeoutMs })` in `adapters/nest-providers.ts` builds the
 framework-free `FenceAccountPair`, `FenceOwnAccount` and internal `InvalidateOwnAccountAccess`
@@ -259,7 +261,9 @@ create a privacy completion receipt or expose a public endpoint. Session logout 
 meaning. Global socket disconnect remains a disposable notice with the existing relay/cache
 limits, not guaranteed instantaneous removal during relay outage.
 
-## Selective Clear durable core (#345)
+## Selective Clear: the durable core
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #345.
 
 `clearExplorationFor` is an opt-in outer factory. It does not register a normal queue, HTTP route,
 worker or client. Composition must provide the closed Reasoning accounting port and the complete
@@ -308,7 +312,9 @@ lifecycle handles these receipts explicitly. Omitting either declaration fails t
 inventory. Keeping them out of the ordinary universe eraser preserves that eraser's established
 semantics and assertions; tests separately prove lifetime receipts survive repeated selective Clear.
 
-### Bounded durable recovery (migration 0035)
+### Bounded durable recovery
+
+Related: migration 0035.
 
 The opt-in `recoverClearOperationsQueue` is a strict version-only cron every five minutes.
 `clearExplorationFor(...).recover()` discovers at most 25 existing operation IDs, then re-enters
@@ -345,14 +351,16 @@ different ceilings; exact operation locks, live-delivery rechecks and capped cou
 effects. This does not promise a global once-only scan or recovery while the queue/database stays
 unavailable. Missing/exhausted continuation deliveries are revisited by later scheduled passes.
 
-## Recording policy prerequisite (#381)
+## Recording policy (Pause and Resume)
+
+Status: implemented in source and CI; not exercised on a running system. Related: #381.
 
 `recordingPolicyFor(db,{lockTimeoutMs})` exposes opt-in `set` and `read` use cases over the strict
 recording-policy.v1 contracts. No controller, control, collection path or worker is installed.
 This prerequisite alone does not implement Pause: every evidence/growth owner must carry and
 fence original generations before the API and P02 can be exposed.
 
-0041 adds on/generation to the existing personal root, initial1/on, odd/on and even/off. A SQL
+0041 adds on/generation to the existing personal root, initial 1/on, odd/on and even/off. A SQL
 trigger allows only identical fields or exactly one generation increment with a boolean flip;
 Clear/epoch changes leave both fields untouched. No reset/wrap is possible. New accepted commands,
 including no-ops, advance the existing root revision once. Reads and replay never advance it.
@@ -360,7 +368,7 @@ including no-ops, advance the existing root revision once. Reads and replay neve
 Set enters the existing genuine personal root, then own-account UPDATE gate, then a fresh current
 root/account/epoch/barrier read BEFORE account-lifetime command lookup. The command key is
 (account,command UUID); it stores the exact original validated body (canonical hash, preserving
-UUID spelling), actual owner/root, requested epoch, from/to/on/changed/time and outcome version1.
+UUID spelling), actual owner/root, requested epoch, from/to/on/changed/time and outcome version 1.
 Changed bodies conflict. Fresh stale expectations refuse; an exact old authorized retry can
 recover its immutable ACK after later toggles or completed Clear without retoggling. An old ACK
 is not the current policy. Pure reads echo readId/target/current scope/root revision/policy and
@@ -369,7 +377,7 @@ separate historical command receipt. Neither read nor replay repairs or enqueues
 Identity's public `FencePersonalRecording(personal,originalGeneration)` is an additive capability
 for new durable personal contributions. Its Postgres implementation rechecks current root/owner,
 active account, epoch/barrier and original-current on generation under the already-held root.
-Undefined legacy generation is accepted ONLY initial1/on, and is permanently refused after any
+Undefined legacy generation is accepted ONLY initial 1/on, and is permanently refused after any
 actual toggle. It takes no second root, account-gate upgrade or lease. `RecordingScopeTx` and
 `recordingTransactionOf` preserve genuine personal capability lifetime and reject copied/fabricated
 or closed objects. This capability must be freshly checked at each later personal application;
@@ -382,10 +390,12 @@ authentication bypass, shared-production suspension or provider/accounting permi
 Authored synthetic lock/SQL/Clear fixtures run in Actions only; source/static/schema evidence is
 not deployed end-to-end Pause or disposable-account dev acceptance.
 
-## Fresh recording lifecycle (0044; source only)
+## Recording lifecycle witness
 
-Actual createAccount explicitly inserts mode1, whose root INSERT trigger atomically records the
-account/epoch1 birth witness. Disposable operator accounts use that same creation path. Existing
+Status: implemented in source and CI; not exercised on a running system. Related: migration 0044.
+
+Actual createAccount explicitly inserts mode 1, whose root INSERT trigger atomically records the
+account/epoch 1 birth witness. Disposable operator accounts use that same creation path. Existing
 NULL roots, timestamps, missing state and old Clear receipts cannot claim birth. The backend's
 `eraseCurrentExploration` runner runs the real registry's Clear erasers after the schema inventory
 passes, and issues a live ClearCoreTx proof. A test registry cannot issue it.
@@ -396,7 +406,7 @@ recording receipts retain their account-lifetime values.
 
 READ_RECORDING_LIFECYCLE takes a genuine RecordingScopeTx after the caller's sole owning-account
 UPDATE gate. It reads current owner/epoch/status/barrier/g plus the exact witness; it neither
-acquires another root/account lock nor repairs anything. Fresh, legacy_unknown, not_ready and unavailable are distinct. not_ready means a valid mode1
+acquires another root/account lock nor repairs anything. Fresh, legacy_unknown, not_ready and unavailable are distinct. not_ready means a valid mode 1
 root/current original generation and actual own fence, with its current owner/epoch witness
 absent. Necessary commands remain available with no eligible origin/session/credit; this never
 grants legacy fallback. Genuine authority/protocol/dependency failure remains a hard refusal. A private live scope brand is issued only by the actual successful own UPDATE/fresh read; root-only, pair-only and failed-own scopes are unavailable. Copied/closed scopes fail. Full erasure removes this exploration witness; account
@@ -408,7 +418,9 @@ their owning run rows. Runtime audit identity checks keep the exact scope, epoch
 and audit predicates with positional SQL arguments. No full Pause/runtime or deployment acceptance
 follows from static checks.
 
-## Account deletion (#246, D-043; implemented, runtime-verified)
+## Account deletion (D-043)
+
+Status: implemented, runtime-verified. Related: #246.
 
 **Request** (`POST /v1/account/delete`, one transaction): the caller's personal scope and own-account gate
 (`FOR UPDATE`) are taken; the operation row is inserted under the client's receipt id (a taken id writes
@@ -441,7 +453,9 @@ Limits: backups, provider-held copies (AgentMail's sent sign-in mail, MiniMax re
 are outside the deletion and the copy says so; a Clear that stays unfinished blocks deletion until it is
 recovered; native keeps its receipt id in memory only until the platform has a persistent store.
 
-## Personal data export (#246, D-043; implemented, runtime-verified)
+## Personal data export (D-043)
+
+Status: implemented, runtime-verified. Related: #246.
 
 `POST /v1/account/exports` records an export under the client's id and enqueues `identity.build-export` in one
 transaction (asking again while one prepares returns that one; the newest five are kept). The worker builds the

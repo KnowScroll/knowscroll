@@ -53,7 +53,7 @@ Hide/access/revision checks still happen at navigation commit.
 Evidence selects by `evaluated_at DESC, topic_id` through its owned matching index (`0020`,
 coordinator-approved), returns `recent_projected_topics.v0` and an honest `hasMore` sentinel.
 This is projection recency, **not global top activity**: stored A rows have different evaluation
-times. Callers union these IDs with actual plan/inventory/candidate topics under the total100-topic
+times. Callers union these IDs with actual plan/inventory/candidate topics under the total 100-topic
 bound; the statistics read evaluates every selected A/channel at one explicit time. Global top-K
 interest ranking is not implemented. No lifetime scan is performed to discover topics.
 
@@ -86,17 +86,17 @@ Evidence revision audit survives replacement until its own retention/erasure pol
 Tables reference the personal root with RESTRICT; erasure explicitly deletes all PC rows across
 epochs before Evidence/Experience. There are no PC caches, files, model artifacts or job payloads.
 
-Rollout: apply immutable ordered migrations0001–0020, bind the required derived effect in shipped
+Rollout: apply immutable ordered migrations 0001–0020, bind the required derived effect in shipped
 API/worker composition, then page the existing explicit activity reconciliation capability over
 actual activated exposures. Reconciliation must also test PC currency when Evidence is already
 current; completion of enumeration is not proof queued jobs finished. No scheduler or per-swipe
 lifetime reconstruction is allowed. Removing the PC consumer leaves its factual rows erasable;
-never rewrite migrations0001–0019 or reconstruct erased interest from saved items.
+never rewrite migrations 0001–0019 or reconstruct erased interest from saved items.
 
 Verification: pure source fixtures and real PostgreSQL integration fixtures run in GitHub Actions
 only. The exact A→B→A fixture pins both exposure and routing-lineage activation times, so its
 contributions have identical decay weights. Arbitrary distinct-time IEEE754 arithmetic may retain
-approximately1e-16 residue; this is not a claim of exact cancellation for every timestamp, and the
+approximately 1e-16 residue; this is not a claim of exact cancellation for every timestamp, and the
 Evidence arithmetic/policy remains unchanged. Local schema generation/typecheck are not runtime acceptance. #235 remains open until the
 coordinator deploys the reviewed consumer and inspects the context after actual reading on a
 disposable dev account.
@@ -118,13 +118,15 @@ the read and watermark are unchanged. The plan is not evidence and never feeds p
 
 The persisted input policy is personal-context.v0 and the versioned watermark binds PC revision,
 locked scope revision, latest projection and not_asserted completeness. Navigation uses the same
-watermark for its Composer snapshot. ProvisionalLimit0 avoids reading observation tails for this
+watermark for its Composer snapshot. ProvisionalLimit 0 avoids reading observation tails for this
 consumer; neither provisional references nor qualified structural/facet support enter its arithmetic.
 The adapter performs no writes, advances no revision and adds no stores/erasure entries. Both shipped
 API and worker instantiate it. Navigation requires its explicit token; legacy Evidence readers are
 available only through an opt-in compatibility-fixture provider, with no production fallback.
 
-## Separate trusted observed-coverage proofs (#237,0023)
+## Observed-coverage proofs
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #237, migration 0023.
 
 The legacy global `coveredFacets` array remains EMPTY and its snapshot's coverageAvailability stays
 unavailable; Composer's inputs, provisional routing and all interest/format arithmetic are unchanged.
@@ -143,7 +145,7 @@ last reference removes support. Existing PC state advances once if either projec
 Coverage-only correction references the actual current Evidence activity ID and appends no activity
 audit; replay of unchanged combined input changes neither revision nor hint.
 
-`ReadTrustedCoverage(scope,{probes})` accepts1–100 unique exact triples, <=64KiB query. One indexed
+`ReadTrustedCoverage(scope,{probes})` accepts 1–100 unique exact triples, <=64KiB query. One indexed
 bounded probe query retains<=1000 reference rows and refuses on its overflow sentinel. It validates
 stored hashes/epoch, batch-checks exact latest Evidence, rechecks current Content maps and locks
 <=100 canonical asset/head authorities, then repeats Evidence checks AFTER lock waits. All locks
@@ -157,7 +159,7 @@ distinct canonical units across multiple facet keys. Last current reference remo
 Returned exact certificate IDs/digests and witnesses
 make unit/facet support inspectable without raw observations or provenance text.
 
-Migration0023 adds `coverage_contributions` (current certificate<=16KiB plus real activity FK),
+Migration 0023 adds `coverage_contributions` (current certificate<=16KiB plus real activity FK),
 `coverage_references` (<=16 exact binding witnesses/exposure, indexed by requested topic/facet/unit),
 and `coverage_supports` (unit-bound reference counts). Counts are incremental projection state,
 not current authority until the live read revalidates. Retention is personal; erasure deletes
@@ -165,15 +167,15 @@ references/supports/certificates across all epochs BEFORE legacy PC, Evidence an
 No extra queue, scheduler, cache, provider payload or outbox exists. Admission never acquires a
 personal root; this consumer acquires personal first, then Content canonical SHARE authority.
 
-Rollout requires ordered0001–0023, reviewed API/worker composition, separately admitted exact real
+Rollout requires ordered 0001–0023, reviewed API/worker composition, separately admitted exact real
 semantic maps and explicit bounded existing reconciliation. Empty Content approvals remain empty.
 CI fixtures use synthetic semantic approvals only; no live map, observed dev coverage, provider,
 geography, planet, native/browser journey or deployment acceptance is established by source/CI.
 
 `READ_COVERAGE_INPUTS` (#237/0025 consumer) supplies a separate bounded candidate-discovery port:
 current PC revision plus deterministic topic/facet/explanation-unit triples. Each legacy/recording
-index supplies an ordered raw prefix of at most1001 references, using its existing probe index.
-The combined raw budget is1000, checked BEFORE bounded in-memory key deduplication; duplicate keys
+index supplies an ordered raw prefix of at most 1001 references, using its existing probe index.
+The combined raw budget is 1000, checked BEFORE bounded in-memory key deduplication; duplicate keys
 cannot hide an oversized history. No DISTINCT, grouping, shadow filtering or refill precedes the
 raw limit. At most 1000 distinct probes (and 256 KiB) are returned; a consumer reads them in batches of 100.
 Overflow returns `availability: unavailable`,
@@ -183,13 +185,15 @@ are NOT trusted supports, unit counts or formation authority. Geography must cal
 `ReadTrustedCoverage` under the SAME live root through apply, preserving Evidence/Content SHARE
 checks. No legacy coveredFacets, support arithmetic or semantic approval changes are made.
 
-## Recording pipeline prerequisite (#381, schema42)
+## Recording-aware projections
+
+Status: implemented in source and CI; not exercised on a running system. Related: #381, schema 42.
 
 The required Evidence effect implements four explicit methods. Legacy `apply/isCurrent` are an
-initial1 compatibility fixture boundary; new producers call `applyRecording/isRecordingCurrent`
+initial 1 compatibility fixture boundary; new producers call `applyRecording/isRecordingCurrent`
 with a genuine `RecordingScopeTx`. No fallback upgrades a personal transaction or omitted original
 generation. A converted exposure refuses legacy mutation; legacy writes also refuse after the
-initial on/generation1 policy. Current Content reads and historical source reads remain available
+initial on/generation 1 policy. Current Content reads and historical source reads remain available
 without authorizing new recording effects.
 
 `recording-activity.v1` separates `currentSegment` qualification/activity/certificate identity from
@@ -208,12 +212,12 @@ owners and input vector, without changing PC qualification, support or contribut
 `recording_segment_heads` retain exact generation source contribution/certificate identity. They
 are separate from the mutable one-exposure `recording_exposure_contributions` and
 `recording_coverage_contributions` caches. Old heads are sealed by the root generation; no toggle
-writes or historical backfill occur. Each of at most16 coverage binding slots holds a frozen base
-pointer and optional current pointer; at most16 selected effective references occupy the indexed
-`recording_coverage_references`. Slots are bounded to32KiB; structural/certificate payloads to16KiB.
+writes or historical backfill occur. Each of at most 16 coverage binding slots holds a frozen base
+pointer and optional current pointer; at most 16 selected effective references occupy the indexed
+`recording_coverage_references`. Slots are bounded to 32KiB; structural/certificate payloads to 16KiB.
 A new current proof replaces the selected binding, while a same-g correction can fall back to its
-committed baseline. Valid retained legacy1 certificates remain a separate source kind, including
-alongside a new generation1 head. Current head replacement and all affected current-g references
+committed baseline. Valid retained legacy 1 certificates remain a separate source kind, including
+alongside a new generation 1 head. Current head replacement and all affected current-g references
 commit atomically through the deferred complete-witness FK. Sealed source heads are never rewritten.
 
 Trusted coverage keys contain source kind, exposure, generation, actual activity ID, qualification
@@ -222,17 +226,17 @@ lock waits, repeated Evidence/Content checks and output. Exposure-only membershi
 to the explicit unconverted legacy checker. Frozen certificates resolve retained PC source heads
 or exact original legacy certificate rows, never the mutable effective cache or latest exposure
 audit. Current mapping changes can invalidate availability immediately, but cannot certify old raw
-input. At most16 bindings on each old/new side change the existing coverage support counts.
+input. At most 16 bindings on each old/new side change the existing coverage support counts.
 
-Legacy and recording coverage indexes each have a1001-row sentinel: at most2002 raw candidates,
-and a combined count above1000 refuses before hydration or shadow resolution. No anti-join scans
+Legacy and recording coverage indexes each have a 1001-row sentinel: at most 2002 raw candidates,
+and a combined count above 1000 refuses before hydration or shadow resolution. No anti-join scans
 arbitrary legacy history to fill a page. Supporting-unit reads use the same fixed two-source
-candidate budget for at most100 requested units. Overflow returns explicit backend
+candidate budget for at most 100 requested units. Overflow returns explicit backend
 `proofAvailability: unavailable` / `proofReason: limit`, empty qualified/supporting proofs and
 `completeness: not_asserted`; prepared statistics and routing remain usable. Coverage discovery
-independently reads at most1001 raw references per index (2002 total), refuses above1000 combined raw
+independently reads at most 1001 raw references per index (2002 total), refuses above 1000 combined raw
 references before deduplication, then enforces the 256 KiB size bound. Trusted
-coverage output retains its128KiB bound and does not claim historical completeness.
+coverage output retains its 128KiB bound and does not claim historical completeness.
 
 Clear/full erasure deletes recording coverage references first, then effective coverage and
 structural caches, then generation source heads, then all legacy PC tables. This precedes Evidence

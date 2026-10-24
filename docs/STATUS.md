@@ -37,11 +37,10 @@ Dev settings beyond the defaults (`/etc/knowscroll/dev.v2.env`, rendered from th
 
 ## Code to improve as you touch it
 
-- `reasoning/application/propose.ts`: `makeBoundPersonalHarness` is a long closure with shared mutable flags.
 - `modules/social`: the roster cursor is AES-encrypted with a process-random key (being fixed in the share slice).
-- `modules/*/adapters/erasure.ts`: each builds its Clear dispositions with the same boilerplate.
-- `reasoning/domain/output.ts`: walks Zod internals.
-- About 67 words are glued to numbers in READMEs ("Migration0028"), and some README tails are organised by issue number.
+- `reasoning/application/execute-attempt.ts`: `executeAttempt` is one 300-line function (ledger inspection, admission, quota, dispatch, settlement). Split it into named steps like `propose.ts`.
+
+Fixed in #250: `propose.ts` is split into admission, purge, primary and repair steps with the personal guard in `personal-guard.ts` (no shared flags); `output.ts` reads schemas through Zod's typed `def` in one place; every module builds its erasure declaration with `declareErasure`; words glued to numbers are spaced and README sections are named by behaviour.
 
 ## Active agents
 

@@ -10,7 +10,7 @@ installed API and worker in `tests/integration/release/account-http.test.ts`.
 
 ## What a module declares
 
-Each module exports a `ModuleErasure` from `adapters/erasure.ts`:
+Each module exports a `ModuleErasure` from `adapters/erasure.ts`, built with `declareErasure`:
 
 | Field | Meaning |
 |---|---|
@@ -22,6 +22,16 @@ Each module exports a `ModuleErasure` from `adapters/erasure.ts`:
 | `clearExploration` | What selective Clear does: a disposition per store (`erase`, `preserve`, `redact_accounting`, `external_retention`) and its own eraser. Saved items, friends, sign-in and financial records are kept. |
 | `eraseAccount` | Account deletion only: removes the module's account-keyed rows and account links after every `erase` has run. Required when the module declares `accountTables`, or `accountColumns` outside its own `tables`. Idempotent. |
 | `export` | What the person's export holds: `covers` (stores `read` reports on), `omits` (stores left out, each with its reason) and `read(scope, person)`, which returns bounded plain-JSON sections of the person's own records. Helpers: `exportReading` (one omit reason for the rest), `exportNothing`, `boundedSection`. |
+
+`declareErasure` (`declaration.ts`) builds the declaration in one expression, so nothing is
+assigned to it afterwards. The module writes its stores and `erase` as before, selective Clear as
+`clear: { defaultDisposition?, dispositions?, erase }` and the export as
+`export: (declaration) => exportNothing(declaration, reason)` (or `exportReading`). The helper gives
+every declared store the default disposition unless the module names an exception, and builds the
+export from the finished declaration so it can account for every declared store. With no
+`defaultDisposition`, each store needs a named disposition and start-up refuses an unnamed one
+(`CLEAR_DISPOSITION_MISSING`). A disposition for a store the module does not declare is kept, so
+the same check refuses it.
 
 ## How the registry is built
 

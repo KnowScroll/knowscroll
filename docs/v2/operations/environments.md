@@ -109,7 +109,9 @@ AgentMail file, or with `KS_ALLOW_OPERATOR_SIGN_IN=1` but no `KS_OPERATOR_SIGN_I
 API refuses to start and `ks` keeps the previous release; without the `ks2-<world>` user the v2
 units cannot start and `ks` refuses the v2 migrate).
 
-### Who the v2 programs run as (#226 review m6)
+### Who the v2 programs run as
+
+Related: #226.
 
 Each world's v2 programs (`ks2-api@`, `ks2-worker@`, and `ks`'s v2 migrate) run as the world's own
 v2 user `ks2-<world>` (system user, no login, in no other group), never as v1's `ks-<world>`. So
@@ -120,7 +122,9 @@ and hands the values to the program as its environment, and the units make `/etc
 v1's media folder invisible to the program (`InaccessiblePaths=`). The v2 media folder
 (`media-v2`, recursively) belongs to `ks2-<world>`. Only `ks2-api@` gets the AgentMail file; only `ks2-worker@` gets the MiniMax file.
 
-### The web app's headers (#226 review m7)
+### The web app's headers
+
+Related: #226.
 
 Caddy sends the v2 web app (recognised by the release's `web/_expo/` folder) the
 Content-Security-Policy in `roles/caddy/files/app-content-security-policy.txt` (with
@@ -149,14 +153,18 @@ by mail (`not_disposable`). Each issue leaves an audit row: `select world, issue
 operator_source, account_id from ops.operator_sign_ins order by issued_at desc` (as
 `postgres` on `knowscroll_v2_<world>`); `operator_source` is `cli:<SUDO_USER>`.
 
-### Looking at the system (#248)
+### Looking at the system
+
+Related: #248.
 
 `/operator` on the web app is the Operator screen for the accounts in the world's `KS_OPERATOR_ACCOUNTS`; on dev
 every `*@test.knowscroll.space` account qualifies until the list is set. `node dist/operator.js journey <id>` in the
 worker tree prints one record's timeline. The one-time `ks2_ops_reader` role for Grafana or psql is created by the
 owner. All of it is in `looking-at-the-system.md`.
 
-### Reasoning operator commands (worker tree; S2.2)
+### Reasoning operator commands (worker tree)
+
+Related: S2.2.
 
 The model harness records every external call in an attempt ledger. A call whose outcome is
 unknown (a timeout or reset after the request may have left) is never resent; MiniMax has no
@@ -180,7 +188,9 @@ attempt's reserved budget. `reasoning purge-expired` deletes expired protected r
 refused or not applicable, 1 failure. Protected request bytes hold personal model context: only
 the harness reads them; nothing here prints them.
 
-### Admitting the starter Scroll on dev or stage (D-005, #229)
+### Admitting the starter Scroll on dev or stage (D-005)
+
+Related: #229.
 
 The thin journey needs one admitted Scroll. The authored starter ships in the release tree and is admitted
 by the same operator program (no sign-in settings are needed; it touches no person's data). As root, with
@@ -305,7 +315,7 @@ For a v2 release:
    permits activation. Unknown/unreadable metadata, missing/deleted/reordered/duplicate migrations,
    extra migrations or differing SQL hashes refuse; `/health` identity alone is insufficient.
    The peer-authenticated read selects only this world's `knowscroll_v2_<world>` migration metadata,
-   with a five-second process bound and at most257 rows per table (more than256 refuses). It reads
+   with a five-second process bound and at most 257 rows per table (more than 256 refuses). It reads
    no legacy/owner/pool database, secret file, application payload or provider data.
    Then `current` → the new release; **`previous` is not touched yet** (m1).
 8. Stops whatever runs of v1 (`ks-world@<world>.target` and its four services) and disables its
