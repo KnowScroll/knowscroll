@@ -8,7 +8,8 @@ import { SignedInSaved } from './saved-screen';
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof React>('react');
   return {
-    useRouter: () => ({ navigate: jest.fn() }),
+    useRouter: () => ({ navigate: jest.fn(), push: jest.fn() }),
+    useLocalSearchParams: () => ({}),
     useFocusEffect: (effect: () => void | (() => void)) => useEffect(effect, [effect]),
   };
 });
@@ -111,6 +112,51 @@ it('pages past the old hundred-item ceiling with scoped server places and no mor
     expect(scope.storage.get('keep.place')).toBeUndefined();
   } finally {
     release();
+    await view.unmount();
+    scope.end();
+  }
+});
+
+/** E07: Requested is a view of Keep beside All, Reels and Scrolls; the saved list steps aside for it. */
+it('shows what was asked for in the Requested view and brings the saved list back with the other filters', async () => {
+  const scope = createAccountScope({
+    account: { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'requested@fixture.test' },
+    baseUrl: 'https://fixture.test',
+    authorization: () => undefined,
+    store: memoryStore(),
+    fetch: (request) => {
+      const url = new URL(request.url);
+      if (url.pathname === '/v1/content/requests')
+        return Promise.resolve(json({ version: 'content-request-list.v1', requests: [] }));
+      return Promise.resolve(
+        json({
+          pagination: 'saved-page.v1',
+          consistency: 'live',
+          filter: url.searchParams.get('filter'),
+          limit: 20,
+          scope: { accountId: id(1), privacyEpoch: 1 },
+          continuation: { status: 'end' },
+          revision: 1,
+          items: [],
+        }),
+      );
+    },
+  });
+  const view = await render(
+    <QueryClientProvider client={scope.queryClient}>
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <SignedInSaved scope={scope} />
+      </DisplayProvider>
+    </QueryClientProvider>,
+  );
+  try {
+    await screen.findByText('Nothing kept yet');
+    await fireEvent.press(screen.getByLabelText('Requested'));
+    await screen.findByText('Nothing requested yet');
+    expect(screen.queryByText('Nothing kept yet')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Reels'));
+    await waitFor(() => expect(screen.queryByText('Nothing requested yet')).toBeNull());
+  } finally {
     await view.unmount();
     scope.end();
   }

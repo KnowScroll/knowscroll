@@ -63,6 +63,8 @@ export interface EncounterState {
   readonly outcome?: NavigationOutcome;
   readonly actionPending?: boolean;
   readonly actionFailed?: boolean;
+  /** The ready Reel or Scroll the person asked for and opened from its notice; the encounter says so (E07). */
+  readonly askedFor?: { readonly assetId: string; readonly kind: 'reel' | 'scroll' };
   readonly overlay: boolean;
   readonly overlayOwner?: 'path' | 'request' | 'share';
   readonly surfaceRevision: number;
@@ -541,6 +543,12 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     if (!foreground || state.overlayOwner !== 'request') return false;
     if (!open(target)) return false;
     setOverlay(false);
+    const status = requests.getState().status;
+    if (status?.status === 'ready' && status.content.assetId === target.assetId) {
+      // Opened: the "ready" notice has done its job; the encounter itself says it is the one asked for.
+      requests.dismissNotice();
+      publish({ askedFor: { assetId: target.assetId, kind: status.content.metadata.kind } });
+    }
     return true;
   });
   const setOverlay = (overlay: boolean, overlayOwner: 'path' | 'request' | 'share' = 'path') => {
