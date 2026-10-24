@@ -27,6 +27,9 @@ function WithSound(props: ReelPlayerProps) {
 // The native SDK is a recording stand-in here; real playback belongs to browser/emulator evidence.
 jest.mock('expo-video', () => ({ VideoView: 'VideoView', useVideoPlayer: jest.fn() }));
 
+// The first render in this file also compiles the SVG icon set, which is slow on a cold CI runner.
+jest.setTimeout(20000);
+
 describe('Reel source renewal authority', () => {
   afterEach(() => {
     jest.useRealTimers();
