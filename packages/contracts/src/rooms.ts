@@ -252,6 +252,12 @@ export const RoomMessageSchema = z.discriminatedUnion('status', [
     ]),
     /** Present exactly when the author is an AI inhabitant. */
     suggestion: AiContributionKindSchema.optional(),
+    /**
+     * The reader is a moderator who has blocked the author. A block collapses the author's words for the
+     * reader (`blocked`), but a moderator must still be able to moderate them, so the words are sent and
+     * the client keeps them collapsed until the moderator chooses to show them.
+     */
+    blockedByYou: z.literal(true).optional(),
   }),
   /** A moderator removed it. It keeps its place; a moderator can restore it. */
   z.strictObject({ ...MessageIdentity, status: z.literal('removed') }),

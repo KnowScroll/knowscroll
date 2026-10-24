@@ -328,11 +328,12 @@ function OpenDiscussion({
   const backToRoom = () => (router.canGoBack() ? router.back() : router.replace(roomHref(roomId)));
   useDocumentTitle(state.view?.discussion.title ?? 'Discussion');
 
-  // Coming back from a full-screen encounter or a reader: the person's own visited markers may have changed.
+  // Coming back from a full-screen encounter, a reader or the Friends page: the person's own visited markers or
+  // blocks may have changed, and neither reaches catch-up, so the whole discussion is read afresh.
   const seen = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      if (seen.current) void controller.load();
+      if (seen.current) void controller.resnapshot();
       seen.current = true;
     }, [controller]),
   );

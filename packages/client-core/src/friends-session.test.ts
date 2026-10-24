@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { problemDetails } from '@knowscroll/contracts';
 import { createAccountScope, memoryStore } from './account-scope';
+import { blocksRevisionKey } from './blocks';
 import { createFriendsSession } from './friends-session';
 
 // Authored HTTP/state fixtures only. These do not establish actual social journeys.
@@ -247,6 +248,11 @@ describe('Friends ephemeral scoped session (authored fixtures)', () => {
       expect(h.calls[1]!.path).toBe(`/v1/social/friends/${operation}`);
       expect(h.session.getState().command.status).toBe('accepted');
       expect(h.session.getState().pair.status).toBe('idle');
+      // A block or unblock is announced to screens that show shared places (a room collapses a blocked person);
+      // no other command is.
+      expect(h.scope.queryClient.getQueryData<number>(blocksRevisionKey(h.scope))).toBe(
+        operation === 'block' || operation === 'unblock' ? 1 : undefined,
+      );
       h.scope.end();
     },
   );

@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import {
   TALK_QUERY_KEY,
+  blocksRevisionKey,
   createRoom,
   createRoomActivities,
   createRoomActivity,
@@ -73,6 +74,20 @@ export function useRoomDiscussion(
     });
     return () => subscription.remove();
   }, [controller]);
+  // A block or unblock changes what this discussion shows without giving any message a new change number, so
+  // catching up would never carry it: read the whole discussion afresh, here and now, without a remount.
+  const blocks = useQuery({
+    queryKey: blocksRevisionKey(scope),
+    queryFn: () => 0,
+    initialData: 0,
+    staleTime: Infinity,
+  }).data;
+  const blocksSeen = useRef(blocks);
+  useEffect(() => {
+    if (blocks === blocksSeen.current) return;
+    blocksSeen.current = blocks;
+    void controller.resnapshot();
+  }, [blocks, controller]);
   return { controller, state };
 }
 

@@ -22,6 +22,12 @@ import { enterRoom, type EnteredRoom } from './gate.js';
 import { ok, refuse, roomEnvelope, type ContentRef, type Result, type RoomLock, type RoomPorts } from './ports.js';
 import { roomSummary } from './view.js';
 
+/** Who is reading: their account, and whether they moderate (a moderator can still review a blocked author's words). */
+const viewerOf = (entered: EnteredRoom) => ({
+  accountId: entered.owner.accountId,
+  moderator: entered.member?.role === 'moderator',
+});
+
 /** How long the reader is told about an ask that ended without a contribution. */
 const UNANSWERED_ASK_MEMORY_MS = 10 * 60 * 1000;
 
@@ -191,7 +197,7 @@ export function makeDiscussionReads(p: RoomPorts) {
             inhabitants: asks.inhabitants,
             ...(asks.yourAsk === undefined ? {} : { yourAsk: asks.yourAsk }),
             latestMessageSequence: discussion.lastSequence,
-            messages: await viewRoomMessages(p, scope, lock, rows, entered.owner.accountId),
+            messages: await viewRoomMessages(p, scope, lock, rows, viewerOf(entered)),
             limit: query.limit,
             history:
               oldest && oldest.sequence > 1
@@ -243,7 +249,7 @@ export function makeDiscussionReads(p: RoomPorts) {
             status: 'ready',
             limit: query.limit,
             requestCursor: query.cursor,
-            messages: await viewRoomMessages(p, scope, lock, rows, entered.owner.accountId),
+            messages: await viewRoomMessages(p, scope, lock, rows, viewerOf(entered)),
             continuation:
               oldest && oldest.sequence > 1
                 ? {
@@ -284,7 +290,7 @@ export function makeDiscussionReads(p: RoomPorts) {
             after: position.afterChangeSequence,
             limit: query.limit,
           });
-          const views = await viewRoomMessages(p, scope, lock, rows, entered.owner.accountId);
+          const views = await viewRoomMessages(p, scope, lock, rows, viewerOf(entered));
           const last = rows.at(-1);
           const next = changesCursor.encode({
             discussionId: discussion.discussionId,
@@ -319,9 +325,10 @@ export function makeDiscussionReads(p: RoomPorts) {
           const unavailable = () => RoomSnippetOpeningSchema.parse({ ...envelope, status: 'unavailable' });
           const message = await p.discussions.messageById(lock, discussion.discussionId, query.messageId);
           if (message === undefined || message.hidden) return unavailable();
-          // A blocked author's card is collapsed for the blocker, and so is what it opens.
+          // A blocked author's card is collapsed for the blocker, and so is what it opens (a moderator may still review it).
           if (
             message.authorAccountId !== null &&
+            !viewerOf(entered).moderator &&
             (await p.blocked(scope, entered.owner.accountId, [message.authorAccountId])).has(message.authorAccountId)
           )
             return unavailable();

@@ -253,6 +253,7 @@ export {
 } from './availability-session';
 
 export { createFriendsSession } from './friends-session';
+export { announceBlocksChanged, blocksRevisionKey } from './blocks';
 export { createFriendsHttp, FriendsHttpError, FRIENDS_LIMITS } from './friends-http';
 export type {
   FriendsSession,

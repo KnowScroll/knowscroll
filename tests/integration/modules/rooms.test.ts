@@ -737,6 +737,49 @@ describe('idea rooms (real PostgreSQL)', () => {
       expect(JSON.stringify(await readDiscussion(world, asha, roomId, discussionId))).toContain('BLOCKED-WORDS after');
     });
 
+    it('lets a moderator who blocked an author still moderate them: the words arrive flagged, and can be removed', async () => {
+      const { roomId, slug } = await seedRoom(world);
+      const moderator = await seedFriend(world.db, world.friends);
+      unwrap(await joinRoom(world, moderator, roomId));
+      await makeModerator(world, slug, moderator);
+      const [member] = (await joined(world, roomId, 1)) as [Friend];
+      const discussionId = await startTopic(world, member, roomId, 'A topic');
+      const said = unwrap(await say(world, member, roomId, discussionId, 'WORDS TO MODERATE'));
+      unwrap(await friendCommand(world.friends, moderator, member, 'block'));
+
+      // A member who blocked them gets a marker; the moderator gets the words, flagged, to review and act on.
+      const asModerator = await readDiscussion(world, moderator, roomId, discussionId);
+      if (asModerator.status !== 'ready') throw new Error('expected ready');
+      expect(asModerator.messages[0]).toMatchObject({
+        status: 'available',
+        blockedByYou: true,
+        body: { text: 'WORDS TO MODERATE' },
+      });
+      const other = (await joined(world, roomId, 1))[0]!;
+      unwrap(await friendCommand(world.friends, other, member, 'block'));
+      const asMember = await readDiscussion(world, other, roomId, discussionId);
+      if (asMember.status !== 'ready') throw new Error('expected ready');
+      expect(asMember.messages[0]).toMatchObject({ status: 'blocked' });
+      expect(JSON.stringify(asMember)).not.toContain('WORDS TO MODERATE');
+      // Unblocked readers see no flag at all.
+      const stranger = (await joined(world, roomId, 1))[0]!;
+      expect(JSON.stringify(await readDiscussion(world, stranger, roomId, discussionId))).not.toContain('blockedByYou');
+
+      unwrap(
+        await world.rooms.hideMessage(moderator.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId,
+          discussionId,
+          messageId: said.messageId,
+          hidden: true,
+        }),
+      );
+      const after = await readDiscussion(world, moderator, roomId, discussionId);
+      if (after.status !== 'ready') throw new Error('expected ready');
+      expect(after.messages[0]).toMatchObject({ status: 'removed' });
+    });
+
     it('does not open a moment a blocked person shared', async () => {
       const { roomId } = await seedRoom(world);
       const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
